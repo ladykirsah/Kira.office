@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import worker, {
   applySyncToDb,
+  createProduct,
   importProducts,
   importShopeeOrders,
   lineGrossProfitSatang,
@@ -28,6 +29,7 @@ function makeDb(canned: {
   existing?: string[];
   available?: { variantId: string; available: number }[];
   existingOrders?: string[];
+  existingProduct?: { id: string } | null;
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -45,6 +47,11 @@ function makeDb(canned: {
         if (sql.includes("FROM sales_orders"))
           return { results: (canned.existingOrders ?? []).map((id) => ({ id })) as T[] };
         return { results: [] as T[] };
+      },
+      async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("FROM products WHERE product_code"))
+          return (canned.existingProduct ?? null) as T | null;
+        return null;
       },
     };
     return stmt;
@@ -195,6 +202,35 @@ describe("lineGrossProfitSatang", () => {
         unitCostSatang: 6000,
       }),
     ).toBe(4000);
+  });
+});
+
+describe("createProduct", () => {
+  it("creates a product + default variant", async () => {
+    const { db, batched } = makeDb({ existingProduct: null });
+    const out = await createProduct(db, { productCode: "P1", name: "Cream" });
+    expect(out.created).toBe(true);
+    expect(out.variantId).not.toBeNull();
+    expect(batched.length).toBe(2); // product + variant
+  });
+
+  it("also inserts a barcode row when a barcode is given", async () => {
+    const { db, batched } = makeDb({ existingProduct: null });
+    const out = await createProduct(db, { productCode: "P2", name: "Serum", barcode: "8850001" });
+    expect(out.created).toBe(true);
+    expect(batched.length).toBe(3); // product + variant + barcode
+  });
+
+  it("is idempotent: returns the existing product without inserting", async () => {
+    const { db, batched } = makeDb({ existingProduct: { id: "existing-1" } });
+    const out = await createProduct(db, { productCode: "P1", name: "Cream" });
+    expect(out).toEqual({ productId: "existing-1", variantId: null, created: false });
+    expect(batched.length).toBe(0);
+  });
+
+  it("rejects a missing required field", async () => {
+    const { db } = makeDb({});
+    await expect(createProduct(db, { productCode: "", name: "X" })).rejects.toThrow(/required/);
   });
 });
 

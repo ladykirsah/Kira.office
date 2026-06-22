@@ -1,0 +1,73 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { createProduct } from "@/lib/api";
+
+const field = { display: "grid", gap: 4 } as const;
+
+export default function NewProductPage() {
+  const [productCode, setProductCode] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setStatus("Saving…");
+    try {
+      const out = await createProduct({
+        productCode,
+        name,
+        description: description || undefined,
+        barcode: barcode || undefined,
+      });
+      if (out.created) {
+        setStatus(`Created “${productCode}”.`);
+        setProductCode("");
+        setName("");
+        setDescription("");
+        setBarcode("");
+      } else {
+        setStatus(`A product with code “${productCode}” already exists.`);
+      }
+    } catch (err) {
+      setStatus((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main>
+      <h1>Add product</h1>
+      <form onSubmit={submit} style={{ display: "grid", gap: 12, maxWidth: 440 }}>
+        <label style={field}>
+          Product code *
+          <input value={productCode} onChange={(e) => setProductCode(e.target.value)} required />
+        </label>
+        <label style={field}>
+          Name *
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label style={field}>
+          Description
+          <input value={description} onChange={(e) => setDescription(e.target.value)} />
+        </label>
+        <label style={field}>
+          Barcode (optional)
+          <input value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+        </label>
+        <button type="submit" disabled={busy} style={{ justifySelf: "start" }}>
+          Save
+        </button>
+      </form>
+      <p style={{ color: "#555" }}>{status}</p>
+      <p>
+        <a href="/products">← Products</a>
+      </p>
+    </main>
+  );
+}

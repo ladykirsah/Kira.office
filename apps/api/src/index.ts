@@ -319,6 +319,68 @@ export async function importShopeeOrders(
   };
 }
 
+export interface CreateProductInput {
+  productCode: string;
+  name: string;
+  description?: string;
+  barcode?: string;
+}
+
+export interface CreateProductResult {
+  productId: string;
+  /** null when the product already existed (created=false). */
+  variantId: string | null;
+  created: boolean;
+}
+
+/**
+ * Create a product + a default variant (sku = product_code) and, if a barcode is given, a primary
+ * barcode — in one D1 batch. Idempotent: returns the existing product (created=false) if the
+ * product_code is already used, so no orphan variants are produced. Throws on missing code/name.
+ */
+export async function createProduct(
+  db: D1Database,
+  input: CreateProductInput,
+): Promise<CreateProductResult> {
+  const code = input.productCode.trim();
+  const name = input.name.trim();
+  if (!code || !name) throw new Error("productCode and name are required");
+
+  const existing = await db
+    .prepare("SELECT id FROM products WHERE product_code = ?")
+    .bind(code)
+    .first<{ id: string }>();
+  if (existing) return { productId: existing.id, variantId: null, created: false };
+
+  const productId = crypto.randomUUID();
+  const variantId = crypto.randomUUID();
+  const barcode = input.barcode?.trim();
+  const now = Date.now();
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO products (id, product_code, name, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(productId, code, name, input.description?.trim() || null, "active", now),
+    db
+      .prepare(
+        `INSERT INTO product_variants (id, product_id, sku, barcode_primary, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(variantId, productId, code, barcode || null, "active", now),
+  ];
+  if (barcode) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO barcodes (id, product_variant_id, barcode_value, is_primary, is_internal_generated, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(crypto.randomUUID(), variantId, barcode, 1, 0, now),
+    );
+  }
+  await db.batch(statements);
+  return { productId, variantId, created: true };
+}
+
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     "SELECT id, product_code AS productCode, name, status FROM products ORDER BY created_at DESC LIMIT 100",
@@ -346,6 +408,14 @@ const worker = {
 
     if (url.pathname === "/products" && request.method === "GET") {
       return listProducts(env);
+    }
+
+    if (url.pathname === "/products" && request.method === "POST") {
+      const body = (await request.json()) as Partial<CreateProductInput>;
+      if (!body?.productCode || !body?.name) {
+        return json({ error: "productCode and name are required" }, 400);
+      }
+      return json(await createProduct(env.DB, body as CreateProductInput), 201);
     }
 
     if (url.pathname === "/import/products" && request.method === "POST") {
