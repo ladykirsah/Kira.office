@@ -4,6 +4,8 @@ import {
   partitionByClientUuid,
   parseCsv,
   mapRows,
+  dedupeOrders,
+  orderKey,
   type RowError,
   type SaleLineInput,
 } from "@l-shopee/core";
@@ -234,6 +236,78 @@ export async function importProducts(
   };
 }
 
+export interface OrderImportResult {
+  received: number;
+  /** Fresh orders inserted (deduped vs already-imported + in-batch). */
+  imported: number;
+  duplicates: number;
+  invalid: number;
+  errors: RowError[];
+}
+
+/**
+ * Import Shopee orders from a Seller Centre CSV export (the bridge before the live v2 API). Required
+ * field: `external_order_id`. Deduped by (channel, external_order_id) via core.dedupeOrders + an
+ * INSERT OR IGNORE on the unique index, so re-importing the same export never creates duplicates.
+ * Records order headers/status; full order lines + profit come from the API phase.
+ */
+export async function importShopeeOrders(
+  db: D1Database,
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<OrderImportResult> {
+  const rows = parseCsv(csv);
+  const { records, errors } = mapRows(rows, mapping, ["external_order_id"]);
+  const incoming = records.map((r) => ({
+    channel: "shopee" as const,
+    externalOrderId: r["external_order_id"] ?? "",
+    orderStatus: r["order_status"] ?? null,
+    paymentStatus: r["payment_status"] ?? null,
+  }));
+
+  let existingKeys: string[] = [];
+  const ids = incoming.map((o) => o.externalOrderId);
+  if (ids.length > 0) {
+    const existingRows = await db
+      .prepare(
+        `SELECT external_order_id AS id FROM sales_orders WHERE channel = 'shopee' AND external_order_id IN (${ids.map(() => "?").join(",")})`,
+      )
+      .bind(...ids)
+      .all<{ id: string }>();
+    existingKeys = (existingRows.results ?? []).map((r) =>
+      orderKey({ channel: "shopee", externalOrderId: r.id }),
+    );
+  }
+
+  const { fresh, duplicates } = dedupeOrders(existingKeys, incoming);
+  const now = Date.now();
+  const statements = fresh.map((o) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, imported_at, import_source)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        o.channel,
+        o.externalOrderId,
+        o.orderStatus,
+        o.paymentStatus,
+        now,
+        "csv",
+      ),
+  );
+  if (statements.length > 0) await db.batch(statements);
+  return {
+    received: Math.max(0, rows.length - 1),
+    imported: fresh.length,
+    duplicates: duplicates.length,
+    invalid: errors.length,
+    errors,
+  };
+}
+
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     "SELECT id, product_code AS productCode, name, status FROM products ORDER BY created_at DESC LIMIT 100",
@@ -266,6 +340,11 @@ const worker = {
     if (url.pathname === "/import/products" && request.method === "POST") {
       const body = (await request.json()) as { csv?: string; mapping?: Record<string, string> };
       return json(await importProducts(env.DB, body.csv ?? "", body.mapping ?? {}));
+    }
+
+    if (url.pathname === "/import/shopee-orders" && request.method === "POST") {
+      const body = (await request.json()) as { csv?: string; mapping?: Record<string, string> };
+      return json(await importShopeeOrders(env.DB, body.csv ?? "", body.mapping ?? {}));
     }
 
     if (url.pathname === "/sync" && request.method === "POST") {

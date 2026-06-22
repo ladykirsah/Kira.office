@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import worker, { applySyncToDb, importProducts, type Env } from "./index";
+import worker, { applySyncToDb, importProducts, importShopeeOrders, type Env } from "./index";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
 // Stub its DurableObject base so importing the Worker (which extends it) works in tests.
@@ -21,6 +21,7 @@ function makeDb(canned: {
   products?: unknown[];
   existing?: string[];
   available?: { variantId: string; available: number }[];
+  existingOrders?: string[];
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -35,6 +36,8 @@ function makeDb(canned: {
           return { results: (canned.existing ?? []).map((u) => ({ clientUuid: u })) as T[] };
         if (sql.includes("SUM(quantity_delta)"))
           return { results: (canned.available ?? []) as T[] };
+        if (sql.includes("FROM sales_orders"))
+          return { results: (canned.existingOrders ?? []).map((id) => ({ id })) as T[] };
         return { results: [] as T[] };
       },
     };
@@ -172,5 +175,18 @@ describe("importProducts (CSV catalog import)", () => {
       errors: [{ rowIndex: 2, reason: "missing required field: name" }],
     });
     expect(batched.length).toBe(1); // one INSERT for the valid row
+  });
+});
+
+describe("importShopeeOrders (CSV order bridge)", () => {
+  it("imports fresh orders, skips already-imported and in-batch duplicates", async () => {
+    const { db, batched } = makeDb({ existingOrders: ["A"] });
+    const out = await importShopeeOrders(
+      db,
+      "external_order_id,order_status\nA,paid\nB,paid\nB,paid\n",
+      { external_order_id: "external_order_id", order_status: "order_status" },
+    );
+    expect(out).toEqual({ received: 3, imported: 1, duplicates: 2, invalid: 0, errors: [] });
+    expect(batched.length).toBe(1);
   });
 });
