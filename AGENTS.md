@@ -14,7 +14,7 @@ barcode-based **offline-first** on-site sales, pricing (THB, 7% VAT), financial 
 Backend runs on the **Cloudflare developer platform** — full design in
 [docs/CLOUDFLARE_ARCHITECTURE.md](docs/CLOUDFLARE_ARCHITECTURE.md).
 
-- Monorepo via **npm workspaces**; **Node 20+** (LTS recommended). No pnpm.
+- Monorepo via **npm workspaces**; **Node 22** (Wrangler requires ≥22; `.nvmrc` + CI pin it). No pnpm.
 - `apps/admin` — Next.js + TypeScript admin UI and offline-first POS, deployed to **Workers** via the **OpenNext** adapter (PWA).
 - `apps/api` — **Cloudflare Worker** for the API, offline-sync endpoint, Shopee adapter, and queue consumers.
 - `packages/db` — **D1** schema + migrations via **Drizzle** (`drizzle-kit` → `wrangler d1 migrations apply`).

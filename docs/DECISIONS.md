@@ -64,7 +64,7 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 | Secrets | **Secrets Store / Worker secrets**; local dev via `.dev.vars` (never committed) |
 | Auth | **Cloudflare Access (Zero Trust)** in front + app-level RBAC (4 roles) |
 | Edge security | WAF, Rate Limiting, Turnstile, managed TLS, DNS |
-| Monorepo | **npm workspaces**; **Node 20+** (LTS recommended), no pnpm |
+| Monorepo | **npm workspaces**; **Node 22** (Wrangler requires ≥22; pinned via `.nvmrc` + CI), no pnpm |
 | Core logic package | `packages/core` — pure TypeScript, framework-free, **TDD-first** |
 | Tests | **Vitest**; browser tests for critical flows later |
 | Barcode input | USB scanner (keyboard emulation) as baseline; camera + manual entry as fallback |
