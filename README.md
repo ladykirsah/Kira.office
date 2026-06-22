@@ -6,13 +6,17 @@ from one workspace.
 
 ## Current Status
 
-- Documentation locked against confirmed owner decisions — see [docs/DECISIONS.md](docs/DECISIONS.md).
-- Monorepo scaffolded (Next.js/TypeScript + npm workspaces). App UIs not yet initialized.
-- `packages/core` pricing/profit engine implemented test-first (Vitest).
+- **Live API on Cloudflare:** the `kiraoffice` Worker is deployed at **`https://api.homeseeker.me`**
+  (homeseeker account), backed by **D1** (`kira-office`, APAC) and **KV**, auto-deployed from `main`
+  via Workers Builds. GitHub CI (lint/typecheck/test) is green.
+- **Live endpoints:** `GET /health`, `POST /pricing/preview`, `GET /products`, `POST /sync`
+  (idempotent offline-sale persistence + stock ledger).
+- `packages/core` — pure domain logic (pricing/tax/cost/stock/terms/sync/orders/imports/finance),
+  built test-first (88 tests). `packages/db` — Drizzle D1 schema, 16 tables migrated.
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
-  sellers. The back office is built to run fully without the API (CSV bridge meanwhile).
-- **GitHub push is paused**: the logged-in `gh` account (`janPhat`) cannot push to the
-  `ladykirsah` account — see [docs/GITHUB_CHECKLIST.md](docs/GITHUB_CHECKLIST.md).
+  sellers; the back office runs fully without it (CSV bridge meanwhile).
+- **Next:** R2 for images (enable R2 in the dashboard), the serialized stock-ledger Durable Object,
+  Queues + Cron for Shopee sync, and the Next.js admin UI.
 
 ## Confirmed Scope
 
