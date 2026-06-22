@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import worker, { applySyncToDb, importProducts, importShopeeOrders, type Env } from "./index";
+import worker, {
+  applySyncToDb,
+  importProducts,
+  importShopeeOrders,
+  lineGrossProfitSatang,
+  type Env,
+} from "./index";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
 // Stub its DurableObject base so importing the Worker (which extends it) works in tests.
@@ -175,6 +181,20 @@ describe("importProducts (CSV catalog import)", () => {
       errors: [{ rowIndex: 2, reason: "missing required field: name" }],
     });
     expect(batched.length).toBe(1); // one INSERT for the valid row
+  });
+});
+
+describe("lineGrossProfitSatang", () => {
+  it("computes revenue-ex-tax minus cost (107 incl VAT7, cost 60 -> 4000 satang)", () => {
+    expect(
+      lineGrossProfitSatang({
+        productVariantId: "v1",
+        quantity: 1,
+        unitPriceSatang: 10700,
+        taxSatang: 700,
+        unitCostSatang: 6000,
+      }),
+    ).toBe(4000);
   });
 });
 

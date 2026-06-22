@@ -47,6 +47,17 @@ export interface SyncResult {
 const json = (data: unknown, status = 200): Response => Response.json(data, { status });
 
 /**
+ * Per-line gross profit in satang for an on-site sale line: (price·qty − discount − tax) − cost·qty.
+ * Tax is the VAT portion the line carries (POS computes it via @l-shopee/core); revenue is ex-VAT.
+ */
+export function lineGrossProfitSatang(line: SyncLine): number {
+  const gross = line.unitPriceSatang * line.quantity;
+  const revenueExTax = gross - (line.discountSatang ?? 0) - (line.taxSatang ?? 0);
+  const cost = (line.unitCostSatang ?? 0) * line.quantity;
+  return revenueExTax - cost;
+}
+
+/**
  * Idempotent offline-sale persistence against D1. Dedupes by client_uuid (server-applied + in-batch),
  * applies stock as ledger deltas (blocking oversell, surfaced as conflicts), and writes sale + lines
  * + ledger in one D1 batch. Always invoked through the StockLedger Durable Object so concurrent syncs
@@ -129,7 +140,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
             line.discountSatang ?? 0,
             line.taxSatang ?? 0,
             line.unitCostSatang ?? 0,
-            0,
+            lineGrossProfitSatang(line),
           ),
         db
           .prepare(
