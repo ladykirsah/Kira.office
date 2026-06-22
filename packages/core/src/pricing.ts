@@ -128,3 +128,68 @@ export function summarizeSale(lines: SaleLineInput[]): SaleSummary {
     grossMarginPct: salesExTaxTotal === 0 ? 0 : round2((grossProfitTotal / salesExTaxTotal) * 100),
   };
 }
+
+export interface TargetMarginInput {
+  landedUnitCost: number;
+  /** Desired gross margin on ex-VAT revenue, as a percent (e.g. 40 for 40%). */
+  targetMarginPct: number;
+  vatRate?: number;
+  priceIncludesVat?: boolean;
+  isTaxable?: boolean;
+  channel: SaleChannel;
+  fees?: MarketplaceFeeRates;
+}
+
+export interface SuggestedPrice {
+  /** Price to list (VAT-inclusive amount when priceIncludesVat, else the pre-VAT price). */
+  unitPrice: number;
+  /** What the buyer pays. */
+  buyerPrice: number;
+  /** Seller revenue excluding VAT. */
+  salesExTax: number;
+}
+
+/**
+ * Inverse of computeSaleProfit: the unit price that achieves a target gross margin, accounting for
+ * VAT (inclusive/exclusive) and online percentage fees that scale with price. Throws if the target
+ * margin is infeasible for the given fees/cost. Round-trips through computeSaleProfit (±1 satang).
+ */
+export function suggestPriceForTargetMargin(input: TargetMarginInput): SuggestedPrice {
+  const {
+    landedUnitCost,
+    targetMarginPct,
+    vatRate = 0,
+    priceIncludesVat = false,
+    isTaxable = true,
+    channel,
+    fees,
+  } = input;
+
+  const m = targetMarginPct / 100;
+  const rate = isTaxable ? vatRate : 0;
+
+  let percentRate = 0;
+  let fixedFee = 0;
+  let feeBaseIsBuyerPrice = true;
+  if (channel === "online" && fees) {
+    percentRate =
+      (fees.commissionRate ?? 0) + (fees.transactionFeeRate ?? 0) + (fees.serviceFeeRate ?? 0);
+    fixedFee = fees.fixedFee ?? 0;
+    feeBaseIsBuyerPrice = fees.feeBase !== "ex_tax";
+  }
+
+  // buyerPrice = salesExTax * (1 + rate); fee base is buyerPrice (k = 1+rate) or salesExTax (k = 1).
+  // salesExTax * m = salesExTax(1 − k·percentRate) − fixedFee − landedCost  =>  solve for salesExTax.
+  const k = feeBaseIsBuyerPrice ? 1 + rate : 1;
+  const denominator = 1 - k * percentRate - m;
+  if (denominator <= 0) {
+    throw new Error("target margin infeasible for the given cost and fees");
+  }
+
+  const salesExTaxRaw = (fixedFee + landedUnitCost) / denominator;
+  const salesExTax = round2(salesExTaxRaw);
+  const buyerPrice = round2(salesExTaxRaw * (1 + rate));
+  // Listed unit price: VAT-inclusive => the buyer price; otherwise the pre-VAT price.
+  const unitPrice = priceIncludesVat ? buyerPrice : salesExTax;
+  return { unitPrice, buyerPrice, salesExTax };
+}

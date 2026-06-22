@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSaleProfit, summarizeSale } from "./pricing";
+import { computeSaleProfit, summarizeSale, suggestPriceForTargetMargin } from "./pricing";
 
 describe("computeSaleProfit", () => {
   it("on-site, VAT-inclusive > profit excludes any marketplace fee", () => {
@@ -170,5 +170,56 @@ describe("summarizeSale > aggregates lines into sale totals", () => {
     expect(s.discountTotal).toBe(10.7);
     expect(s.salesExTaxTotal).toBe(90);
     expect(s.grossProfitTotal).toBe(30);
+  });
+});
+
+describe("suggestPriceForTargetMargin (inverse of computeSaleProfit)", () => {
+  it("on-site, VAT-inclusive, 40% target > 107 (round-trips exactly)", () => {
+    const s = suggestPriceForTargetMargin({
+      landedUnitCost: 60,
+      targetMarginPct: 40,
+      vatRate: 0.07,
+      priceIncludesVat: true,
+      channel: "onsite",
+    });
+    expect(s.salesExTax).toBe(100);
+    expect(s.unitPrice).toBe(107);
+    const r = computeSaleProfit({
+      unitPrice: s.unitPrice,
+      quantity: 1,
+      vatRate: 0.07,
+      priceIncludesVat: true,
+      landedUnitCost: 60,
+      channel: "onsite",
+    });
+    expect(r.grossMarginPct).toBe(40);
+  });
+
+  it("online with fees round-trips to ~target margin", () => {
+    const fees = { commissionRate: 0.05, transactionFeeRate: 0.02, fixedFee: 2 };
+    const s = suggestPriceForTargetMargin({
+      landedUnitCost: 60,
+      targetMarginPct: 30,
+      vatRate: 0.07,
+      priceIncludesVat: true,
+      channel: "online",
+      fees,
+    });
+    const r = computeSaleProfit({
+      unitPrice: s.unitPrice,
+      quantity: 1,
+      vatRate: 0.07,
+      priceIncludesVat: true,
+      landedUnitCost: 60,
+      channel: "online",
+      fees,
+    });
+    expect(r.grossMarginPct).toBeCloseTo(30, 0);
+  });
+
+  it("throws when the target margin is infeasible", () => {
+    expect(() =>
+      suggestPriceForTargetMargin({ landedUnitCost: 60, targetMarginPct: 100, channel: "onsite" }),
+    ).toThrow(/infeasible|margin/i);
   });
 });

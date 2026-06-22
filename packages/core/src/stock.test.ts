@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { availableFromLedger, applyMovement, applyMovements, applyMovementsSafe } from "./stock";
+import {
+  availableFromLedger,
+  applyMovement,
+  applyMovements,
+  applyMovementsSafe,
+  availableOf,
+  reserve,
+  release,
+  fulfillReservation,
+} from "./stock";
 
 describe("stock ledger", () => {
   it("available = sum of deltas", () => {
@@ -75,5 +84,32 @@ describe("applyMovementsSafe > flag-and-continue for the sync path", () => {
     const r = applyMovementsSafe({ v1: 5 }, [{ productVariantId: "v1", quantityDelta: -5 }]);
     expect(r.conflicts).toEqual([]);
     expect(r.available).toEqual({ v1: 0 });
+  });
+});
+
+describe("reserved/available stock model", () => {
+  it("available = on hand − reserved", () => {
+    expect(availableOf({ onHand: 10, reserved: 3 })).toBe(7);
+  });
+
+  it("reserve reduces available, blocks over-reservation", () => {
+    expect(reserve({ onHand: 10, reserved: 0 }, 4)).toEqual({ onHand: 10, reserved: 4 });
+    expect(() => reserve({ onHand: 5, reserved: 3 }, 5)).toThrow(/negative|reserve/i);
+  });
+
+  it("reserve permits over-reservation with owner override", () => {
+    expect(reserve({ onHand: 5, reserved: 3 }, 5, { allowNegative: true })).toEqual({
+      onHand: 5,
+      reserved: 8,
+    });
+  });
+
+  it("release lowers reservation, never below zero", () => {
+    expect(release({ onHand: 10, reserved: 4 }, 2)).toEqual({ onHand: 10, reserved: 2 });
+    expect(release({ onHand: 10, reserved: 1 }, 5)).toEqual({ onHand: 10, reserved: 0 });
+  });
+
+  it("fulfillReservation reduces both on hand and reserved", () => {
+    expect(fulfillReservation({ onHand: 10, reserved: 4 }, 4)).toEqual({ onHand: 6, reserved: 0 });
   });
 });

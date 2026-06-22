@@ -8,3 +8,4 @@ export * from "./sync";
 export * from "./orders";
 export * from "./imports";
 export * from "./finance";
+export * from "./shopee";

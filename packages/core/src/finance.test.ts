@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSaleFinanceRecords } from "./finance";
+import { buildSaleFinanceRecords, buildRefundFinanceRecords } from "./finance";
 import { summarizeSale } from "./pricing";
 
 describe("buildSaleFinanceRecords", () => {
@@ -50,5 +50,35 @@ describe("buildSaleFinanceRecords", () => {
       (r) => r.recordType === "marketplace_fee",
     );
     expect(fee?.amountSatang).toBe(949);
+  });
+});
+
+describe("buildRefundFinanceRecords", () => {
+  const onsite = summarizeSale([
+    {
+      unitPrice: 107,
+      quantity: 1,
+      vatRate: 0.07,
+      priceIncludesVat: true,
+      landedUnitCost: 60,
+      channel: "onsite",
+    },
+  ]);
+
+  it("reverses a sale's postings with negated amounts and a refund revenue line", () => {
+    const records = buildRefundFinanceRecords("onsite", onsite);
+    const byType = Object.fromEntries(records.map((r) => [r.recordType, r.amountSatang]));
+    expect(byType).toEqual({
+      refund: -10000,
+      product_cost: -6000,
+      gross_profit: -4000,
+      vat_collected: -700,
+    });
+  });
+
+  it("labels the revenue line 'cancellation' when kind is cancellation", () => {
+    const records = buildRefundFinanceRecords("onsite", onsite, "cancellation");
+    expect(records.some((r) => r.recordType === "cancellation")).toBe(true);
+    expect(records.some((r) => r.recordType === "refund")).toBe(false);
   });
 });

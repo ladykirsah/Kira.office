@@ -115,3 +115,36 @@ export function applyMovementsSafe(
   }
   return { available: next, entries, conflicts };
 }
+
+export interface StockState {
+  onHand: number;
+  reserved: number;
+}
+
+/** Available = on hand − reserved. */
+export function availableOf(state: StockState): number {
+  return state.onHand - state.reserved;
+}
+
+/** Reserve units for a pending order. Blocks if available would go negative (unless overridden). */
+export function reserve(
+  state: StockState,
+  qty: number,
+  options: ApplyMovementOptions = {},
+): StockState {
+  const reserved = state.reserved + qty;
+  if (state.onHand - reserved < 0 && !options.allowNegative) {
+    throw new Error("cannot reserve more than available stock without owner override");
+  }
+  return { onHand: state.onHand, reserved };
+}
+
+/** Release a prior reservation (e.g. order cancelled), never below 0 reserved. */
+export function release(state: StockState, qty: number): StockState {
+  return { onHand: state.onHand, reserved: Math.max(0, state.reserved - qty) };
+}
+
+/** Fulfill a reservation on sale completion: reduce both on hand and reserved. */
+export function fulfillReservation(state: StockState, qty: number): StockState {
+  return { onHand: state.onHand - qty, reserved: Math.max(0, state.reserved - qty) };
+}
