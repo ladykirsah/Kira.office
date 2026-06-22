@@ -1,5 +1,5 @@
 {
-  "name": "l-shopee-backoffice",
+  "name": "kira-office",
   "version": "0.0.0",
   "private": true,
   "description": "Admin back-office for a Shopee Thailand seller: products, inventory, offline-first barcode POS, pricing/profit, sales & finance, and (later) Shopee sync.",

@@ -1,49 +1,36 @@
-# GitHub Checklist
+# GitHub
 
-Target: **private** repository named **`l-shopee-backoffice`**, owner intended to be
-**`ladykirsah`** (from the profile URL https://github.com/ladykirsah).
+## ✅ Status: published
 
-## ⛔ Blocker: account mismatch
+- Repo: **[`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office)** — **private**,
+  default branch **`main`**, CI green.
+- The npm workspace root is named `kira-office` (npm names can't contain uppercase or match
+  `Kira.office`); only the GitHub repo uses `Kira.office`.
 
-The local GitHub CLI is authenticated as **`janPhat`** (only org membership: `mygogocash`).
-`ladykirsah` is a **separate personal account**, so `janPhat` **cannot create or push** a repo
-under `ladykirsah`. Resolve one of these before pushing:
+## How it was set up
 
-- **Option A (recommended): log in as `ladykirsah`.** The owner runs `gh auth login` (or provides
-  a Personal Access Token with `repo` scope for `ladykirsah`), then we push.
-- **Option B: create under `mygogocash`** (the org `janPhat` can access) if that org is the
-  owner's business and acceptable: `gh repo create mygogocash/l-shopee-backoffice --private`.
-- **Option C: owner pre-creates the repo** at `ladykirsah/l-shopee-backoffice` (private) and adds
-  `janPhat` as a collaborator with write access; then we add the remote and push.
-- **Option D: push under `janPhat`** as a temporary home, transfer to `ladykirsah` later.
-
-## Local Setup (already done in this folder)
+The owner authenticated as `ladykirsah` (`gh auth login`), then:
 
 ```bash
-git init            # already a git repo
-git branch -M main  # default branch
-git add . && git commit -m "..."
+gh repo create ladykirsah/Kira.office --private
+git remote add origin https://github.com/ladykirsah/Kira.office.git
+git push -u origin HEAD:main
 ```
 
-## Push — Existing Remote
+> History note: the repo was first created as `l-shopee-backoffice` and renamed to `Kira.office`
+> with `gh repo rename`. GitHub auto-redirects the old name, but the local remote URL was updated.
+
+## Pushing future changes
 
 ```bash
-git remote add origin <repo-url>
-git push -u origin main
+git push                      # current branch tracks origin/main
+# or open a PR from a feature branch:
+git push -u origin <branch> && gh pr create --base main
 ```
 
-## Push — New Repo via GitHub CLI (once the account is correct)
+## Pre-push checklist
 
-```bash
-# only after resolving the blocker above
-gh repo create <owner>/l-shopee-backoffice --private --source=. --remote=origin --push
-```
-
-Use `--public` only with explicit owner approval (default is private).
-
-## Pre-Push Check
-
-- No `.env` or secrets committed (`.gitignore` covers `.env*`).
-- Docs reflect current decisions (DECISIONS.md is the source of truth).
-- Correct remote URL and owner account.
-- Owner approved visibility (private).
+- No `.env`, `.dev.vars`, or real `wrangler.jsonc` ids/secrets committed (`.gitignore` covers them).
+- Docs reflect current decisions ([DECISIONS.md](DECISIONS.md) is the source of truth).
+- Tests / lint / typecheck green (`npm test && npm run lint && npm run typecheck`).
+- Confirm the active `gh` account before pushing (`gh api user --jq .login`).

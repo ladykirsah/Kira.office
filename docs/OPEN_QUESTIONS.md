@@ -17,13 +17,13 @@ Status as of 2026-06-22. Authoritative answers live in [DECISIONS.md](DECISIONS.
 | 10 | First MVP priority | **All four pillars** (catalog · barcode/POS · Shopee sync · finance) |
 | — | Cost method | Support **all four** (moving avg / latest / manual / FIFO), selectable |
 | — | Profit rules | On-site = price−discount−tax−cost; **online adds Shopee fees** |
-| — | Repo | `l-shopee-backoffice`, **private** |
+| — | Repo | `Kira.office`, **private** (published at `ladykirsah/Kira.office`) |
 
-## ⛔ Blocking
+## ✅ Resolved — GitHub
 
-- **GitHub push target.** `gh` is authenticated as `janPhat` (org `mygogocash`); the requested
-  owner `ladykirsah` is a separate user account that `janPhat` cannot push to. Choose a path in
-  [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md) before publishing.
+- **Published** to [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private),
+  default branch `main`, CI green. (The earlier `janPhat`-vs-`ladykirsah` account mismatch was
+  resolved by signing in as `ladykirsah`.)
 
 ## ◻️ Minor — defaulted, confirm when convenient
 

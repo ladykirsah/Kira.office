@@ -73,9 +73,9 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 
 | Topic | Decision |
 | --- | --- |
-| Name | `l-shopee-backoffice` |
+| Name | `Kira.office` (npm workspace root id: `kira-office`) |
 | Visibility | **Private** |
-| Target owner | `ladykirsah` — **blocked**: the authenticated `gh` account is `janPhat` (org `mygogocash`), which cannot push to the separate `ladykirsah` user account. See [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md). |
+| Owner / status | **Published** at [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private). See [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md). |
 
 ## Items marked _Assumption_
 
