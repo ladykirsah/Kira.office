@@ -30,6 +30,7 @@ function makeDb(canned: {
   available?: { variantId: string; available: number }[];
   existingOrders?: string[];
   existingProduct?: { id: string } | null;
+  sales?: unknown[];
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -46,6 +47,7 @@ function makeDb(canned: {
           return { results: (canned.available ?? []) as T[] };
         if (sql.includes("FROM sales_orders"))
           return { results: (canned.existingOrders ?? []).map((id) => ({ id })) as T[] };
+        if (sql.includes("FROM onsite_sales")) return { results: (canned.sales ?? []) as T[] };
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
@@ -107,6 +109,21 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({
       products: [{ id: "p1", productCode: "C1", name: "Cream", status: "active" }],
     });
+  });
+
+  it("GET /sales > reads recent sales from D1", async () => {
+    const sale = {
+      id: "s1",
+      paymentMethod: "cash",
+      grandTotalSatang: 10000,
+      taxTotalSatang: 700,
+      saleStatus: "completed",
+      createdAt: 1,
+      grossProfitSatang: 4000,
+    };
+    const { env } = makeDb({ sales: [sale] });
+    const res = await worker.fetch!(new Request("https://x/sales"), env, ctx);
+    expect(await res.json()).toEqual({ sales: [sale] });
   });
 
   it("POST /sync > routes through the StockLedger Durable Object", async () => {

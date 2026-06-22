@@ -16,6 +16,9 @@ export default function DashboardPage() {
         <li>
           <a href="/pos">POS</a> — barcode on-site selling
         </li>
+        <li>
+          <a href="/sales">Sales</a> — recent sales, revenue and gross profit
+        </li>
       </ul>
     </main>
   );

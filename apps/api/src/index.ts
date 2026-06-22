@@ -388,6 +388,26 @@ async function listProducts(env: Env): Promise<Response> {
   return json({ products: results });
 }
 
+/** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
+async function listSales(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT s.id,
+            s.payment_method AS paymentMethod,
+            s.grand_total_satang AS grandTotalSatang,
+            s.tax_total_satang AS taxTotalSatang,
+            s.sale_status AS saleStatus,
+            s.created_at AS createdAt,
+            COALESCE(
+              (SELECT SUM(gross_profit_satang) FROM onsite_sale_lines WHERE onsite_sale_id = s.id),
+              0
+            ) AS grossProfitSatang
+     FROM onsite_sales s
+     ORDER BY s.created_at DESC
+     LIMIT 100`,
+  ).all();
+  return json({ sales: results });
+}
+
 /**
  * Minimal api Worker — a thin HTTP shell over @l-shopee/core + D1. Stock writes route through the
  * StockLedger Durable Object (serialized single writer). Grows into Hono routing, the Shopee adapter,
@@ -408,6 +428,10 @@ const worker = {
 
     if (url.pathname === "/products" && request.method === "GET") {
       return listProducts(env);
+    }
+
+    if (url.pathname === "/sales" && request.method === "GET") {
+      return listSales(env);
     }
 
     if (url.pathname === "/products" && request.method === "POST") {

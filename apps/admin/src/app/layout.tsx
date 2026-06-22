@@ -36,6 +36,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <a style={linkStyle} href="/pos">
             POS
           </a>
+          <a style={linkStyle} href="/sales">
+            Sales
+          </a>
         </header>
         <div style={{ padding: 20 }}>{children}</div>
       </body>

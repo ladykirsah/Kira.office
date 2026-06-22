@@ -41,6 +41,23 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
   return (await res.json()) as CreateProductResult;
 }
 
+export interface SaleRow {
+  id: string;
+  paymentMethod: string | null;
+  grandTotalSatang: number;
+  taxTotalSatang: number;
+  saleStatus: string;
+  createdAt: number;
+  grossProfitSatang: number;
+}
+
+export async function fetchSales(): Promise<SaleRow[]> {
+  const res = await fetch(`${apiBase}/sales`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load sales (HTTP ${res.status})`);
+  const data = (await res.json()) as { sales: SaleRow[] };
+  return data.sales;
+}
+
 export interface ImportResult {
   received: number;
   valid: number;
