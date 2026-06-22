@@ -1,28 +1,41 @@
 # @l-shopee/admin
 
-Next.js + TypeScript admin UI and **offline-first POS**, deployed to **Cloudflare Workers** via the
-**OpenNext** adapter. Not yet initialized — intentional stub so the lockfile stays clean until Phase 1.
+Next.js (App Router) admin UI + POS, deployed to **Cloudflare Workers** via the **OpenNext** adapter.
+Calls the api Worker at `https://api.homeseeker.me` and shares money/stock logic via `@l-shopee/core`.
 
-## Initialize (Phase 1)
+## Status (scaffolded, builds)
+
+- `src/app/page.tsx` — dashboard
+- `src/app/products/page.tsx` — products list (live `GET /products`)
+- `src/app/pos/page.tsx` — POS skeleton (add lines → `POST /sync`)
+- `src/lib/api.ts` — typed API client · `src/lib/format.ts` — satang→THB display (tested)
+
+`npm run build -w @l-shopee/admin` compiles all routes. Visual QA + the full offline-first POS
+(barcode→variant lookup, IndexedDB outbox, conflict UI) are the next iteration.
+
+## Develop
 
 ```bash
-# from repo root — scaffolds Next.js + OpenNext + wrangler config
-npm create cloudflare@latest -- apps/admin --framework=next
+npm run dev -w @l-shopee/admin        # Next dev server
+npm run preview -w @l-shopee/admin    # OpenNext build + local Workers runtime
 ```
 
-This configures `@opennextjs/cloudflare`, an `open-next.config.ts`, `nodejs_compat`, and the
-`opennextjs-cloudflare build | preview | deploy` scripts. Then:
+Set `NEXT_PUBLIC_API_BASE` to point at a different API (defaults to `https://api.homeseeker.me`).
 
-- Add `@l-shopee/core` (pricing/profit/tax/cost/stock) and `@l-shopee/db` (D1) as workspace deps.
-  Never duplicate the money math — always call `@l-shopee/core`.
-- Configure as a **PWA** with a local store (IndexedDB) for the offline POS, plus an outbox that
-  POSTs to the `apps/api` `/sync` endpoint (idempotent on `client_uuid`). See
-  [../../docs/CLOUDFLARE_ARCHITECTURE.md](../../docs/CLOUDFLARE_ARCHITECTURE.md) → "Offline-first POS flow".
-- Call `apps/api` over a **Service Binding** rather than the public Internet.
-- Gate the app behind **Cloudflare Access** (Zero Trust) for staff SSO/MFA.
+## Deploy (separate Worker: `kiraoffice-admin`)
+
+The admin is its **own** Workers Builds project (distinct from the api):
+
+- **Root directory:** `apps/admin`
+- **Deploy command:** `npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy`
+- **Production branch:** `main`
+
+`wrangler.jsonc` here targets the `kiraoffice-admin` Worker on the homeseeker account. Add a custom
+domain (`app.homeseeker.me`) via a `routes` entry or the dashboard once the UI is ready. Gate the app
+behind **Cloudflare Access** (Zero Trust) before launch.
 
 ## Planned screens
 
-Products · variants · images · categories (type/brand/usage) · Thai T&C editor · inventory &
-stock ledger · **offline POS sale screen** · pricing & fee profiles · sales table · finance
-reports & export · Shopee connection (later) · users/roles · audit log.
+Add/edit product + image upload · barcode management · Thai T&C editor · stock ledger · pricing &
+fee profiles · sales table · finance reports + CSV export · Shopee linkage. See
+[../../docs/PRODUCTION_LAUNCH.md](../../docs/PRODUCTION_LAUNCH.md).

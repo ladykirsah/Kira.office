@@ -1,0 +1,15 @@
+{
+  // Deploy config for the admin app (separate Worker from the api). OpenNext generates
+  // .open-next/worker.js + assets; `opennextjs-cloudflare deploy` uses this. Set up a second
+  // Workers Builds project: root directory = apps/admin, deploy command = `npx opennextjs-cloudflare deploy`.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kiraoffice-admin",
+  "account_id": "8724aa41ebe346f0cbd1c62126fe8942",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true }
+  // Custom domain (homeseeker.me / app.homeseeker.me) added once the UI is ready, e.g.:
+  // "routes": [{ "pattern": "app.homeseeker.me", "custom_domain": true }]
+}

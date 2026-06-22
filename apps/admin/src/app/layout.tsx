@@ -1,0 +1,38 @@
+import type { ReactNode } from "react";
+
+export const metadata = {
+  title: "Kira.office — Admin",
+  description: "Shopee Thailand back office",
+};
+
+const linkStyle = { color: "#0b65c2", textDecoration: "none" };
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="th">
+      <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, color: "#222" }}>
+        <header
+          style={{
+            padding: "12px 20px",
+            borderBottom: "1px solid #eee",
+            display: "flex",
+            gap: 16,
+            alignItems: "center",
+          }}
+        >
+          <strong>Kira.office</strong>
+          <a style={linkStyle} href="/">
+            Dashboard
+          </a>
+          <a style={linkStyle} href="/products">
+            Products
+          </a>
+          <a style={linkStyle} href="/pos">
+            POS
+          </a>
+        </header>
+        <div style={{ padding: 20 }}>{children}</div>
+      </body>
+    </html>
+  );
+}
