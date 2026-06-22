@@ -1,0 +1,6 @@
+{
+  "name": "@l-shopee/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cloudflare D1 schema + migrations via Drizzle (drizzle-orm added in Phase 1 — see README.md)"
+}

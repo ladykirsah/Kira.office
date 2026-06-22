@@ -1,45 +1,49 @@
 # GitHub Checklist
 
-The user provided this GitHub profile:
+Target: **private** repository named **`l-shopee-backoffice`**, owner intended to be
+**`ladykirsah`** (from the profile URL https://github.com/ladykirsah).
 
-https://github.com/ladykirsah
+## ⛔ Blocker: account mismatch
 
-That is a profile URL, not a repository URL. Before pushing, confirm the exact repository.
+The local GitHub CLI is authenticated as **`janPhat`** (only org membership: `mygogocash`).
+`ladykirsah` is a **separate personal account**, so `janPhat` **cannot create or push** a repo
+under `ladykirsah`. Resolve one of these before pushing:
 
-## Needed From User
+- **Option A (recommended): log in as `ladykirsah`.** The owner runs `gh auth login` (or provides
+  a Personal Access Token with `repo` scope for `ladykirsah`), then we push.
+- **Option B: create under `mygogocash`** (the org `janPhat` can access) if that org is the
+  owner's business and acceptable: `gh repo create mygogocash/l-shopee-backoffice --private`.
+- **Option C: owner pre-creates the repo** at `ladykirsah/l-shopee-backoffice` (private) and adds
+  `janPhat` as a collaborator with write access; then we add the remote and push.
+- **Option D: push under `janPhat`** as a temporary home, transfer to `ladykirsah` later.
 
-- Exact repository URL, or approval to create a new repository.
-- Repository name.
-- Private or public visibility.
-- Default branch preference, usually `main`.
-
-## Local Setup Steps
+## Local Setup (already done in this folder)
 
 ```bash
-git init
-git branch -M main
-git add .
-git commit -m "Prepare L Shopee project documentation"
+git init            # already a git repo
+git branch -M main  # default branch
+git add . && git commit -m "..."
 ```
 
-## Existing Remote Repo Flow
+## Push — Existing Remote
 
 ```bash
 git remote add origin <repo-url>
 git push -u origin main
 ```
 
-## New Repo Flow With GitHub CLI
+## Push — New Repo via GitHub CLI (once the account is correct)
 
 ```bash
-gh repo create ladykirsah/l-shopee-backoffice --private --source=. --remote=origin --push
+# only after resolving the blocker above
+gh repo create <owner>/l-shopee-backoffice --private --source=. --remote=origin --push
 ```
 
-Use `--public` only if the user explicitly approves a public repository.
+Use `--public` only with explicit owner approval (default is private).
 
 ## Pre-Push Check
 
-- Confirm no `.env` or secrets exist.
-- Confirm docs reflect current requirements.
-- Confirm remote URL is correct.
-- Confirm user has approved repo visibility.
+- No `.env` or secrets committed (`.gitignore` covers `.env*`).
+- Docs reflect current decisions (DECISIONS.md is the source of truth).
+- Correct remote URL and owner account.
+- Owner approved visibility (private).

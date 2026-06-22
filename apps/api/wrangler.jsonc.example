@@ -1,0 +1,56 @@
+// Example Wrangler config for the apps/api Worker. Copy to wrangler.jsonc and fill in ids
+// created with `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create`,
+// and `wrangler queues create`. Do NOT commit real ids/secrets. See docs/CLOUDFLARE_ARCHITECTURE.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "l-shopee-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "l-shopee",
+      "database_id": "<d1-id>",
+      "migrations_dir": "../../packages/db/migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "R2", "bucket_name": "l-shopee-images" }],
+  "kv_namespaces": [{ "binding": "KV", "id": "<kv-id>" }],
+  "images": { "binding": "IMAGES" },
+  "queues": {
+    "producers": [{ "binding": "SHOPEE_QUEUE", "queue": "l-shopee-sync" }],
+    "consumers": [
+      {
+        "queue": "l-shopee-sync",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30,
+        "max_retries": 5,
+        "dead_letter_queue": "l-shopee-sync-dlq",
+        "max_concurrency": 3,
+        "retry_delay": 60
+      }
+    ]
+  },
+  "durable_objects": { "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
+  "secrets": { "required": ["AUTH_SECRET", "SHOPEE_PARTNER_KEY"] },
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "env": {
+    "staging": {
+      "d1_databases": [
+        { "binding": "DB", "database_name": "l-shopee-staging", "database_id": "<d1-staging-id>" }
+      ],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "l-shopee-images-staging" }],
+      "kv_namespaces": [{ "binding": "KV", "id": "<kv-staging-id>" }]
+    },
+    "production": {
+      "d1_databases": [
+        { "binding": "DB", "database_name": "l-shopee-prod", "database_id": "<d1-prod-id>" }
+      ],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "l-shopee-images-prod" }],
+      "kv_namespaces": [{ "binding": "KV", "id": "<kv-prod-id>" }]
+    }
+  }
+}

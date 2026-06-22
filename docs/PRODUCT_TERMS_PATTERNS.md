@@ -1,95 +1,88 @@
-# Product Terms Patterns
+# Product Terms Patterns (Thai)
 
 ## Goal
 
-Generate consistent product terms and conditions from approved templates while allowing admin review before publishing.
+Generate consistent **Thai-language** product terms and conditions from approved templates, with
+admin review before publishing. Patterns store `language = th`.
 
 ## Pattern Design
 
-Terms patterns should use placeholders from product and business fields.
+Templates use placeholders filled from product and business fields:
 
-Example placeholders:
+`{{product_name}}` · `{{brand}}` · `{{product_type}}` · `{{usage_category}}` · `{{included_items}}` ·
+`{{warranty_days}}` · `{{return_days}}` · `{{safety_warnings}}` · `{{care_instructions}}` ·
+`{{expiry_date}}` · `{{country_of_origin}}` · `{{seller_name}}`
 
-- `{{product_name}}`
-- `{{brand}}`
-- `{{product_type}}`
-- `{{usage_category}}`
-- `{{included_items}}`
-- `{{warranty_days}}`
-- `{{return_days}}`
-- `{{safety_warnings}}`
-- `{{care_instructions}}`
-- `{{expiry_date}}`
-- `{{country_of_origin}}`
-- `{{seller_name}}`
-
-## Default Pattern
+## Default Pattern (Thai)
 
 ```text
-Product: {{product_name}}
-Brand: {{brand}}
-Type: {{product_type}}
-Usage: {{usage_category}}
+สินค้า: {{product_name}}
+แบรนด์: {{brand}}
+ประเภท: {{product_type}}
+การใช้งาน: {{usage_category}}
 
-By purchasing this product, the buyer confirms that they have reviewed the product description, images, specifications, and usage instructions.
+เมื่อสั่งซื้อสินค้านี้ ผู้ซื้อยืนยันว่าได้ตรวจสอบรายละเอียดสินค้า รูปภาพ ข้อมูลจำเพาะ และวิธีใช้งานแล้ว
 
-Please inspect the item after receiving it. Return or exchange requests must be submitted within {{return_days}} days, subject to shop policy and marketplace rules.
+กรุณาตรวจสอบสินค้าเมื่อได้รับ การขอคืนหรือเปลี่ยนสินค้าต้องแจ้งภายใน {{return_days}} วัน
+ทั้งนี้เป็นไปตามนโยบายของร้านและกฎของแพลตฟอร์ม
 
-Warranty period: {{warranty_days}} days, unless stated otherwise.
+ระยะเวลารับประกัน: {{warranty_days}} วัน เว้นแต่ระบุไว้เป็นอย่างอื่น
 
-Care and usage instructions:
+วิธีดูแลและการใช้งาน:
 {{care_instructions}}
 
-Safety notes:
+คำเตือนด้านความปลอดภัย:
 {{safety_warnings}}
 
-Included items:
+รายการที่ได้รับ:
 {{included_items}}
 ```
 
-## Consumable Or Expiry-Based Pattern
+## Consumable / Expiry Pattern (Thai)
 
 ```text
-Product: {{product_name}}
-Brand: {{brand}}
+สินค้า: {{product_name}}
+แบรนด์: {{brand}}
 
-This product should be used according to the product description and label instructions.
+ควรใช้สินค้าตามรายละเอียดและคำแนะนำบนฉลาก
 
-Expiry date or best-before information: {{expiry_date}}
+วันหมดอายุหรือควรใช้ก่อน: {{expiry_date}}
 
-Storage instructions:
+วิธีจัดเก็บ:
 {{care_instructions}}
 
-Safety notes:
+คำเตือนด้านความปลอดภัย:
 {{safety_warnings}}
 
-Returns may be limited after opening, use, or damage to original packaging, subject to shop policy and marketplace rules.
+การคืนสินค้าอาจถูกจำกัดหลังเปิดใช้งานหรือบรรจุภัณฑ์เสียหาย ทั้งนี้เป็นไปตามนโยบายร้านและกฎของแพลตฟอร์ม
 ```
 
-## Electronics Or Accessory Pattern
+## Electronics / Accessory Pattern (Thai)
 
 ```text
-Product: {{product_name}}
-Brand: {{brand}}
+สินค้า: {{product_name}}
+แบรนด์: {{brand}}
 
-The buyer should confirm compatibility before purchase. Compatibility notes:
+กรุณาตรวจสอบความเข้ากันได้ก่อนสั่งซื้อ หมายเหตุความเข้ากันได้:
 {{usage_category}}
 
-Warranty period: {{warranty_days}} days.
+ระยะเวลารับประกัน: {{warranty_days}} วัน
 
-Warranty does not cover misuse, accidental damage, unauthorized repair, water damage, or normal wear unless required by law or marketplace policy.
+การรับประกันไม่ครอบคลุมการใช้งานผิดวิธี ความเสียหายจากอุบัติเหตุ การซ่อมโดยไม่ได้รับอนุญาต
+ความเสียหายจากน้ำ หรือการสึกหรอตามปกติ เว้นแต่กฎหมายหรือนโยบายแพลตฟอร์มกำหนด
 
-Included items:
+รายการที่ได้รับ:
 {{included_items}}
 ```
 
 ## Review Rules
 
-- Generated terms should be marked `draft` first.
-- Admin should review and approve before publishing.
-- Every approved terms body should be versioned.
-- Changing a pattern should not rewrite old approved product terms automatically.
+- Generated terms start as `draft`.
+- Admin reviews and approves before publishing.
+- Every approved terms body is **versioned**.
+- Changing a pattern does **not** auto-rewrite previously approved product terms.
 
 ## Legal Note
 
-These templates are operational drafting aids, not legal advice. Final terms should be checked against the seller's country, Shopee rules, and actual shop policy.
+These templates are operational drafting aids, not legal advice. Final Thai terms should be checked
+against Thai law, Shopee Thailand rules, and the shop's actual policy.

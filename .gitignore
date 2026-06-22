@@ -3,11 +3,24 @@
 .env.*
 !.env.example
 
+# Cloudflare / Wrangler local secrets & build output
+# (wrangler.jsonc is committed — binding ids are not secrets; real secrets live in .dev.vars)
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.open-next/
+.wrangler/
+cloudflare-env.d.ts
+
 node_modules/
 dist/
 build/
 .next/
+out/
 coverage/
+*.tsbuildinfo
+.vitest/
+packages/db/generated/
 
 *.log
 npm-debug.log*

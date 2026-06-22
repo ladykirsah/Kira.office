@@ -1,69 +1,53 @@
 # Roadmap
 
-## Phase 0 - Requirement Lock
+Strategy: build the **local-first** back office (catalog, barcode, inventory, pricing, offline POS,
+finance) before any live Shopee writes, then connect Shopee as a gated phase. See
+[DECISIONS.md](DECISIONS.md).
 
-- Answer open questions.
-- Confirm tech stack.
-- Confirm Shopee seller region and account status.
-- Confirm GitHub repo name and visibility.
-- Confirm tax, currency, fee, and profit formula rules.
-- Confirm T&C language and patterns.
+## Phase 0 — Requirement Lock ✅ (done)
 
-## Phase 1 - Foundation
+- Open questions answered; stack confirmed (Next.js/TS).
+- TH region, THB, VAT 7%, cost methods, offline-first, Thai T&Cs, private repo confirmed.
+- Shopee approach set (local-first + CSV bridge; API gated on managed-seller eligibility).
+- _Remaining:_ resolve GitHub push target (account mismatch — see GITHUB_CHECKLIST.md).
 
-- Create application repo structure.
-- Add database schema and migrations.
-- Add authentication and roles.
-- Add audit log.
-- Add test framework and CI.
+## Phase 1 — Foundation (in progress)
 
-## Phase 2 - Product Catalog MVP
+- Monorepo scaffold (npm workspaces) ✅
+- `packages/core` pricing/profit/tax/cost engine, test-first ✅ (grow coverage next)
+- Initialize `apps/admin` (Next.js on Workers via OpenNext) and `apps/api` (Worker) with `create-cloudflare`.
+- `packages/db` Drizzle schema → first D1 migration (`wrangler d1 migrations apply`); `wrangler dev` local.
+- Stock-ledger **Durable Object** + idempotent `/sync` endpoint.
+- Auth via **Cloudflare Access** + app roles + append-only audit log.
+- Provision bindings (D1, R2, KV, Queues) per environment; CI (typecheck, lint, test) ✅ + `wrangler deploy`.
 
-- Product list.
-- Add/edit product.
-- Type, brand, and usage categories.
-- Product variants.
-- Product image upload.
-- Barcode management.
-- Terms pattern generation and approval.
+## Phase 2 — Product Catalog MVP
 
-## Phase 3 - Inventory And On-Site Sales
+Product list; add/edit; type/brand/usage; variants; image upload; barcode management
+(existing-first); Thai terms pattern generation + approval; Google Sheets/CSV product import.
 
-- Stock ledger.
-- Inventory snapshots.
-- Barcode lookup.
-- On-site sale screen.
-- Payment method capture.
-- Stock deduction and audit logs.
+## Phase 3 — Inventory & Offline POS
 
-## Phase 4 - Pricing And Finance
+Stock ledger; inventory snapshots; barcode lookup; **offline-first** on-site sale screen with
+local store + sync engine; payment capture (Cash/PromptPay); stock deduction + audit logs.
 
-- Cost and pricing profiles.
-- Tax and commission profiles.
-- Profit preview.
-- Sales table.
-- Finance summary.
-- CSV/spreadsheet export.
+## Phase 4 — Pricing & Finance
 
-## Phase 5 - Shopee Integration MVP
+Cost/pricing profiles (all four cost methods); tax (per-product incl/excl) and Shopee fee profiles;
+profit preview; sales table; finance summary (incl. VAT); CSV/spreadsheet export for accountant.
 
-- Shopee app authorization.
-- Token refresh.
-- Shop info import.
-- Product/listing import.
-- Local-to-Shopee item/model mapping.
-- Order import.
-- Stock update queue.
+## Phase 5 — Shopee Integration (gated)
 
-## Phase 6 - Production Hardening
+_Unlocks once Open API access is confirmed._ Authorization + token refresh; shop info import;
+product/listing import; local↔Shopee item/model mapping; order import (CSV → API); stock update
+queue. CSV bridge serves order import/stock export until then.
 
-- Error monitoring.
-- Backups.
-- Access control review.
-- Data export/import.
-- Sync retry dashboard.
-- Deployment automation.
+## Phase 6 — Production Hardening
+
+Error monitoring; backups; access-control review; data export/import; sync retry dashboard;
+deployment automation; PWA/offline reliability testing.
 
 ## Suggested First Development Slice
 
-Build the local product, barcode, inventory, and pricing core before live Shopee writes. This allows testing the business logic safely, then connecting Shopee with controlled sync jobs.
+Local product → barcode → inventory → pricing core → offline on-site sale, all before live Shopee
+writes. This lets the business logic be tested safely, then Shopee connects via controlled jobs.

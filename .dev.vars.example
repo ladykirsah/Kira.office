@@ -1,0 +1,15 @@
+# Local Worker secrets for `wrangler dev`. Copy to .dev.vars (gitignored) and fill in.
+# NEVER commit real values. In deployed environments set these with `wrangler secret put <NAME>`
+# (or the Secrets Store), not here. Declare required names via `secrets.required` in wrangler.jsonc.
+
+# App session/auth signing secret (generate a long random string; unique per environment)
+AUTH_SECRET=""
+
+# Shopee Open Platform (LATER PHASE — leave blank until API access is confirmed).
+# Store the real partner key only in secrets; reference by name, never paste into source or logs.
+SHOPEE_PARTNER_ID=""
+SHOPEE_PARTNER_KEY=""
+SHOPEE_REDIRECT_URL="http://localhost:8787/api/shopee/callback"
+
+# Only if using the Hyperdrive + Postgres alternative instead of D1:
+# DATABASE_URL="postgresql://user:pass@host:5432/l_shopee"

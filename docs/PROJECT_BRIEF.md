@@ -6,63 +6,64 @@ L Shopee Back Office
 
 ## Problem
 
-The seller needs one admin workspace to manage product data, product images, local stock, Shopee-linked stock numbers, barcode-based on-site selling, pricing, and financial records. Today these areas are likely split across Shopee Seller Centre, spreadsheets, manual notes, and on-site sales handling.
+A Shopee Thailand seller needs one admin workspace to manage product data, product images, local
+stock, Shopee-linked stock numbers, barcode-based on-site selling, pricing, and financial records.
+Today these are split across Shopee Seller Centre, Google Sheets, manual notes, and on-site sales
+handling.
 
 ## Product Goal
 
-Create a reliable back-office system that becomes the seller's source of truth for:
+A reliable back-office system that is the seller's source of truth for:
 
-- Product master data.
-- Product photos.
-- Product categorization.
-- Product terms and conditions.
-- Stock quantity by channel and location.
-- Shopee listing linkage.
-- On-site barcode sales.
-- Pricing, tax, commission, and profit.
-- Online and on-site sales records.
+- Product master data, photos, and categorization (type / brand / usage).
+- Thai product terms and conditions.
+- Stock quantity by location, kept consistent across on-site and online channels.
+- Shopee listing linkage (later, when API access is available).
+- On-site barcode sales that work **offline**.
+- Pricing in THB with cost, VAT, e-commerce commission, and profit.
+- Online (Shopee) and on-site sales + financial records.
 
 ## Primary Users
 
-- Owner/admin: manages products, pricing, Shopee sync, and financial reports.
-- Staff/operator: scans barcodes, adjusts stock, creates on-site sales, and uploads product photos.
-- Accountant/bookkeeper, optional later: reviews sales and financial exports.
+- **Owner/admin:** products, pricing, Shopee linkage, financial reports, sensitive overrides.
+- **Staff/operator:** scans barcodes, adjusts stock, creates on-site sales, uploads photos.
+- **Accountant/bookkeeper** (optional, later): reviews and exports sales/financial records.
 
 ## Confirmed Scope
 
-- Admin back office.
-- Add and edit products.
-- Upload product pictures.
-- Categorize products by type, brand, and usage.
-- Generate terms and conditions from reusable patterns.
-- Manage product stock locally and sync stock numbers to Shopee.
-- Scan barcodes for on-site stock movement and selling.
-- Calculate price, tax, e-commerce commission, and profit.
-- Track sales and finance records for Shopee online sales and on-site sales.
+See [DECISIONS.md](DECISIONS.md) for the authoritative list. In short:
 
-## Initial Assumptions
+- Admin back office; add/edit products; upload + reorder pictures.
+- Categorize by type, brand, usage; product variants.
+- Generate Thai T&Cs from reusable patterns (review before publish).
+- Manage stock locally; link/sync stock numbers to Shopee (later).
+- Barcode-based **offline-first** on-site stock movement and selling.
+- Pricing: cost, **per-product VAT (7%, inclusive/exclusive)**, Shopee commission, profit.
+- Sales + finance records for Shopee online and on-site sales.
 
-- "The number linked to my e-commerce account" means local stock quantity should be linked to Shopee listing/model stock.
-- Shopee is the first e-commerce channel. Other channels can be added later if the data model keeps `sales_channel` flexible.
-- The admin system should be web-based so it can run on a laptop/tablet and use a camera or USB barcode scanner.
-- Local product records should be the canonical back-office source, while Shopee remains the sales channel.
-- Generated product terms and conditions should be reviewed before publishing or attaching to a listing.
+## Key Assumptions
+
+- "The number linked to my e-commerce account" = local stock quantity linked to Shopee
+  listing/model stock.
+- Shopee is the first e-commerce channel; the data model keeps `channel` flexible for others.
+- Web-based so it runs on a laptop/tablet with a camera or USB barcode scanner.
+- Local product records are the canonical back-office source; Shopee is a sales channel.
+- Generated T&Cs are reviewed before publishing/attaching to a listing.
+- On-site selling must keep working without internet (offline-first).
 
 ## Out Of Scope Until Confirmed
 
 - Customer-facing storefront.
-- Warehouse management beyond basic locations and stock ledger.
-- Multi-branch inventory.
-- Full accounting system.
-- Automatic legal compliance review for terms and conditions.
-- Live Shopee order fulfillment actions beyond order import and stock sync.
+- Warehouse management beyond basic locations and a stock ledger.
+- Full accounting system (we export for an accountant instead).
+- Automatic legal compliance review of terms and conditions.
+- Live Shopee order fulfillment beyond order import and stock sync.
 
 ## Success Criteria
 
-- Admin can create a product once with images, category, pricing, stock, barcode, and terms.
-- Product can be linked to a Shopee item/model.
-- Stock changes from on-site sales reduce local inventory and can update Shopee stock.
-- Shopee online orders can be imported into the sales table.
-- On-site sales can be recorded by scanning a barcode.
-- Profit can be calculated per sale after cost, tax, and commission rules.
-- Financial records can be filtered/exported by date, channel, product, and payment method.
+- Create a product once with images, category, pricing, stock, barcode, and Thai terms.
+- Record an on-site sale by scanning a barcode — **including with no internet** — and have it
+  reduce local stock and post a financial record on sync.
+- Compute profit per sale: on-site (cost/tax/discount) and online (plus Shopee fees).
+- Import Shopee orders (CSV now, API later) into the sales table without duplicates.
+- Filter/export financial records by date, channel, product, and payment method.

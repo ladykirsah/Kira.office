@@ -1,0 +1,6 @@
+{
+  "name": "@l-shopee/admin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Next.js admin UI + offline-first POS on Cloudflare Workers via OpenNext (not yet initialized — see README.md)"
+}

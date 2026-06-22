@@ -1,0 +1,26 @@
+{
+  "name": "l-shopee-backoffice",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Admin back-office for a Shopee Thailand seller: products, inventory, offline-first barcode POS, pricing/profit, sales & finance, and (later) Shopee sync.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -b packages/core",
+    "lint": "prettier --check \"packages/**/src/**/*.ts\"",
+    "format": "prettier --write \"packages/**/src/**/*.ts\""
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

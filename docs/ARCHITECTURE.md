@@ -1,44 +1,77 @@
 # Architecture
 
-## Proposed Default
+Confirmed stack (see [DECISIONS.md](DECISIONS.md)): **Next.js + TypeScript** on **Cloudflare
+Workers** (OpenNext), **Cloudflare D1** + **Drizzle**, **npm workspaces**, **Vitest**. On-site
+selling is **offline-first**, kept consistent by a **Durable Object** stock ledger. Shopee is an
+isolated boundary module (CSV adapter now, API adapter later).
 
-Use a web-based admin app with a typed backend and relational database.
+> **The authoritative backend design — compute, data, storage, queues, secrets, auth, deploy — is
+> in [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md).** This file covers the app-level
+> module boundaries and flows that are independent of the hosting platform.
 
-This is a proposal, not a final decision. Confirm the stack before implementation.
+## Monorepo Layout
 
-## Recommended Stack
+```
+apps/
+  admin/    # Next.js admin UI + offline-first POS (PWA) — Workers via OpenNext
+  api/      # Cloudflare Worker: API, /sync endpoint, Shopee adapter, queue consumers, ledger DO
+packages/
+  core/     # Pure-TS domain logic: pricing, profit, tax, cost methods, stock ledger, terms
+  db/       # D1 schema + migrations via Drizzle
+docs/
+```
 
-- Frontend: Next.js or React with TypeScript.
-- Backend: Node.js with TypeScript, either Next.js server routes for a small MVP or a separate API service for cleaner scaling.
-- Database: PostgreSQL.
-- ORM/migrations: Prisma or Drizzle.
-- File storage: S3-compatible object storage, Supabase Storage, or local storage for development.
-- Background jobs: queue for Shopee sync, image upload, order import, and stock update retries.
-- Barcode scanning: USB scanner as keyboard input plus browser camera scanning fallback.
-- Testing: unit tests for core calculations and stock ledger; integration tests for API routes; browser tests for critical admin workflows.
+`packages/core` has **no framework or I/O dependencies** — it operates on plain inputs and returns
+plain results, so all money and stock logic is unit-testable without a database, browser, or
+Shopee. `apps/*` and `packages/db` depend on `core`, never the reverse.
 
 ## Core Modules
 
-- Admin UI: product, inventory, sales, finance, settings, and Shopee connection screens.
-- Product Catalog: product master data, variants, images, categories, and terms.
-- Inventory: stock ledger, barcode lookup, locations, reservations, and sync queue.
-- Pricing: formulas, fee profiles, tax rules, profit projections, and pricing history.
-- Sales: Shopee order import, on-site sale creation, refunds, cancellations, and exports.
-- Shopee Integration: authorization, token refresh, product sync, stock sync, order import, and push/poll handling.
-- Audit: immutable event trail for sensitive changes.
+- **Auth & Audit** — users, roles, append-only audit trail for sensitive changes.
+- **Product Catalog** — products, variants, images, categories (type/brand/usage), Thai terms.
+- **Inventory** — stock ledger, barcode lookup, locations, reservations, sync queue.
+- **Pricing & Finance** — cost methods, tax (per-product inclusive/exclusive), fee profiles,
+  profit projection and actuals, pricing history.
+- **Sales** — on-site (offline-first) sales, Shopee order import, refunds, cancellations, exports.
+- **Shopee Integration (boundary)** — CSV adapter (now) and v2 API adapter (later): auth, token
+  refresh, product/order import, stock/listing sync, push/poll.
 
-## High-Level Flow
+## Offline-First POS Design
+
+The POS must complete sales with no internet, then reconcile.
+
+```mermaid
+flowchart TD
+  Scan["Scan barcode (USB / camera / manual)"] --> Local["Local on-device store (IndexedDB)"]
+  Local --> Sale["Complete sale offline (client-generated id)"]
+  Sale --> Queue["Outbox: queued sale + stock movement"]
+  Queue -->|online| Sync["Sync engine"]
+  Sync --> API["apps/api Worker"]
+  API --> Ledger["Stock-ledger Durable Object (serialized)"]
+  Ledger --> DB["D1: ledger + sales + finance"]
+  Ledger -->|conflict| Review["Flag for review (e.g. stock already reduced)"]
+```
+
+Rules:
+
+- Product catalog, prices, and a stock snapshot are cached locally for lookup.
+- Each offline sale carries a **client-generated id**; the server upserts on it (idempotent).
+- Stock movements are **deltas** appended to the ledger, so concurrent on-site/online sales add up
+  rather than overwrite. Negative available stock is blocked unless an owner override is recorded.
+- Sync conflicts (oversell, externally-changed stock) are surfaced, not silently resolved.
+
+## Data Flow
 
 ```mermaid
 flowchart LR
-  Admin["Admin UI"] --> API["Backend API"]
-  Scanner["Barcode scanner or camera"] --> Admin
-  API --> DB["PostgreSQL"]
-  API --> Storage["Image storage"]
-  API --> Jobs["Sync job queue"]
-  Jobs --> Shopee["Shopee Open Platform"]
-  Shopee --> Jobs
-  Jobs --> DB
+  Admin["Admin UI"] --> API["apps/api Worker"]
+  POS["Offline POS"] --> Sync["Sync engine"] --> API
+  Scanner["Barcode scanner / camera"] --> POS
+  API --> DB["D1"]
+  API --> Storage["R2 + Images"]
+  API --> Jobs["Queues"]
+  Jobs --> Shopee["Shopee (CSV now / v2 API later)"]
+  Shopee --> Jobs --> DB
 ```
 
 ## Product Creation Flow
@@ -48,38 +81,29 @@ flowchart TD
   A["Create local product"] --> B["Upload images"]
   B --> C["Add variants, SKU, barcode"]
   C --> D["Set type, brand, usage"]
-  D --> E["Set cost, tax, commission, price"]
-  E --> F["Generate terms from pattern"]
+  D --> E["Set cost, VAT (incl/excl), fees, price"]
+  E --> F["Generate Thai terms from pattern"]
   F --> G["Approve product"]
-  G --> H["Create or link Shopee listing"]
-```
-
-## Inventory Flow
-
-```mermaid
-flowchart TD
-  A["Stock receipt or adjustment"] --> B["Stock ledger entry"]
-  B --> C["Available stock recalculated"]
-  C --> D{"Linked Shopee listing?"}
-  D -->|Yes| E["Queue Shopee stock sync"]
-  D -->|No| F["Local stock only"]
-  E --> G["Update Shopee item/model stock"]
+  G --> H["(Later) create or link Shopee listing"]
 ```
 
 ## Security Design
 
-- Store Shopee credentials and refresh tokens outside source control.
-- Keep least-privilege roles for staff.
-- Require owner role for deleting products, overriding negative stock, changing tax settings, and publishing Shopee sync changes.
-- Keep audit logs append-only.
-- Avoid storing unnecessary customer personal data from Shopee orders.
+- Shopee credentials/refresh tokens stored outside source control (managed secret store).
+- Least-privilege staff roles; owner-only for the sensitive actions in REQUIREMENTS A5.
+- Append-only audit logs.
+- Store the minimum necessary customer data from Shopee orders.
 
 ## Environments
 
-- Local development: local database, local file storage or development bucket, Shopee sandbox/test mode if available.
-- Staging: production-like environment connected to test Shopee app/shop where possible.
-- Production: managed database, backups, object storage, monitoring, and secure secret store.
+Managed with **Wrangler environments** (see [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md)).
 
-## Implementation Note
+- **Local:** `wrangler dev` (Miniflare) with local D1/R2/KV; Shopee sandbox if available; secrets in `.dev.vars`.
+- **Staging:** the `env.staging` config with its own D1/R2/KV/Queues, connected to a Shopee test app/shop where possible.
+- **Production:** the `env.production` config — D1 (with backups/export), R2, monitoring, and Secrets Store.
 
-Shopee integration should be a boundary module. Core logic should accept normalized local objects and not directly depend on Shopee response shapes. This makes pricing, inventory, and sales logic testable without live Shopee calls.
+## Why `packages/core` Is Framework-Free
+
+Pricing, tax, cost-method, and stock-ledger logic is the money-critical, fully-specified part of
+the system. Keeping it as pure functions lets it be developed test-first and reused by both the API
+and the offline POS without duplicating rules. Shopee response shapes never leak into it.

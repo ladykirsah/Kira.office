@@ -2,74 +2,60 @@
 
 ## Goal
 
-Use barcode scanning to make stock lookup, stock movement, and on-site selling fast and reliable.
+Use barcode scanning to make stock lookup, stock movement, and **offline-first** on-site selling
+fast and reliable. Most products already carry EAN/UPC barcodes.
 
-## Barcode Input Types
+## Barcode Input
 
-### USB Scanner
-
-Most USB barcode scanners behave like a keyboard. The admin UI should support a focused scan field that accepts barcode input and submits on Enter.
-
-### Camera Scanner
-
-The web app can support camera scanning on compatible devices. Browser support varies, so USB scanner support should remain the reliable baseline.
-
-### Manual Entry
-
-Manual barcode entry should exist as a fallback for damaged labels or scanner failure.
+- **USB scanner** (keyboard emulation): reliable baseline; a focused scan field submits on Enter.
+- **Camera**: supported where the browser allows; not the baseline.
+- **Manual entry**: fallback for damaged labels or scanner failure.
 
 ## Barcode Rules
 
-- Each sellable product variant should have one primary barcode.
-- Additional barcodes can be added for supplier codes, old labels, or alternate packaging.
-- Internal barcodes can be generated if products do not already have EAN/UPC codes.
-- Barcode changes should be audit logged.
+- Each sellable variant has **one primary barcode**.
+- Use the product's **existing EAN/UPC**; generate an **internal barcode only when none exists**
+  (`barcodes.is_internal_generated = true`).
+- Extra barcodes allowed for supplier codes, old labels, alternate packaging.
+- Barcode changes are audit-logged.
 
 ## Stock Concepts
 
-- Stock on hand: physical units owned.
-- Reserved stock: units reserved for pending orders or holds.
-- Available stock: stock on hand minus reserved stock.
-- Shopee published stock: quantity currently shown/sent to Shopee.
-- Reorder threshold: optional alert level for low stock.
+- **Stock on hand** — physical units owned.
+- **Reserved** — units held for pending orders/holds.
+- **Available** — on hand − reserved.
+- **Shopee published** — quantity sent to Shopee (later phase).
+- **Reorder threshold** — optional low-stock alert level.
 
 ## Stock Ledger Movement Types
 
-- Opening balance.
-- Purchase receipt.
-- Manual adjustment.
-- On-site sale.
-- Shopee sale.
-- Refund return.
-- Damaged/lost stock.
-- Transfer between locations.
-- Reconciliation correction.
+Opening balance · purchase receipt · manual adjustment · on-site sale · online (Shopee) sale ·
+refund return · damaged/lost · transfer between locations · reconciliation correction.
 
-## On-Site Sale Flow
+Stock is the **sum of ledger deltas** (never an overwritten number), so concurrent on-site and
+online sales add up correctly.
 
-1. Staff opens on-site sale screen.
-2. Staff scans barcode.
-3. System finds product variant and shows price/stock.
-4. Staff confirms quantity.
-5. System calculates subtotal, discount, tax, and total.
-6. Staff selects payment method.
-7. System completes sale.
-8. System creates sale record, financial record, and stock ledger entry.
-9. If linked to Shopee, system queues Shopee stock sync.
+## Offline-First On-Site Sale Flow
+
+1. POS loads catalog + price + stock snapshot from the **local on-device store**.
+2. Staff scans a barcode (USB / camera / manual).
+3. System finds the variant, shows price and local stock.
+4. Staff confirms quantity; system computes subtotal, discount, VAT, total (THB).
+5. Staff selects payment method (Cash / PromptPay).
+6. Sale completes **offline** with a **client-generated id**; recorded locally + queued.
+7. On reconnect, the sync engine upserts the sale (idempotent), appends the stock ledger delta,
+   and posts the financial record.
+8. If linked to Shopee (later), a stock-sync job is queued.
 
 ## Stock Sync Rules
 
-- Never update Shopee stock directly without a local stock ledger entry.
-- Queue sync jobs so failed Shopee calls can be retried.
-- Show local stock, available stock, and last synced Shopee stock separately.
-- Prevent negative available stock by default.
-- Owner can approve negative-stock override only if the business wants oversell behavior.
+- Never update Shopee stock without a local **stock ledger entry** first.
+- Queue sync jobs so failed Shopee calls retry.
+- Show local stock, available stock, and last-synced Shopee stock separately.
+- Block negative available stock by default; **owner** can approve an oversell override (recorded).
+- On sync, surface conflicts (oversell, externally-changed stock) for review.
 
-## Reports Needed
+## Reports
 
-- Current stock by product and location.
-- Low-stock products.
-- Stock movement history.
-- On-site sale stock deductions.
-- Shopee sale stock deductions.
-- Unsynced or failed Shopee stock updates.
+Current stock by product/location · low-stock · stock movement history · on-site deductions ·
+online (Shopee) deductions · unsynced/failed Shopee stock updates · unsynced offline sales.
