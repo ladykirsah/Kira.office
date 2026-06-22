@@ -66,6 +66,7 @@ App initialization steps live in [apps/admin/README.md](apps/admin/README.md) an
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional and non-functional requirements. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | App module boundaries and platform-independent flows. |
 | [docs/CLOUDFLARE_ARCHITECTURE.md](docs/CLOUDFLARE_ARCHITECTURE.md) | **Backend design on Cloudflare** (Workers, D1, Durable Objects, R2, Queues, secrets, auth, deploy). |
+| [docs/PRODUCTION_LAUNCH.md](docs/PRODUCTION_LAUNCH.md) | **Production launch plan** — environments, security, go-live runbook, rollback, owner actions. |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Database entities and relationships (D1). |
 | [docs/PRICING_AND_FINANCE.md](docs/PRICING_AND_FINANCE.md) | Pricing/profit formulas (on-site vs online), VAT, cost methods. |
 | [docs/BARCODE_AND_INVENTORY.md](docs/BARCODE_AND_INVENTORY.md) | Barcode, stock ledger, offline POS workflows. |

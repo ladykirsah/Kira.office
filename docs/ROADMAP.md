@@ -11,15 +11,18 @@ finance) before any live Shopee writes, then connect Shopee as a gated phase. Se
 - Shopee approach set (local-first + CSV bridge; API gated on managed-seller eligibility).
 - _Remaining:_ resolve GitHub push target (account mismatch — see GITHUB_CHECKLIST.md).
 
-## Phase 1 — Foundation (in progress)
+> **Production launch plan:** [PRODUCTION_LAUNCH.md](PRODUCTION_LAUNCH.md). API is **live** at
+> `https://api.homeseeker.me` (D1-backed), auto-deployed from `main`.
+
+## Phase 1 — Foundation ✅ (mostly done)
 
 - Monorepo scaffold (npm workspaces) ✅
-- `packages/core` pricing/profit/tax/cost engine, test-first ✅ (grow coverage next)
-- Initialize `apps/admin` (Next.js on Workers via OpenNext) and `apps/api` (Worker) with `create-cloudflare`.
-- `packages/db` Drizzle schema → first D1 migration (`wrangler d1 migrations apply`); `wrangler dev` local.
-- Stock-ledger **Durable Object** + idempotent `/sync` endpoint.
-- Auth via **Cloudflare Access** + app roles + append-only audit log.
-- Provision bindings (D1, R2, KV, Queues) per environment; CI (typecheck, lint, test) ✅ + `wrangler deploy`.
+- `packages/core` — full domain logic, test-first (100+ tests) ✅
+- `apps/api` Cloudflare Worker live (`/health`, `/pricing/preview`, `/products`, `/sync`) ✅
+- `packages/db` Drizzle schema → D1 migration applied (16 tables) ✅
+- Stock-ledger **Durable Object** + idempotent `/sync` ✅
+- Bindings provisioned: D1 + KV ✅ · custom domain `api.homeseeker.me` ✅ · CI + auto-deploy ✅
+- _Remaining:_ `apps/admin` (Next.js UI), **Cloudflare Access** auth + audit log, R2 (images), Queues.
 
 ## Phase 2 — Product Catalog MVP
 
