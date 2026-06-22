@@ -103,7 +103,12 @@ export interface SaleSummary {
   grossMarginPct: number;
 }
 
-/** Aggregate multiple sale lines into a single sale's totals (POS basket / imported order). */
+/**
+ * Aggregate multiple sale lines into a single sale's totals (POS basket / imported order).
+ * Convention: each line is rounded first, then the rounded lines are summed (round-per-line-then-sum),
+ * so a total can differ by up to ~1 satang from rounding the raw aggregate. This keeps the sale's
+ * totals equal to the sum of the per-line numbers shown on a receipt.
+ */
 export function summarizeSale(lines: SaleLineInput[]): SaleSummary {
   const computed = lines.map(computeSaleProfit);
   const sum = (pick: (p: SaleProfit) => number) =>

@@ -9,12 +9,16 @@ export interface HasClientUuid {
   clientUuid: string;
 }
 
-export interface SalePartition<T> {
-  /** First-seen sales not previously applied — safe to apply. */
+/** A batch split into first-seen items vs. ones to skip (already-applied or in-batch repeats). */
+export interface Partition<T> {
+  /** First-seen items, safe to apply/import. */
   fresh: T[];
   /** Already applied (server-side) or repeated within this batch — must be skipped. */
   duplicates: T[];
 }
+
+/** @deprecated alias of {@link Partition}. */
+export type SalePartition<T> = Partition<T>;
 
 /**
  * Partition `incoming` into fresh vs duplicate by `clientUuid`, treating both server-side
@@ -23,7 +27,7 @@ export interface SalePartition<T> {
 export function partitionByClientUuid<T extends HasClientUuid>(
   alreadyApplied: Iterable<string>,
   incoming: T[],
-): SalePartition<T> {
+): Partition<T> {
   const seen = new Set(alreadyApplied);
   const fresh: T[] = [];
   const duplicates: T[] = [];

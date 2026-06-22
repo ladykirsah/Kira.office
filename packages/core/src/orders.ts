@@ -5,6 +5,7 @@
  * D1 constraint `(channel, external_order_id)`, so re-importing the same file never creates duplicate
  * orders. Both are wrapped by the import endpoint / queue consumer.
  */
+import type { Partition } from "./sync";
 
 /** Minimal RFC-4180-style CSV parser: quoted fields, doubled-quote escapes, CRLF or LF rows. */
 export function parseCsv(text: string): string[][] {
@@ -55,10 +56,8 @@ export interface ImportableOrder {
   externalOrderId: string;
 }
 
-export interface OrderPartition<T> {
-  fresh: T[];
-  duplicates: T[];
-}
+/** @deprecated alias of {@link Partition}. */
+export type OrderPartition<T> = Partition<T>;
 
 /** Stable key matching the D1 unique index on (channel, external_order_id). */
 export function orderKey(order: ImportableOrder): string {
@@ -73,7 +72,7 @@ export function orderKey(order: ImportableOrder): string {
 export function dedupeOrders<T extends ImportableOrder>(
   existingKeys: Iterable<string>,
   incoming: T[],
-): OrderPartition<T> {
+): Partition<T> {
   const seen = new Set(existingKeys);
   const fresh: T[] = [];
   const duplicates: T[] = [];

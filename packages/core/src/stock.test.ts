@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { availableFromLedger, applyMovement } from "./stock";
+import { availableFromLedger, applyMovement, applyMovements, applyMovementsSafe } from "./stock";
 
 describe("stock ledger", () => {
   it("available = sum of deltas", () => {
@@ -18,5 +18,62 @@ describe("stock ledger", () => {
 
   it("allows negative stock with owner override", () => {
     expect(applyMovement(1, -5, { allowNegative: true })).toBe(-4);
+  });
+});
+
+describe("applyMovements > a sale's lines against per-variant stock", () => {
+  it("accumulates deltas in order and records quantityAfter", () => {
+    const r = applyMovements({ v1: 5, v2: 3 }, [
+      { productVariantId: "v1", quantityDelta: -2 },
+      { productVariantId: "v2", quantityDelta: -1 },
+      { productVariantId: "v1", quantityDelta: -1 },
+    ]);
+    expect(r.available).toEqual({ v1: 2, v2: 2 });
+    expect(r.entries).toEqual([
+      { productVariantId: "v1", quantityDelta: -2, quantityAfter: 3 },
+      { productVariantId: "v2", quantityDelta: -1, quantityAfter: 2 },
+      { productVariantId: "v1", quantityDelta: -1, quantityAfter: 2 },
+    ]);
+  });
+
+  it("does not mutate the input available map", () => {
+    const start = { v1: 5 };
+    applyMovements(start, [{ productVariantId: "v1", quantityDelta: -2 }]);
+    expect(start).toEqual({ v1: 5 });
+  });
+
+  it("throws when a line would oversell (missing variant starts at 0)", () => {
+    expect(() => applyMovements({}, [{ productVariantId: "v1", quantityDelta: -1 }])).toThrow(
+      /negative/i,
+    );
+  });
+
+  it("permits overselling with an owner override", () => {
+    const r = applyMovements({ v1: 1 }, [{ productVariantId: "v1", quantityDelta: -5 }], {
+      allowNegative: true,
+    });
+    expect(r.available).toEqual({ v1: -4 });
+  });
+});
+
+describe("applyMovementsSafe > flag-and-continue for the sync path", () => {
+  it("applies safe movements and surfaces oversell conflicts instead of throwing", () => {
+    const r = applyMovementsSafe({ v1: 5 }, [
+      { productVariantId: "v1", quantityDelta: -2 },
+      { productVariantId: "v1", quantityDelta: -10 },
+      { productVariantId: "v2", quantityDelta: -1 },
+    ]);
+    expect(r.available).toEqual({ v1: 3 }); // only -2 applied; -10 and v2's -1 skipped as conflicts
+    expect(r.entries).toEqual([{ productVariantId: "v1", quantityDelta: -2, quantityAfter: 3 }]);
+    expect(r.conflicts).toEqual([
+      { productVariantId: "v1", quantityDelta: -10, available: 3, kind: "oversell" },
+      { productVariantId: "v2", quantityDelta: -1, available: 0, kind: "oversell" },
+    ]);
+  });
+
+  it("no conflicts when everything fits", () => {
+    const r = applyMovementsSafe({ v1: 5 }, [{ productVariantId: "v1", quantityDelta: -5 }]);
+    expect(r.conflicts).toEqual([]);
+    expect(r.available).toEqual({ v1: 0 });
   });
 });

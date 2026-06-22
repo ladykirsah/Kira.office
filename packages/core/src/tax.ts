@@ -24,27 +24,20 @@ export interface TaxResult {
 export function computeTax(input: TaxInput): TaxResult {
   const { netOfDiscount, vatRate, priceIncludesVat, isTaxable = true } = input;
 
+  // Each branch derives the third field from the other two ROUNDED fields, so the rows always
+  // reconcile (salesExTax + taxAmount === buyerPrice) and finance postings tie out exactly.
   if (!isTaxable || vatRate <= 0) {
-    return {
-      taxAmount: 0,
-      salesExTax: round2(netOfDiscount),
-      buyerPrice: round2(netOfDiscount),
-    };
+    const amount = round2(netOfDiscount);
+    return { taxAmount: 0, salesExTax: amount, buyerPrice: amount };
   }
 
   if (priceIncludesVat) {
-    const taxAmount = netOfDiscount - netOfDiscount / (1 + vatRate);
-    return {
-      taxAmount: round2(taxAmount),
-      salesExTax: round2(netOfDiscount - taxAmount),
-      buyerPrice: round2(netOfDiscount),
-    };
+    const buyerPrice = round2(netOfDiscount);
+    const taxAmount = round2(netOfDiscount - netOfDiscount / (1 + vatRate));
+    return { taxAmount, salesExTax: round2(buyerPrice - taxAmount), buyerPrice };
   }
 
-  const taxAmount = netOfDiscount * vatRate;
-  return {
-    taxAmount: round2(taxAmount),
-    salesExTax: round2(netOfDiscount),
-    buyerPrice: round2(netOfDiscount + taxAmount),
-  };
+  const salesExTax = round2(netOfDiscount);
+  const taxAmount = round2(netOfDiscount * vatRate);
+  return { taxAmount, salesExTax, buyerPrice: round2(salesExTax + taxAmount) };
 }

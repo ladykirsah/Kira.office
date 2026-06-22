@@ -14,13 +14,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc -b packages/core",
-    "lint": "prettier --check \"packages/**/src/**/*.ts\"",
-    "format": "prettier --write \"packages/**/src/**/*.ts\""
+    "typecheck": "tsc -b packages/core && tsc --noEmit -p apps/api",
+    "lint": "prettier --check \"{packages,apps}/**/src/**/*.ts\"",
+    "format": "prettier --write \"{packages,apps}/**/src/**/*.ts\"",
+    "deploy": "wrangler deploy",
+    "deploy:dry": "wrangler deploy --dry-run --outdir .wrangler/dry"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4",
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wrangler": "^4"
   }
 }

@@ -1,0 +1,13 @@
+{
+  // Live config for the api Worker (Cloudflare Workers Builds: account "homeseeker").
+  // `name` MUST match the Worker created in the dashboard so deploys update it.
+  // Deployed from repo root via `npx wrangler deploy` (build root directory = "/").
+  // Bindings (D1, R2, KV, Queues, Durable Objects) are added as resources are provisioned —
+  // see the full target config in docs/CLOUDFLARE_ARCHITECTURE.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kiraoffice",
+  "main": "apps/api/src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true }
+}

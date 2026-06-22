@@ -2,5 +2,11 @@
   "name": "@l-shopee/api",
   "version": "0.0.0",
   "private": true,
-  "description": "Cloudflare Worker: API, /sync, Shopee adapter, queues, stock-ledger Durable Object (not yet initialized — see README.md)"
+  "description": "Cloudflare Worker (kiraoffice): API, /sync, Shopee adapter, queues, stock-ledger Durable Object",
+  "dependencies": {
+    "@l-shopee/core": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4"
+  }
 }

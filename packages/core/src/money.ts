@@ -6,6 +6,7 @@
 export function round2(value: number): number {
   const scaled = Math.abs(value) * 100;
   const rounded = Math.round(scaled + Number.EPSILON) / 100;
+  if (rounded === 0) return 0; // normalize -0 to +0
   return value < 0 ? -rounded : rounded;
 }
 
@@ -16,6 +17,7 @@ export function round2(value: number): number {
  */
 export function toSatang(thb: number): number {
   const satang = Math.round(Math.abs(thb) * 100 + Number.EPSILON);
+  if (satang === 0) return 0; // normalize -0 to +0
   return thb < 0 ? -satang : satang;
 }
 

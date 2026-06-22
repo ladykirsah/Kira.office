@@ -55,4 +55,11 @@ describe("toSatang / fromSatang > THB <-> integer minor units", () => {
       expect(fromSatang(toSatang(thb))).toBe(thb);
     }
   });
+
+  it("normalizes negative zero to +0 (round2 and toSatang)", () => {
+    // .toBe uses Object.is, so -0 would fail these.
+    expect(round2(-0.001)).toBe(0);
+    expect(toSatang(-0.001)).toBe(0);
+    expect(Object.is(round2(-0.001), -0)).toBe(false);
+  });
 });

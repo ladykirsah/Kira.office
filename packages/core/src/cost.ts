@@ -38,7 +38,16 @@ export function latestUnitCost(layers: CostLayer[]): number {
 }
 
 export function fifoConsume(layers: CostLayer[], qty: number): FifoResult {
+  if (qty < 0) throw new Error("fifo qty must be non-negative");
   const working = layers.map((layer) => ({ ...layer })).sort((a, b) => a.receivedAt - b.receivedAt);
+
+  if (qty === 0) {
+    return {
+      totalCost: 0,
+      unitCost: 0,
+      remaining: working.filter((layer) => layer.remainingQty > 0),
+    };
+  }
 
   let toConsume = qty;
   let totalCost = 0;
@@ -59,6 +68,11 @@ export function fifoConsume(layers: CostLayer[], qty: number): FifoResult {
     unitCost: round2(totalCost / qty),
     remaining: working.filter((layer) => layer.remainingQty > 0),
   };
+}
+
+/** Append a received cost layer (purchase receipt). Pure — returns a new array, input untouched. */
+export function receiveStock(layers: CostLayer[], received: CostLayer): CostLayer[] {
+  return [...layers, received];
 }
 
 /** Resolve a representative unit cost for the shop's chosen cost method. */
