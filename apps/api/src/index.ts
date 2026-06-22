@@ -1,5 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
-import { computeSaleProfit, partitionByClientUuid, type SaleLineInput } from "@l-shopee/core";
+import {
+  computeSaleProfit,
+  partitionByClientUuid,
+  parseCsv,
+  mapRows,
+  type RowError,
+  type SaleLineInput,
+} from "@l-shopee/core";
 
 export interface Env {
   DB: D1Database;
@@ -180,6 +187,53 @@ export class StockLedger extends DurableObject<Env> {
   }
 }
 
+export interface ImportResult {
+  /** Data rows seen (excludes the header). */
+  received: number;
+  /** Rows that mapped to a valid product (re-import is idempotent on product_code). */
+  valid: number;
+  /** Rows skipped for a missing required field. */
+  invalid: number;
+  errors: RowError[];
+}
+
+/**
+ * Import products from a CSV (e.g. a Google Sheet export). `mapping` maps fields to header columns;
+ * `product_code` + `name` are required. Idempotent: INSERT OR IGNORE on the unique product_code, so
+ * re-importing the same file does not create duplicates. Variants/barcodes/pricing follow later.
+ */
+export async function importProducts(
+  db: D1Database,
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<ImportResult> {
+  const rows = parseCsv(csv);
+  const { records, errors } = mapRows(rows, mapping, ["product_code", "name"]);
+  const now = Date.now();
+  const statements = records.map((r) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO products (id, product_code, name, description, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        r["product_code"] ?? "",
+        r["name"] ?? "",
+        r["description"] ?? null,
+        "active",
+        now,
+      ),
+  );
+  if (statements.length > 0) await db.batch(statements);
+  return {
+    received: Math.max(0, rows.length - 1),
+    valid: records.length,
+    invalid: errors.length,
+    errors,
+  };
+}
+
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     "SELECT id, product_code AS productCode, name, status FROM products ORDER BY created_at DESC LIMIT 100",
@@ -207,6 +261,11 @@ const worker = {
 
     if (url.pathname === "/products" && request.method === "GET") {
       return listProducts(env);
+    }
+
+    if (url.pathname === "/import/products" && request.method === "POST") {
+      const body = (await request.json()) as { csv?: string; mapping?: Record<string, string> };
+      return json(await importProducts(env.DB, body.csv ?? "", body.mapping ?? {}));
     }
 
     if (url.pathname === "/sync" && request.method === "POST") {

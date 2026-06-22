@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import worker, { applySyncToDb, type Env } from "./index";
+import worker, { applySyncToDb, importProducts, type Env } from "./index";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
 // Stub its DurableObject base so importing the Worker (which extends it) works in tests.
@@ -150,5 +150,27 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     ]);
     expect(out.applied).toBe(1);
     expect(out.conflicts).toEqual([{ productVariantId: "v1", requested: 5, available: 1 }]);
+  });
+});
+
+describe("importProducts (CSV catalog import)", () => {
+  it("imports valid rows and reports rows missing a required field", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importProducts(
+      db,
+      "product_code,name,description\nC1,Cream,Nice\nC2,,Oops\n",
+      {
+        product_code: "product_code",
+        name: "name",
+        description: "description",
+      },
+    );
+    expect(out).toEqual({
+      received: 2,
+      valid: 1,
+      invalid: 1,
+      errors: [{ rowIndex: 2, reason: "missing required field: name" }],
+    });
+    expect(batched.length).toBe(1); // one INSERT for the valid row
   });
 });
