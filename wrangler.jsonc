@@ -21,6 +21,9 @@
       "migrations_dir": "packages/db/migrations"
     }
   ],
-  "kv_namespaces": [{ "binding": "KV", "id": "97169eb22d0b4999bbfd28053b9fb964" }]
+  "kv_namespaces": [{ "binding": "KV", "id": "97169eb22d0b4999bbfd28053b9fb964" }],
+  // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
+  // the DNS record + cert. Requires the build token to have zone DNS/Workers-routes edit.
+  "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }]
   // R2 (images) added once R2 is enabled in the dashboard; Durable Object + Queues are the next phase.
 }
