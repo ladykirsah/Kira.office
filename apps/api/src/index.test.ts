@@ -1,5 +1,18 @@
-import { describe, it, expect } from "vitest";
-import worker, { type Env } from "./index";
+import { describe, it, expect, vi } from "vitest";
+import worker, { applySyncToDb, type Env } from "./index";
+
+// `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
+// Stub its DurableObject base so importing the Worker (which extends it) works in tests.
+vi.mock("cloudflare:workers", () => ({
+  DurableObject: class {
+    ctx: unknown;
+    env: unknown;
+    constructor(ctx: unknown, env: unknown) {
+      this.ctx = ctx;
+      this.env = env;
+    }
+  },
+}));
 
 const ctx = {} as ExecutionContext;
 
@@ -33,11 +46,11 @@ function makeDb(canned: {
       batched.push(...stmts);
       return stmts.map(() => ({}));
     },
-  };
-  return { env: { DB: db } as unknown as Env, batched };
+  } as unknown as D1Database;
+  return { db, env: { DB: db } as unknown as Env, batched };
 }
 
-describe("api worker", () => {
+describe("api worker routes", () => {
   it("GET /health > 200 ok", async () => {
     const res = await worker.fetch!(new Request("https://x/health"), {} as Env, ctx);
     expect(res.status).toBe(200);
@@ -80,72 +93,61 @@ describe("api worker", () => {
     });
   });
 
-  it("POST /sync > applies a fresh sale (header + line + ledger)", async () => {
-    const { env, batched } = makeDb({
-      existing: [],
-      available: [{ variantId: "v1", available: 10 }],
-    });
+  it("POST /sync > routes through the StockLedger Durable Object", async () => {
+    const env = {
+      STOCK_LEDGER: {
+        idFromName: (_name: string) => ({}),
+        get: (_id: unknown) => ({
+          applySync: async (sales: unknown[]) => ({
+            applied: sales.length,
+            duplicates: 0,
+            conflicts: [],
+          }),
+        }),
+      },
+    } as unknown as Env;
     const res = await worker.fetch!(
       new Request("https://x/sync", {
         method: "POST",
-        body: JSON.stringify({
-          sales: [
-            {
-              clientUuid: "u1",
-              lines: [{ productVariantId: "v1", quantity: 2, unitPriceSatang: 10700 }],
-            },
-          ],
-        }),
+        body: JSON.stringify({ sales: [{ clientUuid: "u1", lines: [] }] }),
       }),
       env,
       ctx,
     );
     expect(await res.json()).toEqual({ applied: 1, duplicates: 0, conflicts: [] });
+  });
+});
+
+describe("applySyncToDb (single-writer sync logic)", () => {
+  it("applies a fresh sale (header + line + ledger)", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "u1",
+        lines: [{ productVariantId: "v1", quantity: 2, unitPriceSatang: 10700 }],
+      },
+    ]);
+    expect(out).toEqual({ applied: 1, duplicates: 0, conflicts: [] });
     expect(batched.length).toBe(3); // onsite_sales + line + ledger
   });
 
-  it("POST /sync > skips an already-applied sale (idempotent)", async () => {
-    const { env, batched } = makeDb({ existing: ["u1"] });
-    const res = await worker.fetch!(
-      new Request("https://x/sync", {
-        method: "POST",
-        body: JSON.stringify({
-          sales: [
-            {
-              clientUuid: "u1",
-              lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 100 }],
-            },
-          ],
-        }),
-      }),
-      env,
-      ctx,
-    );
-    expect(await res.json()).toEqual({ applied: 0, duplicates: 1, conflicts: [] });
+  it("skips an already-applied sale (idempotent)", async () => {
+    const { db, batched } = makeDb({ existing: ["u1"] });
+    const out = await applySyncToDb(db, [
+      { clientUuid: "u1", lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 100 }] },
+    ]);
+    expect(out).toEqual({ applied: 0, duplicates: 1, conflicts: [] });
     expect(batched.length).toBe(0);
   });
 
-  it("POST /sync > surfaces an oversell conflict, still records the sale", async () => {
-    const { env } = makeDb({ existing: [], available: [{ variantId: "v1", available: 1 }] });
-    const res = await worker.fetch!(
-      new Request("https://x/sync", {
-        method: "POST",
-        body: JSON.stringify({
-          sales: [
-            {
-              clientUuid: "u2",
-              lines: [{ productVariantId: "v1", quantity: 5, unitPriceSatang: 5000 }],
-            },
-          ],
-        }),
-      }),
-      env,
-      ctx,
-    );
-    const out = (await res.json()) as {
-      applied: number;
-      conflicts: { productVariantId: string; requested: number; available: number }[];
-    };
+  it("surfaces an oversell conflict, still records the sale", async () => {
+    const { db } = makeDb({ existing: [], available: [{ variantId: "v1", available: 1 }] });
+    const out = await applySyncToDb(db, [
+      { clientUuid: "u2", lines: [{ productVariantId: "v1", quantity: 5, unitPriceSatang: 5000 }] },
+    ]);
     expect(out.applied).toBe(1);
     expect(out.conflicts).toEqual([{ productVariantId: "v1", requested: 5, available: 1 }]);
   });

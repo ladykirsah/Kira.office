@@ -13,6 +13,8 @@
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  "durable_objects": { "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
   "d1_databases": [
     {
       "binding": "DB",
