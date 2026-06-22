@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSaleProfit } from "./pricing";
+import { computeSaleProfit, summarizeSale } from "./pricing";
 
 describe("computeSaleProfit", () => {
   it("on-site, VAT-inclusive > profit excludes any marketplace fee", () => {
@@ -113,5 +113,62 @@ describe("computeSaleProfit", () => {
     });
     expect(r.marketplaceFee).toBe(0);
     expect(r.grossProfit).toBe(40);
+  });
+});
+
+describe("summarizeSale > aggregates lines into sale totals", () => {
+  it("sums two on-site VAT-inclusive lines", () => {
+    const s = summarizeSale([
+      {
+        unitPrice: 107,
+        quantity: 1,
+        vatRate: 0.07,
+        priceIncludesVat: true,
+        landedUnitCost: 60,
+        channel: "onsite",
+      },
+      {
+        unitPrice: 53.5,
+        quantity: 1,
+        vatRate: 0.07,
+        priceIncludesVat: true,
+        landedUnitCost: 30,
+        channel: "onsite",
+      },
+    ]);
+    expect(s.lines).toHaveLength(2);
+    expect(s.grandTotal).toBe(160.5);
+    expect(s.salesExTaxTotal).toBe(150);
+    expect(s.taxTotal).toBe(10.5);
+    expect(s.costTotal).toBe(90);
+    expect(s.feeTotal).toBe(0);
+    expect(s.grossProfitTotal).toBe(60);
+    expect(s.grossMarginPct).toBe(40);
+  });
+
+  it("empty basket > zeros, margin 0 not NaN", () => {
+    const s = summarizeSale([]);
+    expect(s.lines).toEqual([]);
+    expect(s.grandTotal).toBe(0);
+    expect(s.salesExTaxTotal).toBe(0);
+    expect(s.grossProfitTotal).toBe(0);
+    expect(s.grossMarginPct).toBe(0);
+  });
+
+  it("sums discounts across lines", () => {
+    const s = summarizeSale([
+      {
+        unitPrice: 107,
+        quantity: 1,
+        discountAmount: 10.7,
+        vatRate: 0.07,
+        priceIncludesVat: true,
+        landedUnitCost: 60,
+        channel: "onsite",
+      },
+    ]);
+    expect(s.discountTotal).toBe(10.7);
+    expect(s.salesExTaxTotal).toBe(90);
+    expect(s.grossProfitTotal).toBe(30);
   });
 });

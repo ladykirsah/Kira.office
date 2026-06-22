@@ -86,3 +86,40 @@ export function computeSaleProfit(input: SaleLineInput): SaleProfit {
     grossMarginPct,
   };
 }
+
+export interface SaleSummary {
+  /** Per-line breakdowns, in input order. */
+  lines: SaleProfit[];
+  discountTotal: number;
+  taxTotal: number;
+  /** Marketplace fees across lines (0 for on-site). */
+  feeTotal: number;
+  costTotal: number;
+  /** Seller revenue excluding VAT, summed. */
+  salesExTaxTotal: number;
+  /** What the buyer pays in total. */
+  grandTotal: number;
+  grossProfitTotal: number;
+  grossMarginPct: number;
+}
+
+/** Aggregate multiple sale lines into a single sale's totals (POS basket / imported order). */
+export function summarizeSale(lines: SaleLineInput[]): SaleSummary {
+  const computed = lines.map(computeSaleProfit);
+  const sum = (pick: (p: SaleProfit) => number) =>
+    round2(computed.reduce((acc, p) => acc + pick(p), 0));
+  const discountTotal = round2(lines.reduce((acc, l) => acc + (l.discountAmount ?? 0), 0));
+  const salesExTaxTotal = sum((p) => p.salesExTax);
+  const grossProfitTotal = sum((p) => p.grossProfit);
+  return {
+    lines: computed,
+    discountTotal,
+    taxTotal: sum((p) => p.taxAmount),
+    feeTotal: sum((p) => p.marketplaceFee),
+    costTotal: sum((p) => p.landedCost),
+    salesExTaxTotal,
+    grandTotal: sum((p) => p.buyerPrice),
+    grossProfitTotal,
+    grossMarginPct: salesExTaxTotal === 0 ? 0 : round2((grossProfitTotal / salesExTaxTotal) * 100),
+  };
+}
