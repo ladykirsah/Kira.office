@@ -33,6 +33,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <a style={linkStyle} href="/import">
             Import
           </a>
+          <a style={linkStyle} href="/pricing">
+            Pricing
+          </a>
           <a style={linkStyle} href="/pos">
             POS
           </a>

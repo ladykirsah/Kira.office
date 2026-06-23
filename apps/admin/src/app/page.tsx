@@ -14,6 +14,9 @@ export default function DashboardPage() {
           <a href="/import">Import</a> — bulk-load a catalog CSV (Google Sheet export)
         </li>
         <li>
+          <a href="/pricing">Pricing</a> — on-site vs Shopee profit, VAT, target margin
+        </li>
+        <li>
           <a href="/pos">POS</a> — barcode on-site selling
         </li>
         <li>
