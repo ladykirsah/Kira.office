@@ -105,6 +105,9 @@ export interface ProductDetail {
     itemCostSatang: number;
     targetPriceSatang: number;
     onlinePriceSatang: number;
+    b2bPriceSatang: number;
+    onlineCommissionBp: number;
+    taxOnCost: number;
   } | null;
   images: ProductImage[];
 }
@@ -162,7 +165,14 @@ export async function deleteGalleryImage(productId: string, imageId: string): Pr
 
 export async function setProductPricing(
   id: string,
-  pricing: { itemCostSatang: number; targetPriceSatang: number; onlinePriceSatang: number },
+  pricing: {
+    itemCostSatang: number;
+    targetPriceSatang: number;
+    onlinePriceSatang: number;
+    b2bPriceSatang: number;
+    onlineCommissionBp: number;
+    taxOnCost: boolean;
+  },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/products/${id}/pricing`, {
     method: "PUT",

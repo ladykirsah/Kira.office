@@ -634,7 +634,14 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
 
   it("setVariantPricing replaces the profile (delete + insert)", async () => {
     const { db, batched } = makeDb({});
-    await setVariantPricing(db, "v1", 6000, 10700, 12000);
+    await setVariantPricing(db, "v1", {
+      itemCostSatang: 6000,
+      targetPriceSatang: 10700,
+      onlinePriceSatang: 12000,
+      b2bPriceSatang: 9600,
+      onlineCommissionBp: 1000,
+      taxOnCost: true,
+    });
     expect(batched.length).toBe(2);
   });
 

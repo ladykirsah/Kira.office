@@ -247,6 +247,18 @@ tbody tr:hover {
   background: var(--hover);
   color: var(--text-muted);
 }
+.pill.good {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+.pill.warn {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+.pill.bad {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
 
 /* Toggle switch (on = active) */
 .switch {

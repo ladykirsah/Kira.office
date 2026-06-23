@@ -12,6 +12,9 @@ import {
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { BarcodePreview } from "../../BarcodePreview";
+import { PricingFields, type PricingForm } from "../../PricingFields";
+import { CampaignWorkspace } from "../../CampaignWorkspace";
+import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
 const thb = (satang: number) => (satang / 100).toFixed(2);
@@ -74,10 +77,17 @@ export default function EditProductPage() {
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [category, setCategory] = useState("");
   const [active, setActive] = useState(true);
-  const [costThb, setCostThb] = useState("");
-  const [offlineThb, setOfflineThb] = useState("");
-  const [onlineThb, setOnlineThb] = useState("");
   const [weightKg, setWeightKg] = useState("");
+  const [pricing, setPricing] = useState<PricingForm>({
+    costThb: "",
+    taxOnCost: false,
+    b2cThb: "",
+    b2bThb: "",
+    onlineThb: "",
+    onlineCommPct: "",
+  });
+  const updatePricing = (patch: Partial<PricingForm>) =>
+    setPricing((prev) => ({ ...prev, ...patch }));
 
   function hydrate(d: ProductDetail) {
     setName(d.product.name);
@@ -85,10 +95,18 @@ export default function EditProductPage() {
     setShopeeItemId(d.product.shopeeItemId ?? "");
     setCategory(d.product.category ?? "");
     setActive(d.product.status === "active");
-    setCostThb(d.pricing ? thb(d.pricing.itemCostSatang) : "");
-    setOfflineThb(d.pricing ? thb(d.pricing.targetPriceSatang) : "");
-    setOnlineThb(d.pricing ? thb(d.pricing.onlinePriceSatang) : "");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
+    setPricing({
+      costThb: d.pricing ? thb(d.pricing.itemCostSatang) : "",
+      taxOnCost: d.pricing ? Boolean(d.pricing.taxOnCost) : false,
+      b2cThb: d.pricing ? thb(d.pricing.targetPriceSatang) : "",
+      b2bThb: d.pricing ? thb(d.pricing.b2bPriceSatang) : "",
+      onlineThb: d.pricing ? thb(d.pricing.onlinePriceSatang) : "",
+      onlineCommPct:
+        d.pricing && d.pricing.onlineCommissionBp
+          ? (d.pricing.onlineCommissionBp / 100).toString()
+          : "",
+    });
   }
 
   async function load() {
@@ -121,11 +139,14 @@ export default function EditProductPage() {
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         barcode,
       });
-      if (detail?.variantId && (costThb || offlineThb || onlineThb)) {
+      if (detail?.variantId) {
         await setProductPricing(id, {
-          itemCostSatang: toSatang(costThb),
-          targetPriceSatang: toSatang(offlineThb),
-          onlinePriceSatang: toSatang(onlineThb),
+          itemCostSatang: toSatang(pricing.costThb),
+          targetPriceSatang: toSatang(pricing.b2cThb),
+          onlinePriceSatang: toSatang(pricing.onlineThb),
+          b2bPriceSatang: toSatang(pricing.b2bThb),
+          onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
+          taxOnCost: pricing.taxOnCost,
         });
       }
       toast("Saved ✓", "success");
@@ -166,6 +187,29 @@ export default function EditProductPage() {
 
   const p = detail.product;
   const pr = detail.pricing;
+
+  // Campaign workspace baseline = total cost + the saved online default's profit (live, edit mode).
+  const editTC = totalCostSatang(toSatang(pricing.costThb), pricing.taxOnCost);
+  const editOnline = toSatang(pricing.onlineThb);
+  const editCommBp = Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100);
+  const editDefaultProfit = profitSatang(
+    editOnline,
+    editTC,
+    commissionFeeSatang(editOnline, editCommBp),
+  );
+
+  // Read-only (view mode) profits from the saved pricing.
+  const vTC = pr ? totalCostSatang(pr.itemCostSatang, Boolean(pr.taxOnCost)) : 0;
+  const vOnlineProfit = pr
+    ? profitSatang(
+        pr.onlinePriceSatang,
+        vTC,
+        commissionFeeSatang(pr.onlinePriceSatang, pr.onlineCommissionBp),
+      )
+    : 0;
+  const vB2cProfit = pr ? profitSatang(pr.targetPriceSatang, vTC, 0) : 0;
+  const vB2bProfit = pr ? profitSatang(pr.b2bPriceSatang, vTC, 0) : 0;
+
   const grid = {
     display: "grid",
     gridTemplateColumns: "180px 1fr",
@@ -252,44 +296,9 @@ export default function EditProductPage() {
             />
           </label>
 
-          <div style={field}>
-            <span style={{ fontWeight: 600 }}>Pricing</span>
-            <table cellPadding={6} style={{ borderCollapse: "collapse", maxWidth: 380 }}>
-              <tbody>
-                <tr>
-                  <td className="muted">Cost</td>
-                  <td>
-                    <input
-                      value={costThb}
-                      onChange={(e) => setCostThb(e.target.value)}
-                      style={{ width: 140 }}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="muted">On-site price</td>
-                  <td>
-                    <input
-                      value={offlineThb}
-                      onChange={(e) => setOfflineThb(e.target.value)}
-                      style={{ width: 140 }}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="muted">Online (Shopee)</td>
-                  <td>
-                    <input
-                      value={onlineThb}
-                      onChange={(e) => setOnlineThb(e.target.value)}
-                      style={{ width: 140 }}
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <small className="muted">All prices in THB (฿). More pricing options later.</small>
-          </div>
+          <PricingFields form={pricing} update={updatePricing} />
+
+          <CampaignWorkspace totalCostSatang={editTC} defaultProfitSatang={editDefaultProfit} />
 
           <label style={field}>
             Weight (kg)
@@ -324,9 +333,45 @@ export default function EditProductPage() {
             </Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
             <Row label="Category">{p.category || "—"}</Row>
-            <Row label="Cost">{pr ? baht(pr.itemCostSatang) : "—"}</Row>
-            <Row label="On-site price">{pr ? baht(pr.targetPriceSatang) : "—"}</Row>
-            <Row label="Online (Shopee) price">{pr ? baht(pr.onlinePriceSatang) : "—"}</Row>
+            <Row label="Total cost">
+              {pr ? `${baht(vTC)}${pr.taxOnCost ? " · incl. 7%" : ""}` : "—"}
+            </Row>
+            <Row label="Online · default">
+              {pr ? (
+                <>
+                  {baht(pr.onlinePriceSatang)}{" "}
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    · {pr.onlineCommissionBp / 100}% comm · profit {baht(vOnlineProfit)}
+                  </span>
+                </>
+              ) : (
+                "—"
+              )}
+            </Row>
+            <Row label="On-site · B2C">
+              {pr ? (
+                <>
+                  {baht(pr.targetPriceSatang)}{" "}
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    · profit {baht(vB2cProfit)}
+                  </span>
+                </>
+              ) : (
+                "—"
+              )}
+            </Row>
+            <Row label="On-site · B2B">
+              {pr ? (
+                <>
+                  {baht(pr.b2bPriceSatang)}{" "}
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    · profit {baht(vB2bProfit)}
+                  </span>
+                </>
+              ) : (
+                "—"
+              )}
+            </Row>
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
           </div>
         </>

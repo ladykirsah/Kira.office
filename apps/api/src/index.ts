@@ -1022,8 +1022,11 @@ export interface ProductDetail {
   barcode: string | null;
   pricing: {
     itemCostSatang: number;
-    targetPriceSatang: number;
-    onlinePriceSatang: number;
+    targetPriceSatang: number; // on-site B2C price
+    onlinePriceSatang: number; // online default price
+    b2bPriceSatang: number; // on-site B2B price
+    onlineCommissionBp: number; // Shopee commission, basis points
+    taxOnCost: number; // 1 = add 7% VAT to the cost base
   } | null;
   images: ProductImageRow[];
 }
@@ -1048,7 +1051,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
     pricing =
       (await db
         .prepare(
-          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang, online_price_satang AS onlinePriceSatang FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
+          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang, online_price_satang AS onlinePriceSatang, b2b_price_satang AS b2bPriceSatang, online_commission_bp AS onlineCommissionBp, tax_on_cost AS taxOnCost FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
         )
         .bind(variant.id)
         .first<NonNullable<ProductDetail["pricing"]>>()) ?? null;
@@ -1125,26 +1128,36 @@ export async function archiveProduct(db: D1Database, id: string): Promise<void> 
   await db.prepare("UPDATE products SET status = 'archived' WHERE id = ?").bind(id).run();
 }
 
+export interface VariantPricing {
+  itemCostSatang: number;
+  targetPriceSatang: number; // on-site B2C price
+  onlinePriceSatang: number; // online default price
+  b2bPriceSatang: number; // on-site B2B price
+  onlineCommissionBp: number; // Shopee commission, basis points
+  taxOnCost: boolean; // add 7% VAT to the cost base
+}
+
 /** Persist a variant's pricing (replaces any prior profile). Amounts in satang. */
 export async function setVariantPricing(
   db: D1Database,
   variantId: string,
-  itemCostSatang: number,
-  targetPriceSatang: number,
-  onlinePriceSatang: number,
+  p: VariantPricing,
 ): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM pricing_profiles WHERE product_variant_id = ?").bind(variantId),
     db
       .prepare(
-        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, active_from) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         crypto.randomUUID(),
         variantId,
-        itemCostSatang,
-        targetPriceSatang,
-        onlinePriceSatang,
+        p.itemCostSatang,
+        p.targetPriceSatang,
+        p.onlinePriceSatang,
+        p.b2bPriceSatang,
+        p.onlineCommissionBp,
+        p.taxOnCost ? 1 : 0,
         Date.now(),
       ),
   ]);
@@ -1263,16 +1276,20 @@ const worker = {
         itemCostSatang?: number;
         targetPriceSatang?: number;
         onlinePriceSatang?: number;
+        b2bPriceSatang?: number;
+        onlineCommissionBp?: number;
+        taxOnCost?: boolean;
       };
       const detail = await getProductDetail(env.DB, productPricing[1]!);
       if (!detail?.variantId) return json({ error: "product or variant not found" }, 404);
-      await setVariantPricing(
-        env.DB,
-        detail.variantId,
-        body.itemCostSatang ?? 0,
-        body.targetPriceSatang ?? 0,
-        body.onlinePriceSatang ?? 0,
-      );
+      await setVariantPricing(env.DB, detail.variantId, {
+        itemCostSatang: body.itemCostSatang ?? 0,
+        targetPriceSatang: body.targetPriceSatang ?? 0,
+        onlinePriceSatang: body.onlinePriceSatang ?? 0,
+        b2bPriceSatang: body.b2bPriceSatang ?? 0,
+        onlineCommissionBp: body.onlineCommissionBp ?? 0,
+        taxOnCost: body.taxOnCost ?? false,
+      });
       return json({ ok: true });
     }
 
