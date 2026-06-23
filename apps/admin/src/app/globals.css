@@ -431,6 +431,44 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
+/* Pricing table — aligned, evenly padded, tabular numbers */
+.ptbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.ptbl th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: right;
+  padding: 2px 12px 8px;
+}
+.ptbl th:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+.ptbl th:last-child {
+  padding-right: 0;
+}
+.ptbl td {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+  text-align: right;
+}
+.ptbl td:first-child {
+  text-align: left;
+  padding-left: 0;
+  font-weight: 500;
+}
+.ptbl td:last-child {
+  padding-right: 0;
+}
+.ptbl input {
+  text-align: right;
+}
+
 /* Empty states */
 .empty {
   text-align: center;

@@ -43,15 +43,15 @@ export function CampaignWorkspace({
           Baseline — saved online default profit{" "}
           <span style={{ color: "var(--ok)", fontWeight: 600 }}>{baht(defaultProfitSatang)}</span>
         </div>
-        <table cellPadding={6} style={{ borderCollapse: "collapse", width: "100%" }}>
+        <table className="ptbl">
           <thead>
-            <tr className="muted" style={{ fontSize: 12 }}>
-              <th align="left">Try</th>
-              <th align="right">Price (฿)</th>
-              <th align="right">Comm.</th>
-              <th align="right">Profit</th>
-              <th align="right">Margin</th>
-              <th align="right">vs default</th>
+            <tr>
+              <th>Try</th>
+              <th>Price (฿)</th>
+              <th>Comm.</th>
+              <th>Profit</th>
+              <th>Margin</th>
+              <th>vs default</th>
             </tr>
           </thead>
           <tbody>
@@ -63,24 +63,26 @@ export function CampaignWorkspace({
               const delta = profit - defaultProfitSatang;
               const cls = m < 0 ? "bad" : m < 15 ? "warn" : "good";
               return (
-                <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
+                <tr key={i}>
                   <td>{String.fromCharCode(65 + i)}</td>
-                  <td align="right">
+                  <td>
                     <input
                       value={r.price}
                       onChange={(e) => patch(i, { price: e.target.value })}
-                      style={{ width: 90, textAlign: "right" }}
+                      style={{ width: 90 }}
                     />
                   </td>
-                  <td align="right">
-                    <input
-                      value={r.comm}
-                      onChange={(e) => patch(i, { comm: e.target.value })}
-                      style={{ width: 48, textAlign: "right" }}
-                    />
-                    %
+                  <td>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <input
+                        value={r.comm}
+                        onChange={(e) => patch(i, { comm: e.target.value })}
+                        style={{ width: 48 }}
+                      />
+                      <span className="muted">%</span>
+                    </span>
                   </td>
-                  <td align="right">
+                  <td>
                     <span
                       style={{
                         fontWeight: 600,
@@ -90,10 +92,10 @@ export function CampaignWorkspace({
                       {price > 0 ? baht(profit) : "—"}
                     </span>
                   </td>
-                  <td align="right">
+                  <td>
                     {price > 0 ? <span className={`pill ${cls}`}>{Math.round(m)}%</span> : "—"}
                   </td>
-                  <td align="right" style={{ color: delta >= 0 ? "var(--ok)" : "var(--danger)" }}>
+                  <td style={{ color: delta >= 0 ? "var(--ok)" : "var(--danger)" }}>
                     {price > 0 ? `${delta >= 0 ? "+" : "−"}${baht(Math.abs(delta))}` : "—"}
                   </td>
                 </tr>
