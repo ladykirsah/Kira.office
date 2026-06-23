@@ -1,7 +1,8 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { Attributes, AttrOption } from "@/lib/api";
+import type { Attributes } from "@/lib/api";
+import { Combobox } from "./Combobox";
 
 export interface PartForm {
   brand: string;
@@ -10,16 +11,7 @@ export interface PartForm {
 }
 
 const field: CSSProperties = { display: "grid", gap: 4 };
-
-function options(id: string, opts: AttrOption[]) {
-  return (
-    <datalist id={id}>
-      {opts.map((o) => (
-        <option key={o.id} value={o.name} />
-      ))}
-    </datalist>
-  );
-}
+const names = (opts: { name: string }[] | undefined) => (opts ?? []).map((o) => o.name);
 
 /** Three creatable dropdowns (pick from the list or type a new value) for the car-part taxonomy. */
 export function PartDetails({
@@ -48,35 +40,32 @@ export function PartDetails({
       >
         <label style={field}>
           Part brand
-          <input
-            list="opt-brands"
+          <Combobox
             value={value.brand}
-            onChange={(e) => onChange({ brand: e.target.value })}
+            onChange={(v) => onChange({ brand: v })}
+            options={names(attributes?.brands)}
             placeholder="e.g. DENSO"
           />
         </label>
         <label style={field}>
           Match car system
-          <input
-            list="opt-usages"
+          <Combobox
             value={value.usage}
-            onChange={(e) => onChange({ usage: e.target.value })}
+            onChange={(v) => onChange({ usage: v })}
+            options={names(attributes?.usages)}
             placeholder="e.g. A/C"
           />
         </label>
         <label style={field}>
           Part name
-          <input
-            list="opt-types"
+          <Combobox
             value={value.type}
-            onChange={(e) => onChange({ type: e.target.value })}
+            onChange={(v) => onChange({ type: v })}
+            options={names(attributes?.types)}
             placeholder="e.g. Evaporator"
           />
         </label>
       </div>
-      {options("opt-brands", attributes?.brands ?? [])}
-      {options("opt-usages", attributes?.usages ?? [])}
-      {options("opt-types", attributes?.types ?? [])}
       <small className="muted">
         Category: {composed || "—"} · pick from the list or type a new value to add it.
       </small>

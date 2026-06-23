@@ -372,6 +372,54 @@ tbody tr:hover {
   justify-content: center;
 }
 
+/* Creatable combobox (replaces native datalist; reliable in Safari) */
+.combo-caret {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: 0;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  line-height: 1;
+  cursor: pointer;
+}
+.combo-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 30;
+}
+.combo-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.combo-opt:hover {
+  background: var(--hover);
+}
+.combo-new {
+  color: var(--text-muted);
+}
+
 /* Empty states */
 .empty {
   text-align: center;
