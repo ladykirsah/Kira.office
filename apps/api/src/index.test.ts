@@ -659,6 +659,15 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("updateProduct stamps updated_at", async () => {
+    const { db, runs } = makeDb({});
+    await updateProduct(db, "p1", { name: "New", status: "active" });
+    const upd = runs.find((r) => r.sql.startsWith("UPDATE products SET name"));
+    expect(upd?.sql).toContain("updated_at = ?");
+    // updated_at is the second-to-last bind (before the id)
+    expect(typeof upd?.binds.at(-2)).toBe("number");
+  });
+
   it("setVariantPricing replaces the profile (delete + insert)", async () => {
     const { db, batched } = makeDb({});
     await setVariantPricing(db, "v1", {

@@ -70,6 +70,8 @@ export const products = sqliteTable("products", {
   category: text("category"),
   weightGrams: integer("weight_grams").notNull().default(0),
   createdAt: createdAt(),
+  // Bumped whenever the product is saved; backfilled from created_at (migration 0012).
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
 });
 
 // Managed attribute lists behind the product dropdowns (creatable). products reference these by id

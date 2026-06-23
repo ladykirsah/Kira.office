@@ -1031,6 +1031,7 @@ export interface ProductDetail {
     typeName: string | null;
     usageId: string | null;
     usageName: string | null;
+    updatedAt: number | null;
   };
   variantId: string | null;
   barcode: string | null;
@@ -1056,7 +1057,8 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
               p.category, p.weight_grams AS weightGrams,
               p.brand_id AS brandId, b.name AS brandName,
               p.type_id AS typeId, t.name AS typeName,
-              p.usage_id AS usageId, u.name AS usageName
+              p.usage_id AS usageId, u.name AS usageName,
+              p.updated_at AS updatedAt
        FROM products p
        LEFT JOIN brands b ON b.id = p.brand_id
        LEFT JOIN product_types t ON t.id = p.type_id
@@ -1135,7 +1137,7 @@ export async function updateProduct(
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ? WHERE id = ?",
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ?, updated_at = ? WHERE id = ?",
     )
     .bind(
       fields.name.trim(),
@@ -1149,6 +1151,7 @@ export async function updateProduct(
       fields.brandId ?? null,
       fields.typeId ?? null,
       fields.usageId ?? null,
+      Date.now(),
       id,
     )
     .run();

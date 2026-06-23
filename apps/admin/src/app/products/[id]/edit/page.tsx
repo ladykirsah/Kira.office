@@ -22,6 +22,7 @@ import { PricingFields, type PricingForm } from "../../PricingFields";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
 import { ProfitPeek } from "../../ProfitPeek";
 import { PartDetails, type PartForm } from "../../PartDetails";
+import { formatUpdatedAt } from "@/lib/format";
 import { FitmentSection } from "../../FitmentSection";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
@@ -300,7 +301,7 @@ export default function EditProductPage() {
         )}
       </div>
       <p className="muted" style={{ marginTop: 4 }}>
-        {p.productCode}
+        {p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productCode}
       </p>
 
       {editing ? (

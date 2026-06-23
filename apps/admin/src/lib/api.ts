@@ -233,6 +233,7 @@ export interface ProductDetail {
     typeName: string | null;
     usageId: string | null;
     usageName: string | null;
+    updatedAt: number | null;
   };
   variantId: string | null;
   barcode: string | null;
