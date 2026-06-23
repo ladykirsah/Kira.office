@@ -6,6 +6,23 @@ export interface ProductRow {
   productCode: string;
   name: string;
   status: string;
+  imageKey: string | null;
+}
+
+export async function uploadProductImage(
+  productId: string,
+  file: File,
+): Promise<{ key: string; url: string }> {
+  const res = await fetch(`${apiBase}/products/${productId}/image`, {
+    method: "POST",
+    headers: { "content-type": file.type },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { key: string; url: string };
 }
 
 export async function fetchProducts(): Promise<ProductRow[]> {

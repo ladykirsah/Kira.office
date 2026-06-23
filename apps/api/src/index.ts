@@ -14,6 +14,7 @@ export interface Env {
   DB: D1Database;
   KV: KVNamespace;
   STOCK_LEDGER: DurableObjectNamespace<StockLedger>;
+  IMAGES: R2Bucket;
 }
 
 interface SyncLine {
@@ -381,9 +382,44 @@ export async function createProduct(
   return { productId, variantId, created: true };
 }
 
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+export interface UploadImageResult {
+  key: string;
+  url: string;
+}
+
+/**
+ * Store a product image in the R2 images bucket and record its key on the product. Validates the
+ * content type (jpeg/png/webp) and size (≤5MB). The bytes are served back via GET /img/:key.
+ */
+export async function storeProductImage(
+  db: D1Database,
+  bucket: R2Bucket,
+  productId: string,
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<UploadImageResult> {
+  if (!contentType || !ALLOWED_IMAGE_TYPES[contentType]) {
+    throw new Error("unsupported image type (use jpeg, png or webp)");
+  }
+  if (bytes.byteLength === 0) throw new Error("empty image");
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("image too large (max 5MB)");
+
+  const key = `products/${productId}/${crypto.randomUUID()}.${ALLOWED_IMAGE_TYPES[contentType]}`;
+  await bucket.put(key, bytes, { httpMetadata: { contentType } });
+  await db.prepare("UPDATE products SET image_key = ? WHERE id = ?").bind(key, productId).run();
+  return { key, url: `/img/${key}` };
+}
+
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    "SELECT id, product_code AS productCode, name, status FROM products ORDER BY created_at DESC LIMIT 100",
+    "SELECT id, product_code AS productCode, name, status, image_key AS imageKey FROM products ORDER BY created_at DESC LIMIT 100",
   ).all();
   return json({ products: results });
 }
@@ -432,6 +468,35 @@ const worker = {
 
     if (url.pathname === "/sales" && request.method === "GET") {
       return listSales(env);
+    }
+
+    const imageUpload = url.pathname.match(/^\/products\/([^/]+)\/image$/);
+    if (imageUpload && request.method === "POST") {
+      const bytes = await request.arrayBuffer();
+      try {
+        const out = await storeProductImage(
+          env.DB,
+          env.IMAGES,
+          imageUpload[1]!,
+          bytes,
+          request.headers.get("content-type"),
+        );
+        return json(out, 201);
+      } catch (err) {
+        return json({ error: (err as Error).message }, 400);
+      }
+    }
+
+    if (url.pathname.startsWith("/img/") && request.method === "GET") {
+      const key = decodeURIComponent(url.pathname.slice("/img/".length));
+      const obj = await env.IMAGES.get(key);
+      if (!obj) return new Response("Not found", { status: 404 });
+      return new Response(obj.body, {
+        headers: {
+          "content-type": obj.httpMetadata?.contentType ?? "application/octet-stream",
+          "cache-control": "public, max-age=31536000, immutable",
+        },
+      });
     }
 
     if (url.pathname === "/products" && request.method === "POST") {

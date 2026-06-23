@@ -61,6 +61,7 @@ export const products = sqliteTable("products", {
   usageId: text("usage_id"),
   taxProfileId: text("tax_profile_id").references(() => taxProfiles.id),
   status: text("status").notNull().default("draft"),
+  imageKey: text("image_key"),
   createdAt: createdAt(),
 });
 

@@ -5,6 +5,7 @@ import worker, {
   importProducts,
   importShopeeOrders,
   lineGrossProfitSatang,
+  storeProductImage,
   type Env,
 } from "./index";
 
@@ -54,6 +55,9 @@ function makeDb(canned: {
         if (sql.includes("FROM products WHERE product_code"))
           return (canned.existingProduct ?? null) as T | null;
         return null;
+      },
+      async run() {
+        return { success: true };
       },
     };
     return stmt;
@@ -124,6 +128,26 @@ describe("api worker routes", () => {
     const { env } = makeDb({ sales: [sale] });
     const res = await worker.fetch!(new Request("https://x/sales"), env, ctx);
     expect(await res.json()).toEqual({ sales: [sale] });
+  });
+
+  it("GET /img/:key > serves an object from R2", async () => {
+    const env = {
+      IMAGES: {
+        get: async (k: string) =>
+          k === "products/p1/a.png"
+            ? { body: "BYTES", httpMetadata: { contentType: "image/png" } }
+            : null,
+      },
+    } as unknown as Env;
+    const res = await worker.fetch!(new Request("https://x/img/products/p1/a.png"), env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+  });
+
+  it("GET /img/:key > 404 when the object is missing", async () => {
+    const env = { IMAGES: { get: async () => null } } as unknown as Env;
+    const res = await worker.fetch!(new Request("https://x/img/nope.png"), env, ctx);
+    expect(res.status).toBe(404);
   });
 
   it("POST /sync > routes through the StockLedger Durable Object", async () => {
@@ -248,6 +272,45 @@ describe("createProduct", () => {
   it("rejects a missing required field", async () => {
     const { db } = makeDb({});
     await expect(createProduct(db, { productCode: "", name: "X" })).rejects.toThrow(/required/);
+  });
+});
+
+describe("storeProductImage", () => {
+  function fakeBucket() {
+    const puts: { key: string }[] = [];
+    const bucket = { put: async (key: string) => void puts.push({ key }) } as unknown as R2Bucket;
+    return { bucket, puts };
+  }
+
+  it("stores a png in R2 and records the key on the product", async () => {
+    const { db } = makeDb({});
+    const { bucket, puts } = fakeBucket();
+    const out = await storeProductImage(
+      db,
+      bucket,
+      "p1",
+      new Uint8Array([1, 2, 3]).buffer,
+      "image/png",
+    );
+    expect(out.key).toMatch(/^products\/p1\/.*\.png$/);
+    expect(out.url).toBe(`/img/${out.key}`);
+    expect(puts.length).toBe(1);
+  });
+
+  it("rejects an unsupported content type", async () => {
+    const { db } = makeDb({});
+    const { bucket } = fakeBucket();
+    await expect(
+      storeProductImage(db, bucket, "p1", new Uint8Array([1]).buffer, "image/gif"),
+    ).rejects.toThrow(/unsupported/);
+  });
+
+  it("rejects an oversized image", async () => {
+    const { db } = makeDb({});
+    const { bucket } = fakeBucket();
+    await expect(
+      storeProductImage(db, bucket, "p1", new ArrayBuffer(5 * 1024 * 1024 + 1), "image/png"),
+    ).rejects.toThrow(/too large/);
   });
 });
 
