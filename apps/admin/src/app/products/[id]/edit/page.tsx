@@ -32,22 +32,25 @@ const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
 const baht = (satang: number) => `฿${thb(satang)}`;
 const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
-function Row({ label, children, span }: { label: string; children: ReactNode; span?: boolean }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "140px 1fr",
-        gap: "2px 16px",
-        alignItems: "baseline",
-        gridColumn: span ? "1 / -1" : undefined,
-      }}
-    >
-      <div className="muted">{label}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div className="muted" style={{ fontSize: 12, marginBottom: 3 }}>
+        {label}
+      </div>
       <div>{children}</div>
     </div>
   );
 }
+
+const groupHead = {
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  color: "var(--text-faint)",
+  marginBottom: 12,
+} as const;
 
 function PriceProfit({ price, profit }: { price: number; profit: number }) {
   return (
@@ -284,10 +287,10 @@ export default function EditProductPage() {
       ? p.category.split(" · ").filter(Boolean)
       : [];
 
-  const grid = {
+  const overviewGrid = {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
-    gap: "12px 28px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
+    gap: "20px 36px",
     alignItems: "start",
   } as const;
 
@@ -423,32 +426,57 @@ export default function EditProductPage() {
           <div style={{ margin: "12px 0 18px" }}>
             <StaticFrames images={detail.images} name={p.name} />
           </div>
-          <div style={grid}>
-            <Row label="Status">
-              <span className={active ? "pill on" : "pill off"}>{active ? "Active" : "Draft"}</span>
-            </Row>
-            <Row label="Stock on hand">
-              <strong>{detail.onHand ?? 0}</strong>
-            </Row>
-            <Row label="Barcode" span>
-              {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
-            </Row>
-            <Row label="Product ID">{p.productRef || "—"}</Row>
-            <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
-            <Row label="Part details">
-              {partTags.length ? (
-                <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-                  {partTags.map((t, i) => (
-                    <span key={i} className="tag">
-                      {t}
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: "16px 18px",
+              background: "var(--surface)",
+            }}
+          >
+            <div style={overviewGrid}>
+              {/* Status & stock — what the admin checks first */}
+              <div>
+                <div style={groupHead}>Status &amp; stock</div>
+                <Field label="Status">
+                  <span className={active ? "pill on" : "pill off"}>
+                    {active ? "Active" : "Draft"}
+                  </span>
+                </Field>
+                <Field label="Stock on hand">
+                  <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
+                </Field>
+              </div>
+
+              {/* Identifiers — codes for scanning & linking */}
+              <div>
+                <div style={groupHead}>Identifiers</div>
+                <Field label="Barcode">
+                  {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
+                </Field>
+                <Field label="Product ID">{p.productRef || "—"}</Field>
+                <Field label="Shopee ID">{p.shopeeItemId || "—"}</Field>
+              </div>
+
+              {/* Part & spec — what the part is */}
+              <div>
+                <div style={groupHead}>Part &amp; spec</div>
+                <Field label="Part details">
+                  {partTags.length ? (
+                    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                      {partTags.map((t, i) => (
+                        <span key={i} className="tag">
+                          {t}
+                        </span>
+                      ))}
                     </span>
-                  ))}
-                </span>
-              ) : (
-                "—"
-              )}
-            </Row>
-            <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
+                  ) : (
+                    "—"
+                  )}
+                </Field>
+                <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
+              </div>
+            </div>
           </div>
 
           <div
