@@ -451,78 +451,88 @@ export default function EditProductPage() {
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
           </div>
 
-          {detail.fitments.length > 0 && (
+          <div
+            style={{
+              marginTop: 18,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))",
+              gap: 18,
+              alignItems: "start",
+            }}
+          >
+            {/* Pricing — left column */}
             <div
               style={{
-                marginTop: 18,
                 border: "1px solid var(--border)",
                 borderRadius: 12,
                 padding: "12px 16px",
                 background: "var(--surface)",
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Fits these cars</div>
-              <table className="ftbl">
-                <colgroup>
-                  <col style={{ width: "34%" }} />
-                  <col style={{ width: "34%" }} />
-                  <col style={{ width: "32%" }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Brand</th>
-                    <th>Model</th>
-                    <th>Years</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.fitments.map((f, i) => (
-                    <tr key={i}>
-                      <td>{f.carBrand || "—"}</td>
-                      <td>{f.carModel || "—"}</td>
-                      <td>{yearStr(f) || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Pricing</div>
+              {[
+                {
+                  label: "Online · default",
+                  price: n0(pr?.onlinePriceSatang),
+                  profit: vOnlineProfit,
+                },
+                { label: "On-site · B2C", price: n0(pr?.targetPriceSatang), profit: vB2cProfit },
+                { label: "On-site · B2B", price: n0(pr?.b2bPriceSatang), profit: vB2bProfit },
+              ].map((t) => (
+                <div
+                  key={t.label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                    padding: "10px 0",
+                    borderTop: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="muted" style={{ width: 150, flexShrink: 0 }}>
+                    {t.label}
+                  </div>
+                  <div>{pr ? <PriceProfit price={t.price} profit={t.profit} /> : "—"}</div>
+                </div>
+              ))}
             </div>
-          )}
 
-          <div
-            style={{
-              marginTop: 18,
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              padding: "12px 16px",
-              background: "var(--surface)",
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Pricing</div>
-            {[
-              {
-                label: "Online · default",
-                price: n0(pr?.onlinePriceSatang),
-                profit: vOnlineProfit,
-              },
-              { label: "On-site · B2C", price: n0(pr?.targetPriceSatang), profit: vB2cProfit },
-              { label: "On-site · B2B", price: n0(pr?.b2bPriceSatang), profit: vB2bProfit },
-            ].map((t) => (
+            {/* Fits these cars — right column */}
+            {detail.fitments.length > 0 && (
               <div
-                key={t.label}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  padding: "10px 0",
-                  borderTop: "1px solid var(--border)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  padding: "12px 16px",
+                  background: "var(--surface)",
                 }}
               >
-                <div className="muted" style={{ width: 150, flexShrink: 0 }}>
-                  {t.label}
-                </div>
-                <div>{pr ? <PriceProfit price={t.price} profit={t.profit} /> : "—"}</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Fits these cars</div>
+                <table className="ftbl">
+                  <colgroup>
+                    <col style={{ width: "34%" }} />
+                    <col style={{ width: "34%" }} />
+                    <col style={{ width: "32%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Brand</th>
+                      <th>Model</th>
+                      <th>Years</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.fitments.map((f, i) => (
+                      <tr key={i}>
+                        <td>{f.carBrand || "—"}</td>
+                        <td>{f.carModel || "—"}</td>
+                        <td>{yearStr(f) || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            )}
           </div>
         </>
       )}
