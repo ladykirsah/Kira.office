@@ -55,10 +55,6 @@ function yearStr(f: Fitment): string {
   if (f.yearTo) return `–${f.yearTo}`;
   return "";
 }
-function fitmentLabel(f: Fitment): string {
-  const car = [f.carBrand, f.carModel].filter(Boolean).join(" ");
-  return [car, yearStr(f)].filter(Boolean).join(" · ") || "car";
-}
 
 function StaticFrames({ images, name }: { images: ProductDetail["images"]; name: string }) {
   if (images.length === 0) {
@@ -438,21 +434,46 @@ export default function EditProductPage() {
                 "—"
               )}
             </Row>
-            <Row label="Fits cars">
-              {detail.fitments.length ? (
-                <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-                  {detail.fitments.map((f, i) => (
-                    <span key={i} className="tag">
-                      {fitmentLabel(f)}
-                    </span>
-                  ))}
-                </span>
-              ) : (
-                "—"
-              )}
-            </Row>
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
           </div>
+
+          {detail.fitments.length > 0 && (
+            <div
+              style={{
+                maxWidth: 520,
+                marginTop: 18,
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "12px 16px",
+                background: "var(--surface)",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Fits these cars</div>
+              <table className="ftbl">
+                <colgroup>
+                  <col style={{ width: "34%" }} />
+                  <col style={{ width: "34%" }} />
+                  <col style={{ width: "32%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Brand</th>
+                    <th>Model</th>
+                    <th>Years</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.fitments.map((f, i) => (
+                    <tr key={i}>
+                      <td>{f.carBrand || "—"}</td>
+                      <td>{f.carModel || "—"}</td>
+                      <td>{yearStr(f) || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div
             style={{
