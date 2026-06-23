@@ -6,6 +6,7 @@ import worker, {
   importShopeeOrders,
   lineGrossProfitSatang,
   lookupBarcode,
+  salesToCsv,
   storeProductImage,
   type Env,
 } from "./index";
@@ -294,6 +295,38 @@ describe("createProduct", () => {
   it("rejects a missing required field", async () => {
     const { db } = makeDb({});
     await expect(createProduct(db, { productCode: "", name: "X" })).rejects.toThrow(/required/);
+  });
+});
+
+describe("salesToCsv", () => {
+  it("builds a CSV with header + THB-formatted rows", () => {
+    const csv = salesToCsv([
+      {
+        paymentMethod: "cash",
+        grandTotalSatang: 10700,
+        taxTotalSatang: 700,
+        grossProfitSatang: 4000,
+        saleStatus: "completed",
+        createdAt: 0,
+      },
+    ]);
+    const lines = csv.split("\n");
+    expect(lines[0]).toBe("date,payment_method,total_thb,vat_thb,gross_profit_thb,status");
+    expect(lines[1]).toBe("1970-01-01T00:00:00.000Z,cash,107.00,7.00,40.00,completed");
+  });
+
+  it("quotes cells that contain a comma", () => {
+    const csv = salesToCsv([
+      {
+        paymentMethod: "cash,transfer",
+        grandTotalSatang: 0,
+        taxTotalSatang: 0,
+        grossProfitSatang: 0,
+        saleStatus: "completed",
+        createdAt: 0,
+      },
+    ]);
+    expect(csv.split("\n")[1]).toContain('"cash,transfer"');
   });
 });
 

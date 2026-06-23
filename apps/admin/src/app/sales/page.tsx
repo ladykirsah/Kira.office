@@ -1,4 +1,4 @@
-import { fetchSales } from "@/lib/api";
+import { apiBase, fetchSales } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,8 @@ export default async function SalesPage() {
       <h1>Sales ({sales.length})</h1>
       <p>
         Revenue <strong>{formatBaht(totalRevenue)}</strong> · gross profit{" "}
-        <strong>{formatBaht(totalProfit)}</strong>
+        <strong>{formatBaht(totalProfit)}</strong> ·{" "}
+        <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
       </p>
       <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
         <thead>

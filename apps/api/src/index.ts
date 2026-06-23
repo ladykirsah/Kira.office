@@ -424,24 +424,56 @@ async function listProducts(env: Env): Promise<Response> {
   return json({ products: results });
 }
 
+export interface SaleExportRow {
+  paymentMethod: string | null;
+  grandTotalSatang: number;
+  taxTotalSatang: number;
+  grossProfitSatang: number;
+  saleStatus: string;
+  createdAt: number;
+}
+
+const SALES_SELECT = `SELECT s.id,
+        s.payment_method AS paymentMethod,
+        s.grand_total_satang AS grandTotalSatang,
+        s.tax_total_satang AS taxTotalSatang,
+        s.sale_status AS saleStatus,
+        s.created_at AS createdAt,
+        COALESCE(
+          (SELECT SUM(gross_profit_satang) FROM onsite_sale_lines WHERE onsite_sale_id = s.id),
+          0
+        ) AS grossProfitSatang
+ FROM onsite_sales s
+ ORDER BY s.created_at DESC
+ LIMIT 100`;
+
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
+async function querySales(db: D1Database): Promise<SaleExportRow[]> {
+  const { results } = await db.prepare(SALES_SELECT).all<SaleExportRow>();
+  return results ?? [];
+}
+
 async function listSales(env: Env): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT s.id,
-            s.payment_method AS paymentMethod,
-            s.grand_total_satang AS grandTotalSatang,
-            s.tax_total_satang AS taxTotalSatang,
-            s.sale_status AS saleStatus,
-            s.created_at AS createdAt,
-            COALESCE(
-              (SELECT SUM(gross_profit_satang) FROM onsite_sale_lines WHERE onsite_sale_id = s.id),
-              0
-            ) AS grossProfitSatang
-     FROM onsite_sales s
-     ORDER BY s.created_at DESC
-     LIMIT 100`,
-  ).all();
-  return json({ sales: results });
+  return json({ sales: await querySales(env.DB) });
+}
+
+const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+const thb = (satang: number): string => (satang / 100).toFixed(2);
+
+/** Render sales as accounting CSV (THB). Pure + tested; served by GET /sales/export.csv. */
+export function salesToCsv(rows: SaleExportRow[]): string {
+  const header = "date,payment_method,total_thb,vat_thb,gross_profit_thb,status";
+  const lines = rows.map((r) =>
+    [
+      new Date(r.createdAt).toISOString(),
+      csvCell(r.paymentMethod ?? ""),
+      thb(r.grandTotalSatang),
+      thb(r.taxTotalSatang),
+      thb(r.grossProfitSatang),
+      csvCell(r.saleStatus),
+    ].join(","),
+  );
+  return [header, ...lines].join("\n");
 }
 
 export interface BarcodeLookup {
@@ -496,6 +528,16 @@ const worker = {
 
     if (url.pathname === "/sales" && request.method === "GET") {
       return listSales(env);
+    }
+
+    if (url.pathname === "/sales/export.csv" && request.method === "GET") {
+      const csv = salesToCsv(await querySales(env.DB));
+      return new Response(csv, {
+        headers: {
+          "content-type": "text/csv; charset=utf-8",
+          "content-disposition": 'attachment; filename="sales.csv"',
+        },
+      });
     }
 
     const barcodeLookup = url.pathname.match(/^\/products\/by-barcode\/(.+)$/);
