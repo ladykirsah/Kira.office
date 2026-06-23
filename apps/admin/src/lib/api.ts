@@ -130,6 +130,54 @@ export async function deleteAttribute(kind: AttrKind, id: string): Promise<void>
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
+export interface CarBrandTree {
+  id: string;
+  name: string;
+  models: AttrOption[];
+}
+
+export async function fetchCarFitment(): Promise<CarBrandTree[]> {
+  const res = await fetch(`${apiBase}/car-fitment`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load car fitment (HTTP ${res.status})`);
+  return ((await res.json()) as { brands: CarBrandTree[] }).brands;
+}
+
+export async function addCarBrand(name: string): Promise<AttrOption> {
+  const res = await fetch(`${apiBase}/car-fitment/brands`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as AttrOption;
+}
+
+export async function addCarModel(brandId: string, name: string): Promise<AttrOption> {
+  const res = await fetch(`${apiBase}/car-fitment/brands/${brandId}/models`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as AttrOption;
+}
+
+export async function deleteCarBrand(id: string): Promise<void> {
+  const res = await fetch(`${apiBase}/car-fitment/brands/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+}
+
+export async function deleteCarModel(id: string): Promise<void> {
+  const res = await fetch(`${apiBase}/car-fitment/models/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+}
+
 export interface ProductDetail {
   product: {
     id: string;

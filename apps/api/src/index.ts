@@ -1232,6 +1232,69 @@ export async function resolveAttribute(
   return (await addAttribute(db, table, n)).id;
 }
 
+export interface CarBrandTree {
+  id: string;
+  name: string;
+  models: AttrOption[];
+}
+
+/** Car brands with their models nested — for the fitment dropdowns and the Car fitment settings. */
+export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrandTree[] }> {
+  const [brands, models] = await Promise.all([
+    db.prepare("SELECT id, name FROM car_brands ORDER BY sort_order, name").all<AttrOption>(),
+    db
+      .prepare(
+        "SELECT id, name, car_brand_id AS carBrandId FROM car_models ORDER BY sort_order, name",
+      )
+      .all<{ id: string; name: string; carBrandId: string | null }>(),
+  ]);
+  const byBrand = new Map<string, AttrOption[]>();
+  for (const m of models.results ?? []) {
+    if (!m.carBrandId) continue;
+    const list = byBrand.get(m.carBrandId);
+    if (list) list.push({ id: m.id, name: m.name });
+    else byBrand.set(m.carBrandId, [{ id: m.id, name: m.name }]);
+  }
+  return {
+    brands: (brands.results ?? []).map((b) => ({
+      id: b.id,
+      name: b.name,
+      models: byBrand.get(b.id) ?? [],
+    })),
+  };
+}
+
+/** Find-or-create a car model under a specific brand (uniqueness is per brand). */
+export async function addCarModel(
+  db: D1Database,
+  brandId: string,
+  name: string,
+): Promise<AttrOption> {
+  const n = name.trim();
+  if (!n) throw new Error("name is required");
+  const existing = await db
+    .prepare("SELECT id, name FROM car_models WHERE car_brand_id = ? AND name = ? COLLATE NOCASE")
+    .bind(brandId, n)
+    .first<AttrOption>();
+  if (existing) return existing;
+  const optionId = crypto.randomUUID();
+  await db
+    .prepare(
+      "INSERT INTO car_models (id, name, sort_order, car_brand_id, created_at) VALUES (?, ?, 0, ?, ?)",
+    )
+    .bind(optionId, n, brandId, Date.now())
+    .run();
+  return { id: optionId, name: n };
+}
+
+/** Delete a car brand and all of its models. */
+export async function deleteCarBrand(db: D1Database, id: string): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM car_models WHERE car_brand_id = ?").bind(id),
+    db.prepare("DELETE FROM car_brands WHERE id = ?").bind(id),
+  ]);
+}
+
 /**
  * Replace a product's vehicle fitments. Find-or-creates each car brand/model so the managed lists
  * grow from typed values; empty rows are skipped. Years are integers (the second may be null).
@@ -1242,8 +1305,10 @@ export async function setProductFitments(
   fitments: Fitment[],
 ): Promise<void> {
   for (const f of fitments) {
-    if (f.carBrand?.trim()) await addAttribute(db, "car_brands", f.carBrand);
-    if (f.carModel?.trim()) await addAttribute(db, "car_models", f.carModel);
+    const brandName = f.carBrand?.trim();
+    if (!brandName) continue;
+    const brandId = (await addAttribute(db, "car_brands", brandName)).id;
+    if (f.carModel?.trim()) await addCarModel(db, brandId, f.carModel);
   }
   const now = Date.now();
   const statements: D1PreparedStatement[] = [
@@ -1444,6 +1509,33 @@ const worker = {
       const table = ATTR_TABLE[attrDel[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
       await deleteAttribute(env.DB, table, attrDel[2]!);
+      return json({ ok: true });
+    }
+
+    // Car fitment taxonomy: brands with nested models (one brand → many models).
+    if (url.pathname === "/car-fitment" && request.method === "GET") {
+      return json(await listCarFitment(env.DB));
+    }
+    const cfModelAdd = url.pathname.match(/^\/car-fitment\/brands\/([^/]+)\/models$/);
+    if (cfModelAdd && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { name?: string };
+      if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      return json(await addCarModel(env.DB, cfModelAdd[1]!, body.name), 201);
+    }
+    const cfBrandAdd = url.pathname.match(/^\/car-fitment\/brands$/);
+    if (cfBrandAdd && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { name?: string };
+      if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      return json(await addAttribute(env.DB, "car_brands", body.name), 201);
+    }
+    const cfBrandDel = url.pathname.match(/^\/car-fitment\/brands\/([^/]+)$/);
+    if (cfBrandDel && request.method === "DELETE") {
+      await deleteCarBrand(env.DB, cfBrandDel[1]!);
+      return json({ ok: true });
+    }
+    const cfModelDel = url.pathname.match(/^\/car-fitment\/models\/([^/]+)$/);
+    if (cfModelDel && request.method === "DELETE") {
+      await deleteAttribute(env.DB, "car_models", cfModelDel[1]!);
       return json({ ok: true });
     }
 

@@ -15,6 +15,8 @@ import worker, {
   addAttribute,
   resolveAttribute,
   setProductFitments,
+  listCarFitment,
+  addCarModel,
   updateProduct,
   importProducts,
   importShopeeOrders,
@@ -716,6 +718,26 @@ describe("part attributes (brand / car system / part name)", () => {
       { carBrand: "", carModel: "", yearFrom: null, yearTo: null }, // blank → skipped
     ]);
     expect(batched.length).toBe(2); // 1 delete + 1 insert
+  });
+
+  it("listCarFitment nests models under their brand", async () => {
+    const { db } = makeDb({
+      carBrands: [{ id: "cb1", name: "Toyota" }],
+      carModels: [
+        { id: "cm1", name: "Vios", carBrandId: "cb1" },
+        { id: "cm2", name: "City", carBrandId: "cb2" }, // orphan brand → dropped
+      ],
+    });
+    expect(await listCarFitment(db)).toEqual({
+      brands: [{ id: "cb1", name: "Toyota", models: [{ id: "cm1", name: "Vios" }] }],
+    });
+  });
+
+  it("addCarModel creates a model under a brand when none matches", async () => {
+    const { db } = makeDb({ attrOption: null });
+    const out = await addCarModel(db, "cb1", "Yaris");
+    expect(out.name).toBe("Yaris");
+    expect(out.id).toBeTruthy();
   });
 
   it("addAttribute reuses an existing option (case-insensitive), no insert", async () => {

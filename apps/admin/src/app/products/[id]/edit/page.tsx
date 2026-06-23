@@ -8,10 +8,12 @@ import {
   updateProduct,
   setProductPricing,
   fetchAttributes,
+  fetchCarFitment,
   adjustStock,
   type ProductDetail,
   type Attributes,
   type Fitment,
+  type CarBrandTree,
 } from "@/lib/api";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
@@ -108,6 +110,7 @@ export default function EditProductPage() {
   const [weightKg, setWeightKg] = useState("");
   const [stockQty, setStockQty] = useState("");
   const [attributes, setAttributes] = useState<Attributes | null>(null);
+  const [carTree, setCarTree] = useState<CarBrandTree[]>([]);
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
   const [fitments, setFitments] = useState<Fitment[]>([]);
@@ -151,9 +154,14 @@ export default function EditProductPage() {
 
   async function load() {
     try {
-      const [d, attrs] = await Promise.all([getProductDetail(id), fetchAttributes()]);
+      const [d, attrs, cars] = await Promise.all([
+        getProductDetail(id),
+        fetchAttributes(),
+        fetchCarFitment(),
+      ]);
       setDetail(d);
       setAttributes(attrs);
+      setCarTree(cars);
       hydrate(d);
     } catch (err) {
       toast((err as Error).message, "error");
@@ -376,12 +384,7 @@ export default function EditProductPage() {
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
-            <FitmentSection
-              fitments={fitments}
-              onChange={setFitments}
-              carBrands={(attributes?.carBrands ?? []).map((o) => o.name)}
-              carModels={(attributes?.carModels ?? []).map((o) => o.name)}
-            />
+            <FitmentSection fitments={fitments} onChange={setFitments} carTree={carTree} />
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>

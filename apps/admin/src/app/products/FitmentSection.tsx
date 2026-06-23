@@ -1,7 +1,7 @@
 "use client";
 
 import { Combobox } from "./Combobox";
-import type { Fitment } from "@/lib/api";
+import type { Fitment, CarBrandTree } from "@/lib/api";
 
 const toYear = (s: string): number | null => {
   const n = parseInt(s, 10);
@@ -12,19 +12,23 @@ const toYear = (s: string): number | null => {
 export function FitmentSection({
   fitments,
   onChange,
-  carBrands,
-  carModels,
+  carTree,
 }: {
   fitments: Fitment[];
   onChange: (next: Fitment[]) => void;
-  carBrands: string[];
-  carModels: string[];
+  carTree: CarBrandTree[];
 }) {
   const patch = (i: number, p: Partial<Fitment>) =>
     onChange(fitments.map((f, j) => (j === i ? { ...f, ...p } : f)));
   const add = () =>
     onChange([...fitments, { carBrand: "", carModel: "", yearFrom: null, yearTo: null }]);
   const remove = (i: number) => onChange(fitments.filter((_, j) => j !== i));
+
+  const brandNames = carTree.map((b) => b.name);
+  const modelsFor = (brand: string | null) => {
+    const b = carTree.find((x) => x.name.toLowerCase() === (brand ?? "").trim().toLowerCase());
+    return b ? b.models.map((m) => m.name) : [];
+  };
 
   return (
     <div
@@ -70,7 +74,7 @@ export function FitmentSection({
                 <Combobox
                   value={f.carBrand ?? ""}
                   onChange={(v) => patch(i, { carBrand: v })}
-                  options={carBrands}
+                  options={brandNames}
                   placeholder="e.g. Toyota"
                 />
               </td>
@@ -78,7 +82,7 @@ export function FitmentSection({
                 <Combobox
                   value={f.carModel ?? ""}
                   onChange={(v) => patch(i, { carModel: v })}
-                  options={carModels}
+                  options={modelsFor(f.carBrand)}
                   placeholder="e.g. Vios"
                 />
               </td>
