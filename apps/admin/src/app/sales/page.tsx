@@ -1,6 +1,6 @@
 import { apiBase, fetchSales } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
-import { RefundButton } from "./RefundButton";
+import { SalesTable } from "./SalesTable";
 
 export const dynamic = "force-dynamic";
 
@@ -28,38 +28,7 @@ export default async function SalesPage() {
         <strong>{formatBaht(totalProfit)}</strong> ·{" "}
         <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
       </p>
-      {sales.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">💰</div>No sales yet. Sales from the POS appear here.
-        </div>
-      ) : (
-        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th align="left">When</th>
-              <th align="left">Payment</th>
-              <th align="right">Total</th>
-              <th align="right">Profit</th>
-              <th align="left">Status</th>
-              <th align="left"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.map((s) => (
-              <tr key={s.id} style={{ borderTop: "1px solid var(--border)" }}>
-                <td>{new Date(s.createdAt).toLocaleString("th-TH")}</td>
-                <td>{s.paymentMethod ?? "—"}</td>
-                <td align="right">{formatBaht(s.grandTotalSatang)}</td>
-                <td align="right">{formatBaht(s.grossProfitSatang)}</td>
-                <td>{s.saleStatus}</td>
-                <td>
-                  <RefundButton saleId={s.id} status={s.saleStatus} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <SalesTable sales={sales} />
     </main>
   );
 }
