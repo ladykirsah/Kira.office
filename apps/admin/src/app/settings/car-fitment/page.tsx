@@ -21,7 +21,7 @@ function modelHasInfo(m: CarModelNode): boolean {
     m.yearFrom ||
     m.yearTo ||
     m.refrigerant ||
-    m.oringSize ||
+    m.oringUsage?.length ||
     m.coolantLiters ||
     m.notes,
   );
@@ -162,22 +162,26 @@ export default function CarFitmentPage() {
                     {selected.models.map((m) => {
                       const open = m.id === editingId;
                       return (
-                        <div key={m.id}>
+                        <div key={m.id} className={open ? "md-mexp" : undefined}>
                           <div
-                            className="md-mrow"
+                            className={open ? "md-mrow open" : "md-mrow"}
                             style={{ cursor: "pointer" }}
                             onClick={() => setEditingId(open ? null : m.id)}
                           >
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span
-                                className="muted"
+                                className="md-caret"
                                 aria-hidden="true"
                                 style={{ fontSize: 11, width: 8, display: "inline-block" }}
                               >
                                 {open ? "▾" : "▸"}
                               </span>
                               {m.name}
-                              {modelHasInfo(m) && <span className="md-dot" title="Has notes" />}
+                              {open ? (
+                                <span className="md-sub">· service notes</span>
+                              ) : (
+                                modelHasInfo(m) && <span className="md-dot" title="Has notes" />
+                              )}
                             </span>
                             <span
                               onClick={(e) => e.stopPropagation()}

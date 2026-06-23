@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { updateCarModel, type CarModelNode } from "@/lib/api";
-import { Combobox } from "../../products/Combobox";
+import { Fragment, useState } from "react";
+import { updateCarModel, type CarModelNode, type OringEntry } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 
-const ORING_SIZES = ['3/8"', '1/2"', '5/8"'];
+const BASIC_SIZES = ['3/8"', '1/2"', '5/8"'];
 
 const yearOrNull = (s: string): number | null => {
   const n = parseInt(s, 10);
@@ -18,6 +17,22 @@ const Label = ({ children }: { children: string }) => (
   </span>
 );
 
+/** Seed the three basic sizes' amounts (as strings) from the model's saved o-ring usage. */
+function seedBasic(model: CarModelNode): Record<string, string> {
+  const m: Record<string, string> = { '3/8"': "", '1/2"': "", '5/8"': "" };
+  for (const e of model.oringUsage ?? []) {
+    if (BASIC_SIZES.includes(e.size)) m[e.size] = String(e.qty);
+  }
+  return m;
+}
+
+/** Special (non-basic) sizes the model uses, as editable {size, qty-string} rows. */
+function seedSpecials(model: CarModelNode): { size: string; qty: string }[] {
+  return (model.oringUsage ?? [])
+    .filter((e) => !BASIC_SIZES.includes(e.size))
+    .map((e) => ({ size: e.size, qty: String(e.qty) }));
+}
+
 /** Inline editor for one car model's service notes — the cheat sheet used at customer-service time. */
 export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSaved: () => void }) {
   const toast = useToast();
@@ -25,12 +40,32 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
   const [yearFrom, setYearFrom] = useState(model.yearFrom?.toString() ?? "");
   const [yearTo, setYearTo] = useState(model.yearTo?.toString() ?? "");
   const [refrigerant, setRefrigerant] = useState(model.refrigerant ?? "");
-  const [oringSize, setOring] = useState(model.oringSize ?? "");
+  const [basicQty, setBasicQty] = useState<Record<string, string>>(() => seedBasic(model));
+  const [specials, setSpecials] = useState<{ size: string; qty: string }[]>(() =>
+    seedSpecials(model),
+  );
   const [coolantLiters, setCoolant] = useState(model.coolantLiters ?? "");
   const [notes, setNotes] = useState(model.notes ?? "");
   const [saving, setSaving] = useState(false);
 
+  const setBasic = (size: string, v: string) =>
+    setBasicQty((cur) => ({ ...cur, [size]: v.replace(/[^\d]/g, "") }));
+  const setSpecial = (i: number, patch: Partial<{ size: string; qty: string }>) =>
+    setSpecials((cur) => cur.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addSpecial = () => setSpecials((cur) => [...cur, { size: "", qty: "" }]);
+  const removeSpecial = (i: number) => setSpecials((cur) => cur.filter((_, j) => j !== i));
+
   async function save() {
+    const oringUsage: OringEntry[] = [];
+    for (const size of BASIC_SIZES) {
+      const qty = parseInt(basicQty[size] ?? "", 10);
+      if (Number.isFinite(qty)) oringUsage.push({ size, qty });
+    }
+    for (const sp of specials) {
+      const size = sp.size.trim();
+      const qty = parseInt(sp.qty, 10);
+      if (size && Number.isFinite(qty)) oringUsage.push({ size, qty });
+    }
     setSaving(true);
     try {
       await updateCarModel(model.id, {
@@ -38,7 +73,7 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
         yearFrom: yearOrNull(yearFrom),
         yearTo: yearOrNull(yearTo),
         refrigerant: refrigerant.trim() || null,
-        oringSize: oringSize.trim() || null,
+        oringUsage,
         coolantLiters: coolantLiters.trim() || null,
         notes: notes.trim() || null,
       });
@@ -93,15 +128,6 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
           />
         </label>
         <label>
-          <Label>O-ring size</Label>
-          <Combobox
-            value={oringSize}
-            onChange={setOring}
-            options={ORING_SIZES}
-            placeholder={'e.g. 1/2" or special'}
-          />
-        </label>
-        <label>
           <Label>Coolant (liters)</Label>
           <input
             value={coolantLiters}
@@ -113,7 +139,71 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
         </label>
       </div>
 
-      <label style={{ display: "block", marginTop: 10 }}>
+      <div className="md-oring">
+        <Label>O-ring usage — how many of each size this model uses</Label>
+        <div className="md-oring-grid">
+          {BASIC_SIZES.map((size) => (
+            <Fragment key={size}>
+              <span className="md-oring-sz">{size}</span>
+              <input
+                value={basicQty[size] ?? ""}
+                onChange={(e) => setBasic(size, e.target.value)}
+                placeholder="0"
+                inputMode="numeric"
+                aria-label={`Amount of ${size} o-rings`}
+                style={{ width: 64, textAlign: "center" }}
+              />
+            </Fragment>
+          ))}
+        </div>
+        {specials.map((sp, i) => (
+          <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+            <input
+              value={sp.size}
+              onChange={(e) => setSpecial(i, { size: e.target.value })}
+              placeholder="special size"
+              aria-label="Special o-ring size"
+              style={{ width: 130 }}
+            />
+            <input
+              value={sp.qty}
+              onChange={(e) => setSpecial(i, { qty: e.target.value.replace(/[^\d]/g, "") })}
+              placeholder="qty"
+              inputMode="numeric"
+              aria-label="Amount"
+              style={{ width: 64, textAlign: "center" }}
+            />
+            <button
+              type="button"
+              className="icon-del"
+              aria-label="Remove size"
+              onClick={() => removeSpecial(i)}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 7h16" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+                <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
+              </svg>
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={addSpecial} style={{ marginTop: 8 }}>
+          + add special size
+        </button>
+      </div>
+
+      <label style={{ display: "block", marginTop: 12 }}>
         <Label>Notes (for customer service)</Label>
         <textarea
           value={notes}
@@ -124,7 +214,7 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
         />
       </label>
 
-      <div style={{ marginTop: 10 }}>
+      <div style={{ marginTop: 12 }}>
         <button type="button" className="btn-primary" onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save notes"}
         </button>

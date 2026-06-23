@@ -725,7 +725,11 @@ describe("part attributes (brand / car system / part name)", () => {
     expect(batched.length).toBe(2); // 1 delete + 1 insert
   });
 
-  it("listCarFitment nests models (with their service notes) under their brand", async () => {
+  it("listCarFitment nests models (with their service notes + parsed o-ring usage) under their brand", async () => {
+    const oringJson = JSON.stringify([
+      { size: '3/8"', qty: 3 },
+      { size: '1/2"', qty: 2 },
+    ]);
     const { db } = makeDb({
       carBrands: [{ id: "cb1", name: "Toyota" }],
       carModels: [
@@ -737,7 +741,7 @@ describe("part attributes (brand / car system / part name)", () => {
           yearFrom: 2013,
           yearTo: 2019,
           refrigerant: "R134a",
-          oringSize: '1/2"',
+          oringUsage: oringJson,
           coolantLiters: "0.45",
           notes: "belt 4PK",
         },
@@ -757,7 +761,10 @@ describe("part attributes (brand / car system / part name)", () => {
               yearFrom: 2013,
               yearTo: 2019,
               refrigerant: "R134a",
-              oringSize: '1/2"',
+              oringUsage: [
+                { size: '3/8"', qty: 3 },
+                { size: '1/2"', qty: 2 },
+              ],
               coolantLiters: "0.45",
               notes: "belt 4PK",
             },
@@ -767,20 +774,60 @@ describe("part attributes (brand / car system / part name)", () => {
     });
   });
 
-  it("updateCarModel writes the model's service-note fields in order", async () => {
+  it("listCarFitment defaults o-ring usage to [] when the column is null/garbage", async () => {
+    const { db } = makeDb({
+      carBrands: [{ id: "cb1", name: "Toyota" }],
+      carModels: [{ id: "cm1", name: "Vios", carBrandId: "cb1", oringUsage: null }],
+    });
+    const out = await listCarFitment(db);
+    expect(out.brands[0]!.models[0]!.oringUsage).toEqual([]);
+  });
+
+  it("updateCarModel writes the service-note fields (o-ring usage as JSON) in order", async () => {
     const { db, runs } = makeDb({});
+    const oring = [
+      { size: '3/8"', qty: 3 },
+      { size: '1/2"', qty: 2 },
+    ];
     await updateCarModel(db, "cm1", {
       generationCode: "NCP150",
       yearFrom: 2013,
       yearTo: 2019,
       refrigerant: "R134a",
-      oringSize: '1/2"',
+      oringUsage: oring,
       coolantLiters: "0.45",
       notes: "belt 4PK",
     });
     const upd = runs.find((r) => r.sql.includes("UPDATE car_models SET"));
     expect(upd).toBeTruthy();
-    expect(upd!.binds).toEqual(["NCP150", 2013, 2019, "R134a", '1/2"', "0.45", "belt 4PK", "cm1"]);
+    expect(upd!.binds).toEqual([
+      "NCP150",
+      2013,
+      2019,
+      "R134a",
+      JSON.stringify(oring),
+      "0.45",
+      "belt 4PK",
+      "cm1",
+    ]);
+  });
+
+  it("updateCarModel drops blank/invalid o-ring rows and stores null when none remain", async () => {
+    const { db, runs } = makeDb({});
+    await updateCarModel(db, "cm1", {
+      generationCode: null,
+      yearFrom: null,
+      yearTo: null,
+      refrigerant: null,
+      oringUsage: [
+        { size: "  ", qty: 3 }, // blank size → dropped
+        { size: '1/2"', qty: Number.NaN }, // bad qty → dropped
+      ],
+      coolantLiters: null,
+      notes: null,
+    });
+    const upd = runs.find((r) => r.sql.includes("UPDATE car_models SET"));
+    expect(upd!.binds[4]).toBeNull(); // o-ring column → null
   });
 
   it("addCarModel creates a model under a brand when none matches", async () => {

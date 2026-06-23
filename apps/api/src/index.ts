@@ -1247,9 +1247,20 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     db.prepare("SELECT id, name FROM car_brands ORDER BY sort_order, name").all<AttrOption>(),
     db
       .prepare(
-        "SELECT id, name, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_size AS oringSize, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
+        "SELECT id, name, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_usage AS oringUsage, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
       )
-      .all<{ id: string; name: string; carBrandId: string | null } & Partial<CarModelInfo>>(),
+      .all<{
+        id: string;
+        name: string;
+        carBrandId: string | null;
+        generationCode: string | null;
+        yearFrom: number | null;
+        yearTo: number | null;
+        refrigerant: string | null;
+        oringUsage: string | null;
+        coolantLiters: string | null;
+        notes: string | null;
+      }>(),
   ]);
   const byBrand = new Map<string, CarModelNode[]>();
   for (const m of models.results ?? []) {
@@ -1261,7 +1272,7 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
       yearFrom: m.yearFrom ?? null,
       yearTo: m.yearTo ?? null,
       refrigerant: m.refrigerant ?? null,
-      oringSize: m.oringSize ?? null,
+      oringUsage: parseOringUsage(m.oringUsage),
       coolantLiters: m.coolantLiters ?? null,
       notes: m.notes ?? null,
     };
@@ -1301,15 +1312,35 @@ export async function addCarModel(
   return { id: optionId, name: n };
 }
 
+/** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */
+export interface OringEntry {
+  size: string;
+  qty: number;
+}
+
 /** Per-model service notes — a customer-service cheat sheet for a single car model. */
 export interface CarModelInfo {
   generationCode: string | null;
   yearFrom: number | null;
   yearTo: number | null;
   refrigerant: string | null;
-  oringSize: string | null;
+  oringUsage: OringEntry[];
   coolantLiters: string | null;
   notes: string | null;
+}
+
+/** Parse the stored o-ring JSON into clean {size, qty} rows; tolerant of null/garbage. */
+function parseOringUsage(raw: string | null | undefined): OringEntry[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((e) => e && typeof e.size === "string" && Number.isFinite(e.qty))
+      .map((e) => ({ size: e.size, qty: e.qty }));
+  } catch {
+    return [];
+  }
 }
 
 /** Save a car model's service notes. Blank text → null; years coerced to integers (or null). */
@@ -1323,16 +1354,22 @@ export async function updateCarModel(
     return s || null;
   };
   const year = (v: number | null | undefined) => (Number.isFinite(v) ? v : null);
+  // Keep only rows with a real size and a finite amount; null the column when none remain.
+  const oring = (Array.isArray(info.oringUsage) ? info.oringUsage : [])
+    .map((e) => ({ size: (e?.size ?? "").trim(), qty: Number(e?.qty) }))
+    .filter((e) => e.size && Number.isFinite(e.qty))
+    .map((e) => ({ size: e.size, qty: Math.round(e.qty) }));
+  const oringJson = oring.length ? JSON.stringify(oring) : null;
   await db
     .prepare(
-      "UPDATE car_models SET generation_code = ?, year_from = ?, year_to = ?, refrigerant = ?, oring_size = ?, coolant_liters = ?, notes = ? WHERE id = ?",
+      "UPDATE car_models SET generation_code = ?, year_from = ?, year_to = ?, refrigerant = ?, oring_usage = ?, coolant_liters = ?, notes = ? WHERE id = ?",
     )
     .bind(
       text(info.generationCode),
       year(info.yearFrom),
       year(info.yearTo),
       text(info.refrigerant),
-      text(info.oringSize),
+      oringJson,
       text(info.coolantLiters),
       text(info.notes),
       id,
@@ -1599,7 +1636,7 @@ const worker = {
         yearFrom: body.yearFrom ?? null,
         yearTo: body.yearTo ?? null,
         refrigerant: body.refrigerant ?? null,
-        oringSize: body.oringSize ?? null,
+        oringUsage: Array.isArray(body.oringUsage) ? body.oringUsage : [],
         coolantLiters: body.coolantLiters ?? null,
         notes: body.notes ?? null,
       });

@@ -9,6 +9,7 @@
   --primary: #bf3c1d; /* white text ~5:1 — AA */
   --primary-hover: #a13219;
   --primary-soft: #fbe9e3;
+  --primary-faint: #fdf4f0; /* even lighter coral wash for grouped panels */
   --danger: #c0291f;
   --warn: #9a6700; /* amber, AA on white */
   --ok: #1a7f37;
@@ -32,6 +33,7 @@ html[data-theme="dark"] {
   --primary: #ff7a52;
   --primary-hover: #ff9069;
   --primary-soft: #2c1a13;
+  --primary-faint: #20140f;
   --danger: #ff6b6b;
   --warn: #e0a93a;
   --ok: #56d364;
@@ -531,6 +533,9 @@ tbody tr:hover {
 .md-mrow:hover {
   background: var(--hover);
 }
+.md-caret {
+  color: var(--text-muted);
+}
 .md-dot {
   width: 6px;
   height: 6px;
@@ -538,15 +543,60 @@ tbody tr:hover {
   background: var(--primary);
   display: inline-block;
 }
+/* Expanded model: a coral spine ties the highlighted row to its editor (Option C). */
+.md-mexp {
+  border-left: 3px solid var(--primary);
+  background: var(--primary-faint);
+  border-radius: 0 10px 10px 0;
+  overflow: hidden;
+  margin: 6px 0 8px;
+}
+.md-mrow.open {
+  border-top: none;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+.md-mrow.open:hover {
+  background: var(--primary-soft);
+}
+.md-mrow.open .md-caret {
+  color: var(--primary);
+}
+.md-sub {
+  color: var(--primary);
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.85;
+}
 /* Inline per-model service-note editor (the customer-service cheat sheet) */
 .md-minfo {
-  padding: 10px 4px 12px;
-  border-top: 1px dashed var(--border);
+  padding: 6px 12px 12px;
+  background: transparent;
 }
 .md-minfo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
+}
+/* O-ring usage mini-table: a size → amount list (basics + special sizes) */
+.md-oring {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+.md-oring-grid {
+  display: grid;
+  grid-template-columns: auto 64px;
+  gap: 6px 12px;
+  align-items: center;
+  width: max-content;
+}
+.md-oring-sz {
+  font-size: 13px;
+  color: var(--text);
 }
 @media (max-width: 560px) {
   .md {

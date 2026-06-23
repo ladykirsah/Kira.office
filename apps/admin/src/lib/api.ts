@@ -130,13 +130,19 @@ export async function deleteAttribute(kind: AttrKind, id: string): Promise<void>
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
+/** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */
+export interface OringEntry {
+  size: string;
+  qty: number;
+}
+
 /** Per-model service notes — a customer-service cheat sheet for a single car model. */
 export interface CarModelInfo {
   generationCode: string | null;
   yearFrom: number | null;
   yearTo: number | null;
   refrigerant: string | null;
-  oringSize: string | null;
+  oringUsage: OringEntry[];
   coolantLiters: string | null;
   notes: string | null;
 }

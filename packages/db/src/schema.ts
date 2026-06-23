@@ -98,7 +98,9 @@ export const carModels = sqliteTable(
     yearFrom: integer("year_from"),
     yearTo: integer("year_to"),
     refrigerant: text("refrigerant"),
+    // `oring_size` (single value) is superseded by `oring_usage` (JSON: amount per size); kept unused.
     oringSize: text("oring_size"),
+    oringUsage: text("oring_usage"),
     coolantLiters: text("coolant_liters"),
     notes: text("notes"),
     createdAt: createdAt(),
