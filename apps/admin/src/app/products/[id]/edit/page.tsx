@@ -296,7 +296,17 @@ export default function EditProductPage() {
       >
         <h1 style={{ margin: 0 }}>{p.name}</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          <button type="button" onClick={() => router.push("/products")}>
+          <button
+            type="button"
+            onClick={() => {
+              if (editing) {
+                if (detail) hydrate(detail); // discard unsaved edits
+                setEditing(false); // back to view mode (stay on the product)
+              } else {
+                router.push("/products");
+              }
+            }}
+          >
             {editing ? "Cancel" : "Back"}
           </button>
           {editing ? (
