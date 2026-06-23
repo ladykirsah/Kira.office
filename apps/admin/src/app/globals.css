@@ -608,9 +608,10 @@ tbody tr:hover {
 /* One row per size — aligned columns: size | amount | remove */
 .md-oring-cell {
   display: grid;
-  grid-template-columns: 1fr 64px 28px;
+  grid-template-columns: 100px 64px 28px;
   gap: 10px;
   align-items: center;
+  justify-content: start;
 }
 .md-oring-sz,
 .md-oring-szin {
