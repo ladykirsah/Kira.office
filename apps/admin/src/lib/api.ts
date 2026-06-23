@@ -75,6 +75,52 @@ export async function lookupBarcode(code: string): Promise<BarcodeLookup | null>
   return (await res.json()) as BarcodeLookup;
 }
 
+export interface ProductDetail {
+  product: {
+    id: string;
+    productCode: string;
+    name: string;
+    description: string | null;
+    status: string;
+    imageKey: string | null;
+  };
+  variantId: string | null;
+  pricing: { itemCostSatang: number; targetPriceSatang: number } | null;
+}
+
+export async function getProductDetail(id: string): Promise<ProductDetail> {
+  const res = await fetch(`${apiBase}/products/${id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load product (HTTP ${res.status})`);
+  return (await res.json()) as ProductDetail;
+}
+
+export async function updateProduct(
+  id: string,
+  fields: { name: string; description?: string; status: string },
+): Promise<void> {
+  const res = await fetch(`${apiBase}/products/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update failed (HTTP ${res.status})`);
+  }
+}
+
+export async function setProductPricing(
+  id: string,
+  pricing: { itemCostSatang: number; targetPriceSatang: number },
+): Promise<void> {
+  const res = await fetch(`${apiBase}/products/${id}/pricing`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(pricing),
+  });
+  if (!res.ok) throw new Error(`Pricing update failed (HTTP ${res.status})`);
+}
+
 export interface SaleRow {
   id: string;
   paymentMethod: string | null;

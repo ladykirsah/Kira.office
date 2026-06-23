@@ -504,6 +504,74 @@ export async function lookupBarcode(db: D1Database, code: string): Promise<Barco
   return row ?? null;
 }
 
+export interface ProductDetail {
+  product: {
+    id: string;
+    productCode: string;
+    name: string;
+    description: string | null;
+    status: string;
+    imageKey: string | null;
+  };
+  variantId: string | null;
+  pricing: { itemCostSatang: number; targetPriceSatang: number } | null;
+}
+
+/** Product detail for the edit screen: the product, its default variant, and that variant's pricing. */
+export async function getProductDetail(db: D1Database, id: string): Promise<ProductDetail | null> {
+  const product = await db
+    .prepare(
+      "SELECT id, product_code AS productCode, name, description, status, image_key AS imageKey FROM products WHERE id = ?",
+    )
+    .bind(id)
+    .first<ProductDetail["product"]>();
+  if (!product) return null;
+  const variant = await db
+    .prepare("SELECT id FROM product_variants WHERE product_id = ? ORDER BY created_at LIMIT 1")
+    .bind(id)
+    .first<{ id: string }>();
+  let pricing: ProductDetail["pricing"] = null;
+  if (variant) {
+    pricing =
+      (await db
+        .prepare(
+          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
+        )
+        .bind(variant.id)
+        .first<NonNullable<ProductDetail["pricing"]>>()) ?? null;
+  }
+  return { product, variantId: variant?.id ?? null, pricing };
+}
+
+/** Update editable product fields. Name + status are required (validated at the route). */
+export async function updateProduct(
+  db: D1Database,
+  id: string,
+  fields: { name: string; description?: string; status: string },
+): Promise<void> {
+  await db
+    .prepare("UPDATE products SET name = ?, description = ?, status = ? WHERE id = ?")
+    .bind(fields.name.trim(), fields.description?.trim() || null, fields.status, id)
+    .run();
+}
+
+/** Persist a variant's pricing (replaces any prior profile). Amounts in satang. */
+export async function setVariantPricing(
+  db: D1Database,
+  variantId: string,
+  itemCostSatang: number,
+  targetPriceSatang: number,
+): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM pricing_profiles WHERE product_variant_id = ?").bind(variantId),
+    db
+      .prepare(
+        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, active_from) VALUES (?, ?, ?, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), variantId, itemCostSatang, targetPriceSatang, Date.now()),
+  ]);
+}
+
 /**
  * Minimal api Worker — a thin HTTP shell over @l-shopee/core + D1. Stock writes route through the
  * StockLedger Durable Object (serialized single writer). Grows into Hono routing, the Shopee adapter,
@@ -544,6 +612,45 @@ const worker = {
     if (barcodeLookup && request.method === "GET") {
       const found = await lookupBarcode(env.DB, decodeURIComponent(barcodeLookup[1]!));
       return found ? json(found) : json({ error: "barcode not found" }, 404);
+    }
+
+    const productPricing = url.pathname.match(/^\/products\/([^/]+)\/pricing$/);
+    if (productPricing && request.method === "PUT") {
+      const body = (await request.json()) as {
+        itemCostSatang?: number;
+        targetPriceSatang?: number;
+      };
+      const detail = await getProductDetail(env.DB, productPricing[1]!);
+      if (!detail?.variantId) return json({ error: "product or variant not found" }, 404);
+      await setVariantPricing(
+        env.DB,
+        detail.variantId,
+        body.itemCostSatang ?? 0,
+        body.targetPriceSatang ?? 0,
+      );
+      return json({ ok: true });
+    }
+
+    const productById = url.pathname.match(/^\/products\/([^/]+)$/);
+    if (productById && request.method === "GET") {
+      const detail = await getProductDetail(env.DB, productById[1]!);
+      return detail ? json(detail) : json({ error: "not found" }, 404);
+    }
+    if (productById && request.method === "PATCH") {
+      const body = (await request.json()) as {
+        name?: string;
+        description?: string;
+        status?: string;
+      };
+      if (!body?.name || !body?.status) {
+        return json({ error: "name and status are required" }, 400);
+      }
+      await updateProduct(env.DB, productById[1]!, {
+        name: body.name,
+        description: body.description,
+        status: body.status,
+      });
+      return json({ ok: true });
     }
 
     const imageUpload = url.pathname.match(/^\/products\/([^/]+)\/image$/);

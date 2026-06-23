@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import worker, {
   applySyncToDb,
   createProduct,
+  getProductDetail,
+  setVariantPricing,
+  updateProduct,
   importProducts,
   importShopeeOrders,
   lineGrossProfitSatang,
@@ -35,6 +38,9 @@ function makeDb(canned: {
   existingProduct?: { id: string } | null;
   sales?: unknown[];
   barcode?: unknown | null;
+  productDetail?: unknown | null;
+  variantRow?: unknown | null;
+  pricingRow?: unknown | null;
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -57,6 +63,11 @@ function makeDb(canned: {
       async first<T = unknown>(): Promise<T | null> {
         if (sql.includes("FROM products WHERE product_code"))
           return (canned.existingProduct ?? null) as T | null;
+        if (sql.includes("FROM products WHERE id"))
+          return (canned.productDetail ?? null) as T | null;
+        if (sql.includes("FROM product_variants WHERE product_id"))
+          return (canned.variantRow ?? null) as T | null;
+        if (sql.includes("FROM pricing_profiles")) return (canned.pricingRow ?? null) as T | null;
         if (sql.includes("FROM barcodes")) return (canned.barcode ?? null) as T | null;
         return null;
       },
@@ -327,6 +338,47 @@ describe("salesToCsv", () => {
       },
     ]);
     expect(csv.split("\n")[1]).toContain('"cash,transfer"');
+  });
+});
+
+describe("getProductDetail / updateProduct / setVariantPricing", () => {
+  it("returns product + default variant + pricing", async () => {
+    const product = {
+      id: "p1",
+      productCode: "C1",
+      name: "Cream",
+      description: "d",
+      status: "active",
+      imageKey: null,
+    };
+    const { db } = makeDb({
+      productDetail: product,
+      variantRow: { id: "v1" },
+      pricingRow: { itemCostSatang: 6000, targetPriceSatang: 10700 },
+    });
+    expect(await getProductDetail(db, "p1")).toEqual({
+      product,
+      variantId: "v1",
+      pricing: { itemCostSatang: 6000, targetPriceSatang: 10700 },
+    });
+  });
+
+  it("returns null when the product is missing", async () => {
+    const { db } = makeDb({ productDetail: null });
+    expect(await getProductDetail(db, "nope")).toBeNull();
+  });
+
+  it("updateProduct resolves", async () => {
+    const { db } = makeDb({});
+    await expect(
+      updateProduct(db, "p1", { name: "New", status: "active" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("setVariantPricing replaces the profile (delete + insert)", async () => {
+    const { db, batched } = makeDb({});
+    await setVariantPricing(db, "v1", 6000, 10700);
+    expect(batched.length).toBe(2);
   });
 });
 

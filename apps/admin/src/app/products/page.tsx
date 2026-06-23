@@ -27,6 +27,7 @@ export default async function ProductsPage() {
             <th align="left">Name</th>
             <th align="left">Status</th>
             <th align="left">Upload</th>
+            <th align="left"></th>
           </tr>
         </thead>
         <tbody>
@@ -51,6 +52,9 @@ export default async function ProductsPage() {
               <td>{p.status}</td>
               <td>
                 <ProductImageUpload productId={p.id} />
+              </td>
+              <td>
+                <a href={`/products/${p.id}/edit`}>Edit</a>
               </td>
             </tr>
           ))}
