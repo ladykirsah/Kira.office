@@ -11,6 +11,7 @@ import {
   adjustStock,
   type ProductDetail,
   type Attributes,
+  type Fitment,
 } from "@/lib/api";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
@@ -19,6 +20,7 @@ import { PricingFields, type PricingForm } from "../../PricingFields";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
 import { ProfitPeek } from "../../ProfitPeek";
 import { PartDetails, type PartForm } from "../../PartDetails";
+import { FitmentSection } from "../../FitmentSection";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
@@ -43,6 +45,17 @@ function PriceProfit({ price, profit }: { price: number; profit: number }) {
       <ProfitPeek value={profit} />
     </span>
   );
+}
+
+function yearStr(f: Fitment): string {
+  if (f.yearFrom && f.yearTo) return `${f.yearFrom}–${f.yearTo}`;
+  if (f.yearFrom) return `${f.yearFrom}+`;
+  if (f.yearTo) return `–${f.yearTo}`;
+  return "";
+}
+function fitmentLabel(f: Fitment): string {
+  const car = [f.carBrand, f.carModel].filter(Boolean).join(" ");
+  return [car, yearStr(f)].filter(Boolean).join(" · ") || "car";
 }
 
 function StaticFrames({ images, name }: { images: ProductDetail["images"]; name: string }) {
@@ -97,6 +110,7 @@ export default function EditProductPage() {
   const [attributes, setAttributes] = useState<Attributes | null>(null);
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
+  const [fitments, setFitments] = useState<Fitment[]>([]);
   const [pricing, setPricing] = useState<PricingForm>({
     costThb: "",
     taxOnCost: false,
@@ -121,6 +135,7 @@ export default function EditProductPage() {
     setActive(d.product.status === "active");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
     setStockQty(String(d.onHand ?? 0));
+    setFitments(d.fitments ?? []);
     setPricing({
       costThb: d.pricing ? thb(d.pricing.itemCostSatang) : "",
       taxOnCost: d.pricing ? Boolean(d.pricing.taxOnCost) : false,
@@ -167,6 +182,7 @@ export default function EditProductPage() {
         brandName: part.brand,
         usageName: part.usage,
         typeName: part.type,
+        fitments,
       });
       if (detail?.variantId) {
         await setProductPricing(id, {
@@ -360,6 +376,15 @@ export default function EditProductPage() {
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
+            <FitmentSection
+              fitments={fitments}
+              onChange={setFitments}
+              carBrands={(attributes?.carBrands ?? []).map((o) => o.name)}
+              carModels={(attributes?.carModels ?? []).map((o) => o.name)}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
             <PricingFields form={pricing} update={updatePricing} />
           </div>
 
@@ -403,6 +428,19 @@ export default function EditProductPage() {
                   {partTags.map((t, i) => (
                     <span key={i} className="tag">
                       {t}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                "—"
+              )}
+            </Row>
+            <Row label="Fits cars">
+              {detail.fitments.length ? (
+                <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                  {detail.fitments.map((f, i) => (
+                    <span key={i} className="tag">
+                      {fitmentLabel(f)}
                     </span>
                   ))}
                 </span>

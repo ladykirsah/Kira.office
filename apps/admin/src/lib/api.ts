@@ -86,7 +86,7 @@ export interface ProductImage {
   isCover: number;
 }
 
-export type AttrKind = "brand" | "type" | "usage";
+export type AttrKind = "brand" | "type" | "usage" | "car_brand" | "car_model";
 export interface AttrOption {
   id: string;
   name: string;
@@ -95,6 +95,15 @@ export interface Attributes {
   brands: AttrOption[];
   types: AttrOption[];
   usages: AttrOption[];
+  carBrands: AttrOption[];
+  carModels: AttrOption[];
+}
+
+export interface Fitment {
+  carBrand: string | null;
+  carModel: string | null;
+  yearFrom: number | null;
+  yearTo: number | null;
 }
 
 export async function fetchAttributes(): Promise<Attributes> {
@@ -144,6 +153,7 @@ export interface ProductDetail {
   variantId: string | null;
   barcode: string | null;
   onHand: number;
+  fitments: Fitment[];
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number;
@@ -175,6 +185,7 @@ export async function updateProduct(
     brandName?: string;
     usageName?: string;
     typeName?: string;
+    fitments?: Fitment[];
   },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/products/${id}`, {

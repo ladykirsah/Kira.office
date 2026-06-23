@@ -16,6 +16,8 @@ const KINDS: { kind: AttrKind; label: string; listKey: keyof Attributes; placeho
   { kind: "brand", label: "Part brands", listKey: "brands", placeholder: "Add brand…" },
   { kind: "usage", label: "Car systems", listKey: "usages", placeholder: "Add system…" },
   { kind: "type", label: "Part names", listKey: "types", placeholder: "Add part…" },
+  { kind: "car_brand", label: "Car brands", listKey: "carBrands", placeholder: "Add car brand…" },
+  { kind: "car_model", label: "Car models", listKey: "carModels", placeholder: "Add car model…" },
 ];
 
 function ListCard({

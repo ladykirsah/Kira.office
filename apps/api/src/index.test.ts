@@ -14,6 +14,7 @@ import worker, {
   listAttributes,
   addAttribute,
   resolveAttribute,
+  setProductFitments,
   updateProduct,
   importProducts,
   importShopeeOrders,
@@ -58,6 +59,9 @@ function makeDb(canned: {
   brands?: unknown[];
   types?: unknown[];
   usages?: unknown[];
+  carBrands?: unknown[];
+  carModels?: unknown[];
+  fitments?: unknown[];
   attrOption?: unknown | null;
   stock?: unknown[];
   stockOnHand?: number;
@@ -78,9 +82,13 @@ function makeDb(canned: {
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
         if (sql.includes("FROM product_images")) return { results: (canned.images ?? []) as T[] };
+        if (sql.includes("FROM product_fitments"))
+          return { results: (canned.fitments ?? []) as T[] };
         if (sql.includes("FROM brands")) return { results: (canned.brands ?? []) as T[] };
         if (sql.includes("FROM product_types")) return { results: (canned.types ?? []) as T[] };
         if (sql.includes("FROM usage_categories")) return { results: (canned.usages ?? []) as T[] };
+        if (sql.includes("FROM car_brands")) return { results: (canned.carBrands ?? []) as T[] };
+        if (sql.includes("FROM car_models")) return { results: (canned.carModels ?? []) as T[] };
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
         if (sql.includes("FROM product_variants v JOIN products"))
@@ -626,6 +634,7 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
       variantId: "v1",
       barcode: "885000111",
       onHand: 0,
+      fitments: [],
       pricing: { itemCostSatang: 6000, targetPriceSatang: 10700 },
       images: [{ id: "img1", imageKey: "k1", sortOrder: 0, isCover: 1 }],
     });
@@ -695,7 +704,18 @@ describe("part attributes (brand / car system / part name)", () => {
       brands: [{ id: "b1", name: "DENSO" }],
       types: [{ id: "t1", name: "Evaporator" }],
       usages: [{ id: "u1", name: "A/C" }],
+      carBrands: [],
+      carModels: [],
     });
+  });
+
+  it("setProductFitments replaces rows (delete + one insert per non-empty row)", async () => {
+    const { db, batched } = makeDb({ attrOption: { id: "cb1", name: "Toyota" } });
+    await setProductFitments(db, "p1", [
+      { carBrand: "Toyota", carModel: "Vios", yearFrom: 2007, yearTo: 2012 },
+      { carBrand: "", carModel: "", yearFrom: null, yearTo: null }, // blank → skipped
+    ]);
+    expect(batched.length).toBe(2); // 1 delete + 1 insert
   });
 
   it("addAttribute reuses an existing option (case-insensitive), no insert", async () => {

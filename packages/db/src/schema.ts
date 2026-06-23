@@ -85,6 +85,26 @@ const attributeTable = (name: string) =>
 export const brands = attributeTable("brands");
 export const productTypes = attributeTable("product_types");
 export const usageCategories = attributeTable("usage_categories");
+export const carBrands = attributeTable("car_brands");
+export const carModels = attributeTable("car_models");
+
+// Vehicle fitment — one row per car a product fits (one part → many cars).
+export const productFitments = sqliteTable(
+  "product_fitments",
+  {
+    id: id(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    carBrand: text("car_brand"),
+    carModel: text("car_model"),
+    yearFrom: integer("year_from"),
+    yearTo: integer("year_to"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("product_fitments_product_idx").on(t.productId)],
+);
 
 export const productImages = sqliteTable(
   "product_images",

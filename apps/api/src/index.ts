@@ -1005,6 +1005,13 @@ export interface ProductImageRow {
   isCover: number;
 }
 
+export interface Fitment {
+  carBrand: string | null;
+  carModel: string | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+}
+
 export interface ProductDetail {
   product: {
     id: string;
@@ -1028,6 +1035,7 @@ export interface ProductDetail {
   variantId: string | null;
   barcode: string | null;
   onHand: number;
+  fitments: Fitment[];
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number; // on-site B2C price
@@ -1090,11 +1098,18 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
     )
     .bind(id)
     .all<ProductImageRow>();
+  const { results: fitments } = await db
+    .prepare(
+      "SELECT car_brand AS carBrand, car_model AS carModel, year_from AS yearFrom, year_to AS yearTo FROM product_fitments WHERE product_id = ? ORDER BY sort_order, created_at",
+    )
+    .bind(id)
+    .all<Fitment>();
   return {
     product,
     variantId: variant?.id ?? null,
     barcode: variant?.barcode ?? null,
     onHand,
+    fitments,
     pricing,
     images,
   };
@@ -1150,23 +1165,33 @@ const ATTR_TABLE: Record<string, string> = {
   brand: "brands",
   type: "product_types",
   usage: "usage_categories",
+  car_brand: "car_brands",
+  car_model: "car_models",
 };
 
-/** All three managed attribute lists for the product dropdowns. */
-export async function listAttributes(
-  db: D1Database,
-): Promise<{ brands: AttrOption[]; types: AttrOption[]; usages: AttrOption[] }> {
+/** All managed attribute lists for the product + fitment dropdowns. */
+export async function listAttributes(db: D1Database): Promise<{
+  brands: AttrOption[];
+  types: AttrOption[];
+  usages: AttrOption[];
+  carBrands: AttrOption[];
+  carModels: AttrOption[];
+}> {
   const q = (table: string) =>
     db.prepare(`SELECT id, name FROM ${table} ORDER BY sort_order, name`).all<AttrOption>();
-  const [brands, types, usages] = await Promise.all([
+  const [brands, types, usages, carBrands, carModels] = await Promise.all([
     q("brands"),
     q("product_types"),
     q("usage_categories"),
+    q("car_brands"),
+    q("car_models"),
   ]);
   return {
     brands: brands.results ?? [],
     types: types.results ?? [],
     usages: usages.results ?? [],
+    carBrands: carBrands.results ?? [],
+    carModels: carModels.results ?? [],
   };
 }
 
@@ -1205,6 +1230,40 @@ export async function resolveAttribute(
   const n = (name ?? "").trim();
   if (!n) return null;
   return (await addAttribute(db, table, n)).id;
+}
+
+/**
+ * Replace a product's vehicle fitments. Find-or-creates each car brand/model so the managed lists
+ * grow from typed values; empty rows are skipped. Years are integers (the second may be null).
+ */
+export async function setProductFitments(
+  db: D1Database,
+  productId: string,
+  fitments: Fitment[],
+): Promise<void> {
+  for (const f of fitments) {
+    if (f.carBrand?.trim()) await addAttribute(db, "car_brands", f.carBrand);
+    if (f.carModel?.trim()) await addAttribute(db, "car_models", f.carModel);
+  }
+  const now = Date.now();
+  const statements: D1PreparedStatement[] = [
+    db.prepare("DELETE FROM product_fitments WHERE product_id = ?").bind(productId),
+  ];
+  fitments.forEach((f, i) => {
+    const brand = f.carBrand?.trim() || null;
+    const model = f.carModel?.trim() || null;
+    const yearFrom = Number.isFinite(f.yearFrom) ? f.yearFrom : null;
+    const yearTo = Number.isFinite(f.yearTo) ? f.yearTo : null;
+    if (!brand && !model && yearFrom == null && yearTo == null) return; // skip blank rows
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO product_fitments (id, product_id, car_brand, car_model, year_from, year_to, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(crypto.randomUUID(), productId, brand, model, yearFrom, yearTo, i, now),
+    );
+  });
+  await db.batch(statements);
 }
 
 /**
@@ -1436,6 +1495,7 @@ const worker = {
         brandName?: string;
         usageName?: string;
         typeName?: string;
+        fitments?: Fitment[];
       };
       if (!body?.name || !body?.status) {
         return json({ error: "name and status are required" }, 400);
@@ -1470,6 +1530,9 @@ const worker = {
           .bind(productById[1]!)
           .first<{ id: string }>();
         if (variant) await setVariantBarcode(env.DB, variant.id, body.barcode);
+      }
+      if (Array.isArray(body.fitments)) {
+        await setProductFitments(env.DB, productById[1]!, body.fitments);
       }
       return json({ ok: true });
     }
