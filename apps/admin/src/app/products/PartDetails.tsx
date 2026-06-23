@@ -85,18 +85,24 @@ export function PartDetails({
         Category: {composed || "—"} · pick from the list or type a new value to add it.
       </small>
 
-      <label style={field}>
-        Barcode
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        <label style={field}>
+          Barcode
           <input
             value={barcode}
             onChange={(e) => onBarcodeChange(e.target.value)}
             placeholder="scan / type"
-            style={{ flex: 1, minWidth: 0 }}
           />
-          <BarcodePreview value={barcode} />
-        </div>
-      </label>
+        </label>
+        <BarcodePreview value={barcode} />
+      </div>
     </div>
   );
 }
