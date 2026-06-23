@@ -233,6 +233,14 @@ export default function EditProductPage() {
   const vB2cProfit = pr ? profitSatang(pr.targetPriceSatang, vTC, 0) : 0;
   const vB2bProfit = pr ? profitSatang(pr.b2bPriceSatang, vTC, 0) : 0;
 
+  // Part-detail tags: prefer the structured brand/system/part, else split the legacy category text.
+  const structured = [p.brandName, p.usageName, p.typeName].filter(Boolean) as string[];
+  const partTags = structured.length
+    ? structured
+    : p.category
+      ? p.category.split(" · ").filter(Boolean)
+      : [];
+
   const grid = {
     display: "grid",
     gridTemplateColumns: "180px 1fr",
@@ -361,7 +369,19 @@ export default function EditProductPage() {
               {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
             </Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
-            <Row label="Part details">{p.category || "—"}</Row>
+            <Row label="Part details">
+              {partTags.length ? (
+                <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                  {partTags.map((t, i) => (
+                    <span key={i} className="tag">
+                      {t}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                "—"
+              )}
+            </Row>
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
           </div>
 

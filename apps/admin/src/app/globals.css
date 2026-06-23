@@ -260,6 +260,17 @@ tbody tr:hover {
   color: var(--danger);
 }
 
+/* Plain white tag/chip */
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
 /* Toggle switch (on = active) */
 .switch {
   position: relative;
