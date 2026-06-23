@@ -237,7 +237,6 @@ export default function EditProductPage() {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
-          maxWidth: 560,
         }}
       >
         <h1 style={{ margin: 0 }}>{p.name}</h1>
@@ -252,8 +251,16 @@ export default function EditProductPage() {
       </p>
 
       {editing ? (
-        <form onSubmit={save} style={{ display: "grid", gap: 16, maxWidth: 560 }}>
-          <div style={field}>
+        <form
+          onSubmit={save}
+          style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))",
+            alignItems: "start",
+          }}
+        >
+          <div style={{ ...field, gridColumn: "1 / -1" }}>
             <span style={{ fontWeight: 600 }}>Photos</span>
             <ProductGallery productId={id} initial={detail.images} />
           </div>
@@ -307,10 +314,6 @@ export default function EditProductPage() {
             />
           </label>
 
-          <PricingFields form={pricing} update={updatePricing} />
-
-          <CampaignWorkspace totalCostSatang={editTC} defaultProfitSatang={editDefaultProfit} />
-
           <label style={field}>
             Weight (kg)
             <input
@@ -321,7 +324,15 @@ export default function EditProductPage() {
             />
           </label>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <PricingFields form={pricing} update={updatePricing} />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <CampaignWorkspace totalCostSatang={editTC} defaultProfitSatang={editDefaultProfit} />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
             <button type="submit" className="btn-primary" disabled={busy}>
               Save
             </button>
