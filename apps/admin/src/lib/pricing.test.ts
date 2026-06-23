@@ -21,4 +21,11 @@ describe("pricing math (satang)", () => {
     expect(Math.round(marginPct(4380, 12000))).toBe(37);
     expect(marginPct(100, 0)).toBe(0);
   });
+
+  it("coerces non-finite inputs to 0 so NaN never reaches the UI", () => {
+    expect(totalCostSatang(NaN, true)).toBe(0);
+    expect(commissionFeeSatang(12000, NaN)).toBe(0);
+    expect(profitSatang(NaN, NaN, NaN)).toBe(0);
+    expect(marginPct(NaN, 12000)).toBe(0);
+  });
 });

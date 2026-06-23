@@ -14,10 +14,12 @@ import { ProductGallery } from "../../ProductGallery";
 import { BarcodePreview } from "../../BarcodePreview";
 import { PricingFields, type PricingForm } from "../../PricingFields";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
+import { ProfitPeek } from "../../ProfitPeek";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
-const thb = (satang: number) => (satang / 100).toFixed(2);
+const n0 = (x: number | undefined | null): number => (Number.isFinite(x) ? (x as number) : 0);
+const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
 const baht = (satang: number) => `฿${thb(satang)}`;
 const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
@@ -27,6 +29,15 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       <div className="muted">{label}</div>
       <div>{children}</div>
     </>
+  );
+}
+
+function PriceProfit({ price, profit }: { price: number; profit: number }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {baht(price)}
+      <ProfitPeek value={profit} />
+    </span>
   );
 }
 
@@ -333,44 +344,14 @@ export default function EditProductPage() {
             </Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
             <Row label="Category">{p.category || "—"}</Row>
-            <Row label="Total cost">
-              {pr ? `${baht(vTC)}${pr.taxOnCost ? " · incl. 7%" : ""}` : "—"}
-            </Row>
             <Row label="Online · default">
-              {pr ? (
-                <>
-                  {baht(pr.onlinePriceSatang)}{" "}
-                  <span className="muted" style={{ fontSize: 13 }}>
-                    · {pr.onlineCommissionBp / 100}% comm · profit {baht(vOnlineProfit)}
-                  </span>
-                </>
-              ) : (
-                "—"
-              )}
+              {pr ? <PriceProfit price={n0(pr.onlinePriceSatang)} profit={vOnlineProfit} /> : "—"}
             </Row>
             <Row label="On-site · B2C">
-              {pr ? (
-                <>
-                  {baht(pr.targetPriceSatang)}{" "}
-                  <span className="muted" style={{ fontSize: 13 }}>
-                    · profit {baht(vB2cProfit)}
-                  </span>
-                </>
-              ) : (
-                "—"
-              )}
+              {pr ? <PriceProfit price={n0(pr.targetPriceSatang)} profit={vB2cProfit} /> : "—"}
             </Row>
             <Row label="On-site · B2B">
-              {pr ? (
-                <>
-                  {baht(pr.b2bPriceSatang)}{" "}
-                  <span className="muted" style={{ fontSize: 13 }}>
-                    · profit {baht(vB2bProfit)}
-                  </span>
-                </>
-              ) : (
-                "—"
-              )}
+              {pr ? <PriceProfit price={n0(pr.b2bPriceSatang)} profit={vB2bProfit} /> : "—"}
             </Row>
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
           </div>
