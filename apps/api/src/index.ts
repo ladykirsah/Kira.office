@@ -584,6 +584,19 @@ async function listStock(env: Env): Promise<Response> {
   return json({ stock: results });
 }
 
+const DEFAULT_TERMS_TEMPLATE = [
+  "เงื่อนไขและข้อตกลงสินค้า {{product_name}}",
+  "ราคา {{price}} บาท (รวมภาษีมูลค่าเพิ่ม)",
+  "รับประกันสินค้า {{warranty_days}} วันนับจากวันที่ได้รับสินค้า",
+  "ติดต่อร้าน {{shop_name}}",
+].join("\n");
+
+/** Thai T&C template, stored in KV. The admin editor renders it via @l-shopee/core/terms. */
+async function getTerms(env: Env): Promise<Response> {
+  const template = (await env.KV.get("terms:template")) ?? DEFAULT_TERMS_TEMPLATE;
+  return json({ template });
+}
+
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     "SELECT id, product_code AS productCode, name, status, image_key AS imageKey FROM products ORDER BY created_at DESC LIMIT 100",
@@ -767,6 +780,15 @@ const worker = {
 
     if (url.pathname === "/stock" && request.method === "GET") {
       return listStock(env);
+    }
+
+    if (url.pathname === "/terms/template" && request.method === "GET") {
+      return getTerms(env);
+    }
+    if (url.pathname === "/terms/template" && request.method === "PUT") {
+      const body = (await request.json()) as { template?: string };
+      await env.KV.put("terms:template", body.template ?? "");
+      return json({ ok: true });
     }
 
     if (url.pathname === "/stock/adjust" && request.method === "POST") {

@@ -25,6 +25,9 @@ export default function DashboardPage() {
         <li>
           <a href="/sales">Sales</a> — recent sales, revenue and gross profit
         </li>
+        <li>
+          <a href="/terms">Terms</a> — Thai product T&amp;C template editor
+        </li>
       </ul>
     </main>
   );

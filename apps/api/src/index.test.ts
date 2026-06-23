@@ -193,6 +193,33 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({ variantId: "v1", quantityAfter: 25, applied: true });
   });
 
+  it("GET /terms/template > returns the stored template from KV", async () => {
+    const env = { KV: { get: async () => "hello {{name}}" } } as unknown as Env;
+    const res = await worker.fetch!(new Request("https://x/terms/template"), env, ctx);
+    expect(await res.json()).toEqual({ template: "hello {{name}}" });
+  });
+
+  it("PUT /terms/template > saves the template to KV", async () => {
+    let saved = "";
+    const env = {
+      KV: {
+        put: async (_k: string, v: string) => {
+          saved = v;
+        },
+      },
+    } as unknown as Env;
+    const res = await worker.fetch!(
+      new Request("https://x/terms/template", {
+        method: "PUT",
+        body: JSON.stringify({ template: "T {{x}}" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(await res.json()).toEqual({ ok: true });
+    expect(saved).toBe("T {{x}}");
+  });
+
   it("GET /img/:key > serves an object from R2", async () => {
     const env = {
       IMAGES: {

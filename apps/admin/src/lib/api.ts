@@ -121,6 +121,21 @@ export async function setProductPricing(
   if (!res.ok) throw new Error(`Pricing update failed (HTTP ${res.status})`);
 }
 
+export async function fetchTermsTemplate(): Promise<string> {
+  const res = await fetch(`${apiBase}/terms/template`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load template (HTTP ${res.status})`);
+  return ((await res.json()) as { template: string }).template;
+}
+
+export async function saveTermsTemplate(template: string): Promise<void> {
+  const res = await fetch(`${apiBase}/terms/template`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ template }),
+  });
+  if (!res.ok) throw new Error(`Save failed (HTTP ${res.status})`);
+}
+
 export interface StockRow {
   variantId: string;
   sku: string | null;
