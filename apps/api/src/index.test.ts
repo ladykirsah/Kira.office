@@ -837,6 +837,16 @@ describe("part attributes (brand / car system / part name)", () => {
     expect(out.id).toBeTruthy();
   });
 
+  it("addCarModel stores the era (year range) on a new model", async () => {
+    const { db, runs } = makeDb({ attrOption: null });
+    const out = await addCarModel(db, "cb1", "Vios", 2007, 2013);
+    expect(out.name).toBe("Vios");
+    const ins = runs.find((r) => r.sql.includes("INSERT INTO car_models"));
+    expect(ins).toBeTruthy();
+    expect(ins!.binds).toContain(2007);
+    expect(ins!.binds).toContain(2013);
+  });
+
   it("addAttribute reuses an existing option (case-insensitive), no insert", async () => {
     const { db, batched } = makeDb({ attrOption: { id: "b1", name: "DENSO" } });
     const out = await addAttribute(db, "brands", "denso");

@@ -25,10 +25,32 @@ export function FitmentSection({
   const remove = (i: number) => onChange(fitments.filter((_, j) => j !== i));
 
   const brandNames = carTree.map((b) => b.name);
+  const brandOf = (brand: string | null) =>
+    carTree.find((x) => x.name.toLowerCase() === (brand ?? "").trim().toLowerCase());
+  // Model names are deduped — the same name can have several eras (generations).
   const modelsFor = (brand: string | null) => {
-    const b = carTree.find((x) => x.name.toLowerCase() === (brand ?? "").trim().toLowerCase());
-    return b ? b.models.map((m) => m.name) : [];
+    const b = brandOf(brand);
+    return b ? [...new Set(b.models.map((m) => m.name))] : [];
   };
+  // The year ranges (eras) registered for a given model — offered as quick-fill chips.
+  const erasFor = (brand: string | null, model: string | null) => {
+    const b = brandOf(brand);
+    const name = (model ?? "").trim().toLowerCase();
+    if (!b || !name) return [];
+    const seen = new Set<string>();
+    const out: { from: number | null; to: number | null }[] = [];
+    for (const m of b.models) {
+      if (m.name.toLowerCase() !== name) continue;
+      if (m.yearFrom == null && m.yearTo == null) continue;
+      const key = `${m.yearFrom ?? ""}-${m.yearTo ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ from: m.yearFrom, to: m.yearTo });
+    }
+    return out.sort((a, b2) => (a.from ?? 0) - (b2.from ?? 0));
+  };
+  const eraLabel = (e: { from: number | null; to: number | null }) =>
+    e.from && e.to ? `${e.from} – ${e.to}` : e.from ? `${e.from}+` : `– ${e.to}`;
 
   return (
     <div
@@ -104,6 +126,29 @@ export function FitmentSection({
                     style={{ width: "min(64px, 100%)" }}
                   />
                 </span>
+                {erasFor(f.carBrand, f.carModel).length > 0 && (
+                  <span
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 4,
+                      marginTop: 5,
+                      justifyContent: "flex-start",
+                    }}
+                  >
+                    {erasFor(f.carBrand, f.carModel).map((e, k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="era-chip"
+                        title="Use this generation's years"
+                        onClick={() => patch(i, { yearFrom: e.from, yearTo: e.to })}
+                      >
+                        {eraLabel(e)}
+                      </button>
+                    ))}
+                  </span>
+                )}
               </td>
               <td>
                 <button

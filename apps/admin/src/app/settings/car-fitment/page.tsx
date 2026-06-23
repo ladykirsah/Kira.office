@@ -15,6 +15,19 @@ import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
 
+/** Format a model's era (year range) for the list label, e.g. "2007 – 2013" / "2013+". */
+function eraStr(from: number | null, to: number | null): string {
+  if (from && to) return `${from} – ${to}`;
+  if (from) return `${from}+`;
+  if (to) return `– ${to}`;
+  return "";
+}
+
+const yearOrNull = (s: string): number | null => {
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : null;
+};
+
 /** True when a model has any service notes worth flagging in the list. */
 function modelHasInfo(m: CarModelNode): boolean {
   return Boolean(
@@ -36,6 +49,8 @@ export default function CarFitmentPage() {
   const [loading, setLoading] = useState(true);
   const [newBrand, setNewBrand] = useState("");
   const [newModel, setNewModel] = useState("");
+  const [newModelFrom, setNewModelFrom] = useState("");
+  const [newModelTo, setNewModelTo] = useState("");
   const toast = useToast();
 
   async function load(selectId?: string) {
@@ -84,8 +99,12 @@ export default function CarFitmentPage() {
     e.preventDefault();
     const name = newModel.trim();
     if (!name || !selectedId) return;
+    const from = yearOrNull(newModelFrom);
+    const to = yearOrNull(newModelTo);
     setNewModel("");
-    await run(() => addCarModel(selectedId, name), selectedId, "Added ✓");
+    setNewModelFrom("");
+    setNewModelTo("");
+    await run(() => addCarModel(selectedId, name, from, to), selectedId, "Added ✓");
   }
 
   const selected = brands?.find((b) => b.id === selectedId) ?? null;
@@ -183,6 +202,9 @@ export default function CarFitmentPage() {
                                 {open ? "▾" : "▸"}
                               </span>
                               {m.name}
+                              {eraStr(m.yearFrom, m.yearTo) && (
+                                <span className="md-era">{eraStr(m.yearFrom, m.yearTo)}</span>
+                              )}
                               {open ? (
                                 <span className="md-sub">· service notes</span>
                               ) : (
@@ -221,13 +243,36 @@ export default function CarFitmentPage() {
                 )}
                 <form
                   onSubmit={submitModel}
-                  style={{ display: "flex", gap: 6, margin: "12px 6px 4px" }}
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    margin: "12px 6px 4px",
+                  }}
                 >
                   <input
                     value={newModel}
                     onChange={(e) => setNewModel(e.target.value)}
                     placeholder="Add model…"
-                    style={{ flex: 1, minWidth: 0 }}
+                    style={{ flex: 1, minWidth: 100 }}
+                  />
+                  <input
+                    value={newModelFrom}
+                    onChange={(e) => setNewModelFrom(e.target.value)}
+                    placeholder="from"
+                    inputMode="numeric"
+                    aria-label="Era from year"
+                    style={{ width: 64 }}
+                  />
+                  <span className="muted">–</span>
+                  <input
+                    value={newModelTo}
+                    onChange={(e) => setNewModelTo(e.target.value)}
+                    placeholder="to"
+                    inputMode="numeric"
+                    aria-label="Era to year"
+                    style={{ width: 64 }}
                   />
                   <button type="submit" className="btn-primary" disabled={!newModel.trim()}>
                     Add

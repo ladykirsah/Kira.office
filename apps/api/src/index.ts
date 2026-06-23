@@ -1289,25 +1289,43 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
   };
 }
 
-/** Find-or-create a car model under a specific brand (uniqueness is per brand). */
+/**
+ * Find-or-create a car model (a generation) under a brand. A model is identified by name + era
+ * (year range), so the same name can exist once per generation. When no era is given we match on
+ * name alone (era-agnostic) — used to grow the list from typed product fitments without duplicating.
+ */
 export async function addCarModel(
   db: D1Database,
   brandId: string,
   name: string,
+  yearFrom: number | null = null,
+  yearTo: number | null = null,
 ): Promise<AttrOption> {
   const n = name.trim();
   if (!n) throw new Error("name is required");
-  const existing = await db
-    .prepare("SELECT id, name FROM car_models WHERE car_brand_id = ? AND name = ? COLLATE NOCASE")
-    .bind(brandId, n)
-    .first<AttrOption>();
+  const yf = Number.isFinite(yearFrom) ? yearFrom : null;
+  const yt = Number.isFinite(yearTo) ? yearTo : null;
+  const hasEra = yf != null || yt != null;
+  const existing = hasEra
+    ? await db
+        .prepare(
+          "SELECT id, name FROM car_models WHERE car_brand_id = ? AND name = ? COLLATE NOCASE AND year_from IS ? AND year_to IS ?",
+        )
+        .bind(brandId, n, yf, yt)
+        .first<AttrOption>()
+    : await db
+        .prepare(
+          "SELECT id, name FROM car_models WHERE car_brand_id = ? AND name = ? COLLATE NOCASE",
+        )
+        .bind(brandId, n)
+        .first<AttrOption>();
   if (existing) return existing;
   const optionId = crypto.randomUUID();
   await db
     .prepare(
-      "INSERT INTO car_models (id, name, sort_order, car_brand_id, created_at) VALUES (?, ?, 0, ?, ?)",
+      "INSERT INTO car_models (id, name, sort_order, car_brand_id, year_from, year_to, created_at) VALUES (?, ?, 0, ?, ?, ?, ?)",
     )
-    .bind(optionId, n, brandId, Date.now())
+    .bind(optionId, n, brandId, yf, yt, Date.now())
     .run();
   return { id: optionId, name: n };
 }
@@ -1608,9 +1626,22 @@ const worker = {
     }
     const cfModelAdd = url.pathname.match(/^\/car-fitment\/brands\/([^/]+)\/models$/);
     if (cfModelAdd && request.method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { name?: string };
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        yearFrom?: number | null;
+        yearTo?: number | null;
+      };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      return json(await addCarModel(env.DB, cfModelAdd[1]!, body.name), 201);
+      return json(
+        await addCarModel(
+          env.DB,
+          cfModelAdd[1]!,
+          body.name,
+          body.yearFrom ?? null,
+          body.yearTo ?? null,
+        ),
+        201,
+      );
     }
     const cfBrandAdd = url.pathname.match(/^\/car-fitment\/brands$/);
     if (cfBrandAdd && request.method === "POST") {

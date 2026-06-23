@@ -105,7 +105,11 @@ export const carModels = sqliteTable(
     notes: text("notes"),
     createdAt: createdAt(),
   },
-  (t) => [index("car_models_brand_idx").on(t.carBrandId)],
+  (t) => [
+    index("car_models_brand_idx").on(t.carBrandId),
+    // A model is a generation: unique per (brand, name, era).
+    uniqueIndex("car_models_brand_name_era_uq").on(t.carBrandId, t.name, t.yearFrom, t.yearTo),
+  ],
 );
 
 // Vehicle fitment — one row per car a product fits (one part → many cars).

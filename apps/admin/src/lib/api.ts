@@ -174,11 +174,16 @@ export async function addCarBrand(name: string): Promise<AttrOption> {
   return (await res.json()) as AttrOption;
 }
 
-export async function addCarModel(brandId: string, name: string): Promise<AttrOption> {
+export async function addCarModel(
+  brandId: string,
+  name: string,
+  yearFrom: number | null = null,
+  yearTo: number | null = null,
+): Promise<AttrOption> {
   const res = await fetch(`${apiBase}/car-fitment/brands/${brandId}/models`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, yearFrom, yearTo }),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
