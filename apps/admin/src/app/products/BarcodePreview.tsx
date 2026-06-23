@@ -27,11 +27,7 @@ export function BarcodePreview({ value }: { value: string }) {
   }, [v, format]);
 
   if (!format) {
-    return (
-      <small className="muted" style={{ marginTop: 4 }}>
-        Enter a barcode to preview.
-      </small>
-    );
+    return <small className="muted">Enter a barcode to preview.</small>;
   }
 
   return (
@@ -41,11 +37,15 @@ export function BarcodePreview({ value }: { value: string }) {
         background: "#fff",
         borderRadius: 8,
         padding: 4,
-        marginTop: 6,
-        width: "fit-content",
+        maxWidth: 320,
+        flexShrink: 0,
       }}
     >
-      <svg ref={ref} aria-label={`Barcode ${v}`} />
+      <svg
+        ref={ref}
+        aria-label={`Barcode ${v}`}
+        style={{ display: "block", maxWidth: "100%", height: "auto" }}
+      />
     </span>
   );
 }

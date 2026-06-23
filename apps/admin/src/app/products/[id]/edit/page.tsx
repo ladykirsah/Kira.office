@@ -210,12 +210,15 @@ export default function EditProductPage() {
 
           <label style={field}>
             Barcode
-            <input
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              placeholder="scan / type"
-            />
-            <BarcodePreview value={barcode} />
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <input
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="scan / type"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <BarcodePreview value={barcode} />
+            </div>
           </label>
 
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
