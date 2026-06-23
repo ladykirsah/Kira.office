@@ -5,6 +5,7 @@ import worker, {
   importProducts,
   importShopeeOrders,
   lineGrossProfitSatang,
+  lookupBarcode,
   storeProductImage,
   type Env,
 } from "./index";
@@ -32,6 +33,7 @@ function makeDb(canned: {
   existingOrders?: string[];
   existingProduct?: { id: string } | null;
   sales?: unknown[];
+  barcode?: unknown | null;
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -54,6 +56,7 @@ function makeDb(canned: {
       async first<T = unknown>(): Promise<T | null> {
         if (sql.includes("FROM products WHERE product_code"))
           return (canned.existingProduct ?? null) as T | null;
+        if (sql.includes("FROM barcodes")) return (canned.barcode ?? null) as T | null;
         return null;
       },
       async run() {
@@ -148,6 +151,25 @@ describe("api worker routes", () => {
     const env = { IMAGES: { get: async () => null } } as unknown as Env;
     const res = await worker.fetch!(new Request("https://x/img/nope.png"), env, ctx);
     expect(res.status).toBe(404);
+  });
+
+  it("GET /products/by-barcode/:code > 404 for an unknown barcode", async () => {
+    const { env } = makeDb({ barcode: null });
+    const res = await worker.fetch!(new Request("https://x/products/by-barcode/nope"), env, ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /products/by-barcode/:code > returns the variant for a known barcode", async () => {
+    const hit = {
+      barcode: "885",
+      variantId: "v1",
+      productId: "p1",
+      productCode: "C1",
+      name: "Cream",
+    };
+    const { env } = makeDb({ barcode: hit });
+    const res = await worker.fetch!(new Request("https://x/products/by-barcode/885"), env, ctx);
+    expect(await res.json()).toEqual(hit);
   });
 
   it("POST /sync > routes through the StockLedger Durable Object", async () => {
@@ -272,6 +294,25 @@ describe("createProduct", () => {
   it("rejects a missing required field", async () => {
     const { db } = makeDb({});
     await expect(createProduct(db, { productCode: "", name: "X" })).rejects.toThrow(/required/);
+  });
+});
+
+describe("lookupBarcode", () => {
+  it("returns the variant + product for a known barcode", async () => {
+    const hit = {
+      barcode: "885",
+      variantId: "v1",
+      productId: "p1",
+      productCode: "C1",
+      name: "Cream",
+    };
+    const { db } = makeDb({ barcode: hit });
+    expect(await lookupBarcode(db, "885")).toEqual(hit);
+  });
+
+  it("returns null for an unknown barcode", async () => {
+    const { db } = makeDb({ barcode: null });
+    expect(await lookupBarcode(db, "nope")).toBeNull();
   });
 });
 

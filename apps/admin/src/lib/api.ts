@@ -58,6 +58,23 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
   return (await res.json()) as CreateProductResult;
 }
 
+export interface BarcodeLookup {
+  barcode: string;
+  variantId: string;
+  productId: string;
+  productCode: string;
+  name: string;
+}
+
+export async function lookupBarcode(code: string): Promise<BarcodeLookup | null> {
+  const res = await fetch(`${apiBase}/products/by-barcode/${encodeURIComponent(code)}`, {
+    cache: "no-store",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Lookup failed (HTTP ${res.status})`);
+  return (await res.json()) as BarcodeLookup;
+}
+
 export interface SaleRow {
   id: string;
   paymentMethod: string | null;

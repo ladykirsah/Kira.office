@@ -444,6 +444,34 @@ async function listSales(env: Env): Promise<Response> {
   return json({ sales: results });
 }
 
+export interface BarcodeLookup {
+  barcode: string;
+  variantId: string;
+  productId: string;
+  productCode: string;
+  name: string;
+}
+
+/** Resolve a scanned barcode to its variant + product (for the POS). Returns null if unknown. */
+export async function lookupBarcode(db: D1Database, code: string): Promise<BarcodeLookup | null> {
+  const row = await db
+    .prepare(
+      `SELECT b.barcode_value AS barcode,
+              v.id AS variantId,
+              p.id AS productId,
+              p.product_code AS productCode,
+              p.name AS name
+       FROM barcodes b
+       JOIN product_variants v ON v.id = b.product_variant_id
+       JOIN products p ON p.id = v.product_id
+       WHERE b.barcode_value = ?
+       LIMIT 1`,
+    )
+    .bind(code)
+    .first<BarcodeLookup>();
+  return row ?? null;
+}
+
 /**
  * Minimal api Worker — a thin HTTP shell over @l-shopee/core + D1. Stock writes route through the
  * StockLedger Durable Object (serialized single writer). Grows into Hono routing, the Shopee adapter,
@@ -468,6 +496,12 @@ const worker = {
 
     if (url.pathname === "/sales" && request.method === "GET") {
       return listSales(env);
+    }
+
+    const barcodeLookup = url.pathname.match(/^\/products\/by-barcode\/(.+)$/);
+    if (barcodeLookup && request.method === "GET") {
+      const found = await lookupBarcode(env.DB, decodeURIComponent(barcodeLookup[1]!));
+      return found ? json(found) : json({ error: "barcode not found" }, 404);
     }
 
     const imageUpload = url.pathname.match(/^\/products\/([^/]+)\/image$/);
