@@ -34,7 +34,15 @@ function seedSpecials(model: CarModelNode): { size: string; qty: string }[] {
 }
 
 /** Inline editor for one car model's service notes — the cheat sheet used at customer-service time. */
-export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSaved: () => void }) {
+export function ModelInfoEditor({
+  model,
+  onSaved,
+  onCancel,
+}: {
+  model: CarModelNode;
+  onSaved: () => void;
+  onCancel?: () => void;
+}) {
   const toast = useToast();
   const [generationCode, setGen] = useState(model.generationCode ?? "");
   const [yearFrom, setYearFrom] = useState(model.yearFrom?.toString() ?? "");
@@ -214,10 +222,15 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
         />
       </label>
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
         <button type="button" className="btn-primary" onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save notes"}
         </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );

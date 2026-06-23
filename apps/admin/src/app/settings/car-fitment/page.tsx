@@ -13,6 +13,7 @@ import {
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
+import { ModelInfoView } from "./ModelInfoView";
 
 /** True when a model has any service notes worth flagging in the list. */
 function modelHasInfo(m: CarModelNode): boolean {
@@ -31,6 +32,7 @@ export default function CarFitmentPage() {
   const [brands, setBrands] = useState<CarBrandTree[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newBrand, setNewBrand] = useState("");
   const [newModel, setNewModel] = useState("");
@@ -109,6 +111,7 @@ export default function CarFitmentPage() {
                 onClick={() => {
                   setSelectedId(b.id);
                   setEditingId(null);
+                  setEditMode(false);
                 }}
               >
                 <span className="nm">{b.name}</span>
@@ -166,7 +169,10 @@ export default function CarFitmentPage() {
                           <div
                             className={open ? "md-mrow open" : "md-mrow"}
                             style={{ cursor: "pointer" }}
-                            onClick={() => setEditingId(open ? null : m.id)}
+                            onClick={() => {
+                              setEditingId(open ? null : m.id);
+                              setEditMode(false);
+                            }}
                           >
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span
@@ -195,7 +201,19 @@ export default function CarFitmentPage() {
                               </ConfirmButton>
                             </span>
                           </div>
-                          {open && <ModelInfoEditor model={m} onSaved={() => load(selected.id)} />}
+                          {open &&
+                            (editMode ? (
+                              <ModelInfoEditor
+                                model={m}
+                                onSaved={() => {
+                                  load(selected.id);
+                                  setEditMode(false);
+                                }}
+                                onCancel={() => setEditMode(false)}
+                              />
+                            ) : (
+                              <ModelInfoView model={m} onEdit={() => setEditMode(true)} />
+                            ))}
                         </div>
                       );
                     })}

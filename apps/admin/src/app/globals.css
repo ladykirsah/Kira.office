@@ -587,6 +587,30 @@ tbody tr:hover {
   padding: 6px 12px 12px;
   background: transparent;
 }
+/* Read-only view: a scannable label → value table */
+.md-view {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px 18px;
+  align-items: start;
+}
+.md-view-l {
+  font-size: 12px;
+  color: var(--text-faint);
+  padding-top: 1px;
+}
+.md-view-v {
+  font-size: 14px;
+  color: var(--text);
+}
+.oring-chip {
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px 9px;
+  background: var(--surface);
+  color: var(--text);
+}
 .md-minfo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
