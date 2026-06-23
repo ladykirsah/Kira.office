@@ -483,6 +483,57 @@ tbody tr:hover {
   color: var(--danger);
 }
 
+/* Master–detail (car fitment settings) */
+.md {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 14px;
+  margin-top: 16px;
+  max-width: 760px;
+}
+.md-pane {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.md-brow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.md-brow:hover {
+  background: var(--hover);
+}
+.md-brow.sel {
+  background: var(--primary-soft);
+}
+.md-brow.sel .nm {
+  color: var(--primary);
+  font-weight: 600;
+}
+.md-brow .cnt {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.md-mrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 560px) {
+  .md {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Fitment table — left-aligned text fields */
 .ftbl {
   width: 100%;
