@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import worker, {
+  applyAdjustmentToDb,
   applySyncToDb,
   createProduct,
   getProductDetail,
@@ -41,6 +42,8 @@ function makeDb(canned: {
   productDetail?: unknown | null;
   variantRow?: unknown | null;
   pricingRow?: unknown | null;
+  stock?: unknown[];
+  stockOnHand?: number;
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -50,6 +53,8 @@ function makeDb(canned: {
         return stmt;
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
+        if (sql.includes("LEFT JOIN stock_ledger_entries"))
+          return { results: (canned.stock ?? []) as T[] };
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
         if (sql.includes("client_uuid IN"))
           return { results: (canned.existing ?? []).map((u) => ({ clientUuid: u })) as T[] };
@@ -61,6 +66,7 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
         if (sql.includes("FROM products WHERE product_code"))
           return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("FROM products WHERE id"))
@@ -143,6 +149,39 @@ describe("api worker routes", () => {
     const { env } = makeDb({ sales: [sale] });
     const res = await worker.fetch!(new Request("https://x/sales"), env, ctx);
     expect(await res.json()).toEqual({ sales: [sale] });
+  });
+
+  it("GET /stock > reads on-hand per variant from D1", async () => {
+    const stock = [
+      { variantId: "v1", sku: "S1", productName: "Cream", productCode: "C1", onHand: 20 },
+    ];
+    const { env } = makeDb({ stock });
+    const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
+    expect(await res.json()).toEqual({ stock });
+  });
+
+  it("POST /stock/adjust > routes through the StockLedger Durable Object", async () => {
+    const env = {
+      STOCK_LEDGER: {
+        idFromName: (_n: string) => ({}),
+        get: (_id: unknown) => ({
+          applyAdjustment: async (a: { productVariantId: string }) => ({
+            variantId: a.productVariantId,
+            quantityAfter: 25,
+            applied: true,
+          }),
+        }),
+      },
+    } as unknown as Env;
+    const res = await worker.fetch!(
+      new Request("https://x/stock/adjust", {
+        method: "POST",
+        body: JSON.stringify({ productVariantId: "v1", quantityDelta: 5 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(await res.json()).toEqual({ variantId: "v1", quantityAfter: 25, applied: true });
   });
 
   it("GET /img/:key > serves an object from R2", async () => {
@@ -241,6 +280,40 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     ]);
     expect(out.applied).toBe(1);
     expect(out.conflicts).toEqual([{ productVariantId: "v1", requested: 5, available: 1 }]);
+  });
+});
+
+describe("applyAdjustmentToDb (manual stock movements)", () => {
+  it("receives stock (adds to on-hand)", async () => {
+    const { db } = makeDb({ stockOnHand: 0 });
+    expect(
+      await applyAdjustmentToDb(db, {
+        productVariantId: "v1",
+        quantityDelta: 5,
+        movementType: "receive",
+      }),
+    ).toEqual({ variantId: "v1", quantityAfter: 5, applied: true });
+  });
+
+  it("rejects an adjustment that would drive stock negative", async () => {
+    const { db } = makeDb({ stockOnHand: 3 });
+    const out = await applyAdjustmentToDb(db, {
+      productVariantId: "v1",
+      quantityDelta: -5,
+      movementType: "write_off",
+    });
+    expect(out.applied).toBe(false);
+    expect(out.quantityAfter).toBe(3);
+  });
+
+  it("rejects a zero delta", async () => {
+    const { db } = makeDb({});
+    const out = await applyAdjustmentToDb(db, {
+      productVariantId: "v1",
+      quantityDelta: 0,
+      movementType: "correction",
+    });
+    expect(out.applied).toBe(false);
   });
 });
 

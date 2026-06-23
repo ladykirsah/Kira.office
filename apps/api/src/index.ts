@@ -199,6 +199,10 @@ export class StockLedger extends DurableObject<Env> {
   async applySync(sales: SyncSale[]): Promise<SyncResult> {
     return applySyncToDb(this.env.DB, sales);
   }
+
+  async applyAdjustment(adj: StockAdjustment): Promise<AdjustmentResult> {
+    return applyAdjustmentToDb(this.env.DB, adj);
+  }
 }
 
 export interface ImportResult {
@@ -417,6 +421,86 @@ export async function storeProductImage(
   return { key, url: `/img/${key}` };
 }
 
+export interface StockAdjustment {
+  productVariantId: string;
+  quantityDelta: number;
+  movementType: string;
+  reason?: string;
+}
+
+export interface AdjustmentResult {
+  variantId: string;
+  quantityAfter: number;
+  applied: boolean;
+  reason?: string;
+}
+
+/**
+ * Apply a manual stock movement (receive / correction / write-off) as a ledger delta. Rejects a zero
+ * delta or one that would drive stock negative. Runs through the StockLedger Durable Object so manual
+ * adjustments and sales serialize against the same single writer.
+ */
+export async function applyAdjustmentToDb(
+  db: D1Database,
+  adj: StockAdjustment,
+): Promise<AdjustmentResult> {
+  if (!Number.isInteger(adj.quantityDelta) || adj.quantityDelta === 0) {
+    return {
+      variantId: adj.productVariantId,
+      quantityAfter: 0,
+      applied: false,
+      reason: "quantityDelta must be a non-zero integer",
+    };
+  }
+  const row = await db
+    .prepare(
+      "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+    )
+    .bind(adj.productVariantId)
+    .first<{ onHand: number }>();
+  const current = Number(row?.onHand ?? 0);
+  const after = current + adj.quantityDelta;
+  if (after < 0) {
+    return {
+      variantId: adj.productVariantId,
+      quantityAfter: current,
+      applied: false,
+      reason: `would go negative (on hand ${current})`,
+    };
+  }
+  await db
+    .prepare(
+      "INSERT INTO stock_ledger_entries (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(
+      crypto.randomUUID(),
+      adj.productVariantId,
+      adj.movementType,
+      adj.quantityDelta,
+      after,
+      "manual",
+      adj.reason ?? null,
+      Date.now(),
+    )
+    .run();
+  return { variantId: adj.productVariantId, quantityAfter: after, applied: true };
+}
+
+/** On-hand stock per variant (ledger sum) with product info, for the stock screen. */
+async function listStock(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_code AS productCode,
+            COALESCE(SUM(e.quantity_delta), 0) AS onHand
+     FROM product_variants v
+     JOIN products p ON p.id = v.product_id
+     LEFT JOIN stock_ledger_entries e ON e.product_variant_id = v.id
+     GROUP BY v.id
+     ORDER BY p.name
+     LIMIT 200`,
+  ).all();
+  return json({ stock: results });
+}
+
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     "SELECT id, product_code AS productCode, name, status, image_key AS imageKey FROM products ORDER BY created_at DESC LIMIT 100",
@@ -596,6 +680,26 @@ const worker = {
 
     if (url.pathname === "/sales" && request.method === "GET") {
       return listSales(env);
+    }
+
+    if (url.pathname === "/stock" && request.method === "GET") {
+      return listStock(env);
+    }
+
+    if (url.pathname === "/stock/adjust" && request.method === "POST") {
+      const body = (await request.json()) as Partial<StockAdjustment>;
+      if (!body?.productVariantId || typeof body.quantityDelta !== "number") {
+        return json({ error: "productVariantId and quantityDelta are required" }, 400);
+      }
+      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      return json(
+        await stub.applyAdjustment({
+          productVariantId: body.productVariantId,
+          quantityDelta: body.quantityDelta,
+          movementType: body.movementType ?? "correction",
+          reason: body.reason,
+        }),
+      );
     }
 
     if (url.pathname === "/sales/export.csv" && request.method === "GET") {

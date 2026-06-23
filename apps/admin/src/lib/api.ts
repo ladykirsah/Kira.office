@@ -121,6 +121,35 @@ export async function setProductPricing(
   if (!res.ok) throw new Error(`Pricing update failed (HTTP ${res.status})`);
 }
 
+export interface StockRow {
+  variantId: string;
+  sku: string | null;
+  productName: string;
+  productCode: string;
+  onHand: number;
+}
+
+export async function fetchStock(): Promise<StockRow[]> {
+  const res = await fetch(`${apiBase}/stock`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load stock (HTTP ${res.status})`);
+  return ((await res.json()) as { stock: StockRow[] }).stock;
+}
+
+export async function adjustStock(input: {
+  productVariantId: string;
+  quantityDelta: number;
+  movementType: string;
+  reason?: string;
+}): Promise<{ applied: boolean; quantityAfter: number; reason?: string }> {
+  const res = await fetch(`${apiBase}/stock/adjust`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Adjust failed (HTTP ${res.status})`);
+  return (await res.json()) as { applied: boolean; quantityAfter: number; reason?: string };
+}
+
 export interface SaleRow {
   id: string;
   paymentMethod: string | null;
