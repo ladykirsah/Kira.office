@@ -48,7 +48,7 @@ export function ProductGallery({
     }
   }
 
-  const slots = Math.max(0, MAX - images.length);
+  const canAdd = images.length < MAX;
 
   return (
     <div>
@@ -69,10 +69,10 @@ export function ProductGallery({
             </button>
           </div>
         ))}
-        {Array.from({ length: slots }).map((_, i) => (
+        {/* A single "Add" tile at the end; disappears once all 10 are filled. */}
+        {canAdd && (
           <button
             type="button"
-            key={`empty-${i}`}
             className="frame empty"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
@@ -80,7 +80,7 @@ export function ProductGallery({
           >
             +
           </button>
-        ))}
+        )}
       </div>
       <input
         ref={fileRef}
