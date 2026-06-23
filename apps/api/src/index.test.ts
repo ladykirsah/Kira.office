@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import worker, {
+  addBarcodeToProduct,
   applyAdjustmentToDb,
   applySyncToDb,
   createProduct,
+  ean13CheckDigit,
+  generateInternalBarcode,
   getProductDetail,
   setVariantPricing,
   updateProduct,
@@ -47,6 +50,7 @@ function makeDb(canned: {
   stockOnHand?: number;
   saleHeader?: unknown | null;
   saleLines?: unknown[];
+  barcodes?: unknown[];
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -58,6 +62,8 @@ function makeDb(canned: {
       async all<T = unknown>(): Promise<{ results: T[] }> {
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
+        if (sql.includes("FROM product_variants v JOIN products"))
+          return { results: (canned.barcodes ?? []) as T[] };
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
         if (sql.includes("client_uuid IN"))
           return { results: (canned.existing ?? []).map((u) => ({ clientUuid: u })) as T[] };
@@ -167,6 +173,15 @@ describe("api worker routes", () => {
     const { env } = makeDb({ stock });
     const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
     expect(await res.json()).toEqual({ stock });
+  });
+
+  it("GET /barcodes > lists variants with barcodes", async () => {
+    const barcodes = [
+      { variantId: "v1", productId: "p1", productCode: "C1", productName: "Cream", barcode: "885" },
+    ];
+    const { env } = makeDb({ barcodes });
+    const res = await worker.fetch!(new Request("https://x/barcodes"), env, ctx);
+    expect(await res.json()).toEqual({ barcodes });
   });
 
   it("POST /stock/adjust > routes through the StockLedger Durable Object", async () => {
@@ -515,6 +530,34 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     const { db, batched } = makeDb({});
     await setVariantPricing(db, "v1", 6000, 10700);
     expect(batched.length).toBe(2);
+  });
+});
+
+describe("barcodes", () => {
+  it("ean13CheckDigit matches a known EAN-13", () => {
+    expect(ean13CheckDigit("978014300723")).toBe("4");
+  });
+
+  it("generateInternalBarcode is a self-consistent 13-digit 200-prefixed code", () => {
+    const bc = generateInternalBarcode();
+    expect(bc).toHaveLength(13);
+    expect(bc.startsWith("200")).toBe(true);
+    expect(ean13CheckDigit(bc.slice(0, 12))).toBe(bc[12]);
+  });
+
+  it("addBarcodeToProduct generates + sets primary when none exists", async () => {
+    const { db, batched } = makeDb({ variantRow: { id: "v1", barcodePrimary: null } });
+    const out = await addBarcodeToProduct(db, "p1");
+    expect(out.generated).toBe(true);
+    expect(out.variantId).toBe("v1");
+    expect(batched.length).toBe(2); // insert barcode + set primary
+  });
+
+  it("addBarcodeToProduct adds a provided code without overwriting the primary", async () => {
+    const { db, batched } = makeDb({ variantRow: { id: "v1", barcodePrimary: "111" } });
+    const out = await addBarcodeToProduct(db, "p1", "8850000000000");
+    expect(out.generated).toBe(false);
+    expect(batched.length).toBe(1);
   });
 });
 

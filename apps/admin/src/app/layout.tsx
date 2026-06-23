@@ -42,6 +42,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <a style={linkStyle} href="/terms">
             Terms
           </a>
+          <a style={linkStyle} href="/barcodes">
+            Barcodes
+          </a>
           <a style={linkStyle} href="/pos">
             POS
           </a>

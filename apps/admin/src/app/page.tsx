@@ -28,6 +28,9 @@ export default function DashboardPage() {
         <li>
           <a href="/terms">Terms</a> — Thai product T&amp;C template editor
         </li>
+        <li>
+          <a href="/barcodes">Barcodes</a> — generate internal barcodes and print
+        </li>
       </ul>
     </main>
   );

@@ -684,6 +684,83 @@ export async function lookupBarcode(db: D1Database, code: string): Promise<Barco
   return row ?? null;
 }
 
+/** EAN-13 check digit for the first 12 digits (odd positions ×1, even ×3). Pure + tested. */
+export function ean13CheckDigit(digits12: string): string {
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const d = digits12.charCodeAt(i) - 48;
+    sum += i % 2 === 0 ? d : d * 3;
+  }
+  return String((10 - (sum % 10)) % 10);
+}
+
+/** Generate an internal EAN-13 barcode (prefix 200 = in-store range) for unlabeled products. */
+export function generateInternalBarcode(): string {
+  let body = "200";
+  const rnd = crypto.getRandomValues(new Uint8Array(9));
+  for (let i = 0; i < 9; i++) body += String(rnd[i]! % 10);
+  return body + ean13CheckDigit(body);
+}
+
+export interface AddBarcodeResult {
+  barcodeValue: string;
+  generated: boolean;
+  variantId: string | null;
+}
+
+/** Add a barcode to a product's default variant (generating an internal one if none provided). */
+export async function addBarcodeToProduct(
+  db: D1Database,
+  productId: string,
+  providedValue?: string,
+): Promise<AddBarcodeResult> {
+  const variant = await db
+    .prepare(
+      "SELECT id, barcode_primary AS barcodePrimary FROM product_variants WHERE product_id = ? ORDER BY created_at LIMIT 1",
+    )
+    .bind(productId)
+    .first<{ id: string; barcodePrimary: string | null }>();
+  if (!variant) return { barcodeValue: "", generated: false, variantId: null };
+
+  const generated = !providedValue?.trim();
+  const barcodeValue = providedValue?.trim() || generateInternalBarcode();
+  const now = Date.now();
+  const statements = [
+    db
+      .prepare(
+        "INSERT INTO barcodes (id, product_variant_id, barcode_value, is_primary, is_internal_generated, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        crypto.randomUUID(),
+        variant.id,
+        barcodeValue,
+        variant.barcodePrimary ? 0 : 1,
+        generated ? 1 : 0,
+        now,
+      ),
+  ];
+  if (!variant.barcodePrimary) {
+    statements.push(
+      db
+        .prepare("UPDATE product_variants SET barcode_primary = ? WHERE id = ?")
+        .bind(barcodeValue, variant.id),
+    );
+  }
+  await db.batch(statements);
+  return { barcodeValue, generated, variantId: variant.id };
+}
+
+/** Variants with their primary barcode + product info, for the barcode-management screen. */
+async function listBarcodes(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT v.id AS variantId, p.id AS productId, p.product_code AS productCode,
+            p.name AS productName, v.barcode_primary AS barcode
+     FROM product_variants v JOIN products p ON p.id = v.product_id
+     ORDER BY p.name LIMIT 500`,
+  ).all();
+  return json({ barcodes: results });
+}
+
 export interface ProductDetail {
   product: {
     id: string;
@@ -827,6 +904,17 @@ const worker = {
     if (barcodeLookup && request.method === "GET") {
       const found = await lookupBarcode(env.DB, decodeURIComponent(barcodeLookup[1]!));
       return found ? json(found) : json({ error: "barcode not found" }, 404);
+    }
+
+    if (url.pathname === "/barcodes" && request.method === "GET") {
+      return listBarcodes(env);
+    }
+
+    const addBarcode = url.pathname.match(/^\/products\/([^/]+)\/barcode$/);
+    if (addBarcode && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { barcodeValue?: string };
+      const out = await addBarcodeToProduct(env.DB, addBarcode[1]!, body.barcodeValue);
+      return out.variantId ? json(out, 201) : json({ error: "product or variant not found" }, 404);
     }
 
     const productPricing = url.pathname.match(/^\/products\/([^/]+)\/pricing$/);
