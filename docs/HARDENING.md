@@ -18,7 +18,15 @@ Cloudflare dashboard/config on the **GoGoCash** account.
   **Bot Fight Mode** + **Leaked credentials** are already visible in your Security tab; also add a
   **Rate limiting rule** for `api.homeseeker.me` (e.g. 100 req/min per IP) under Security → WAF →
   Rate limiting rules.
-- **Auth** — gate the API + admin behind **Cloudflare Access** (task #10) before exposing publicly.
+- **Auth — Cloudflare Access (task #10).** The Worker already enforces an Access JWT *when configured*
+  (it's a no-op until then, so nothing is locked out today). To turn it on:
+  1. Zero Trust → Access → Applications → **Add a self-hosted app** for `api.homeseeker.me` (and later
+     `app.homeseeker.me`), add a policy allowing your email. This is the **primary edge gate**.
+  2. Copy the application **AUD** tag and your team domain (`<team>.cloudflareaccess.com`).
+  3. Set them on the `kira-office` Worker as vars/secrets: `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN`
+     (Workers & Pages → kira-office → Settings → Variables, or `wrangler secret put`).
+  4. Verify: a request without the Access cookie/JWT now gets `401`; through the browser (after the
+     Access login) it works. Mutations are audit-logged with the Access user email.
 
 ## Backups & recovery
 

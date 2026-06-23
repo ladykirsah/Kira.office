@@ -14,6 +14,7 @@ import worker, {
   lineGrossProfitSatang,
   lookupBarcode,
   refundSaleToDb,
+  requireAccess,
   salesToCsv,
   storeProductImage,
   type Env,
@@ -342,6 +343,29 @@ describe("api worker routes", () => {
       ctx,
     );
     expect(await res.json()).toEqual({ applied: 1, duplicates: 0, conflicts: [] });
+  });
+});
+
+describe("requireAccess (Cloudflare Access gate)", () => {
+  it("is open (no enforcement) when ACCESS env is not configured", async () => {
+    const gate = await requireAccess(new Request("https://x/products"), {} as Env);
+    expect(gate).toEqual({ email: null });
+  });
+
+  it("returns 401 when configured but no Access token is present", async () => {
+    const env = {
+      ACCESS_TEAM_DOMAIN: "t.cloudflareaccess.com",
+      ACCESS_AUD: "aud",
+    } as unknown as Env;
+    const gate = await requireAccess(new Request("https://x/products"), env);
+    expect(gate instanceof Response).toBe(true);
+    expect((gate as Response).status).toBe(401);
+  });
+
+  it("keeps /health public and rejects protected routes when configured without a token", async () => {
+    const env = { ACCESS_TEAM_DOMAIN: "t", ACCESS_AUD: "a" } as unknown as Env;
+    expect((await worker.fetch!(new Request("https://x/health"), env, ctx)).status).toBe(200);
+    expect((await worker.fetch!(new Request("https://x/products"), env, ctx)).status).toBe(401);
   });
 });
 

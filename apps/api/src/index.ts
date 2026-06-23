@@ -15,6 +15,9 @@ export interface Env {
   KV: KVNamespace;
   STOCK_LEDGER: DurableObjectNamespace<StockLedger>;
   IMAGES: R2Bucket;
+  /** Set both to enable Cloudflare Access JWT enforcement (defense-in-depth). Unset = open. */
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
 }
 
 interface SyncLine {
@@ -53,6 +56,84 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 const json = (data: unknown, status = 200): Response =>
   Response.json(data, { status, headers: SECURITY_HEADERS });
+
+function base64urlToBytes(s: string): Uint8Array {
+  const b64 = s
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(s.length / 4) * 4, "=");
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+interface AccessClaims {
+  email?: string;
+  aud?: string | string[];
+  exp?: number;
+}
+
+/**
+ * Verify a Cloudflare Access JWT (Cf-Access-Jwt-Assertion): RS256 signature against the team JWKS,
+ * audience and expiry. Throws on any failure. NOTE: the Access application itself (created in the
+ * dashboard) is the primary edge gate; this is defense-in-depth and must be confirmed against a real
+ * token after the Access app exists.
+ */
+async function verifyAccessJwt(
+  token: string,
+  teamDomain: string,
+  aud: string,
+): Promise<{ email: string | null }> {
+  const [h, p, sig] = token.split(".");
+  if (!h || !p || !sig) throw new Error("malformed token");
+  const header = JSON.parse(new TextDecoder().decode(base64urlToBytes(h))) as { kid?: string };
+  const payload = JSON.parse(new TextDecoder().decode(base64urlToBytes(p))) as AccessClaims;
+
+  const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  if (!auds.includes(aud)) throw new Error("bad audience");
+  if (payload.exp && payload.exp * 1000 < Date.now()) throw new Error("expired");
+
+  const certs = (await (await fetch(`https://${teamDomain}/cdn-cgi/access/certs`)).json()) as {
+    keys: JsonWebKey[] & { kid?: string }[];
+  };
+  const jwk = certs.keys.find((k) => (k as { kid?: string }).kid === header.kid);
+  if (!jwk) throw new Error("unknown signing key");
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const ok = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    base64urlToBytes(sig),
+    new TextEncoder().encode(`${h}.${p}`),
+  );
+  if (!ok) throw new Error("bad signature");
+  return { email: payload.email ?? null };
+}
+
+/**
+ * Access gate. Returns the authenticated user (email) on success, a 401 Response on failure, or an
+ * open `{ email: null }` when Access is not configured (so the API keeps working until the owner
+ * creates the Access app and sets ACCESS_TEAM_DOMAIN + ACCESS_AUD).
+ */
+export async function requireAccess(
+  request: Request,
+  env: Env,
+): Promise<Response | { email: string | null }> {
+  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return { email: null };
+  const token = request.headers.get("Cf-Access-Jwt-Assertion");
+  if (!token) return json({ error: "unauthorized" }, 401);
+  try {
+    return await verifyAccessJwt(token, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
+  } catch {
+    return json({ error: "unauthorized" }, 401);
+  }
+}
 
 /**
  * Per-line gross profit in satang for an on-site sale line: (price·qty − discount − tax) − cost·qty.
@@ -876,8 +957,21 @@ const worker = {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    // Health + image serving stay public; everything else passes the Access gate (a no-op until
+    // ACCESS_TEAM_DOMAIN + ACCESS_AUD are set). Mutations are audit-logged with the Access user.
     if (url.pathname === "/health") {
       return json({ ok: true, service: "kiraoffice-api" });
+    }
+
+    const isPublic = url.pathname.startsWith("/img/");
+    let userEmail: string | null = null;
+    if (!isPublic) {
+      const gate = await requireAccess(request, env);
+      if (gate instanceof Response) return gate;
+      userEmail = gate.email;
+    }
+    if (request.method !== "GET") {
+      console.log(`audit: ${request.method} ${url.pathname} by ${userEmail ?? "anon"}`);
     }
 
     if (url.pathname === "/pricing/preview" && request.method === "POST") {
