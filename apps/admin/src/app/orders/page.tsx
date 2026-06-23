@@ -53,7 +53,7 @@ export default function OrdersPage() {
   return (
     <main>
       <h1>Shopee orders (CSV import)</h1>
-      <p style={{ color: "#555" }}>
+      <p style={{ color: "var(--text-muted)" }}>
         Paste a Seller Centre order export (header row required). Required column:{" "}
         <code>external_order_id</code>. Re-importing is safe — duplicates are skipped.
       </p>
@@ -67,36 +67,43 @@ export default function OrdersPage() {
         <button className="btn-primary" onClick={run} disabled={busy}>
           Import
         </button>{" "}
-        <small style={{ color: "crimson" }}>{msg}</small>
+        <small style={{ color: "var(--danger)" }}>{msg}</small>
       </div>
       {result && (
         <p style={{ marginTop: 12 }}>
-          Received <strong>{result.received}</strong> · imported <strong>{result.imported}</strong> ·
-          duplicates <strong>{result.duplicates}</strong> · invalid <strong>{result.invalid}</strong>
+          Received <strong>{result.received}</strong> · imported <strong>{result.imported}</strong>{" "}
+          · duplicates <strong>{result.duplicates}</strong> · invalid{" "}
+          <strong>{result.invalid}</strong>
         </p>
       )}
 
       <h2 style={{ marginTop: 20 }}>Imported orders ({orders.length})</h2>
-      <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th align="left">Order</th>
-            <th align="left">Channel</th>
-            <th align="left">Status</th>
-            <th align="left">Payment</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} style={{ borderTop: "1px solid #eee" }}>
-              <td>{o.externalOrderId}</td>
-              <td>{o.channel}</td>
-              <td>{o.orderStatus ?? "—"}</td>
-              <td>{o.paymentStatus ?? "—"}</td>
+      {orders.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon">🧾</div>No orders imported yet.
+        </div>
+      ) : (
+        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th align="left">Order</th>
+              <th align="left">Channel</th>
+              <th align="left">Status</th>
+              <th align="left">Payment</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {orders.map((o) => (
+              <tr key={o.id} style={{ borderTop: "1px solid var(--border)" }}>
+                <td>{o.externalOrderId}</td>
+                <td>{o.channel}</td>
+                <td>{o.orderStatus ?? "—"}</td>
+                <td>{o.paymentStatus ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </main>
   );
 }

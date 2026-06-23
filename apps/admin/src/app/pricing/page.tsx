@@ -55,7 +55,7 @@ export default function PricingPage() {
   }
 
   const row = (label: string, p: typeof onsite) => (
-    <tr style={{ borderTop: "1px solid #eee" }}>
+    <tr style={{ borderTop: "1px solid var(--border)" }}>
       <td>{label}</td>
       <td align="right">{baht(p.salesExTax)}</td>
       <td align="right">{baht(p.taxAmount)}</td>
@@ -74,11 +74,19 @@ export default function PricingPage() {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         <label style={field}>
           Cost (THB)
-          <input value={costThb} onChange={(e) => setCostThb(e.target.value)} style={{ width: 90 }} />
+          <input
+            value={costThb}
+            onChange={(e) => setCostThb(e.target.value)}
+            style={{ width: 90 }}
+          />
         </label>
         <label style={field}>
           Sell price (THB)
-          <input value={priceThb} onChange={(e) => setPriceThb(e.target.value)} style={{ width: 90 }} />
+          <input
+            value={priceThb}
+            onChange={(e) => setPriceThb(e.target.value)}
+            style={{ width: 90 }}
+          />
         </label>
         <label style={field}>
           VAT %
@@ -86,12 +94,20 @@ export default function PricingPage() {
         </label>
         <label style={field}>
           Shopee commission %
-          <input value={commissionPct} onChange={(e) => setCommissionPct(e.target.value)} style={{ width: 70 }} />
+          <input
+            value={commissionPct}
+            onChange={(e) => setCommissionPct(e.target.value)}
+            style={{ width: 70 }}
+          />
         </label>
         <label style={{ ...field, alignSelf: "end" }}>
           <span>
-            <input type="checkbox" checked={inclusive} onChange={(e) => setInclusive(e.target.checked)} /> price
-            includes VAT
+            <input
+              type="checkbox"
+              checked={inclusive}
+              onChange={(e) => setInclusive(e.target.checked)}
+            />{" "}
+            price includes VAT
           </span>
         </label>
       </div>
@@ -118,7 +134,11 @@ export default function PricingPage() {
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <label style={field}>
           Target margin %
-          <input value={marginPct} onChange={(e) => setMarginPct(e.target.value)} style={{ width: 70 }} />
+          <input
+            value={marginPct}
+            onChange={(e) => setMarginPct(e.target.value)}
+            style={{ width: 70 }}
+          />
         </label>
       </div>
       {suggestion ? (
@@ -127,7 +147,7 @@ export default function PricingPage() {
           <strong>{baht(suggestion.online)}</strong>
         </p>
       ) : (
-        <p style={{ color: "crimson" }}>{suggestErr}</p>
+        <p style={{ color: "var(--danger)" }}>{suggestErr}</p>
       )}
     </main>
   );

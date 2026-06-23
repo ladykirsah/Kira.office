@@ -11,7 +11,7 @@ export default async function ProductsPage() {
     return (
       <main>
         <h1>Products</h1>
-        <p style={{ color: "crimson" }}>Could not load products: {(err as Error).message}</p>
+        <p style={{ color: "var(--danger)" }}>Could not load products: {(err as Error).message}</p>
       </main>
     );
   }
@@ -19,47 +19,53 @@ export default async function ProductsPage() {
   return (
     <main>
       <h1>Products ({products.length})</h1>
-      <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th align="left">Image</th>
-            <th align="left">Code</th>
-            <th align="left">Name</th>
-            <th align="left">Status</th>
-            <th align="left">Upload</th>
-            <th align="left"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((p) => (
-            <tr key={p.id} style={{ borderTop: "1px solid #eee" }}>
-              <td>
-                {p.imageKey ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`${apiBase}/img/${p.imageKey}`}
-                    alt={p.name}
-                    width={40}
-                    height={40}
-                    style={{ objectFit: "cover", borderRadius: 4 }}
-                  />
-                ) : (
-                  <span style={{ color: "#bbb" }}>—</span>
-                )}
-              </td>
-              <td>{p.productCode}</td>
-              <td>{p.name}</td>
-              <td>{p.status}</td>
-              <td>
-                <ProductImageUpload productId={p.id} />
-              </td>
-              <td>
-                <a href={`/products/${p.id}/edit`}>Edit</a>
-              </td>
+      {products.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon">📦</div>No products yet. Add one or import a CSV.
+        </div>
+      ) : (
+        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th align="left">Image</th>
+              <th align="left">Code</th>
+              <th align="left">Name</th>
+              <th align="left">Status</th>
+              <th align="left">Upload</th>
+              <th align="left"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
+                <td>
+                  {p.imageKey ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`${apiBase}/img/${p.imageKey}`}
+                      alt={p.name}
+                      width={40}
+                      height={40}
+                      style={{ objectFit: "cover", borderRadius: 4 }}
+                    />
+                  ) : (
+                    <span style={{ color: "var(--text-faint)" }}>—</span>
+                  )}
+                </td>
+                <td>{p.productCode}</td>
+                <td>{p.name}</td>
+                <td>{p.status}</td>
+                <td>
+                  <ProductImageUpload productId={p.id} />
+                </td>
+                <td>
+                  <a href={`/products/${p.id}/edit`}>Edit</a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </main>
   );
 }

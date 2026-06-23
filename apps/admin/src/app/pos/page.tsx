@@ -74,7 +74,13 @@ export default function PosPage() {
       }
       setCart((c) => [
         ...c,
-        { productVariantId: found.variantId, barcodeValue: barcode, name: found.name, quantity, unitPriceSatang },
+        {
+          productVariantId: found.variantId,
+          barcodeValue: barcode,
+          name: found.name,
+          quantity,
+          unitPriceSatang,
+        },
       ]);
       setStatus(`Added ${found.name}`);
       setBarcode("");
@@ -123,12 +129,23 @@ export default function PosPage() {
     <main>
       <h1>POS</h1>
       {pending > 0 && (
-        <p style={{ color: "#b26a00" }}>⏳ {pending} sale(s) queued offline — will sync when online.</p>
+        <p style={{ color: "var(--warn)" }}>
+          ⏳ {pending} sale(s) queued offline — will sync when online.
+        </p>
       )}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <input placeholder="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
-        <input placeholder="Price (THB)" value={priceThb} onChange={(e) => setPriceThb(e.target.value)} />
-        <input placeholder="Qty" value={qty} onChange={(e) => setQty(e.target.value)} style={{ width: 64 }} />
+        <input
+          placeholder="Price (THB)"
+          value={priceThb}
+          onChange={(e) => setPriceThb(e.target.value)}
+        />
+        <input
+          placeholder="Qty"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          style={{ width: 64 }}
+        />
         <button onClick={addLine} disabled={busy}>
           Add
         </button>
@@ -146,7 +163,7 @@ export default function PosPage() {
       <button className="btn-primary" onClick={checkout} disabled={busy || cart.length === 0}>
         Checkout
       </button>
-      <p style={{ color: "#555" }}>{status}</p>
+      <p style={{ color: "var(--text-muted)" }}>{status}</p>
     </main>
   );
 }

@@ -7,7 +7,7 @@ export function RefundButton({ saleId, status }: { saleId: string; status: strin
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (status === "refunded") return <span style={{ color: "#999" }}>refunded</span>;
+  if (status === "refunded") return <span style={{ color: "var(--text-faint)" }}>refunded</span>;
 
   async function onClick() {
     if (!window.confirm("Refund this sale and restock the items?")) return;
@@ -31,7 +31,7 @@ export function RefundButton({ saleId, status }: { saleId: string; status: strin
       <button onClick={onClick} disabled={busy}>
         Refund
       </button>{" "}
-      {msg && <small style={{ color: "crimson" }}>{msg}</small>}
+      {msg && <small style={{ color: "var(--danger)" }}>{msg}</small>}
     </span>
   );
 }

@@ -40,12 +40,18 @@ export default function TermsPage() {
     }
   }
 
-  if (loading) return <main>Loading…</main>;
+  if (loading)
+    return (
+      <main>
+        <h1>Thai T&amp;C editor</h1>
+        <div className="skeleton skeleton-row" style={{ width: "100%", height: 160 }} />
+      </main>
+    );
 
   return (
     <main>
       <h1>Thai T&amp;C editor</h1>
-      <p style={{ color: "#555" }}>
+      <p style={{ color: "var(--text-muted)" }}>
         Use <code>{"{{placeholder}}"}</code> for fields filled in per product/sale.
       </p>
       <textarea
@@ -58,12 +64,12 @@ export default function TermsPage() {
         <button className="btn-primary" onClick={save} disabled={busy}>
           Save template
         </button>{" "}
-        <small style={{ color: "#555" }}>{msg}</small>
+        <small style={{ color: "var(--text-muted)" }}>{msg}</small>
       </div>
 
       <h2 style={{ marginTop: 20 }}>Placeholders</h2>
       {placeholders.length === 0 ? (
-        <p style={{ color: "#999" }}>none</p>
+        <p style={{ color: "var(--text-faint)" }}>none</p>
       ) : (
         <div style={{ display: "grid", gap: 6, maxWidth: 360 }}>
           {placeholders.map((p) => (
@@ -80,9 +86,16 @@ export default function TermsPage() {
 
       <h2 style={{ marginTop: 20 }}>Preview</h2>
       {missing.length > 0 && (
-        <p style={{ color: "#b26a00" }}>Missing values: {missing.join(", ")}</p>
+        <p style={{ color: "var(--warn)" }}>Missing values: {missing.join(", ")}</p>
       )}
-      <pre style={{ whiteSpace: "pre-wrap", background: "#f6f6f6", padding: 12, borderRadius: 6 }}>
+      <pre
+        style={{
+          whiteSpace: "pre-wrap",
+          background: "var(--code-bg)",
+          padding: 12,
+          borderRadius: 6,
+        }}
+      >
         {rendered}
       </pre>
     </main>

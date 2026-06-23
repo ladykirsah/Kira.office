@@ -10,10 +10,38 @@
   --primary-hover: #a13219;
   --primary-soft: #fbe9e3;
   --danger: #c0291f;
+  --warn: #9a6700; /* amber, AA on white */
+  --ok: #1a7f37;
+  --code-bg: #f0f2f5;
+  --text-faint: #8b95a3; /* decorative only (em dashes, placeholders) */
   --ring: rgba(191, 60, 29, 0.32);
   --radius: 12px;
   --shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
   --sidebar-w: 232px;
+}
+
+/* Dark theme (toggled via html[data-theme="dark"]; persisted in localStorage). */
+html[data-theme="dark"] {
+  --bg: #0f1216;
+  --surface: #171c22;
+  --border: #2a313b;
+  --hover: #222a33;
+  --text: #e9ecf0;
+  --text-muted: #aeb7c2;
+  --text-faint: #7e8893;
+  --primary: #ff7a52;
+  --primary-hover: #ff9069;
+  --primary-soft: #2c1a13;
+  --danger: #ff6b6b;
+  --warn: #e0a93a;
+  --ok: #56d364;
+  --code-bg: #1e242c;
+  --ring: rgba(255, 122, 82, 0.4);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+html[data-theme="dark"] .btn-primary,
+html[data-theme="dark"] .btn-danger {
+  color: #1a1206; /* dark text on the lighter dark-mode accent — keeps AA */
 }
 
 * {
@@ -173,6 +201,55 @@ tbody tr:hover {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 14px;
+}
+
+/* Empty states */
+.empty {
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.empty .empty-icon {
+  font-size: 32px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+/* Loading skeletons */
+.skeleton {
+  background: linear-gradient(90deg, var(--hover) 25%, var(--border) 37%, var(--hover) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-pulse 1.3s ease-in-out infinite;
+  border-radius: 8px;
+}
+.skeleton-row {
+  height: 16px;
+  margin: 10px 0;
+}
+@keyframes skeleton-pulse {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Topbar theme toggle */
+.theme-toggle {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 18px;
+  line-height: 1;
 }
 a.card {
   color: inherit;

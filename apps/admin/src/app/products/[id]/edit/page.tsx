@@ -61,7 +61,15 @@ export default function EditProductPage() {
     }
   }
 
-  if (loading) return <main>Loading…</main>;
+  if (loading)
+    return (
+      <main>
+        <h1>Edit product</h1>
+        <div className="skeleton skeleton-row" style={{ width: "50%" }} />
+        <div className="skeleton skeleton-row" style={{ width: "90%" }} />
+        <div className="skeleton skeleton-row" style={{ width: "70%" }} />
+      </main>
+    );
 
   return (
     <main>
@@ -91,11 +99,16 @@ export default function EditProductPage() {
           Target price (THB)
           <input value={priceThb} onChange={(e) => setPriceThb(e.target.value)} />
         </label>
-        <button type="submit" className="btn-primary" disabled={busy} style={{ justifySelf: "start" }}>
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={busy}
+          style={{ justifySelf: "start" }}
+        >
           Save
         </button>
       </form>
-      <p style={{ color: "#555" }}>{msg}</p>
+      <p style={{ color: "var(--text-muted)" }}>{msg}</p>
       <p>
         <a href="/products">← Products</a>
       </p>

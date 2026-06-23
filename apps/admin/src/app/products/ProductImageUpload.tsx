@@ -22,7 +22,7 @@ export function ProductImageUpload({ productId }: { productId: string }) {
   return (
     <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
       <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onChange} />
-      <small style={{ color: "#555" }}>{status}</small>
+      <small style={{ color: "var(--text-muted)" }}>{status}</small>
     </span>
   );
 }

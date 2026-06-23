@@ -33,7 +33,7 @@ export default function ImportPage() {
   return (
     <main>
       <h1>Import products (CSV)</h1>
-      <p style={{ color: "#555" }}>
+      <p style={{ color: "var(--text-muted)" }}>
         Paste a CSV with a header row. Columns <code>product_code</code> and <code>name</code> are
         required; <code>description</code> is optional. Re-importing is safe (idempotent on code).
       </p>
@@ -52,11 +52,11 @@ export default function ImportPage() {
       {result && (
         <div style={{ marginTop: 12 }}>
           <p>
-            Received <strong>{result.received}</strong> · imported{" "}
-            <strong>{result.valid}</strong> · skipped <strong>{result.invalid}</strong>
+            Received <strong>{result.received}</strong> · imported <strong>{result.valid}</strong> ·
+            skipped <strong>{result.invalid}</strong>
           </p>
           {result.errors.length > 0 && (
-            <ul style={{ color: "crimson" }}>
+            <ul style={{ color: "var(--danger)" }}>
               {result.errors.map((e, i) => (
                 <li key={i}>
                   row {e.rowIndex}: {e.reason}

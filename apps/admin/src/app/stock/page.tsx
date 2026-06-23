@@ -39,7 +39,12 @@ export default function StockPage() {
     setBusy(true);
     setMsg("Applying…");
     try {
-      const out = await adjustStock({ productVariantId: variantId, quantityDelta, movementType, reason });
+      const out = await adjustStock({
+        productVariantId: variantId,
+        quantityDelta,
+        movementType,
+        reason,
+      });
       setMsg(
         out.applied
           ? `Done — on hand is now ${out.quantityAfter}.`
@@ -55,12 +60,22 @@ export default function StockPage() {
     }
   }
 
-  if (loading) return <main>Loading…</main>;
+  if (loading)
+    return (
+      <main>
+        <h1>Stock</h1>
+        <div className="skeleton skeleton-row" style={{ width: "40%" }} />
+        <div className="skeleton skeleton-row" style={{ width: "90%" }} />
+        <div className="skeleton skeleton-row" style={{ width: "75%" }} />
+      </main>
+    );
 
   return (
     <main>
       <h1>Stock</h1>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end", marginBottom: 16 }}>
+      <div
+        style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end", marginBottom: 16 }}
+      >
         <label style={{ display: "grid", gap: 4 }}>
           Product
           <select value={variantId} onChange={(e) => setVariantId(e.target.value)}>
@@ -91,28 +106,34 @@ export default function StockPage() {
           Apply
         </button>
       </div>
-      <p style={{ color: "#555" }}>{msg}</p>
+      <p style={{ color: "var(--text-muted)" }}>{msg}</p>
 
-      <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th align="left">Product</th>
-            <th align="left">Code</th>
-            <th align="left">SKU</th>
-            <th align="right">On hand</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.variantId} style={{ borderTop: "1px solid #eee" }}>
-              <td>{r.productName}</td>
-              <td>{r.productCode}</td>
-              <td>{r.sku ?? "—"}</td>
-              <td align="right">{r.onHand}</td>
+      {rows.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon">📦</div>No stock yet. Add products first.
+        </div>
+      ) : (
+        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th align="left">Product</th>
+              <th align="left">Code</th>
+              <th align="left">SKU</th>
+              <th align="right">On hand</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.variantId} style={{ borderTop: "1px solid var(--border)" }}>
+                <td>{r.productName}</td>
+                <td>{r.productCode}</td>
+                <td>{r.sku ?? "—"}</td>
+                <td align="right">{r.onHand}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </main>
   );
 }
