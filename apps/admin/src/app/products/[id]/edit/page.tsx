@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
+import { BarcodePreview } from "../../BarcodePreview";
 
 const field = { display: "grid", gap: 4 } as const;
 const thb = (satang: number) => (satang / 100).toFixed(2);
@@ -214,6 +215,7 @@ export default function EditProductPage() {
               onChange={(e) => setBarcode(e.target.value)}
               placeholder="scan / type"
             />
+            <BarcodePreview value={barcode} />
           </label>
 
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
@@ -314,7 +316,9 @@ export default function EditProductPage() {
             <Row label="Status">
               <span className={active ? "pill on" : "pill off"}>{active ? "Active" : "Draft"}</span>
             </Row>
-            <Row label="Barcode">{detail.barcode || "—"}</Row>
+            <Row label="Barcode">
+              {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
+            </Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
             <Row label="Category">{p.category || "—"}</Row>
             <Row label="Cost">{pr ? baht(pr.itemCostSatang) : "—"}</Row>
