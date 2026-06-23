@@ -120,7 +120,7 @@ export default function EditProductPage() {
     });
     setActive(d.product.status === "active");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
-    setStockQty(String(d.onHand));
+    setStockQty(String(d.onHand ?? 0));
     setPricing({
       costThb: d.pricing ? thb(d.pricing.itemCostSatang) : "",
       taxOnCost: d.pricing ? Boolean(d.pricing.taxOnCost) : false,
@@ -179,10 +179,11 @@ export default function EditProductPage() {
         });
         // Stock is ledger-based: setting a new on-hand records an adjustment for the difference.
         const target = Math.round(parseFloat(stockQty) || 0);
-        if (detail && target !== detail.onHand) {
+        const current = detail?.onHand ?? 0;
+        if (detail && target !== current) {
           const res = await adjustStock({
             productVariantId: detail.variantId,
-            quantityDelta: target - detail.onHand,
+            quantityDelta: target - current,
             movementType: "manual_adjustment",
             reason: "edited from product page",
           });
@@ -319,19 +320,30 @@ export default function EditProductPage() {
             <span>Active</span>
           </label>
 
-          <label style={field}>
-            Stock on hand
-            <input
-              value={stockQty}
-              onChange={(e) => setStockQty(e.target.value)}
-              placeholder="0"
-              inputMode="numeric"
-              style={{ width: 140 }}
-            />
-            <small className="muted">
-              currently {detail.onHand} in stock · a new number is recorded as an adjustment
-            </small>
-          </label>
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <label style={field}>
+              Stock on hand
+              <input
+                value={stockQty}
+                onChange={(e) => setStockQty(e.target.value)}
+                placeholder="0"
+                inputMode="numeric"
+                style={{ width: 140 }}
+              />
+              <small className="muted">
+                now {detail.onHand ?? 0} · change logged as adjustment
+              </small>
+            </label>
+            <label style={field}>
+              Weight (kg)
+              <input
+                value={weightKg}
+                onChange={(e) => setWeightKg(e.target.value)}
+                placeholder="0"
+                style={{ width: 140 }}
+              />
+            </label>
+          </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
             <PartDetails
@@ -346,16 +358,6 @@ export default function EditProductPage() {
               onShopeeItemIdChange={setShopeeItemId}
             />
           </div>
-
-          <label style={field}>
-            Weight (kg)
-            <input
-              value={weightKg}
-              onChange={(e) => setWeightKg(e.target.value)}
-              placeholder="0"
-              style={{ width: 140 }}
-            />
-          </label>
 
           <div style={{ gridColumn: "1 / -1" }}>
             <PricingFields form={pricing} update={updatePricing} />
@@ -384,7 +386,7 @@ export default function EditProductPage() {
               <span className={active ? "pill on" : "pill off"}>{active ? "Active" : "Draft"}</span>
             </Row>
             <Row label="Stock on hand">
-              <strong>{detail.onHand}</strong>
+              <strong>{detail.onHand ?? 0}</strong>
             </Row>
             <Row label="Barcode">
               {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
