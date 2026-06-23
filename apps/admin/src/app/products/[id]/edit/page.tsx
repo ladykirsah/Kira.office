@@ -364,7 +364,11 @@ export default function EditProductPage() {
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
-            <CampaignWorkspace totalCostSatang={editTC} defaultProfitSatang={editDefaultProfit} />
+            <CampaignWorkspace
+              totalCostSatang={editTC}
+              defaultProfitSatang={editDefaultProfit}
+              defaultPriceSatang={editOnline}
+            />
           </div>
 
           <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>

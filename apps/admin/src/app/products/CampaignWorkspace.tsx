@@ -13,9 +13,11 @@ interface Scenario {
 export function CampaignWorkspace({
   totalCostSatang,
   defaultProfitSatang,
+  defaultPriceSatang,
 }: {
   totalCostSatang: number;
   defaultProfitSatang: number;
+  defaultPriceSatang: number;
 }) {
   const [rows, setRows] = useState<Scenario[]>([
     { price: "102", comm: "10" },
@@ -46,22 +48,22 @@ export function CampaignWorkspace({
         </div>
         <table className="ptbl">
           <colgroup>
-            <col style={{ width: "7%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "18%" }} />
             <col style={{ width: "18%" }} />
             <col style={{ width: "14%" }} />
+            <col style={{ width: "18%" }} />
             <col style={{ width: "16%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "24%" }} />
-            <col style={{ width: "7%" }} />
+            <col style={{ width: "10%" }} />
           </colgroup>
           <thead>
             <tr>
               <th>Try</th>
+              <th>Default (฿)</th>
               <th>Price (฿)</th>
               <th>Comm.</th>
               <th>Profit</th>
               <th>Margin</th>
-              <th>vs default</th>
               <th />
             </tr>
           </thead>
@@ -71,11 +73,11 @@ export function CampaignWorkspace({
               const fee = commissionFeeSatang(price, Math.round((parseFloat(r.comm) || 0) * 100));
               const profit = profitSatang(price, totalCostSatang, fee);
               const m = marginPct(profit, price);
-              const delta = profit - defaultProfitSatang;
               const cls = m < 0 ? "bad" : m < 15 ? "warn" : "good";
               return (
                 <tr key={i}>
                   <td>{String.fromCharCode(65 + i)}</td>
+                  <td className="muted">{baht(defaultPriceSatang)}</td>
                   <td>
                     <input
                       value={r.price}
@@ -105,9 +107,6 @@ export function CampaignWorkspace({
                   </td>
                   <td>
                     {price > 0 ? <span className={`pill ${cls}`}>{Math.round(m)}%</span> : "—"}
-                  </td>
-                  <td style={{ color: delta >= 0 ? "var(--ok)" : "var(--danger)" }}>
-                    {price > 0 ? `${delta >= 0 ? "+" : "−"}${baht(Math.abs(delta))}` : "—"}
                   </td>
                   <td>
                     <button
