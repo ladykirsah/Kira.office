@@ -74,15 +74,15 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
     return (
       <span
         style={{
-          width: 224,
-          height: 224,
+          width: 350,
+          height: 350,
           borderRadius: 12,
           background: "var(--hover)",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
           color: "var(--text-faint)",
-          fontSize: 56,
+          fontSize: 72,
         }}
       >
         📦
@@ -92,11 +92,13 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
 
   const idx = Math.min(active, images.length - 1);
   return (
-    <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+      {/* Column 1 — big frame */}
       <div
         style={{
-          width: 224,
-          height: 224,
+          width: 350,
+          height: 350,
+          flex: "0 0 auto",
           borderRadius: 12,
           overflow: "hidden",
           border: "1px solid var(--border)",
@@ -110,8 +112,18 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       </div>
+      {/* Column 2 — all thumbnails */}
       {images.length > 1 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flexWrap: "wrap",
+            maxHeight: 350,
+            alignContent: "flex-start",
+            gap: 8,
+          }}
+        >
           {images.map((img, i) => (
             <button
               key={img.id}
