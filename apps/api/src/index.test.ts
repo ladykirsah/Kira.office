@@ -10,6 +10,7 @@ import worker, {
   importShopeeOrders,
   lineGrossProfitSatang,
   lookupBarcode,
+  refundSaleToDb,
   salesToCsv,
   storeProductImage,
   type Env,
@@ -44,6 +45,8 @@ function makeDb(canned: {
   pricingRow?: unknown | null;
   stock?: unknown[];
   stockOnHand?: number;
+  saleHeader?: unknown | null;
+  saleLines?: unknown[];
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -62,11 +65,17 @@ function makeDb(canned: {
           return { results: (canned.available ?? []) as T[] };
         if (sql.includes("FROM sales_orders"))
           return { results: (canned.existingOrders ?? []).map((id) => ({ id })) as T[] };
+        // Order matters: the /sales query references onsite_sale_lines in a subquery, so match the
+        // sales-list query first; the bare onsite_sale_lines select (refund) falls through to below.
         if (sql.includes("FROM onsite_sales")) return { results: (canned.sales ?? []) as T[] };
+        if (sql.includes("FROM onsite_sale_lines"))
+          return { results: (canned.saleLines ?? []) as T[] };
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
         if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
+        if (sql.includes("FROM onsite_sales WHERE id"))
+          return (canned.saleHeader ?? null) as T | null;
         if (sql.includes("FROM products WHERE product_code"))
           return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("FROM products WHERE id"))
@@ -280,6 +289,33 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     ]);
     expect(out.applied).toBe(1);
     expect(out.conflicts).toEqual([{ productVariantId: "v1", requested: 5, available: 1 }]);
+  });
+});
+
+describe("refundSaleToDb", () => {
+  it("restocks lines, marks refunded, writes a reversing finance record", async () => {
+    const { db, batched } = makeDb({
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleLines: [{ productVariantId: "v1", quantity: 2 }],
+      stockOnHand: 18,
+    });
+    const out = await refundSaleToDb(db, "s1");
+    expect(out).toEqual({ saleId: "s1", applied: true, restockedLines: 1 });
+    expect(batched.length).toBe(3); // 1 restock ledger + update sale + finance record
+  });
+
+  it("rejects an unknown sale", async () => {
+    const { db } = makeDb({ saleHeader: null });
+    expect((await refundSaleToDb(db, "nope")).applied).toBe(false);
+  });
+
+  it("rejects a double refund", async () => {
+    const { db } = makeDb({
+      saleHeader: { id: "s1", grandTotalSatang: 100, saleStatus: "refunded" },
+    });
+    const out = await refundSaleToDb(db, "s1");
+    expect(out.applied).toBe(false);
+    expect(out.reason).toMatch(/already/);
   });
 });
 

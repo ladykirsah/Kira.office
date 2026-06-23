@@ -160,6 +160,14 @@ export interface SaleRow {
   grossProfitSatang: number;
 }
 
+export async function refundSale(
+  saleId: string,
+): Promise<{ applied: boolean; reason?: string; restockedLines: number }> {
+  const res = await fetch(`${apiBase}/sales/${saleId}/refund`, { method: "POST" });
+  if (!res.ok) throw new Error(`Refund failed (HTTP ${res.status})`);
+  return (await res.json()) as { applied: boolean; reason?: string; restockedLines: number };
+}
+
 export async function fetchSales(): Promise<SaleRow[]> {
   const res = await fetch(`${apiBase}/sales`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load sales (HTTP ${res.status})`);

@@ -203,6 +203,10 @@ export class StockLedger extends DurableObject<Env> {
   async applyAdjustment(adj: StockAdjustment): Promise<AdjustmentResult> {
     return applyAdjustmentToDb(this.env.DB, adj);
   }
+
+  async refundSale(saleId: string): Promise<RefundResult> {
+    return refundSaleToDb(this.env.DB, saleId);
+  }
 }
 
 export interface ImportResult {
@@ -486,6 +490,85 @@ export async function applyAdjustmentToDb(
   return { variantId: adj.productVariantId, quantityAfter: after, applied: true };
 }
 
+export interface RefundResult {
+  saleId: string;
+  applied: boolean;
+  restockedLines: number;
+  reason?: string;
+}
+
+/**
+ * Refund/cancel an on-site sale: restock each line (ledger +qty), mark the sale refunded, and write a
+ * reversing financial record (negative amount). Idempotent guard against double-refund. Runs through
+ * the StockLedger Durable Object so restock serializes with sales.
+ */
+export async function refundSaleToDb(db: D1Database, saleId: string): Promise<RefundResult> {
+  const sale = await db
+    .prepare(
+      "SELECT id, grand_total_satang AS grandTotalSatang, sale_status AS saleStatus FROM onsite_sales WHERE id = ?",
+    )
+    .bind(saleId)
+    .first<{ id: string; grandTotalSatang: number; saleStatus: string }>();
+  if (!sale) return { saleId, applied: false, restockedLines: 0, reason: "sale not found" };
+  if (sale.saleStatus === "refunded") {
+    return { saleId, applied: false, restockedLines: 0, reason: "already refunded" };
+  }
+
+  const linesRes = await db
+    .prepare(
+      "SELECT product_variant_id AS productVariantId, quantity FROM onsite_sale_lines WHERE onsite_sale_id = ?",
+    )
+    .bind(saleId)
+    .all<{ productVariantId: string | null; quantity: number }>();
+  const lines = (linesRes.results ?? []).filter((l) => l.productVariantId);
+
+  const now = Date.now();
+  const statements: D1PreparedStatement[] = [];
+  for (const line of lines) {
+    const row = await db
+      .prepare(
+        "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+      )
+      .bind(line.productVariantId)
+      .first<{ onHand: number }>();
+    const after = Number(row?.onHand ?? 0) + line.quantity;
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO stock_ledger_entries (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type, source_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          line.productVariantId,
+          "refund",
+          line.quantity,
+          after,
+          "refund",
+          saleId,
+          now,
+        ),
+    );
+  }
+  statements.push(
+    db.prepare("UPDATE onsite_sales SET sale_status = 'refunded' WHERE id = ?").bind(saleId),
+    db
+      .prepare(
+        "INSERT INTO financial_records (id, source_type, source_id, record_type, channel, amount_satang, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        crypto.randomUUID(),
+        "onsite_sale",
+        saleId,
+        "refund",
+        "onsite",
+        -sale.grandTotalSatang,
+        now,
+      ),
+  );
+  await db.batch(statements);
+  return { saleId, applied: true, restockedLines: lines.length };
+}
+
 /** On-hand stock per variant (ledger sum) with product info, for the stock screen. */
 async function listStock(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
@@ -700,6 +783,12 @@ const worker = {
           reason: body.reason,
         }),
       );
+    }
+
+    const refundMatch = url.pathname.match(/^\/sales\/([^/]+)\/refund$/);
+    if (refundMatch && request.method === "POST") {
+      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      return json(await stub.refundSale(refundMatch[1]!));
     }
 
     if (url.pathname === "/sales/export.csv" && request.method === "GET") {

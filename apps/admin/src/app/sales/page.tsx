@@ -1,5 +1,6 @@
 import { apiBase, fetchSales } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
+import { RefundButton } from "./RefundButton";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function SalesPage() {
             <th align="right">Total</th>
             <th align="right">Profit</th>
             <th align="left">Status</th>
+            <th align="left"></th>
           </tr>
         </thead>
         <tbody>
@@ -45,6 +47,9 @@ export default async function SalesPage() {
               <td align="right">{formatBaht(s.grandTotalSatang)}</td>
               <td align="right">{formatBaht(s.grossProfitSatang)}</td>
               <td>{s.saleStatus}</td>
+              <td>
+                <RefundButton saleId={s.id} status={s.saleStatus} />
+              </td>
             </tr>
           ))}
         </tbody>
