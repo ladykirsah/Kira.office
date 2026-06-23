@@ -128,7 +128,18 @@ describe("api worker routes", () => {
     const res = await worker.fetch!(new Request("https://x/health"), {} as Env, ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(await res.json()).toEqual({ ok: true, service: "kiraoffice-api" });
+  });
+
+  it("OPTIONS > 204 CORS preflight (no auth)", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/products", { method: "OPTIONS" }),
+      {} as Env,
+      ctx,
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
   });
 
   it("POST /pricing/preview > computes profit via core", async () => {

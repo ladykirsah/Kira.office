@@ -52,6 +52,13 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "no-referrer",
+  // CORS: the admin UI (separate origin: localhost in dev, app.homeseeker.me in prod) calls this API
+  // from the browser in its client components. No cookies are used (Access JWT rides a header), so a
+  // wildcard origin is safe here.
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "access-control-allow-headers": "content-type, cf-access-jwt-assertion",
+  "access-control-max-age": "86400",
 };
 
 const json = (data: unknown, status = 200): Response =>
@@ -1019,6 +1026,11 @@ export async function setVariantPricing(
 const worker = {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // CORS preflight — answer before auth (preflights carry no credentials).
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: SECURITY_HEADERS });
+    }
 
     // Health + image serving stay public; everything else passes the Access gate (a no-op until
     // ACCESS_TEAM_DOMAIN + ACCESS_AUD are set). Mutations are audit-logged with the Access user.
