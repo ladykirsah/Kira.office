@@ -173,8 +173,8 @@ export default function EditProductPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  async function save(e: FormEvent) {
-    e.preventDefault();
+  async function save(e?: FormEvent) {
+    e?.preventDefault();
     setBusy(true);
     try {
       await updateProduct(id, {
@@ -300,11 +300,11 @@ export default function EditProductPage() {
             {editing ? "Cancel" : "Back"}
           </button>
           {editing ? (
-            <button type="submit" form="product-form" className="btn-primary" disabled={busy}>
+            <button type="button" className="btn-primary" onClick={() => save()} disabled={busy}>
               Save
             </button>
           ) : (
-            <button className="btn-primary" onClick={() => setEditing(true)}>
+            <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
               Edit
             </button>
           )}
@@ -316,7 +316,6 @@ export default function EditProductPage() {
 
       {editing ? (
         <form
-          id="product-form"
           onSubmit={save}
           style={{
             display: "grid",
