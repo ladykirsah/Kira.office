@@ -7,6 +7,7 @@ import { useToast } from "../../../ToastProvider";
 
 const field = { display: "grid", gap: 4 } as const;
 const thb = (satang: number) => (satang / 100).toFixed(2);
+const satang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
 export default function EditProductPage() {
   const id = useParams().id as string;
@@ -16,7 +17,9 @@ export default function EditProductPage() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("active");
   const [costThb, setCostThb] = useState("");
-  const [priceThb, setPriceThb] = useState("");
+  const [offlineThb, setOfflineThb] = useState("");
+  const [onlineThb, setOnlineThb] = useState("");
+  const [shopeeListed, setShopeeListed] = useState(false);
   const [variantId, setVariantId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -29,10 +32,12 @@ export default function EditProductPage() {
         setName(d.product.name);
         setDescription(d.product.description ?? "");
         setStatus(d.product.status);
+        setShopeeListed(Boolean(d.product.shopeeListed));
         setVariantId(d.variantId);
         if (d.pricing) {
           setCostThb(thb(d.pricing.itemCostSatang));
-          setPriceThb(thb(d.pricing.targetPriceSatang));
+          setOfflineThb(thb(d.pricing.targetPriceSatang));
+          setOnlineThb(thb(d.pricing.onlinePriceSatang));
         }
       } catch (err) {
         toast((err as Error).message, "error");
@@ -46,11 +51,17 @@ export default function EditProductPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await updateProduct(id, { name, description: description || undefined, status });
-      if (variantId && (costThb || priceThb)) {
+      await updateProduct(id, {
+        name,
+        description: description || undefined,
+        status,
+        shopeeListed,
+      });
+      if (variantId && (costThb || offlineThb || onlineThb)) {
         await setProductPricing(id, {
-          itemCostSatang: Math.round((parseFloat(costThb) || 0) * 100),
-          targetPriceSatang: Math.round((parseFloat(priceThb) || 0) * 100),
+          itemCostSatang: satang(costThb),
+          targetPriceSatang: satang(offlineThb),
+          onlinePriceSatang: satang(onlineThb),
         });
       }
       toast("Saved ✓", "success");
@@ -96,8 +107,20 @@ export default function EditProductPage() {
           <input value={costThb} onChange={(e) => setCostThb(e.target.value)} />
         </label>
         <label style={field}>
-          Target price (THB)
-          <input value={priceThb} onChange={(e) => setPriceThb(e.target.value)} />
+          On-site price (THB)
+          <input value={offlineThb} onChange={(e) => setOfflineThb(e.target.value)} />
+        </label>
+        <label style={field}>
+          Online price — Shopee (THB)
+          <input value={onlineThb} onChange={(e) => setOnlineThb(e.target.value)} />
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={shopeeListed}
+            onChange={(e) => setShopeeListed(e.target.checked)}
+          />
+          Listed on Shopee
         </label>
         <button
           type="submit"

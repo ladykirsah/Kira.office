@@ -685,9 +685,22 @@ async function getTerms(env: Env): Promise<Response> {
   return json({ template });
 }
 
+/** Products with the default variant's price (offline + online), on-hand stock, and Shopee status. */
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    "SELECT id, product_code AS productCode, name, status, image_key AS imageKey FROM products ORDER BY created_at DESC LIMIT 100",
+    `SELECT p.id, p.product_code AS productCode, p.name, p.status, p.image_key AS imageKey,
+            p.shopee_listed AS shopeeListed,
+            COALESCE(pp.target_price_satang, 0) AS offlinePriceSatang,
+            COALESCE(pp.online_price_satang, 0) AS onlinePriceSatang,
+            COALESCE(
+              (SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id),
+              0
+            ) AS onHand
+     FROM products p
+     LEFT JOIN product_variants v
+       ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)
+     LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id
+     ORDER BY p.created_at DESC LIMIT 200`,
   ).all();
   return json({ products: results });
 }
@@ -912,16 +925,21 @@ export interface ProductDetail {
     description: string | null;
     status: string;
     imageKey: string | null;
+    shopeeListed: number;
   };
   variantId: string | null;
-  pricing: { itemCostSatang: number; targetPriceSatang: number } | null;
+  pricing: {
+    itemCostSatang: number;
+    targetPriceSatang: number;
+    onlinePriceSatang: number;
+  } | null;
 }
 
 /** Product detail for the edit screen: the product, its default variant, and that variant's pricing. */
 export async function getProductDetail(db: D1Database, id: string): Promise<ProductDetail | null> {
   const product = await db
     .prepare(
-      "SELECT id, product_code AS productCode, name, description, status, image_key AS imageKey FROM products WHERE id = ?",
+      "SELECT id, product_code AS productCode, name, description, status, image_key AS imageKey, shopee_listed AS shopeeListed FROM products WHERE id = ?",
     )
     .bind(id)
     .first<ProductDetail["product"]>();
@@ -935,7 +953,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
     pricing =
       (await db
         .prepare(
-          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
+          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang, online_price_satang AS onlinePriceSatang FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
         )
         .bind(variant.id)
         .first<NonNullable<ProductDetail["pricing"]>>()) ?? null;
@@ -947,11 +965,19 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
 export async function updateProduct(
   db: D1Database,
   id: string,
-  fields: { name: string; description?: string; status: string },
+  fields: { name: string; description?: string; status: string; shopeeListed?: boolean },
 ): Promise<void> {
   await db
-    .prepare("UPDATE products SET name = ?, description = ?, status = ? WHERE id = ?")
-    .bind(fields.name.trim(), fields.description?.trim() || null, fields.status, id)
+    .prepare(
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ? WHERE id = ?",
+    )
+    .bind(
+      fields.name.trim(),
+      fields.description?.trim() || null,
+      fields.status,
+      fields.shopeeListed ? 1 : 0,
+      id,
+    )
     .run();
 }
 
@@ -966,14 +992,22 @@ export async function setVariantPricing(
   variantId: string,
   itemCostSatang: number,
   targetPriceSatang: number,
+  onlinePriceSatang: number,
 ): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM pricing_profiles WHERE product_variant_id = ?").bind(variantId),
     db
       .prepare(
-        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, active_from) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, active_from) VALUES (?, ?, ?, ?, ?, ?)",
       )
-      .bind(crypto.randomUUID(), variantId, itemCostSatang, targetPriceSatang, Date.now()),
+      .bind(
+        crypto.randomUUID(),
+        variantId,
+        itemCostSatang,
+        targetPriceSatang,
+        onlinePriceSatang,
+        Date.now(),
+      ),
   ]);
 }
 
@@ -1084,6 +1118,7 @@ const worker = {
       const body = (await request.json()) as {
         itemCostSatang?: number;
         targetPriceSatang?: number;
+        onlinePriceSatang?: number;
       };
       const detail = await getProductDetail(env.DB, productPricing[1]!);
       if (!detail?.variantId) return json({ error: "product or variant not found" }, 404);
@@ -1092,6 +1127,7 @@ const worker = {
         detail.variantId,
         body.itemCostSatang ?? 0,
         body.targetPriceSatang ?? 0,
+        body.onlinePriceSatang ?? 0,
       );
       return json({ ok: true });
     }
@@ -1106,6 +1142,7 @@ const worker = {
         name?: string;
         description?: string;
         status?: string;
+        shopeeListed?: boolean;
       };
       if (!body?.name || !body?.status) {
         return json({ error: "name and status are required" }, 400);
@@ -1114,6 +1151,7 @@ const worker = {
         name: body.name,
         description: body.description,
         status: body.status,
+        shopeeListed: body.shopeeListed,
       });
       return json({ ok: true });
     }

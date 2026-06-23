@@ -2,20 +2,41 @@
 
 import { useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
+import { formatBaht } from "@/lib/format";
 import { ProductImageUpload } from "./ProductImageUpload";
 import { ArchiveButton } from "./ArchiveButton";
 
+type Tab = "all" | "listed" | "unlisted";
+
 export function ProductsTable({ products }: { products: ProductRow[] }) {
+  const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
+
+  const listed = products.filter((p) => p.shopeeListed);
+  const unlisted = products.filter((p) => !p.shopeeListed);
+
+  const byTab = tab === "listed" ? listed : tab === "unlisted" ? unlisted : products;
   const s = q.trim().toLowerCase();
-  const filtered = s
-    ? products.filter(
+  const rows = s
+    ? byTab.filter(
         (p) => p.productCode.toLowerCase().includes(s) || p.name.toLowerCase().includes(s),
       )
-    : products;
+    : byTab;
+
+  const TabBtn = ({ id, label, n }: { id: Tab; label: string; n: number }) => (
+    <button className={tab === id ? "tab active" : "tab"} onClick={() => setTab(id)}>
+      {label} ({n})
+    </button>
+  );
 
   return (
     <>
+      <div className="tabs">
+        <TabBtn id="all" label="All" n={products.length} />
+        <TabBtn id="listed" label="On Shopee" n={listed.length} />
+        <TabBtn id="unlisted" label="Not listed" n={unlisted.length} />
+      </div>
+
       <div style={{ marginBottom: 12 }}>
         <input
           placeholder="Search code or name…"
@@ -25,54 +46,85 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="empty">
           <div className="empty-icon">📦</div>
           {products.length === 0
             ? "No products yet. Add one or import a CSV."
-            : "No products match your search."}
+            : "No products match."}
         </div>
       ) : (
-        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
+        <table cellPadding={8} style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th align="left">Image</th>
-              <th align="left">Code</th>
-              <th align="left">Name</th>
-              <th align="left">Status</th>
-              <th align="left">Upload</th>
-              <th align="left"></th>
-              <th align="left"></th>
+              <th align="left">Product</th>
+              <th align="right">Price (offline / online)</th>
+              <th align="right">Stock</th>
+              <th align="left">Shopee</th>
+              <th align="left">Action</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
+            {rows.map((p) => (
               <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
                 <td>
-                  {p.imageKey ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`${apiBase}/img/${p.imageKey}`}
-                      alt={p.name}
-                      width={40}
-                      height={40}
-                      style={{ objectFit: "cover", borderRadius: 4 }}
-                    />
-                  ) : (
-                    <span style={{ color: "var(--text-faint)" }}>—</span>
-                  )}
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {p.imageKey ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`${apiBase}/img/${p.imageKey}`}
+                        alt={p.name}
+                        width={48}
+                        height={48}
+                        style={{ objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 6,
+                          background: "var(--hover)",
+                          flexShrink: 0,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "var(--text-faint)",
+                        }}
+                      >
+                        📦
+                      </span>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <a href={`/products/${p.id}/edit`} style={{ fontWeight: 600 }}>
+                        {p.name}
+                      </a>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {p.productCode}
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        <ProductImageUpload productId={p.id} />
+                      </div>
+                    </div>
+                  </div>
                 </td>
-                <td>{p.productCode}</td>
-                <td>{p.name}</td>
-                <td>{p.status}</td>
+                <td align="right">
+                  <div>{p.offlinePriceSatang ? formatBaht(p.offlinePriceSatang) : "—"}</div>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    {p.onlinePriceSatang ? formatBaht(p.onlinePriceSatang) : "—"}
+                  </div>
+                </td>
+                <td align="right">{p.onHand}</td>
                 <td>
-                  <ProductImageUpload productId={p.id} />
+                  <span className={p.shopeeListed ? "pill on" : "pill off"}>
+                    {p.shopeeListed ? "On Shopee" : "Not listed"}
+                  </span>
                 </td>
                 <td>
-                  <a href={`/products/${p.id}/edit`}>Edit</a>
-                </td>
-                <td>
-                  <ArchiveButton productId={p.id} status={p.status} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <a href={`/products/${p.id}/edit`}>Edit</a>
+                    <ArchiveButton productId={p.id} status={p.status} />
+                  </div>
                 </td>
               </tr>
             ))}

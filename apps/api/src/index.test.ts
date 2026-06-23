@@ -616,7 +616,7 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
 
   it("setVariantPricing replaces the profile (delete + insert)", async () => {
     const { db, batched } = makeDb({});
-    await setVariantPricing(db, "v1", 6000, 10700);
+    await setVariantPricing(db, "v1", 6000, 10700, 12000);
     expect(batched.length).toBe(2);
   });
 

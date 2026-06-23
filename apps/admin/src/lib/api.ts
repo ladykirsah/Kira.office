@@ -7,6 +7,10 @@ export interface ProductRow {
   name: string;
   status: string;
   imageKey: string | null;
+  shopeeListed: number;
+  offlinePriceSatang: number;
+  onlinePriceSatang: number;
+  onHand: number;
 }
 
 export async function uploadProductImage(
@@ -83,9 +87,14 @@ export interface ProductDetail {
     description: string | null;
     status: string;
     imageKey: string | null;
+    shopeeListed: number;
   };
   variantId: string | null;
-  pricing: { itemCostSatang: number; targetPriceSatang: number } | null;
+  pricing: {
+    itemCostSatang: number;
+    targetPriceSatang: number;
+    onlinePriceSatang: number;
+  } | null;
 }
 
 export async function getProductDetail(id: string): Promise<ProductDetail> {
@@ -96,7 +105,7 @@ export async function getProductDetail(id: string): Promise<ProductDetail> {
 
 export async function updateProduct(
   id: string,
-  fields: { name: string; description?: string; status: string },
+  fields: { name: string; description?: string; status: string; shopeeListed?: boolean },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/products/${id}`, {
     method: "PATCH",
@@ -111,7 +120,7 @@ export async function updateProduct(
 
 export async function setProductPricing(
   id: string,
-  pricing: { itemCostSatang: number; targetPriceSatang: number },
+  pricing: { itemCostSatang: number; targetPriceSatang: number; onlinePriceSatang: number },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/products/${id}/pricing`, {
     method: "PUT",
