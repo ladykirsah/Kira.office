@@ -28,16 +28,10 @@ const yearOrNull = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-/** True when a model has any service notes worth flagging in the list. */
+/** True when a model has any service notes worth flagging (era is identity, not a note). */
 function modelHasInfo(m: CarModelNode): boolean {
   return Boolean(
-    m.generationCode ||
-    m.yearFrom ||
-    m.yearTo ||
-    m.refrigerant ||
-    m.oringUsage?.length ||
-    m.coolantLiters ||
-    m.notes,
+    m.generationCode || m.refrigerant || m.oringUsage?.length || m.coolantLiters || m.notes,
   );
 }
 

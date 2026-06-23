@@ -3,20 +3,12 @@
 import { Fragment, type ReactNode } from "react";
 import type { CarModelNode } from "@/lib/api";
 
-function yearStr(from: number | null, to: number | null): string {
-  if (from && to) return `${from} – ${to}`;
-  if (from) return `${from}+`;
-  if (to) return `– ${to}`;
-  return "";
-}
-
 /** Read-only display of a car model's service notes, with an Edit button to switch to the form. */
 export function ModelInfoView({ model, onEdit }: { model: CarModelNode; onEdit: () => void }) {
+  // Note: the era (year range) is shown as a chip on the model's row header, so it's omitted here.
   const rows: { label: string; value: ReactNode }[] = [];
   if (model.generationCode)
     rows.push({ label: "Generation / chassis", value: model.generationCode });
-  const yr = yearStr(model.yearFrom, model.yearTo);
-  if (yr) rows.push({ label: "Years", value: yr });
   if (model.refrigerant) rows.push({ label: "Refrigerant", value: model.refrigerant });
   if (model.coolantLiters) rows.push({ label: "Coolant (liters)", value: model.coolantLiters });
   if (model.oringUsage?.length) {
