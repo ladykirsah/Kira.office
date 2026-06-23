@@ -29,6 +29,29 @@
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the build token to have zone DNS/Workers-routes edit.
-  "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }]
+  "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }],
   // Queues + Cron are the next phase (Shopee sync) — see docs/CLOUDFLARE_ARCHITECTURE.md.
+
+  // Staging env: isolated D1/KV/R2, no custom domain (deploy to *.workers.dev).
+  // Deploy with `npx wrangler deploy --env staging`.
+  "env": {
+    "staging": {
+      "name": "kira-office-staging",
+      "observability": { "enabled": true },
+      "durable_objects": {
+        "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "kira-office-staging",
+          "database_id": "85f22f44-063d-424e-91ef-39e1fa1fef24",
+          "migrations_dir": "packages/db/migrations"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "c876509fba5c40608e1c0f1abf5d4502" }],
+      "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images-staging" }]
+    }
+  }
 }

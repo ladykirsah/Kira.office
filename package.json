@@ -18,6 +18,7 @@
     "lint": "prettier --check \"{packages,apps}/**/src/**/*.ts\"",
     "format": "prettier --write \"{packages,apps}/**/src/**/*.ts\"",
     "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
     "deploy:dry": "wrangler deploy --dry-run --outdir .wrangler/dry"
   },
   "devDependencies": {
