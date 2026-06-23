@@ -1,14 +1,15 @@
 {
-  // Live config for the api Worker (Cloudflare Workers Builds: account "homeseeker").
+  // Live config for the api Worker (Cloudflare Workers Builds: account "GoGoCash").
   // `name` MUST match the Worker created in the dashboard so deploys update it.
   // Deployed from repo root via `npx wrangler deploy` (build root directory = "/").
   // Bindings (D1, R2, KV, Queues, Durable Objects) are added as resources are provisioned —
   // see the full target config in docs/CLOUDFLARE_ARCHITECTURE.md.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kiraoffice",
-  // Pin the homeseeker account so `wrangler deploy` doesn't fail in CI when the token can see
+  // Pin the GoGoCash account so `wrangler deploy` doesn't fail in CI when the token can see
   // multiple accounts ("unable to select one in non-interactive mode"). account_id is not a secret.
-  "account_id": "8724aa41ebe346f0cbd1c62126fe8942",
+  // (Migrated from the old "homeseeker" account once homeseeker.me + the paid plan moved to GoGoCash.)
+  "account_id": "187ab61ed9dbc6e616cb23e6b95aa8f1",
   "main": "apps/api/src/index.ts",
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -19,11 +20,11 @@
     {
       "binding": "DB",
       "database_name": "kira-office",
-      "database_id": "a7ff9cf4-f92e-472f-a923-4e774c076109",
+      "database_id": "2e88a362-ffd7-4255-b178-e511d475f687",
       "migrations_dir": "packages/db/migrations"
     }
   ],
-  "kv_namespaces": [{ "binding": "KV", "id": "97169eb22d0b4999bbfd28053b9fb964" }],
+  "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the build token to have zone DNS/Workers-routes edit.
