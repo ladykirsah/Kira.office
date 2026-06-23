@@ -62,6 +62,7 @@ export const products = sqliteTable("products", {
   taxProfileId: text("tax_profile_id").references(() => taxProfiles.id),
   status: text("status").notNull().default("draft"),
   imageKey: text("image_key"),
+  shopeeListed: integer("shopee_listed", { mode: "boolean" }).notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -105,6 +106,7 @@ export const pricingProfiles = sqliteTable("pricing_profiles", {
   packagingSatang: integer("packaging_satang").notNull().default(0),
   otherAllocatedSatang: integer("other_allocated_satang").notNull().default(0),
   targetPriceSatang: integer("target_price_satang").notNull().default(0),
+  onlinePriceSatang: integer("online_price_satang").notNull().default(0),
   activeFrom: integer("active_from", { mode: "timestamp_ms" }).notNull(),
   activeTo: integer("active_to", { mode: "timestamp_ms" }),
 });

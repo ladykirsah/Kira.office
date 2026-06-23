@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
-import { ProductImageUpload } from "./ProductImageUpload";
 import { ArchiveButton } from "./ArchiveButton";
 
 type Tab = "all" | "listed" | "unlisted";
@@ -101,9 +100,6 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                       </a>
                       <div className="muted" style={{ fontSize: 12 }}>
                         {p.productCode}
-                      </div>
-                      <div style={{ marginTop: 4 }}>
-                        <ProductImageUpload productId={p.id} />
                       </div>
                     </div>
                   </div>

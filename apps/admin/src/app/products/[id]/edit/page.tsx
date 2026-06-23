@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
-import { getProductDetail, updateProduct, setProductPricing } from "@/lib/api";
+import { apiBase, getProductDetail, updateProduct, setProductPricing } from "@/lib/api";
 import { useToast } from "../../../ToastProvider";
+import { ProductImageUpload } from "../../ProductImageUpload";
 
 const field = { display: "grid", gap: 4 } as const;
 const thb = (satang: number) => (satang / 100).toFixed(2);
@@ -20,6 +21,7 @@ export default function EditProductPage() {
   const [offlineThb, setOfflineThb] = useState("");
   const [onlineThb, setOnlineThb] = useState("");
   const [shopeeListed, setShopeeListed] = useState(false);
+  const [imageKey, setImageKey] = useState<string | null>(null);
   const [variantId, setVariantId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -33,6 +35,7 @@ export default function EditProductPage() {
         setDescription(d.product.description ?? "");
         setStatus(d.product.status);
         setShopeeListed(Boolean(d.product.shopeeListed));
+        setImageKey(d.product.imageKey);
         setVariantId(d.variantId);
         if (d.pricing) {
           setCostThb(thb(d.pricing.itemCostSatang));
@@ -85,6 +88,34 @@ export default function EditProductPage() {
   return (
     <main>
       <h1>Edit product · {code}</h1>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
+        {imageKey ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`${apiBase}/img/${imageKey}`}
+            alt={name}
+            width={64}
+            height={64}
+            style={{ objectFit: "cover", borderRadius: 8 }}
+          />
+        ) : (
+          <span
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 8,
+              background: "var(--hover)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-faint)",
+            }}
+          >
+            📦
+          </span>
+        )}
+        <ProductImageUpload productId={id} />
+      </div>
       <form onSubmit={save} style={{ display: "grid", gap: 12, maxWidth: 440 }}>
         <label style={field}>
           Name *
