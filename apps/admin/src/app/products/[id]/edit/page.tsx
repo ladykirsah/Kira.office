@@ -36,7 +36,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text)" }}>{children}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{children}</div>
     </div>
   );
 }
