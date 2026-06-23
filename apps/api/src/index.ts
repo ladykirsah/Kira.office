@@ -491,10 +491,18 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/webp": "webp",
 };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_GALLERY_IMAGES = 10;
 
 export interface UploadImageResult {
   key: string;
   url: string;
+}
+
+export interface GalleryImage {
+  id: string;
+  imageKey: string;
+  url: string;
+  isCover: boolean;
 }
 
 /**
@@ -518,6 +526,72 @@ export async function storeProductImage(
   await bucket.put(key, bytes, { httpMetadata: { contentType } });
   await db.prepare("UPDATE products SET image_key = ? WHERE id = ?").bind(key, productId).run();
   return { key, url: `/img/${key}` };
+}
+
+function validateImage(bytes: ArrayBuffer, contentType: string | null): string {
+  if (!contentType || !ALLOWED_IMAGE_TYPES[contentType]) {
+    throw new Error("unsupported image type (use jpeg, png or webp)");
+  }
+  if (bytes.byteLength === 0) throw new Error("empty image");
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("image too large (max 5MB)");
+  return ALLOWED_IMAGE_TYPES[contentType];
+}
+
+/** Keep products.image_key pointing at the first gallery image (the cover), or null if none. */
+async function syncCoverImage(db: D1Database, productId: string): Promise<void> {
+  const first = await db
+    .prepare(
+      "SELECT image_key AS imageKey FROM product_images WHERE product_id = ? ORDER BY sort_order LIMIT 1",
+    )
+    .bind(productId)
+    .first<{ imageKey: string }>();
+  await db
+    .prepare("UPDATE products SET image_key = ? WHERE id = ?")
+    .bind(first?.imageKey ?? null, productId)
+    .run();
+}
+
+/** Add an image to a product's gallery (up to MAX_GALLERY_IMAGES). The first one becomes the cover. */
+export async function storeGalleryImage(
+  db: D1Database,
+  bucket: R2Bucket,
+  productId: string,
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<GalleryImage> {
+  const ext = validateImage(bytes, contentType);
+  const countRow = await db
+    .prepare("SELECT COUNT(*) AS n FROM product_images WHERE product_id = ?")
+    .bind(productId)
+    .first<{ n: number }>();
+  const count = countRow?.n ?? 0;
+  if (count >= MAX_GALLERY_IMAGES) throw new Error(`max ${MAX_GALLERY_IMAGES} images`);
+
+  const key = `products/${productId}/${crypto.randomUUID()}.${ext}`;
+  await bucket.put(key, bytes, { httpMetadata: { contentType: contentType! } });
+  const imageId = crypto.randomUUID();
+  const isCover = count === 0;
+  await db
+    .prepare(
+      "INSERT INTO product_images (id, product_id, image_key, sort_order, is_cover, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(imageId, productId, key, count, isCover ? 1 : 0, Date.now())
+    .run();
+  await syncCoverImage(db, productId);
+  return { id: imageId, imageKey: key, url: `/img/${key}`, isCover };
+}
+
+/** Remove a gallery image and re-sync the cover. (The R2 object is left in place.) */
+export async function deleteGalleryImage(
+  db: D1Database,
+  productId: string,
+  imageId: string,
+): Promise<void> {
+  await db
+    .prepare("DELETE FROM product_images WHERE id = ? AND product_id = ?")
+    .bind(imageId, productId)
+    .run();
+  await syncCoverImage(db, productId);
 }
 
 export interface StockAdjustment {
@@ -924,6 +998,13 @@ async function listBarcodes(env: Env): Promise<Response> {
   return json({ barcodes: results });
 }
 
+export interface ProductImageRow {
+  id: string;
+  imageKey: string;
+  sortOrder: number;
+  isCover: number;
+}
+
 export interface ProductDetail {
   product: {
     id: string;
@@ -933,28 +1014,35 @@ export interface ProductDetail {
     status: string;
     imageKey: string | null;
     shopeeListed: number;
+    shopeeItemId: string | null;
+    category: string | null;
+    weightGrams: number;
   };
   variantId: string | null;
+  barcode: string | null;
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number;
     onlinePriceSatang: number;
   } | null;
+  images: ProductImageRow[];
 }
 
-/** Product detail for the edit screen: the product, its default variant, and that variant's pricing. */
+/** Product detail for the edit screen: the product, its default variant + barcode, pricing, gallery. */
 export async function getProductDetail(db: D1Database, id: string): Promise<ProductDetail | null> {
   const product = await db
     .prepare(
-      "SELECT id, product_code AS productCode, name, description, status, image_key AS imageKey, shopee_listed AS shopeeListed FROM products WHERE id = ?",
+      "SELECT id, product_code AS productCode, name, description, status, image_key AS imageKey, shopee_listed AS shopeeListed, shopee_item_id AS shopeeItemId, category, weight_grams AS weightGrams FROM products WHERE id = ?",
     )
     .bind(id)
     .first<ProductDetail["product"]>();
   if (!product) return null;
   const variant = await db
-    .prepare("SELECT id FROM product_variants WHERE product_id = ? ORDER BY created_at LIMIT 1")
+    .prepare(
+      "SELECT id, barcode_primary AS barcode FROM product_variants WHERE product_id = ? ORDER BY created_at LIMIT 1",
+    )
     .bind(id)
-    .first<{ id: string }>();
+    .first<{ id: string; barcode: string | null }>();
   let pricing: ProductDetail["pricing"] = null;
   if (variant) {
     pricing =
@@ -965,27 +1053,71 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
         .bind(variant.id)
         .first<NonNullable<ProductDetail["pricing"]>>()) ?? null;
   }
-  return { product, variantId: variant?.id ?? null, pricing };
+  const { results: images } = await db
+    .prepare(
+      "SELECT id, image_key AS imageKey, sort_order AS sortOrder, is_cover AS isCover FROM product_images WHERE product_id = ? ORDER BY sort_order",
+    )
+    .bind(id)
+    .all<ProductImageRow>();
+  return {
+    product,
+    variantId: variant?.id ?? null,
+    barcode: variant?.barcode ?? null,
+    pricing,
+    images,
+  };
 }
 
 /** Update editable product fields. Name + status are required (validated at the route). */
 export async function updateProduct(
   db: D1Database,
   id: string,
-  fields: { name: string; description?: string; status: string; shopeeListed?: boolean },
+  fields: {
+    name: string;
+    description?: string;
+    status: string;
+    shopeeListed?: boolean;
+    shopeeItemId?: string;
+    category?: string;
+    weightGrams?: number;
+  },
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ? WHERE id = ?",
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, category = ?, weight_grams = ? WHERE id = ?",
     )
     .bind(
       fields.name.trim(),
       fields.description?.trim() || null,
       fields.status,
       fields.shopeeListed ? 1 : 0,
+      fields.shopeeItemId?.trim() || null,
+      fields.category?.trim() || null,
+      Math.max(0, Math.round(fields.weightGrams ?? 0)),
       id,
     )
     .run();
+}
+
+/**
+ * Set a variant's primary barcode and make it scannable. Upserts the barcodes table (ignoring a
+ * value already taken globally) so POS lookup finds it. Empty value is a no-op.
+ */
+export async function setVariantBarcode(
+  db: D1Database,
+  variantId: string,
+  value: string,
+): Promise<void> {
+  const v = value.trim();
+  if (!v) return;
+  await db.batch([
+    db.prepare("UPDATE product_variants SET barcode_primary = ? WHERE id = ?").bind(v, variantId),
+    db
+      .prepare(
+        "INSERT INTO barcodes (id, product_variant_id, barcode_value, is_primary, is_internal_generated, created_at) VALUES (?, ?, ?, 1, 0, ?) ON CONFLICT(barcode_value) DO NOTHING",
+      )
+      .bind(crypto.randomUUID(), variantId, v, Date.now()),
+  ]);
 }
 
 /** Soft-delete a product (status='archived') — preserves sales history + FKs. */
@@ -1155,6 +1287,10 @@ const worker = {
         description?: string;
         status?: string;
         shopeeListed?: boolean;
+        shopeeItemId?: string;
+        category?: string;
+        weightGrams?: number;
+        barcode?: string;
       };
       if (!body?.name || !body?.status) {
         return json({ error: "name and status are required" }, 400);
@@ -1164,7 +1300,18 @@ const worker = {
         description: body.description,
         status: body.status,
         shopeeListed: body.shopeeListed,
+        shopeeItemId: body.shopeeItemId,
+        category: body.category,
+        weightGrams: body.weightGrams,
       });
+      if (typeof body.barcode === "string") {
+        const variant = await env.DB.prepare(
+          "SELECT id FROM product_variants WHERE product_id = ? ORDER BY created_at LIMIT 1",
+        )
+          .bind(productById[1]!)
+          .first<{ id: string }>();
+        if (variant) await setVariantBarcode(env.DB, variant.id, body.barcode);
+      }
       return json({ ok: true });
     }
     if (productById && request.method === "DELETE") {
@@ -1180,6 +1327,29 @@ const worker = {
           env.DB,
           env.IMAGES,
           imageUpload[1]!,
+          bytes,
+          request.headers.get("content-type"),
+        );
+        return json(out, 201);
+      } catch (err) {
+        return json({ error: (err as Error).message }, 400);
+      }
+    }
+
+    // Gallery: add an image (POST) up to 10, or remove one (DELETE /products/:id/images/:imageId).
+    const galleryItem = url.pathname.match(/^\/products\/([^/]+)\/images\/([^/]+)$/);
+    if (galleryItem && request.method === "DELETE") {
+      await deleteGalleryImage(env.DB, galleryItem[1]!, galleryItem[2]!);
+      return json({ ok: true });
+    }
+    const gallery = url.pathname.match(/^\/products\/([^/]+)\/images$/);
+    if (gallery && request.method === "POST") {
+      const bytes = await request.arrayBuffer();
+      try {
+        const out = await storeGalleryImage(
+          env.DB,
+          env.IMAGES,
+          gallery[1]!,
           bytes,
           request.headers.get("content-type"),
         );

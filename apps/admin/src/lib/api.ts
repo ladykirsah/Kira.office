@@ -79,6 +79,13 @@ export async function lookupBarcode(code: string): Promise<BarcodeLookup | null>
   return (await res.json()) as BarcodeLookup;
 }
 
+export interface ProductImage {
+  id: string;
+  imageKey: string;
+  sortOrder: number;
+  isCover: number;
+}
+
 export interface ProductDetail {
   product: {
     id: string;
@@ -88,13 +95,18 @@ export interface ProductDetail {
     status: string;
     imageKey: string | null;
     shopeeListed: number;
+    shopeeItemId: string | null;
+    category: string | null;
+    weightGrams: number;
   };
   variantId: string | null;
+  barcode: string | null;
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number;
     onlinePriceSatang: number;
   } | null;
+  images: ProductImage[];
 }
 
 export async function getProductDetail(id: string): Promise<ProductDetail> {
@@ -105,7 +117,16 @@ export async function getProductDetail(id: string): Promise<ProductDetail> {
 
 export async function updateProduct(
   id: string,
-  fields: { name: string; description?: string; status: string; shopeeListed?: boolean },
+  fields: {
+    name: string;
+    description?: string;
+    status: string;
+    shopeeListed?: boolean;
+    shopeeItemId?: string;
+    category?: string;
+    weightGrams?: number;
+    barcode?: string;
+  },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/products/${id}`, {
     method: "PATCH",
@@ -116,6 +137,27 @@ export async function updateProduct(
     const err = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error ?? `Update failed (HTTP ${res.status})`);
   }
+}
+
+export async function uploadGalleryImage(productId: string, file: File): Promise<ProductImage> {
+  const res = await fetch(`${apiBase}/products/${productId}/images`, {
+    method: "POST",
+    headers: { "content-type": file.type },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (HTTP ${res.status})`);
+  }
+  const out = (await res.json()) as { id: string; imageKey: string; isCover: boolean };
+  return { id: out.id, imageKey: out.imageKey, sortOrder: 0, isCover: out.isCover ? 1 : 0 };
+}
+
+export async function deleteGalleryImage(productId: string, imageId: string): Promise<void> {
+  const res = await fetch(`${apiBase}/products/${productId}/images/${imageId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
 export async function setProductPricing(

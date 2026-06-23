@@ -63,8 +63,27 @@ export const products = sqliteTable("products", {
   status: text("status").notNull().default("draft"),
   imageKey: text("image_key"),
   shopeeListed: integer("shopee_listed", { mode: "boolean" }).notNull().default(false),
+  // Shopee item id for linking this product to its Shopee listing (own category is separate).
+  shopeeItemId: text("shopee_item_id"),
+  category: text("category"),
+  weightGrams: integer("weight_grams").notNull().default(0),
   createdAt: createdAt(),
 });
+
+export const productImages = sqliteTable(
+  "product_images",
+  {
+    id: id(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    imageKey: text("image_key").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isCover: integer("is_cover", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [index("product_images_product_idx").on(t.productId)],
+);
 
 export const productVariants = sqliteTable(
   "product_variants",

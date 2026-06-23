@@ -10,43 +10,12 @@ import {
   type ProductDetail,
 } from "@/lib/api";
 import { useToast } from "../../../ToastProvider";
-import { ProductImageUpload } from "../../ProductImageUpload";
+import { ProductGallery } from "../../ProductGallery";
 
 const field = { display: "grid", gap: 4 } as const;
 const thb = (satang: number) => (satang / 100).toFixed(2);
 const baht = (satang: number) => `฿${thb(satang)}`;
 const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
-
-function Img({ imageKey, alt }: { imageKey: string | null; alt: string }) {
-  if (imageKey) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return (
-      <img
-        src={`${apiBase}/img/${imageKey}`}
-        alt={alt}
-        width={64}
-        height={64}
-        style={{ objectFit: "cover", borderRadius: 8 }}
-      />
-    );
-  }
-  return (
-    <span
-      style={{
-        width: 64,
-        height: 64,
-        borderRadius: 8,
-        background: "var(--hover)",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "var(--text-faint)",
-      }}
-    >
-      📦
-    </span>
-  );
-}
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -54,6 +23,39 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       <div className="muted">{label}</div>
       <div>{children}</div>
     </>
+  );
+}
+
+function StaticFrames({ images, name }: { images: ProductDetail["images"]; name: string }) {
+  if (images.length === 0) {
+    return (
+      <span
+        style={{
+          width: 92,
+          height: 92,
+          borderRadius: 10,
+          background: "var(--hover)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--text-faint)",
+          fontSize: 28,
+        }}
+      >
+        📦
+      </span>
+    );
+  }
+  return (
+    <div className="frames">
+      {images.map((img, i) => (
+        <div className="frame" key={img.id}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${apiBase}/img/${img.imageKey}`} alt={name} />
+          {i === 0 && <span className="cover-badge">Cover</span>}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -67,21 +69,25 @@ export default function EditProductPage() {
 
   // editable fields
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState("active");
+  const [barcode, setBarcode] = useState("");
+  const [shopeeItemId, setShopeeItemId] = useState("");
+  const [category, setCategory] = useState("");
+  const [active, setActive] = useState(true);
   const [costThb, setCostThb] = useState("");
   const [offlineThb, setOfflineThb] = useState("");
   const [onlineThb, setOnlineThb] = useState("");
-  const [shopeeListed, setShopeeListed] = useState(false);
+  const [weightKg, setWeightKg] = useState("");
 
   function hydrate(d: ProductDetail) {
     setName(d.product.name);
-    setDescription(d.product.description ?? "");
-    setStatus(d.product.status);
-    setShopeeListed(Boolean(d.product.shopeeListed));
+    setBarcode(d.barcode ?? "");
+    setShopeeItemId(d.product.shopeeItemId ?? "");
+    setCategory(d.product.category ?? "");
+    setActive(d.product.status === "active");
     setCostThb(d.pricing ? thb(d.pricing.itemCostSatang) : "");
     setOfflineThb(d.pricing ? thb(d.pricing.targetPriceSatang) : "");
     setOnlineThb(d.pricing ? thb(d.pricing.onlinePriceSatang) : "");
+    setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
   }
 
   async function load() {
@@ -107,9 +113,12 @@ export default function EditProductPage() {
     try {
       await updateProduct(id, {
         name,
-        description: description || undefined,
-        status,
-        shopeeListed,
+        status: active ? "active" : "draft",
+        shopeeListed: Boolean(detail?.product.shopeeListed), // preserve existing flag
+        shopeeItemId,
+        category,
+        weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
+        barcode,
       });
       if (detail?.variantId && (costThb || offlineThb || onlineThb)) {
         await setProductPricing(id, {
@@ -160,7 +169,7 @@ export default function EditProductPage() {
     display: "grid",
     gridTemplateColumns: "180px 1fr",
     gap: "10px 16px",
-    maxWidth: 480,
+    maxWidth: 520,
     alignItems: "baseline",
   } as const;
 
@@ -172,7 +181,7 @@ export default function EditProductPage() {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
-          maxWidth: 480,
+          maxWidth: 560,
         }}
       >
         <h1 style={{ margin: 0 }}>{p.name}</h1>
@@ -186,49 +195,107 @@ export default function EditProductPage() {
         {p.productCode}
       </p>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0 18px" }}>
-        <Img imageKey={p.imageKey} alt={p.name} />
-        {editing && <ProductImageUpload productId={id} />}
-      </div>
-
       {editing ? (
-        <form onSubmit={save} style={{ display: "grid", gap: 12, maxWidth: 440 }}>
+        <form onSubmit={save} style={{ display: "grid", gap: 16, maxWidth: 560 }}>
+          <div style={field}>
+            <span style={{ fontWeight: 600 }}>Photos</span>
+            <ProductGallery productId={id} initial={detail.images} />
+          </div>
+
           <label style={field}>
-            Name *
+            Product name *
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={field}>
+              Barcode
+              <input
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="scan / type"
+              />
+            </label>
+            <label style={field}>
+              Shopee ID (link)
+              <input
+                value={shopeeItemId}
+                onChange={(e) => setShopeeItemId(e.target.value)}
+                placeholder="Shopee item id"
+              />
+            </label>
+          </div>
+
           <label style={field}>
-            Description
-            <input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
-          <label style={field}>
-            Status
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="active">active</option>
-              <option value="draft">draft</option>
-              <option value="archived">archived</option>
-            </select>
-          </label>
-          <label style={field}>
-            Cost (THB)
-            <input value={costThb} onChange={(e) => setCostThb(e.target.value)} />
-          </label>
-          <label style={field}>
-            On-site price (THB)
-            <input value={offlineThb} onChange={(e) => setOfflineThb(e.target.value)} />
-          </label>
-          <label style={field}>
-            Online price — Shopee (THB)
-            <input value={onlineThb} onChange={(e) => setOnlineThb(e.target.value)} />
-          </label>
-          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            Category
             <input
-              type="checkbox"
-              checked={shopeeListed}
-              onChange={(e) => setShopeeListed(e.target.checked)}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. Air Conditioning"
             />
-            Listed on Shopee
           </label>
+
+          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />
+              <span className="slider" />
+            </span>
+            <span>Active {active ? "" : "(off — saved as draft)"}</span>
+          </label>
+
+          <div style={field}>
+            <span style={{ fontWeight: 600 }}>Pricing</span>
+            <table cellPadding={6} style={{ borderCollapse: "collapse", maxWidth: 380 }}>
+              <tbody>
+                <tr>
+                  <td className="muted">Cost</td>
+                  <td>
+                    <input
+                      value={costThb}
+                      onChange={(e) => setCostThb(e.target.value)}
+                      style={{ width: 140 }}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted">On-site price</td>
+                  <td>
+                    <input
+                      value={offlineThb}
+                      onChange={(e) => setOfflineThb(e.target.value)}
+                      style={{ width: 140 }}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted">Online (Shopee)</td>
+                  <td>
+                    <input
+                      value={onlineThb}
+                      onChange={(e) => setOnlineThb(e.target.value)}
+                      style={{ width: 140 }}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <small className="muted">All prices in THB (฿). More pricing options later.</small>
+          </div>
+
+          <label style={field}>
+            Weight (kg)
+            <input
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+              placeholder="0"
+              style={{ width: 140 }}
+            />
+          </label>
+
           <div style={{ display: "flex", gap: 8 }}>
             <button type="submit" className="btn-primary" disabled={busy}>
               Save
@@ -239,18 +306,23 @@ export default function EditProductPage() {
           </div>
         </form>
       ) : (
-        <div style={grid}>
-          <Row label="Status">{p.status}</Row>
-          <Row label="Description">{p.description || "—"}</Row>
-          <Row label="Cost">{pr ? baht(pr.itemCostSatang) : "—"}</Row>
-          <Row label="On-site price">{pr ? baht(pr.targetPriceSatang) : "—"}</Row>
-          <Row label="Online (Shopee) price">{pr ? baht(pr.onlinePriceSatang) : "—"}</Row>
-          <Row label="Listed on Shopee">
-            <span className={p.shopeeListed ? "pill on" : "pill off"}>
-              {p.shopeeListed ? "On Shopee" : "Not listed"}
-            </span>
-          </Row>
-        </div>
+        <>
+          <div style={{ margin: "12px 0 18px" }}>
+            <StaticFrames images={detail.images} name={p.name} />
+          </div>
+          <div style={grid}>
+            <Row label="Status">
+              <span className={active ? "pill on" : "pill off"}>{active ? "Active" : "Draft"}</span>
+            </Row>
+            <Row label="Barcode">{detail.barcode || "—"}</Row>
+            <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
+            <Row label="Category">{p.category || "—"}</Row>
+            <Row label="Cost">{pr ? baht(pr.itemCostSatang) : "—"}</Row>
+            <Row label="On-site price">{pr ? baht(pr.targetPriceSatang) : "—"}</Row>
+            <Row label="Online (Shopee) price">{pr ? baht(pr.onlinePriceSatang) : "—"}</Row>
+            <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
+          </div>
+        </>
       )}
 
       <p style={{ marginTop: 18 }}>

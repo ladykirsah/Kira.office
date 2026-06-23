@@ -9,6 +9,8 @@ import worker, {
   generateInternalBarcode,
   getProductDetail,
   setVariantPricing,
+  setVariantBarcode,
+  storeGalleryImage,
   updateProduct,
   importProducts,
   importShopeeOrders,
@@ -49,6 +51,7 @@ function makeDb(canned: {
   productDetail?: unknown | null;
   variantRow?: unknown | null;
   pricingRow?: unknown | null;
+  images?: unknown[];
   stock?: unknown[];
   stockOnHand?: number;
   saleHeader?: unknown | null;
@@ -67,6 +70,7 @@ function makeDb(canned: {
         return stmt;
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
+        if (sql.includes("FROM product_images")) return { results: (canned.images ?? []) as T[] };
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
         if (sql.includes("FROM product_variants v JOIN products"))
@@ -603,13 +607,16 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     };
     const { db } = makeDb({
       productDetail: product,
-      variantRow: { id: "v1" },
+      variantRow: { id: "v1", barcode: "885000111" },
       pricingRow: { itemCostSatang: 6000, targetPriceSatang: 10700 },
+      images: [{ id: "img1", imageKey: "k1", sortOrder: 0, isCover: 1 }],
     });
     expect(await getProductDetail(db, "p1")).toEqual({
       product,
       variantId: "v1",
+      barcode: "885000111",
       pricing: { itemCostSatang: 6000, targetPriceSatang: 10700 },
+      images: [{ id: "img1", imageKey: "k1", sortOrder: 0, isCover: 1 }],
     });
   });
 
@@ -629,6 +636,18 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     const { db, batched } = makeDb({});
     await setVariantPricing(db, "v1", 6000, 10700, 12000);
     expect(batched.length).toBe(2);
+  });
+
+  it("setVariantBarcode updates the variant + upserts a scannable barcode", async () => {
+    const { db, batched } = makeDb({});
+    await setVariantBarcode(db, "v1", " 885000111 ");
+    expect(batched.length).toBe(2);
+  });
+
+  it("setVariantBarcode is a no-op for an empty value", async () => {
+    const { db, batched } = makeDb({});
+    await setVariantBarcode(db, "v1", "   ");
+    expect(batched.length).toBe(0);
   });
 
   it("archiveProduct resolves (soft-delete)", async () => {
@@ -730,6 +749,38 @@ describe("storeProductImage", () => {
     await expect(
       storeProductImage(db, bucket, "p1", new ArrayBuffer(5 * 1024 * 1024 + 1), "image/png"),
     ).rejects.toThrow(/too large/);
+  });
+});
+
+describe("storeGalleryImage", () => {
+  function fakeBucket() {
+    const puts: { key: string }[] = [];
+    const bucket = { put: async (key: string) => void puts.push({ key }) } as unknown as R2Bucket;
+    return { bucket, puts };
+  }
+
+  it("stores the first gallery image as the cover", async () => {
+    const { db } = makeDb({}); // COUNT(*) → null → 0 existing
+    const { bucket, puts } = fakeBucket();
+    const out = await storeGalleryImage(
+      db,
+      bucket,
+      "p1",
+      new Uint8Array([1, 2]).buffer,
+      "image/png",
+    );
+    expect(out.imageKey).toMatch(/^products\/p1\/.*\.png$/);
+    expect(out.url).toBe(`/img/${out.imageKey}`);
+    expect(out.isCover).toBe(true);
+    expect(puts.length).toBe(1);
+  });
+
+  it("rejects an unsupported content type", async () => {
+    const { db } = makeDb({});
+    const { bucket } = fakeBucket();
+    await expect(
+      storeGalleryImage(db, bucket, "p1", new Uint8Array([1]).buffer, "image/gif"),
+    ).rejects.toThrow(/unsupported/);
   });
 });
 
