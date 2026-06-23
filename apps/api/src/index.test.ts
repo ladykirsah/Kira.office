@@ -51,6 +51,7 @@ function makeDb(canned: {
   saleHeader?: unknown | null;
   saleLines?: unknown[];
   barcodes?: unknown[];
+  orders?: unknown[];
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -69,6 +70,8 @@ function makeDb(canned: {
           return { results: (canned.existing ?? []).map((u) => ({ clientUuid: u })) as T[] };
         if (sql.includes("SUM(quantity_delta)"))
           return { results: (canned.available ?? []) as T[] };
+        if (sql.includes("external_order_id AS externalOrderId"))
+          return { results: (canned.orders ?? []) as T[] };
         if (sql.includes("FROM sales_orders"))
           return { results: (canned.existingOrders ?? []).map((id) => ({ id })) as T[] };
         // Order matters: the /sales query references onsite_sale_lines in a subquery, so match the
@@ -173,6 +176,22 @@ describe("api worker routes", () => {
     const { env } = makeDb({ stock });
     const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
     expect(await res.json()).toEqual({ stock });
+  });
+
+  it("GET /orders > lists imported orders", async () => {
+    const orders = [
+      {
+        id: "o1",
+        channel: "shopee",
+        externalOrderId: "A1",
+        orderStatus: "paid",
+        paymentStatus: null,
+        importedAt: 1,
+      },
+    ];
+    const { env } = makeDb({ orders });
+    const res = await worker.fetch!(new Request("https://x/orders"), env, ctx);
+    expect(await res.json()).toEqual({ orders });
   });
 
   it("GET /barcodes > lists variants with barcodes", async () => {

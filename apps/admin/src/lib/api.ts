@@ -148,6 +148,42 @@ export async function addBarcode(
   return (await res.json()) as { barcodeValue: string; generated: boolean };
 }
 
+export interface OrderImportResult {
+  received: number;
+  imported: number;
+  duplicates: number;
+  invalid: number;
+  errors: { rowIndex: number; reason: string }[];
+}
+
+export async function importShopeeOrdersCsv(
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<OrderImportResult> {
+  const res = await fetch(`${apiBase}/import/shopee-orders`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ csv, mapping }),
+  });
+  if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
+  return (await res.json()) as OrderImportResult;
+}
+
+export interface OrderRow {
+  id: string;
+  channel: string;
+  externalOrderId: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  importedAt: number;
+}
+
+export async function fetchOrders(): Promise<OrderRow[]> {
+  const res = await fetch(`${apiBase}/orders`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load orders (HTTP ${res.status})`);
+  return ((await res.json()) as { orders: OrderRow[] }).orders;
+}
+
 export async function fetchTermsTemplate(): Promise<string> {
   const res = await fetch(`${apiBase}/terms/template`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load template (HTTP ${res.status})`);

@@ -627,6 +627,16 @@ const SALES_SELECT = `SELECT s.id,
  ORDER BY s.created_at DESC
  LIMIT 100`;
 
+/** Imported sales orders (Shopee CSV bridge), newest first. */
+async function listOrders(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
+            payment_status AS paymentStatus, imported_at AS importedAt
+     FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
+  ).all();
+  return json({ orders: results });
+}
+
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
 async function querySales(db: D1Database): Promise<SaleExportRow[]> {
   const { results } = await db.prepare(SALES_SELECT).all<SaleExportRow>();
@@ -996,6 +1006,10 @@ const worker = {
     if (url.pathname === "/import/products" && request.method === "POST") {
       const body = (await request.json()) as { csv?: string; mapping?: Record<string, string> };
       return json(await importProducts(env.DB, body.csv ?? "", body.mapping ?? {}));
+    }
+
+    if (url.pathname === "/orders" && request.method === "GET") {
+      return listOrders(env);
     }
 
     if (url.pathname === "/import/shopee-orders" && request.method === "POST") {

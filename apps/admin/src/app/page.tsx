@@ -31,6 +31,9 @@ export default function DashboardPage() {
         <li>
           <a href="/barcodes">Barcodes</a> — generate internal barcodes and print
         </li>
+        <li>
+          <a href="/orders">Orders</a> — import Shopee orders (CSV bridge)
+        </li>
       </ul>
     </main>
   );
