@@ -44,6 +44,14 @@ export function CampaignWorkspace({
           <span style={{ color: "var(--ok)", fontWeight: 600 }}>{baht(defaultProfitSatang)}</span>
         </div>
         <table className="ptbl">
+          <colgroup>
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "19%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "26%" }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Try</th>
@@ -69,7 +77,7 @@ export function CampaignWorkspace({
                     <input
                       value={r.price}
                       onChange={(e) => patch(i, { price: e.target.value })}
-                      style={{ width: 90 }}
+                      style={{ width: "min(90px, 100%)" }}
                     />
                   </td>
                   <td>

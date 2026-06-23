@@ -435,6 +435,7 @@ tbody tr:hover {
 .ptbl {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-variant-numeric: tabular-nums;
 }
 .ptbl th {

@@ -31,7 +31,7 @@ function Profit({ value, show }: { value: number; show: boolean }) {
   );
 }
 
-const numStyle: CSSProperties = { width: 110, textAlign: "right" };
+const numStyle: CSSProperties = { width: "min(110px, 100%)" };
 
 export function PricingFields({
   form,
@@ -96,6 +96,13 @@ export function PricingFields({
       </div>
 
       <table className="ptbl">
+        <colgroup>
+          <col style={{ width: "26%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "22%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "16%" }} />
+        </colgroup>
         <thead>
           <tr>
             <th>Tier</th>
