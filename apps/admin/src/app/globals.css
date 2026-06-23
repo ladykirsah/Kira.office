@@ -458,13 +458,14 @@ tbody tr:hover {
   font-weight: 500;
   color: var(--text-muted);
   text-align: right;
-  padding: 12px;
+  padding: 14px;
 }
 .ptbl th:first-child {
   text-align: left;
+  border-left: 3px solid transparent;
 }
 .ptbl td {
-  padding: 12px;
+  padding: 14px;
   border-top: 1px solid var(--border);
   vertical-align: middle;
   text-align: right;
@@ -472,8 +473,45 @@ tbody tr:hover {
 .ptbl td:first-child {
   text-align: left;
   font-weight: 500;
+  border-left: 3px solid transparent;
+}
+.ptbl tr.on td:first-child {
+  border-left-color: var(--primary);
 }
 .ptbl input {
+  text-align: right;
+}
+/* Margin shown as a small track + % (clearer than a floating pill) */
+.mwrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.mtrack {
+  width: 56px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--code-bg);
+  overflow: hidden;
+}
+.mfill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+.mfill.good {
+  background: var(--ok);
+}
+.mfill.warn {
+  background: var(--warn);
+}
+.mfill.bad {
+  background: var(--danger);
+}
+.mpct {
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
   text-align: right;
 }
 .icon-del {

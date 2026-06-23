@@ -15,17 +15,27 @@ export interface PricingForm {
 export const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 export const baht = (sat: number) => `฿${(sat / 100).toFixed(2)}`;
 
-function MarginPill({ profit, price }: { profit: number; price: number }) {
+function MarginBar({ profit, price }: { profit: number; price: number }) {
   if (price <= 0) return <span className="muted">—</span>;
   const m = marginPct(profit, price);
   const cls = m < 0 ? "bad" : m < 15 ? "warn" : "good";
-  return <span className={`pill ${cls}`}>{Math.round(m)}%</span>;
+  const w = Math.max(0, Math.min(100, m));
+  return (
+    <span className="mwrap">
+      <span className="mtrack">
+        <span className={`mfill ${cls}`} style={{ width: `${w}%` }} />
+      </span>
+      <span className="mpct">{Math.round(m)}%</span>
+    </span>
+  );
 }
 
 function Profit({ value, show }: { value: number; show: boolean }) {
   if (!show) return <span className="muted">—</span>;
   return (
-    <span style={{ fontWeight: 600, color: value >= 0 ? "var(--ok)" : "var(--danger)" }}>
+    <span
+      style={{ fontSize: 15, fontWeight: 600, color: value >= 0 ? "var(--ok)" : "var(--danger)" }}
+    >
       {baht(value)}
     </span>
   );
@@ -70,37 +80,40 @@ export function PricingFields({
           alignItems: "center",
           gap: 16,
           flexWrap: "wrap",
-          background: "var(--hover)",
-          borderRadius: 10,
-          padding: "12px 14px",
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "8px 12px",
         }}
       >
-        <label style={{ display: "grid", gap: 4 }}>
-          <span className="muted" style={{ fontSize: 13 }}>
-            Item cost (฿)
-          </span>
-          <input
-            value={form.costThb}
-            onChange={(e) => update({ costThb: e.target.value })}
-            style={{ width: 130 }}
-          />
-        </label>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span className="switch">
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span className="muted" style={{ fontSize: 13 }}>
+              Item cost ฿
+            </span>
             <input
-              type="checkbox"
-              checked={form.taxOnCost}
-              onChange={(e) => update({ taxOnCost: e.target.checked })}
+              value={form.costThb}
+              onChange={(e) => update({ costThb: e.target.value })}
+              style={{ width: 92 }}
             />
-            <span className="slider" />
-          </span>
-          <span>Add VAT 7%</span>
-        </label>
-        <div style={{ textAlign: "right" }}>
-          <div className="muted" style={{ fontSize: 13 }}>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={form.taxOnCost}
+                onChange={(e) => update({ taxOnCost: e.target.checked })}
+              />
+              <span className="slider" />
+            </span>
+            <span style={{ fontSize: 13 }}>Add VAT 7%</span>
+          </label>
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span className="muted" style={{ fontSize: 13 }}>
             Total cost · base
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 600 }}>{baht(tc)}</div>
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>{baht(tc)}</span>
         </div>
       </div>
 
@@ -122,7 +135,7 @@ export function PricingFields({
           </tr>
         </thead>
         <tbody>
-          <tr>
+          <tr className="on">
             <td>Online · default</td>
             <td>
               <input
@@ -145,7 +158,7 @@ export function PricingFields({
               <Profit value={onlineProfit} show={online > 0} />
             </td>
             <td>
-              <MarginPill profit={onlineProfit} price={online} />
+              <MarginBar profit={onlineProfit} price={online} />
             </td>
           </tr>
           <tr>
@@ -162,7 +175,7 @@ export function PricingFields({
               <Profit value={b2cProfit} show={b2c > 0} />
             </td>
             <td>
-              <MarginPill profit={b2cProfit} price={b2c} />
+              <MarginBar profit={b2cProfit} price={b2c} />
             </td>
           </tr>
           <tr>
@@ -179,7 +192,7 @@ export function PricingFields({
               <Profit value={b2bProfit} show={b2b > 0} />
             </td>
             <td>
-              <MarginPill profit={b2bProfit} price={b2b} />
+              <MarginBar profit={b2bProfit} price={b2b} />
             </td>
           </tr>
         </tbody>
