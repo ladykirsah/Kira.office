@@ -274,6 +274,10 @@ tbody tr:hover {
   background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
+.pill.soft {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
 
 /* Plain white tag/chip */
 .tag {

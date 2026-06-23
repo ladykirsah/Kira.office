@@ -32,7 +32,7 @@ export function CampaignWorkspace({
     <div style={{ display: "grid", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontWeight: 600 }}>Campaign workspace</span>
-        <span className="pill warn">scratch · not saved</span>
+        <span className="pill soft">scratch · not saved</span>
       </div>
       <div
         style={{
