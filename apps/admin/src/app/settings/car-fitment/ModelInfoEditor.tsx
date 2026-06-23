@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { updateCarModel, type CarModelNode, type OringEntry } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 
@@ -143,7 +143,7 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
         <Label>O-ring usage — how many of each size this model uses</Label>
         <div className="md-oring-grid">
           {BASIC_SIZES.map((size) => (
-            <Fragment key={size}>
+            <div className="md-oring-cell" key={size}>
               <span className="md-oring-sz">{size}</span>
               <input
                 value={basicQty[size] ?? ""}
@@ -151,55 +151,55 @@ export function ModelInfoEditor({ model, onSaved }: { model: CarModelNode; onSav
                 placeholder="0"
                 inputMode="numeric"
                 aria-label={`Amount of ${size} o-rings`}
-                style={{ width: 64, textAlign: "center" }}
+                className="md-oring-amt"
               />
-            </Fragment>
+            </div>
+          ))}
+          {specials.map((sp, i) => (
+            <div className="md-oring-cell" key={i}>
+              <input
+                value={sp.size}
+                onChange={(e) => setSpecial(i, { size: e.target.value })}
+                placeholder="ETC"
+                aria-label="O-ring size"
+                className="md-oring-szin"
+              />
+              <input
+                value={sp.qty}
+                onChange={(e) => setSpecial(i, { qty: e.target.value.replace(/[^\d]/g, "") })}
+                placeholder="0"
+                inputMode="numeric"
+                aria-label="Amount"
+                className="md-oring-amt"
+              />
+              <button
+                type="button"
+                className="icon-del"
+                aria-label="Remove size"
+                onClick={() => removeSpecial(i)}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 7h16" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+                  <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
+                </svg>
+              </button>
+            </div>
           ))}
         </div>
-        {specials.map((sp, i) => (
-          <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
-            <input
-              value={sp.size}
-              onChange={(e) => setSpecial(i, { size: e.target.value })}
-              placeholder="special size"
-              aria-label="Special o-ring size"
-              style={{ width: 130 }}
-            />
-            <input
-              value={sp.qty}
-              onChange={(e) => setSpecial(i, { qty: e.target.value.replace(/[^\d]/g, "") })}
-              placeholder="qty"
-              inputMode="numeric"
-              aria-label="Amount"
-              style={{ width: 64, textAlign: "center" }}
-            />
-            <button
-              type="button"
-              className="icon-del"
-              aria-label="Remove size"
-              onClick={() => removeSpecial(i)}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M4 7h16" />
-                <path d="M10 11v6M14 11v6" />
-                <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
-                <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
-              </svg>
-            </button>
-          </div>
-        ))}
-        <button type="button" onClick={addSpecial} style={{ marginTop: 8 }}>
-          + add special size
+        <button type="button" className="btn-soft" onClick={addSpecial} style={{ marginTop: 10 }}>
+          + add size
         </button>
       </div>
 

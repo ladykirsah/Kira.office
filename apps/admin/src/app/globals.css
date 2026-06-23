@@ -156,6 +156,19 @@ textarea {
   border-color: var(--danger);
   color: #fff;
 }
+/* Soft secondary action — recognizable but lighter than .btn-primary */
+.btn-soft {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft);
+  color: var(--primary);
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 14px;
+}
+.btn-soft:hover:not(:disabled) {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
 
 /* Tables */
 table {
@@ -589,14 +602,35 @@ tbody tr:hover {
 }
 .md-oring-grid {
   display: grid;
-  grid-template-columns: auto 64px;
-  gap: 6px 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
   align-items: center;
-  width: max-content;
 }
-.md-oring-sz {
+.md-oring-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.md-oring-sz,
+.md-oring-szin {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   color: var(--text);
+}
+.md-oring-amt {
+  width: 56px;
+  flex: none;
+  text-align: center;
+}
+.md-oring-cell .icon-del {
+  flex: none;
+}
+@media (max-width: 460px) {
+  .md-oring-grid {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 560px) {
   .md {
