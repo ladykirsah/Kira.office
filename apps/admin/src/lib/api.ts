@@ -131,6 +131,7 @@ export interface ProductDetail {
     imageKey: string | null;
     shopeeListed: number;
     shopeeItemId: string | null;
+    productRef: string | null;
     category: string | null;
     weightGrams: number;
     brandId: string | null;
@@ -167,6 +168,7 @@ export async function updateProduct(
     status: string;
     shopeeListed?: boolean;
     shopeeItemId?: string;
+    productRef?: string;
     weightGrams?: number;
     barcode?: string;
     brandName?: string;

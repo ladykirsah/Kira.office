@@ -1015,6 +1015,7 @@ export interface ProductDetail {
     imageKey: string | null;
     shopeeListed: number;
     shopeeItemId: string | null;
+    productRef: string | null;
     category: string | null;
     weightGrams: number;
     brandId: string | null;
@@ -1042,7 +1043,8 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
   const product = await db
     .prepare(
       `SELECT p.id, p.product_code AS productCode, p.name, p.description, p.status, p.image_key AS imageKey,
-              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId, p.category, p.weight_grams AS weightGrams,
+              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId, p.product_ref AS productRef,
+              p.category, p.weight_grams AS weightGrams,
               p.brand_id AS brandId, b.name AS brandName,
               p.type_id AS typeId, t.name AS typeName,
               p.usage_id AS usageId, u.name AS usageName
@@ -1096,6 +1098,7 @@ export async function updateProduct(
     status: string;
     shopeeListed?: boolean;
     shopeeItemId?: string;
+    productRef?: string;
     category?: string;
     weightGrams?: number;
     brandId?: string | null;
@@ -1105,7 +1108,7 @@ export async function updateProduct(
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ? WHERE id = ?",
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ? WHERE id = ?",
     )
     .bind(
       fields.name.trim(),
@@ -1113,6 +1116,7 @@ export async function updateProduct(
       fields.status,
       fields.shopeeListed ? 1 : 0,
       fields.shopeeItemId?.trim() || null,
+      fields.productRef?.trim() || null,
       fields.category?.trim() || null,
       Math.max(0, Math.round(fields.weightGrams ?? 0)),
       fields.brandId ?? null,
@@ -1414,6 +1418,7 @@ const worker = {
         status?: string;
         shopeeListed?: boolean;
         shopeeItemId?: string;
+        productRef?: string;
         weightGrams?: number;
         barcode?: string;
         brandName?: string;
@@ -1439,6 +1444,7 @@ const worker = {
         status: body.status,
         shopeeListed: body.shopeeListed,
         shopeeItemId: body.shopeeItemId,
+        productRef: body.productRef,
         category,
         weightGrams: body.weightGrams,
         brandId,

@@ -14,19 +14,27 @@ export interface PartForm {
 const field: CSSProperties = { display: "grid", gap: 4 };
 const names = (opts: { name: string }[] | undefined) => (opts ?? []).map((o) => o.name);
 
-/** Barcode + three creatable dropdowns (pick from the list or type a new value) for the part. */
+/** Part taxonomy dropdowns + identifiers (Product ID, barcode, Shopee ID) for the part. */
 export function PartDetails({
   value,
   onChange,
   attributes,
   barcode,
   onBarcodeChange,
+  productRef,
+  onProductRefChange,
+  shopeeItemId,
+  onShopeeItemIdChange,
 }: {
   value: PartForm;
   onChange: (patch: Partial<PartForm>) => void;
   attributes: Attributes | null;
   barcode: string;
   onBarcodeChange: (v: string) => void;
+  productRef: string;
+  onProductRefChange: (v: string) => void;
+  shopeeItemId: string;
+  onShopeeItemIdChange: (v: string) => void;
 }) {
   const composed = [value.brand, value.usage, value.type]
     .map((s) => s.trim())
@@ -85,6 +93,15 @@ export function PartDetails({
         Category: {composed || "—"} · pick from the list or type a new value to add it.
       </small>
 
+      <label style={field}>
+        Product ID
+        <input
+          value={productRef}
+          onChange={(e) => onProductRefChange(e.target.value)}
+          placeholder="catalog / part no. (comes with the product)"
+        />
+      </label>
+
       <div
         style={{
           display: "grid",
@@ -103,6 +120,15 @@ export function PartDetails({
         </label>
         <BarcodePreview value={barcode} />
       </div>
+
+      <label style={field}>
+        Shopee ID (link)
+        <input
+          value={shopeeItemId}
+          onChange={(e) => onShopeeItemIdChange(e.target.value)}
+          placeholder="Shopee item id"
+        />
+      </label>
     </div>
   );
 }

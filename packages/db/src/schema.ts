@@ -65,6 +65,8 @@ export const products = sqliteTable("products", {
   shopeeListed: integer("shopee_listed", { mode: "boolean" }).notNull().default(false),
   // Shopee item id for linking this product to its Shopee listing (own category is separate).
   shopeeItemId: text("shopee_item_id"),
+  // Manufacturer/catalog product id that ships with some parts (e.g. "DI446610-1710").
+  productRef: text("product_ref"),
   category: text("category"),
   weightGrams: integer("weight_grams").notNull().default(0),
   createdAt: createdAt(),

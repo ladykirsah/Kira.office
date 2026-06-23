@@ -89,6 +89,7 @@ export default function EditProductPage() {
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
+  const [productRef, setProductRef] = useState("");
   const [active, setActive] = useState(true);
   const [weightKg, setWeightKg] = useState("");
   const [attributes, setAttributes] = useState<Attributes | null>(null);
@@ -109,6 +110,7 @@ export default function EditProductPage() {
     setName(d.product.name);
     setBarcode(d.barcode ?? "");
     setShopeeItemId(d.product.shopeeItemId ?? "");
+    setProductRef(d.product.productRef ?? "");
     setPart({
       brand: d.product.brandName ?? "",
       usage: d.product.usageName ?? "",
@@ -156,6 +158,7 @@ export default function EditProductPage() {
         status: active ? "active" : "draft",
         shopeeListed: active, // one "Active" toggle = active on-site AND listed on Shopee
         shopeeItemId,
+        productRef,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         barcode,
         brandName: part.brand,
@@ -290,27 +293,17 @@ export default function EditProductPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
 
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-            <label style={{ ...field, flex: 1 }}>
-              Shopee ID (link)
+          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span className="switch">
               <input
-                value={shopeeItemId}
-                onChange={(e) => setShopeeItemId(e.target.value)}
-                placeholder="Shopee item id"
+                type="checkbox"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
               />
-            </label>
-            <label style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-              <span className="switch">
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(e) => setActive(e.target.checked)}
-                />
-                <span className="slider" />
-              </span>
-              <span>Active</span>
-            </label>
-          </div>
+              <span className="slider" />
+            </span>
+            <span>Active</span>
+          </label>
 
           <div style={{ gridColumn: "1 / -1" }}>
             <PartDetails
@@ -319,6 +312,10 @@ export default function EditProductPage() {
               attributes={attributes}
               barcode={barcode}
               onBarcodeChange={setBarcode}
+              productRef={productRef}
+              onProductRefChange={setProductRef}
+              shopeeItemId={shopeeItemId}
+              onShopeeItemIdChange={setShopeeItemId}
             />
           </div>
 
@@ -361,6 +358,7 @@ export default function EditProductPage() {
             <Row label="Barcode">
               {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
             </Row>
+            <Row label="Product ID">{p.productRef || "—"}</Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
             <Row label="Part details">
               {partTags.length ? (
