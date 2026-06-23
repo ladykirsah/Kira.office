@@ -131,9 +131,6 @@ export function PricingFields({
                 />
                 <span className="muted">%</span>
               </span>
-              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                fee {baht(fee)}
-              </div>
             </td>
             <td>
               <Profit value={onlineProfit} show={online > 0} />
