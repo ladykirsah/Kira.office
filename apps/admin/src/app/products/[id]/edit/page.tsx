@@ -220,11 +220,6 @@ export default function EditProductPage() {
     }
   }
 
-  function cancel() {
-    if (detail) hydrate(detail);
-    setEditing(false);
-  }
-
   if (loading)
     return (
       <main>
@@ -395,12 +390,9 @@ export default function EditProductPage() {
             />
           </div>
 
-          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
+          <div style={{ gridColumn: "1 / -1" }}>
             <button type="submit" className="btn-primary" disabled={busy}>
               Save
-            </button>
-            <button type="button" onClick={cancel} disabled={busy}>
-              Cancel
             </button>
           </div>
         </form>
