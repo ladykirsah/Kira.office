@@ -1,5 +1,6 @@
 import { apiBase, fetchProducts } from "@/lib/api";
 import { ProductImageUpload } from "./ProductImageUpload";
+import { ArchiveButton } from "./ArchiveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function ProductsPage() {
               <th align="left">Status</th>
               <th align="left">Upload</th>
               <th align="left"></th>
+              <th align="left"></th>
             </tr>
           </thead>
           <tbody>
@@ -60,6 +62,9 @@ export default async function ProductsPage() {
                 </td>
                 <td>
                   <a href={`/products/${p.id}/edit`}>Edit</a>
+                </td>
+                <td>
+                  <ArchiveButton productId={p.id} status={p.status} />
                 </td>
               </tr>
             ))}

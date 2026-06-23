@@ -3,6 +3,7 @@ import worker, {
   addBarcodeToProduct,
   applyAdjustmentToDb,
   applySyncToDb,
+  archiveProduct,
   createProduct,
   ean13CheckDigit,
   generateInternalBarcode,
@@ -617,6 +618,21 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     const { db, batched } = makeDb({});
     await setVariantPricing(db, "v1", 6000, 10700);
     expect(batched.length).toBe(2);
+  });
+
+  it("archiveProduct resolves (soft-delete)", async () => {
+    const { db } = makeDb({});
+    await expect(archiveProduct(db, "p1")).resolves.toBeUndefined();
+  });
+
+  it("DELETE /products/:id archives the product", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/products/p1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(await res.json()).toEqual({ ok: true });
   });
 });
 

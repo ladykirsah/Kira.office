@@ -243,6 +243,11 @@ export async function adjustStock(input: {
   return (await res.json()) as { applied: boolean; quantityAfter: number; reason?: string };
 }
 
+export async function archiveProduct(id: string): Promise<void> {
+  const res = await fetch(`${apiBase}/products/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Archive failed (HTTP ${res.status})`);
+}
+
 export interface SaleRow {
   id: string;
   paymentMethod: string | null;

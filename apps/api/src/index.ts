@@ -955,6 +955,11 @@ export async function updateProduct(
     .run();
 }
 
+/** Soft-delete a product (status='archived') — preserves sales history + FKs. */
+export async function archiveProduct(db: D1Database, id: string): Promise<void> {
+  await db.prepare("UPDATE products SET status = 'archived' WHERE id = ?").bind(id).run();
+}
+
 /** Persist a variant's pricing (replaces any prior profile). Amounts in satang. */
 export async function setVariantPricing(
   db: D1Database,
@@ -1110,6 +1115,10 @@ const worker = {
         description: body.description,
         status: body.status,
       });
+      return json({ ok: true });
+    }
+    if (productById && request.method === "DELETE") {
+      await archiveProduct(env.DB, productById[1]!);
       return json({ ok: true });
     }
 
