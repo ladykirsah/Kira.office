@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   apiBase,
   getProductDetail,
@@ -92,6 +92,7 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
 
 export default function EditProductPage() {
   const id = useParams().id as string;
+  const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -294,11 +295,16 @@ export default function EditProductPage() {
         }}
       >
         <h1 style={{ margin: 0 }}>{p.name}</h1>
-        {!editing && (
-          <button className="btn-primary" onClick={() => setEditing(true)}>
-            Edit
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+          <button type="button" onClick={() => router.push("/products")}>
+            Back
           </button>
-        )}
+          {!editing && (
+            <button className="btn-primary" onClick={() => setEditing(true)}>
+              Edit
+            </button>
+          )}
+        </div>
       </div>
       <p className="muted" style={{ marginTop: 4 }}>
         {p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productCode}
@@ -507,10 +513,6 @@ export default function EditProductPage() {
           </div>
         </>
       )}
-
-      <p style={{ marginTop: 18 }}>
-        <a href="/products">← Products</a>
-      </p>
     </main>
   );
 }
