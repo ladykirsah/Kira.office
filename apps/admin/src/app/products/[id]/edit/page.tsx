@@ -32,12 +32,20 @@ const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
 const baht = (satang: number) => `฿${thb(satang)}`;
 const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Row({ label, children, span }: { label: string; children: ReactNode; span?: boolean }) {
   return (
-    <>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "140px 1fr",
+        gap: "2px 16px",
+        alignItems: "baseline",
+        gridColumn: span ? "1 / -1" : undefined,
+      }}
+    >
       <div className="muted">{label}</div>
       <div>{children}</div>
-    </>
+    </div>
   );
 }
 
@@ -278,10 +286,9 @@ export default function EditProductPage() {
 
   const grid = {
     display: "grid",
-    gridTemplateColumns: "180px 1fr",
-    gap: "10px 16px",
-    maxWidth: 520,
-    alignItems: "baseline",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
+    gap: "12px 28px",
+    alignItems: "start",
   } as const;
 
   return (
@@ -423,7 +430,7 @@ export default function EditProductPage() {
             <Row label="Stock on hand">
               <strong>{detail.onHand ?? 0}</strong>
             </Row>
-            <Row label="Barcode">
+            <Row label="Barcode" span>
               {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
             </Row>
             <Row label="Product ID">{p.productRef || "—"}</Row>
@@ -447,7 +454,6 @@ export default function EditProductPage() {
           {detail.fitments.length > 0 && (
             <div
               style={{
-                maxWidth: 520,
                 marginTop: 18,
                 border: "1px solid var(--border)",
                 borderRadius: 12,
@@ -484,7 +490,6 @@ export default function EditProductPage() {
 
           <div
             style={{
-              maxWidth: 520,
               marginTop: 18,
               border: "1px solid var(--border)",
               borderRadius: 12,
