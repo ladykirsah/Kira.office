@@ -344,16 +344,38 @@ export default function EditProductPage() {
             </Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
             <Row label="Category">{p.category || "—"}</Row>
-            <Row label="Online · default">
-              {pr ? <PriceProfit price={n0(pr.onlinePriceSatang)} profit={vOnlineProfit} /> : "—"}
-            </Row>
-            <Row label="On-site · B2C">
-              {pr ? <PriceProfit price={n0(pr.targetPriceSatang)} profit={vB2cProfit} /> : "—"}
-            </Row>
-            <Row label="On-site · B2B">
-              {pr ? <PriceProfit price={n0(pr.b2bPriceSatang)} profit={vB2bProfit} /> : "—"}
-            </Row>
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
+          </div>
+
+          <div
+            style={{
+              maxWidth: 520,
+              marginTop: 18,
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: "12px 16px",
+              background: "var(--surface)",
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 10 }}>Pricing</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "150px 1fr",
+                gap: "10px 16px",
+                alignItems: "center",
+              }}
+            >
+              <Row label="Online · default">
+                {pr ? <PriceProfit price={n0(pr.onlinePriceSatang)} profit={vOnlineProfit} /> : "—"}
+              </Row>
+              <Row label="On-site · B2C">
+                {pr ? <PriceProfit price={n0(pr.targetPriceSatang)} profit={vB2cProfit} /> : "—"}
+              </Row>
+              <Row label="On-site · B2B">
+                {pr ? <PriceProfit price={n0(pr.b2bPriceSatang)} profit={vB2bProfit} /> : "—"}
+              </Row>
+            </div>
           </div>
         </>
       )}
