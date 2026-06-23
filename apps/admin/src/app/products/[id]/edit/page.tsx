@@ -8,6 +8,7 @@ import {
   updateProduct,
   setProductPricing,
   fetchAttributes,
+  adjustStock,
   type ProductDetail,
   type Attributes,
 } from "@/lib/api";
@@ -92,6 +93,7 @@ export default function EditProductPage() {
   const [productRef, setProductRef] = useState("");
   const [active, setActive] = useState(true);
   const [weightKg, setWeightKg] = useState("");
+  const [stockQty, setStockQty] = useState("");
   const [attributes, setAttributes] = useState<Attributes | null>(null);
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
@@ -118,6 +120,7 @@ export default function EditProductPage() {
     });
     setActive(d.product.status === "active");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
+    setStockQty(String(d.onHand));
     setPricing({
       costThb: d.pricing ? thb(d.pricing.itemCostSatang) : "",
       taxOnCost: d.pricing ? Boolean(d.pricing.taxOnCost) : false,
@@ -174,6 +177,17 @@ export default function EditProductPage() {
           onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
           taxOnCost: pricing.taxOnCost,
         });
+        // Stock is ledger-based: setting a new on-hand records an adjustment for the difference.
+        const target = Math.round(parseFloat(stockQty) || 0);
+        if (detail && target !== detail.onHand) {
+          const res = await adjustStock({
+            productVariantId: detail.variantId,
+            quantityDelta: target - detail.onHand,
+            movementType: "manual_adjustment",
+            reason: "edited from product page",
+          });
+          if (!res.applied) toast(res.reason ?? "Stock not changed", "error");
+        }
       }
       toast("Saved ✓", "success");
       await load();
@@ -305,6 +319,20 @@ export default function EditProductPage() {
             <span>Active</span>
           </label>
 
+          <label style={field}>
+            Stock on hand
+            <input
+              value={stockQty}
+              onChange={(e) => setStockQty(e.target.value)}
+              placeholder="0"
+              inputMode="numeric"
+              style={{ width: 140 }}
+            />
+            <small className="muted">
+              currently {detail.onHand} in stock · a new number is recorded as an adjustment
+            </small>
+          </label>
+
           <div style={{ gridColumn: "1 / -1" }}>
             <PartDetails
               value={part}
@@ -354,6 +382,9 @@ export default function EditProductPage() {
           <div style={grid}>
             <Row label="Status">
               <span className={active ? "pill on" : "pill off"}>{active ? "Active" : "Draft"}</span>
+            </Row>
+            <Row label="Stock on hand">
+              <strong>{detail.onHand}</strong>
             </Row>
             <Row label="Barcode">
               {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}

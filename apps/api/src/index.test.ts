@@ -625,6 +625,7 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
       product,
       variantId: "v1",
       barcode: "885000111",
+      onHand: 0,
       pricing: { itemCostSatang: 6000, targetPriceSatang: 10700 },
       images: [{ id: "img1", imageKey: "k1", sortOrder: 0, isCover: 1 }],
     });

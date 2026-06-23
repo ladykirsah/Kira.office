@@ -143,6 +143,7 @@ export interface ProductDetail {
   };
   variantId: string | null;
   barcode: string | null;
+  onHand: number;
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number;

@@ -1027,6 +1027,7 @@ export interface ProductDetail {
   };
   variantId: string | null;
   barcode: string | null;
+  onHand: number;
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number; // on-site B2C price
@@ -1073,6 +1074,16 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
         .bind(variant.id)
         .first<NonNullable<ProductDetail["pricing"]>>()) ?? null;
   }
+  let onHand = 0;
+  if (variant) {
+    const row = await db
+      .prepare(
+        "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+      )
+      .bind(variant.id)
+      .first<{ onHand: number }>();
+    onHand = Number(row?.onHand ?? 0);
+  }
   const { results: images } = await db
     .prepare(
       "SELECT id, image_key AS imageKey, sort_order AS sortOrder, is_cover AS isCover FROM product_images WHERE product_id = ? ORDER BY sort_order",
@@ -1083,6 +1094,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
     product,
     variantId: variant?.id ?? null,
     barcode: variant?.barcode ?? null,
+    onHand,
     pricing,
     images,
   };
