@@ -64,7 +64,7 @@ export default function OrdersPage() {
         style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
       />
       <div style={{ marginTop: 8 }}>
-        <button onClick={run} disabled={busy}>
+        <button className="btn-primary" onClick={run} disabled={busy}>
           Import
         </button>{" "}
         <small style={{ color: "crimson" }}>{msg}</small>

@@ -1,0 +1,67 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
+const GROUPS: { section: string; links: [string, string, string][] }[] = [
+  {
+    section: "Catalog",
+    links: [
+      ["/products", "📦", "Products"],
+      ["/products/new", "➕", "Add product"],
+      ["/import", "⬆️", "Import"],
+      ["/barcodes", "🏷️", "Barcodes"],
+      ["/pricing", "🧮", "Pricing"],
+    ],
+  },
+  {
+    section: "Sell",
+    links: [
+      ["/pos", "🛒", "POS"],
+      ["/stock", "📊", "Stock"],
+    ],
+  },
+  {
+    section: "Orders & money",
+    links: [
+      ["/orders", "🧾", "Orders"],
+      ["/sales", "💰", "Sales"],
+      ["/finance", "📈", "Finance"],
+    ],
+  },
+  {
+    section: "Settings",
+    links: [["/terms", "📝", "Terms"]],
+  },
+];
+
+export function Sidebar() {
+  const path = usePathname();
+  return (
+    <nav className="sidebar" aria-label="Main">
+      <a className="brand" href="/">
+        Kira.office
+      </a>
+      {GROUPS.map((g) => (
+        <div key={g.section}>
+          <div className="nav-section-label">{g.section}</div>
+          {g.links.map(([href, icon, label]) => {
+            const active = path === href;
+            return (
+              <a
+                key={href}
+                href={href}
+                className={active ? "nav-link active" : "nav-link"}
+                aria-current={active ? "page" : undefined}
+              >
+                <span className="ico" aria-hidden>
+                  {icon}
+                </span>
+                {label}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+  );
+}

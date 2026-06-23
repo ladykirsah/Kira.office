@@ -91,7 +91,7 @@ export default function EditProductPage() {
           Target price (THB)
           <input value={priceThb} onChange={(e) => setPriceThb(e.target.value)} />
         </label>
-        <button type="submit" disabled={busy} style={{ justifySelf: "start" }}>
+        <button type="submit" className="btn-primary" disabled={busy} style={{ justifySelf: "start" }}>
           Save
         </button>
       </form>

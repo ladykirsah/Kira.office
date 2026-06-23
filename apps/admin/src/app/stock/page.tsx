@@ -87,7 +87,7 @@ export default function StockPage() {
           Reason
           <input value={reason} onChange={(e) => setReason(e.target.value)} />
         </label>
-        <button onClick={apply} disabled={busy}>
+        <button className="btn-primary" onClick={apply} disabled={busy}>
           Apply
         </button>
       </div>

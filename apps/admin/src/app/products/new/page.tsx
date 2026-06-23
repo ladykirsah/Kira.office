@@ -60,7 +60,7 @@ export default function NewProductPage() {
           Barcode (optional)
           <input value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         </label>
-        <button type="submit" disabled={busy} style={{ justifySelf: "start" }}>
+        <button type="submit" className="btn-primary" disabled={busy} style={{ justifySelf: "start" }}>
           Save
         </button>
       </form>

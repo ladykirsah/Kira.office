@@ -55,7 +55,7 @@ export default function TermsPage() {
         style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
       />
       <div style={{ marginTop: 8 }}>
-        <button onClick={save} disabled={busy}>
+        <button className="btn-primary" onClick={save} disabled={busy}>
           Save template
         </button>{" "}
         <small style={{ color: "#555" }}>{msg}</small>

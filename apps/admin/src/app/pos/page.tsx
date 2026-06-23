@@ -143,7 +143,7 @@ export default function PosPage() {
       <p>
         <strong>Total: {formatBaht(totalSatang)}</strong>
       </p>
-      <button onClick={checkout} disabled={busy || cart.length === 0}>
+      <button className="btn-primary" onClick={checkout} disabled={busy || cart.length === 0}>
         Checkout
       </button>
       <p style={{ color: "#555" }}>{status}</p>
