@@ -469,6 +469,19 @@ tbody tr:hover {
 .ptbl input {
   text-align: right;
 }
+.icon-del {
+  min-height: 0;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.icon-del:hover {
+  color: var(--danger);
+}
 
 /* Empty states */
 .empty {

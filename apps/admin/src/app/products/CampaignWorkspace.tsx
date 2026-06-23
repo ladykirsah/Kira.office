@@ -24,6 +24,7 @@ export function CampaignWorkspace({
   const patch = (i: number, p: Partial<Scenario>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const add = () => setRows((rs) => [...rs, { price: "100", comm: "10" }]);
+  const remove = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
@@ -45,12 +46,13 @@ export function CampaignWorkspace({
         </div>
         <table className="ptbl">
           <colgroup>
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "19%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "17%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "26%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "7%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -60,6 +62,7 @@ export function CampaignWorkspace({
               <th>Profit</th>
               <th>Margin</th>
               <th>vs default</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -105,6 +108,31 @@ export function CampaignWorkspace({
                   </td>
                   <td style={{ color: delta >= 0 ? "var(--ok)" : "var(--danger)" }}>
                     {price > 0 ? `${delta >= 0 ? "+" : "−"}${baht(Math.abs(delta))}` : "—"}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="icon-del"
+                      aria-label={`Remove scenario ${String.fromCharCode(65 + i)}`}
+                      onClick={() => remove(i)}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 7h16" />
+                        <path d="M10 11v6M14 11v6" />
+                        <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+                        <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               );
