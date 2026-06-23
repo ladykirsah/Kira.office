@@ -435,7 +435,7 @@ export default function EditProductPage() {
             }}
           >
             <div style={overviewGrid}>
-              {/* Status & stock — what the admin checks first */}
+              {/* Column 1 — Status & stock, then Part & spec */}
               <div>
                 <div style={groupHead}>Status &amp; stock</div>
                 <Field label="Status">
@@ -446,9 +446,29 @@ export default function EditProductPage() {
                 <Field label="Stock on hand">
                   <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
                 </Field>
+
+                <div
+                  style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}
+                >
+                  <div style={groupHead}>Part &amp; spec</div>
+                  <Field label="Part details">
+                    {partTags.length ? (
+                      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                        {partTags.map((t, i) => (
+                          <span key={i} className="tag">
+                            {t}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </Field>
+                  <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
+                </div>
               </div>
 
-              {/* Identifiers — codes for scanning & linking */}
+              {/* Column 2 — Identifiers */}
               <div>
                 <div style={groupHead}>Identifiers</div>
                 <Field label="Barcode">
@@ -456,25 +476,6 @@ export default function EditProductPage() {
                 </Field>
                 <Field label="Product ID">{p.productRef || "—"}</Field>
                 <Field label="Shopee ID">{p.shopeeItemId || "—"}</Field>
-              </div>
-
-              {/* Part & spec — what the part is */}
-              <div>
-                <div style={groupHead}>Part &amp; spec</div>
-                <Field label="Part details">
-                  {partTags.length ? (
-                    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-                      {partTags.map((t, i) => (
-                        <span key={i} className="tag">
-                          {t}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
-                </Field>
-                <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
               </div>
             </div>
           </div>
