@@ -2,21 +2,21 @@
 
 import { useState, type FormEvent } from "react";
 import { createProduct } from "@/lib/api";
+import { useToast } from "../../ToastProvider";
 
 const field = { display: "grid", gap: 4 } as const;
 
 export default function NewProductPage() {
+  const toast = useToast();
   const [productCode, setProductCode] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [barcode, setBarcode] = useState("");
-  const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setStatus("Saving…");
     try {
       const out = await createProduct({
         productCode,
@@ -25,16 +25,16 @@ export default function NewProductPage() {
         barcode: barcode || undefined,
       });
       if (out.created) {
-        setStatus(`Created “${productCode}”.`);
+        toast(`Created “${productCode}”`, "success");
         setProductCode("");
         setName("");
         setDescription("");
         setBarcode("");
       } else {
-        setStatus(`A product with code “${productCode}” already exists.`);
+        toast(`A product with code “${productCode}” already exists`, "info");
       }
     } catch (err) {
-      setStatus((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -69,7 +69,6 @@ export default function NewProductPage() {
           Save
         </button>
       </form>
-      <p style={{ color: "var(--text-muted)" }}>{status}</p>
       <p>
         <a href="/products">← Products</a>
       </p>

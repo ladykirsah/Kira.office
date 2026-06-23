@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { getProductDetail, updateProduct, setProductPricing } from "@/lib/api";
+import { useToast } from "../../../ToastProvider";
 
 const field = { display: "grid", gap: 4 } as const;
 const thb = (satang: number) => (satang / 100).toFixed(2);
@@ -17,8 +18,8 @@ export default function EditProductPage() {
   const [costThb, setCostThb] = useState("");
   const [priceThb, setPriceThb] = useState("");
   const [variantId, setVariantId] = useState<string | null>(null);
-  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     (async () => {
@@ -34,7 +35,7 @@ export default function EditProductPage() {
           setPriceThb(thb(d.pricing.targetPriceSatang));
         }
       } catch (err) {
-        setMsg((err as Error).message);
+        toast((err as Error).message, "error");
       } finally {
         setLoading(false);
       }
@@ -44,7 +45,6 @@ export default function EditProductPage() {
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setMsg("Saving…");
     try {
       await updateProduct(id, { name, description: description || undefined, status });
       if (variantId && (costThb || priceThb)) {
@@ -53,9 +53,9 @@ export default function EditProductPage() {
           targetPriceSatang: Math.round((parseFloat(priceThb) || 0) * 100),
         });
       }
-      setMsg("Saved ✓");
+      toast("Saved ✓", "success");
     } catch (err) {
-      setMsg((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -108,7 +108,6 @@ export default function EditProductPage() {
           Save
         </button>
       </form>
-      <p style={{ color: "var(--text-muted)" }}>{msg}</p>
       <p>
         <a href="/products">← Products</a>
       </p>

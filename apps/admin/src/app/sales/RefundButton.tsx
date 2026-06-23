@@ -2,36 +2,35 @@
 
 import { useState } from "react";
 import { refundSale } from "@/lib/api";
+import { ConfirmButton } from "../ConfirmButton";
+import { useToast } from "../ToastProvider";
 
 export function RefundButton({ saleId, status }: { saleId: string; status: string }) {
-  const [msg, setMsg] = useState("");
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
 
   if (status === "refunded") return <span style={{ color: "var(--text-faint)" }}>refunded</span>;
 
-  async function onClick() {
-    if (!window.confirm("Refund this sale and restock the items?")) return;
+  async function doRefund() {
     setBusy(true);
     try {
       const r = await refundSale(saleId);
       if (r.applied) {
-        location.reload();
+        toast(`Refunded — ${r.restockedLines} line(s) restocked`, "success");
+        setTimeout(() => location.reload(), 700);
       } else {
-        setMsg(r.reason ?? "not applied");
+        toast(r.reason ?? "Not applied", "error");
       }
     } catch (err) {
-      setMsg((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <span>
-      <button onClick={onClick} disabled={busy}>
-        Refund
-      </button>{" "}
-      {msg && <small style={{ color: "var(--danger)" }}>{msg}</small>}
-    </span>
+    <ConfirmButton onConfirm={doRefund} confirmLabel="Refund" disabled={busy}>
+      Refund
+    </ConfirmButton>
   );
 }

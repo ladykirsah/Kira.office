@@ -2,6 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { ToastProvider } from "./ToastProvider";
 
 export const metadata = {
   title: "Kira.office — Admin",
@@ -16,16 +17,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="th" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <div className="app-shell">
-          <Sidebar />
-          <div className="main">
-            <header className="topbar">
-              <span className="muted">Shopee Thailand back office</span>
-              <ThemeToggle />
-            </header>
-            <div className="content">{children}</div>
+        <ToastProvider>
+          <div className="app-shell">
+            <Sidebar />
+            <div className="main">
+              <header className="topbar">
+                <span className="muted">Shopee Thailand back office</span>
+                <ThemeToggle />
+              </header>
+              <div className="content">{children}</div>
+            </div>
           </div>
-        </div>
+        </ToastProvider>
       </body>
     </html>
   );

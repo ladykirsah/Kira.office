@@ -5,6 +5,7 @@ import { apiBase, lookupBarcode } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
 import { flushOutbox, type OutboxStore, type QueuedSale } from "@/lib/outbox";
 import { createIdbStore } from "@/lib/outbox-idb";
+import { useToast } from "../ToastProvider";
 
 interface CartLine {
   productVariantId: string;
@@ -26,11 +27,11 @@ async function syncSale(sale: QueuedSale): Promise<boolean> {
 // Offline-first: scanning resolves a real variant; checkout tries /sync and, if the network fails,
 // queues the sale in IndexedDB and flushes automatically on reconnect (server dedupes on clientUuid).
 export default function PosPage() {
+  const toast = useToast();
   const [barcode, setBarcode] = useState("");
   const [priceThb, setPriceThb] = useState("");
   const [qty, setQty] = useState("1");
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
 
@@ -43,7 +44,7 @@ export default function PosPage() {
     async function flush() {
       const r = await flushOutbox(store, syncSale);
       if (cancelled) return;
-      if (r.synced) setStatus(`Synced ${r.synced} queued sale(s).`);
+      if (r.synced) toast(`Synced ${r.synced} queued sale(s)`, "success");
       setPending((await store.all()).length);
     }
     flush();
@@ -53,6 +54,7 @@ export default function PosPage() {
       cancelled = true;
       window.removeEventListener("online", onOnline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
 
   const totalSatang = cart.reduce((sum, l) => sum + l.unitPriceSatang * l.quantity, 0);
@@ -61,15 +63,14 @@ export default function PosPage() {
     const unitPriceSatang = Math.round(parseFloat(priceThb) * 100);
     const quantity = parseInt(qty, 10);
     if (!barcode || !Number.isFinite(unitPriceSatang) || unitPriceSatang <= 0 || quantity <= 0) {
-      setStatus("Enter a barcode, a price and a quantity.");
+      toast("Enter a barcode, a price and a quantity.", "error");
       return;
     }
     setBusy(true);
-    setStatus("Looking up…");
     try {
       const found = await lookupBarcode(barcode);
       if (!found) {
-        setStatus(`Unknown barcode: ${barcode}`);
+        toast(`Unknown barcode: ${barcode}`, "error");
         return;
       }
       setCart((c) => [
@@ -82,12 +83,12 @@ export default function PosPage() {
           unitPriceSatang,
         },
       ]);
-      setStatus(`Added ${found.name}`);
+      toast(`Added ${found.name}`, "success");
       setBarcode("");
       setPriceThb("");
       setQty("1");
     } catch (err) {
-      setStatus((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -109,17 +110,16 @@ export default function PosPage() {
     };
     try {
       if (await syncSale(sale)) {
-        setStatus("Sold ✓");
+        toast("Sold ✓", "success");
         setCart([]);
       } else {
-        setStatus("Server rejected the sale — check the items and try again.");
+        toast("Server rejected the sale — check the items and try again.", "error");
       }
     } catch {
-      // Network failure → queue offline and flush later.
       await store.add(sale);
       setCart([]);
       setPending((await store.all()).length);
-      setStatus("Offline — sale saved and will sync automatically when back online.");
+      toast("Offline — sale saved, will sync automatically when back online.", "info");
     } finally {
       setBusy(false);
     }
@@ -163,7 +163,6 @@ export default function PosPage() {
       <button className="btn-primary" onClick={checkout} disabled={busy || cart.length === 0}>
         Checkout
       </button>
-      <p style={{ color: "var(--text-muted)" }}>{status}</p>
     </main>
   );
 }

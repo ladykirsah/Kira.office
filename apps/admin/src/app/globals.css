@@ -243,6 +243,61 @@ tbody tr:hover {
   }
 }
 
+/* Toasts */
+.toast-wrap {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  max-width: min(360px, calc(100vw - 32px));
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--text-muted);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  animation: toast-in 0.18s ease-out;
+}
+.toast.success {
+  border-left-color: var(--ok);
+}
+.toast.error {
+  border-left-color: var(--danger);
+}
+.toast.info {
+  border-left-color: var(--primary);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* Inline confirm */
+.confirm {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
 /* Topbar theme toggle */
 .theme-toggle {
   margin-left: auto;

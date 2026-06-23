@@ -3,20 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { renderTerms, extractPlaceholders, findMissingPlaceholders } from "@l-shopee/core";
 import { fetchTermsTemplate, saveTermsTemplate } from "@/lib/api";
+import { useToast } from "../ToastProvider";
 
 export default function TermsPage() {
   const [template, setTemplate] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     (async () => {
       try {
         setTemplate(await fetchTermsTemplate());
       } catch (err) {
-        setMsg((err as Error).message);
+        toast((err as Error).message, "error");
       } finally {
         setLoading(false);
       }
@@ -29,12 +30,11 @@ export default function TermsPage() {
 
   async function save() {
     setBusy(true);
-    setMsg("Saving…");
     try {
       await saveTermsTemplate(template);
-      setMsg("Saved ✓");
+      toast("Saved ✓", "success");
     } catch (err) {
-      setMsg((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -63,8 +63,7 @@ export default function TermsPage() {
       <div style={{ marginTop: 8 }}>
         <button className="btn-primary" onClick={save} disabled={busy}>
           Save template
-        </button>{" "}
-        <small style={{ color: "var(--text-muted)" }}>{msg}</small>
+        </button>
       </div>
 
       <h2 style={{ marginTop: 20 }}>Placeholders</h2>

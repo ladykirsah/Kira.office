@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { fetchStock, adjustStock, type StockRow } from "@/lib/api";
+import { useToast } from "../ToastProvider";
 
 export default function StockPage() {
+  const toast = useToast();
   const [rows, setRows] = useState<StockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [variantId, setVariantId] = useState("");
   const [delta, setDelta] = useState("");
   const [movementType, setMovementType] = useState("receive");
   const [reason, setReason] = useState("");
-  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -19,7 +20,7 @@ export default function StockPage() {
       setRows(s);
       if (!variantId && s[0]) setVariantId(s[0].variantId);
     } catch (err) {
-      setMsg((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setLoading(false);
     }
@@ -33,11 +34,10 @@ export default function StockPage() {
   async function apply() {
     const quantityDelta = parseInt(delta, 10);
     if (!variantId || !Number.isFinite(quantityDelta) || quantityDelta === 0) {
-      setMsg("Pick a variant and a non-zero quantity.");
+      toast("Pick a product and a non-zero quantity.", "error");
       return;
     }
     setBusy(true);
-    setMsg("Applying…");
     try {
       const out = await adjustStock({
         productVariantId: variantId,
@@ -45,16 +45,16 @@ export default function StockPage() {
         movementType,
         reason,
       });
-      setMsg(
-        out.applied
-          ? `Done — on hand is now ${out.quantityAfter}.`
-          : `Rejected: ${out.reason ?? "not applied"}`,
-      );
-      setDelta("");
-      setReason("");
-      await load();
+      if (out.applied) {
+        toast(`Done — on hand is now ${out.quantityAfter}`, "success");
+        setDelta("");
+        setReason("");
+        await load();
+      } else {
+        toast(`Rejected: ${out.reason ?? "not applied"}`, "error");
+      }
     } catch (err) {
-      setMsg((err as Error).message);
+      toast((err as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -106,7 +106,6 @@ export default function StockPage() {
           Apply
         </button>
       </div>
-      <p style={{ color: "var(--text-muted)" }}>{msg}</p>
 
       {rows.length === 0 ? (
         <div className="empty">
