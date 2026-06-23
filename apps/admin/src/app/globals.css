@@ -282,10 +282,11 @@ tbody tr:hover {
 /* Plain white tag/chip */
 .tag {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: 8px;
   font-size: 13px;
-  background: var(--surface);
+  font-weight: 500;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   color: var(--text);
 }

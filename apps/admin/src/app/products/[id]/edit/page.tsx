@@ -34,21 +34,19 @@ const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 3 }}>
-        {label}
-      </div>
-      <div>{children}</div>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text)" }}>{children}</div>
     </div>
   );
 }
 
 const groupHead = {
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: "0.05em",
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: "0.04em",
   textTransform: "uppercase",
-  color: "var(--text-faint)",
+  color: "var(--text-muted)",
   marginBottom: 12,
 } as const;
 
