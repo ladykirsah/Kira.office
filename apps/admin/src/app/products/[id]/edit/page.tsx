@@ -297,9 +297,13 @@ export default function EditProductPage() {
         <h1 style={{ margin: 0 }}>{p.name}</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
           <button type="button" onClick={() => router.push("/products")}>
-            Back
+            {editing ? "Cancel" : "Back"}
           </button>
-          {!editing && (
+          {editing ? (
+            <button type="submit" form="product-form" className="btn-primary" disabled={busy}>
+              Save
+            </button>
+          ) : (
             <button className="btn-primary" onClick={() => setEditing(true)}>
               Edit
             </button>
@@ -312,6 +316,7 @@ export default function EditProductPage() {
 
       {editing ? (
         <form
+          id="product-form"
           onSubmit={save}
           style={{
             display: "grid",
@@ -395,12 +400,6 @@ export default function EditProductPage() {
               defaultProfitSatang={editDefaultProfit}
               defaultPriceSatang={editOnline}
             />
-          </div>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <button type="submit" className="btn-primary" disabled={busy}>
-              Save
-            </button>
           </div>
         </form>
       ) : (
