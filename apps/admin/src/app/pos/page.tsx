@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiBase, lookupBarcode } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
+import { flushOutbox, type OutboxStore, type QueuedSale } from "@/lib/outbox";
+import { createIdbStore } from "@/lib/outbox-idb";
 
 interface CartLine {
   productVariantId: string;
@@ -12,9 +14,17 @@ interface CartLine {
   unitPriceSatang: number;
 }
 
-// The scanned barcode is resolved to a real variant via GET /products/by-barcode/:code, so the
-// stock ledger gets valid variant ids. Price/qty are entered at the counter. Offline outbox
-// (IndexedDB queue + retry) is the next iteration.
+async function syncSale(sale: QueuedSale): Promise<boolean> {
+  const res = await fetch(`${apiBase}/sync`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sales: [sale] }),
+  });
+  return res.ok;
+}
+
+// Offline-first: scanning resolves a real variant; checkout tries /sync and, if the network fails,
+// queues the sale in IndexedDB and flushes automatically on reconnect (server dedupes on clientUuid).
 export default function PosPage() {
   const [barcode, setBarcode] = useState("");
   const [priceThb, setPriceThb] = useState("");
@@ -22,6 +32,28 @@ export default function PosPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(0);
+
+  const storeRef = useRef<OutboxStore | null>(null);
+  if (!storeRef.current) storeRef.current = createIdbStore();
+  const store = storeRef.current;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function flush() {
+      const r = await flushOutbox(store, syncSale);
+      if (cancelled) return;
+      if (r.synced) setStatus(`Synced ${r.synced} queued sale(s).`);
+      setPending((await store.all()).length);
+    }
+    flush();
+    const onOnline = () => flush();
+    window.addEventListener("online", onOnline);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", onOnline);
+    };
+  }, [store]);
 
   const totalSatang = cart.reduce((sum, l) => sum + l.unitPriceSatang * l.quantity, 0);
 
@@ -58,30 +90,30 @@ export default function PosPage() {
   async function checkout() {
     if (cart.length === 0) return;
     setBusy(true);
-    setStatus("Syncing…");
+    const sale: QueuedSale = {
+      clientUuid: crypto.randomUUID(),
+      paymentMethod: "cash",
+      lines: cart.map(({ productVariantId, barcodeValue, quantity, unitPriceSatang }) => ({
+        productVariantId,
+        barcodeValue,
+        quantity,
+        unitPriceSatang,
+      })),
+      queuedAt: Date.now(),
+    };
     try {
-      const res = await fetch(`${apiBase}/sync`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sales: [
-            {
-              clientUuid: crypto.randomUUID(),
-              paymentMethod: "cash",
-              lines: cart.map(({ productVariantId, barcodeValue, quantity, unitPriceSatang }) => ({
-                productVariantId,
-                barcodeValue,
-                quantity,
-                unitPriceSatang,
-              })),
-            },
-          ],
-        }),
-      });
-      setStatus(`Synced: ${JSON.stringify(await res.json())}`);
+      if (await syncSale(sale)) {
+        setStatus("Sold ✓");
+        setCart([]);
+      } else {
+        setStatus("Server rejected the sale — check the items and try again.");
+      }
+    } catch {
+      // Network failure → queue offline and flush later.
+      await store.add(sale);
       setCart([]);
-    } catch (err) {
-      setStatus(`Sync failed: ${(err as Error).message}`);
+      setPending((await store.all()).length);
+      setStatus("Offline — sale saved and will sync automatically when back online.");
     } finally {
       setBusy(false);
     }
@@ -90,6 +122,9 @@ export default function PosPage() {
   return (
     <main>
       <h1>POS</h1>
+      {pending > 0 && (
+        <p style={{ color: "#b26a00" }}>⏳ {pending} sale(s) queued offline — will sync when online.</p>
+      )}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <input placeholder="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         <input placeholder="Price (THB)" value={priceThb} onChange={(e) => setPriceThb(e.target.value)} />
