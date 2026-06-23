@@ -52,6 +52,9 @@ function makeDb(canned: {
   saleLines?: unknown[];
   barcodes?: unknown[];
   orders?: unknown[];
+  financeSales?: unknown;
+  financeProfit?: unknown;
+  financeRefunds?: unknown;
 }) {
   const batched: { sql: string }[] = [];
   const make = (sql: string) => {
@@ -83,6 +86,12 @@ function makeDb(canned: {
       },
       async first<T = unknown>(): Promise<T | null> {
         if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
+        if (sql.includes("FROM onsite_sale_lines l JOIN"))
+          return (canned.financeProfit ?? null) as T | null;
+        if (sql.includes("FROM financial_records WHERE record_type"))
+          return (canned.financeRefunds ?? null) as T | null;
+        if (sql.includes("FROM onsite_sales WHERE sale_status"))
+          return (canned.financeSales ?? null) as T | null;
         if (sql.includes("FROM onsite_sales WHERE id"))
           return (canned.saleHeader ?? null) as T | null;
         if (sql.includes("FROM products WHERE product_code"))
@@ -176,6 +185,23 @@ describe("api worker routes", () => {
     const { env } = makeDb({ stock });
     const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
     expect(await res.json()).toEqual({ stock });
+  });
+
+  it("GET /finance/summary > aggregates sales, profit and refunds", async () => {
+    const { env } = makeDb({
+      financeSales: { salesCount: 2, revenueSatang: 21400, vatSatang: 1400 },
+      financeProfit: { grossProfitSatang: 8000 },
+      financeRefunds: { refundCount: 1, refundedSatang: 10700 },
+    });
+    const res = await worker.fetch!(new Request("https://x/finance/summary"), env, ctx);
+    expect(await res.json()).toEqual({
+      salesCount: 2,
+      revenueSatang: 21400,
+      vatSatang: 1400,
+      grossProfitSatang: 8000,
+      refundCount: 1,
+      refundedSatang: 10700,
+    });
   });
 
   it("GET /orders > lists imported orders", async () => {

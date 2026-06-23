@@ -627,6 +627,27 @@ const SALES_SELECT = `SELECT s.id,
  ORDER BY s.created_at DESC
  LIMIT 100`;
 
+/** Finance summary: on-site sales revenue/VAT/profit + refund totals (all-time). */
+async function financeSummary(env: Env): Promise<Response> {
+  const sales = await env.DB.prepare(
+    "SELECT COUNT(*) AS salesCount, COALESCE(SUM(grand_total_satang),0) AS revenueSatang, COALESCE(SUM(tax_total_satang),0) AS vatSatang FROM onsite_sales WHERE sale_status = 'completed'",
+  ).first<{ salesCount: number; revenueSatang: number; vatSatang: number }>();
+  const profit = await env.DB.prepare(
+    "SELECT COALESCE(SUM(l.gross_profit_satang),0) AS grossProfitSatang FROM onsite_sale_lines l JOIN onsite_sales s ON s.id = l.onsite_sale_id WHERE s.sale_status = 'completed'",
+  ).first<{ grossProfitSatang: number }>();
+  const refunds = await env.DB.prepare(
+    "SELECT COUNT(*) AS refundCount, COALESCE(SUM(-amount_satang),0) AS refundedSatang FROM financial_records WHERE record_type = 'refund'",
+  ).first<{ refundCount: number; refundedSatang: number }>();
+  return json({
+    salesCount: sales?.salesCount ?? 0,
+    revenueSatang: sales?.revenueSatang ?? 0,
+    vatSatang: sales?.vatSatang ?? 0,
+    grossProfitSatang: profit?.grossProfitSatang ?? 0,
+    refundCount: refunds?.refundCount ?? 0,
+    refundedSatang: refunds?.refundedSatang ?? 0,
+  });
+}
+
 /** Imported sales orders (Shopee CSV bridge), newest first. */
 async function listOrders(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
@@ -1010,6 +1031,10 @@ const worker = {
 
     if (url.pathname === "/orders" && request.method === "GET") {
       return listOrders(env);
+    }
+
+    if (url.pathname === "/finance/summary" && request.method === "GET") {
+      return financeSummary(env);
     }
 
     if (url.pathname === "/import/shopee-orders" && request.method === "POST") {

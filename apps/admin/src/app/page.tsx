@@ -34,6 +34,9 @@ export default function DashboardPage() {
         <li>
           <a href="/orders">Orders</a> — import Shopee orders (CSV bridge)
         </li>
+        <li>
+          <a href="/finance">Finance</a> — revenue, profit, VAT and refund totals
+        </li>
       </ul>
     </main>
   );

@@ -199,6 +199,21 @@ export async function saveTermsTemplate(template: string): Promise<void> {
   if (!res.ok) throw new Error(`Save failed (HTTP ${res.status})`);
 }
 
+export interface FinanceSummary {
+  salesCount: number;
+  revenueSatang: number;
+  vatSatang: number;
+  grossProfitSatang: number;
+  refundCount: number;
+  refundedSatang: number;
+}
+
+export async function fetchFinanceSummary(): Promise<FinanceSummary> {
+  const res = await fetch(`${apiBase}/finance/summary`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load finance summary (HTTP ${res.status})`);
+  return (await res.json()) as FinanceSummary;
+}
+
 export interface StockRow {
   variantId: string;
   sku: string | null;
