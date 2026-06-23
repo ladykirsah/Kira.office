@@ -114,7 +114,7 @@ export default function EditProductPage() {
       await updateProduct(id, {
         name,
         status: active ? "active" : "draft",
-        shopeeListed: Boolean(detail?.product.shopeeListed), // preserve existing flag
+        shopeeListed: active, // one "Active" toggle = active on-site AND listed on Shopee
         shopeeItemId,
         category,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
@@ -207,22 +207,34 @@ export default function EditProductPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <label style={field}>
-              Barcode
-              <input
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="scan / type"
-              />
-            </label>
-            <label style={field}>
+          <label style={field}>
+            Barcode
+            <input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              placeholder="scan / type"
+            />
+          </label>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ ...field, flex: 1 }}>
               Shopee ID (link)
               <input
                 value={shopeeItemId}
                 onChange={(e) => setShopeeItemId(e.target.value)}
                 placeholder="Shopee item id"
               />
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                />
+                <span className="slider" />
+              </span>
+              <span>Active</span>
             </label>
           </div>
 
@@ -233,18 +245,6 @@ export default function EditProductPage() {
               onChange={(e) => setCategory(e.target.value)}
               placeholder="e.g. Air Conditioning"
             />
-          </label>
-
-          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span className="switch">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              <span className="slider" />
-            </span>
-            <span>Active {active ? "" : "(off — saved as draft)"}</span>
           </label>
 
           <div style={field}>
