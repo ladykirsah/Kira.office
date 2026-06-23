@@ -8,13 +8,29 @@ import {
   deleteCarBrand,
   deleteCarModel,
   type CarBrandTree,
+  type CarModelNode,
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
+import { ModelInfoEditor } from "./ModelInfoEditor";
+
+/** True when a model has any service notes worth flagging in the list. */
+function modelHasInfo(m: CarModelNode): boolean {
+  return Boolean(
+    m.generationCode ||
+    m.yearFrom ||
+    m.yearTo ||
+    m.refrigerant ||
+    m.oringSize ||
+    m.coolantLiters ||
+    m.notes,
+  );
+}
 
 export default function CarFitmentPage() {
   const [brands, setBrands] = useState<CarBrandTree[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [newBrand, setNewBrand] = useState("");
   const [newModel, setNewModel] = useState("");
@@ -76,8 +92,9 @@ export default function CarFitmentPage() {
     <main>
       <h1>Car fitment</h1>
       <p className="muted" style={{ marginTop: -4 }}>
-        Choose a brand on the left, then manage its models on the right. These feed a product&apos;s
-        &ldquo;Fits these cars&rdquo; dropdowns; you can also type new values directly on a product.
+        Choose a brand on the left, then manage its models on the right. Click a model to add
+        service notes (chassis, years, refrigerant, o-ring, coolant) you can reach during customer
+        service. These also feed a product&apos;s &ldquo;Fits these cars&rdquo; dropdowns.
       </p>
 
       {loading ? (
@@ -89,7 +106,10 @@ export default function CarFitmentPage() {
               <div
                 key={b.id}
                 className={b.id === selectedId ? "md-brow sel" : "md-brow"}
-                onClick={() => setSelectedId(b.id)}
+                onClick={() => {
+                  setSelectedId(b.id);
+                  setEditingId(null);
+                }}
               >
                 <span className="nm">{b.name}</span>
                 <span className="cnt">{b.models.length}</span>
@@ -139,17 +159,42 @@ export default function CarFitmentPage() {
                   </p>
                 ) : (
                   <div style={{ padding: "0 6px" }}>
-                    {selected.models.map((m) => (
-                      <div key={m.id} className="md-mrow">
-                        <span>{m.name}</span>
-                        <ConfirmButton
-                          confirmLabel="Remove?"
-                          onConfirm={() => run(() => deleteCarModel(m.id), selected.id)}
-                        >
-                          ✕
-                        </ConfirmButton>
-                      </div>
-                    ))}
+                    {selected.models.map((m) => {
+                      const open = m.id === editingId;
+                      return (
+                        <div key={m.id}>
+                          <div
+                            className="md-mrow"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => setEditingId(open ? null : m.id)}
+                          >
+                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span
+                                className="muted"
+                                aria-hidden="true"
+                                style={{ fontSize: 11, width: 8, display: "inline-block" }}
+                              >
+                                {open ? "▾" : "▸"}
+                              </span>
+                              {m.name}
+                              {modelHasInfo(m) && <span className="md-dot" title="Has notes" />}
+                            </span>
+                            <span
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ display: "flex", alignItems: "center" }}
+                            >
+                              <ConfirmButton
+                                confirmLabel="Remove?"
+                                onConfirm={() => run(() => deleteCarModel(m.id), selected.id)}
+                              >
+                                ✕
+                              </ConfirmButton>
+                            </span>
+                          </div>
+                          {open && <ModelInfoEditor model={m} onSaved={() => load(selected.id)} />}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <form

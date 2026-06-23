@@ -130,10 +130,23 @@ export async function deleteAttribute(kind: AttrKind, id: string): Promise<void>
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
+/** Per-model service notes — a customer-service cheat sheet for a single car model. */
+export interface CarModelInfo {
+  generationCode: string | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+  refrigerant: string | null;
+  oringSize: string | null;
+  coolantLiters: string | null;
+  notes: string | null;
+}
+
+export interface CarModelNode extends AttrOption, CarModelInfo {}
+
 export interface CarBrandTree {
   id: string;
   name: string;
-  models: AttrOption[];
+  models: CarModelNode[];
 }
 
 export async function fetchCarFitment(): Promise<CarBrandTree[]> {
@@ -176,6 +189,18 @@ export async function deleteCarBrand(id: string): Promise<void> {
 export async function deleteCarModel(id: string): Promise<void> {
   const res = await fetch(`${apiBase}/car-fitment/models/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+}
+
+export async function updateCarModel(id: string, info: CarModelInfo): Promise<void> {
+  const res = await fetch(`${apiBase}/car-fitment/models/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(info),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update failed (HTTP ${res.status})`);
+  }
 }
 
 export interface ProductDetail {

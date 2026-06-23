@@ -528,6 +528,26 @@ tbody tr:hover {
   padding: 8px 4px;
   border-top: 1px solid var(--border);
 }
+.md-mrow:hover {
+  background: var(--hover);
+}
+.md-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: inline-block;
+}
+/* Inline per-model service-note editor (the customer-service cheat sheet) */
+.md-minfo {
+  padding: 10px 4px 12px;
+  border-top: 1px dashed var(--border);
+}
+.md-minfo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
 @media (max-width: 560px) {
   .md {
     grid-template-columns: 1fr;

@@ -1232,10 +1232,13 @@ export async function resolveAttribute(
   return (await addAttribute(db, table, n)).id;
 }
 
+/** A car model plus its service notes, as returned in the fitment tree. */
+export interface CarModelNode extends AttrOption, CarModelInfo {}
+
 export interface CarBrandTree {
   id: string;
   name: string;
-  models: AttrOption[];
+  models: CarModelNode[];
 }
 
 /** Car brands with their models nested — for the fitment dropdowns and the Car fitment settings. */
@@ -1244,16 +1247,27 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     db.prepare("SELECT id, name FROM car_brands ORDER BY sort_order, name").all<AttrOption>(),
     db
       .prepare(
-        "SELECT id, name, car_brand_id AS carBrandId FROM car_models ORDER BY sort_order, name",
+        "SELECT id, name, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_size AS oringSize, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
       )
-      .all<{ id: string; name: string; carBrandId: string | null }>(),
+      .all<{ id: string; name: string; carBrandId: string | null } & Partial<CarModelInfo>>(),
   ]);
-  const byBrand = new Map<string, AttrOption[]>();
+  const byBrand = new Map<string, CarModelNode[]>();
   for (const m of models.results ?? []) {
     if (!m.carBrandId) continue;
+    const node: CarModelNode = {
+      id: m.id,
+      name: m.name,
+      generationCode: m.generationCode ?? null,
+      yearFrom: m.yearFrom ?? null,
+      yearTo: m.yearTo ?? null,
+      refrigerant: m.refrigerant ?? null,
+      oringSize: m.oringSize ?? null,
+      coolantLiters: m.coolantLiters ?? null,
+      notes: m.notes ?? null,
+    };
     const list = byBrand.get(m.carBrandId);
-    if (list) list.push({ id: m.id, name: m.name });
-    else byBrand.set(m.carBrandId, [{ id: m.id, name: m.name }]);
+    if (list) list.push(node);
+    else byBrand.set(m.carBrandId, [node]);
   }
   return {
     brands: (brands.results ?? []).map((b) => ({
@@ -1285,6 +1299,45 @@ export async function addCarModel(
     .bind(optionId, n, brandId, Date.now())
     .run();
   return { id: optionId, name: n };
+}
+
+/** Per-model service notes — a customer-service cheat sheet for a single car model. */
+export interface CarModelInfo {
+  generationCode: string | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+  refrigerant: string | null;
+  oringSize: string | null;
+  coolantLiters: string | null;
+  notes: string | null;
+}
+
+/** Save a car model's service notes. Blank text → null; years coerced to integers (or null). */
+export async function updateCarModel(
+  db: D1Database,
+  id: string,
+  info: CarModelInfo,
+): Promise<void> {
+  const text = (v: string | null | undefined) => {
+    const s = (v ?? "").trim();
+    return s || null;
+  };
+  const year = (v: number | null | undefined) => (Number.isFinite(v) ? v : null);
+  await db
+    .prepare(
+      "UPDATE car_models SET generation_code = ?, year_from = ?, year_to = ?, refrigerant = ?, oring_size = ?, coolant_liters = ?, notes = ? WHERE id = ?",
+    )
+    .bind(
+      text(info.generationCode),
+      year(info.yearFrom),
+      year(info.yearTo),
+      text(info.refrigerant),
+      text(info.oringSize),
+      text(info.coolantLiters),
+      text(info.notes),
+      id,
+    )
+    .run();
 }
 
 /** Delete a car brand and all of its models. */
@@ -1536,6 +1589,20 @@ const worker = {
     const cfModelDel = url.pathname.match(/^\/car-fitment\/models\/([^/]+)$/);
     if (cfModelDel && request.method === "DELETE") {
       await deleteAttribute(env.DB, "car_models", cfModelDel[1]!);
+      return json({ ok: true });
+    }
+    const cfModelUpd = url.pathname.match(/^\/car-fitment\/models\/([^/]+)$/);
+    if (cfModelUpd && request.method === "PATCH") {
+      const body = (await request.json().catch(() => ({}))) as Partial<CarModelInfo>;
+      await updateCarModel(env.DB, cfModelUpd[1]!, {
+        generationCode: body.generationCode ?? null,
+        yearFrom: body.yearFrom ?? null,
+        yearTo: body.yearTo ?? null,
+        refrigerant: body.refrigerant ?? null,
+        oringSize: body.oringSize ?? null,
+        coolantLiters: body.coolantLiters ?? null,
+        notes: body.notes ?? null,
+      });
       return json({ ok: true });
     }
 

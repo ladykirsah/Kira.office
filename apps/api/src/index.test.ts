@@ -17,6 +17,7 @@ import worker, {
   setProductFitments,
   listCarFitment,
   addCarModel,
+  updateCarModel,
   updateProduct,
   importProducts,
   importShopeeOrders,
@@ -76,10 +77,13 @@ function makeDb(canned: {
   financeRefunds?: unknown;
 }) {
   const batched: { sql: string }[] = [];
+  const runs: { sql: string; binds: unknown[] }[] = [];
   const make = (sql: string) => {
+    let lastBinds: unknown[] = [];
     const stmt = {
       sql,
-      bind(..._args: unknown[]) {
+      bind(...args: unknown[]) {
+        lastBinds = args;
         return stmt;
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
@@ -132,6 +136,7 @@ function makeDb(canned: {
         return null;
       },
       async run() {
+        runs.push({ sql, binds: lastBinds });
         return { success: true };
       },
     };
@@ -144,7 +149,7 @@ function makeDb(canned: {
       return stmts.map(() => ({}));
     },
   } as unknown as D1Database;
-  return { db, env: { DB: db } as unknown as Env, batched };
+  return { db, env: { DB: db } as unknown as Env, batched, runs };
 }
 
 describe("api worker routes", () => {
@@ -720,17 +725,62 @@ describe("part attributes (brand / car system / part name)", () => {
     expect(batched.length).toBe(2); // 1 delete + 1 insert
   });
 
-  it("listCarFitment nests models under their brand", async () => {
+  it("listCarFitment nests models (with their service notes) under their brand", async () => {
     const { db } = makeDb({
       carBrands: [{ id: "cb1", name: "Toyota" }],
       carModels: [
-        { id: "cm1", name: "Vios", carBrandId: "cb1" },
+        {
+          id: "cm1",
+          name: "Vios",
+          carBrandId: "cb1",
+          generationCode: "NCP150",
+          yearFrom: 2013,
+          yearTo: 2019,
+          refrigerant: "R134a",
+          oringSize: '1/2"',
+          coolantLiters: "0.45",
+          notes: "belt 4PK",
+        },
         { id: "cm2", name: "City", carBrandId: "cb2" }, // orphan brand → dropped
       ],
     });
     expect(await listCarFitment(db)).toEqual({
-      brands: [{ id: "cb1", name: "Toyota", models: [{ id: "cm1", name: "Vios" }] }],
+      brands: [
+        {
+          id: "cb1",
+          name: "Toyota",
+          models: [
+            {
+              id: "cm1",
+              name: "Vios",
+              generationCode: "NCP150",
+              yearFrom: 2013,
+              yearTo: 2019,
+              refrigerant: "R134a",
+              oringSize: '1/2"',
+              coolantLiters: "0.45",
+              notes: "belt 4PK",
+            },
+          ],
+        },
+      ],
     });
+  });
+
+  it("updateCarModel writes the model's service-note fields in order", async () => {
+    const { db, runs } = makeDb({});
+    await updateCarModel(db, "cm1", {
+      generationCode: "NCP150",
+      yearFrom: 2013,
+      yearTo: 2019,
+      refrigerant: "R134a",
+      oringSize: '1/2"',
+      coolantLiters: "0.45",
+      notes: "belt 4PK",
+    });
+    const upd = runs.find((r) => r.sql.includes("UPDATE car_models SET"));
+    expect(upd).toBeTruthy();
+    expect(upd!.binds).toEqual(["NCP150", 2013, 2019, "R134a", '1/2"', "0.45", "belt 4PK", "cm1"]);
   });
 
   it("addCarModel creates a model under a brand when none matches", async () => {
