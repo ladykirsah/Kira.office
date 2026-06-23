@@ -30,7 +30,10 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
   },
   {
     section: "Settings",
-    links: [["/terms", "📝", "Terms"]],
+    links: [
+      ["/settings/attributes", "🧩", "Part attributes"],
+      ["/terms", "📝", "Terms"],
+    ],
   },
 ];
 

@@ -70,6 +70,20 @@ export const products = sqliteTable("products", {
   createdAt: createdAt(),
 });
 
+// Managed attribute lists behind the product dropdowns (creatable). products reference these by id
+// via brand_id (part brand) / type_id (part name) / usage_id (car system).
+const attributeTable = (name: string) =>
+  sqliteTable(name, {
+    id: id(),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  });
+
+export const brands = attributeTable("brands");
+export const productTypes = attributeTable("product_types");
+export const usageCategories = attributeTable("usage_categories");
+
 export const productImages = sqliteTable(
   "product_images",
   {

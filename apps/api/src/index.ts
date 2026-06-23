@@ -1017,6 +1017,12 @@ export interface ProductDetail {
     shopeeItemId: string | null;
     category: string | null;
     weightGrams: number;
+    brandId: string | null;
+    brandName: string | null;
+    typeId: string | null;
+    typeName: string | null;
+    usageId: string | null;
+    usageName: string | null;
   };
   variantId: string | null;
   barcode: string | null;
@@ -1035,7 +1041,16 @@ export interface ProductDetail {
 export async function getProductDetail(db: D1Database, id: string): Promise<ProductDetail | null> {
   const product = await db
     .prepare(
-      "SELECT id, product_code AS productCode, name, description, status, image_key AS imageKey, shopee_listed AS shopeeListed, shopee_item_id AS shopeeItemId, category, weight_grams AS weightGrams FROM products WHERE id = ?",
+      `SELECT p.id, p.product_code AS productCode, p.name, p.description, p.status, p.image_key AS imageKey,
+              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId, p.category, p.weight_grams AS weightGrams,
+              p.brand_id AS brandId, b.name AS brandName,
+              p.type_id AS typeId, t.name AS typeName,
+              p.usage_id AS usageId, u.name AS usageName
+       FROM products p
+       LEFT JOIN brands b ON b.id = p.brand_id
+       LEFT JOIN product_types t ON t.id = p.type_id
+       LEFT JOIN usage_categories u ON u.id = p.usage_id
+       WHERE p.id = ?`,
     )
     .bind(id)
     .first<ProductDetail["product"]>();
@@ -1083,11 +1098,14 @@ export async function updateProduct(
     shopeeItemId?: string;
     category?: string;
     weightGrams?: number;
+    brandId?: string | null;
+    typeId?: string | null;
+    usageId?: string | null;
   },
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, category = ?, weight_grams = ? WHERE id = ?",
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ? WHERE id = ?",
     )
     .bind(
       fields.name.trim(),
@@ -1097,9 +1115,80 @@ export async function updateProduct(
       fields.shopeeItemId?.trim() || null,
       fields.category?.trim() || null,
       Math.max(0, Math.round(fields.weightGrams ?? 0)),
+      fields.brandId ?? null,
+      fields.typeId ?? null,
+      fields.usageId ?? null,
       id,
     )
     .run();
+}
+
+export interface AttrOption {
+  id: string;
+  name: string;
+}
+
+// Whitelist of attribute kinds → their table. Table names come from this literal map only (never
+// from request input), so interpolating them into SQL is safe.
+const ATTR_TABLE: Record<string, string> = {
+  brand: "brands",
+  type: "product_types",
+  usage: "usage_categories",
+};
+
+/** All three managed attribute lists for the product dropdowns. */
+export async function listAttributes(
+  db: D1Database,
+): Promise<{ brands: AttrOption[]; types: AttrOption[]; usages: AttrOption[] }> {
+  const q = (table: string) =>
+    db.prepare(`SELECT id, name FROM ${table} ORDER BY sort_order, name`).all<AttrOption>();
+  const [brands, types, usages] = await Promise.all([
+    q("brands"),
+    q("product_types"),
+    q("usage_categories"),
+  ]);
+  return {
+    brands: brands.results ?? [],
+    types: types.results ?? [],
+    usages: usages.results ?? [],
+  };
+}
+
+/** Find an option by name (case-insensitive) or create it. Returns the option. */
+export async function addAttribute(
+  db: D1Database,
+  table: string,
+  name: string,
+): Promise<AttrOption> {
+  const n = name.trim();
+  if (!n) throw new Error("name is required");
+  const existing = await db
+    .prepare(`SELECT id, name FROM ${table} WHERE name = ? COLLATE NOCASE`)
+    .bind(n)
+    .first<AttrOption>();
+  if (existing) return existing;
+  const optionId = crypto.randomUUID();
+  await db
+    .prepare(`INSERT INTO ${table} (id, name, sort_order, created_at) VALUES (?, ?, 0, ?)`)
+    .bind(optionId, n, Date.now())
+    .run();
+  return { id: optionId, name: n };
+}
+
+/** Remove an option. Products still referencing it simply show a blank value. */
+export async function deleteAttribute(db: D1Database, table: string, id: string): Promise<void> {
+  await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+}
+
+/** Resolve a typed/selected attribute value to an option id (creating it if new); null when empty. */
+export async function resolveAttribute(
+  db: D1Database,
+  table: string,
+  name: string | null | undefined,
+): Promise<string | null> {
+  const n = (name ?? "").trim();
+  if (!n) return null;
+  return (await addAttribute(db, table, n)).id;
 }
 
 /**
@@ -1263,6 +1352,26 @@ const worker = {
       return listBarcodes(env);
     }
 
+    // Managed part-attribute lists (brand / car system / part name) for the dropdowns + settings.
+    if (url.pathname === "/attributes" && request.method === "GET") {
+      return json(await listAttributes(env.DB));
+    }
+    const attrAdd = url.pathname.match(/^\/attributes\/([^/]+)$/);
+    if (attrAdd && request.method === "POST") {
+      const table = ATTR_TABLE[attrAdd[1]!];
+      if (!table) return json({ error: "unknown attribute kind" }, 404);
+      const body = (await request.json().catch(() => ({}))) as { name?: string };
+      if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      return json(await addAttribute(env.DB, table, body.name), 201);
+    }
+    const attrDel = url.pathname.match(/^\/attributes\/([^/]+)\/([^/]+)$/);
+    if (attrDel && request.method === "DELETE") {
+      const table = ATTR_TABLE[attrDel[1]!];
+      if (!table) return json({ error: "unknown attribute kind" }, 404);
+      await deleteAttribute(env.DB, table, attrDel[2]!);
+      return json({ ok: true });
+    }
+
     const addBarcode = url.pathname.match(/^\/products\/([^/]+)\/barcode$/);
     if (addBarcode && request.method === "POST") {
       const body = (await request.json().catch(() => ({}))) as { barcodeValue?: string };
@@ -1305,21 +1414,36 @@ const worker = {
         status?: string;
         shopeeListed?: boolean;
         shopeeItemId?: string;
-        category?: string;
         weightGrams?: number;
         barcode?: string;
+        brandName?: string;
+        usageName?: string;
+        typeName?: string;
       };
       if (!body?.name || !body?.status) {
         return json({ error: "name and status are required" }, 400);
       }
+      // Creatable dropdowns: resolve typed/selected names to option ids (creating new ones), and
+      // compose a human-readable category (brand · system · part) for the list/search view.
+      const brandId = await resolveAttribute(env.DB, "brands", body.brandName);
+      const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
+      const typeId = await resolveAttribute(env.DB, "product_types", body.typeName);
+      const category =
+        [body.brandName, body.usageName, body.typeName]
+          .map((s) => s?.trim())
+          .filter(Boolean)
+          .join(" · ") || undefined;
       await updateProduct(env.DB, productById[1]!, {
         name: body.name,
         description: body.description,
         status: body.status,
         shopeeListed: body.shopeeListed,
         shopeeItemId: body.shopeeItemId,
-        category: body.category,
+        category,
         weightGrams: body.weightGrams,
+        brandId,
+        typeId,
+        usageId,
       });
       if (typeof body.barcode === "string") {
         const variant = await env.DB.prepare(

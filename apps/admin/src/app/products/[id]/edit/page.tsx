@@ -7,7 +7,9 @@ import {
   getProductDetail,
   updateProduct,
   setProductPricing,
+  fetchAttributes,
   type ProductDetail,
+  type Attributes,
 } from "@/lib/api";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
@@ -15,6 +17,7 @@ import { BarcodePreview } from "../../BarcodePreview";
 import { PricingFields, type PricingForm } from "../../PricingFields";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
 import { ProfitPeek } from "../../ProfitPeek";
+import { PartDetails, type PartForm } from "../../PartDetails";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
@@ -86,9 +89,11 @@ export default function EditProductPage() {
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
-  const [category, setCategory] = useState("");
   const [active, setActive] = useState(true);
   const [weightKg, setWeightKg] = useState("");
+  const [attributes, setAttributes] = useState<Attributes | null>(null);
+  const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
+  const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
   const [pricing, setPricing] = useState<PricingForm>({
     costThb: "",
     taxOnCost: false,
@@ -104,7 +109,11 @@ export default function EditProductPage() {
     setName(d.product.name);
     setBarcode(d.barcode ?? "");
     setShopeeItemId(d.product.shopeeItemId ?? "");
-    setCategory(d.product.category ?? "");
+    setPart({
+      brand: d.product.brandName ?? "",
+      usage: d.product.usageName ?? "",
+      type: d.product.typeName ?? "",
+    });
     setActive(d.product.status === "active");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
     setPricing({
@@ -122,8 +131,9 @@ export default function EditProductPage() {
 
   async function load() {
     try {
-      const d = await getProductDetail(id);
+      const [d, attrs] = await Promise.all([getProductDetail(id), fetchAttributes()]);
       setDetail(d);
+      setAttributes(attrs);
       hydrate(d);
     } catch (err) {
       toast((err as Error).message, "error");
@@ -146,9 +156,11 @@ export default function EditProductPage() {
         status: active ? "active" : "draft",
         shopeeListed: active, // one "Active" toggle = active on-site AND listed on Shopee
         shopeeItemId,
-        category,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         barcode,
+        brandName: part.brand,
+        usageName: part.usage,
+        typeName: part.type,
       });
       if (detail?.variantId) {
         await setProductPricing(id, {
@@ -305,14 +317,9 @@ export default function EditProductPage() {
             </label>
           </div>
 
-          <label style={field}>
-            Category
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. Air Conditioning"
-            />
-          </label>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <PartDetails value={part} onChange={updatePart} attributes={attributes} />
+          </div>
 
           <label style={field}>
             Weight (kg)
@@ -354,7 +361,7 @@ export default function EditProductPage() {
               {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
             </Row>
             <Row label="Shopee ID">{p.shopeeItemId || "—"}</Row>
-            <Row label="Category">{p.category || "—"}</Row>
+            <Row label="Part details">{p.category || "—"}</Row>
             <Row label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Row>
           </div>
 

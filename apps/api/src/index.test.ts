@@ -11,6 +11,9 @@ import worker, {
   setVariantPricing,
   setVariantBarcode,
   storeGalleryImage,
+  listAttributes,
+  addAttribute,
+  resolveAttribute,
   updateProduct,
   importProducts,
   importShopeeOrders,
@@ -52,6 +55,10 @@ function makeDb(canned: {
   variantRow?: unknown | null;
   pricingRow?: unknown | null;
   images?: unknown[];
+  brands?: unknown[];
+  types?: unknown[];
+  usages?: unknown[];
+  attrOption?: unknown | null;
   stock?: unknown[];
   stockOnHand?: number;
   saleHeader?: unknown | null;
@@ -71,6 +78,9 @@ function makeDb(canned: {
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
         if (sql.includes("FROM product_images")) return { results: (canned.images ?? []) as T[] };
+        if (sql.includes("FROM brands")) return { results: (canned.brands ?? []) as T[] };
+        if (sql.includes("FROM product_types")) return { results: (canned.types ?? []) as T[] };
+        if (sql.includes("FROM usage_categories")) return { results: (canned.usages ?? []) as T[] };
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
         if (sql.includes("FROM product_variants v JOIN products"))
@@ -103,8 +113,8 @@ function makeDb(canned: {
           return (canned.saleHeader ?? null) as T | null;
         if (sql.includes("FROM products WHERE product_code"))
           return (canned.existingProduct ?? null) as T | null;
-        if (sql.includes("FROM products WHERE id"))
-          return (canned.productDetail ?? null) as T | null;
+        if (sql.includes("FROM products p")) return (canned.productDetail ?? null) as T | null;
+        if (sql.includes("COLLATE NOCASE")) return (canned.attrOption ?? null) as T | null;
         if (sql.includes("FROM product_variants WHERE product_id"))
           return (canned.variantRow ?? null) as T | null;
         if (sql.includes("FROM pricing_profiles")) return (canned.pricingRow ?? null) as T | null;
@@ -670,6 +680,74 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
       ctx,
     );
     expect(await res.json()).toEqual({ ok: true });
+  });
+});
+
+describe("part attributes (brand / car system / part name)", () => {
+  it("listAttributes returns the three lists", async () => {
+    const { db } = makeDb({
+      brands: [{ id: "b1", name: "DENSO" }],
+      types: [{ id: "t1", name: "Evaporator" }],
+      usages: [{ id: "u1", name: "A/C" }],
+    });
+    expect(await listAttributes(db)).toEqual({
+      brands: [{ id: "b1", name: "DENSO" }],
+      types: [{ id: "t1", name: "Evaporator" }],
+      usages: [{ id: "u1", name: "A/C" }],
+    });
+  });
+
+  it("addAttribute reuses an existing option (case-insensitive), no insert", async () => {
+    const { db, batched } = makeDb({ attrOption: { id: "b1", name: "DENSO" } });
+    const out = await addAttribute(db, "brands", "denso");
+    expect(out).toEqual({ id: "b1", name: "DENSO" });
+    expect(batched.length).toBe(0);
+  });
+
+  it("addAttribute creates a new option when none matches", async () => {
+    const { db } = makeDb({ attrOption: null });
+    const out = await addAttribute(db, "brands", "  Bosch  ");
+    expect(out.name).toBe("Bosch");
+    expect(out.id).toBeTruthy();
+  });
+
+  it("resolveAttribute returns null for an empty value", async () => {
+    const { db } = makeDb({});
+    expect(await resolveAttribute(db, "brands", "   ")).toBeNull();
+  });
+
+  it("GET /attributes returns the lists", async () => {
+    const { env } = makeDb({ brands: [{ id: "b1", name: "DENSO" }] });
+    const res = await worker.fetch!(new Request("https://x/attributes"), env, ctx);
+    const body = (await res.json()) as { brands: unknown[] };
+    expect(body.brands).toEqual([{ id: "b1", name: "DENSO" }]);
+  });
+
+  it("POST /attributes/:kind rejects an unknown kind", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/attributes/nope", {
+        method: "POST",
+        body: JSON.stringify({ name: "x" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("POST /attributes/brand creates an option", async () => {
+    const { env } = makeDb({ attrOption: null });
+    const res = await worker.fetch!(
+      new Request("https://x/attributes/brand", {
+        method: "POST",
+        body: JSON.stringify({ name: "Bosch" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { name: string }).name).toBe("Bosch");
   });
 });
 

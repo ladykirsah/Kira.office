@@ -86,6 +86,41 @@ export interface ProductImage {
   isCover: number;
 }
 
+export type AttrKind = "brand" | "type" | "usage";
+export interface AttrOption {
+  id: string;
+  name: string;
+}
+export interface Attributes {
+  brands: AttrOption[];
+  types: AttrOption[];
+  usages: AttrOption[];
+}
+
+export async function fetchAttributes(): Promise<Attributes> {
+  const res = await fetch(`${apiBase}/attributes`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load attributes (HTTP ${res.status})`);
+  return (await res.json()) as Attributes;
+}
+
+export async function addAttribute(kind: AttrKind, name: string): Promise<AttrOption> {
+  const res = await fetch(`${apiBase}/attributes/${kind}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as AttrOption;
+}
+
+export async function deleteAttribute(kind: AttrKind, id: string): Promise<void> {
+  const res = await fetch(`${apiBase}/attributes/${kind}/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+}
+
 export interface ProductDetail {
   product: {
     id: string;
@@ -98,6 +133,12 @@ export interface ProductDetail {
     shopeeItemId: string | null;
     category: string | null;
     weightGrams: number;
+    brandId: string | null;
+    brandName: string | null;
+    typeId: string | null;
+    typeName: string | null;
+    usageId: string | null;
+    usageName: string | null;
   };
   variantId: string | null;
   barcode: string | null;
@@ -126,9 +167,11 @@ export async function updateProduct(
     status: string;
     shopeeListed?: boolean;
     shopeeItemId?: string;
-    category?: string;
     weightGrams?: number;
     barcode?: string;
+    brandName?: string;
+    usageName?: string;
+    typeName?: string;
   },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/products/${id}`, {
