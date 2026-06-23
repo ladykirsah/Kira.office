@@ -119,9 +119,9 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
             display: "flex",
             flexDirection: "column",
             flexWrap: "wrap",
-            maxHeight: 350,
+            height: 350,
             alignContent: "flex-start",
-            gap: 8,
+            gap: 10,
           }}
         >
           {images.map((img, i) => (
@@ -131,8 +131,8 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
               onClick={() => setActive(i)}
               aria-label={`Show image ${i + 1}${i === 0 ? " (cover)" : ""}`}
               style={{
-                width: 112,
-                height: 112,
+                width: 110,
+                height: 110,
                 padding: 0,
                 minHeight: 0,
                 borderRadius: 10,
