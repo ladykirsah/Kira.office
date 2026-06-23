@@ -357,25 +357,32 @@ export default function EditProductPage() {
               background: "var(--surface)",
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>Pricing</div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "150px 1fr",
-                gap: "10px 16px",
-                alignItems: "center",
-              }}
-            >
-              <Row label="Online · default">
-                {pr ? <PriceProfit price={n0(pr.onlinePriceSatang)} profit={vOnlineProfit} /> : "—"}
-              </Row>
-              <Row label="On-site · B2C">
-                {pr ? <PriceProfit price={n0(pr.targetPriceSatang)} profit={vB2cProfit} /> : "—"}
-              </Row>
-              <Row label="On-site · B2B">
-                {pr ? <PriceProfit price={n0(pr.b2bPriceSatang)} profit={vB2bProfit} /> : "—"}
-              </Row>
-            </div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Pricing</div>
+            {[
+              {
+                label: "Online · default",
+                price: n0(pr?.onlinePriceSatang),
+                profit: vOnlineProfit,
+              },
+              { label: "On-site · B2C", price: n0(pr?.targetPriceSatang), profit: vB2cProfit },
+              { label: "On-site · B2B", price: n0(pr?.b2bPriceSatang), profit: vB2bProfit },
+            ].map((t) => (
+              <div
+                key={t.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "10px 0",
+                  borderTop: "1px solid var(--border)",
+                }}
+              >
+                <div className="muted" style={{ width: 150, flexShrink: 0 }}>
+                  {t.label}
+                </div>
+                <div>{pr ? <PriceProfit price={t.price} profit={t.profit} /> : "—"}</div>
+              </div>
+            ))}
           </div>
         </>
       )}
