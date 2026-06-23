@@ -290,19 +290,6 @@ export default function EditProductPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
 
-          <label style={field}>
-            Barcode
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <input
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="scan / type"
-                style={{ flex: 1, minWidth: 0 }}
-              />
-              <BarcodePreview value={barcode} />
-            </div>
-          </label>
-
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
             <label style={{ ...field, flex: 1 }}>
               Shopee ID (link)
@@ -326,7 +313,13 @@ export default function EditProductPage() {
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
-            <PartDetails value={part} onChange={updatePart} attributes={attributes} />
+            <PartDetails
+              value={part}
+              onChange={updatePart}
+              attributes={attributes}
+              barcode={barcode}
+              onBarcodeChange={setBarcode}
+            />
           </div>
 
           <label style={field}>
