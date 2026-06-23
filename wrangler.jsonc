@@ -5,7 +5,8 @@
   // Bindings (D1, R2, KV, Queues, Durable Objects) are added as resources are provisioned —
   // see the full target config in docs/CLOUDFLARE_ARCHITECTURE.md.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "kiraoffice",
+  // Must match the Workers Builds project name on GoGoCash ("kira-office").
+  "name": "kira-office",
   // Pin the GoGoCash account so `wrangler deploy` doesn't fail in CI when the token can see
   // multiple accounts ("unable to select one in non-interactive mode"). account_id is not a secret.
   // (Migrated from the old "homeseeker" account once homeseeker.me + the paid plan moved to GoGoCash.)
