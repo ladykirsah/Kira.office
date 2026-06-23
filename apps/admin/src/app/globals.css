@@ -564,21 +564,6 @@ tbody tr:hover {
   border-radius: 6px;
   padding: 1px 7px;
 }
-/* Clickable era quick-pick chip (Fits-these-cars year filler) */
-.era-chip {
-  min-height: 0;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border: 1px solid transparent;
-  border-radius: 6px;
-}
-.era-chip:hover:not(:disabled) {
-  background: var(--primary-soft);
-  border-color: var(--primary);
-}
 /* Expanded model: a coral spine ties the highlighted row to its editor (Option C). */
 .md-mexp {
   border-left: 3px solid var(--primary);
