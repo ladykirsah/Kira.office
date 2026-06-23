@@ -45,7 +45,14 @@ export interface SyncResult {
   conflicts: SyncConflict[];
 }
 
-const json = (data: unknown, status = 200): Response => Response.json(data, { status });
+const SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "no-referrer",
+};
+
+const json = (data: unknown, status = 200): Response =>
+  Response.json(data, { status, headers: SECURITY_HEADERS });
 
 /**
  * Per-line gross profit in satang for an on-site sale line: (price·qty − discount − tax) − cost·qty.
@@ -925,6 +932,7 @@ const worker = {
       const csv = salesToCsv(await querySales(env.DB));
       return new Response(csv, {
         headers: {
+          ...SECURITY_HEADERS,
           "content-type": "text/csv; charset=utf-8",
           "content-disposition": 'attachment; filename="sales.csv"',
         },
@@ -1007,9 +1015,10 @@ const worker = {
     if (url.pathname.startsWith("/img/") && request.method === "GET") {
       const key = decodeURIComponent(url.pathname.slice("/img/".length));
       const obj = await env.IMAGES.get(key);
-      if (!obj) return new Response("Not found", { status: 404 });
+      if (!obj) return new Response("Not found", { status: 404, headers: SECURITY_HEADERS });
       return new Response(obj.body, {
         headers: {
+          ...SECURITY_HEADERS,
           "content-type": obj.httpMetadata?.contentType ?? "application/octet-stream",
           "cache-control": "public, max-age=31536000, immutable",
         },
@@ -1048,7 +1057,7 @@ const worker = {
       return json(await ledger.applySync(body.sales ?? []));
     }
 
-    return new Response("Not Found", { status: 404 });
+    return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
   },
 } satisfies ExportedHandler<Env>;
 

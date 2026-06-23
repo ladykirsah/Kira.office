@@ -124,6 +124,7 @@ describe("api worker routes", () => {
   it("GET /health > 200 ok", async () => {
     const res = await worker.fetch!(new Request("https://x/health"), {} as Env, ctx);
     expect(res.status).toBe(200);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(await res.json()).toEqual({ ok: true, service: "kiraoffice-api" });
   });
 
