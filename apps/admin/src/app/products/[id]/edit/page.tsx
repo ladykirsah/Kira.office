@@ -66,35 +66,79 @@ function yearStr(f: Fitment): string {
   return "";
 }
 
+/** View-mode gallery: a 224px main image (defaults to the cover) with 112px thumbnails to switch. */
 function StaticFrames({ images, name }: { images: ProductDetail["images"]; name: string }) {
+  const [active, setActive] = useState(0);
+
   if (images.length === 0) {
     return (
       <span
         style={{
-          width: 92,
-          height: 92,
-          borderRadius: 10,
+          width: 224,
+          height: 224,
+          borderRadius: 12,
           background: "var(--hover)",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
           color: "var(--text-faint)",
-          fontSize: 28,
+          fontSize: 56,
         }}
       >
         📦
       </span>
     );
   }
+
+  const idx = Math.min(active, images.length - 1);
   return (
-    <div className="frames">
-      {images.map((img, i) => (
-        <div className="frame" key={img.id}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${apiBase}/img/${img.imageKey}`} alt={name} />
-          {i === 0 && <span className="cover-badge">Cover</span>}
+    <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+      <div
+        style={{
+          width: 224,
+          height: 224,
+          borderRadius: 12,
+          overflow: "hidden",
+          border: "1px solid var(--border)",
+          background: "var(--hover)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${apiBase}/img/${images[idx].imageKey}`}
+          alt={name}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      </div>
+      {images.length > 1 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {images.map((img, i) => (
+            <button
+              key={img.id}
+              type="button"
+              onClick={() => setActive(i)}
+              aria-label={`Show image ${i + 1}${i === 0 ? " (cover)" : ""}`}
+              style={{
+                width: 112,
+                height: 112,
+                padding: 0,
+                minHeight: 0,
+                borderRadius: 10,
+                overflow: "hidden",
+                background: "var(--hover)",
+                border: i === idx ? "2px solid var(--primary)" : "1px solid var(--border)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`${apiBase}/img/${img.imageKey}`}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            </button>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
