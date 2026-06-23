@@ -27,6 +27,9 @@
   ],
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
+  // Daily backup at 19:00 UTC (= 02:00 Asia/Bangkok). Shopee periodic sync hooks into the same
+  // scheduled() handler once SHOPEE_* creds are set. Queues are added with the live Shopee adapter.
+  "triggers": { "crons": ["0 19 * * *"] },
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the build token to have zone DNS/Workers-routes edit.
   "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }],

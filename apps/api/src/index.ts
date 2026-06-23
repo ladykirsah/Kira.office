@@ -736,6 +736,30 @@ async function financeSummary(env: Env): Promise<Response> {
   });
 }
 
+const BACKUP_TABLES = [
+  "products",
+  "product_variants",
+  "barcodes",
+  "pricing_profiles",
+  "onsite_sales",
+  "onsite_sale_lines",
+  "stock_ledger_entries",
+  "sales_orders",
+  "financial_records",
+];
+
+/** Daily logical backup: dump key tables to a dated JSON object in R2. Returns the object key. */
+export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
+  const dump: Record<string, unknown[]> = {};
+  for (const table of BACKUP_TABLES) {
+    const { results } = await env.DB.prepare(`SELECT * FROM ${table}`).all();
+    dump[table] = results ?? [];
+  }
+  const key = `backups/${new Date(atMs).toISOString().slice(0, 10)}.json`;
+  await env.IMAGES.put(key, JSON.stringify({ exportedAt: atMs, tables: dump }));
+  return key;
+}
+
 /** Imported sales orders (Shopee CSV bridge), newest first. */
 async function listOrders(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
@@ -1152,6 +1176,17 @@ const worker = {
     }
 
     return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
+  },
+
+  // Cron (see wrangler.jsonc triggers.crons): daily D1→R2 backup. The Shopee periodic order pull
+  // hooks in here once SHOPEE_* creds are configured (gated on managed-seller API eligibility).
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    _ctx: ExecutionContext,
+  ): Promise<void> {
+    const key = await runDailyBackup(env, controller.scheduledTime);
+    console.log(`backup: wrote ${key}`);
   },
 } satisfies ExportedHandler<Env>;
 

@@ -15,6 +15,7 @@ import worker, {
   lookupBarcode,
   refundSaleToDb,
   requireAccess,
+  runDailyBackup,
   salesToCsv,
   storeProductImage,
   type Env,
@@ -343,6 +344,22 @@ describe("api worker routes", () => {
       ctx,
     );
     expect(await res.json()).toEqual({ applied: 1, duplicates: 0, conflicts: [] });
+  });
+});
+
+describe("runDailyBackup", () => {
+  it("exports tables to R2 under a dated key", async () => {
+    const { env } = makeDb({});
+    const puts: { key: string; body: string }[] = [];
+    (env as unknown as { IMAGES: unknown }).IMAGES = {
+      put: async (k: string, v: string) => {
+        puts.push({ key: k, body: v });
+      },
+    };
+    const key = await runDailyBackup(env, 0);
+    expect(key).toBe("backups/1970-01-01.json");
+    expect(puts.length).toBe(1);
+    expect(JSON.parse(puts[0]!.body)).toHaveProperty("tables");
   });
 });
 
