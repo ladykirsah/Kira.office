@@ -29,7 +29,16 @@ export function PartDetails({
     .join(" · ");
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 10,
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: "14px 16px",
+        background: "var(--surface)",
+      }}
+    >
       <span style={{ fontWeight: 600 }}>Part details</span>
       <div
         style={{
