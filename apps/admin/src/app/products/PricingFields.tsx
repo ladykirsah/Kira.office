@@ -51,7 +51,16 @@ export function PricingFields({
   const b2bProfit = profitSatang(b2b, tc, 0);
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 12,
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: "14px 16px",
+        background: "var(--surface)",
+      }}
+    >
       <div style={{ fontWeight: 600 }}>Pricing</div>
 
       <div
