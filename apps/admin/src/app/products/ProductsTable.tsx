@@ -216,7 +216,17 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                         </span>
                       )}
                       <div style={{ minWidth: 0 }}>
-                        <a href={`/products/${p.id}/edit`} style={{ fontWeight: 600 }}>
+                        <a
+                          href={`/products/${p.id}/edit`}
+                          title={p.name}
+                          style={{
+                            fontWeight: 600,
+                            display: "block",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
                           {p.name}
                         </a>
                         {(() => {
