@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
-import { ArchiveButton } from "./ArchiveButton";
+import { ActionsMenu } from "./ActionsMenu";
 
 type Tab = "all" | "listed" | "unlisted";
 
@@ -117,10 +117,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                   </span>
                 </td>
                 <td>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <a href={`/products/${p.id}/edit`}>Edit</a>
-                    <ArchiveButton productId={p.id} status={p.status} />
-                  </div>
+                  <ActionsMenu productId={p.id} status={p.status} />
                 </td>
               </tr>
             ))}

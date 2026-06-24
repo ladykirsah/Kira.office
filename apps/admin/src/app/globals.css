@@ -815,6 +815,66 @@ tbody tr:hover {
   align-items: center;
 }
 
+/* Per-row Actions dropdown (products table) */
+.actions-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+.actions-btn:hover {
+  background: var(--hover);
+}
+.actions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 168px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.12);
+  z-index: 20;
+}
+.actions-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 9px 10px;
+  font-size: 14px;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+}
+.actions-item:hover {
+  background: var(--hover);
+}
+.actions-item.danger:hover {
+  background: var(--primary-faint);
+  color: var(--primary-hover);
+}
+.actions-item.is-disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+.actions-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
 /* Topbar theme toggle */
 .theme-toggle {
   margin-left: auto;
