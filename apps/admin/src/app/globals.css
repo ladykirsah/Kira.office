@@ -136,6 +136,11 @@ textarea {
   background: var(--surface);
   color: var(--text);
 }
+/* Toolbar search: typed text near-black + slightly bold, placeholder stays muted like the selects' default */
+.tbar-input::placeholder {
+  color: var(--text-faint);
+  font-weight: 400;
+}
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--ring);

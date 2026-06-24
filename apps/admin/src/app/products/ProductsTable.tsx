@@ -85,10 +85,11 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         }}
       >
         <input
+          className="tbar-input"
           placeholder="Search code or name…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          style={{ width: 240, maxWidth: "100%" }}
+          style={{ width: 240, maxWidth: "100%", color: "var(--text)", fontWeight: 500 }}
         />
         <select
           aria-label="Sort by"
@@ -96,6 +97,10 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           onChange={(e) => {
             setSortBy(e.target.value);
             setFilterVal("");
+          }}
+          style={{
+            color: sortBy ? "var(--text)" : "var(--text-faint)",
+            fontWeight: sortBy ? 500 : 400,
           }}
         >
           <option value="">Sort by…</option>
@@ -110,6 +115,10 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           value={filterVal}
           onChange={(e) => setFilterVal(e.target.value)}
           disabled={!dim}
+          style={{
+            color: filterVal ? "var(--text)" : "var(--text-faint)",
+            fontWeight: filterVal ? 500 : 400,
+          }}
         >
           <option value="">{dim ? `All ${dim.label.toLowerCase()}` : "Filter…"}</option>
           {filterOptions.map((v) => (
