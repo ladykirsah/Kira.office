@@ -44,11 +44,13 @@ const wrap = {
   justifyContent: "flex-end",
 } as const;
 
-// Editing stacks vertically (input on top, save icon below-right) so it fits the narrow Stock column.
+// Editing lays out the input + save icon on one line; only when the column is too narrow to
+// fit both does the icon wrap below (flex-wrap), so wide columns keep the normal inline look.
 const editWrap = {
-  display: "inline-flex",
-  flexDirection: "column",
-  alignItems: "flex-end",
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "flex-end",
   gap: 4,
 } as const;
 
@@ -100,12 +102,13 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
           onChange={(e) => setValue(e.target.value)}
           inputMode="numeric"
           autoFocus
+          className="stock-input"
           disabled={busy}
           onKeyDown={(e) => {
             if (e.key === "Enter") save();
             else if (e.key === "Escape") setEditing(false);
           }}
-          style={{ width: 56, textAlign: "right", minHeight: 0, padding: "4px 6px" }}
+          style={{ width: 52, textAlign: "right", minHeight: 0, padding: "4px 6px" }}
         />
         <button
           type="button"

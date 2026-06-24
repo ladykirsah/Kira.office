@@ -157,12 +157,12 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
         >
           <colgroup>
-            <col style={{ width: "31%" }} />
+            <col style={{ width: "30%" }} />
             <col style={{ width: "17%" }} />
             <col style={{ width: "17%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "10%" }} />
             <col style={{ width: "14%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "12%" }} />
           </colgroup>
           <thead>
             <tr>

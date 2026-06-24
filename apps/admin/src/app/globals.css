@@ -146,6 +146,11 @@ textarea {
   box-shadow: 0 0 0 3px var(--ring);
   border-color: var(--primary);
 }
+/* Inline stock editor input keeps a neutral focus, not the coral primary ring. */
+.stock-input:focus-visible {
+  border-color: var(--text-muted);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-muted) 20%, transparent);
+}
 
 /* Primary / danger actions (opt-in classes) */
 .btn-primary {
