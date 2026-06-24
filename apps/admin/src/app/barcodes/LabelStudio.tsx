@@ -286,135 +286,163 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
         all of them.
       </p>
 
-      {/* Paper + orientation (whole file) */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, margin: "16px 0" }}>
-        <div>
-          <div style={fieldLabel}>Paper size</div>
-          <Seg
-            value={paper}
-            onChange={setPaper}
-            options={[
-              ["A4", "A4"],
-              ["A5", "A5"],
-            ]}
-          />
-        </div>
-        <div>
-          <div style={fieldLabel}>Orientation</div>
-          <Seg
-            value={orientation}
-            onChange={setOrientation}
-            options={[
-              ["portrait", "Portrait"],
-              ["landscape", "Landscape"],
-            ]}
-          />
-        </div>
-      </div>
-
-      {/* Search to add */}
-      <div style={{ position: "relative", maxWidth: 420 }}>
-        <input
-          className="tbar-input"
-          placeholder="Search a product to add…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
-        />
-        {results.length > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              zIndex: 5,
-              left: 0,
-              right: 0,
-              marginTop: 4,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
-              overflow: "hidden",
-            }}
-          >
-            {results.map((p) => {
-              const added = chosen.has(p.id);
-              const disabled = !p.barcode || added;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => addProduct(p)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    width: "100%",
-                    minHeight: 0,
-                    padding: "8px 12px",
-                    border: "none",
-                    borderRadius: 0,
-                    background: "transparent",
-                    textAlign: "left",
-                    opacity: disabled ? 0.5 : 1,
-                  }}
-                >
-                  <Cover p={p} size={32} />
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
-                    <span className="muted" style={{ fontSize: 12 }}>
-                      {p.code}
-                      {!p.barcode ? " · no barcode" : added ? " · added" : ""}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Label cards */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 18 }}>
-        {items.length === 0 ? (
-          <p className="muted">No products yet — search above to add labels to the sheet.</p>
-        ) : (
-          items.map((it) => (
-            <LabelCard
-              key={it.product.id}
-              item={it}
-              onChange={(patch) => patchItem(it.product.id, patch)}
-              onRemove={() => removeItem(it.product.id)}
+      <div
+        style={{
+          display: "flex",
+          gap: 28,
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          marginTop: 16,
+        }}
+      >
+        {/* Column 1 — search + product label cards */}
+        <div
+          style={{
+            flex: "1 1 480px",
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          <div style={{ position: "relative", maxWidth: 420 }}>
+            <input
+              className="tbar-input"
+              placeholder="Search a product to add…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
             />
-          ))
-        )}
+            {results.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  zIndex: 5,
+                  left: 0,
+                  right: 0,
+                  marginTop: 4,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+                  overflow: "hidden",
+                }}
+              >
+                {results.map((p) => {
+                  const added = chosen.has(p.id);
+                  const disabled = !p.barcode || added;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => addProduct(p)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        minHeight: 0,
+                        padding: "8px 12px",
+                        border: "none",
+                        borderRadius: 0,
+                        background: "transparent",
+                        textAlign: "left",
+                        opacity: disabled ? 0.5 : 1,
+                      }}
+                    >
+                      <Cover p={p} size={32} />
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          {p.code}
+                          {!p.barcode ? " · no barcode" : added ? " · added" : ""}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {items.length === 0 ? (
+            <p className="muted">No products yet — search above to add labels to the sheet.</p>
+          ) : (
+            items.map((it) => (
+              <LabelCard
+                key={it.product.id}
+                item={it}
+                onChange={(patch) => patchItem(it.product.id, patch)}
+                onRemove={() => removeItem(it.product.id)}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Column 2 — paper, download, file preview (stays in view) */}
+        <div
+          style={{
+            flex: "0 0 300px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+            position: "sticky",
+            top: 16,
+            maxHeight: "calc(100vh - 32px)",
+            overflowY: "auto",
+          }}
+        >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div style={fieldLabel}>Paper size</div>
+              <Seg
+                value={paper}
+                onChange={setPaper}
+                options={[
+                  ["A4", "A4"],
+                  ["A5", "A5"],
+                ]}
+              />
+            </div>
+            <div>
+              <div style={fieldLabel}>Orientation</div>
+              <Seg
+                value={orientation}
+                onChange={setOrientation}
+                options={[
+                  ["portrait", "Portrait"],
+                  ["landscape", "Landscape"],
+                ]}
+              />
+            </div>
+          </div>
+
+          {items.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={plan.placements.length === 0}
+                onClick={download}
+              >
+                Download PDF
+              </button>
+              <span className="muted" style={{ fontSize: 13 }}>
+                {plan.placements.length} label{plan.placements.length === 1 ? "" : "s"} ·{" "}
+                {plan.pages} {paper} page{plan.pages === 1 ? "" : "s"}
+              </span>
+            </div>
+          )}
+
+          {plan.placements.length > 0 && (
+            <div>
+              <div style={fieldLabel}>File preview</div>
+              <div ref={previewRef} className="sheet-preview" />
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Footer: totals + download */}
-      {items.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={plan.placements.length === 0}
-            onClick={download}
-          >
-            Download PDF
-          </button>
-          <span className="muted" style={{ fontSize: 13 }}>
-            {plan.placements.length} label{plan.placements.length === 1 ? "" : "s"} · {plan.pages}{" "}
-            {paper} page{plan.pages === 1 ? "" : "s"}
-          </span>
-        </div>
-      )}
-
-      {/* Live preview of the printed sheet(s) */}
-      {plan.placements.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={fieldLabel}>Sheet preview</div>
-          <div ref={previewRef} className="sheet-preview" />
-        </div>
-      )}
     </main>
   );
 }
