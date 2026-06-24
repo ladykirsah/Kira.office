@@ -102,6 +102,7 @@ export default function NewProductPage() {
             className="btn-soft"
             onClick={() => submit("draft")}
             disabled={busy}
+            style={{ minHeight: 44, padding: "10px 16px", fontSize: 15 }}
           >
             Save draft
           </button>
