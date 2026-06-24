@@ -405,8 +405,6 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
             gap: 18,
             position: "sticky",
             top: 16,
-            maxHeight: "calc(100vh - 32px)",
-            overflowY: "auto",
           }}
         >
           <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
