@@ -157,11 +157,12 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
         >
           <colgroup>
-            {/* Percentage columns so the table scales with the window and never forces overflow. */}
-            <col style={{ width: "30%" }} />
+            {/* Product (auto) absorbs slack; Stock is fixed so it hugs the inline editor.
+                Only one fixed column, so the table still scales down without overflow. */}
+            <col />
             <col style={{ width: "17%" }} />
             <col style={{ width: "17%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: 96 }} />
             <col style={{ width: "10%" }} />
             <col style={{ width: "12%" }} />
           </colgroup>
