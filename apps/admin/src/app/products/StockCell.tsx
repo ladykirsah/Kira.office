@@ -41,7 +41,7 @@ const wrap = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  justifyContent: "flex-end",
+  justifyContent: "center",
 } as const;
 
 // Editing lays out the input + save icon on one line; only when the column is too narrow to
@@ -50,7 +50,7 @@ const editWrap = {
   display: "flex",
   flexWrap: "wrap",
   alignItems: "center",
-  justifyContent: "flex-end",
+  justifyContent: "center",
   gap: 4,
 } as const;
 

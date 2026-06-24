@@ -157,21 +157,21 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
         >
           <colgroup>
-            {/* Product (auto) absorbs slack; Stock is fixed so it hugs the inline editor.
-                Only one fixed column, so the table still scales down without overflow. */}
+            {/* Product (auto) absorbs slack; Stock and Action are fixed so they hug their
+                content. Only two narrow fixed columns, so the table still scales down. */}
             <col />
             <col style={{ width: "17%" }} />
             <col style={{ width: "17%" }} />
             <col style={{ width: 96 }} />
             <col style={{ width: "10%" }} />
-            <col style={{ width: "12%" }} />
+            <col style={{ width: 106 }} />
           </colgroup>
           <thead>
             <tr>
               <th align="left">Product</th>
               <th align="left">Online price</th>
               <th align="left">B2C price</th>
-              <th align="right">Stock</th>
+              <th align="center">Stock</th>
               <th align="left">Status</th>
               <th align="left">Action</th>
             </tr>
@@ -256,7 +256,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                   <td>
                     <PriceProfitCell priceSatang={p.offlinePriceSatang} profitSatang={b2cProfit} />
                   </td>
-                  <td align="right">
+                  <td align="center">
                     <StockCell variantId={p.variantId} onHand={p.onHand} />
                   </td>
                   <td>
