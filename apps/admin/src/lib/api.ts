@@ -443,6 +443,33 @@ export async function archiveProduct(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Archive failed (HTTP ${res.status})`);
 }
 
+export interface BarcodeRow {
+  variantId: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  barcode: string | null;
+}
+
+export async function fetchBarcodes(): Promise<BarcodeRow[]> {
+  const res = await fetch(`${apiBase}/barcodes`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load barcodes (HTTP ${res.status})`);
+  return ((await res.json()) as { barcodes: BarcodeRow[] }).barcodes;
+}
+
+export async function addBarcode(
+  productId: string,
+  barcodeValue?: string,
+): Promise<{ barcodeValue: string; generated: boolean }> {
+  const res = await fetch(`${apiBase}/products/${productId}/barcode`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ barcodeValue }),
+  });
+  if (!res.ok) throw new Error(`Add barcode failed (HTTP ${res.status})`);
+  return (await res.json()) as { barcodeValue: string; generated: boolean };
+}
+
 export interface SaleRow {
   id: string;
   paymentMethod: string | null;
