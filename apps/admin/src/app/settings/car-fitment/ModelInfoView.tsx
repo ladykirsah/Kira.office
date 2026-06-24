@@ -43,7 +43,19 @@ export function ModelInfoView({ model, onEdit }: { model: CarModelNode; onEdit: 
           ))}
         </div>
       )}
-      <button type="button" className="btn-primary" onClick={onEdit} style={{ marginTop: 14 }}>
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={onEdit}
+        style={{
+          marginTop: 14,
+          padding: 8,
+          minHeight: 0,
+          fontSize: 13,
+          fontWeight: 400,
+          borderRadius: 8,
+        }}
+      >
         Edit
       </button>
     </div>
