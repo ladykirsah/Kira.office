@@ -1532,6 +1532,23 @@ const worker = {
       return json({ ok: true, service: "kiraoffice-api" });
     }
 
+    // Friendly root, so hitting the API host directly isn't a bare 404. The admin UI is a separate
+    // app on its own origin (port 3000 in local dev). Public — no data here.
+    if (url.pathname === "/" && (request.method === "GET" || request.method === "HEAD")) {
+      const adminUrl =
+        url.hostname === "localhost" ? "http://localhost:3000" : "https://app.homeseeker.me";
+      const body = `<!doctype html><meta charset="utf-8"><title>kiraoffice API</title>
+<body style="font-family:system-ui;max-width:34rem;margin:4rem auto;padding:0 1rem;color:#1f2430;line-height:1.6">
+<h1 style="color:#bf3c1d;margin-bottom:.25rem">kiraoffice API</h1>
+<p>This is the back-office <strong>API</strong> (health, products, sync…) — not the admin interface.</p>
+<p>Open the admin UI at <a href="${adminUrl}" style="color:#bf3c1d">${adminUrl}</a>.</p>
+<p style="color:#566071">API health: <a href="/health" style="color:#566071">/health</a></p>`;
+      return new Response(body, {
+        status: 200,
+        headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8" },
+      });
+    }
+
     const isPublic = url.pathname.startsWith("/img/");
     let userEmail: string | null = null;
     if (!isPublic) {
