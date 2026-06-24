@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { satangToThb, formatBaht, formatUpdatedAt } from "./format";
+import { satangToThb, formatBaht, formatBahtTrim, formatUpdatedAt } from "./format";
 
 describe("formatUpdatedAt", () => {
   it("formats a timestamp as DD/MM/YYYY · HH:MM in local 24-hour time", () => {
@@ -22,5 +22,16 @@ describe("satang display helpers", () => {
 
   it("formatBaht prefixes ฿", () => {
     expect(formatBaht(10700)).toBe("฿107.00");
+  });
+
+  it("formatBahtTrim drops decimals for whole baht", () => {
+    expect(formatBahtTrim(289000)).toBe("฿2890");
+    expect(formatBahtTrim(10700)).toBe("฿107");
+    expect(formatBahtTrim(0)).toBe("฿0");
+  });
+
+  it("formatBahtTrim keeps two decimals when there are satang", () => {
+    expect(formatBahtTrim(289050)).toBe("฿2890.50");
+    expect(formatBahtTrim(5)).toBe("฿0.05");
   });
 });

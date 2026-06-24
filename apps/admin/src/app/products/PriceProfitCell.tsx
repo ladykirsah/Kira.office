@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-const baht = (s: number) => `฿${(s / 100).toFixed(2)}`;
+import { formatBahtTrim } from "@/lib/format";
 
 /**
  * One price tier in the products table: the price with a press-and-hold eye that reveals its profit
@@ -23,7 +22,7 @@ export function PriceProfitCell({
   return (
     <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontWeight: 600 }}>{baht(priceSatang)}</span>
+        <span style={{ fontWeight: 600 }}>{formatBahtTrim(priceSatang)}</span>
         <button
           type="button"
           aria-label="Hold to reveal profit"
@@ -63,7 +62,7 @@ export function PriceProfitCell({
       <span style={{ fontSize: 12, minHeight: 15 }}>
         {show ? (
           <strong style={{ color: profitSatang >= 0 ? "var(--ok)" : "var(--danger)" }}>
-            profit {baht(profitSatang)}
+            profit {formatBahtTrim(profitSatang)}
           </strong>
         ) : (
           <span className="muted">hold to see profit</span>

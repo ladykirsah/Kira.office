@@ -7,6 +7,11 @@ export function formatBaht(satang: number): string {
   return `฿${satangToThb(satang)}`;
 }
 
+/** Like formatBaht but drops the decimals for whole-baht amounts (฿2890 not ฿2890.00). */
+export function formatBahtTrim(satang: number): string {
+  return satang % 100 === 0 ? `฿${satang / 100}` : formatBaht(satang);
+}
+
 /** A stored timestamp (ms) as "DD/MM/YYYY · HH:MM" in the viewer's local 24-hour time. */
 export function formatUpdatedAt(ms: number): string {
   const d = new Date(ms);
