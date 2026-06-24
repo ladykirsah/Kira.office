@@ -32,9 +32,12 @@ packages/db   D1 schema (Drizzle `schema.ts`, the shape source of truth) + hand-
 docs/         This handoff set + the original planning docs.
 ```
 
-Full reference: [API_REFERENCE.md](API_REFERENCE.md) · [SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md) ·
-[MODULE_PRODUCT_EDITOR.md](MODULE_PRODUCT_EDITOR.md) · [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) ·
-backend platform design (intended): [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md).
+Reference: [API_REFERENCE.md](API_REFERENCE.md) · [SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md) ·
+[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). Module specs:
+[Core logic](MODULE_CORE_LOGIC.md) · [Product editor](MODULE_PRODUCT_EDITOR.md) ·
+[POS & sync](MODULE_POS_AND_SYNC.md) · [Sales/finance/import](MODULE_SALES_FINANCE_IMPORT.md).
+Full navigable index: [docs/README.md](README.md). Intended platform design:
+[CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md).
 
 ## 3. What is LIVE / built ✅
 

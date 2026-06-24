@@ -73,8 +73,9 @@ App initialization steps live in [apps/admin/README.md](apps/admin/README.md) an
 | [AGENTS.md](AGENTS.md) | Work rules for AI agents and developers. |
 | [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Every Worker REST endpoint + request/response shape. |
 | [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md) | Real D1 schema (migrations 0000–0012) + migration workflow. |
-| [docs/MODULE_PRODUCT_EDITOR.md](docs/MODULE_PRODUCT_EDITOR.md) | Admin product-editor + car-fitment module spec. |
 | [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) | UI tokens, component patterns, formatting conventions. |
+| [docs/README.md](docs/README.md) | **Documentation index** — full reading order for the docs folder. |
+| Module specs | [Core logic](docs/MODULE_CORE_LOGIC.md) · [Product editor](docs/MODULE_PRODUCT_EDITOR.md) · [POS & sync](docs/MODULE_POS_AND_SYNC.md) · [Sales/finance/import](docs/MODULE_SALES_FINANCE_IMPORT.md) |
 | [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md) | Product goal, users, assumptions, success criteria. |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional and non-functional requirements. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | App module boundaries and platform-independent flows. |
