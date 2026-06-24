@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
+import { productStatusTag } from "@/lib/productStatus";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
@@ -169,7 +170,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               <th align="left">Online price</th>
               <th align="left">B2C price</th>
               <th align="right">Stock</th>
-              <th align="left">Shopee</th>
+              <th align="left">Status</th>
               <th align="left">Action</th>
             </tr>
           </thead>
@@ -257,9 +258,10 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                     <StockCell variantId={p.variantId} onHand={p.onHand} />
                   </td>
                   <td>
-                    <span className={p.shopeeListed ? "pill on" : "pill off"}>
-                      {p.shopeeListed ? "Active" : "Not listed"}
-                    </span>
+                    {(() => {
+                      const s = productStatusTag(p);
+                      return <span className={`pill ${s.cls}`}>{s.label}</span>;
+                    })()}
                   </td>
                   <td>
                     <ActionsMenu productId={p.id} status={p.status} />
