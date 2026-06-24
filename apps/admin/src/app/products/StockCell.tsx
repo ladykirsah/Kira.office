@@ -44,6 +44,14 @@ const wrap = {
   justifyContent: "flex-end",
 } as const;
 
+// Editing stacks vertically (input on top, save icon below-right) so it fits the narrow Stock column.
+const editWrap = {
+  display: "inline-flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 4,
+} as const;
+
 /** Inline stock editor: number + pencil → input + check (saves a ledger adjustment for the delta). */
 export function StockCell({ variantId, onHand }: { variantId: string | null; onHand: number }) {
   const toast = useToast();
@@ -86,7 +94,7 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
 
   if (editing) {
     return (
-      <span style={wrap}>
+      <span style={editWrap}>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -97,7 +105,7 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
             if (e.key === "Enter") save();
             else if (e.key === "Escape") setEditing(false);
           }}
-          style={{ width: 60, textAlign: "right", minHeight: 0, padding: "4px 6px" }}
+          style={{ width: 56, textAlign: "right", minHeight: 0, padding: "4px 6px" }}
         />
         <button
           type="button"

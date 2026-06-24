@@ -852,18 +852,19 @@ tbody tr:hover {
   max-width: 52ch;
 }
 
-/* Compact icon button (inline cell editors, etc.) */
+/* Plain icon button — no frame (inline cell editors, etc.) */
 .icon-btn {
   min-height: 0;
-  padding: 4px 6px;
+  padding: 2px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
-  border-radius: 7px;
+  border: 0;
+  background: none;
   color: var(--text-muted);
 }
 .icon-btn:hover:not(:disabled) {
-  background: var(--hover);
+  color: var(--text);
 }
 
 /* Per-row Actions dropdown (products table) */
