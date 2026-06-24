@@ -1042,7 +1042,6 @@ a.card:hover {
 .content {
   padding: 24px;
   width: 100%;
-  max-width: 1080px;
 }
 
 /* Responsive: sidebar becomes a horizontal bar (tablet/phone at the counter) */
