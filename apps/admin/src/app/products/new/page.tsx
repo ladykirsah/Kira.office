@@ -1,21 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createProduct,
   updateProduct,
   adjustStock,
+  setProductPricing,
   fetchAttributes,
   type Attributes,
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
+import { ProductGallery } from "../ProductGallery";
+import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
 
 const field = { display: "grid", gap: 4 } as const;
 
-/** Add product: same layout + fields as the editor. "Save draft" / "Save product" set the status;
- *  photos / pricing / fitments are added on the edit page you land on after saving. */
+/** Add product — same sections as the editor (photos, part details, pricing). The product is created
+ *  lazily on the first photo upload or on save; "Save draft" / "Save product" set the status. */
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
@@ -27,8 +30,19 @@ export default function NewProductPage() {
   const [productRef, setProductRef] = useState("");
   const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
+  const [pricing, setPricing] = useState<PricingForm>({
+    costThb: "",
+    taxOnCost: false,
+    b2cThb: "",
+    b2bThb: "",
+    onlineThb: "",
+    onlineCommPct: "",
+  });
   const [attributes, setAttributes] = useState<Attributes | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Source of truth for the created product (sync, avoids stale state in async flows).
+  const created = useRef<{ id: string; variantId: string | null } | null>(null);
 
   useEffect(() => {
     fetchAttributes()
@@ -37,35 +51,59 @@ export default function NewProductPage() {
   }, []);
 
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
+  const updatePricing = (patch: Partial<PricingForm>) =>
+    setPricing((prev) => ({ ...prev, ...patch }));
+
+  /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
+  async function ensureProduct(): Promise<string | null> {
+    if (created.current) return created.current.id;
+    if (!productCode.trim() || !name.trim()) {
+      toast("Enter a product code and name first", "error");
+      return null;
+    }
+    const out = await createProduct({ productCode, name });
+    if (!out.created) {
+      toast(`A product with code “${productCode}” already exists`, "info");
+      return null;
+    }
+    created.current = { id: out.productId, variantId: out.variantId };
+    setCreatedId(out.productId);
+    return out.productId;
+  }
 
   async function submit(status: "draft" | "active") {
-    if (!productCode.trim() || !name.trim()) {
-      toast("Product code and name are required", "error");
-      return;
-    }
     setBusy(true);
     try {
-      const out = await createProduct({ productCode, name, barcode: barcode || undefined });
-      if (!out.created) {
-        toast(`A product with code “${productCode}” already exists`, "info");
+      const id = await ensureProduct();
+      if (!id) {
         setBusy(false);
         return;
       }
-      await updateProduct(out.productId, {
+      await updateProduct(id, {
         name,
         status,
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
         productRef: productRef || undefined,
+        barcode: barcode || undefined,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
         typeName: part.type || undefined,
       });
+      await setProductPricing(id, {
+        itemCostSatang: toSatang(pricing.costThb),
+        targetPriceSatang: toSatang(pricing.b2cThb),
+        onlinePriceSatang: toSatang(pricing.onlineThb),
+        b2bPriceSatang: toSatang(pricing.b2bThb),
+        onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
+        taxOnCost: pricing.taxOnCost,
+      });
       const stock = Math.round(parseFloat(stockQty) || 0);
-      if (out.variantId && stock > 0) {
+      const vid = created.current?.variantId ?? null;
+      if (vid && stock > 0) {
         await adjustStock({
-          productVariantId: out.variantId,
+          productVariantId: vid,
           quantityDelta: stock,
           movementType: "initial_stock",
           reason: "created from Add product",
@@ -75,7 +113,7 @@ export default function NewProductPage() {
         status === "active" ? `Saved “${productCode}”` : `Draft “${productCode}” saved`,
         "success",
       );
-      router.push(`/products/${out.productId}/edit`);
+      router.push(`/products/${id}/edit`);
     } catch (err) {
       toast((err as Error).message, "error");
       setBusy(false);
@@ -117,7 +155,7 @@ export default function NewProductPage() {
         </div>
       </div>
       <p className="muted" style={{ marginTop: 4 }}>
-        New product — add photos, pricing and fitments after saving.
+        New product — fitments are added on the edit page after saving.
       </p>
 
       <form
@@ -132,9 +170,23 @@ export default function NewProductPage() {
           alignItems: "start",
         }}
       >
+        <div style={{ ...field, gridColumn: "1 / -1" }}>
+          <span style={{ fontWeight: 600 }}>Photos</span>
+          <ProductGallery
+            productId={createdId ?? ""}
+            initial={[]}
+            ensureProductId={ensureProduct}
+          />
+        </div>
+
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product code *
-          <input value={productCode} onChange={(e) => setProductCode(e.target.value)} required />
+          <input
+            value={productCode}
+            onChange={(e) => setProductCode(e.target.value)}
+            disabled={!!createdId}
+            required
+          />
         </label>
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product name *
@@ -175,6 +227,10 @@ export default function NewProductPage() {
             shopeeItemId={shopeeItemId}
             onShopeeItemIdChange={setShopeeItemId}
           />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <PricingFields form={pricing} update={updatePricing} />
         </div>
       </form>
     </main>

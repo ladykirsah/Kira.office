@@ -10,9 +10,12 @@ const MAX = 10;
 export function ProductGallery({
   productId,
   initial,
+  ensureProductId,
 }: {
   productId: string;
   initial: ProductImage[];
+  /** When productId is empty (e.g. the Add page), create the product on first upload and return its id. */
+  ensureProductId?: () => Promise<string | null>;
 }) {
   const [images, setImages] = useState<ProductImage[]>(initial);
   const [busy, setBusy] = useState(false);
@@ -25,7 +28,9 @@ export function ProductGallery({
     if (!file) return;
     setBusy(true);
     try {
-      const img = await uploadGalleryImage(productId, file);
+      const pid = productId || (ensureProductId ? await ensureProductId() : "");
+      if (!pid) return;
+      const img = await uploadGalleryImage(pid, file);
       setImages((prev) => [...prev, img]);
       toast("Image added ✓", "success");
     } catch (err) {
