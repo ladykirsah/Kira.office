@@ -1,5 +1,10 @@
 # Data Model Draft
 
+> ⚠️ **This is the original plan and now lags the implementation.** For the schema as actually built
+> (migrations `0000`–`0012`, table by table), see **[SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)**. This
+> file is kept for the design rationale and the parts not yet built (variants, terms, Shopee mapping,
+> audit_logs).
+
 Initial schema plan for **Cloudflare D1** (SQLite). Field names can change during implementation;
 the **Drizzle** schema in `packages/db/src/schema.ts` is the source of truth once code exists.
 Reflects [DECISIONS.md](DECISIONS.md): per-product VAT, four cost methods, offline-first sales,

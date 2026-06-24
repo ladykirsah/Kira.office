@@ -1,7 +1,9 @@
 # AGENTS.md - L Shopee Project Rules
 
 These instructions apply to this project folder and override broader defaults when more specific.
-Read [docs/DECISIONS.md](docs/DECISIONS.md) first — it is the source of truth for confirmed choices.
+Read [docs/DECISIONS.md](docs/DECISIONS.md) first — it is the source of truth for confirmed choices —
+then [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) for the as-built snapshot (what's done,
+in progress, next; the API/schema/module/design references hang off it).
 
 ## Project Intent
 

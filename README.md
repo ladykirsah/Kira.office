@@ -6,17 +6,25 @@ from one workspace.
 
 ## Current Status
 
-- **Live API on Cloudflare:** the `kiraoffice` Worker is deployed at **`https://api.homeseeker.me`**
-  (homeseeker account), backed by **D1** (`kira-office`, APAC) and **KV**, auto-deployed from `main`
-  via Workers Builds. GitHub CI (lint/typecheck/test) is green.
-- **Live endpoints:** `GET /health`, `POST /pricing/preview`, `GET /products`, `POST /sync`
-  (idempotent offline-sale persistence + stock ledger).
-- `packages/core` — pure domain logic (pricing/tax/cost/stock/terms/sync/orders/imports/finance),
-  built test-first (88 tests). `packages/db` — Drizzle D1 schema, 16 tables migrated.
+> **Picking this up?** Read **[docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md)** — the current
+> as-built snapshot (what's done, in progress, and next). The summary below is the short version.
+
+- **Live API on Cloudflare:** the `kira-office` Worker is deployed at **`https://api.homeseeker.me`**,
+  backed by **D1** (`kira-office`) + **R2** (`kiraoffice-images`) + **KV** + the **`StockLedger`
+  Durable Object**, with a daily backup cron; auto-deployed from `main` via Workers Builds. CI green.
+- **Full REST surface** — products CRUD + image gallery, pricing, stock/ledger, barcodes, attributes,
+  car-fitment tree, sales/refunds, finance, CSV imports, idempotent `/sync`. See
+  [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
+- **Admin app (Next.js 15 / React 19, OpenNext)** is built: product editor (view+edit, gallery,
+  pricing, fitment), car-fitment + attribute settings, POS, stock, sales, finance, import, terms.
+- `packages/core` — pure domain logic, test-first. **186 tests** across `core` + `api`.
+  `packages/db` — Drizzle schema + 13 SQL migrations (`0000`–`0012`); see
+  [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md).
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
   sellers; the back office runs fully without it (CSV bridge meanwhile).
-- **Next:** R2 for images (enable R2 in the dashboard), the serialized stock-ledger Durable Object,
-  Queues + Cron for Shopee sync, and the Next.js admin UI.
+- **Next:** activate Cloudflare Access auth + an `audit_logs` table; Queues + Cron for Shopee sync;
+  product variants; confirm the admin production deploy. Details in
+  [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §5.
 
 ## Confirmed Scope
 
@@ -36,12 +44,12 @@ KV) — see [docs/CLOUDFLARE_ARCHITECTURE.md](docs/CLOUDFLARE_ARCHITECTURE.md).
 
 ```
 apps/
-  admin/      # Next.js admin + offline-first POS (PWA) — Workers via OpenNext  (stub)
-  api/        # Cloudflare Worker: API, /sync, Shopee adapter, queues, ledger DO (stub)
+  admin/      # Next.js admin + offline-first POS (PWA) — Workers via OpenNext  (built)
+  api/        # Cloudflare Worker: API, /sync, ledger DO, image serving           (live)
 packages/
   core/       # Pure-TS business logic: pricing, profit, tax, cost, stock (TDD)
-  db/         # D1 schema + migrations via Drizzle
-docs/         # Requirements, architecture, data model, decisions
+  db/         # D1 schema (Drizzle) + hand-written SQL migrations
+docs/         # Handoff set + requirements, architecture, data model, decisions
 ```
 
 ## Getting Started
@@ -60,8 +68,13 @@ App initialization steps live in [apps/admin/README.md](apps/admin/README.md) an
 
 | File | Purpose |
 | --- | --- |
+| [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) | **As-built snapshot — what's done, in progress, next. Start here to continue.** |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | **Confirmed decisions — read first.** |
 | [AGENTS.md](AGENTS.md) | Work rules for AI agents and developers. |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Every Worker REST endpoint + request/response shape. |
+| [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md) | Real D1 schema (migrations 0000–0012) + migration workflow. |
+| [docs/MODULE_PRODUCT_EDITOR.md](docs/MODULE_PRODUCT_EDITOR.md) | Admin product-editor + car-fitment module spec. |
+| [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) | UI tokens, component patterns, formatting conventions. |
 | [docs/PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md) | Product goal, users, assumptions, success criteria. |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional and non-functional requirements. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | App module boundaries and platform-independent flows. |
@@ -79,6 +92,6 @@ App initialization steps live in [apps/admin/README.md](apps/admin/README.md) an
 
 ## Recommended Next Step
 
-Confirm the GitHub push target (see the blocker above), then begin Phase 1 of
-[docs/ROADMAP.md](docs/ROADMAP.md): initialize the app shells, wire the database, and grow
-`packages/core` test-first.
+The foundation, API, and admin UI are built. See
+[docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §5 for the prioritized next steps —
+activating Cloudflare Access auth + audit logging is the highest-leverage one before production use.

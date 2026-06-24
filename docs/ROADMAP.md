@@ -4,6 +4,10 @@ Strategy: build the **local-first** back office (catalog, barcode, inventory, pr
 finance) before any live Shopee writes, then connect Shopee as a gated phase. See
 [DECISIONS.md](DECISIONS.md).
 
+> **Where we actually are (2026-06-24):** Phases 0–1 done; Phases 2 & 4 (catalog + pricing/finance)
+> largely built in the admin app; Phase 3 (POS/inventory) partial; Phase 5 (Shopee) still gated.
+> The authoritative as-built status + next steps is [STATE_OF_THE_BUILD.md](STATE_OF_THE_BUILD.md).
+
 ## Phase 0 — Requirement Lock ✅ (done)
 
 - Open questions answered; stack confirmed (Next.js/TS).
@@ -24,20 +28,24 @@ finance) before any live Shopee writes, then connect Shopee as a gated phase. Se
 - Bindings provisioned: D1 + KV ✅ · custom domain `api.homeseeker.me` ✅ · CI + auto-deploy ✅
 - _Remaining:_ `apps/admin` (Next.js UI), **Cloudflare Access** auth + audit log, R2 (images), Queues.
 
-## Phase 2 — Product Catalog MVP
+## Phase 2 — Product Catalog MVP ✅ (largely built)
 
-Product list; add/edit; type/brand/usage; variants; image upload; barcode management
-(existing-first); Thai terms pattern generation + approval; Google Sheets/CSV product import.
+Product list; add/edit; type/brand/usage; image upload; barcode management (existing-first);
+Google Sheets/CSV product import — **built**. Vehicle fitment (brand→model/era) + per-model service
+notes added on top. _Remaining:_ real product **variants** (one implicit variant today); Thai terms
+**generation + approval** flow (template endpoint exists, per-product generate not built).
 
-## Phase 3 — Inventory & Offline POS
+## Phase 3 — Inventory & Offline POS 🚧 (partial)
 
-Stock ledger; inventory snapshots; barcode lookup; **offline-first** on-site sale screen with
-local store + sync engine; payment capture (Cash/PromptPay); stock deduction + audit logs.
+Stock ledger (Durable Object) + barcode lookup + idempotent `/sync` + a POS screen + stock/sales
+pages — **built**. _Remaining:_ harden the offline outbox/PWA reliability; audit logs (no
+`audit_logs` table yet); multi-location.
 
-## Phase 4 — Pricing & Finance
+## Phase 4 — Pricing & Finance ✅ (largely built)
 
-Cost/pricing profiles (all four cost methods); tax (per-product incl/excl) and Shopee fee profiles;
-profit preview; sales table; finance summary (incl. VAT); CSV/spreadsheet export for accountant.
+Pricing profiles (cost, B2B/B2C/online prices, commission, tax-on-cost); per-product VAT; profit
+math; campaign what-if workspace; sales table + refunds; finance summary; CSV export — **built**.
+_Remaining:_ surface all four cost methods in the UI; richer accountant export.
 
 ## Phase 5 — Shopee Integration (gated)
 
