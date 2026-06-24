@@ -832,6 +832,8 @@ tbody tr:hover {
 .danger-zone {
   display: grid;
   gap: 12px;
+  width: fit-content;
+  max-width: 100%;
   border: 1px solid #eeb3ac;
   background: #fdf3f2;
   border-radius: 12px;
