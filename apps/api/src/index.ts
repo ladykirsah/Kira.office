@@ -779,6 +779,8 @@ async function listProducts(env: Env): Promise<Response> {
             COALESCE(pp.item_cost_satang, 0) AS itemCostSatang,
             COALESCE(pp.online_commission_bp, 0) AS onlineCommissionBp,
             COALESCE(pp.tax_on_cost, 0) AS taxOnCost,
+            (SELECT GROUP_CONCAT(DISTINCT pf.car_brand) FROM product_fitments pf
+               WHERE pf.product_id = p.id AND pf.car_brand IS NOT NULL) AS carBrandsCsv,
             COALESCE(
               (SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id),
               0

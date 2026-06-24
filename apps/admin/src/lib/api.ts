@@ -11,6 +11,7 @@ export interface ProductRow {
   brandName: string | null;
   typeName: string | null;
   usageName: string | null;
+  carBrands: string[];
   offlinePriceSatang: number;
   onlinePriceSatang: number;
   itemCostSatang: number;
@@ -38,8 +39,12 @@ export async function uploadProductImage(
 export async function fetchProducts(): Promise<ProductRow[]> {
   const res = await fetch(`${apiBase}/products`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load products (HTTP ${res.status})`);
-  const data = (await res.json()) as { products: ProductRow[] };
-  return data.products;
+  type Raw = Omit<ProductRow, "carBrands"> & { carBrandsCsv: string | null };
+  const data = (await res.json()) as { products: Raw[] };
+  return data.products.map(({ carBrandsCsv, ...rest }) => ({
+    ...rest,
+    carBrands: carBrandsCsv ? carBrandsCsv.split(",") : [],
+  }));
 }
 
 export interface CreateProductInput {

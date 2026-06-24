@@ -87,6 +87,10 @@ function makeDb(canned: {
         return stmt;
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
+        // listProducts joins product_fitments in a subquery; match its unique alias first so the
+        // products-list query routes to canned.products, not the bare product_fitments branch below.
+        if (sql.includes("AS offlinePriceSatang"))
+          return { results: (canned.products ?? []) as T[] };
         if (sql.includes("FROM product_images")) return { results: (canned.images ?? []) as T[] };
         if (sql.includes("FROM product_fitments"))
           return { results: (canned.fitments ?? []) as T[] };
@@ -209,6 +213,7 @@ describe("api worker routes", () => {
       itemCostSatang: 5000,
       onlineCommissionBp: 1000,
       taxOnCost: 0,
+      carBrandsCsv: "Toyota,Honda",
     };
     const { env } = makeDb({ products: [row] });
     const res = await worker.fetch!(new Request("https://x/products"), env, ctx);

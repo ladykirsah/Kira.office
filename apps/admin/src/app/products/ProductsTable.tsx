@@ -8,9 +8,27 @@ import { PriceProfitCell } from "./PriceProfitCell";
 
 type Tab = "all" | "listed" | "unlisted";
 
+/** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
+const DIMENSIONS = [
+  {
+    key: "brand",
+    label: "Part brand",
+    values: (p: ProductRow) => (p.brandName ? [p.brandName] : []),
+  },
+  {
+    key: "usage",
+    label: "Match system",
+    values: (p: ProductRow) => (p.usageName ? [p.usageName] : []),
+  },
+  { key: "type", label: "Part name", values: (p: ProductRow) => (p.typeName ? [p.typeName] : []) },
+  { key: "car", label: "Car brand", values: (p: ProductRow) => p.carBrands },
+] as const;
+
 export function ProductsTable({ products }: { products: ProductRow[] }) {
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
+  const [sortBy, setSortBy] = useState<string>("");
+  const [filterVal, setFilterVal] = useState<string>("");
 
   const listed = products.filter((p) => p.shopeeListed);
   const unlisted = products.filter((p) => !p.shopeeListed);
@@ -22,6 +40,26 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         (p) => p.productCode.toLowerCase().includes(s) || p.name.toLowerCase().includes(s),
       )
     : byTab;
+
+  // Linked Sort by + Filter: the chosen dimension drives both the sort and the Filter's options.
+  const dim = DIMENSIONS.find((d) => d.key === sortBy);
+  const filterOptions = dim
+    ? Array.from(new Set(products.flatMap((p) => dim.values(p)))).sort((a, b) => a.localeCompare(b))
+    : [];
+  let view = rows;
+  if (dim && filterVal) view = view.filter((p) => dim.values(p).includes(filterVal));
+  if (dim) {
+    const sortKey = (p: ProductRow) => {
+      const vals = dim.values(p);
+      return vals.length ? [...vals].sort()[0] : "";
+    };
+    view = [...view].sort((a, b) => {
+      const ka = sortKey(a);
+      const kb = sortKey(b);
+      if (!ka || !kb) return ka ? -1 : kb ? 1 : 0; // products with no value sort last
+      return ka.localeCompare(kb);
+    });
+  }
 
   const TabBtn = ({ id, label, n }: { id: Tab; label: string; n: number }) => (
     <button className={tab === id ? "tab active" : "tab"} onClick={() => setTab(id)}>
@@ -37,16 +75,52 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         <TabBtn id="unlisted" label="Not listed" n={unlisted.length} />
       </div>
 
-      <div style={{ marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
         <input
           placeholder="Search code or name…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          style={{ width: 280, maxWidth: "100%" }}
+          style={{ width: 240, maxWidth: "100%" }}
         />
+        <select
+          aria-label="Sort by"
+          value={sortBy}
+          onChange={(e) => {
+            setSortBy(e.target.value);
+            setFilterVal("");
+          }}
+        >
+          <option value="">Sort by…</option>
+          {DIMENSIONS.map((d) => (
+            <option key={d.key} value={d.key}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Filter"
+          value={filterVal}
+          onChange={(e) => setFilterVal(e.target.value)}
+          disabled={!dim}
+        >
+          <option value="">{dim ? `All ${dim.label.toLowerCase()}` : "Filter…"}</option>
+          {filterOptions.map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {rows.length === 0 ? (
+      {view.length === 0 ? (
         <div className="empty">
           <div className="empty-icon">📦</div>
           {products.length === 0
@@ -77,7 +151,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((p) => {
+            {view.map((p) => {
               const cost = totalCostSatang(p.itemCostSatang, !!p.taxOnCost);
               const onlineProfit = profitSatang(
                 p.onlinePriceSatang,
