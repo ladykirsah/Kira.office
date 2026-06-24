@@ -78,7 +78,7 @@ export function ActionsMenu({ productId, status }: { productId: string; status: 
 
       {open && (
         <div className="actions-menu" role="menu">
-          <a className="actions-item" role="menuitem" href={`/products/${productId}/edit`}>
+          <a className="actions-item" role="menuitem" href={`/products/${productId}/edit?edit=1`}>
             Edit
           </a>
           {archived ? (

@@ -238,6 +238,11 @@ export default function EditProductPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Deep-link straight into edit mode: the products-table "Edit" action links with ?edit=1.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("edit") === "1") setEditing(true);
+  }, []);
+
   async function save(e?: FormEvent) {
     e?.preventDefault();
     setBusy(true);
