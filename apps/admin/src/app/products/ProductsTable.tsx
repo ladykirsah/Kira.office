@@ -7,7 +7,7 @@ import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 
-type Tab = "all" | "listed" | "unlisted" | "out";
+type Tab = "all" | "listed" | "offshopee" | "draft" | "out";
 
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
@@ -32,17 +32,20 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   const [filterVal, setFilterVal] = useState<string>("");
 
   const listed = products.filter((p) => p.shopeeListed);
-  const unlisted = products.filter((p) => !p.shopeeListed);
+  const drafts = products.filter((p) => p.status === "draft");
+  const offShopee = products.filter((p) => !p.shopeeListed && p.status !== "draft");
   const outOfStock = products.filter((p) => p.onHand <= 0);
 
   const byTab =
     tab === "listed"
       ? listed
-      : tab === "unlisted"
-        ? unlisted
-        : tab === "out"
-          ? outOfStock
-          : products;
+      : tab === "offshopee"
+        ? offShopee
+        : tab === "draft"
+          ? drafts
+          : tab === "out"
+            ? outOfStock
+            : products;
   const s = q.trim().toLowerCase();
   const rows = s
     ? byTab.filter(
@@ -81,7 +84,8 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
       <div className="tabs">
         <TabBtn id="all" label="All" n={products.length} />
         <TabBtn id="listed" label="On Shopee" n={listed.length} />
-        <TabBtn id="unlisted" label="Not listed" n={unlisted.length} />
+        <TabBtn id="offshopee" label="Off Shopee" n={offShopee.length} />
+        <TabBtn id="draft" label="Not listed" n={drafts.length} />
         <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
       </div>
 
