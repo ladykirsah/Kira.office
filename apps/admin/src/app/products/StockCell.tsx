@@ -108,7 +108,7 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
             if (e.key === "Enter") save();
             else if (e.key === "Escape") setEditing(false);
           }}
-          style={{ width: 52, textAlign: "right", minHeight: 0, padding: "4px 6px" }}
+          style={{ width: 44, textAlign: "right", minHeight: 0, padding: "4px 6px" }}
         />
         <button
           type="button"
