@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createProduct,
@@ -14,14 +14,13 @@ import { PartDetails, type PartForm } from "../PartDetails";
 
 const field = { display: "grid", gap: 4 } as const;
 
-/** Add product: collects the same core info as the editor (name, status, stock, weight, part details)
- *  so a product can be catalogued up front; photos / pricing / fitments are added on the edit page. */
+/** Add product: same layout + fields as the editor. "Save draft" / "Save product" set the status;
+ *  photos / pricing / fitments are added on the edit page you land on after saving. */
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
   const [productCode, setProductCode] = useState("");
   const [name, setName] = useState("");
-  const [active, setActive] = useState(false);
   const [stockQty, setStockQty] = useState("0");
   const [weightKg, setWeightKg] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
@@ -39,8 +38,11 @@ export default function NewProductPage() {
 
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function submit(status: "draft" | "active") {
+    if (!productCode.trim() || !name.trim()) {
+      toast("Product code and name are required", "error");
+      return;
+    }
     setBusy(true);
     try {
       const out = await createProduct({ productCode, name, barcode: barcode || undefined });
@@ -49,11 +51,10 @@ export default function NewProductPage() {
         setBusy(false);
         return;
       }
-      // Fill the rest with the same fields the editor saves.
       await updateProduct(out.productId, {
         name,
-        status: active ? "active" : "draft",
-        shopeeListed: active,
+        status,
+        shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
         productRef: productRef || undefined,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
@@ -70,7 +71,10 @@ export default function NewProductPage() {
           reason: "created from Add product",
         });
       }
-      toast(`Created “${productCode}”`, "success");
+      toast(
+        status === "active" ? `Saved “${productCode}”` : `Draft “${productCode}” saved`,
+        "success",
+      );
       router.push(`/products/${out.productId}/edit`);
     } catch (err) {
       toast((err as Error).message, "error");
@@ -80,26 +84,63 @@ export default function NewProductPage() {
 
   return (
     <main>
-      <h1>Add product</h1>
-      <form onSubmit={submit} style={{ display: "grid", gap: 16, maxWidth: 720 }}>
-        <label style={field}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <h1 style={{ margin: 0 }}>Add product</h1>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+          <button type="button" onClick={() => router.push("/products")} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn-soft"
+            onClick={() => submit("draft")}
+            disabled={busy}
+          >
+            Save draft
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => submit("active")}
+            disabled={busy}
+          >
+            Save product
+          </button>
+        </div>
+      </div>
+      <p className="muted" style={{ marginTop: 4 }}>
+        New product — add photos, pricing and fitments after saving.
+      </p>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit("active");
+        }}
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))",
+          alignItems: "start",
+        }}
+      >
+        <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product code *
           <input value={productCode} onChange={(e) => setProductCode(e.target.value)} required />
         </label>
-        <label style={field}>
+        <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product name *
           <input value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
 
-        <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <span className="switch">
-            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-            <span className="slider" />
-          </span>
-          <span>Active</span>
-        </label>
-
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", gridColumn: "1 / -1" }}>
           <label style={field}>
             Stock on hand
             <input
@@ -121,30 +162,20 @@ export default function NewProductPage() {
           </label>
         </div>
 
-        <PartDetails
-          value={part}
-          onChange={updatePart}
-          attributes={attributes}
-          barcode={barcode}
-          onBarcodeChange={setBarcode}
-          productRef={productRef}
-          onProductRefChange={setProductRef}
-          shopeeItemId={shopeeItemId}
-          onShopeeItemIdChange={setShopeeItemId}
-        />
-
-        <button
-          type="submit"
-          className="btn-primary"
-          disabled={busy}
-          style={{ justifySelf: "start" }}
-        >
-          Save
-        </button>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <PartDetails
+            value={part}
+            onChange={updatePart}
+            attributes={attributes}
+            barcode={barcode}
+            onBarcodeChange={setBarcode}
+            productRef={productRef}
+            onProductRefChange={setProductRef}
+            shopeeItemId={shopeeItemId}
+            onShopeeItemIdChange={setShopeeItemId}
+          />
+        </div>
       </form>
-      <p>
-        <a href="/products">← Products</a>
-      </p>
     </main>
   );
 }
