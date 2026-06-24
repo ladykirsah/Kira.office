@@ -828,6 +828,28 @@ tbody tr:hover {
   align-items: center;
 }
 
+/* Danger zone — type-to-confirm delete (product editor) */
+.danger-zone {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #eeb3ac;
+  background: #fdf3f2;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 16px;
+}
+.danger-zone-title {
+  font-weight: 600;
+  color: var(--danger);
+}
+.danger-zone-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
 /* Per-row Actions dropdown (products table) */
 .actions-btn {
   display: inline-flex;

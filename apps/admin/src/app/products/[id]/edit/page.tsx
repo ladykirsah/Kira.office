@@ -24,6 +24,7 @@ import { ProfitPeek } from "../../ProfitPeek";
 import { PartDetails, type PartForm } from "../../PartDetails";
 import { formatUpdatedAt } from "@/lib/format";
 import { FitmentSection } from "../../FitmentSection";
+import { DeleteProductCard } from "../../DeleteProductCard";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
@@ -394,92 +395,95 @@ export default function EditProductPage() {
       </p>
 
       {editing ? (
-        <form
-          onSubmit={save}
-          style={{
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))",
-            alignItems: "start",
-          }}
-        >
-          <div style={{ ...field, gridColumn: "1 / -1" }}>
-            <span style={{ fontWeight: 600 }}>Photos</span>
-            <ProductGallery productId={id} initial={detail.images} />
-          </div>
+        <>
+          <form
+            onSubmit={save}
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))",
+              alignItems: "start",
+            }}
+          >
+            <div style={{ ...field, gridColumn: "1 / -1" }}>
+              <span style={{ fontWeight: 600 }}>Photos</span>
+              <ProductGallery productId={id} initial={detail.images} />
+            </div>
 
-          <label style={field}>
-            Product name *
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-
-          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span className="switch">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              <span className="slider" />
-            </span>
-            <span>Active</span>
-          </label>
-
-          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
             <label style={field}>
-              Stock on hand
-              <input
-                value={stockQty}
-                onChange={(e) => setStockQty(e.target.value)}
-                placeholder="0"
-                inputMode="numeric"
-                style={{ width: 140 }}
-              />
-              <small className="muted">
-                now {detail.onHand ?? 0} · change logged as adjustment
-              </small>
+              Product name *
+              <input value={name} onChange={(e) => setName(e.target.value)} required />
             </label>
-            <label style={field}>
-              Weight (kg)
-              <input
-                value={weightKg}
-                onChange={(e) => setWeightKg(e.target.value)}
-                placeholder="0"
-                style={{ width: 140 }}
-              />
+
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                />
+                <span className="slider" />
+              </span>
+              <span>Active</span>
             </label>
-          </div>
 
-          <div style={{ gridColumn: "1 / -1" }}>
-            <PartDetails
-              value={part}
-              onChange={updatePart}
-              attributes={attributes}
-              barcode={barcode}
-              onBarcodeChange={setBarcode}
-              productRef={productRef}
-              onProductRefChange={setProductRef}
-              shopeeItemId={shopeeItemId}
-              onShopeeItemIdChange={setShopeeItemId}
-            />
-          </div>
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <label style={field}>
+                Stock on hand
+                <input
+                  value={stockQty}
+                  onChange={(e) => setStockQty(e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                  style={{ width: 140 }}
+                />
+                <small className="muted">
+                  now {detail.onHand ?? 0} · change logged as adjustment
+                </small>
+              </label>
+              <label style={field}>
+                Weight (kg)
+                <input
+                  value={weightKg}
+                  onChange={(e) => setWeightKg(e.target.value)}
+                  placeholder="0"
+                  style={{ width: 140 }}
+                />
+              </label>
+            </div>
 
-          <div style={{ gridColumn: "1 / -1" }}>
-            <FitmentSection fitments={fitments} onChange={setFitments} carTree={carTree} />
-          </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <PartDetails
+                value={part}
+                onChange={updatePart}
+                attributes={attributes}
+                barcode={barcode}
+                onBarcodeChange={setBarcode}
+                productRef={productRef}
+                onProductRefChange={setProductRef}
+                shopeeItemId={shopeeItemId}
+                onShopeeItemIdChange={setShopeeItemId}
+              />
+            </div>
 
-          <div style={{ gridColumn: "1 / -1" }}>
-            <PricingFields form={pricing} update={updatePricing} />
-          </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <FitmentSection fitments={fitments} onChange={setFitments} carTree={carTree} />
+            </div>
 
-          <div style={{ gridColumn: "1 / -1" }}>
-            <CampaignWorkspace
-              totalCostSatang={editTC}
-              defaultProfitSatang={editDefaultProfit}
-              defaultPriceSatang={editOnline}
-            />
-          </div>
-        </form>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <PricingFields form={pricing} update={updatePricing} />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <CampaignWorkspace
+                totalCostSatang={editTC}
+                defaultProfitSatang={editDefaultProfit}
+                defaultPriceSatang={editOnline}
+              />
+            </div>
+          </form>
+          <DeleteProductCard productId={id} />
+        </>
       ) : (
         <>
           <div style={{ margin: "12px 0 18px" }}>
