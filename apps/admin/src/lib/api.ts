@@ -3,6 +3,7 @@ export const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.homeseek
 
 export interface ProductRow {
   id: string;
+  variantId: string | null;
   productCode: string;
   name: string;
   status: string;

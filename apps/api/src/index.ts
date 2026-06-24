@@ -771,6 +771,7 @@ async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_code AS productCode, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
+            v.id AS variantId,
             b.name AS brandName,
             t.name AS typeName,
             u.name AS usageName,

@@ -5,6 +5,7 @@ import { apiBase, type ProductRow } from "@/lib/api";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
+import { StockCell } from "./StockCell";
 
 type Tab = "all" | "listed" | "unlisted";
 
@@ -239,7 +240,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                   <td>
                     <PriceProfitCell priceSatang={p.offlinePriceSatang} profitSatang={b2cProfit} />
                   </td>
-                  <td align="right">{p.onHand}</td>
+                  <td align="right">
+                    <StockCell variantId={p.variantId} onHand={p.onHand} />
+                  </td>
                   <td>
                     <span className={p.shopeeListed ? "pill on" : "pill off"}>
                       {p.shopeeListed ? "Active" : "Not listed"}

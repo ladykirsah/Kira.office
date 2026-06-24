@@ -207,6 +207,7 @@ describe("api worker routes", () => {
   it("GET /products > reads from D1 (incl. part-detail names)", async () => {
     const row = {
       id: "p1",
+      variantId: "v1",
       productCode: "C1",
       name: "Cream",
       status: "active",
