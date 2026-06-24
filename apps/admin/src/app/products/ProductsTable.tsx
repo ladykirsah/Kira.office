@@ -94,15 +94,15 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                         <img
                           src={`${apiBase}/img/${p.imageKey}`}
                           alt={p.name}
-                          width={48}
-                          height={48}
+                          width={56}
+                          height={56}
                           style={{ objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
                         />
                       ) : (
                         <span
                           style={{
-                            width: 48,
-                            height: 48,
+                            width: 56,
+                            height: 56,
                             borderRadius: 6,
                             background: "var(--hover)",
                             flexShrink: 0,
@@ -133,7 +133,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                               }}
                             >
                               {tags.map((t) => (
-                                <span key={t} className="tag">
+                                <span key={t} className="tag tag-sm">
                                   {t}
                                 </span>
                               ))}
