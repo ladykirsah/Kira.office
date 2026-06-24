@@ -162,3 +162,49 @@ export function downloadLabelSheet(opts: {
   const tag = items.length === 1 ? items[0].code || "labels" : `${items.length}-products`;
   doc.save(`labels-${tag}.pdf`);
 }
+
+const PREVIEW_PX_PER_MM = 3;
+
+/** Render a live, to-scale preview of the printed page(s) into `container` (one canvas per page). */
+export function renderSheetPreview(
+  container: HTMLElement,
+  opts: { paper: Paper; orientation: Orientation; items: SheetLabel[] },
+): void {
+  container.replaceChildren();
+  const { paper, orientation, items } = opts;
+  const page = pageDimensions(paper, orientation);
+  const margin = 8;
+  const gap = 4;
+  const plan = planSheet({
+    items: items.map((i) => ({ w: i.w, h: i.h, amount: i.amount })),
+    page,
+    margin,
+    gap,
+  });
+  if (!plan.placements.length) return;
+
+  const labelImages = items.map((it) => {
+    const c = document.createElement("canvas");
+    drawLabel(c, it, it.w, it.h);
+    return c;
+  });
+
+  const pv = PREVIEW_PX_PER_MM;
+  for (let pg = 0; pg < plan.pages; pg++) {
+    const canvas = document.createElement("canvas");
+    canvas.className = "sheet-page";
+    canvas.width = Math.round(page.width * pv);
+    canvas.height = Math.round(page.height * pv);
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (const pl of plan.placements) {
+        if (pl.page !== pg) continue;
+        const it = items[pl.index];
+        ctx.drawImage(labelImages[pl.index], pl.x * pv, pl.y * pv, it.w * pv, it.h * pv);
+      }
+    }
+    container.appendChild(canvas);
+  }
+}

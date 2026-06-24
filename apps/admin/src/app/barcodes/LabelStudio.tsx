@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { apiBase } from "@/lib/api";
 import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
-import { drawLabel, downloadLabelSheet, type SheetLabel } from "./labelPdf";
+import { drawLabel, downloadLabelSheet, renderSheetPreview, type SheetLabel } from "./labelPdf";
 
 export interface StudioProduct {
   id: string;
@@ -250,27 +250,33 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
     setItems((xs) => xs.map((it) => (it.product.id === id ? { ...it, ...patch } : it)));
   const removeItem = (id: string) => setItems((xs) => xs.filter((it) => it.product.id !== id));
 
+  const labels: SheetLabel[] = items
+    .filter((it) => it.product.barcode)
+    .map((it) => ({
+      code: it.product.code,
+      name: it.product.name,
+      tags: it.product.tags,
+      barcode: it.product.barcode as string,
+      w: it.w,
+      h: it.h,
+      amount: it.amount,
+    }));
+
   const plan = planSheet({
-    items: items.map((it) => ({ w: it.w, h: it.h, amount: it.amount })),
+    items: labels.map((it) => ({ w: it.w, h: it.h, amount: it.amount })),
     page: pageDimensions(paper, orientation),
     margin: 8,
     gap: 4,
   });
 
-  const download = () => {
-    const labels: SheetLabel[] = items
-      .filter((it) => it.product.barcode)
-      .map((it) => ({
-        code: it.product.code,
-        name: it.product.name,
-        tags: it.product.tags,
-        barcode: it.product.barcode as string,
-        w: it.w,
-        h: it.h,
-        amount: it.amount,
-      }));
-    downloadLabelSheet({ paper, orientation, items: labels });
-  };
+  const previewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (previewRef.current)
+      renderSheetPreview(previewRef.current, { paper, orientation, items: labels });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, paper, orientation]);
+
+  const download = () => downloadLabelSheet({ paper, orientation, items: labels });
 
   return (
     <main>
@@ -399,6 +405,14 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
             {plan.placements.length} label{plan.placements.length === 1 ? "" : "s"} · {plan.pages}{" "}
             {paper} page{plan.pages === 1 ? "" : "s"}
           </span>
+        </div>
+      )}
+
+      {/* Live preview of the printed sheet(s) */}
+      {plan.placements.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={fieldLabel}>Sheet preview</div>
+          <div ref={previewRef} className="sheet-preview" />
         </div>
       )}
     </main>

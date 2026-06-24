@@ -216,6 +216,23 @@ tbody tr:hover {
 .products-table.frozen .freeze-col {
   box-shadow: inset -1px 0 0 var(--border);
 }
+
+/* Label-sheet preview: one to-scale page canvas each. */
+.sheet-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+}
+.sheet-page {
+  width: auto;
+  max-width: 270px;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  background: #fff;
+}
 .products-table thead .freeze-col {
   z-index: 2;
 }
