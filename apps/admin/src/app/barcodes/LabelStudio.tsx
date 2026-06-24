@@ -313,7 +313,7 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
         {/* Column 1 — search + product label cards */}
         <div
           style={{
-            flex: "1 1 480px",
+            flex: "1 1 360px",
             minWidth: 0,
             display: "flex",
             flexDirection: "column",
@@ -398,7 +398,8 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
         {/* Column 2 — paper, download, file preview (stays in view) */}
         <div
           style={{
-            flex: "0 0 300px",
+            flex: "1 1 360px",
+            minWidth: 0,
             display: "flex",
             flexDirection: "column",
             gap: 18,

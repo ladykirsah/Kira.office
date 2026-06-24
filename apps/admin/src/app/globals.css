@@ -226,7 +226,7 @@ tbody tr:hover {
 }
 .sheet-page {
   width: auto;
-  max-width: 270px;
+  max-width: 230px;
   height: auto;
   border: 1px solid var(--border);
   border-radius: 4px;
