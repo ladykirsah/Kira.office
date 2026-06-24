@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import JsBarcode from "jsbarcode";
 import { chooseBarcodeFormat } from "@/lib/barcode";
-import { pageDimensions, planLabelGrid, type Orientation, type Paper } from "@/lib/labelGrid";
+import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 
 export interface LabelProduct {
   code: string;
@@ -118,35 +118,47 @@ export function drawLabel(
   }
 }
 
-/** Build and download a PDF that tiles the product's label `amount` times across A4/A5 pages. */
-export function downloadLabelPdf(opts: {
+export interface SheetLabel extends LabelProduct {
+  w: number;
+  h: number;
+  amount: number;
+}
+
+/** Build and download one PDF holding several products' labels, each at its own size and count. */
+export function downloadLabelSheet(opts: {
   paper: Paper;
   orientation: Orientation;
-  labelW: number;
-  labelH: number;
-  amount: number;
-  product: LabelProduct;
+  items: SheetLabel[];
 }): void {
-  const { paper, orientation, labelW, labelH, amount, product } = opts;
+  const { paper, orientation, items } = opts;
   const page = pageDimensions(paper, orientation);
   const margin = 8;
   const gap = 4;
-  const { cols, perPage } = planLabelGrid({ page, labelW, labelH, margin, gap });
-  if (perPage < 1) return;
+  const plan = planSheet({
+    items: items.map((i) => ({ w: i.w, h: i.h, amount: i.amount })),
+    page,
+    margin,
+    gap,
+  });
+  if (!plan.placements.length) return;
 
-  const canvas = document.createElement("canvas");
-  drawLabel(canvas, product, labelW, labelH);
-  const img = canvas.toDataURL("image/png");
+  // Render each product's label image once, then stamp it at every placement.
+  const images = items.map((it) => {
+    const c = document.createElement("canvas");
+    drawLabel(c, it, it.w, it.h);
+    return c.toDataURL("image/png");
+  });
 
   const doc = new jsPDF({ unit: "mm", format: paper.toLowerCase(), orientation });
-  for (let i = 0; i < amount; i++) {
-    const onPage = i % perPage;
-    if (i > 0 && onPage === 0) doc.addPage();
-    const c = onPage % cols;
-    const r = Math.floor(onPage / cols);
-    const x = margin + c * (labelW + gap);
-    const yy = margin + r * (labelH + gap);
-    doc.addImage(img, "PNG", x, yy, labelW, labelH);
+  let cur = 0;
+  for (const pl of plan.placements) {
+    while (pl.page > cur) {
+      doc.addPage();
+      cur++;
+    }
+    const it = items[pl.index];
+    doc.addImage(images[pl.index], "PNG", pl.x, pl.y, it.w, it.h);
   }
-  doc.save(`${product.code || "labels"}-${labelW}x${labelH}mm-x${amount}.pdf`);
+  const tag = items.length === 1 ? items[0].code || "labels" : `${items.length}-products`;
+  doc.save(`labels-${tag}.pdf`);
 }

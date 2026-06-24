@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { apiBase } from "@/lib/api";
-import { pageDimensions, planLabelGrid, type Orientation, type Paper } from "@/lib/labelGrid";
-import { drawLabel, downloadLabelPdf, type LabelProduct } from "./labelPdf";
+import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
+import { drawLabel, downloadLabelSheet, type SheetLabel } from "./labelPdf";
 
 export interface StudioProduct {
   id: string;
@@ -14,7 +14,15 @@ export interface StudioProduct {
   barcode: string | null;
 }
 
+interface LabelItem {
+  product: StudioProduct;
+  w: number;
+  h: number;
+  amount: number;
+}
+
 const RATIO = 50 / 30; // locked label aspect ratio
+const fieldLabel = { fontSize: 13, color: "var(--text-muted)", marginBottom: 4 } as const;
 
 function Seg<T extends string>({
   value,
@@ -56,14 +64,165 @@ function Seg<T extends string>({
   );
 }
 
-function Tags({ tags }: { tags: string[] }) {
+function Cover({ p, size }: { p: StudioProduct; size: number }) {
+  return p.imageKey ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`${apiBase}/img/${p.imageKey}`}
+      alt={p.name}
+      width={size}
+      height={size}
+      style={{ objectFit: "cover", borderRadius: 8, flexShrink: 0 }}
+    />
+  ) : (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 8,
+        background: "var(--hover)",
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--text-faint)",
+        fontSize: size * 0.4,
+      }}
+    >
+      📦
+    </span>
+  );
+}
+
+const numStyle: CSSProperties = { width: 76, minHeight: 0, padding: "8px 10px" };
+
+/** One product's label settings + live preview, inside the sheet builder. */
+function LabelCard({
+  item,
+  onChange,
+  onRemove,
+}: {
+  item: LabelItem;
+  onChange: (patch: Partial<LabelItem>) => void;
+  onRemove: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { product, w, h, amount } = item;
+
+  useEffect(() => {
+    if (canvasRef.current && product.barcode) {
+      drawLabel(
+        canvasRef.current,
+        { code: product.code, name: product.name, tags: product.tags, barcode: product.barcode },
+        w,
+        h,
+      );
+    }
+  }, [product.id, product.barcode, product.code, product.name, product.tags, w, h]);
+
+  const changeW = (v: number) => {
+    if (Number.isFinite(v) && v > 0) onChange({ w: v, h: Math.max(1, Math.round(v / RATIO)) });
+  };
+  const changeH = (v: number) => {
+    if (Number.isFinite(v) && v > 0) onChange({ h: v, w: Math.max(1, Math.round(v * RATIO)) });
+  };
+
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 5 }}>
-      {tags.filter(Boolean).map((t) => (
-        <span key={t} className="tag tag-sm">
-          {t}
-        </span>
-      ))}
+    <div
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: 14,
+        background: "var(--surface)",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 18,
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220, flex: "1 1 220px" }}
+      >
+        <Cover p={product} size={48} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {product.name}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {product.code}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 5 }}>
+            {product.tags.filter(Boolean).map((t) => (
+              <span key={t} className="tag tag-sm">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: 132,
+          height: "auto",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          flexShrink: 0,
+        }}
+      />
+
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+        <div>
+          <div style={fieldLabel}>W (mm)</div>
+          <input
+            type="number"
+            min={10}
+            value={w}
+            onChange={(e) => changeW(parseFloat(e.target.value))}
+            style={numStyle}
+          />
+        </div>
+        <div>
+          <div style={fieldLabel}>H (mm)</div>
+          <input
+            type="number"
+            min={6}
+            value={h}
+            onChange={(e) => changeH(parseFloat(e.target.value))}
+            style={numStyle}
+          />
+        </div>
+        <div>
+          <div style={fieldLabel}>Qty</div>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) =>
+              onChange({ amount: Math.max(1, Math.round(parseFloat(e.target.value) || 1)) })
+            }
+            style={numStyle}
+          />
+        </div>
+        <button
+          type="button"
+          aria-label="Remove"
+          title="Remove"
+          onClick={onRemove}
+          className="icon-btn"
+          style={{ color: "var(--danger)", paddingBottom: 9 }}
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
@@ -72,88 +231,56 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
   const [paper, setPaper] = useState<Paper>("A4");
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<StudioProduct | null>(null);
-  const [w, setW] = useState(50);
-  const [h, setH] = useState(30);
-  const [amount, setAmount] = useState(24);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [items, setItems] = useState<LabelItem[]>([]);
 
   const q = query.trim().toLowerCase();
+  const chosen = new Set(items.map((it) => it.product.id));
   const results = q
     ? products
         .filter((p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
         .slice(0, 8)
     : [];
 
-  const label: LabelProduct | null =
-    selected && selected.barcode
-      ? { code: selected.code, name: selected.name, tags: selected.tags, barcode: selected.barcode }
-      : null;
-
-  useEffect(() => {
-    if (canvasRef.current && label) drawLabel(canvasRef.current, label, w, h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id, selected?.barcode, w, h]);
-
-  const changeW = (v: number) => {
-    if (!Number.isFinite(v) || v <= 0) return;
-    setW(v);
-    setH(Math.max(1, Math.round(v / RATIO)));
+  const addProduct = (p: StudioProduct) => {
+    if (!p.barcode || chosen.has(p.id)) return;
+    setItems((xs) => [...xs, { product: p, w: 50, h: 30, amount: 24 }]);
+    setQuery("");
   };
-  const changeH = (v: number) => {
-    if (!Number.isFinite(v) || v <= 0) return;
-    setH(v);
-    setW(Math.max(1, Math.round(v * RATIO)));
-  };
+  const patchItem = (id: string, patch: Partial<LabelItem>) =>
+    setItems((xs) => xs.map((it) => (it.product.id === id ? { ...it, ...patch } : it)));
+  const removeItem = (id: string) => setItems((xs) => xs.filter((it) => it.product.id !== id));
 
-  const grid = planLabelGrid({
+  const plan = planSheet({
+    items: items.map((it) => ({ w: it.w, h: it.h, amount: it.amount })),
     page: pageDimensions(paper, orientation),
-    labelW: w,
-    labelH: h,
     margin: 8,
     gap: 4,
   });
-  const pages = grid.perPage > 0 ? Math.ceil(amount / grid.perPage) : 0;
 
-  const cover = (p: StudioProduct, size: number) =>
-    p.imageKey ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`${apiBase}/img/${p.imageKey}`}
-        alt={p.name}
-        width={size}
-        height={size}
-        style={{ objectFit: "cover", borderRadius: 8, flexShrink: 0 }}
-      />
-    ) : (
-      <span
-        style={{
-          width: size,
-          height: size,
-          borderRadius: 8,
-          background: "var(--hover)",
-          flexShrink: 0,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--text-faint)",
-          fontSize: size * 0.4,
-        }}
-      >
-        📦
-      </span>
-    );
-
-  const fieldLabel = { fontSize: 13, color: "var(--text-muted)", marginBottom: 4 } as const;
+  const download = () => {
+    const labels: SheetLabel[] = items
+      .filter((it) => it.product.barcode)
+      .map((it) => ({
+        code: it.product.code,
+        name: it.product.name,
+        tags: it.product.tags,
+        barcode: it.product.barcode as string,
+        w: it.w,
+        h: it.h,
+        amount: it.amount,
+      }));
+    downloadLabelSheet({ paper, orientation, items: labels });
+  };
 
   return (
     <main>
       <h1>Barcode labels</h1>
       <p className="muted" style={{ marginTop: 4 }}>
-        Search a product, set the label size and how many, then download a print-ready PDF.
+        Add the products you need, set each label’s size and quantity, then download one PDF with
+        all of them.
       </p>
 
-      {/* Paper + orientation */}
+      {/* Paper + orientation (whole file) */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, margin: "16px 0" }}>
         <div>
           <div style={fieldLabel}>Paper size</div>
@@ -179,11 +306,11 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search to add */}
       <div style={{ position: "relative", maxWidth: 420 }}>
         <input
           className="tbar-input"
-          placeholder="Search code or name…"
+          placeholder="Search a product to add…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
@@ -203,158 +330,75 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
               overflow: "hidden",
             }}
           >
-            {results.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setSelected(p);
-                  setQuery("");
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  width: "100%",
-                  minHeight: 0,
-                  padding: "8px 12px",
-                  border: "none",
-                  borderRadius: 0,
-                  background: "transparent",
-                  textAlign: "left",
-                }}
-              >
-                {cover(p, 32)}
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {p.code}
-                    {p.barcode ? "" : " · no barcode"}
+            {results.map((p) => {
+              const added = chosen.has(p.id);
+              const disabled = !p.barcode || added;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => addProduct(p)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    minHeight: 0,
+                    padding: "8px 12px",
+                    border: "none",
+                    borderRadius: 0,
+                    background: "transparent",
+                    textAlign: "left",
+                    opacity: disabled ? 0.5 : 1,
+                  }}
+                >
+                  <Cover p={p} size={32} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {p.code}
+                      {!p.barcode ? " · no barcode" : added ? " · added" : ""}
+                    </span>
                   </span>
-                </span>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Chosen product + label studio */}
-      {selected && (
-        <div
-          style={{
-            marginTop: 20,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 28,
-            alignItems: "flex-start",
-          }}
-        >
-          {/* Chosen card */}
-          <div
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              padding: 16,
-              background: "var(--surface)",
-              display: "flex",
-              gap: 14,
-              alignItems: "center",
-              minWidth: 280,
-            }}
+      {/* Label cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 18 }}>
+        {items.length === 0 ? (
+          <p className="muted">No products yet — search above to add labels to the sheet.</p>
+        ) : (
+          items.map((it) => (
+            <LabelCard
+              key={it.product.id}
+              item={it}
+              onChange={(patch) => patchItem(it.product.id, patch)}
+              onRemove={() => removeItem(it.product.id)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Footer: totals + download */}
+      {items.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={plan.placements.length === 0}
+            onClick={download}
           >
-            {cover(selected, 72)}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600 }}>{selected.name}</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {selected.code}
-              </div>
-              <Tags tags={selected.tags} />
-            </div>
-          </div>
-
-          {/* Label preview + controls */}
-          {label ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <div style={fieldLabel}>Barcode preview (1 frame)</div>
-                <canvas
-                  ref={canvasRef}
-                  style={{
-                    width: Math.min(w * 4, 360),
-                    height: "auto",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
-                  }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-                <div>
-                  <div style={fieldLabel}>Width (mm)</div>
-                  <input
-                    type="number"
-                    value={w}
-                    min={10}
-                    onChange={(e) => changeW(parseFloat(e.target.value))}
-                    style={{ width: 90, minHeight: 0, padding: "8px 10px" }}
-                  />
-                </div>
-                <div style={{ paddingBottom: 9, color: "var(--text-faint)" }}>×</div>
-                <div>
-                  <div style={fieldLabel}>Height (mm)</div>
-                  <input
-                    type="number"
-                    value={h}
-                    min={6}
-                    onChange={(e) => changeH(parseFloat(e.target.value))}
-                    style={{ width: 90, minHeight: 0, padding: "8px 10px" }}
-                  />
-                </div>
-                <div>
-                  <div style={fieldLabel}>Amount</div>
-                  <input
-                    type="number"
-                    value={amount}
-                    min={1}
-                    onChange={(e) =>
-                      setAmount(Math.max(1, Math.round(parseFloat(e.target.value) || 1)))
-                    }
-                    style={{ width: 90, minHeight: 0, padding: "8px 10px" }}
-                  />
-                </div>
-              </div>
-
-              <div className="muted" style={{ fontSize: 13 }}>
-                {grid.perPage > 0
-                  ? `${grid.cols} × ${grid.rows} = ${grid.perPage} per ${paper} page · ${pages} page${pages === 1 ? "" : "s"}`
-                  : "Label is too big for this page — reduce the size."}
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={grid.perPage < 1}
-                  onClick={() =>
-                    downloadLabelPdf({
-                      paper,
-                      orientation,
-                      labelW: w,
-                      labelH: h,
-                      amount,
-                      product: label,
-                    })
-                  }
-                >
-                  Download PDF
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p style={{ color: "var(--warn)" }}>
-              This product has no barcode yet — add one in the product editor first.
-            </p>
-          )}
+            Download PDF
+          </button>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {plan.placements.length} label{plan.placements.length === 1 ? "" : "s"} · {plan.pages}{" "}
+            {paper} page{plan.pages === 1 ? "" : "s"}
+          </span>
         </div>
       )}
     </main>
