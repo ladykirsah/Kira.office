@@ -24,14 +24,16 @@ describe("satang display helpers", () => {
     expect(formatBaht(10700)).toBe("฿107.00");
   });
 
-  it("formatBahtTrim drops decimals for whole baht", () => {
-    expect(formatBahtTrim(289000)).toBe("฿2890");
+  it("formatBahtTrim drops decimals for whole baht and groups thousands", () => {
+    expect(formatBahtTrim(289000)).toBe("฿2,890");
     expect(formatBahtTrim(10700)).toBe("฿107");
     expect(formatBahtTrim(0)).toBe("฿0");
+    expect(formatBahtTrim(10000000)).toBe("฿100,000");
   });
 
-  it("formatBahtTrim keeps two decimals when there are satang", () => {
-    expect(formatBahtTrim(289050)).toBe("฿2890.50");
+  it("formatBahtTrim keeps two decimals (with commas) when there are satang", () => {
+    expect(formatBahtTrim(289050)).toBe("฿2,890.50");
     expect(formatBahtTrim(5)).toBe("฿0.05");
+    expect(formatBahtTrim(1234567)).toBe("฿12,345.67");
   });
 });

@@ -160,8 +160,8 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             {/* Product (auto) absorbs slack; Stock and Action are fixed so they hug their
                 content. Only two narrow fixed columns, so the table still scales down. */}
             <col />
-            <col style={{ width: "17%" }} />
-            <col style={{ width: "17%" }} />
+            <col style={{ width: 136 }} />
+            <col style={{ width: 136 }} />
             <col style={{ width: 96 }} />
             <col style={{ width: "10%" }} />
             <col style={{ width: 106 }} />

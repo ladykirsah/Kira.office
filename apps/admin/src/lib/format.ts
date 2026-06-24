@@ -7,9 +7,16 @@ export function formatBaht(satang: number): string {
   return `฿${satangToThb(satang)}`;
 }
 
-/** Like formatBaht but drops the decimals for whole-baht amounts (฿2890 not ฿2890.00). */
+/**
+ * Like formatBaht but grouped with thousands commas (฿2,890) and with the decimals dropped
+ * for whole-baht amounts (฿2,890 not ฿2,890.00; ฿2,890.50 keeps the satang).
+ */
 export function formatBahtTrim(satang: number): string {
-  return satang % 100 === 0 ? `฿${satang / 100}` : formatBaht(satang);
+  const thb = satang / 100;
+  const fixed = satang % 100 === 0 ? String(Math.trunc(thb)) : thb.toFixed(2);
+  const [intPart, frac] = fixed.split(".");
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `฿${grouped}${frac ? `.${frac}` : ""}`;
 }
 
 /** A stored timestamp (ms) as "DD/MM/YYYY · HH:MM" in the viewer's local 24-hour time. */
