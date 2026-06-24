@@ -283,15 +283,16 @@ tbody tr:hover {
   background: var(--primary-soft);
   color: var(--primary);
 }
-/* Pause = caution yellow. Decoupled fill/text: a yellow light enough to read as "yellow"
-   needs dark text, so it can't follow the tint-of-accent pattern the other pills use. */
+/* Pause = caution yellow. Soft pale-yellow tint like the other pills, but built from a
+   true-yellow hue (#facc15) so the tint reads yellow instead of the tan that --warn gives.
+   Text stays a dark amber because a light-enough yellow isn't legible. */
 .pill.pause {
-  background: #fde047;
-  color: #6b4708;
+  background: color-mix(in srgb, #facc15 26%, transparent);
+  color: #845209;
 }
 html[data-theme="dark"] .pill.pause {
-  background: color-mix(in srgb, #facc15 26%, transparent);
-  color: #fde047;
+  background: color-mix(in srgb, #facc15 22%, transparent);
+  color: #fcd34d;
 }
 
 /* Plain white tag/chip */
