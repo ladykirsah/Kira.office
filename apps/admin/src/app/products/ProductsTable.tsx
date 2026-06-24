@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { productStatusTag } from "@/lib/productStatus";
@@ -31,6 +31,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   const [q, setQ] = useState("");
   const [sortBy, setSortBy] = useState<string>("");
   const [filterVal, setFilterVal] = useState<string>("");
+  // The frozen-column divider only shows once the table overflows (Product is at its min width).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [frozen, setFrozen] = useState(false);
 
   const listed = products.filter((p) => p.shopeeListed);
   const drafts = products.filter((p) => p.status === "draft");
@@ -73,6 +76,16 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
       return ka.localeCompare(kb);
     });
   }
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setFrozen(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view.length]);
 
   const TabBtn = ({ id, label, n }: { id: Tab; label: string; n: number }) => (
     <button className={tab === id ? "tab active" : "tab"} onClick={() => setTab(id)}>
@@ -152,9 +165,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             : "No products match."}
         </div>
       ) : (
-        <div className="products-scroll">
+        <div className="products-scroll" ref={scrollRef}>
           <table
-            className="products-table"
+            className={frozen ? "products-table frozen" : "products-table"}
             cellPadding={8}
             style={{
               borderCollapse: "collapse",

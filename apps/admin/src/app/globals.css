@@ -211,6 +211,9 @@ tbody tr:hover {
   left: 0;
   background: var(--bg);
   z-index: 1;
+}
+/* Divider only when the table overflows (Product column pinned at its min width). */
+.products-table.frozen .freeze-col {
   box-shadow: inset -1px 0 0 var(--border);
 }
 .products-table thead .freeze-col {
