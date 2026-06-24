@@ -202,6 +202,24 @@ tbody tr:hover {
   background: var(--hover);
 }
 
+/* Products table: freeze the first (Product) column while the rest scroll horizontally. */
+.products-scroll {
+  overflow-x: auto;
+}
+.products-table .freeze-col {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 1;
+  box-shadow: inset -1px 0 0 var(--border);
+}
+.products-table thead .freeze-col {
+  z-index: 2;
+}
+.products-table tbody tr:hover .freeze-col {
+  background: var(--hover);
+}
+
 /* Helpers */
 .muted {
   color: var(--text-muted);

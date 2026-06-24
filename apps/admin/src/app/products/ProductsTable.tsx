@@ -152,137 +152,150 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             : "No products match."}
         </div>
       ) : (
-        <table
-          cellPadding={8}
-          style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
-        >
-          <colgroup>
-            {/* Product (auto) absorbs slack; Stock and Action are fixed so they hug their
-                content. Only two narrow fixed columns, so the table still scales down. */}
-            <col />
-            <col style={{ width: 136 }} />
-            <col style={{ width: 136 }} />
-            <col style={{ width: 96 }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: 106 }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th align="left">Product</th>
-              <th align="left">Online price</th>
-              <th align="left">B2C price</th>
-              <th align="center">Stock</th>
-              <th align="left">Status</th>
-              <th align="left">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.map((p) => {
-              const cost = totalCostSatang(p.itemCostSatang, !!p.taxOnCost);
-              const onlineProfit = profitSatang(
-                p.onlinePriceSatang,
-                cost,
-                commissionFeeSatang(p.onlinePriceSatang, p.onlineCommissionBp),
-              );
-              const b2cProfit = profitSatang(p.offlinePriceSatang, cost, 0);
-              return (
-                <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
-                  <td>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      {p.imageKey ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`${apiBase}/img/${p.imageKey}`}
-                          alt={p.name}
-                          width={56}
-                          height={56}
-                          style={{ objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
-                        />
-                      ) : (
-                        <span
-                          style={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: 6,
-                            background: "var(--hover)",
-                            flexShrink: 0,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "var(--text-faint)",
-                          }}
-                        >
-                          📦
-                        </span>
-                      )}
-                      <div style={{ minWidth: 0 }}>
-                        <a
-                          href={`/products/${p.id}/edit`}
-                          title={p.name}
-                          style={{
-                            fontWeight: 600,
-                            display: "block",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {p.name}
-                        </a>
-                        {(() => {
-                          const tags = [p.brandName, p.usageName, p.typeName].filter(
-                            Boolean,
-                          ) as string[];
-                          return tags.length ? (
-                            <div
-                              style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: 6,
-                                marginTop: 5,
-                              }}
-                            >
-                              {tags.map((t) => (
-                                <span key={t} className="tag tag-sm">
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="muted" style={{ fontSize: 12 }}>
-                              {p.productCode}
-                            </div>
-                          );
-                        })()}
+        <div className="products-scroll">
+          <table
+            className="products-table"
+            cellPadding={8}
+            style={{
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              width: "100%",
+              minWidth: 966,
+            }}
+          >
+            <colgroup>
+              {/* Product (frozen, min 400px) flexes to fill; the rest are fixed px. The table
+                  min-width makes it overflow the scroll wrapper when space is tight. */}
+              <col />
+              <col style={{ width: 136 }} />
+              <col style={{ width: 136 }} />
+              <col style={{ width: 96 }} />
+              <col style={{ width: 92 }} />
+              <col style={{ width: 106 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th align="left" className="freeze-col">
+                  Product
+                </th>
+                <th align="left">Online price</th>
+                <th align="left">B2C price</th>
+                <th align="center">Stock</th>
+                <th align="left">Status</th>
+                <th align="left">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.map((p) => {
+                const cost = totalCostSatang(p.itemCostSatang, !!p.taxOnCost);
+                const onlineProfit = profitSatang(
+                  p.onlinePriceSatang,
+                  cost,
+                  commissionFeeSatang(p.onlinePriceSatang, p.onlineCommissionBp),
+                );
+                const b2cProfit = profitSatang(p.offlinePriceSatang, cost, 0);
+                return (
+                  <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td className="freeze-col">
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        {p.imageKey ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`${apiBase}/img/${p.imageKey}`}
+                            alt={p.name}
+                            width={56}
+                            height={56}
+                            style={{ objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                          />
+                        ) : (
+                          <span
+                            style={{
+                              width: 56,
+                              height: 56,
+                              borderRadius: 6,
+                              background: "var(--hover)",
+                              flexShrink: 0,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "var(--text-faint)",
+                            }}
+                          >
+                            📦
+                          </span>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <a
+                            href={`/products/${p.id}/edit`}
+                            title={p.name}
+                            style={{
+                              fontWeight: 600,
+                              display: "block",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {p.name}
+                          </a>
+                          {(() => {
+                            const tags = [p.brandName, p.usageName, p.typeName].filter(
+                              Boolean,
+                            ) as string[];
+                            return tags.length ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 6,
+                                  marginTop: 5,
+                                }}
+                              >
+                                {tags.map((t) => (
+                                  <span key={t} className="tag tag-sm">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="muted" style={{ fontSize: 12 }}>
+                                {p.productCode}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <PriceProfitCell
-                      priceSatang={p.onlinePriceSatang}
-                      profitSatang={onlineProfit}
-                    />
-                  </td>
-                  <td>
-                    <PriceProfitCell priceSatang={p.offlinePriceSatang} profitSatang={b2cProfit} />
-                  </td>
-                  <td align="center">
-                    <StockCell variantId={p.variantId} onHand={p.onHand} />
-                  </td>
-                  <td>
-                    {(() => {
-                      const s = productStatusTag(p);
-                      return <span className={`pill ${s.cls}`}>{s.label}</span>;
-                    })()}
-                  </td>
-                  <td>
-                    <ActionsMenu productId={p.id} status={p.status} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    </td>
+                    <td>
+                      <PriceProfitCell
+                        priceSatang={p.onlinePriceSatang}
+                        profitSatang={onlineProfit}
+                      />
+                    </td>
+                    <td>
+                      <PriceProfitCell
+                        priceSatang={p.offlinePriceSatang}
+                        profitSatang={b2cProfit}
+                      />
+                    </td>
+                    <td align="center">
+                      <StockCell variantId={p.variantId} onHand={p.onHand} />
+                    </td>
+                    <td>
+                      {(() => {
+                        const s = productStatusTag(p);
+                        return <span className={`pill ${s.cls}`}>{s.label}</span>;
+                      })()}
+                    </td>
+                    <td>
+                      <ActionsMenu productId={p.id} status={p.status} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   );
