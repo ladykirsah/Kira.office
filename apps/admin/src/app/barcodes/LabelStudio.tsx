@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { apiBase } from "@/lib/api";
 import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 import { drawLabel, downloadLabelSheet, renderSheetPreview, type SheetLabel } from "./labelPdf";
@@ -96,6 +96,24 @@ function Cover({ p, size }: { p: StudioProduct; size: number }) {
 
 const numStyle: CSSProperties = { width: 76, minHeight: 0, padding: "8px 10px" };
 
+function Field({
+  label,
+  suffix,
+  children,
+}: {
+  label: string;
+  suffix?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ width: 30, fontSize: 13, color: "var(--text-muted)" }}>{label}</span>
+      {children}
+      {suffix ? <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{suffix}</span> : null}
+    </div>
+  );
+}
+
 /** One product's label settings + live preview, inside the sheet builder. */
 function LabelCard({
   item,
@@ -132,19 +150,14 @@ function LabelCard({
       style={{
         border: "1px solid var(--border)",
         borderRadius: 12,
-        padding: 14,
+        padding: 16,
         background: "var(--surface)",
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 18,
-        alignItems: "center",
       }}
     >
-      <div
-        style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220, flex: "1 1 220px" }}
-      >
+      {/* Selected product */}
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <Cover p={product} size={48} />
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{
               fontWeight: 600,
@@ -166,62 +179,64 @@ function LabelCard({
             ))}
           </div>
         </div>
-      </div>
-
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: 132,
-          height: "auto",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          flexShrink: 0,
-        }}
-      />
-
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-        <div>
-          <div style={fieldLabel}>W (mm)</div>
-          <input
-            type="number"
-            min={10}
-            value={w}
-            onChange={(e) => changeW(parseFloat(e.target.value))}
-            style={numStyle}
-          />
-        </div>
-        <div>
-          <div style={fieldLabel}>H (mm)</div>
-          <input
-            type="number"
-            min={6}
-            value={h}
-            onChange={(e) => changeH(parseFloat(e.target.value))}
-            style={numStyle}
-          />
-        </div>
-        <div>
-          <div style={fieldLabel}>Qty</div>
-          <input
-            type="number"
-            min={1}
-            value={amount}
-            onChange={(e) =>
-              onChange({ amount: Math.max(1, Math.round(parseFloat(e.target.value) || 1)) })
-            }
-            style={numStyle}
-          />
-        </div>
         <button
           type="button"
           aria-label="Remove"
           title="Remove"
           onClick={onRemove}
           className="icon-btn"
-          style={{ color: "var(--danger)", paddingBottom: 9 }}
+          style={{ color: "var(--danger)", alignSelf: "flex-start" }}
         >
           ✕
         </button>
+      </div>
+
+      <div style={{ borderTop: "1px solid var(--border)", margin: "14px 0" }} />
+
+      {/* Size & quantity (left) · label preview (right) */}
+      <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Field label="W" suffix="mm">
+            <input
+              type="number"
+              min={10}
+              value={w}
+              onChange={(e) => changeW(parseFloat(e.target.value))}
+              style={numStyle}
+            />
+          </Field>
+          <Field label="H" suffix="mm">
+            <input
+              type="number"
+              min={6}
+              value={h}
+              onChange={(e) => changeH(parseFloat(e.target.value))}
+              style={numStyle}
+            />
+          </Field>
+          <Field label="Qty">
+            <input
+              type="number"
+              min={1}
+              value={amount}
+              onChange={(e) =>
+                onChange({ amount: Math.max(1, Math.round(parseFloat(e.target.value) || 1)) })
+              }
+              style={numStyle}
+            />
+          </Field>
+        </div>
+
+        <canvas
+          ref={canvasRef}
+          style={{
+            width: 160,
+            height: "auto",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            marginLeft: "auto",
+          }}
+        />
       </div>
     </div>
   );
