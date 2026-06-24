@@ -114,7 +114,7 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
           title="Save"
           disabled={busy}
           onClick={save}
-          style={{ color: "var(--primary)" }}
+          style={{ color: "var(--ok)" }}
         >
           <Check />
         </button>
