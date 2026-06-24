@@ -1627,6 +1627,37 @@ const worker = {
       return found ? json(found) : json({ error: "barcode not found" }, 404);
     }
 
+    // Duplicate-identifier check (Add product): does any product — active OR not — already use this
+    // Product ID / barcode / Shopee ID? Returns the matching product, or null.
+    if (url.pathname === "/products/identifier-check" && request.method === "GET") {
+      const kind = url.searchParams.get("kind");
+      const value = (url.searchParams.get("value") ?? "").trim();
+      if (!value) return json({ match: null });
+      let match: unknown = null;
+      if (kind === "ref") {
+        match = await env.DB.prepare(
+          "SELECT id, name, product_code AS productCode, status FROM products WHERE product_ref = ? COLLATE NOCASE LIMIT 1",
+        )
+          .bind(value)
+          .first();
+      } else if (kind === "shopee") {
+        match = await env.DB.prepare(
+          "SELECT id, name, product_code AS productCode, status FROM products WHERE shopee_item_id = ? COLLATE NOCASE LIMIT 1",
+        )
+          .bind(value)
+          .first();
+      } else if (kind === "barcode") {
+        match = await env.DB.prepare(
+          "SELECT p.id, p.name, p.product_code AS productCode, p.status FROM barcodes b JOIN product_variants v ON v.id = b.product_variant_id JOIN products p ON p.id = v.product_id WHERE b.barcode_value = ? LIMIT 1",
+        )
+          .bind(value)
+          .first();
+      } else {
+        return json({ error: "bad kind" }, 400);
+      }
+      return json({ match: match ?? null });
+    }
+
     if (url.pathname === "/barcodes" && request.method === "GET") {
       return listBarcodes(env);
     }

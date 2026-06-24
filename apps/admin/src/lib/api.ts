@@ -90,6 +90,27 @@ export async function lookupBarcode(code: string): Promise<BarcodeLookup | null>
   return (await res.json()) as BarcodeLookup;
 }
 
+export type IdentifierKind = "ref" | "barcode" | "shopee";
+export interface IdentifierMatch {
+  id: string;
+  name: string;
+  productCode: string;
+  status: string;
+}
+
+/** Does any product (active or not) already use this Product ID / barcode / Shopee ID? */
+export async function checkIdentifier(
+  kind: IdentifierKind,
+  value: string,
+): Promise<IdentifierMatch | null> {
+  const res = await fetch(
+    `${apiBase}/products/identifier-check?kind=${kind}&value=${encodeURIComponent(value)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) return null;
+  return ((await res.json()) as { match: IdentifierMatch | null }).match;
+}
+
 export interface ProductImage {
   id: string;
   imageKey: string;

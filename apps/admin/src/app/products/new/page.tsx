@@ -8,7 +8,9 @@ import {
   adjustStock,
   setProductPricing,
   fetchAttributes,
+  checkIdentifier,
   type Attributes,
+  type IdentifierKind,
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
@@ -16,6 +18,34 @@ import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
 
 const field = { display: "grid", gap: 4 } as const;
+
+/** Debounced check: warn if another product (any status) already uses this Product ID / barcode / Shopee ID. */
+function useIdentifierCheck(kind: IdentifierKind, value: string): string | null {
+  const [warn, setWarn] = useState<string | null>(null);
+  useEffect(() => {
+    const v = value.trim();
+    if (!v) {
+      setWarn(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const m = await checkIdentifier(kind, v);
+        if (!cancelled) {
+          setWarn(m ? `Already used by “${m.name}” (${m.productCode} · ${m.status})` : null);
+        }
+      } catch {
+        if (!cancelled) setWarn(null);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [kind, value]);
+  return warn;
+}
 
 /** Add product — same sections as the editor (photos, part details, pricing). The product is created
  *  lazily on the first photo upload or on save; "Save draft" / "Save product" set the status. */
@@ -52,6 +82,10 @@ export default function NewProductPage() {
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
   const updatePricing = (patch: Partial<PricingForm>) =>
     setPricing((prev) => ({ ...prev, ...patch }));
+
+  const refWarn = useIdentifierCheck("ref", productRef);
+  const barcodeWarn = useIdentifierCheck("barcode", barcode);
+  const shopeeWarn = useIdentifierCheck("shopee", shopeeItemId);
 
   /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
   async function ensureProduct(): Promise<string | null> {
@@ -218,6 +252,9 @@ export default function NewProductPage() {
             onProductRefChange={setProductRef}
             shopeeItemId={shopeeItemId}
             onShopeeItemIdChange={setShopeeItemId}
+            refWarning={refWarn}
+            barcodeWarning={barcodeWarn}
+            shopeeWarning={shopeeWarn}
           />
         </div>
 

@@ -25,6 +25,9 @@ export function PartDetails({
   onProductRefChange,
   shopeeItemId,
   onShopeeItemIdChange,
+  refWarning,
+  barcodeWarning,
+  shopeeWarning,
 }: {
   value: PartForm;
   onChange: (patch: Partial<PartForm>) => void;
@@ -35,7 +38,14 @@ export function PartDetails({
   onProductRefChange: (v: string) => void;
   shopeeItemId: string;
   onShopeeItemIdChange: (v: string) => void;
+  /** Optional "already used by …" warnings shown under the matching identifier field. */
+  refWarning?: string | null;
+  barcodeWarning?: string | null;
+  shopeeWarning?: string | null;
 }) {
+  const warn = (msg: string | null | undefined) =>
+    msg ? <small style={{ color: "var(--danger)", fontSize: 12 }}>{msg}</small> : null;
+
   const composed = [value.brand, value.usage, value.type]
     .map((s) => s.trim())
     .filter(Boolean)
@@ -100,6 +110,7 @@ export function PartDetails({
           onChange={(e) => onProductRefChange(e.target.value)}
           placeholder="catalog / part no. (comes with the product)"
         />
+        {warn(refWarning)}
       </label>
 
       <div
@@ -117,6 +128,7 @@ export function PartDetails({
             onChange={(e) => onBarcodeChange(e.target.value)}
             placeholder="scan / type"
           />
+          {warn(barcodeWarning)}
         </label>
         <BarcodePreview value={barcode} />
       </div>
@@ -128,6 +140,7 @@ export function PartDetails({
           onChange={(e) => onShopeeItemIdChange(e.target.value)}
           placeholder="Shopee item id"
         />
+        {warn(shopeeWarning)}
       </label>
     </div>
   );

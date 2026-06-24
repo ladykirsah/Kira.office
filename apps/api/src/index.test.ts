@@ -75,6 +75,7 @@ function makeDb(canned: {
   financeSales?: unknown;
   financeProfit?: unknown;
   financeRefunds?: unknown;
+  identifierMatch?: unknown;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -120,6 +121,8 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("product_ref =") || sql.includes("shopee_item_id ="))
+          return (canned.identifierMatch ?? null) as T | null;
         if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
         if (sql.includes("FROM onsite_sale_lines l JOIN"))
           return (canned.financeProfit ?? null) as T | null;
@@ -218,6 +221,27 @@ describe("api worker routes", () => {
     const { env } = makeDb({ products: [row] });
     const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
     expect(await res.json()).toEqual({ products: [row] });
+  });
+
+  it("GET /products/identifier-check > finds a product (any status) using the id", async () => {
+    const match = { id: "p9", name: "Old part", productCode: "OLD-1", status: "archived" };
+    const { env } = makeDb({ identifierMatch: match });
+    const res = await worker.fetch!(
+      new Request("https://x/products/identifier-check?kind=ref&value=DI-1"),
+      env,
+      ctx,
+    );
+    expect(await res.json()).toEqual({ match });
+  });
+
+  it("GET /products/identifier-check > returns null when nothing matches", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/products/identifier-check?kind=shopee&value=ZZ"),
+      env,
+      ctx,
+    );
+    expect(await res.json()).toEqual({ match: null });
   });
 
   it("GET /sales > reads recent sales from D1", async () => {
