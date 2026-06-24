@@ -13,8 +13,11 @@ describe("productStatusTag", () => {
     expect(productStatusTag({ ...base, status: "draft" })).toEqual({ label: "Draft", cls: "off" });
   });
 
-  it("given an active product not listed on Shopee > returns Pause (amber)", () => {
-    expect(productStatusTag({ ...base, shopeeListed: 0 })).toEqual({ label: "Pause", cls: "warn" });
+  it("given an active product not listed on Shopee > returns Pause (yellow)", () => {
+    expect(productStatusTag({ ...base, shopeeListed: 0 })).toEqual({
+      label: "Pause",
+      cls: "pause",
+    });
   });
 
   it("given a listed product with zero stock > returns Out (red)", () => {

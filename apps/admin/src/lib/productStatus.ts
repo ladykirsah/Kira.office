@@ -3,7 +3,7 @@ import type { ProductRow } from "./api";
 export interface StatusTag {
   label: string;
   /** pill modifier class — see `.pill.*` in globals.css */
-  cls: "on" | "off" | "warn" | "bad";
+  cls: "on" | "off" | "pause" | "bad";
 }
 
 /**
@@ -17,7 +17,7 @@ export function productStatusTag(
   p: Pick<ProductRow, "status" | "shopeeListed" | "onHand">,
 ): StatusTag {
   if (p.status === "draft") return { label: "Draft", cls: "off" };
-  if (!p.shopeeListed) return { label: "Pause", cls: "warn" };
+  if (!p.shopeeListed) return { label: "Pause", cls: "pause" };
   if (p.onHand <= 0) return { label: "Out", cls: "bad" };
   return { label: "Active", cls: "on" };
 }
