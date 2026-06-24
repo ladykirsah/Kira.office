@@ -13,6 +13,9 @@ export interface ProductRow {
   usageName: string | null;
   offlinePriceSatang: number;
   onlinePriceSatang: number;
+  itemCostSatang: number;
+  onlineCommissionBp: number;
+  taxOnCost: number;
   onHand: number;
 }
 

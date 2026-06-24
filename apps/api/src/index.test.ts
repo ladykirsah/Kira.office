@@ -206,6 +206,9 @@ describe("api worker routes", () => {
       brandName: "DENSO",
       typeName: "Blower motor",
       usageName: "A/C",
+      itemCostSatang: 5000,
+      onlineCommissionBp: 1000,
+      taxOnCost: 0,
     };
     const { env } = makeDb({ products: [row] });
     const res = await worker.fetch!(new Request("https://x/products"), env, ctx);

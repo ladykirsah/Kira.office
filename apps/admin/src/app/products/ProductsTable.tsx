@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
-import { formatBaht } from "@/lib/format";
+import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { ActionsMenu } from "./ActionsMenu";
+import { PriceProfitCell } from "./PriceProfitCell";
 
 type Tab = "all" | "listed" | "unlisted";
 
@@ -58,119 +59,115 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
         >
           <colgroup>
-            <col style={{ width: "40%" }} />
-            <col style={{ width: "22%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "32%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "12%" }} />
             <col style={{ width: "14%" }} />
           </colgroup>
           <thead>
             <tr>
               <th align="left">Product</th>
-              <th align="right">Price</th>
+              <th align="left">Online price</th>
+              <th align="left">B2C price</th>
               <th align="right">Stock</th>
               <th align="left">Shopee</th>
               <th align="left">Action</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((p) => (
-              <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
-                <td>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    {p.imageKey ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`${apiBase}/img/${p.imageKey}`}
-                        alt={p.name}
-                        width={48}
-                        height={48}
-                        style={{ objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 6,
-                          background: "var(--hover)",
-                          flexShrink: 0,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "var(--text-faint)",
-                        }}
-                      >
-                        📦
-                      </span>
-                    )}
-                    <div style={{ minWidth: 0 }}>
-                      <a href={`/products/${p.id}/edit`} style={{ fontWeight: 600 }}>
-                        {p.name}
-                      </a>
-                      {(() => {
-                        const tags = [p.brandName, p.usageName, p.typeName].filter(
-                          Boolean,
-                        ) as string[];
-                        return tags.length ? (
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 6,
-                              marginTop: 5,
-                            }}
-                          >
-                            {tags.map((t) => (
-                              <span key={t} className="tag">
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {p.productCode}
-                          </div>
-                        );
-                      })()}
+            {rows.map((p) => {
+              const cost = totalCostSatang(p.itemCostSatang, !!p.taxOnCost);
+              const onlineProfit = profitSatang(
+                p.onlinePriceSatang,
+                cost,
+                commissionFeeSatang(p.onlinePriceSatang, p.onlineCommissionBp),
+              );
+              const b2cProfit = profitSatang(p.offlinePriceSatang, cost, 0);
+              return (
+                <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      {p.imageKey ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`${apiBase}/img/${p.imageKey}`}
+                          alt={p.name}
+                          width={48}
+                          height={48}
+                          style={{ objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 6,
+                            background: "var(--hover)",
+                            flexShrink: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "var(--text-faint)",
+                          }}
+                        >
+                          📦
+                        </span>
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <a href={`/products/${p.id}/edit`} style={{ fontWeight: 600 }}>
+                          {p.name}
+                        </a>
+                        {(() => {
+                          const tags = [p.brandName, p.usageName, p.typeName].filter(
+                            Boolean,
+                          ) as string[];
+                          return tags.length ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 6,
+                                marginTop: 5,
+                              }}
+                            >
+                              {tags.map((t) => (
+                                <span key={t} className="tag">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="muted" style={{ fontSize: 12 }}>
+                              {p.productCode}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td align="right">
-                  <div
-                    style={{
-                      display: "inline-grid",
-                      gridTemplateColumns: "auto auto",
-                      columnGap: 12,
-                      rowGap: 3,
-                      alignItems: "baseline",
-                    }}
-                  >
-                    <span className="muted" style={{ fontSize: 12, textAlign: "left" }}>
-                      Online
+                  </td>
+                  <td>
+                    <PriceProfitCell
+                      priceSatang={p.onlinePriceSatang}
+                      profitSatang={onlineProfit}
+                    />
+                  </td>
+                  <td>
+                    <PriceProfitCell priceSatang={p.offlinePriceSatang} profitSatang={b2cProfit} />
+                  </td>
+                  <td align="right">{p.onHand}</td>
+                  <td>
+                    <span className={p.shopeeListed ? "pill on" : "pill off"}>
+                      {p.shopeeListed ? "Active" : "Not listed"}
                     </span>
-                    <span style={{ textAlign: "right" }}>
-                      {p.onlinePriceSatang ? formatBaht(p.onlinePriceSatang) : "—"}
-                    </span>
-                    <span className="muted" style={{ fontSize: 12, textAlign: "left" }}>
-                      B2C
-                    </span>
-                    <span style={{ textAlign: "right" }}>
-                      {p.offlinePriceSatang ? formatBaht(p.offlinePriceSatang) : "—"}
-                    </span>
-                  </div>
-                </td>
-                <td align="right">{p.onHand}</td>
-                <td>
-                  <span className={p.shopeeListed ? "pill on" : "pill off"}>
-                    {p.shopeeListed ? "Active" : "Not listed"}
-                  </span>
-                </td>
-                <td>
-                  <ActionsMenu productId={p.id} status={p.status} />
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    <ActionsMenu productId={p.id} status={p.status} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

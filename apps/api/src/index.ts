@@ -776,6 +776,9 @@ async function listProducts(env: Env): Promise<Response> {
             u.name AS usageName,
             COALESCE(pp.target_price_satang, 0) AS offlinePriceSatang,
             COALESCE(pp.online_price_satang, 0) AS onlinePriceSatang,
+            COALESCE(pp.item_cost_satang, 0) AS itemCostSatang,
+            COALESCE(pp.online_commission_bp, 0) AS onlineCommissionBp,
+            COALESCE(pp.tax_on_cost, 0) AS taxOnCost,
             COALESCE(
               (SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id),
               0
