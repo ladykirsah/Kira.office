@@ -197,14 +197,19 @@ describe("api worker routes", () => {
     expect(res.status).toBe(404);
   });
 
-  it("GET /products > reads from D1", async () => {
-    const { env } = makeDb({
-      products: [{ id: "p1", productCode: "C1", name: "Cream", status: "active" }],
-    });
+  it("GET /products > reads from D1 (incl. part-detail names)", async () => {
+    const row = {
+      id: "p1",
+      productCode: "C1",
+      name: "Cream",
+      status: "active",
+      brandName: "DENSO",
+      typeName: "Blower motor",
+      usageName: "A/C",
+    };
+    const { env } = makeDb({ products: [row] });
     const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
-    expect(await res.json()).toEqual({
-      products: [{ id: "p1", productCode: "C1", name: "Cream", status: "active" }],
-    });
+    expect(await res.json()).toEqual({ products: [row] });
   });
 
   it("GET /sales > reads recent sales from D1", async () => {

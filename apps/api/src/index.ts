@@ -771,6 +771,9 @@ async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_code AS productCode, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
+            b.name AS brandName,
+            t.name AS typeName,
+            u.name AS usageName,
             COALESCE(pp.target_price_satang, 0) AS offlinePriceSatang,
             COALESCE(pp.online_price_satang, 0) AS onlinePriceSatang,
             COALESCE(
@@ -778,6 +781,9 @@ async function listProducts(env: Env): Promise<Response> {
               0
             ) AS onHand
      FROM products p
+     LEFT JOIN brands b ON b.id = p.brand_id
+     LEFT JOIN product_types t ON t.id = p.type_id
+     LEFT JOIN usage_categories u ON u.id = p.usage_id
      LEFT JOIN product_variants v
        ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)
      LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id

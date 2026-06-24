@@ -8,6 +8,9 @@ export interface ProductRow {
   status: string;
   imageKey: string | null;
   shopeeListed: number;
+  brandName: string | null;
+  typeName: string | null;
+  usageName: string | null;
   offlinePriceSatang: number;
   onlinePriceSatang: number;
   onHand: number;

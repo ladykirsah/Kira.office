@@ -53,11 +53,21 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             : "No products match."}
         </div>
       ) : (
-        <table cellPadding={8} style={{ borderCollapse: "collapse" }}>
+        <table
+          cellPadding={8}
+          style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
+        >
+          <colgroup>
+            <col style={{ width: "40%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+          </colgroup>
           <thead>
             <tr>
               <th align="left">Product</th>
-              <th align="right">Price (offline / online)</th>
+              <th align="right">Price</th>
               <th align="right">Stock</th>
               <th align="left">Shopee</th>
               <th align="left">Action</th>
@@ -98,22 +108,62 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                       <a href={`/products/${p.id}/edit`} style={{ fontWeight: 600 }}>
                         {p.name}
                       </a>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {p.productCode}
-                      </div>
+                      {(() => {
+                        const tags = [p.brandName, p.usageName, p.typeName].filter(
+                          Boolean,
+                        ) as string[];
+                        return tags.length ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 6,
+                              marginTop: 5,
+                            }}
+                          >
+                            {tags.map((t) => (
+                              <span key={t} className="tag">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {p.productCode}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </td>
                 <td align="right">
-                  <div>{p.offlinePriceSatang ? formatBaht(p.offlinePriceSatang) : "—"}</div>
-                  <div className="muted" style={{ fontSize: 13 }}>
-                    {p.onlinePriceSatang ? formatBaht(p.onlinePriceSatang) : "—"}
+                  <div
+                    style={{
+                      display: "inline-grid",
+                      gridTemplateColumns: "auto auto",
+                      columnGap: 12,
+                      rowGap: 3,
+                      alignItems: "baseline",
+                    }}
+                  >
+                    <span className="muted" style={{ fontSize: 12, textAlign: "left" }}>
+                      Online
+                    </span>
+                    <span style={{ textAlign: "right" }}>
+                      {p.onlinePriceSatang ? formatBaht(p.onlinePriceSatang) : "—"}
+                    </span>
+                    <span className="muted" style={{ fontSize: 12, textAlign: "left" }}>
+                      B2C
+                    </span>
+                    <span style={{ textAlign: "right" }}>
+                      {p.offlinePriceSatang ? formatBaht(p.offlinePriceSatang) : "—"}
+                    </span>
                   </div>
                 </td>
                 <td align="right">{p.onHand}</td>
                 <td>
                   <span className={p.shopeeListed ? "pill on" : "pill off"}>
-                    {p.shopeeListed ? "On Shopee" : "Not listed"}
+                    {p.shopeeListed ? "Active" : "Not listed"}
                   </span>
                 </td>
                 <td>
