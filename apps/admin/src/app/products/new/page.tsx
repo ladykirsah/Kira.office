@@ -22,7 +22,6 @@ const field = { display: "grid", gap: 4 } as const;
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
-  const [productCode, setProductCode] = useState("");
   const [name, setName] = useState("");
   const [stockQty, setStockQty] = useState("0");
   const [weightKg, setWeightKg] = useState("");
@@ -57,13 +56,18 @@ export default function NewProductPage() {
   /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
   async function ensureProduct(): Promise<string | null> {
     if (created.current) return created.current.id;
-    if (!productCode.trim() || !name.trim()) {
-      toast("Enter a product code and name first", "error");
+    if (!name.trim()) {
+      toast("Enter a product name first", "error");
       return null;
     }
+    // Product code is auto-generated (not a form field); it only needs to be unique.
+    const productCode = `P-${Date.now().toString(36).toUpperCase()}${Math.random()
+      .toString(36)
+      .slice(2, 4)
+      .toUpperCase()}`;
     const out = await createProduct({ productCode, name });
     if (!out.created) {
-      toast(`A product with code “${productCode}” already exists`, "info");
+      toast("Could not create the product — please try again", "error");
       return null;
     }
     created.current = { id: out.productId, variantId: out.variantId };
@@ -109,10 +113,7 @@ export default function NewProductPage() {
           reason: "created from Add product",
         });
       }
-      toast(
-        status === "active" ? `Saved “${productCode}”` : `Draft “${productCode}” saved`,
-        "success",
-      );
+      toast(status === "active" ? `Saved “${name}”` : `Draft “${name}” saved`, "success");
       router.push(`/products/${id}/edit`);
     } catch (err) {
       toast((err as Error).message, "error");
@@ -179,15 +180,6 @@ export default function NewProductPage() {
           />
         </div>
 
-        <label style={{ ...field, gridColumn: "1 / -1" }}>
-          Product code *
-          <input
-            value={productCode}
-            onChange={(e) => setProductCode(e.target.value)}
-            disabled={!!createdId}
-            required
-          />
-        </label>
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product name *
           <input value={name} onChange={(e) => setName(e.target.value)} required />
