@@ -127,7 +127,7 @@ export default function PosPage() {
 
   return (
     <main>
-      <h1>POS</h1>
+      <h1>Point of Sale</h1>
       {pending > 0 && (
         <p style={{ color: "var(--warn)" }}>
           ⏳ {pending} sale(s) queued offline — will sync when online.

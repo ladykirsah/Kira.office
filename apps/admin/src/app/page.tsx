@@ -1,7 +1,6 @@
 const SECTIONS: { href: string; icon: string; title: string; desc: string }[] = [
   { href: "/products", icon: "📦", title: "Products", desc: "Catalog, images, edit" },
-  { href: "/pos", icon: "🛒", title: "POS", desc: "Barcode selling (works offline)" },
-  { href: "/stock", icon: "📊", title: "Stock", desc: "On-hand & adjustments" },
+  { href: "/pos", icon: "🛒", title: "Point of Sale", desc: "Barcode selling (works offline)" },
   { href: "/sales", icon: "💰", title: "Sales", desc: "Revenue, profit, refunds" },
   { href: "/finance", icon: "📈", title: "Finance", desc: "Totals & VAT" },
   { href: "/orders", icon: "🧾", title: "Orders", desc: "Shopee CSV import" },

@@ -422,20 +422,6 @@ export async function fetchFinanceSummary(): Promise<FinanceSummary> {
   return (await res.json()) as FinanceSummary;
 }
 
-export interface StockRow {
-  variantId: string;
-  sku: string | null;
-  productName: string;
-  productCode: string;
-  onHand: number;
-}
-
-export async function fetchStock(): Promise<StockRow[]> {
-  const res = await fetch(`${apiBase}/stock`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load stock (HTTP ${res.status})`);
-  return ((await res.json()) as { stock: StockRow[] }).stock;
-}
-
 export async function adjustStock(input: {
   productVariantId: string;
   quantityDelta: number;
