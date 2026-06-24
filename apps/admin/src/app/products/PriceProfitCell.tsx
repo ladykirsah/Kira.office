@@ -20,8 +20,10 @@ export function PriceProfitCell({
   if (!priceSatang) return <span className="muted">—</span>;
 
   return (
-    <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
+      >
         <span style={{ fontWeight: 600 }}>{formatBahtTrim(priceSatang)}</span>
         <button
           type="button"
@@ -65,7 +67,7 @@ export function PriceProfitCell({
             profit {formatBahtTrim(profitSatang)}
           </strong>
         ) : (
-          <span className="muted">hold to see profit</span>
+          <span style={{ color: "var(--text-faint)" }}>hold to see profit</span>
         )}
       </span>
     </div>
