@@ -125,6 +125,7 @@ export interface SheetLabel extends LabelProduct {
   w: number;
   h: number;
   amount: number;
+  showBarcode: boolean;
 }
 
 /** Build and download one PDF holding several products' labels, each at its own size and count. */
@@ -132,9 +133,8 @@ export function downloadLabelSheet(opts: {
   paper: Paper;
   orientation: Orientation;
   items: SheetLabel[];
-  showBarcode?: boolean;
 }): void {
-  const { paper, orientation, items, showBarcode = true } = opts;
+  const { paper, orientation, items } = opts;
   const page = pageDimensions(paper, orientation);
   const margin = 8;
   const gap = 4;
@@ -149,7 +149,7 @@ export function downloadLabelSheet(opts: {
   // Render each product's label image once, then stamp it at every placement.
   const images = items.map((it) => {
     const c = document.createElement("canvas");
-    drawLabel(c, it, it.w, it.h, showBarcode);
+    drawLabel(c, it, it.w, it.h, it.showBarcode);
     return c.toDataURL("image/png");
   });
 
@@ -172,10 +172,10 @@ const PREVIEW_PX_PER_MM = 3;
 /** Render a live, to-scale preview of the printed page(s) into `container` (one canvas per page). */
 export function renderSheetPreview(
   container: HTMLElement,
-  opts: { paper: Paper; orientation: Orientation; items: SheetLabel[]; showBarcode?: boolean },
+  opts: { paper: Paper; orientation: Orientation; items: SheetLabel[] },
 ): void {
   container.replaceChildren();
-  const { paper, orientation, items, showBarcode = true } = opts;
+  const { paper, orientation, items } = opts;
   const page = pageDimensions(paper, orientation);
   const margin = 8;
   const gap = 4;
@@ -189,7 +189,7 @@ export function renderSheetPreview(
 
   const labelImages = items.map((it) => {
     const c = document.createElement("canvas");
-    drawLabel(c, it, it.w, it.h, showBarcode);
+    drawLabel(c, it, it.w, it.h, it.showBarcode);
     return c;
   });
 

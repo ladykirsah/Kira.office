@@ -19,6 +19,7 @@ interface LabelItem {
   w: number;
   h: number;
   amount: number;
+  showBarcode: boolean;
 }
 
 const RATIO = 50 / 30; // locked label aspect ratio
@@ -117,17 +118,15 @@ function Field({
 /** One product's label settings + live preview, inside the sheet builder. */
 function LabelCard({
   item,
-  showBarcode,
   onChange,
   onRemove,
 }: {
   item: LabelItem;
-  showBarcode: boolean;
   onChange: (patch: Partial<LabelItem>) => void;
   onRemove: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { product, w, h, amount } = item;
+  const { product, w, h, amount, showBarcode } = item;
 
   useEffect(() => {
     if (canvasRef.current && product.barcode) {
@@ -230,16 +229,36 @@ function LabelCard({
           </Field>
         </div>
 
-        <canvas
-          ref={canvasRef}
+        <div
           style={{
-            width: 160,
-            height: "auto",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
             marginLeft: "auto",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 8,
           }}
-        />
+        >
+          <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={showBarcode}
+                onChange={(e) => onChange({ showBarcode: e.target.checked })}
+              />
+              <span className="slider" />
+            </span>
+            <span style={{ fontSize: 13 }}>Barcode &amp; code</span>
+          </label>
+          <canvas
+            ref={canvasRef}
+            style={{
+              width: 160,
+              height: "auto",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -250,7 +269,6 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<LabelItem[]>([]);
-  const [showBarcode, setShowBarcode] = useState(true);
 
   const q = query.trim().toLowerCase();
   const chosen = new Set(items.map((it) => it.product.id));
@@ -262,7 +280,7 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
 
   const addProduct = (p: StudioProduct) => {
     if (!p.barcode || chosen.has(p.id)) return;
-    setItems((xs) => [...xs, { product: p, w: 50, h: 30, amount: 24 }]);
+    setItems((xs) => [...xs, { product: p, w: 50, h: 30, amount: 24, showBarcode: true }]);
     setQuery("");
   };
   const patchItem = (id: string, patch: Partial<LabelItem>) =>
@@ -279,6 +297,7 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
       w: it.w,
       h: it.h,
       amount: it.amount,
+      showBarcode: it.showBarcode,
     }));
 
   const plan = planSheet({
@@ -291,11 +310,11 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
   const previewRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (previewRef.current)
-      renderSheetPreview(previewRef.current, { paper, orientation, items: labels, showBarcode });
+      renderSheetPreview(previewRef.current, { paper, orientation, items: labels });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, paper, orientation, showBarcode]);
+  }, [items, paper, orientation]);
 
-  const download = () => downloadLabelSheet({ paper, orientation, items: labels, showBarcode });
+  const download = () => downloadLabelSheet({ paper, orientation, items: labels });
 
   return (
     <main>
@@ -392,7 +411,6 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
               <LabelCard
                 key={it.product.id}
                 item={it}
-                showBarcode={showBarcode}
                 onChange={(patch) => patchItem(it.product.id, patch)}
                 onRemove={() => removeItem(it.product.id)}
               />
@@ -456,27 +474,7 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
 
           {plan.placements.length > 0 && (
             <div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 8,
-                }}
-              >
-                <span style={fieldLabel}>File preview</span>
-                <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
-                  <span className="switch">
-                    <input
-                      type="checkbox"
-                      checked={showBarcode}
-                      onChange={(e) => setShowBarcode(e.target.checked)}
-                    />
-                    <span className="slider" />
-                  </span>
-                  <span style={{ fontSize: 13 }}>Barcode &amp; code</span>
-                </label>
-              </div>
+              <div style={fieldLabel}>File preview</div>
               <div ref={previewRef} className="sheet-preview" />
             </div>
           )}
