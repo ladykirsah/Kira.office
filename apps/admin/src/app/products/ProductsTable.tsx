@@ -157,13 +157,13 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
         >
           <colgroup>
-            {/* Product flexes to absorb extra width; the rest stay content-sized (px). */}
-            <col />
-            <col style={{ width: 150 }} />
-            <col style={{ width: 150 }} />
-            <col style={{ width: 96 }} />
-            <col style={{ width: 88 }} />
-            <col style={{ width: 108 }} />
+            {/* Percentage columns so the table scales with the window and never forces overflow. */}
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "17%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "12%" }} />
           </colgroup>
           <thead>
             <tr>
