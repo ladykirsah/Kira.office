@@ -64,6 +64,7 @@ export function drawLabel(
   product: LabelProduct,
   wMm: number,
   hMm: number,
+  showBarcode = true,
 ): void {
   const W = Math.round(wMm * RES);
   const H = Math.round(hMm * RES);
@@ -100,6 +101,8 @@ export function drawLabel(
     y += 3.4 * RES;
   }
 
+  if (!showBarcode) return;
+
   // Code (bottom, centered)
   ctx.fillStyle = "#444";
   ctx.font = `${2.4 * RES}px monospace`;
@@ -129,8 +132,9 @@ export function downloadLabelSheet(opts: {
   paper: Paper;
   orientation: Orientation;
   items: SheetLabel[];
+  showBarcode?: boolean;
 }): void {
-  const { paper, orientation, items } = opts;
+  const { paper, orientation, items, showBarcode = true } = opts;
   const page = pageDimensions(paper, orientation);
   const margin = 8;
   const gap = 4;
@@ -145,7 +149,7 @@ export function downloadLabelSheet(opts: {
   // Render each product's label image once, then stamp it at every placement.
   const images = items.map((it) => {
     const c = document.createElement("canvas");
-    drawLabel(c, it, it.w, it.h);
+    drawLabel(c, it, it.w, it.h, showBarcode);
     return c.toDataURL("image/png");
   });
 
@@ -168,10 +172,10 @@ const PREVIEW_PX_PER_MM = 3;
 /** Render a live, to-scale preview of the printed page(s) into `container` (one canvas per page). */
 export function renderSheetPreview(
   container: HTMLElement,
-  opts: { paper: Paper; orientation: Orientation; items: SheetLabel[] },
+  opts: { paper: Paper; orientation: Orientation; items: SheetLabel[]; showBarcode?: boolean },
 ): void {
   container.replaceChildren();
-  const { paper, orientation, items } = opts;
+  const { paper, orientation, items, showBarcode = true } = opts;
   const page = pageDimensions(paper, orientation);
   const margin = 8;
   const gap = 4;
@@ -185,7 +189,7 @@ export function renderSheetPreview(
 
   const labelImages = items.map((it) => {
     const c = document.createElement("canvas");
-    drawLabel(c, it, it.w, it.h);
+    drawLabel(c, it, it.w, it.h, showBarcode);
     return c;
   });
 
