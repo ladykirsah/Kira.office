@@ -2,12 +2,10 @@ const SECTIONS: { href: string; icon: string; title: string; desc: string }[] = 
   { href: "/products", icon: "📦", title: "Products", desc: "Catalog, images, edit" },
   { href: "/pos", icon: "🛒", title: "POS", desc: "Barcode selling (works offline)" },
   { href: "/stock", icon: "📊", title: "Stock", desc: "On-hand & adjustments" },
-  { href: "/pricing", icon: "🧮", title: "Pricing", desc: "Profit, VAT, target margin" },
   { href: "/sales", icon: "💰", title: "Sales", desc: "Revenue, profit, refunds" },
   { href: "/finance", icon: "📈", title: "Finance", desc: "Totals & VAT" },
   { href: "/orders", icon: "🧾", title: "Orders", desc: "Shopee CSV import" },
   { href: "/import", icon: "⬆️", title: "Import", desc: "Bulk catalog CSV" },
-  { href: "/barcodes", icon: "🏷️", title: "Barcodes", desc: "Generate & print" },
   { href: "/terms", icon: "📝", title: "Terms", desc: "Thai T&C editor" },
 ];
 
