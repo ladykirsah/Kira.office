@@ -130,7 +130,8 @@ export function PartDetails({
           />
           {warn(barcodeWarning)}
         </label>
-        <BarcodePreview value={barcode} />
+        {/* A barcode already used by another product can't be reused — hide its preview. */}
+        {barcodeWarning ? null : <BarcodePreview value={barcode} />}
       </div>
 
       <label style={field}>
