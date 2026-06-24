@@ -7,7 +7,7 @@ import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 
-type Tab = "all" | "listed" | "unlisted";
+type Tab = "all" | "listed" | "unlisted" | "out";
 
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
@@ -33,8 +33,16 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
 
   const listed = products.filter((p) => p.shopeeListed);
   const unlisted = products.filter((p) => !p.shopeeListed);
+  const outOfStock = products.filter((p) => p.onHand <= 0);
 
-  const byTab = tab === "listed" ? listed : tab === "unlisted" ? unlisted : products;
+  const byTab =
+    tab === "listed"
+      ? listed
+      : tab === "unlisted"
+        ? unlisted
+        : tab === "out"
+          ? outOfStock
+          : products;
   const s = q.trim().toLowerCase();
   const rows = s
     ? byTab.filter(
@@ -74,6 +82,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         <TabBtn id="all" label="All" n={products.length} />
         <TabBtn id="listed" label="On Shopee" n={listed.length} />
         <TabBtn id="unlisted" label="Not listed" n={unlisted.length} />
+        <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
       </div>
 
       <div
