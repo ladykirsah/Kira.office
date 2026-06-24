@@ -823,8 +823,10 @@ tbody tr:hover {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 14px;
+  padding: 4px;
+  min-height: 0;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--text);
   cursor: pointer;
 }
