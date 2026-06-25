@@ -16,6 +16,7 @@ export interface QueuedSale {
   paymentMethod: string;
   saleType?: "parts" | "repair";
   licensePlate?: string;
+  vehicle?: string;
   notes?: string;
   lines: QueuedLine[];
   queuedAt: number;

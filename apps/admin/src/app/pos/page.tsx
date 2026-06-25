@@ -575,6 +575,7 @@ export default function PosPage() {
       paymentMethod: "cash",
       saleType,
       licensePlate: saleType === "repair" ? plate.trim() || undefined : undefined,
+      vehicle: saleType === "repair" ? vehicleLabel || undefined : undefined,
       notes: note.trim() || undefined,
       lines: lines.map((l) => ({
         productVariantId: l.kind === "part" ? (l.productVariantId ?? null) : null,

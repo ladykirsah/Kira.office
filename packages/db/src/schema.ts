@@ -306,6 +306,7 @@ export const onsiteSales = sqliteTable("onsite_sales", {
     .notNull()
     .default("parts"),
   licensePlate: text("license_plate"),
+  vehicle: text("vehicle"),
   notes: text("notes"),
   subtotalSatang: integer("subtotal_satang").notNull().default(0),
   discountTotalSatang: integer("discount_total_satang").notNull().default(0),

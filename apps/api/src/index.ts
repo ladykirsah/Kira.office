@@ -37,6 +37,7 @@ interface SyncSale {
   paymentMethod?: string;
   saleType?: "parts" | "repair";
   licensePlate?: string;
+  vehicle?: string;
   notes?: string;
   lines: SyncLine[];
 }
@@ -295,8 +296,8 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       db
         .prepare(
           `INSERT OR IGNORE INTO onsite_sales
-           (id, client_uuid, payment_method, sale_type, license_plate, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, client_uuid, payment_method, sale_type, license_plate, vehicle, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           saleId,
@@ -304,6 +305,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
           sale.paymentMethod ?? null,
           sale.saleType ?? "parts",
           sale.licensePlate?.trim() || null,
+          sale.vehicle?.trim() || null,
           sale.notes?.trim() || null,
           "synced",
           subtotal,
