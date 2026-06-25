@@ -4,14 +4,17 @@ import { useState } from "react";
 import { type SaleRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { formatBaht } from "@/lib/format";
+import { saleStatusPill, saleTypeBadge, vehicleLabel } from "@/lib/badges";
 import { RefundButton } from "./RefundButton";
+
+const right = { textAlign: "right" } as const;
 
 export function SalesTable({ sales }: { sales: SaleRow[] }) {
   const [filter, setFilter] = useState("all");
   const filtered = filter === "all" ? sales : sales.filter((s) => s.saleStatus === filter);
 
   return (
-    <>
+    <div className="card" style={{ overflowX: "auto" }}>
       <div style={{ marginBottom: 12 }}>
         <label>
           Show{" "}
@@ -31,33 +34,52 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
             : "No matching sales."}
         </div>
       ) : (
-        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
+        <table>
           <thead>
             <tr>
-              <th align="left">When</th>
-              <th align="left">Payment</th>
-              <th align="right">Total</th>
-              <th align="right">Profit</th>
-              <th align="left">Status</th>
-              <th align="left"></th>
+              <th>When</th>
+              <th>Job</th>
+              <th>Payment</th>
+              <th style={right}>Total</th>
+              <th style={right}>Profit</th>
+              <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((s) => (
-              <tr key={s.id} style={{ borderTop: "1px solid var(--border)" }}>
-                <td>{new Date(s.createdAt).toLocaleString("th-TH")}</td>
-                <td>{s.paymentMethod ?? "—"}</td>
-                <td align="right">{formatBaht(s.grandTotalSatang)}</td>
-                <td align="right">{formatBaht(s.grossProfitSatang)}</td>
-                <td>{s.saleStatus}</td>
-                <td>
-                  <RefundButton saleId={s.id} status={s.saleStatus} />
-                </td>
-              </tr>
-            ))}
+            {filtered.map((s) => {
+              const type = saleTypeBadge(s.saleType);
+              const veh = vehicleLabel(s.vehicle, s.licensePlate);
+              return (
+                <tr key={s.id}>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {new Date(s.createdAt).toLocaleString("th-TH")}
+                  </td>
+                  <td>
+                    {type ? <span className={`pill ${type.pill}`}>{type.label}</span> : "—"}
+                    {veh && (
+                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        {veh}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    {s.paymentMethod ? <span className="pill off">{s.paymentMethod}</span> : "—"}
+                  </td>
+                  <td style={right}>{formatBaht(s.grandTotalSatang)}</td>
+                  <td style={right}>{formatBaht(s.grossProfitSatang)}</td>
+                  <td>
+                    <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
+                  </td>
+                  <td>
+                    <RefundButton saleId={s.id} status={s.saleStatus} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
-    </>
+    </div>
   );
 }

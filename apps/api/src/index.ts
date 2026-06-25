@@ -844,6 +844,9 @@ export interface SaleExportRow {
   grossProfitSatang: number;
   saleStatus: string;
   createdAt: number;
+  saleType: string | null;
+  licensePlate: string | null;
+  vehicle: string | null;
 }
 
 const SALES_SELECT = `SELECT s.id,
@@ -852,6 +855,9 @@ const SALES_SELECT = `SELECT s.id,
         s.tax_total_satang AS taxTotalSatang,
         s.sale_status AS saleStatus,
         s.created_at AS createdAt,
+        s.sale_type AS saleType,
+        s.license_plate AS licensePlate,
+        s.vehicle AS vehicle,
         COALESCE(
           (SELECT SUM(gross_profit_satang) FROM onsite_sale_lines WHERE onsite_sale_id = s.id),
           0

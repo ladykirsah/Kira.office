@@ -537,6 +537,9 @@ export interface SaleRow {
   saleStatus: string;
   createdAt: number;
   grossProfitSatang: number;
+  saleType: string | null;
+  licensePlate: string | null;
+  vehicle: string | null;
 }
 
 export async function refundSale(

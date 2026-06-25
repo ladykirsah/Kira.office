@@ -697,6 +697,10 @@ describe("salesToCsv", () => {
         grossProfitSatang: 4000,
         saleStatus: "completed",
         createdAt: 0,
+        // Present on the row but intentionally NOT in the accounting CSV (asserted below).
+        saleType: "repair",
+        licensePlate: "1กก 1234",
+        vehicle: "Toyota Vios 2014",
       },
     ]);
     const lines = csv.split("\n");
@@ -713,6 +717,9 @@ describe("salesToCsv", () => {
         grossProfitSatang: 0,
         saleStatus: "completed",
         createdAt: 0,
+        saleType: null,
+        licensePlate: null,
+        vehicle: null,
       },
     ]);
     expect(csv.split("\n")[1]).toContain('"cash,transfer"');

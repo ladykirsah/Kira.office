@@ -7,6 +7,8 @@ import {
   type OrderImportResult,
   type OrderRow,
 } from "@/lib/api";
+import { orderStatusPill, paymentPill } from "@/lib/badges";
+import { formatUpdatedAt } from "@/lib/format";
 
 const PLACEHOLDER = "external_order_id,order_status,payment_status\n2406ABCDEF,paid,paid\n";
 
@@ -83,26 +85,48 @@ export default function OrdersPage() {
           <div className="empty-icon">🧾</div>No orders imported yet.
         </div>
       ) : (
-        <table cellPadding={6} style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th align="left">Order</th>
-              <th align="left">Channel</th>
-              <th align="left">Status</th>
-              <th align="left">Payment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((o) => (
-              <tr key={o.id} style={{ borderTop: "1px solid var(--border)" }}>
-                <td>{o.externalOrderId}</td>
-                <td>{o.channel}</td>
-                <td>{o.orderStatus ?? "—"}</td>
-                <td>{o.paymentStatus ?? "—"}</td>
+        <div className="card" style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Payment</th>
+                <th>Imported</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id}>
+                  <td>{o.externalOrderId}</td>
+                  <td>
+                    <span className="pill soft">{o.channel}</span>
+                  </td>
+                  <td>
+                    {o.orderStatus ? (
+                      <span className={`pill ${orderStatusPill(o.orderStatus)}`}>
+                        {o.orderStatus}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {o.paymentStatus ? (
+                      <span className={`pill ${paymentPill(o.paymentStatus)}`}>
+                        {o.paymentStatus}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>{formatUpdatedAt(o.importedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   );
