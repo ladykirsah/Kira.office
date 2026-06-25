@@ -120,13 +120,26 @@ function Tab({
 }
 
 function chip(kind: "part" | "service"): CSSProperties {
+  if (kind === "service") {
+    return {
+      fontSize: 11,
+      fontWeight: 600,
+      padding: "2px 7px",
+      borderRadius: 5,
+      background: "var(--primary-soft)",
+      color: "var(--primary)",
+      whiteSpace: "nowrap",
+    };
+  }
+  // Part detail tags: match the products table's outlined .tag.tag-sm style.
   return {
     fontSize: 11,
-    fontWeight: 600,
-    padding: "2px 7px",
-    borderRadius: 5,
-    background: kind === "service" ? "var(--primary-soft)" : "var(--hover)",
-    color: kind === "service" ? "var(--primary)" : "var(--text-muted)",
+    fontWeight: 400,
+    padding: "1px 8px",
+    borderRadius: 8,
+    background: "transparent",
+    border: "1px solid var(--border)",
+    color: "var(--text-muted)",
     whiteSpace: "nowrap",
   };
 }
@@ -173,7 +186,8 @@ function BarcodePreview({ value }: { value: string }) {
   );
 }
 
-/** One cart line: row 1 = name + detail tags · barcode; row 2 = ฿ price in total of N pcs. */
+/** One cart line. Row 1: name + remove. Row 2: detail tags + barcode (left), line total over an
+ * editable ฿ price × qty (right). */
 function CartItem({
   line,
   barcode,
@@ -189,13 +203,45 @@ function CartItem({
 }) {
   const isService = line.kind === "service";
   const tags = line.tags ?? [];
+  const miniInput: CSSProperties = { width: 76, fontSize: 12, padding: "5px 8px", minHeight: 0 };
   return (
-    <div style={{ position: "relative", padding: "12px 0", borderTop: "1px solid var(--border)" }}>
-      {/* Row 1 */}
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingRight: 28 }}>
+    <div style={{ padding: "12px 0", borderTop: "1px solid var(--border)" }}>
+      {/* Row 1: name + remove */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 10,
+        }}
+      >
+        <div style={{ fontWeight: 600, lineHeight: 1.3, minWidth: 0 }}>{line.name}</div>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove"
+          style={{
+            flex: "none",
+            width: 24,
+            height: 24,
+            minHeight: 0,
+            padding: 0,
+            lineHeight: 1,
+            background: "transparent",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            color: "var(--text-muted)",
+            cursor: "pointer",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Row 2: tags + barcode (left) · total + price × qty (right) */}
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-end", marginTop: 10 }}>
         <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{line.name}</div>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 5 }}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
             {isService ? (
               <span style={chip("service")}>Service</span>
             ) : (
@@ -206,71 +252,48 @@ function CartItem({
               ))
             )}
           </div>
+          {!isService && barcode && (
+            <div style={{ marginTop: 8 }}>
+              <BarcodePreview value={barcode} />
+            </div>
+          )}
         </div>
-        {!isService && barcode && (
-          <div style={{ flex: "none", paddingTop: 2 }}>
-            <BarcodePreview value={barcode} />
+
+        <div style={{ flex: "none", textAlign: "right" }}>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>{formatBaht(lineTotalSatang(line))}</div>
+          <div
+            style={{
+              marginTop: 6,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              justifyContent: "flex-end",
+              fontSize: 12,
+              color: "var(--text-muted)",
+            }}
+          >
+            <span>฿</span>
+            <input
+              type="number"
+              min={0}
+              value={line.unitPriceSatang / 100}
+              onChange={(e) =>
+                onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
+              }
+              style={miniInput}
+              title="Unit price"
+            />
+            <span>×</span>
+            <input
+              type="number"
+              min={1}
+              value={line.quantity}
+              onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              style={{ ...miniInput, width: 48, textAlign: "center" }}
+              title="Quantity"
+            />
           </div>
-        )}
-      </div>
-
-      {/* Remove (top-right) */}
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label="Remove"
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 0,
-          width: 24,
-          height: 24,
-          minHeight: 0,
-          padding: 0,
-          lineHeight: 1,
-          background: "transparent",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          color: "var(--text-muted)",
-          cursor: "pointer",
-        }}
-      >
-        ✕
-      </button>
-
-      {/* Row 2 */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          gap: 6,
-          marginTop: 10,
-          fontSize: 13,
-          color: "var(--text-muted)",
-        }}
-      >
-        <span>฿</span>
-        <input
-          type="number"
-          min={0}
-          value={line.unitPriceSatang / 100}
-          onChange={(e) =>
-            onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
-          }
-          style={{ width: 92, ...inputSm }}
-          title="Unit price"
-        />
-        <span>in total of</span>
-        <input
-          type="number"
-          min={1}
-          value={line.quantity}
-          onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-          style={{ width: 56, ...inputSm }}
-          title="Quantity"
-        />
-        <span>pcs.</span>
+        </div>
       </div>
     </div>
   );
