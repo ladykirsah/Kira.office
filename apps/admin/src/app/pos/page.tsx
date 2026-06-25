@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   apiBase,
   lookupBarcode,
@@ -23,7 +23,7 @@ import { useToast } from "../ToastProvider";
 
 type SaleType = "parts" | "repair";
 type AddKind = "product" | "service";
-type AddMethod = "scan" | "code" | "search";
+type AddMethod = "scan" | "code";
 type LineKind = "part" | "service";
 
 interface SaleLine {
@@ -352,7 +352,6 @@ export default function PosPage() {
   // Add-part inputs
   const [scanVal, setScanVal] = useState("");
   const [codeVal, setCodeVal] = useState("");
-  const [searchVal, setSearchVal] = useState("");
 
   // Add-service inputs. svcId is "" / a service id / MANUAL; svcPrice is the price for either path.
   const [svcId, setSvcId] = useState("");
@@ -512,14 +511,6 @@ export default function PosPage() {
     addProductLine(p);
     setCodeVal("");
   }
-
-  const searchResults = useMemo(() => {
-    const q = searchVal.trim().toLowerCase();
-    if (!q) return [];
-    return products
-      .filter((p) => p.name.toLowerCase().includes(q) || p.productCode.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [searchVal, products]);
 
   const MANUAL = "__manual__";
   const isManualService = svcId === MANUAL;
@@ -739,9 +730,6 @@ export default function PosPage() {
                   <Tab active={method === "code"} onClick={() => setMethod("code")}>
                     ⌨️ Type code
                   </Tab>
-                  <Tab active={method === "search"} onClick={() => setMethod("search")}>
-                    🔍 Search
-                  </Tab>
                 </div>
 
                 {method === "scan" && (
@@ -783,62 +771,6 @@ export default function PosPage() {
                       Add
                     </button>
                   </form>
-                )}
-
-                {method === "search" && (
-                  <div>
-                    <input
-                      value={searchVal}
-                      onChange={(e) => setSearchVal(e.target.value)}
-                      placeholder="Search by name or code…"
-                      style={{ width: "100%", ...inputSm }}
-                    />
-                    {searchResults.length > 0 && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          border: "1px solid var(--border)",
-                          borderRadius: 8,
-                          overflow: "hidden",
-                        }}
-                      >
-                        {searchResults.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                              addProductLine(p);
-                              setSearchVal("");
-                            }}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: 10,
-                              width: "100%",
-                              textAlign: "left",
-                              padding: "8px 10px",
-                              background: "transparent",
-                              border: "none",
-                              borderBottom: "1px solid var(--border)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <span
-                              style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
-                            >
-                              {p.name}
-                              <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                                {p.productCode}
-                              </span>
-                            </span>
-                            <span className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-                              {formatBaht(p.offlinePriceSatang || 0)}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 )}
               </div>
             )}
