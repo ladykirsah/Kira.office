@@ -13,8 +13,13 @@ export interface LabelProduct {
 /** Canvas pixels per mm — high enough to print crisply. */
 const RES = 12;
 
-/** Shop name shown as the label header (later: make this an editable setting). */
-const SHOP_NAME = "Den Air Service (Surin)";
+/** Shop name shown as the label header. Set from the Shop-info setting via setShopName(). */
+let SHOP_NAME = "Den Air Service (Surin)";
+
+/** Override the label header shop name (called by the studio with the saved Shop-info setting). */
+export function setShopName(name: string): void {
+  SHOP_NAME = (name ?? "").trim();
+}
 
 function barcodeCanvas(value: string): HTMLCanvasElement | null {
   const format = chooseBarcodeFormat(value);
@@ -87,18 +92,20 @@ export function drawLabel(
   ctx.textAlign = "left";
   let y = pad;
 
-  // Shop name header + divider line
-  ctx.fillStyle = "#000000";
-  ctx.font = `500 ${2.3 * RES}px sans-serif`;
-  ctx.fillText(wrapChars(ctx, SHOP_NAME, W - 2 * pad, 1)[0] ?? "", pad, y);
-  y += 2.9 * RES;
-  ctx.strokeStyle = "#c8ccd2";
-  ctx.lineWidth = Math.max(1, 0.12 * RES);
-  ctx.beginPath();
-  ctx.moveTo(pad, y);
-  ctx.lineTo(W - pad, y);
-  ctx.stroke();
-  y += 1.4 * RES;
+  // Shop name header + divider line (only when a shop name is set)
+  if (SHOP_NAME) {
+    ctx.fillStyle = "#000000";
+    ctx.font = `500 ${2.3 * RES}px sans-serif`;
+    ctx.fillText(wrapChars(ctx, SHOP_NAME, W - 2 * pad, 1)[0] ?? "", pad, y);
+    y += 2.9 * RES;
+    ctx.strokeStyle = "#c8ccd2";
+    ctx.lineWidth = Math.max(1, 0.12 * RES);
+    ctx.beginPath();
+    ctx.moveTo(pad, y);
+    ctx.lineTo(W - pad, y);
+    ctx.stroke();
+    y += 1.4 * RES;
+  }
 
   // Tags
   const tags = product.tags.filter(Boolean).join("   ·   ");
@@ -147,8 +154,10 @@ export function contentHeightMm(product: LabelProduct, wMm: number): number {
   const ctx = c.getContext("2d");
   if (!ctx) return wMm;
   let h = pad;
-  h += 2.9 * RES; // shop name
-  h += 1.4 * RES; // divider gap
+  if (SHOP_NAME) {
+    h += 2.9 * RES; // shop name
+    h += 1.4 * RES; // divider gap
+  }
   const tags = product.tags.filter(Boolean).join("   ·   ");
   if (tags) h += 3.3 * RES;
   ctx.font = `600 ${3.4 * RES}px sans-serif`;

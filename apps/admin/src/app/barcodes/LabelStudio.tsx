@@ -8,6 +8,7 @@ import {
   downloadLabelSheet,
   renderSheetPreview,
   effectiveHeightMm,
+  setShopName,
   type SheetLabel,
 } from "./labelPdf";
 
@@ -306,7 +307,15 @@ function LabelCard({
   );
 }
 
-export function LabelStudio({ products }: { products: StudioProduct[] }) {
+export function LabelStudio({
+  products,
+  shopName = "",
+}: {
+  products: StudioProduct[];
+  shopName?: string;
+}) {
+  // Apply the saved shop name to the label header before any canvas draw (effects run after this).
+  setShopName(shopName);
   const [paper, setPaper] = useState<Paper>("A4");
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [query, setQuery] = useState("");

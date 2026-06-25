@@ -1651,6 +1651,23 @@ const worker = {
       return json({ ok: true });
     }
 
+    // Shop identity (name + address) — shown on bills and labels.
+    if (url.pathname === "/shop-info" && request.method === "GET") {
+      const [name, address] = await Promise.all([
+        env.KV.get("shop:name"),
+        env.KV.get("shop:address"),
+      ]);
+      return json({ name: name ?? "", address: address ?? "" });
+    }
+    if (url.pathname === "/shop-info" && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { name?: string; address?: string };
+      await Promise.all([
+        env.KV.put("shop:name", (body.name ?? "").trim()),
+        env.KV.put("shop:address", (body.address ?? "").trim()),
+      ]);
+      return json({ ok: true });
+    }
+
     if (url.pathname === "/stock/adjust" && request.method === "POST") {
       const body = (await request.json()) as Partial<StockAdjustment>;
       if (!body?.productVariantId || typeof body.quantityDelta !== "number") {

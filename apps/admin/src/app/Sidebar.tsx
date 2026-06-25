@@ -27,6 +27,7 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
   {
     section: "Settings",
     links: [
+      ["/settings/shop", "🏪", "Shop info"],
       ["/settings/attributes", "🧩", "Part attributes"],
       ["/settings/services", "🔧", "Services"],
       ["/settings/car-fitment", "🚗", "Car fitment"],

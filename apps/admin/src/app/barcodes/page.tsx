@@ -1,12 +1,16 @@
-import { fetchProducts, fetchBarcodes } from "@/lib/api";
+import { fetchProducts, fetchBarcodes, fetchShopInfo } from "@/lib/api";
 import { LabelStudio, type StudioProduct } from "./LabelStudio";
 
 export const dynamic = "force-dynamic";
 
 export default async function BarcodesPage() {
-  let products, barcodes;
+  let products, barcodes, shopInfo;
   try {
-    [products, barcodes] = await Promise.all([fetchProducts(), fetchBarcodes()]);
+    [products, barcodes, shopInfo] = await Promise.all([
+      fetchProducts(),
+      fetchBarcodes(),
+      fetchShopInfo().catch(() => ({ name: "", address: "" })),
+    ]);
   } catch (err) {
     return (
       <main>
@@ -30,5 +34,6 @@ export default async function BarcodesPage() {
     barcode: barcodeByProduct.get(p.id) ?? null,
   }));
 
-  return <LabelStudio products={studioProducts} />;
+  const shopName = shopInfo.name || "Den Air Service (Surin)";
+  return <LabelStudio products={studioProducts} shopName={shopName} />;
 }

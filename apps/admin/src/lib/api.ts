@@ -447,6 +447,26 @@ export async function saveTermsTemplate(template: string): Promise<void> {
   if (!res.ok) throw new Error(`Save failed (HTTP ${res.status})`);
 }
 
+export interface ShopInfo {
+  name: string;
+  address: string;
+}
+
+export async function fetchShopInfo(): Promise<ShopInfo> {
+  const res = await fetch(`${apiBase}/shop-info`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load shop info (HTTP ${res.status})`);
+  return (await res.json()) as ShopInfo;
+}
+
+export async function saveShopInfo(info: ShopInfo): Promise<void> {
+  const res = await fetch(`${apiBase}/shop-info`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(info),
+  });
+  if (!res.ok) throw new Error(`Save failed (HTTP ${res.status})`);
+}
+
 export interface FinanceSummary {
   salesCount: number;
   revenueSatang: number;
