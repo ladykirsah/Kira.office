@@ -189,7 +189,6 @@ export default function PosPage() {
   }, [store]);
 
   const totalSatang = cartTotalSatang(lines);
-  const hasServiceLines = lines.some((l) => l.kind === "service");
 
   function addProductLine(p: ProductRow, barcodeValue?: string) {
     setLines((ls) => {
@@ -320,17 +319,20 @@ export default function PosPage() {
     setLines((ls) => ls.filter((l) => l.uid !== uid));
   }
 
-  // Save the part lines to the sales ledger (services/plate/note print on the bill; full
-  // repair-order persistence is the next phase). Offline-safe via the outbox.
+  // Save the whole order — parts (deduct stock) and services (labour lines) plus the sale type,
+  // plate and note — to the sales ledger. Offline-safe via the outbox; the server dedupes on uuid.
   async function saveSale(): Promise<boolean> {
-    const partLines = lines.filter((l) => l.kind === "part" && l.productVariantId);
-    if (partLines.length === 0) return true; // nothing to record in the ledger yet
     const sale: QueuedSale = {
       clientUuid: crypto.randomUUID(),
       paymentMethod: "cash",
-      lines: partLines.map((l) => ({
-        productVariantId: l.productVariantId!,
-        barcodeValue: l.barcodeValue ?? "",
+      saleType,
+      licensePlate: saleType === "repair" ? plate.trim() || undefined : undefined,
+      notes: note.trim() || undefined,
+      lines: lines.map((l) => ({
+        productVariantId: l.kind === "part" ? (l.productVariantId ?? null) : null,
+        lineType: l.kind,
+        description: l.name,
+        barcodeValue: l.barcodeValue,
         quantity: l.quantity,
         unitPriceSatang: l.unitPriceSatang,
       })),
@@ -338,12 +340,12 @@ export default function PosPage() {
     };
     try {
       if (await syncSale(sale)) return true;
-      toast("Server rejected the parts — check the items and try again.", "error");
+      toast("Server rejected the sale — check the items and try again.", "error");
       return false;
     } catch {
       await store.add(sale);
       setPending((await store.all()).length);
-      toast("Offline — parts saved, will sync when back online.", "info");
+      toast("Offline — sale saved, will sync when back online.", "info");
       return true;
     }
   }
@@ -359,7 +361,10 @@ export default function PosPage() {
       const ok = await saveSale();
       if (!ok) return;
       printBill();
-      toast("Bill ready ✓", "success");
+      toast("Sale saved ✓", "success");
+      setLines([]);
+      setPlate("");
+      setNote("");
     } finally {
       setBusy(false);
     }
@@ -780,12 +785,6 @@ export default function PosPage() {
                 Save &amp; print
               </button>
             </div>
-            {hasServiceLines && (
-              <p className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
-                Parts are recorded to Sales. Services, plate &amp; note print on the bill — saving
-                the full repair order to your records is the next step.
-              </p>
-            )}
           </div>
         </div>
       </div>

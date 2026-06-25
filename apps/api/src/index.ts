@@ -21,7 +21,9 @@ export interface Env {
 }
 
 interface SyncLine {
-  productVariantId: string;
+  productVariantId?: string | null; // null/absent for service (labour) lines
+  lineType?: "part" | "service";
+  description?: string; // item name to store on the line / print on the bill
   barcodeValue?: string;
   quantity: number;
   unitPriceSatang: number;
@@ -33,6 +35,9 @@ interface SyncLine {
 interface SyncSale {
   clientUuid: string;
   paymentMethod?: string;
+  saleType?: "parts" | "repair";
+  licensePlate?: string;
+  notes?: string;
   lines: SyncLine[];
 }
 
@@ -175,7 +180,11 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
     return { applied: 0, duplicates: duplicates.length, conflicts: [] };
   }
 
-  const variantIds = [...new Set(fresh.flatMap((s) => s.lines.map((l) => l.productVariantId)))];
+  const variantIds = [
+    ...new Set(
+      fresh.flatMap((s) => s.lines.map((l) => l.productVariantId).filter((x): x is string => !!x)),
+    ),
+  ];
   const available: Record<string, number> = {};
   for (const id of variantIds) available[id] = 0;
   if (variantIds.length > 0) {
@@ -207,29 +216,54 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       discountTotal += line.discountSatang ?? 0;
       taxTotal += line.taxSatang ?? 0;
 
-      const current = available[line.productVariantId] ?? 0;
+      // Service/labour line: no variant, no stock movement, never an oversell — just the bill line.
+      if (line.lineType === "service" || !line.productVariantId) {
+        lineStatements.push(
+          db
+            .prepare(
+              `INSERT INTO onsite_sale_lines
+               (id, onsite_sale_id, product_variant_id, line_type, description, barcode_value, quantity, unit_price_satang, discount_satang, tax_satang, unit_cost_satang, gross_profit_satang)
+               VALUES (?, ?, NULL, 'service', ?, NULL, ?, ?, ?, 0, ?)`,
+            )
+            .bind(
+              crypto.randomUUID(),
+              saleId,
+              line.description ?? null,
+              line.quantity,
+              line.unitPriceSatang,
+              line.discountSatang ?? 0,
+              line.taxSatang ?? 0,
+              lineGrossProfitSatang(line),
+            ),
+        );
+        continue;
+      }
+
+      const vid = line.productVariantId;
+      const current = available[vid] ?? 0;
       const after = current - line.quantity;
       if (after < 0) {
         conflicts.push({
-          productVariantId: line.productVariantId,
+          productVariantId: vid,
           requested: line.quantity,
           available: current,
         });
         continue; // oversell: skip this line's stock movement, surface for review
       }
-      available[line.productVariantId] = after;
+      available[vid] = after;
 
       lineStatements.push(
         db
           .prepare(
             `INSERT INTO onsite_sale_lines
-             (id, onsite_sale_id, product_variant_id, barcode_value, quantity, unit_price_satang, discount_satang, tax_satang, unit_cost_satang, gross_profit_satang)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, onsite_sale_id, product_variant_id, line_type, description, barcode_value, quantity, unit_price_satang, discount_satang, tax_satang, unit_cost_satang, gross_profit_satang)
+             VALUES (?, ?, ?, 'part', ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
             crypto.randomUUID(),
             saleId,
-            line.productVariantId,
+            vid,
+            line.description ?? null,
             line.barcodeValue ?? null,
             line.quantity,
             line.unitPriceSatang,
@@ -246,7 +280,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
           )
           .bind(
             crypto.randomUUID(),
-            line.productVariantId,
+            vid,
             "onsite_sale",
             -line.quantity,
             after,
@@ -261,13 +295,16 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       db
         .prepare(
           `INSERT OR IGNORE INTO onsite_sales
-           (id, client_uuid, payment_method, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, client_uuid, payment_method, sale_type, license_plate, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           saleId,
           sale.clientUuid,
           sale.paymentMethod ?? null,
+          sale.saleType ?? "parts",
+          sale.licensePlate?.trim() || null,
+          sale.notes?.trim() || null,
           "synced",
           subtotal,
           discountTotal,

@@ -301,6 +301,12 @@ export const onsiteSales = sqliteTable("onsite_sales", {
   saleNumber: text("sale_number"),
   cashierUserId: text("cashier_user_id").references(() => users.id),
   paymentMethod: text("payment_method"),
+  // parts = walk-in part sale; repair = labour job (carries a car plate + notes + service lines)
+  saleType: text("sale_type", { enum: ["parts", "repair"] })
+    .notNull()
+    .default("parts"),
+  licensePlate: text("license_plate"),
+  notes: text("notes"),
   subtotalSatang: integer("subtotal_satang").notNull().default(0),
   discountTotalSatang: integer("discount_total_satang").notNull().default(0),
   taxTotalSatang: integer("tax_total_satang").notNull().default(0),
@@ -315,6 +321,11 @@ export const onsiteSaleLines = sqliteTable("onsite_sale_lines", {
     .notNull()
     .references(() => onsiteSales.id),
   productVariantId: text("product_variant_id").references(() => productVariants.id),
+  // part = stock item; service = labour/service line (no variant, no stock movement)
+  lineType: text("line_type", { enum: ["part", "service"] })
+    .notNull()
+    .default("part"),
+  description: text("description"),
   barcodeValue: text("barcode_value"),
   quantity: integer("quantity").notNull(),
   unitPriceSatang: integer("unit_price_satang").notNull(),

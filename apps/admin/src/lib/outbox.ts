@@ -3,8 +3,10 @@
 // logic is pure + unit-testable (IndexedDB adapter lives in outbox-idb.ts, browser-only).
 
 export interface QueuedLine {
-  productVariantId: string;
-  barcodeValue: string;
+  productVariantId?: string | null; // null for service/labour lines
+  lineType?: "part" | "service";
+  description?: string; // item name (printed on the bill, stored on the line)
+  barcodeValue?: string;
   quantity: number;
   unitPriceSatang: number;
 }
@@ -12,6 +14,9 @@ export interface QueuedLine {
 export interface QueuedSale {
   clientUuid: string;
   paymentMethod: string;
+  saleType?: "parts" | "repair";
+  licensePlate?: string;
+  notes?: string;
   lines: QueuedLine[];
   queuedAt: number;
 }

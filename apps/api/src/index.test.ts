@@ -481,6 +481,54 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     expect(batched.length).toBe(3); // onsite_sales + line + ledger
   });
 
+  it("records a repair service line with no variant and no stock movement", async () => {
+    const { db, batched } = makeDb({ existing: [], available: [] });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "svc1",
+        saleType: "repair",
+        licensePlate: "1กก 1234",
+        notes: "นัดรับพรุ่งนี้",
+        lines: [
+          {
+            lineType: "service",
+            description: "ตรวจเช็คระบบแอร์",
+            quantity: 1,
+            unitPriceSatang: 30000,
+          },
+        ],
+      },
+    ]);
+    expect(out.applied).toBe(1);
+    expect(out.conflicts).toEqual([]); // a service is not stock — never an oversell
+    expect(batched.length).toBe(2); // onsite_sales + the service line, NO ledger entry
+  });
+
+  it("records a mixed repair sale (part with stock + service) totalling both", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 5 }],
+    });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "mix1",
+        saleType: "repair",
+        lines: [
+          {
+            productVariantId: "v1",
+            quantity: 1,
+            unitPriceSatang: 259000,
+            description: "Compressor",
+          },
+          { lineType: "service", description: "ค่าแรง", quantity: 1, unitPriceSatang: 50000 },
+        ],
+      },
+    ]);
+    expect(out.applied).toBe(1);
+    expect(out.conflicts).toEqual([]);
+    expect(batched.length).toBe(4); // header + part line + ledger + service line
+  });
+
   it("skips an already-applied sale (idempotent)", async () => {
     const { db, batched } = makeDb({ existing: ["u1"] });
     const out = await applySyncToDb(db, [
