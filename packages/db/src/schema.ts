@@ -88,6 +88,19 @@ export const brands = attributeTable("brands");
 export const productTypes = attributeTable("product_types");
 export const usageCategories = attributeTable("usage_categories");
 export const carBrands = attributeTable("car_brands");
+
+// Repair/labour services for the POS (name + base price; base price prefills, editable per sale).
+export const services = sqliteTable(
+  "services",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    basePriceSatang: integer("base_price_satang").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => ({ nameUq: uniqueIndex("services_name_uq").on(t.name) }),
+);
 export const carModels = sqliteTable(
   "car_models",
   {

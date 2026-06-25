@@ -1236,6 +1236,68 @@ export async function deleteAttribute(db: D1Database, table: string, id: string)
   await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
 }
 
+export interface ServiceRow {
+  id: string;
+  name: string;
+  basePriceSatang: number;
+}
+
+/** Repair/labour services offered at the counter (managed list with a base price). */
+export async function listServices(db: D1Database): Promise<ServiceRow[]> {
+  const { results } = await db
+    .prepare(
+      "SELECT id, name, base_price_satang AS basePriceSatang FROM services ORDER BY sort_order, name",
+    )
+    .all<ServiceRow>();
+  return results ?? [];
+}
+
+/** Add a service (name + base price in satang). Idempotent on name (case-insensitive). */
+export async function addService(
+  db: D1Database,
+  name: string,
+  basePriceSatang: number,
+): Promise<ServiceRow> {
+  const n = name.trim();
+  if (!n) throw new Error("name is required");
+  const price = Math.max(0, Math.round(basePriceSatang || 0));
+  const existing = await db
+    .prepare("SELECT id FROM services WHERE name = ? COLLATE NOCASE")
+    .bind(n)
+    .first<{ id: string }>();
+  if (existing) {
+    await db
+      .prepare("UPDATE services SET base_price_satang = ? WHERE id = ?")
+      .bind(price, existing.id)
+      .run();
+    return { id: existing.id, name: n, basePriceSatang: price };
+  }
+  const sid = crypto.randomUUID();
+  await db
+    .prepare(
+      "INSERT INTO services (id, name, base_price_satang, sort_order, created_at) VALUES (?, ?, ?, 0, ?)",
+    )
+    .bind(sid, n, price, Date.now())
+    .run();
+  return { id: sid, name: n, basePriceSatang: price };
+}
+
+/** Update a service's name and/or base price. */
+export async function updateService(
+  db: D1Database,
+  id: string,
+  fields: { name: string; basePriceSatang: number },
+): Promise<void> {
+  await db
+    .prepare("UPDATE services SET name = ?, base_price_satang = ? WHERE id = ?")
+    .bind(fields.name.trim(), Math.max(0, Math.round(fields.basePriceSatang || 0)), id)
+    .run();
+}
+
+export async function deleteService(db: D1Database, id: string): Promise<void> {
+  await db.prepare("DELETE FROM services WHERE id = ?").bind(id).run();
+}
+
 /** Resolve a typed/selected attribute value to an option id (creating it if new); null when empty. */
 export async function resolveAttribute(
   db: D1Database,
@@ -1680,6 +1742,36 @@ const worker = {
       const table = ATTR_TABLE[attrDel[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
       await deleteAttribute(env.DB, table, attrDel[2]!);
+      return json({ ok: true });
+    }
+
+    // Repair/labour services (managed list with a base price).
+    if (url.pathname === "/services" && request.method === "GET") {
+      return json({ services: await listServices(env.DB) });
+    }
+    if (url.pathname === "/services" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        basePriceSatang?: number;
+      };
+      if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      return json(await addService(env.DB, body.name, body.basePriceSatang ?? 0), 201);
+    }
+    const serviceById = url.pathname.match(/^\/services\/([^/]+)$/);
+    if (serviceById && request.method === "PATCH") {
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        basePriceSatang?: number;
+      };
+      if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      await updateService(env.DB, serviceById[1]!, {
+        name: body.name,
+        basePriceSatang: body.basePriceSatang ?? 0,
+      });
+      return json({ ok: true });
+    }
+    if (serviceById && request.method === "DELETE") {
+      await deleteService(env.DB, serviceById[1]!);
       return json({ ok: true });
     }
 

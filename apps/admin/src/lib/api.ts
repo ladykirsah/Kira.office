@@ -163,6 +163,45 @@ export async function deleteAttribute(kind: AttrKind, id: string): Promise<void>
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
+export interface ServiceRow {
+  id: string;
+  name: string;
+  basePriceSatang: number;
+}
+
+export async function fetchServices(): Promise<ServiceRow[]> {
+  const res = await fetch(`${apiBase}/services`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load services (HTTP ${res.status})`);
+  return ((await res.json()) as { services: ServiceRow[] }).services;
+}
+
+export async function addService(name: string, basePriceSatang: number): Promise<ServiceRow> {
+  const res = await fetch(`${apiBase}/services`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, basePriceSatang }),
+  });
+  if (!res.ok) throw new Error(`Add service failed (HTTP ${res.status})`);
+  return (await res.json()) as ServiceRow;
+}
+
+export async function updateService(
+  id: string,
+  fields: { name: string; basePriceSatang: number },
+): Promise<void> {
+  const res = await fetch(`${apiBase}/services/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error(`Update service failed (HTTP ${res.status})`);
+}
+
+export async function deleteService(id: string): Promise<void> {
+  const res = await fetch(`${apiBase}/services/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete service failed (HTTP ${res.status})`);
+}
+
 /** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */
 export interface OringEntry {
   size: string;
