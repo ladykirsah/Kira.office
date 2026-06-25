@@ -1032,7 +1032,7 @@ export default function PosPage() {
         className="pos-grid"
       >
         {/* ---- LEFT: build the sale ---- */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 528 }}>
           {/* Date */}
           <div style={card}>
             <div style={fieldLabel}>Date</div>
