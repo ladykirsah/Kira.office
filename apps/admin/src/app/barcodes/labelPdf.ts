@@ -76,7 +76,7 @@ export function drawLabel(
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = "#c8ccd2"; // gray frame line (text + barcode stay black)
   ctx.lineWidth = Math.max(1, 0.2 * RES);
   ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, W - ctx.lineWidth, H - ctx.lineWidth);
 
