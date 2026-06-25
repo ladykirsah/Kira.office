@@ -829,84 +829,84 @@ export default function PosPage() {
                 )}
               </div>
             )}
+
+            {/* Add service (repair only) — same card, divided */}
+            {saleType === "repair" && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                <div style={fieldLabel}>Add service</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <select
+                    value={svcId}
+                    onChange={(e) => selectService(e.target.value)}
+                    style={{ flex: "1 1 180px", ...inputSm }}
+                  >
+                    <option value="">Choose a service…</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    ฿
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={svcPrice}
+                    onChange={(e) => setSvcPrice(e.target.value)}
+                    placeholder="0"
+                    disabled={!selectedService}
+                    style={{ width: 96, ...inputSm }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    disabled={!selectedService}
+                    onClick={addServiceFromList}
+                    style={inputSm}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                <div
+                  className="muted"
+                  style={{ fontSize: 12, margin: "12px 0 8px", textAlign: "center" }}
+                >
+                  — or add a service manually —
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="Service description…"
+                    style={{ flex: "1 1 180px", ...inputSm }}
+                  />
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    ฿
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualPrice}
+                    onChange={(e) => setManualPrice(e.target.value)}
+                    placeholder="0"
+                    style={{ width: 96, ...inputSm }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    disabled={!manualName.trim()}
+                    onClick={addManualService}
+                    style={inputSm}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Add service (repair only) */}
-          {saleType === "repair" && (
-            <div style={card}>
-              <div style={fieldLabel}>Add service</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <select
-                  value={svcId}
-                  onChange={(e) => selectService(e.target.value)}
-                  style={{ flex: "1 1 180px", ...inputSm }}
-                >
-                  <option value="">Choose a service…</option>
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="muted" style={{ fontSize: 13 }}>
-                  ฿
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={svcPrice}
-                  onChange={(e) => setSvcPrice(e.target.value)}
-                  placeholder="0"
-                  disabled={!selectedService}
-                  style={{ width: 96, ...inputSm }}
-                />
-                <button
-                  type="button"
-                  className="btn-soft"
-                  disabled={!selectedService}
-                  onClick={addServiceFromList}
-                  style={inputSm}
-                >
-                  Add
-                </button>
-              </div>
-
-              <div
-                className="muted"
-                style={{ fontSize: 12, margin: "12px 0 8px", textAlign: "center" }}
-              >
-                — or add a service manually —
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <input
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder="Service description…"
-                  style={{ flex: "1 1 180px", ...inputSm }}
-                />
-                <span className="muted" style={{ fontSize: 13 }}>
-                  ฿
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={manualPrice}
-                  onChange={(e) => setManualPrice(e.target.value)}
-                  placeholder="0"
-                  style={{ width: 96, ...inputSm }}
-                />
-                <button
-                  type="button"
-                  className="btn-soft"
-                  disabled={!manualName.trim()}
-                  onClick={addManualService}
-                  style={inputSm}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Cart */}
           <div style={card}>
