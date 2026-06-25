@@ -121,6 +121,35 @@ export function drawLabel(
   }
 }
 
+/** Height (mm) needed for just the tags + name at a given width (used when the barcode is hidden). */
+export function contentHeightMm(product: LabelProduct, wMm: number): number {
+  const W = Math.max(1, Math.round(wMm * RES));
+  const pad = 2 * RES;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = 10;
+  const ctx = c.getContext("2d");
+  if (!ctx) return wMm;
+  let h = pad;
+  const tags = product.tags.filter(Boolean).join("   ·   ");
+  if (tags) h += 2.9 * RES;
+  ctx.font = `600 ${2.9 * RES}px sans-serif`;
+  const lines = wrapChars(ctx, product.name, W - 2 * pad, 2);
+  h += Math.max(1, lines.length) * 3.4 * RES;
+  h += 1.2 * RES; // bottom margin
+  return h / RES;
+}
+
+/** The label's effective height: the set height when showing the barcode, else the content-fit height. */
+export function effectiveHeightMm(
+  product: LabelProduct,
+  wMm: number,
+  hMm: number,
+  showBarcode: boolean,
+): number {
+  return showBarcode ? hMm : contentHeightMm(product, wMm);
+}
+
 export interface SheetLabel extends LabelProduct {
   w: number;
   h: number;

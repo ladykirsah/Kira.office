@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { apiBase } from "@/lib/api";
 import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
-import { drawLabel, downloadLabelSheet, renderSheetPreview, type SheetLabel } from "./labelPdf";
+import {
+  drawLabel,
+  downloadLabelSheet,
+  renderSheetPreview,
+  effectiveHeightMm,
+  type SheetLabel,
+} from "./labelPdf";
 
 export interface StudioProduct {
   id: string;
@@ -154,13 +160,13 @@ function LabelCard({
 
   useEffect(() => {
     if (canvasRef.current && product.barcode) {
-      drawLabel(
-        canvasRef.current,
-        { code: product.code, name: product.name, tags: product.tags, barcode: product.barcode },
-        w,
-        h,
-        showBarcode,
-      );
+      const p = {
+        code: product.code,
+        name: product.name,
+        tags: product.tags,
+        barcode: product.barcode,
+      };
+      drawLabel(canvasRef.current, p, w, effectiveHeightMm(p, w, h, showBarcode), showBarcode);
     }
   }, [product.id, product.barcode, product.code, product.name, product.tags, w, h, showBarcode]);
 
@@ -231,15 +237,21 @@ function LabelCard({
               style={numStyle}
             />
           </Field>
-          <Field label="H" suffix="mm">
-            <input
-              type="number"
-              min={6}
-              value={h}
-              onChange={(e) => changeH(parseFloat(e.target.value))}
-              style={numStyle}
-            />
-          </Field>
+          {showBarcode ? (
+            <Field label="H" suffix="mm">
+              <input
+                type="number"
+                min={6}
+                value={h}
+                onChange={(e) => changeH(parseFloat(e.target.value))}
+                style={numStyle}
+              />
+            </Field>
+          ) : (
+            <Field label="H">
+              <span style={{ fontSize: 13, color: "var(--text-faint)" }}>auto · fits content</span>
+            </Field>
+          )}
           <Field label="Qty">
             <input
               type="number"
@@ -338,16 +350,21 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
 
   const labels: SheetLabel[] = items
     .filter((it) => it.product.barcode)
-    .map((it) => ({
-      code: it.product.code,
-      name: it.product.name,
-      tags: it.product.tags,
-      barcode: it.product.barcode as string,
-      w: it.w,
-      h: it.h,
-      amount: it.amount,
-      showBarcode: it.showBarcode,
-    }));
+    .map((it) => {
+      const p = {
+        code: it.product.code,
+        name: it.product.name,
+        tags: it.product.tags,
+        barcode: it.product.barcode as string,
+      };
+      return {
+        ...p,
+        w: it.w,
+        h: effectiveHeightMm(p, it.w, it.h, it.showBarcode),
+        amount: it.amount,
+        showBarcode: it.showBarcode,
+      };
+    });
 
   const plan = planSheet({
     items: labels.map((it) => ({ w: it.w, h: it.h, amount: it.amount })),
