@@ -12,6 +12,7 @@ import {
   type ServiceRow,
   type ShopInfo,
 } from "@/lib/api";
+import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
 import { lineTotalSatang, cartTotalSatang } from "@/lib/posCart";
 import { flushOutbox, type OutboxStore, type QueuedSale } from "@/lib/outbox";
@@ -29,6 +30,7 @@ interface SaleLine {
   productVariantId?: string | null;
   barcodeValue?: string;
   productCode?: string;
+  tags?: string[]; // part detail tags (brand · system · part name)
   quantity: number;
   unitPriceSatang: number;
 }
@@ -117,6 +119,163 @@ function Tab({
   );
 }
 
+function chip(kind: "part" | "service"): CSSProperties {
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    padding: "2px 7px",
+    borderRadius: 5,
+    background: kind === "service" ? "var(--primary-soft)" : "var(--hover)",
+    color: kind === "service" ? "var(--primary)" : "var(--text-muted)",
+    whiteSpace: "nowrap",
+  };
+}
+
+/** A small rendered barcode (EAN-13 for 13 digits, else CODE128). Drawn off-screen to a data URL so
+ * list re-renders can't blank it; renders nothing if the value won't encode. */
+function BarcodePreview({ value }: { value: string }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    if (!value) {
+      setSrc("");
+      return;
+    }
+    const encode = (format: string) => {
+      const c = document.createElement("canvas");
+      JsBarcode(c, value, {
+        format,
+        width: 1.3,
+        height: 26,
+        displayValue: true,
+        fontSize: 9,
+        margin: 0,
+      });
+      return c.toDataURL("image/png");
+    };
+    try {
+      // Prefer EAN-13 for 13-digit codes, but fall back to CODE128 when the check digit is invalid.
+      setSrc(/^\d{13}$/.test(value) ? encode("EAN13") : encode("CODE128"));
+    } catch {
+      try {
+        setSrc(encode("CODE128"));
+      } catch {
+        setSrc(""); // value won't encode at all → show nothing
+      }
+    }
+  }, [value]);
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt={`Barcode ${value}`}
+      style={{ maxWidth: 124, height: "auto", display: "block" }}
+    />
+  );
+}
+
+/** One cart line: row 1 = name + detail tags · barcode; row 2 = ฿ price in total of N pcs. */
+function CartItem({
+  line,
+  barcode,
+  onQty,
+  onPrice,
+  onRemove,
+}: {
+  line: SaleLine;
+  barcode?: string;
+  onQty: (q: number) => void;
+  onPrice: (satang: number) => void;
+  onRemove: () => void;
+}) {
+  const isService = line.kind === "service";
+  const tags = line.tags ?? [];
+  return (
+    <div style={{ position: "relative", padding: "12px 0", borderTop: "1px solid var(--border)" }}>
+      {/* Row 1 */}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingRight: 28 }}>
+        <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{line.name}</div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 5 }}>
+            {isService ? (
+              <span style={chip("service")}>Service</span>
+            ) : (
+              tags.map((t, i) => (
+                <span key={i} style={chip("part")}>
+                  {t}
+                </span>
+              ))
+            )}
+          </div>
+        </div>
+        {!isService && barcode && (
+          <div style={{ flex: "none", paddingTop: 2 }}>
+            <BarcodePreview value={barcode} />
+          </div>
+        )}
+      </div>
+
+      {/* Remove (top-right) */}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Remove"
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 0,
+          width: 24,
+          height: 24,
+          minHeight: 0,
+          padding: 0,
+          lineHeight: 1,
+          background: "transparent",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          color: "var(--text-muted)",
+          cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Row 2 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 6,
+          marginTop: 10,
+          fontSize: 13,
+          color: "var(--text-muted)",
+        }}
+      >
+        <span>฿</span>
+        <input
+          type="number"
+          min={0}
+          value={line.unitPriceSatang / 100}
+          onChange={(e) =>
+            onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
+          }
+          style={{ width: 92, ...inputSm }}
+          title="Unit price"
+        />
+        <span>in total of</span>
+        <input
+          type="number"
+          min={1}
+          value={line.quantity}
+          onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+          style={{ width: 56, ...inputSm }}
+          title="Quantity"
+        />
+        <span>pcs.</span>
+      </div>
+    </div>
+  );
+}
+
 export default function PosPage() {
   const toast = useToast();
 
@@ -130,6 +289,7 @@ export default function PosPage() {
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [barcodeToProductId, setBarcodeToProductId] = useState<Map<string, string>>(new Map());
+  const [codeToBarcode, setCodeToBarcode] = useState<Map<string, string>>(new Map());
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [shop, setShop] = useState<ShopInfo>({ name: "", address: "" });
 
@@ -157,9 +317,15 @@ export default function PosPage() {
       .catch(() => {});
     fetchBarcodes()
       .then((bs) => {
-        const m = new Map<string, string>();
-        for (const b of bs) if (b.barcode) m.set(b.barcode, b.productId);
-        setBarcodeToProductId(m);
+        const byBarcode = new Map<string, string>();
+        const byCode = new Map<string, string>();
+        for (const b of bs)
+          if (b.barcode) {
+            byBarcode.set(b.barcode, b.productId);
+            byCode.set(b.productCode, b.barcode);
+          }
+        setBarcodeToProductId(byBarcode);
+        setCodeToBarcode(byCode);
       })
       .catch(() => {});
     fetchServices()
@@ -191,6 +357,8 @@ export default function PosPage() {
   const totalSatang = cartTotalSatang(lines);
 
   function addProductLine(p: ProductRow, barcodeValue?: string) {
+    const tags = [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t);
+    const barcode = barcodeValue ?? codeToBarcode.get(p.productCode);
     setLines((ls) => {
       const existing = ls.find((l) => l.kind === "part" && l.productVariantId === p.variantId);
       if (existing && p.variantId) {
@@ -203,8 +371,9 @@ export default function PosPage() {
           kind: "part",
           name: p.name,
           productVariantId: p.variantId,
-          barcodeValue,
+          barcodeValue: barcode,
           productCode: p.productCode,
+          tags,
           quantity: 1,
           unitPriceSatang: p.offlinePriceSatang || 0,
         },
@@ -231,6 +400,9 @@ export default function PosPage() {
         return;
       }
       const prod = products.find((p) => p.id === found.productId);
+      const tags = prod
+        ? [prod.brandName, prod.usageName, prod.typeName].filter((t): t is string => !!t)
+        : [];
       setLines((ls) => [
         ...ls,
         {
@@ -240,6 +412,7 @@ export default function PosPage() {
           productVariantId: found.variantId,
           barcodeValue: v,
           productCode: found.productCode,
+          tags,
           quantity: 1,
           unitPriceSatang: prod?.offlinePriceSatang || 0,
         },
@@ -618,88 +791,14 @@ export default function PosPage() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {lines.map((l) => (
-                  <div
+                  <CartItem
                     key={l.uid}
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      padding: "8px 0",
-                      borderTop: "1px solid var(--border)",
-                    }}
-                  >
-                    <span
-                      style={{
-                        flex: "1 1 160px",
-                        minWidth: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: "2px 6px",
-                          borderRadius: 5,
-                          background: l.kind === "service" ? "var(--primary-soft)" : "var(--hover)",
-                          color: l.kind === "service" ? "var(--primary)" : "var(--text-muted)",
-                        }}
-                      >
-                        {l.kind === "service" ? "SVC" : "PART"}
-                      </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{l.name}</span>
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={l.quantity}
-                      onChange={(e) =>
-                        updateLine(l.uid, {
-                          quantity: Math.max(1, parseInt(e.target.value, 10) || 1),
-                        })
-                      }
-                      style={{ width: 56, ...inputSm }}
-                      title="Quantity"
-                    />
-                    <span className="muted" style={{ fontSize: 13 }}>
-                      ฿
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={l.unitPriceSatang / 100}
-                      onChange={(e) =>
-                        updateLine(l.uid, {
-                          unitPriceSatang: Math.max(
-                            0,
-                            Math.round((parseFloat(e.target.value) || 0) * 100),
-                          ),
-                        })
-                      }
-                      style={{ width: 90, ...inputSm }}
-                      title="Unit price"
-                    />
-                    <span style={{ width: 84, textAlign: "right", fontWeight: 600 }}>
-                      {formatBaht(lineTotalSatang(l))}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeLine(l.uid)}
-                      aria-label="Remove"
-                      style={{
-                        ...inputSm,
-                        background: "transparent",
-                        border: "1px solid var(--border)",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
+                    line={l}
+                    barcode={l.barcodeValue || codeToBarcode.get(l.productCode ?? "")}
+                    onQty={(quantity) => updateLine(l.uid, { quantity })}
+                    onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
+                    onRemove={() => removeLine(l.uid)}
+                  />
                 ))}
               </div>
             )}
