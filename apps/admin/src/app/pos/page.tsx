@@ -61,7 +61,11 @@ const fieldLabel: CSSProperties = {
   letterSpacing: "0.03em",
   marginBottom: 10,
 };
-const inputSm: CSSProperties = { minHeight: 0, padding: "8px 10px" };
+// Input-box size patterns (shared vocabulary used when describing the UI):
+//   inputL — "L input box": full default height; for primary fields (date, license plate).
+//   inputS — "S input box": compact height; for dense/secondary controls (selects, scan, inline add).
+const inputL: CSSProperties = { width: "100%" };
+const inputS: CSSProperties = { minHeight: 0, padding: "8px 10px" };
 
 /** Local date as yyyy-mm-dd (for a <input type="date"> default). */
 function toISODate(d: Date): string {
@@ -1040,7 +1044,7 @@ export default function PosPage() {
               type="date"
               value={billDate}
               onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
-              style={{ width: "100%" }}
+              style={inputL}
             />
           </div>
 
@@ -1055,7 +1059,7 @@ export default function PosPage() {
                   setCarModelId("");
                   setCarYear("");
                 }}
-                style={{ flex: "1 1 130px", ...inputSm }}
+                style={{ flex: "1 1 130px", ...inputS }}
               >
                 <option value="">Brand…</option>
                 {carFitment.map((b) => (
@@ -1071,7 +1075,7 @@ export default function PosPage() {
                   setCarYear("");
                 }}
                 disabled={!selectedBrand || brandModels.length === 0}
-                style={{ flex: "1 1 130px", ...inputSm }}
+                style={{ flex: "1 1 130px", ...inputS }}
               >
                 <option value="">
                   {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
@@ -1087,7 +1091,7 @@ export default function PosPage() {
                 value={carYear}
                 onChange={(e) => setCarYear(e.target.value)}
                 disabled={!selectedModel}
-                style={{ flex: "0 1 104px", ...inputSm }}
+                style={{ flex: "0 1 104px", ...inputS }}
               >
                 <option value="">Year…</option>
                 {yearOptions.map((y) => (
@@ -1103,7 +1107,7 @@ export default function PosPage() {
                 value={plate}
                 onChange={(e) => setPlate(e.target.value)}
                 placeholder="เช่น 1กก 1234 สุรินทร์"
-                style={{ width: "100%" }}
+                style={inputL}
               />
             </div>
           </div>
@@ -1144,9 +1148,9 @@ export default function PosPage() {
                       value={scanVal}
                       onChange={(e) => setScanVal(e.target.value)}
                       placeholder="Scan or paste a barcode…"
-                      style={{ flex: 1, ...inputSm }}
+                      style={{ flex: 1, ...inputS }}
                     />
-                    <button type="submit" className="btn-soft" disabled={busy} style={inputSm}>
+                    <button type="submit" className="btn-soft" disabled={busy} style={inputS}>
                       Add
                     </button>
                   </form>
@@ -1164,9 +1168,9 @@ export default function PosPage() {
                       value={codeVal}
                       onChange={(e) => setCodeVal(e.target.value)}
                       placeholder="Type a product code…"
-                      style={{ flex: 1, ...inputSm }}
+                      style={{ flex: 1, ...inputS }}
                     />
-                    <button type="submit" className="btn-soft" style={inputSm}>
+                    <button type="submit" className="btn-soft" style={inputS}>
                       Add
                     </button>
                   </form>
@@ -1182,7 +1186,7 @@ export default function PosPage() {
                 <select
                   value={svcId}
                   onChange={(e) => selectService(e.target.value)}
-                  style={{ width: "100%", ...inputSm }}
+                  style={{ width: "100%", ...inputS }}
                 >
                   <option value="">Choose a service…</option>
                   {services.map((s) => (
@@ -1200,7 +1204,7 @@ export default function PosPage() {
                     onChange={(e) => setManualName(e.target.value)}
                     placeholder="Service description…"
                     autoFocus
-                    style={{ width: "100%", marginTop: 8, ...inputSm }}
+                    style={{ width: "100%", marginTop: 8, ...inputS }}
                   />
                 )}
 
@@ -1211,7 +1215,7 @@ export default function PosPage() {
                     className="btn-soft"
                     disabled={!serviceName}
                     onClick={addService}
-                    style={{ ...inputSm, padding: "8px 16px" }}
+                    style={{ ...inputS, padding: "8px 16px" }}
                   >
                     Add
                   </button>
