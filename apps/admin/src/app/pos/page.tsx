@@ -17,6 +17,7 @@ import {
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
 import { lineTotalSatang, cartTotalSatang } from "@/lib/posCart";
+import { inputL, inputS } from "@/lib/inputStyles";
 import { flushOutbox, type OutboxStore, type QueuedSale } from "@/lib/outbox";
 import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
@@ -61,11 +62,7 @@ const fieldLabel: CSSProperties = {
   letterSpacing: "0.03em",
   marginBottom: 10,
 };
-// Input-box size patterns (shared vocabulary used when describing the UI):
-//   inputL — "L input box": full default height; for primary fields (date, license plate).
-//   inputS — "S input box": compact height; for dense/secondary controls (selects, scan, inline add).
-const inputL: CSSProperties = { width: "100%" };
-const inputS: CSSProperties = { minHeight: 0, padding: "8px 10px" };
+// Input-box size patterns (inputL / inputS) live in @/lib/inputStyles — shared app-wide.
 
 /** Local date as yyyy-mm-dd (for a <input type="date"> default). */
 function toISODate(d: Date): string {

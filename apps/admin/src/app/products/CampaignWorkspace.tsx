@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { commissionFeeSatang, profitSatang, marginPct } from "@/lib/pricing";
 import { toSatang, baht } from "./PricingFields";
+import { inputS } from "@/lib/inputStyles";
 
 interface Scenario {
   price: string;
@@ -82,7 +83,7 @@ export function CampaignWorkspace({
                     <input
                       value={r.price}
                       onChange={(e) => patch(i, { price: e.target.value })}
-                      style={{ width: "min(90px, 100%)" }}
+                      style={{ ...inputS, width: "min(90px, 100%)" }}
                     />
                   </td>
                   <td>
@@ -90,7 +91,7 @@ export function CampaignWorkspace({
                       <input
                         value={r.comm}
                         onChange={(e) => patch(i, { comm: e.target.value })}
-                        style={{ width: 48 }}
+                        style={{ ...inputS, width: 48 }}
                       />
                       <span className="muted">%</span>
                     </span>

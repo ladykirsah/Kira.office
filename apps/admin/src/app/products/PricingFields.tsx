@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { totalCostSatang, commissionFeeSatang, profitSatang, marginPct } from "@/lib/pricing";
+import { inputS } from "@/lib/inputStyles";
 
 export interface PricingForm {
   costThb: string;
@@ -41,7 +42,7 @@ function Profit({ value, show }: { value: number; show: boolean }) {
   );
 }
 
-const numStyle: CSSProperties = { width: "min(110px, 100%)" };
+const numStyle: CSSProperties = { ...inputS, width: "min(110px, 100%)" };
 
 export function PricingFields({
   form,
@@ -149,7 +150,7 @@ export function PricingFields({
                 <input
                   value={form.onlineCommPct}
                   onChange={(e) => update({ onlineCommPct: e.target.value })}
-                  style={{ width: 56 }}
+                  style={{ ...inputS, width: 56 }}
                 />
                 <span className="muted">%</span>
               </span>
