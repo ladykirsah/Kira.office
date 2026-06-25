@@ -1025,7 +1025,7 @@ export default function PosPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 380px)",
+          gridTemplateColumns: "minmax(0, 528px) minmax(320px, 1fr)",
           gap: 20,
           alignItems: "start",
         }}
