@@ -354,11 +354,10 @@ export default function PosPage() {
   const [codeVal, setCodeVal] = useState("");
   const [searchVal, setSearchVal] = useState("");
 
-  // Add-service inputs
+  // Add-service inputs. svcId is "" / a service id / MANUAL; svcPrice is the price for either path.
   const [svcId, setSvcId] = useState("");
   const [svcPrice, setSvcPrice] = useState("");
   const [manualName, setManualName] = useState("");
-  const [manualPrice, setManualPrice] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
@@ -522,43 +521,41 @@ export default function PosPage() {
       .slice(0, 8);
   }, [searchVal, products]);
 
-  const selectedService = services.find((s) => s.id === svcId) ?? null;
+  const MANUAL = "__manual__";
+  const serviceChosen = svcId !== "";
+  const isManualService = svcId === MANUAL;
+  const serviceName = isManualService
+    ? manualName.trim()
+    : (services.find((s) => s.id === svcId)?.name ?? "");
 
   function selectService(id: string) {
     setSvcId(id);
-    const s = services.find((x) => x.id === id);
-    setSvcPrice(s ? (s.basePriceSatang / 100).toString() : "");
+    setManualName("");
+    if (id === MANUAL || id === "") {
+      setSvcPrice("");
+    } else {
+      const s = services.find((x) => x.id === id);
+      setSvcPrice(s ? (s.basePriceSatang / 100).toString() : "");
+    }
   }
 
-  function addServiceFromList() {
-    if (!selectedService) return;
+  function addService() {
+    if (!serviceName) return;
     const price = Math.max(0, Math.round((parseFloat(svcPrice) || 0) * 100));
     setLines((ls) => [
       ...ls,
       {
         uid: crypto.randomUUID(),
         kind: "service",
-        name: selectedService.name,
+        name: serviceName,
         quantity: 1,
         unitPriceSatang: price,
       },
     ]);
-    toast(`Added ${selectedService.name}`, "success");
+    toast(`Added ${serviceName}`, "success");
     setSvcId("");
     setSvcPrice("");
-  }
-
-  function addManualService() {
-    const name = manualName.trim();
-    if (!name) return;
-    const price = Math.max(0, Math.round((parseFloat(manualPrice) || 0) * 100));
-    setLines((ls) => [
-      ...ls,
-      { uid: crypto.randomUUID(), kind: "service", name, quantity: 1, unitPriceSatang: price },
-    ]);
-    toast(`Added ${name}`, "success");
     setManualName("");
-    setManualPrice("");
   }
 
   function updateLine(uid: string, patch: Partial<SaleLine>) {
@@ -851,19 +848,34 @@ export default function PosPage() {
             {addKind === "service" && (
               <div>
                 <div style={fieldLabel}>Add service</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <select
-                    value={svcId}
-                    onChange={(e) => selectService(e.target.value)}
-                    style={{ flex: "1 1 180px", ...inputSm }}
-                  >
-                    <option value="">Choose a service…</option>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                {/* Row 1: pick a service, or choose to add manually */}
+                <select
+                  value={svcId}
+                  onChange={(e) => selectService(e.target.value)}
+                  style={{ width: "100%", ...inputSm }}
+                >
+                  <option value="">Choose a service…</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value={MANUAL}>✎ Add manually…</option>
+                </select>
+
+                {/* Manual description appears between the dropdown and the price */}
+                {isManualService && (
+                  <input
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="Service description…"
+                    autoFocus
+                    style={{ width: "100%", marginTop: 8, ...inputSm }}
+                  />
+                )}
+
+                {/* Price + Add */}
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
                   <span className="muted" style={{ fontSize: 13 }}>
                     ฿
                   </span>
@@ -873,49 +885,14 @@ export default function PosPage() {
                     value={svcPrice}
                     onChange={(e) => setSvcPrice(e.target.value)}
                     placeholder="0"
-                    disabled={!selectedService}
-                    style={{ width: 96, ...inputSm }}
+                    disabled={!serviceChosen}
+                    style={{ flex: 1, ...inputSm }}
                   />
                   <button
                     type="button"
                     className="btn-soft"
-                    disabled={!selectedService}
-                    onClick={addServiceFromList}
-                    style={inputSm}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div
-                  className="muted"
-                  style={{ fontSize: 12, margin: "12px 0 8px", textAlign: "center" }}
-                >
-                  — or add a service manually —
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <input
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                    placeholder="Service description…"
-                    style={{ flex: "1 1 180px", ...inputSm }}
-                  />
-                  <span className="muted" style={{ fontSize: 13 }}>
-                    ฿
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={manualPrice}
-                    onChange={(e) => setManualPrice(e.target.value)}
-                    placeholder="0"
-                    style={{ width: 96, ...inputSm }}
-                  />
-                  <button
-                    type="button"
-                    className="btn-soft"
-                    disabled={!manualName.trim()}
-                    onClick={addManualService}
+                    disabled={!serviceName}
+                    onClick={addService}
                     style={inputSm}
                   >
                     Add
