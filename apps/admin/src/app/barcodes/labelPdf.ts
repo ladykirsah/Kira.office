@@ -13,6 +13,9 @@ export interface LabelProduct {
 /** Canvas pixels per mm — high enough to print crisply. */
 const RES = 12;
 
+/** Shop name shown as the label header (later: make this an editable setting). */
+const SHOP_NAME = "Den Air Service (Surin)";
+
 function barcodeCanvas(value: string): HTMLCanvasElement | null {
   const format = chooseBarcodeFormat(value);
   if (!format) return null;
@@ -84,21 +87,34 @@ export function drawLabel(
   ctx.textAlign = "left";
   let y = pad;
 
-  // Tags (small)
+  // Shop name header + divider line
+  ctx.fillStyle = "#000000";
+  ctx.font = `500 ${2.3 * RES}px sans-serif`;
+  ctx.fillText(wrapChars(ctx, SHOP_NAME, W - 2 * pad, 1)[0] ?? "", pad, y);
+  y += 2.9 * RES;
+  ctx.strokeStyle = "#c8ccd2";
+  ctx.lineWidth = Math.max(1, 0.12 * RES);
+  ctx.beginPath();
+  ctx.moveTo(pad, y);
+  ctx.lineTo(W - pad, y);
+  ctx.stroke();
+  y += 1.4 * RES;
+
+  // Tags
   const tags = product.tags.filter(Boolean).join("   ·   ");
   if (tags) {
     ctx.fillStyle = "#000000";
-    ctx.font = `${2.1 * RES}px sans-serif`;
+    ctx.font = `${2.5 * RES}px sans-serif`;
     ctx.fillText(wrapChars(ctx, tags, W - 2 * pad, 1)[0] ?? "", pad, y);
-    y += 2.9 * RES;
+    y += 3.3 * RES;
   }
 
-  // Name (bold, up to 2 lines)
+  // Name (bold, larger, up to 2 lines)
   ctx.fillStyle = "#000000";
-  ctx.font = `600 ${2.9 * RES}px sans-serif`;
+  ctx.font = `600 ${3.4 * RES}px sans-serif`;
   for (const ln of wrapChars(ctx, product.name, W - 2 * pad, 2)) {
     ctx.fillText(ln, pad, y);
-    y += 3.4 * RES;
+    y += 3.9 * RES;
   }
 
   if (!showBarcode) return;
@@ -131,11 +147,13 @@ export function contentHeightMm(product: LabelProduct, wMm: number): number {
   const ctx = c.getContext("2d");
   if (!ctx) return wMm;
   let h = pad;
+  h += 2.9 * RES; // shop name
+  h += 1.4 * RES; // divider gap
   const tags = product.tags.filter(Boolean).join("   ·   ");
-  if (tags) h += 2.9 * RES;
-  ctx.font = `600 ${2.9 * RES}px sans-serif`;
+  if (tags) h += 3.3 * RES;
+  ctx.font = `600 ${3.4 * RES}px sans-serif`;
   const lines = wrapChars(ctx, product.name, W - 2 * pad, 2);
-  h += Math.max(1, lines.length) * 3.4 * RES;
+  h += Math.max(1, lines.length) * 3.9 * RES;
   h += 1.2 * RES; // bottom margin
   return h / RES;
 }
