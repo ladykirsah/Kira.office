@@ -1338,12 +1338,12 @@ export default function PosPage() {
                 disabled={lines.length === 0}
                 style={{ width: "100%" }}
               >
-                Print quotation
+                Create PDF
               </button>
             ) : (
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="btn-soft" onClick={printBill} style={{ flex: 1 }}>
-                  Print bill
+                  Create PDF
                 </button>
                 <button
                   type="button"
@@ -1352,7 +1352,7 @@ export default function PosPage() {
                   disabled={busy || lines.length === 0}
                   style={{ flex: 1 }}
                 >
-                  Save &amp; print
+                  Save File
                 </button>
               </div>
             )}
