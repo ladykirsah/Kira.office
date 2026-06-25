@@ -294,6 +294,7 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<string>("");
   const [filterVal, setFilterVal] = useState<string>("");
+  const [open, setOpen] = useState(false);
   const [items, setItems] = useState<LabelItem[]>([]);
 
   const q = query.trim().toLowerCase();
@@ -323,12 +324,13 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
       return ka.localeCompare(kb);
     });
   }
-  const results = q || filterVal ? matched.slice(0, 12) : [];
+  const results = open && (q || filterVal) ? matched.slice(0, 12) : [];
 
   const addProduct = (p: StudioProduct) => {
     if (!p.barcode || chosen.has(p.id)) return;
     setItems((xs) => [...xs, { product: p, w: 50, h: 30, amount: 24, showBarcode: true }]);
     setQuery("");
+    setOpen(false);
   };
   const patchItem = (id: string, patch: Partial<LabelItem>) =>
     setItems((xs) => xs.map((it) => (it.product.id === id ? { ...it, ...patch } : it)));
@@ -380,7 +382,11 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
             className="tbar-input"
             placeholder="Search a product to add…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
             style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
           />
           {results.length > 0 && (
@@ -443,6 +449,7 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
           onChange={(e) => {
             setSortBy(e.target.value);
             setFilterVal("");
+            setOpen(true);
           }}
           style={{
             color: sortBy ? "var(--text)" : "var(--text-faint)",
@@ -459,7 +466,10 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
         <select
           aria-label="Filter"
           value={filterVal}
-          onChange={(e) => setFilterVal(e.target.value)}
+          onChange={(e) => {
+            setFilterVal(e.target.value);
+            setOpen(true);
+          }}
           disabled={!dim}
           style={{
             color: filterVal ? "var(--text)" : "var(--text-faint)",
