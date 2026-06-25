@@ -186,8 +186,8 @@ function BarcodePreview({ value }: { value: string }) {
   );
 }
 
-/** One cart line. Row 1: name + remove. Row 2: detail tags + barcode (left), line total over an
- * editable ฿ price × qty (right). */
+/** One cart line. Row 1: name + detail tags (or Service chip) on the left, barcode on the right.
+ * Row 2 (separated by a clear gap): editable ฿ price × qty pcs. on the left, bold line total right. */
 function CartItem({
   line,
   barcode,
@@ -203,45 +203,14 @@ function CartItem({
 }) {
   const isService = line.kind === "service";
   const tags = line.tags ?? [];
-  const miniInput: CSSProperties = { width: 76, fontSize: 12, padding: "5px 8px", minHeight: 0 };
+  const miniInput: CSSProperties = { width: 66, fontSize: 13, padding: "5px 8px", minHeight: 0 };
   return (
-    <div style={{ padding: "12px 0", borderTop: "1px solid var(--border)" }}>
-      {/* Row 1: name + remove */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 10,
-        }}
-      >
-        <div style={{ fontWeight: 600, lineHeight: 1.3, minWidth: 0 }}>{line.name}</div>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Remove"
-          style={{
-            flex: "none",
-            width: 24,
-            height: 24,
-            minHeight: 0,
-            padding: 0,
-            lineHeight: 1,
-            background: "transparent",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            color: "var(--text-muted)",
-            cursor: "pointer",
-          }}
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* Row 2: tags + barcode (left) · total + price × qty (right) */}
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-end", marginTop: 10 }}>
+    <div style={{ position: "relative", padding: "12px 0", borderTop: "1px solid var(--border)" }}>
+      {/* Row 1: identity — name + tags (left), barcode (right) */}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingRight: 28 }}>
         <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{line.name}</div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
             {isService ? (
               <span style={chip("service")}>Service</span>
             ) : (
@@ -252,48 +221,79 @@ function CartItem({
               ))
             )}
           </div>
-          {!isService && barcode && (
-            <div style={{ marginTop: 8 }}>
-              <BarcodePreview value={barcode} />
-            </div>
-          )}
         </div>
-
-        <div style={{ flex: "none", textAlign: "right" }}>
-          <div style={{ fontSize: 17, fontWeight: 600 }}>{formatBaht(lineTotalSatang(line))}</div>
-          <div
-            style={{
-              marginTop: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              justifyContent: "flex-end",
-              fontSize: 12,
-              color: "var(--text-muted)",
-            }}
-          >
-            <span>฿</span>
-            <input
-              type="number"
-              min={0}
-              value={line.unitPriceSatang / 100}
-              onChange={(e) =>
-                onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
-              }
-              style={miniInput}
-              title="Unit price"
-            />
-            <span>×</span>
-            <input
-              type="number"
-              min={1}
-              value={line.quantity}
-              onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              style={{ ...miniInput, width: 48, textAlign: "center" }}
-              title="Quantity"
-            />
+        {!isService && barcode && (
+          <div style={{ flex: "none", paddingTop: 2 }}>
+            <BarcodePreview value={barcode} />
           </div>
+        )}
+      </div>
+
+      {/* Remove (top-right) */}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Remove"
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 0,
+          width: 24,
+          height: 24,
+          minHeight: 0,
+          padding: 0,
+          lineHeight: 1,
+          background: "transparent",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          color: "var(--text-muted)",
+          cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Row 2: money — ฿ price × qty pcs. (left) · line total (right). Extra top gap to skim by. */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 18,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 13,
+            color: "var(--text-muted)",
+          }}
+        >
+          <span>฿</span>
+          <input
+            type="number"
+            min={0}
+            value={line.unitPriceSatang / 100}
+            onChange={(e) =>
+              onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
+            }
+            style={miniInput}
+            title="Unit price"
+          />
+          <span>×</span>
+          <input
+            type="number"
+            min={1}
+            value={line.quantity}
+            onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            style={{ ...miniInput, width: 48, textAlign: "center" }}
+            title="Quantity"
+          />
+          <span>pcs.</span>
         </div>
+        <div style={{ fontWeight: 600, fontSize: 16 }}>{formatBaht(lineTotalSatang(line))}</div>
       </div>
     </div>
   );
