@@ -430,7 +430,7 @@ function BillDoc({
           <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: 2 }}>{headEn}</div>
           <div style={{ fontSize: 11, color: muted }}>{headTh}</div>
           <div style={{ fontWeight: 700, fontSize: 14, marginTop: 8 }}>{shopName}</div>
-          {shopAddress && (
+          {!isQuote && shopAddress && (
             <div style={{ fontSize: 11, color: "#52525b", whiteSpace: "pre-wrap" }}>
               {shopAddress}
             </div>
@@ -519,7 +519,7 @@ function BillDoc({
       >
         <div>
           <div style={{ fontSize: 17, fontWeight: 700 }}>{shopName}</div>
-          {shopAddress && (
+          {!isQuote && shopAddress && (
             <div
               style={{ fontSize: 12, color: "#52525b", lineHeight: 1.5, whiteSpace: "pre-wrap" }}
             >
