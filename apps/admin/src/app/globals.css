@@ -1115,3 +1115,91 @@ a.card:hover {
     padding: 16px;
   }
 }
+
+/* Point of Sale two-column workspace collapses to one column when cramped. */
+@media (max-width: 900px) {
+  .pos-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---- Point of Sale: bill document ---- */
+.bill-doc {
+  background: #ffffff;
+  color: #111418;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 22px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bill-doc .bill-shop-name {
+  font-size: 17px;
+  font-weight: 700;
+}
+.bill-doc .bill-meta {
+  color: #555b63;
+  font-size: 12px;
+}
+.bill-doc table.bill-lines {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+.bill-doc table.bill-lines th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7077;
+  border-bottom: 1px solid #d7dbe0;
+  padding: 6px 4px;
+}
+.bill-doc table.bill-lines td {
+  padding: 7px 4px;
+  border-bottom: 1px solid #eef0f2;
+  vertical-align: top;
+}
+.bill-doc table.bill-lines td.num,
+.bill-doc table.bill-lines th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.bill-doc .bill-total-row td {
+  border-bottom: none;
+  border-top: 2px solid #111418;
+  font-weight: 700;
+  font-size: 15px;
+  padding-top: 10px;
+}
+.bill-doc .bill-note {
+  white-space: pre-wrap;
+  color: #333;
+  font-size: 12px;
+}
+
+/* Print only the bill, full-page, when the user prints. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .bill-print,
+  .bill-print * {
+    visibility: visible;
+  }
+  .bill-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .bill-doc {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+  }
+  .bill-no-print {
+    display: none !important;
+  }
+}
