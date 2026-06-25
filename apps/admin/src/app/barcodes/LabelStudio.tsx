@@ -157,17 +157,17 @@ function LabelCard({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { product, w, h, amount, showBarcode } = item;
+  const p = {
+    code: product.code,
+    name: product.name,
+    tags: product.tags,
+    barcode: product.barcode ?? "",
+  };
+  const effH = effectiveHeightMm(p, w, h, showBarcode);
 
   useEffect(() => {
-    if (canvasRef.current && product.barcode) {
-      const p = {
-        code: product.code,
-        name: product.name,
-        tags: product.tags,
-        barcode: product.barcode,
-      };
-      drawLabel(canvasRef.current, p, w, effectiveHeightMm(p, w, h, showBarcode), showBarcode);
-    }
+    if (canvasRef.current && product.barcode) drawLabel(canvasRef.current, p, w, effH, showBarcode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, product.barcode, product.code, product.name, product.tags, w, h, showBarcode]);
 
   const changeW = (v: number) => {
@@ -248,8 +248,14 @@ function LabelCard({
               />
             </Field>
           ) : (
-            <Field label="H">
-              <span style={{ fontSize: 13, color: "var(--text-faint)" }}>auto · fits content</span>
+            <Field label="H" suffix="mm">
+              <input
+                type="number"
+                value={Math.round(effH)}
+                disabled
+                title="Auto — fits the content"
+                style={{ ...numStyle, color: "var(--text-muted)" }}
+              />
             </Field>
           )}
           <Field label="Qty">
