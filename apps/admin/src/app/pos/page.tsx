@@ -336,9 +336,50 @@ function amt(satang: number): string {
   });
 }
 
+type DocType = "bill" | "quotation";
+
+/** A mock QR graphic (3 finder patterns + scattered modules). Stands in until the shop uploads a
+ * real contact QR in Shop info. Deterministic so it doesn't flicker on re-render. */
+function QrPlaceholder({ size = 80 }: { size?: number }) {
+  const N = 21;
+  const c = size / N;
+  const rects: ReactNode[] = [];
+  const fill = (x: number, y: number) =>
+    rects.push(<rect key={`${x}-${y}`} x={x * c} y={y * c} width={c} height={c} fill="#18181b" />);
+  const finder = (ox: number, oy: number) => {
+    for (let x = 0; x < 7; x++)
+      for (let y = 0; y < 7; y++) {
+        const edge = x === 0 || x === 6 || y === 0 || y === 6;
+        const core = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+        if (edge || core) fill(ox + x, oy + y);
+      }
+  };
+  finder(0, 0);
+  finder(N - 7, 0);
+  finder(0, N - 7);
+  for (let x = 0; x < N; x++)
+    for (let y = 0; y < N; y++) {
+      const inFinder = (x < 8 && y < 8) || (x >= N - 8 && y < 8) || (x < 8 && y >= N - 8);
+      if (inFinder) continue;
+      if ((x * 7 + y * 13 + x * y * 3) % 5 === 0 || (x + y) % 4 === 0) fill(x, y);
+    }
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ background: "#fff", display: "block", flex: "none" }}
+      aria-label="Contact QR (sample)"
+    >
+      {rects}
+    </svg>
+  );
+}
+
 /** The printable cash bill, rendered as a thermal receipt or a structured invoice. */
 function BillDoc({
   billStyle,
+  docType,
   shopName,
   shopAddress,
   dateLabel,
@@ -349,6 +390,7 @@ function BillDoc({
   note,
 }: {
   billStyle: BillStyle;
+  docType: DocType;
   shopName: string;
   shopAddress: string;
   dateLabel: string;
@@ -360,6 +402,9 @@ function BillDoc({
 }) {
   const muted = "#6b7280";
   const empty = lines.length === 0;
+  const isQuote = docType === "quotation";
+  const headEn = isQuote ? "QUOTATION" : "CASH BILL";
+  const headTh = isQuote ? "ใบเสนอราคา" : "บิลเงินสด";
 
   if (billStyle === "thermal") {
     const dash = <div style={{ borderTop: "1.5px dashed #9aa0a6", margin: "11px 0" }} />;
@@ -382,8 +427,8 @@ function BillDoc({
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: 2 }}>CASH BILL</div>
-          <div style={{ fontSize: 11, color: muted }}>บิลเงินสด</div>
+          <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: 2 }}>{headEn}</div>
+          <div style={{ fontSize: 11, color: muted }}>{headTh}</div>
           <div style={{ fontWeight: 700, fontSize: 14, marginTop: 8 }}>{shopName}</div>
           {shopAddress && (
             <div style={{ fontSize: 11, color: "#52525b", whiteSpace: "pre-wrap" }}>
@@ -418,18 +463,34 @@ function BillDoc({
             fontSize: 14,
           }}
         >
-          <span>รวมทั้งสิ้น</span>
+          <span>{isQuote ? "รวมโดยประมาณ" : "รวมทั้งสิ้น"}</span>
           <span>฿{amt(totalSatang)}</span>
         </div>
+        {isQuote && (
+          <div style={{ fontSize: 10.5, color: muted, marginTop: 4 }}>
+            * ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน
+          </div>
+        )}
         {note && (
           <>
             {dash}
             <div style={{ fontSize: 11, color: "#52525b" }}>หมายเหตุ: {note}</div>
           </>
         )}
-        <div style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: muted }}>
-          *** ขอบคุณที่ใช้บริการ ***
-        </div>
+        {isQuote ? (
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <div style={{ display: "inline-block" }}>
+              <QrPlaceholder size={92} />
+            </div>
+            <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>
+              สแกนเพื่อติดต่อร้าน · จองคิว
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: muted }}>
+            *** ขอบคุณที่ใช้บริการ ***
+          </div>
+        )}
       </div>
     );
   }
@@ -479,7 +540,7 @@ function BillDoc({
               borderRadius: 4,
             }}
           >
-            CASH BILL
+            {headEn}
           </div>
           <div style={{ fontSize: 12, color: "#52525b", marginTop: 7 }}>{dateLabel}</div>
         </div>
@@ -551,10 +612,10 @@ function BillDoc({
           borderTop: "2px solid #18181b",
         }}
       >
-        <span style={{ fontWeight: 700, letterSpacing: 1 }}>TOTAL</span>
+        <span style={{ fontWeight: 700, letterSpacing: 1 }}>{isQuote ? "ESTIMATE" : "TOTAL"}</span>
         <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
       </div>
-      {note && (
+      {(note || isQuote) && (
         <div
           style={{
             padding: "10px 18px",
@@ -563,7 +624,34 @@ function BillDoc({
             color: "#52525b",
           }}
         >
-          <span style={{ fontWeight: 600 }}>Note:</span> {note}
+          {note && (
+            <div>
+              <span style={{ fontWeight: 600 }}>Note:</span> {note}
+            </div>
+          )}
+          {isQuote && (
+            <div style={{ marginTop: note ? 4 : 0 }}>* ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน</div>
+          )}
+        </div>
+      )}
+      {isQuote && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "14px 18px",
+            borderTop: "1px solid #e5e5e5",
+            background: "#fafafa",
+          }}
+        >
+          <QrPlaceholder size={76} />
+          <div>
+            <div style={{ fontWeight: 600 }}>สนใจติดต่อร้าน</div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+              สแกน QR เพื่อแชท / จองคิว ได้ทันที
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -579,6 +667,7 @@ export default function PosPage() {
   const [billDate, setBillDate] = useState(() => toISODate(new Date()));
   const [note, setNote] = useState("");
   const [billStyle, setBillStyle] = useState<BillStyle>("invoice");
+  const [docType, setDocType] = useState<DocType>("bill");
 
   // Vehicle: brand → model → year, plus the plate.
   const [carBrandId, setCarBrandId] = useState("");
@@ -1095,6 +1184,7 @@ export default function PosPage() {
           <div className="bill-print">
             <BillDoc
               billStyle={billStyle}
+              docType={docType}
               shopName={shop.name || "—"}
               shopAddress={shop.address}
               dateLabel={thaiDate(billDate)}
@@ -1108,9 +1198,20 @@ export default function PosPage() {
 
           {/* Controls (not printed) */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 2, width: 50 }}>
+                Document
+              </span>
+              <Tab active={docType === "bill"} onClick={() => setDocType("bill")}>
+                Cash bill
+              </Tab>
+              <Tab active={docType === "quotation"} onClick={() => setDocType("quotation")}>
+                Quotation
+              </Tab>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 2 }}>
-                Bill style
+              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 2, width: 50 }}>
+                Style
               </span>
               <Tab active={billStyle === "invoice"} onClick={() => setBillStyle("invoice")}>
                 Invoice
@@ -1126,20 +1227,32 @@ export default function PosPage() {
               rows={2}
               style={{ width: "100%", fontFamily: "inherit", marginBottom: 10 }}
             />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" className="btn-soft" onClick={printBill} style={{ flex: 1 }}>
-                Print bill
-              </button>
+            {docType === "quotation" ? (
               <button
                 type="button"
                 className="btn-primary"
-                onClick={checkout}
-                disabled={busy || lines.length === 0}
-                style={{ flex: 1 }}
+                onClick={printBill}
+                disabled={lines.length === 0}
+                style={{ width: "100%" }}
               >
-                Save &amp; print
+                Print quotation
               </button>
-            </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className="btn-soft" onClick={printBill} style={{ flex: 1 }}>
+                  Print bill
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={checkout}
+                  disabled={busy || lines.length === 0}
+                  style={{ flex: 1 }}
+                >
+                  Save &amp; print
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
