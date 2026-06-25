@@ -83,8 +83,10 @@ function makeDb(canned: {
     let lastBinds: unknown[] = [];
     const stmt = {
       sql,
+      boundArgs: [] as unknown[],
       bind(...args: unknown[]) {
         lastBinds = args;
+        stmt.boundArgs = args;
         return stmt;
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
@@ -151,7 +153,18 @@ function makeDb(canned: {
   };
   const db = {
     prepare: (sql: string) => make(sql),
-    batch: async (stmts: { sql: string }[]) => {
+    batch: async (stmts: { sql: string; boundArgs?: unknown[] }[]) => {
+      // Mirror SQLite's arity check so a column/placeholder mismatch fails the test (the bare mock
+      // would otherwise accept malformed INSERTs that throw against a real D1).
+      for (const s of stmts) {
+        const placeholders = (s.sql.match(/\?/g) ?? []).length;
+        const bound = s.boundArgs?.length ?? 0;
+        if (placeholders !== bound) {
+          throw new Error(
+            `SQL arity mismatch: ${placeholders} placeholders vs ${bound} bound values in: ${s.sql.trim().slice(0, 80)}`,
+          );
+        }
+      }
       batched.push(...stmts);
       return stmts.map(() => ({}));
     },

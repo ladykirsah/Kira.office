@@ -223,7 +223,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
             .prepare(
               `INSERT INTO onsite_sale_lines
                (id, onsite_sale_id, product_variant_id, line_type, description, barcode_value, quantity, unit_price_satang, discount_satang, tax_satang, unit_cost_satang, gross_profit_satang)
-               VALUES (?, ?, NULL, 'service', ?, NULL, ?, ?, ?, 0, ?)`,
+               VALUES (?, ?, NULL, 'service', ?, NULL, ?, ?, ?, ?, 0, ?)`,
             )
             .bind(
               crypto.randomUUID(),
