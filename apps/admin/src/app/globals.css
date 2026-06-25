@@ -136,6 +136,16 @@ textarea {
   background: var(--surface);
   color: var(--text);
 }
+/* Plain number inputs: drop the browser up/down spinner arrows. */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 /* Toolbar search: typed text near-black + slightly bold, placeholder stays muted like the selects' default */
 .tbar-input::placeholder {
   color: var(--text-faint);
