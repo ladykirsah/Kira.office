@@ -8,9 +8,11 @@ import {
   fetchBarcodes,
   fetchServices,
   fetchShopInfo,
+  fetchCarFitment,
   type ProductRow,
   type ServiceRow,
   type ShopInfo,
+  type CarBrandTree,
 } from "@/lib/api";
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
@@ -59,6 +61,20 @@ const fieldLabel: CSSProperties = {
   marginBottom: 10,
 };
 const inputSm: CSSProperties = { minHeight: 0, padding: "8px 10px" };
+
+/** Local date as yyyy-mm-dd (for a <input type="date"> default). */
+function toISODate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/** A yyyy-mm-dd string as a Thai long date (Buddhist era), e.g. 25 มิถุนายน 2569. */
+function thaiDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+}
 
 function Seg({
   active,
@@ -315,9 +331,14 @@ export default function PosPage() {
   const [saleType, setSaleType] = useState<SaleType>("parts");
   const [method, setMethod] = useState<AddMethod>("scan");
   const [lines, setLines] = useState<SaleLine[]>([]);
-  const [plate, setPlate] = useState("");
+  const [billDate, setBillDate] = useState(() => toISODate(new Date()));
   const [note, setNote] = useState("");
-  const [now] = useState(() => new Date());
+
+  // Vehicle (repair): brand → model → year, plus the plate.
+  const [carBrandId, setCarBrandId] = useState("");
+  const [carModelId, setCarModelId] = useState("");
+  const [carYear, setCarYear] = useState("");
+  const [plate, setPlate] = useState("");
 
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -325,6 +346,7 @@ export default function PosPage() {
   const [codeToBarcode, setCodeToBarcode] = useState<Map<string, string>>(new Map());
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [shop, setShop] = useState<ShopInfo>({ name: "", address: "" });
+  const [carFitment, setCarFitment] = useState<CarBrandTree[]>([]);
 
   // Add-part inputs
   const [scanVal, setScanVal] = useState("");
@@ -367,6 +389,9 @@ export default function PosPage() {
     fetchShopInfo()
       .then((s) => setShop(s))
       .catch(() => {});
+    fetchCarFitment()
+      .then((b) => setCarFitment(b))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -388,6 +413,23 @@ export default function PosPage() {
   }, [store]);
 
   const totalSatang = cartTotalSatang(lines);
+
+  // Vehicle (repair): cascade brand → model → year off the car-fitment tree.
+  const selectedBrand = carFitment.find((b) => b.id === carBrandId) ?? null;
+  const brandModels = selectedBrand?.models ?? [];
+  const selectedModel = brandModels.find((m) => m.id === carModelId) ?? null;
+  const yearOptions = (() => {
+    const from = selectedModel?.yearFrom;
+    const to = selectedModel?.yearTo;
+    const hi = to ?? new Date().getFullYear();
+    const lo = from ?? hi - 25;
+    const years: number[] = [];
+    for (let y = hi; y >= lo; y--) years.push(y);
+    return years;
+  })();
+  const vehicleLabel = [selectedBrand?.name, selectedModel?.name, carYear]
+    .filter(Boolean)
+    .join(" ");
 
   function addProductLine(p: ProductRow, barcodeValue?: string) {
     const tags = [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t);
@@ -571,17 +613,13 @@ export default function PosPage() {
       setLines([]);
       setPlate("");
       setNote("");
+      setCarBrandId("");
+      setCarModelId("");
+      setCarYear("");
     } finally {
       setBusy(false);
     }
   }
-
-  const billDateStr = now.toLocaleDateString("th-TH", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const billTimeStr = now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <main>
@@ -613,8 +651,63 @@ export default function PosPage() {
                 🔧 Repair service
               </Seg>
             </div>
-            {saleType === "repair" && (
-              <div style={{ marginTop: 14 }}>
+          </div>
+
+          {/* Vehicle (repair only) — brand → model → year + plate */}
+          {saleType === "repair" && (
+            <div style={card}>
+              <div style={fieldLabel}>Vehicle</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <select
+                  value={carBrandId}
+                  onChange={(e) => {
+                    setCarBrandId(e.target.value);
+                    setCarModelId("");
+                    setCarYear("");
+                  }}
+                  style={{ flex: "1 1 130px", ...inputSm }}
+                >
+                  <option value="">Brand…</option>
+                  {carFitment.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={carModelId}
+                  onChange={(e) => {
+                    setCarModelId(e.target.value);
+                    setCarYear("");
+                  }}
+                  disabled={!selectedBrand || brandModels.length === 0}
+                  style={{ flex: "1 1 130px", ...inputSm }}
+                >
+                  <option value="">
+                    {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
+                  </option>
+                  {brandModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.yearFrom || m.yearTo ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={carYear}
+                  onChange={(e) => setCarYear(e.target.value)}
+                  disabled={!selectedModel}
+                  style={{ flex: "0 1 104px", ...inputSm }}
+                >
+                  <option value="">Year…</option>
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ marginTop: 12 }}>
                 <div style={fieldLabel}>ทะเบียนรถ (license plate)</div>
                 <input
                   value={plate}
@@ -623,8 +716,8 @@ export default function PosPage() {
                   style={{ width: "100%" }}
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Add auto part */}
           <div style={card}>
@@ -849,9 +942,15 @@ export default function PosPage() {
                 </div>
               )}
               <div className="bill-meta" style={{ marginTop: 8 }}>
-                {billDateStr} · {billTimeStr}
-                {saleType === "repair" && plate.trim() ? ` · ทะเบียน ${plate.trim()}` : ""}
+                {thaiDate(billDate)}
               </div>
+              {saleType === "repair" && (vehicleLabel || plate.trim()) && (
+                <div className="bill-meta" style={{ marginTop: 2 }}>
+                  {[vehicleLabel, plate.trim() ? `ทะเบียน ${plate.trim()}` : ""]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+              )}
 
               <table className="bill-lines">
                 <thead>
@@ -896,6 +995,15 @@ export default function PosPage() {
 
           {/* Controls (not printed) */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <label style={{ fontSize: 13, color: "var(--text-muted)" }}>Date</label>
+              <input
+                type="date"
+                value={billDate}
+                onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
+                style={{ ...inputSm, flex: 1 }}
+              />
+            </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
