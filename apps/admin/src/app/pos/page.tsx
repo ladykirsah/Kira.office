@@ -205,7 +205,15 @@ function CartItem({
   const tags = line.tags ?? [];
   const miniInput: CSSProperties = { width: 66, fontSize: 13, padding: "5px 8px", minHeight: 0 };
   return (
-    <div style={{ position: "relative", padding: "12px 0", borderTop: "1px solid var(--border)" }}>
+    <div
+      style={{
+        position: "relative",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        padding: "12px 14px",
+        background: "var(--surface)",
+      }}
+    >
       {/* Row 1: identity — name + tags (left), barcode (right) */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingRight: 28 }}>
         <div style={{ flex: "1 1 auto", minWidth: 0 }}>
@@ -236,8 +244,8 @@ function CartItem({
         aria-label="Remove"
         style={{
           position: "absolute",
-          top: 12,
-          right: 0,
+          top: 10,
+          right: 10,
           width: 24,
           height: 24,
           minHeight: 0,
@@ -253,13 +261,15 @@ function CartItem({
         ✕
       </button>
 
-      {/* Row 2: money — ฿ price × qty pcs. (left) · line total (right). Extra top gap to skim by. */}
+      {/* Row 2: money — ฿ price × qty pcs. (left) · line total (right). Divider above to skim by. */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginTop: 18,
+          marginTop: 12,
+          paddingTop: 12,
+          borderTop: "1px solid var(--border)",
         }}
       >
         <div
@@ -812,7 +822,7 @@ export default function PosPage() {
                 No items yet. Add a part{saleType === "repair" ? " or a service" : ""} above.
               </p>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {lines.map((l) => (
                   <CartItem
                     key={l.uid}
