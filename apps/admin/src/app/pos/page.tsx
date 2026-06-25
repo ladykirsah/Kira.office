@@ -338,6 +338,19 @@ function amt(satang: number): string {
 
 type DocType = "bill" | "quotation";
 
+/** The in-progress POS cart, saved locally so a page switch / refresh doesn't lose it. */
+const DRAFT_KEY = "pos:draft:v1";
+interface PosDraft {
+  lines: SaleLine[];
+  plate: string;
+  note: string;
+  billDate: string;
+  carBrandId: string;
+  carModelId: string;
+  carYear: string;
+  docType: DocType;
+}
+
 /** A mock QR graphic (3 finder patterns + scattered modules). Stands in until the shop uploads a
  * real contact QR in Shop info. Deterministic so it doesn't flicker on re-render. */
 function QrPlaceholder({ size = 80 }: { size?: number }) {
@@ -744,6 +757,58 @@ export default function PosPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
+
+  // Auto-save the in-progress draft locally so switching pages / refreshing doesn't lose the cart.
+  // A draft is NOT a sale (no revenue) — it's cleared on checkout, when the order goes to the ledger.
+  const draftReady = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Partial<PosDraft>;
+        if (Array.isArray(d.lines) && d.lines.length) setLines(d.lines);
+        if (typeof d.plate === "string") setPlate(d.plate);
+        if (typeof d.note === "string") setNote(d.note);
+        if (typeof d.billDate === "string") setBillDate(d.billDate);
+        if (typeof d.carBrandId === "string") setCarBrandId(d.carBrandId);
+        if (typeof d.carModelId === "string") setCarModelId(d.carModelId);
+        if (typeof d.carYear === "string") setCarYear(d.carYear);
+        if (d.docType === "bill" || d.docType === "quotation") setDocType(d.docType);
+      }
+    } catch {
+      // ignore corrupt or unavailable storage
+    }
+    // Enable saving only after the restore has settled, so it can't clobber the saved draft on mount.
+    const t = setTimeout(() => {
+      draftReady.current = true;
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady.current) return;
+    try {
+      const empty =
+        lines.length === 0 && !plate.trim() && !note.trim() && !carBrandId && !carModelId;
+      if (empty) {
+        localStorage.removeItem(DRAFT_KEY);
+      } else {
+        const draft: PosDraft = {
+          lines,
+          plate,
+          note,
+          billDate,
+          carBrandId,
+          carModelId,
+          carYear,
+          docType,
+        };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      }
+    } catch {
+      // ignore storage errors (private mode / quota)
+    }
+  }, [lines, plate, note, billDate, carBrandId, carModelId, carYear, docType]);
 
   const totalSatang = cartTotalSatang(lines);
 
