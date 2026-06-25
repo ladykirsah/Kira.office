@@ -294,16 +294,12 @@ function LabelCard({
           <canvas
             ref={canvasRef}
             style={{
-              width: `${w}mm`,
+              width: 160,
               height: "auto",
-              maxWidth: "100%",
               border: "1px solid var(--border)",
               borderRadius: 6,
             }}
           />
-          <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
-            {w} × {Math.round(effH)} mm · actual size
-          </span>
         </div>
       </div>
     </div>
