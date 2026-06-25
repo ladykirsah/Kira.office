@@ -76,7 +76,7 @@ export function drawLabel(
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#c8ccd2";
+  ctx.strokeStyle = "#000000";
   ctx.lineWidth = Math.max(1, 0.2 * RES);
   ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, W - ctx.lineWidth, H - ctx.lineWidth);
 
@@ -84,17 +84,17 @@ export function drawLabel(
   ctx.textAlign = "left";
   let y = pad;
 
-  // Tags (small, muted)
+  // Tags (small)
   const tags = product.tags.filter(Boolean).join("   ·   ");
   if (tags) {
-    ctx.fillStyle = "#8b95a3";
+    ctx.fillStyle = "#000000";
     ctx.font = `${2.1 * RES}px sans-serif`;
     ctx.fillText(wrapChars(ctx, tags, W - 2 * pad, 1)[0] ?? "", pad, y);
     y += 2.9 * RES;
   }
 
   // Name (bold, up to 2 lines)
-  ctx.fillStyle = "#1a1a1a";
+  ctx.fillStyle = "#000000";
   ctx.font = `600 ${2.9 * RES}px sans-serif`;
   for (const ln of wrapChars(ctx, product.name, W - 2 * pad, 2)) {
     ctx.fillText(ln, pad, y);
@@ -104,7 +104,7 @@ export function drawLabel(
   if (!showBarcode) return;
 
   // Code (bottom, centered)
-  ctx.fillStyle = "#444";
+  ctx.fillStyle = "#000000";
   ctx.font = `${2.4 * RES}px monospace`;
   ctx.textAlign = "center";
   ctx.fillText(product.code, W / 2, H - pad - 2.4 * RES);
