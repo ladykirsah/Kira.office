@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { inputS } from "@/lib/inputStyles";
 import {
   fetchCarFitment,
   addCarBrand,
@@ -136,12 +137,15 @@ export default function CarFitmentPage() {
                 No brands yet.
               </p>
             )}
-            <form onSubmit={submitBrand} style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <form
+              onSubmit={submitBrand}
+              style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}
+            >
               <input
                 value={newBrand}
                 onChange={(e) => setNewBrand(e.target.value)}
                 placeholder="Add brand…"
-                style={{ flex: 1, minWidth: 0 }}
+                style={{ ...inputS, flex: 1, minWidth: 0 }}
               />
               <button type="submit" className="btn-primary" disabled={!newBrand.trim()}>
                 +
@@ -249,7 +253,7 @@ export default function CarFitmentPage() {
                     value={newModel}
                     onChange={(e) => setNewModel(e.target.value)}
                     placeholder="Add model…"
-                    style={{ flex: 1, minWidth: 100 }}
+                    style={{ ...inputS, flex: 1, minWidth: 100 }}
                   />
                   <input
                     value={newModelFrom}
@@ -257,7 +261,7 @@ export default function CarFitmentPage() {
                     placeholder="from"
                     inputMode="numeric"
                     aria-label="Era from year"
-                    style={{ width: 64 }}
+                    style={{ ...inputS, width: 64 }}
                   />
                   <span className="muted">–</span>
                   <input
@@ -266,7 +270,7 @@ export default function CarFitmentPage() {
                     placeholder="to"
                     inputMode="numeric"
                     aria-label="Era to year"
-                    style={{ width: 64 }}
+                    style={{ ...inputS, width: 64 }}
                   />
                   <button type="submit" className="btn-primary" disabled={!newModel.trim()}>
                     Add

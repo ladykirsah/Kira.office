@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { renderTerms, extractPlaceholders, findMissingPlaceholders } from "@l-shopee/core";
+import { inputS } from "@/lib/inputStyles";
 import { fetchTermsTemplate, saveTermsTemplate } from "@/lib/api";
 import { useToast } from "../ToastProvider";
 
@@ -77,6 +78,7 @@ export default function TermsPage() {
               <input
                 value={values[p] ?? ""}
                 onChange={(e) => setValues((v) => ({ ...v, [p]: e.target.value }))}
+                style={inputS}
               />
             </label>
           ))}

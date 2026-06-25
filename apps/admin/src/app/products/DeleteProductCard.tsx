@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputS } from "@/lib/inputStyles";
 import { archiveProduct } from "@/lib/api";
 import { useToast } from "../ToastProvider";
 
@@ -42,7 +43,7 @@ export function DeleteProductCard({ productId }: { productId: string }) {
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="Type DELETE"
           aria-label="Type DELETE to confirm"
-          style={{ width: 200 }}
+          style={{ ...inputS, width: 200 }}
         />
         <button type="button" className="btn-danger" disabled={!armed || busy} onClick={onDelete}>
           Delete product

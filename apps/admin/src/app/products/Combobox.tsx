@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { inputS } from "@/lib/inputStyles";
 
 /**
  * Creatable combobox: click to see the list, type to filter or enter a brand-new value. Built with
@@ -50,7 +51,7 @@ export function Combobox({
           if (e.key === "Escape") setOpen(false);
         }}
         placeholder={placeholder}
-        style={{ width: "100%", paddingRight: 30 }}
+        style={{ ...inputS, width: "100%", paddingRight: 30 }}
         role="combobox"
         aria-expanded={open}
       />

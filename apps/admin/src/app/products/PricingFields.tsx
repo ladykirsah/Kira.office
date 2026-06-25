@@ -95,7 +95,7 @@ export function PricingFields({
             <input
               value={form.costThb}
               onChange={(e) => update({ costThb: e.target.value })}
-              style={{ width: 92 }}
+              style={{ ...inputS, width: 92 }}
             />
           </label>
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>

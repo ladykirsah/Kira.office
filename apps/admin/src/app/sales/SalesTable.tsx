@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { type SaleRow } from "@/lib/api";
+import { inputS } from "@/lib/inputStyles";
 import { formatBaht } from "@/lib/format";
 import { RefundButton } from "./RefundButton";
 
@@ -14,7 +15,7 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
       <div style={{ marginBottom: 12 }}>
         <label>
           Show{" "}
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} style={inputS}>
             <option value="all">all</option>
             <option value="completed">completed</option>
             <option value="refunded">refunded</option>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { inputS } from "@/lib/inputStyles";
 
 export interface Generation {
   name: string;
@@ -87,7 +88,7 @@ export function FitmentModelPicker({
           }
         }}
         placeholder={placeholder}
-        style={{ width: "100%", paddingRight: 30 }}
+        style={{ ...inputS, width: "100%", paddingRight: 30 }}
         role="combobox"
         aria-expanded={open}
       />

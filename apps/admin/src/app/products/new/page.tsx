@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputL, inputS } from "@/lib/inputStyles";
 import {
   createProduct,
   updateProduct,
@@ -216,7 +217,7 @@ export default function NewProductPage() {
 
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product name *
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+          <input value={name} onChange={(e) => setName(e.target.value)} required style={inputL} />
         </label>
 
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", gridColumn: "1 / -1" }}>
@@ -226,7 +227,7 @@ export default function NewProductPage() {
               value={stockQty}
               onChange={(e) => setStockQty(e.target.value)}
               inputMode="numeric"
-              style={{ width: 160 }}
+              style={{ ...inputS, width: 160 }}
             />
           </label>
           <label style={field}>
@@ -236,7 +237,7 @@ export default function NewProductPage() {
               onChange={(e) => setWeightKg(e.target.value)}
               inputMode="decimal"
               placeholder="0"
-              style={{ width: 160 }}
+              style={{ ...inputS, width: 160 }}
             />
           </label>
         </div>

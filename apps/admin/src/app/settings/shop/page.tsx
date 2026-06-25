@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchShopInfo, saveShopInfo } from "@/lib/api";
+import { inputL } from "@/lib/inputStyles";
 import { useToast } from "../../ToastProvider";
 
 const labelStyle = { fontSize: 13, color: "var(--text-muted)", marginBottom: 4 } as const;
@@ -62,7 +63,7 @@ export default function ShopInfoPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Den Air Service (Surin)"
             disabled={loading}
-            style={{ width: "100%" }}
+            style={inputL}
           />
         </div>
         <div>

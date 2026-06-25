@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import type { Attributes } from "@/lib/api";
+import { inputL } from "@/lib/inputStyles";
 import { Combobox } from "./Combobox";
 import { BarcodePreview } from "./BarcodePreview";
 
@@ -109,6 +110,7 @@ export function PartDetails({
           value={productRef}
           onChange={(e) => onProductRefChange(e.target.value)}
           placeholder="catalog / part no. (comes with the product)"
+          style={inputL}
         />
         {warn(refWarning)}
       </label>
@@ -127,6 +129,7 @@ export function PartDetails({
             value={barcode}
             onChange={(e) => onBarcodeChange(e.target.value)}
             placeholder="scan / type"
+            style={inputL}
           />
           {warn(barcodeWarning)}
         </label>
@@ -140,6 +143,7 @@ export function PartDetails({
           value={shopeeItemId}
           onChange={(e) => onShopeeItemIdChange(e.target.value)}
           placeholder="Shopee item id"
+          style={inputL}
         />
         {warn(shopeeWarning)}
       </label>

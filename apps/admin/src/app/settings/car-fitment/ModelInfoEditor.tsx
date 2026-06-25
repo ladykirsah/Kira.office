@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { updateCarModel, type CarModelNode, type OringEntry } from "@/lib/api";
+import { inputS } from "@/lib/inputStyles";
 import { useToast } from "../../ToastProvider";
 
 const BASIC_SIZES = ['3/8"', '1/2"', '5/8"'];
@@ -103,7 +104,7 @@ export function ModelInfoEditor({
             value={generationCode}
             onChange={(e) => setGen(e.target.value)}
             placeholder="e.g. NCP150"
-            style={{ width: "100%" }}
+            style={{ ...inputS, width: "100%" }}
           />
         </label>
         <label>
@@ -114,7 +115,7 @@ export function ModelInfoEditor({
               onChange={(e) => setYearFrom(e.target.value)}
               placeholder="from"
               inputMode="numeric"
-              style={{ width: "min(72px, 100%)" }}
+              style={{ ...inputS, width: "min(72px, 100%)" }}
             />
             <span className="muted">–</span>
             <input
@@ -122,7 +123,7 @@ export function ModelInfoEditor({
               onChange={(e) => setYearTo(e.target.value)}
               placeholder="to"
               inputMode="numeric"
-              style={{ width: "min(72px, 100%)" }}
+              style={{ ...inputS, width: "min(72px, 100%)" }}
             />
           </span>
         </label>
@@ -132,7 +133,7 @@ export function ModelInfoEditor({
             value={refrigerant}
             onChange={(e) => setRefrigerant(e.target.value)}
             placeholder="e.g. R134a"
-            style={{ width: "100%" }}
+            style={{ ...inputS, width: "100%" }}
           />
         </label>
         <label>
@@ -142,7 +143,7 @@ export function ModelInfoEditor({
             onChange={(e) => setCoolant(e.target.value)}
             placeholder="e.g. 0.45"
             inputMode="decimal"
-            style={{ width: "100%" }}
+            style={{ ...inputS, width: "100%" }}
           />
         </label>
       </div>

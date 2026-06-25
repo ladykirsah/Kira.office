@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { inputS } from "@/lib/inputStyles";
 import {
   fetchAttributes,
   addAttribute,
@@ -80,12 +81,12 @@ function ListCard({
           ))}
         </div>
       )}
-      <form onSubmit={submit} style={{ display: "flex", gap: 6 }}>
+      <form onSubmit={submit} style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input
           value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder={placeholder}
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ ...inputS, flex: 1, minWidth: 0 }}
         />
         <button type="submit" className="btn-primary" disabled={busy || !val.trim()}>
           Add

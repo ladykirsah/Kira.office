@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { apiBase } from "@/lib/api";
+import { inputS } from "@/lib/inputStyles";
 import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 import {
   drawLabel,
@@ -419,7 +420,7 @@ export function LabelStudio({
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
+            style={{ ...inputS, width: "100%", color: "var(--text)", fontWeight: 500 }}
           />
           {results.length > 0 && (
             <div
@@ -484,6 +485,7 @@ export function LabelStudio({
             setOpen(true);
           }}
           style={{
+            ...inputS,
             color: sortBy ? "var(--text)" : "var(--text-faint)",
             fontWeight: sortBy ? 500 : 400,
           }}
@@ -504,6 +506,7 @@ export function LabelStudio({
           }}
           disabled={!dim}
           style={{
+            ...inputS,
             color: filterVal ? "var(--text)" : "var(--text-faint)",
             fontWeight: filterVal ? 500 : 400,
           }}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { inputL, inputS } from "@/lib/inputStyles";
 import { useParams, useRouter } from "next/navigation";
 import {
   apiBase,
@@ -412,7 +413,12 @@ export default function EditProductPage() {
 
             <label style={field}>
               Product name *
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                style={inputL}
+              />
             </label>
 
             <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -435,7 +441,7 @@ export default function EditProductPage() {
                   onChange={(e) => setStockQty(e.target.value)}
                   placeholder="0"
                   inputMode="numeric"
-                  style={{ width: 140 }}
+                  style={{ ...inputS, width: 140 }}
                 />
                 <small className="muted">
                   now {detail.onHand ?? 0} · change logged as adjustment
@@ -447,7 +453,7 @@ export default function EditProductPage() {
                   value={weightKg}
                   onChange={(e) => setWeightKg(e.target.value)}
                   placeholder="0"
-                  style={{ width: 140 }}
+                  style={{ ...inputS, width: 140 }}
                 />
               </label>
             </div>

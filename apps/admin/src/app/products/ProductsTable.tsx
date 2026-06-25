@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
+import { inputS } from "@/lib/inputStyles";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { productStatusTag } from "@/lib/productStatus";
 import { ActionsMenu } from "./ActionsMenu";
@@ -117,7 +118,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           placeholder="Search code or name…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          style={{ width: 240, maxWidth: "100%", color: "var(--text)", fontWeight: 500 }}
+          style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)", fontWeight: 500 }}
         />
         <select
           aria-label="Sort by"
@@ -127,6 +128,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             setFilterVal("");
           }}
           style={{
+            ...inputS,
             color: sortBy ? "var(--text)" : "var(--text-faint)",
             fontWeight: sortBy ? 500 : 400,
           }}
@@ -144,6 +146,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           onChange={(e) => setFilterVal(e.target.value)}
           disabled={!dim}
           style={{
+            ...inputS,
             color: filterVal ? "var(--text)" : "var(--text-faint)",
             fontWeight: filterVal ? 500 : 400,
           }}
