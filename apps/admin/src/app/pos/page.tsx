@@ -522,7 +522,6 @@ export default function PosPage() {
   }, [searchVal, products]);
 
   const MANUAL = "__manual__";
-  const serviceChosen = svcId !== "";
   const isManualService = svcId === MANUAL;
   const serviceName = isManualService
     ? manualName.trim()
@@ -874,26 +873,14 @@ export default function PosPage() {
                   />
                 )}
 
-                {/* Price + Add */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-                  <span className="muted" style={{ fontSize: 13 }}>
-                    ฿
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={svcPrice}
-                    onChange={(e) => setSvcPrice(e.target.value)}
-                    placeholder="0"
-                    disabled={!serviceChosen}
-                    style={{ flex: 1, ...inputSm }}
-                  />
+                {/* Add — the price is set on the item in the cart below */}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
                   <button
                     type="button"
                     className="btn-soft"
                     disabled={!serviceName}
                     onClick={addService}
-                    style={inputSm}
+                    style={{ ...inputSm, padding: "8px 16px" }}
                   >
                     Add
                   </button>
