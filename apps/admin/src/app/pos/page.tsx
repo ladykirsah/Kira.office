@@ -326,6 +326,250 @@ function CartItem({
   );
 }
 
+type BillStyle = "invoice" | "thermal";
+
+/** Amount in baht with grouping + 2 decimals, no symbol (e.g. 2,590.00). */
+function amt(satang: number): string {
+  return (satang / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** The printable cash bill, rendered as a thermal receipt or a structured invoice. */
+function BillDoc({
+  billStyle,
+  shopName,
+  shopAddress,
+  dateLabel,
+  vehicle,
+  plate,
+  lines,
+  totalSatang,
+  note,
+}: {
+  billStyle: BillStyle;
+  shopName: string;
+  shopAddress: string;
+  dateLabel: string;
+  vehicle: string;
+  plate: string;
+  lines: SaleLine[];
+  totalSatang: number;
+  note: string;
+}) {
+  const muted = "#6b7280";
+  const empty = lines.length === 0;
+
+  if (billStyle === "thermal") {
+    const dash = <div style={{ borderTop: "1.5px dashed #9aa0a6", margin: "11px 0" }} />;
+    const metaRow = (label: string, value: string) => (
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <span style={{ color: muted }}>{label}</span>
+        <span>{value}</span>
+      </div>
+    );
+    return (
+      <div
+        style={{
+          maxWidth: 320,
+          margin: "0 auto",
+          background: "#fff",
+          color: "#18181b",
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          padding: "20px 18px",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: 2 }}>CASH BILL</div>
+          <div style={{ fontSize: 11, color: muted }}>บิลเงินสด</div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginTop: 8 }}>{shopName}</div>
+          {shopAddress && (
+            <div style={{ fontSize: 11, color: "#52525b", whiteSpace: "pre-wrap" }}>
+              {shopAddress}
+            </div>
+          )}
+        </div>
+        {dash}
+        {metaRow("วันที่", dateLabel)}
+        {vehicle && metaRow("รถ", vehicle)}
+        {plate && metaRow("ทะเบียน", plate)}
+        {dash}
+        {empty ? (
+          <div style={{ color: muted, padding: "4px 0" }}>ยังไม่มีรายการ</div>
+        ) : (
+          lines.map((l) => (
+            <div key={l.uid} style={{ marginBottom: 6 }}>
+              <div>{l.name}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#3f3f46" }}>
+                <span style={{ color: muted }}>×{l.quantity}</span>
+                <span>{amt(lineTotalSatang(l))}</span>
+              </div>
+            </div>
+          ))
+        )}
+        {dash}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontWeight: 700,
+            fontSize: 14,
+          }}
+        >
+          <span>รวมทั้งสิ้น</span>
+          <span>฿{amt(totalSatang)}</span>
+        </div>
+        {note && (
+          <>
+            {dash}
+            <div style={{ fontSize: 11, color: "#52525b" }}>หมายเหตุ: {note}</div>
+          </>
+        )}
+        <div style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: muted }}>
+          *** ขอบคุณที่ใช้บริการ ***
+        </div>
+      </div>
+    );
+  }
+
+  // Invoice
+  return (
+    <div
+      style={{
+        background: "#fff",
+        color: "#18181b",
+        fontSize: 13,
+        border: "1px solid #d4d4d8",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+          padding: "16px 18px",
+          borderBottom: "2px solid #18181b",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>{shopName}</div>
+          {shopAddress && (
+            <div
+              style={{ fontSize: 12, color: "#52525b", lineHeight: 1.5, whiteSpace: "pre-wrap" }}
+            >
+              {shopAddress}
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: "right", flex: "none" }}>
+          <div
+            style={{
+              display: "inline-block",
+              background: "#18181b",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: 1.5,
+              padding: "5px 11px",
+              borderRadius: 4,
+            }}
+          >
+            CASH BILL
+          </div>
+          <div style={{ fontSize: 12, color: "#52525b", marginTop: 7 }}>{dateLabel}</div>
+        </div>
+      </div>
+      {(vehicle || plate) && (
+        <div
+          style={{
+            display: "flex",
+            gap: 28,
+            flexWrap: "wrap",
+            padding: "10px 18px",
+            background: "#f4f4f5",
+            fontSize: 12,
+          }}
+        >
+          {vehicle && (
+            <div>
+              <span style={{ color: muted }}>รถ:</span> {vehicle}
+            </div>
+          )}
+          {plate && (
+            <div>
+              <span style={{ color: muted }}>ทะเบียน:</span> {plate}
+            </div>
+          )}
+        </div>
+      )}
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: "#fafafa", color: muted, fontSize: 11 }}>
+            <th style={{ textAlign: "left", padding: "8px 8px 8px 18px", fontWeight: 600 }}>
+              รายการ
+            </th>
+            <th style={{ textAlign: "center", padding: 8, fontWeight: 600 }}>จำนวน</th>
+            <th style={{ textAlign: "right", padding: 8, fontWeight: 600 }}>ราคา</th>
+            <th style={{ textAlign: "right", padding: "8px 18px 8px 8px", fontWeight: 600 }}>
+              รวม
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {empty ? (
+            <tr>
+              <td colSpan={4} style={{ padding: "14px 18px", color: "#9aa0a6" }}>
+                ยังไม่มีรายการ
+              </td>
+            </tr>
+          ) : (
+            lines.map((l) => (
+              <tr key={l.uid} style={{ borderBottom: "1px solid #efefef" }}>
+                <td style={{ padding: "9px 8px 9px 18px" }}>{l.name}</td>
+                <td style={{ textAlign: "center", padding: 9 }}>{l.quantity}</td>
+                <td style={{ textAlign: "right", padding: 9 }}>{amt(l.unitPriceSatang)}</td>
+                <td style={{ textAlign: "right", padding: "9px 18px 9px 8px" }}>
+                  {amt(lineTotalSatang(l))}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "baseline",
+          gap: 24,
+          padding: "12px 18px",
+          borderTop: "2px solid #18181b",
+        }}
+      >
+        <span style={{ fontWeight: 700, letterSpacing: 1 }}>TOTAL</span>
+        <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
+      </div>
+      {note && (
+        <div
+          style={{
+            padding: "10px 18px",
+            borderTop: "1px solid #e5e5e5",
+            fontSize: 12,
+            color: "#52525b",
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>Note:</span> {note}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PosPage() {
   const toast = useToast();
 
@@ -334,6 +578,7 @@ export default function PosPage() {
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [billDate, setBillDate] = useState(() => toISODate(new Date()));
   const [note, setNote] = useState("");
+  const [billStyle, setBillStyle] = useState<BillStyle>("invoice");
 
   // Vehicle: brand → model → year, plus the plate.
   const [carBrandId, setCarBrandId] = useState("");
@@ -848,67 +1093,32 @@ export default function PosPage() {
         {/* ---- RIGHT: bill ---- */}
         <div style={{ position: "sticky", top: 16 }}>
           <div className="bill-print">
-            <div className="bill-doc">
-              <div className="bill-shop-name">{shop.name || "—"}</div>
-              {shop.address && (
-                <div className="bill-meta" style={{ whiteSpace: "pre-wrap" }}>
-                  {shop.address}
-                </div>
-              )}
-              <div className="bill-meta" style={{ marginTop: 8 }}>
-                {thaiDate(billDate)}
-              </div>
-              {(vehicleLabel || plate.trim()) && (
-                <div className="bill-meta" style={{ marginTop: 2 }}>
-                  {[vehicleLabel, plate.trim() ? `ทะเบียน ${plate.trim()}` : ""]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-              )}
-
-              <table className="bill-lines">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th className="num">Qty</th>
-                    <th className="num">Price</th>
-                    <th className="num">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} style={{ color: "#9aa0a8", padding: "14px 4px" }}>
-                        No items yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    lines.map((l) => (
-                      <tr key={l.uid}>
-                        <td>{l.name}</td>
-                        <td className="num">{l.quantity}</td>
-                        <td className="num">{formatBaht(l.unitPriceSatang)}</td>
-                        <td className="num">{formatBaht(lineTotalSatang(l))}</td>
-                      </tr>
-                    ))
-                  )}
-                  <tr className="bill-total-row">
-                    <td colSpan={3}>Total</td>
-                    <td className="num">{formatBaht(totalSatang)}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {note.trim() && (
-                <div className="bill-note">
-                  <strong>Note:</strong> {note.trim()}
-                </div>
-              )}
-            </div>
+            <BillDoc
+              billStyle={billStyle}
+              shopName={shop.name || "—"}
+              shopAddress={shop.address}
+              dateLabel={thaiDate(billDate)}
+              vehicle={vehicleLabel}
+              plate={plate.trim()}
+              lines={lines}
+              totalSatang={totalSatang}
+              note={note.trim()}
+            />
           </div>
 
           {/* Controls (not printed) */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 2 }}>
+                Bill style
+              </span>
+              <Tab active={billStyle === "invoice"} onClick={() => setBillStyle("invoice")}>
+                Invoice
+              </Tab>
+              <Tab active={billStyle === "thermal"} onClick={() => setBillStyle("thermal")}>
+                Receipt
+              </Tab>
+            </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
