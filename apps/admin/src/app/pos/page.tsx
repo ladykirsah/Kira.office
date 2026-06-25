@@ -22,6 +22,7 @@ import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
 
 type SaleType = "parts" | "repair";
+type AddKind = "product" | "service";
 type AddMethod = "scan" | "code" | "search";
 type LineKind = "part" | "service";
 
@@ -328,13 +329,13 @@ function CartItem({
 export default function PosPage() {
   const toast = useToast();
 
-  const [saleType, setSaleType] = useState<SaleType>("parts");
+  const [addKind, setAddKind] = useState<AddKind>("product");
   const [method, setMethod] = useState<AddMethod>("scan");
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [billDate, setBillDate] = useState(() => toISODate(new Date()));
   const [note, setNote] = useState("");
 
-  // Vehicle (repair): brand → model → year, plus the plate.
+  // Vehicle: brand → model → year, plus the plate.
   const [carBrandId, setCarBrandId] = useState("");
   const [carModelId, setCarModelId] = useState("");
   const [carYear, setCarYear] = useState("");
@@ -570,12 +571,14 @@ export default function PosPage() {
   // Save the whole order — parts (deduct stock) and services (labour lines) plus the sale type,
   // plate and note — to the sales ledger. Offline-safe via the outbox; the server dedupes on uuid.
   async function saveSale(): Promise<boolean> {
+    // A sale counts as a repair when it has a vehicle/plate or any service line; else it's parts.
+    const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
     const sale: QueuedSale = {
       clientUuid: crypto.randomUUID(),
       paymentMethod: "cash",
-      saleType,
-      licensePlate: saleType === "repair" ? plate.trim() || undefined : undefined,
-      vehicle: saleType === "repair" ? vehicleLabel || undefined : undefined,
+      saleType: isRepair ? "repair" : "parts",
+      licensePlate: plate.trim() || undefined,
+      vehicle: vehicleLabel || undefined,
       notes: note.trim() || undefined,
       lines: lines.map((l) => ({
         productVariantId: l.kind === "part" ? (l.productVariantId ?? null) : null,
@@ -617,6 +620,8 @@ export default function PosPage() {
       setCarBrandId("");
       setCarModelId("");
       setCarYear("");
+      setAddKind("product");
+      setBillDate(toISODate(new Date()));
     } finally {
       setBusy(false);
     }
@@ -642,197 +647,209 @@ export default function PosPage() {
       >
         {/* ---- LEFT: build the sale ---- */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Date */}
           <div style={card}>
-            <div style={fieldLabel}>Selling type</div>
+            <div style={fieldLabel}>Date</div>
+            <input
+              type="date"
+              value={billDate}
+              onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          {/* Vehicle — brand → model → year + plate */}
+          <div style={card}>
+            <div style={fieldLabel}>Vehicle</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Seg active={saleType === "parts"} onClick={() => setSaleType("parts")}>
-                🧰 Buy auto parts
-              </Seg>
-              <Seg active={saleType === "repair"} onClick={() => setSaleType("repair")}>
-                🔧 Repair service
-              </Seg>
+              <select
+                value={carBrandId}
+                onChange={(e) => {
+                  setCarBrandId(e.target.value);
+                  setCarModelId("");
+                  setCarYear("");
+                }}
+                style={{ flex: "1 1 130px", ...inputSm }}
+              >
+                <option value="">Brand…</option>
+                {carFitment.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={carModelId}
+                onChange={(e) => {
+                  setCarModelId(e.target.value);
+                  setCarYear("");
+                }}
+                disabled={!selectedBrand || brandModels.length === 0}
+                style={{ flex: "1 1 130px", ...inputSm }}
+              >
+                <option value="">
+                  {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
+                </option>
+                {brandModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.yearFrom || m.yearTo ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})` : ""}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={carYear}
+                onChange={(e) => setCarYear(e.target.value)}
+                disabled={!selectedModel}
+                style={{ flex: "0 1 104px", ...inputSm }}
+              >
+                <option value="">Year…</option>
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div style={fieldLabel}>ทะเบียนรถ (license plate)</div>
+              <input
+                value={plate}
+                onChange={(e) => setPlate(e.target.value)}
+                placeholder="เช่น 1กก 1234 สุรินทร์"
+                style={{ width: "100%" }}
+              />
             </div>
           </div>
 
-          {/* Vehicle (repair only) — brand → model → year + plate */}
-          {saleType === "repair" && (
-            <div style={card}>
-              <div style={fieldLabel}>Vehicle</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <select
-                  value={carBrandId}
-                  onChange={(e) => {
-                    setCarBrandId(e.target.value);
-                    setCarModelId("");
-                    setCarYear("");
-                  }}
-                  style={{ flex: "1 1 130px", ...inputSm }}
-                >
-                  <option value="">Brand…</option>
-                  {carFitment.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={carModelId}
-                  onChange={(e) => {
-                    setCarModelId(e.target.value);
-                    setCarYear("");
-                  }}
-                  disabled={!selectedBrand || brandModels.length === 0}
-                  style={{ flex: "1 1 130px", ...inputSm }}
-                >
-                  <option value="">
-                    {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
-                  </option>
-                  {brandModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                      {m.yearFrom || m.yearTo ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})` : ""}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={carYear}
-                  onChange={(e) => setCarYear(e.target.value)}
-                  disabled={!selectedModel}
-                  style={{ flex: "0 1 104px", ...inputSm }}
-                >
-                  <option value="">Year…</option>
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <div style={fieldLabel}>ทะเบียนรถ (license plate)</div>
-                <input
-                  value={plate}
-                  onChange={(e) => setPlate(e.target.value)}
-                  placeholder="เช่น 1กก 1234 สุรินทร์"
-                  style={{ width: "100%" }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Add auto part */}
+          {/* Add item — Product / Service toggle switches the workspace */}
           <div style={card}>
-            <div style={fieldLabel}>Add auto part</div>
-            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-              <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
-                📷 Scan barcode
-              </Tab>
-              <Tab active={method === "code"} onClick={() => setMethod("code")}>
-                ⌨️ Type code
-              </Tab>
-              <Tab active={method === "search"} onClick={() => setMethod("search")}>
-                🔍 Search
-              </Tab>
+            <div style={fieldLabel}>Add item</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
+                📦 Product
+              </Seg>
+              <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
+                🔧 Service
+              </Seg>
             </div>
 
-            {method === "scan" && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  addByScan();
-                }}
-                style={{ display: "flex", gap: 8 }}
-              >
-                <input
-                  autoFocus
-                  value={scanVal}
-                  onChange={(e) => setScanVal(e.target.value)}
-                  placeholder="Scan or paste a barcode…"
-                  style={{ flex: 1, ...inputSm }}
-                />
-                <button type="submit" className="btn-soft" disabled={busy} style={inputSm}>
-                  Add
-                </button>
-              </form>
-            )}
-
-            {method === "code" && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  addByCode();
-                }}
-                style={{ display: "flex", gap: 8 }}
-              >
-                <input
-                  value={codeVal}
-                  onChange={(e) => setCodeVal(e.target.value)}
-                  placeholder="Type a product code…"
-                  style={{ flex: 1, ...inputSm }}
-                />
-                <button type="submit" className="btn-soft" style={inputSm}>
-                  Add
-                </button>
-              </form>
-            )}
-
-            {method === "search" && (
+            {addKind === "product" && (
               <div>
-                <input
-                  value={searchVal}
-                  onChange={(e) => setSearchVal(e.target.value)}
-                  placeholder="Search by name or code…"
-                  style={{ width: "100%", ...inputSm }}
-                />
-                {searchResults.length > 0 && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      overflow: "hidden",
+                <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                  <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
+                    📷 Scan barcode
+                  </Tab>
+                  <Tab active={method === "code"} onClick={() => setMethod("code")}>
+                    ⌨️ Type code
+                  </Tab>
+                  <Tab active={method === "search"} onClick={() => setMethod("search")}>
+                    🔍 Search
+                  </Tab>
+                </div>
+
+                {method === "scan" && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      addByScan();
                     }}
+                    style={{ display: "flex", gap: 8 }}
                   >
-                    {searchResults.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          addProductLine(p);
-                          setSearchVal("");
-                        }}
+                    <input
+                      autoFocus
+                      value={scanVal}
+                      onChange={(e) => setScanVal(e.target.value)}
+                      placeholder="Scan or paste a barcode…"
+                      style={{ flex: 1, ...inputSm }}
+                    />
+                    <button type="submit" className="btn-soft" disabled={busy} style={inputSm}>
+                      Add
+                    </button>
+                  </form>
+                )}
+
+                {method === "code" && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      addByCode();
+                    }}
+                    style={{ display: "flex", gap: 8 }}
+                  >
+                    <input
+                      value={codeVal}
+                      onChange={(e) => setCodeVal(e.target.value)}
+                      placeholder="Type a product code…"
+                      style={{ flex: 1, ...inputSm }}
+                    />
+                    <button type="submit" className="btn-soft" style={inputSm}>
+                      Add
+                    </button>
+                  </form>
+                )}
+
+                {method === "search" && (
+                  <div>
+                    <input
+                      value={searchVal}
+                      onChange={(e) => setSearchVal(e.target.value)}
+                      placeholder="Search by name or code…"
+                      style={{ width: "100%", ...inputSm }}
+                    />
+                    {searchResults.length > 0 && (
+                      <div
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 10,
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "8px 10px",
-                          background: "transparent",
-                          border: "none",
-                          borderBottom: "1px solid var(--border)",
-                          cursor: "pointer",
+                          marginTop: 8,
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          overflow: "hidden",
                         }}
                       >
-                        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {p.name}
-                          <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                            {p.productCode}
-                          </span>
-                        </span>
-                        <span className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-                          {formatBaht(p.offlinePriceSatang || 0)}
-                        </span>
-                      </button>
-                    ))}
+                        {searchResults.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              addProductLine(p);
+                              setSearchVal("");
+                            }}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 10,
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "8px 10px",
+                              background: "transparent",
+                              border: "none",
+                              borderBottom: "1px solid var(--border)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <span
+                              style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+                            >
+                              {p.name}
+                              <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                                {p.productCode}
+                              </span>
+                            </span>
+                            <span className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                              {formatBaht(p.offlinePriceSatang || 0)}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Add service (repair only) — same card, divided */}
-            {saleType === "repair" && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+            {/* Service workspace */}
+            {addKind === "service" && (
+              <div>
                 <div style={fieldLabel}>Add service</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   <select
@@ -913,7 +930,7 @@ export default function PosPage() {
             <div style={fieldLabel}>Items ({lines.length})</div>
             {lines.length === 0 ? (
               <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                No items yet. Add a part{saleType === "repair" ? " or a service" : ""} above.
+                No items yet. Add a product or service above.
               </p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -945,7 +962,7 @@ export default function PosPage() {
               <div className="bill-meta" style={{ marginTop: 8 }}>
                 {thaiDate(billDate)}
               </div>
-              {saleType === "repair" && (vehicleLabel || plate.trim()) && (
+              {(vehicleLabel || plate.trim()) && (
                 <div className="bill-meta" style={{ marginTop: 2 }}>
                   {[vehicleLabel, plate.trim() ? `ทะเบียน ${plate.trim()}` : ""]
                     .filter(Boolean)
@@ -996,15 +1013,6 @@ export default function PosPage() {
 
           {/* Controls (not printed) */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <label style={{ fontSize: 13, color: "var(--text-muted)" }}>Date</label>
-              <input
-                type="date"
-                value={billDate}
-                onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
-                style={{ ...inputSm, flex: 1 }}
-              />
-            </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
