@@ -136,56 +136,6 @@ function Tab({
   );
 }
 
-/** A segmented control: connected options on a track, the active one lifted. Reads as "pick one". */
-function SegControl({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: 3,
-        padding: 3,
-        background: "var(--hover)",
-        borderRadius: 9,
-        flex: 1,
-      }}
-    >
-      {options.map((o) => {
-        const active = o.value === value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(o.value)}
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRadius: 7,
-              border: `1px solid ${active ? "var(--border)" : "transparent"}`,
-              background: active ? "var(--surface)" : "transparent",
-              color: active ? "var(--text)" : "var(--text-muted)",
-              fontWeight: active ? 600 : 500,
-              fontSize: 13,
-              cursor: "pointer",
-              minHeight: 0,
-              boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function chip(kind: "part" | "service"): CSSProperties {
   if (kind === "service") {
     return {
@@ -1231,6 +1181,38 @@ export default function PosPage() {
 
         {/* ---- RIGHT: bill ---- */}
         <div style={{ position: "sticky", top: 16 }}>
+          {/* Document type — big toggle above the preview (not printed) */}
+          <div className="bill-no-print" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {(["bill", "quotation"] as DocType[]).map((d) => {
+              const active = docType === d;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDocType(d)}
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    padding: "11px 10px",
+                    borderRadius: 10,
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    background: active ? "var(--primary)" : "var(--surface)",
+                    color: active ? "#fff" : "var(--text)",
+                    fontWeight: active ? 600 : 500,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    minHeight: 0,
+                  }}
+                >
+                  {d === "bill" ? "💵 Cash bill" : "📝 Quotation"}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="bill-print">
             <BillDoc
               billStyle={billStyle}
@@ -1246,50 +1228,35 @@ export default function PosPage() {
             />
           </div>
 
-          {/* Controls (not printed) */}
+          {/* Controls (not printed) — paper, note, actions */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: "12px 14px",
-                marginBottom: 12,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span
-                  style={{ fontSize: 12.5, color: "var(--text-muted)", width: 56, flex: "none" }}
-                >
-                  Print as
-                </span>
-                <SegControl
-                  value={docType}
-                  onChange={(v) => setDocType(v as DocType)}
-                  options={[
-                    { value: "bill", label: "💵 Cash bill" },
-                    { value: "quotation", label: "📝 Quotation" },
-                  ]}
-                />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span
-                  style={{ fontSize: 12.5, color: "var(--text-muted)", width: 56, flex: "none" }}
-                >
-                  Paper
-                </span>
-                <SegControl
-                  value={billStyle}
-                  onChange={(v) => setBillStyle(v as BillStyle)}
-                  options={[
-                    { value: "invoice", label: "📄 Invoice" },
-                    { value: "thermal", label: "🧾 Receipt" },
-                  ]}
-                />
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                Paper
+              </span>
+              {(["invoice", "thermal"] as BillStyle[]).map((s) => {
+                const active = billStyle === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setBillStyle(s)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                      background: active ? "var(--primary-soft)" : "var(--surface)",
+                      color: active ? "var(--primary)" : "var(--text-muted)",
+                      fontWeight: active ? 600 : 500,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                  </button>
+                );
+              })}
             </div>
             <textarea
               value={note}
