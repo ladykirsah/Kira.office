@@ -136,6 +136,56 @@ function Tab({
   );
 }
 
+/** A segmented control: connected options on a track, the active one lifted. Reads as "pick one". */
+function SegControl({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 3,
+        padding: 3,
+        background: "var(--hover)",
+        borderRadius: 9,
+        flex: 1,
+      }}
+    >
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            style={{
+              flex: 1,
+              padding: "6px 8px",
+              borderRadius: 7,
+              border: `1px solid ${active ? "var(--border)" : "transparent"}`,
+              background: active ? "var(--surface)" : "transparent",
+              color: active ? "var(--text)" : "var(--text-muted)",
+              fontWeight: active ? 600 : 500,
+              fontSize: 13,
+              cursor: "pointer",
+              minHeight: 0,
+              boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function chip(kind: "part" | "service"): CSSProperties {
   if (kind === "service") {
     return {
@@ -1198,27 +1248,48 @@ export default function PosPage() {
 
           {/* Controls (not printed) */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 2, width: 50 }}>
-                Document
-              </span>
-              <Tab active={docType === "bill"} onClick={() => setDocType("bill")}>
-                Cash bill
-              </Tab>
-              <Tab active={docType === "quotation"} onClick={() => setDocType("quotation")}>
-                Quotation
-              </Tab>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 2, width: 50 }}>
-                Style
-              </span>
-              <Tab active={billStyle === "invoice"} onClick={() => setBillStyle("invoice")}>
-                Invoice
-              </Tab>
-              <Tab active={billStyle === "thermal"} onClick={() => setBillStyle("thermal")}>
-                Receipt
-              </Tab>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                padding: "12px 14px",
+                marginBottom: 12,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  style={{ fontSize: 12.5, color: "var(--text-muted)", width: 56, flex: "none" }}
+                >
+                  Print as
+                </span>
+                <SegControl
+                  value={docType}
+                  onChange={(v) => setDocType(v as DocType)}
+                  options={[
+                    { value: "bill", label: "💵 Cash bill" },
+                    { value: "quotation", label: "📝 Quotation" },
+                  ]}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  style={{ fontSize: 12.5, color: "var(--text-muted)", width: 56, flex: "none" }}
+                >
+                  Paper
+                </span>
+                <SegControl
+                  value={billStyle}
+                  onChange={(v) => setBillStyle(v as BillStyle)}
+                  options={[
+                    { value: "invoice", label: "📄 Invoice" },
+                    { value: "thermal", label: "🧾 Receipt" },
+                  ]}
+                />
+              </div>
             </div>
             <textarea
               value={note}
