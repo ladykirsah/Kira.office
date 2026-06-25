@@ -18,3 +18,29 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+
+  # Auto-deploy the API Worker (kira-office) to prod after checks pass on main.
+  # Gated on the CLOUDFLARE_API_TOKEN repo secret: until it is set, this step skips and CI stays
+  # green. Account id is in wrangler.jsonc, so the token just needs Workers + DNS edit on that
+  # account. The admin (apps/admin) deploys via OpenNext to a DIFFERENT Cloudflare account and is
+  # intentionally not wired here.
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy API Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN secret not set — skipping Worker deploy."
+            exit 0
+          fi
+          npm run deploy -- --env=""
