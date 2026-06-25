@@ -23,6 +23,10 @@ export default async function BarcodesPage() {
     name: p.name,
     imageKey: p.imageKey,
     tags: [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t),
+    brandName: p.brandName,
+    usageName: p.usageName,
+    typeName: p.typeName,
+    carBrands: p.carBrands,
     barcode: barcodeByProduct.get(p.id) ?? null,
   }));
 

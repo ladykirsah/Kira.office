@@ -11,8 +11,32 @@ export interface StudioProduct {
   name: string;
   imageKey: string | null;
   tags: string[];
+  brandName: string | null;
+  usageName: string | null;
+  typeName: string | null;
+  carBrands: string[];
   barcode: string | null;
 }
+
+/** Sort/filter dimensions (same set as the products table). */
+const DIMENSIONS = [
+  {
+    key: "brand",
+    label: "Part brand",
+    values: (p: StudioProduct) => (p.brandName ? [p.brandName] : []),
+  },
+  {
+    key: "usage",
+    label: "Match system",
+    values: (p: StudioProduct) => (p.usageName ? [p.usageName] : []),
+  },
+  {
+    key: "type",
+    label: "Part name",
+    values: (p: StudioProduct) => (p.typeName ? [p.typeName] : []),
+  },
+  { key: "car", label: "Car brand", values: (p: StudioProduct) => p.carBrands },
+] as const;
 
 interface LabelItem {
   product: StudioProduct;
@@ -268,15 +292,38 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
   const [paper, setPaper] = useState<Paper>("A4");
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("");
+  const [filterVal, setFilterVal] = useState<string>("");
   const [items, setItems] = useState<LabelItem[]>([]);
 
   const q = query.trim().toLowerCase();
   const chosen = new Set(items.map((it) => it.product.id));
-  const results = q
-    ? products
-        .filter((p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
-        .slice(0, 8)
+
+  // Linked Sort by + Filter (same behaviour as the products table) applied to the add-results.
+  const dim = DIMENSIONS.find((d) => d.key === sortBy);
+  const filterOptions = dim
+    ? Array.from(new Set(products.flatMap((p) => dim.values(p)))).sort((a, b) => a.localeCompare(b))
     : [];
+
+  let matched = products;
+  if (q)
+    matched = matched.filter(
+      (p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q),
+    );
+  if (dim && filterVal) matched = matched.filter((p) => dim.values(p).includes(filterVal));
+  if (dim) {
+    const key = (p: StudioProduct) => {
+      const vals = dim.values(p);
+      return vals.length ? [...vals].sort()[0] : "";
+    };
+    matched = [...matched].sort((a, b) => {
+      const ka = key(a);
+      const kb = key(b);
+      if (!ka || !kb) return ka ? -1 : kb ? 1 : 0;
+      return ka.localeCompare(kb);
+    });
+  }
+  const results = q || filterVal ? matched.slice(0, 12) : [];
 
   const addProduct = (p: StudioProduct) => {
     if (!p.barcode || chosen.has(p.id)) return;
@@ -324,16 +371,120 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
         all of them.
       </p>
 
+      {/* Row 1 — full-option product search */}
+      <div
+        style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 16 }}
+      >
+        <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 420 }}>
+          <input
+            className="tbar-input"
+            placeholder="Search a product to add…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
+          />
+          {results.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                zIndex: 5,
+                left: 0,
+                right: 0,
+                marginTop: 4,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+                overflow: "hidden",
+                maxHeight: 360,
+                overflowY: "auto",
+              }}
+            >
+              {results.map((p) => {
+                const added = chosen.has(p.id);
+                const disabled = !p.barcode || added;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => addProduct(p)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      width: "100%",
+                      minHeight: 0,
+                      padding: "8px 12px",
+                      border: "none",
+                      borderRadius: 0,
+                      background: "transparent",
+                      textAlign: "left",
+                      opacity: disabled ? 0.5 : 1,
+                    }}
+                  >
+                    <Cover p={p} size={32} />
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {p.code}
+                        {!p.barcode ? " · no barcode" : added ? " · added" : ""}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <select
+          aria-label="Sort by"
+          value={sortBy}
+          onChange={(e) => {
+            setSortBy(e.target.value);
+            setFilterVal("");
+          }}
+          style={{
+            color: sortBy ? "var(--text)" : "var(--text-faint)",
+            fontWeight: sortBy ? 500 : 400,
+          }}
+        >
+          <option value="">Sort by…</option>
+          {DIMENSIONS.map((d) => (
+            <option key={d.key} value={d.key}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Filter"
+          value={filterVal}
+          onChange={(e) => setFilterVal(e.target.value)}
+          disabled={!dim}
+          style={{
+            color: filterVal ? "var(--text)" : "var(--text-faint)",
+            fontWeight: filterVal ? 500 : 400,
+          }}
+        >
+          <option value="">{dim ? `All ${dim.label.toLowerCase()}` : "Filter…"}</option>
+          {filterOptions.map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Row 2 — selected cards (col 1) · paper/download/preview (col 2, after first product) */}
       <div
         style={{
           display: "flex",
           gap: 28,
           flexWrap: "wrap",
           alignItems: "flex-start",
-          marginTop: 16,
+          marginTop: 18,
         }}
       >
-        {/* Column 1 — search + product label cards */}
         <div
           style={{
             flex: "1 1 360px",
@@ -343,67 +494,6 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
             gap: 16,
           }}
         >
-          <div style={{ position: "relative", maxWidth: 420 }}>
-            <input
-              className="tbar-input"
-              placeholder="Search a product to add…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ width: "100%", color: "var(--text)", fontWeight: 500 }}
-            />
-            {results.length > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  zIndex: 5,
-                  left: 0,
-                  right: 0,
-                  marginTop: 4,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
-                  overflow: "hidden",
-                }}
-              >
-                {results.map((p) => {
-                  const added = chosen.has(p.id);
-                  const disabled = !p.barcode || added;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => addProduct(p)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        width: "100%",
-                        minHeight: 0,
-                        padding: "8px 12px",
-                        border: "none",
-                        borderRadius: 0,
-                        background: "transparent",
-                        textAlign: "left",
-                        opacity: disabled ? 0.5 : 1,
-                      }}
-                    >
-                      <Cover p={p} size={32} />
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
-                        <span className="muted" style={{ fontSize: 12 }}>
-                          {p.code}
-                          {!p.barcode ? " · no barcode" : added ? " · added" : ""}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           {items.length === 0 ? (
             <p className="muted">No products yet — search above to add labels to the sheet.</p>
           ) : (
@@ -418,44 +508,43 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
           )}
         </div>
 
-        {/* Column 2 — paper, download, file preview (stays in view) */}
-        <div
-          style={{
-            flex: "1 1 360px",
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 18,
-            position: "sticky",
-            top: 16,
-          }}
-        >
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-            <div>
-              <div style={fieldLabel}>Paper size</div>
-              <Seg
-                value={paper}
-                onChange={setPaper}
-                options={[
-                  ["A4", "A4"],
-                  ["A5", "A5"],
-                ]}
-              />
+        {items.length > 0 && (
+          <div
+            style={{
+              flex: "1 1 360px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 18,
+              position: "sticky",
+              top: 16,
+            }}
+          >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+              <div>
+                <div style={fieldLabel}>Paper size</div>
+                <Seg
+                  value={paper}
+                  onChange={setPaper}
+                  options={[
+                    ["A4", "A4"],
+                    ["A5", "A5"],
+                  ]}
+                />
+              </div>
+              <div>
+                <div style={fieldLabel}>Orientation</div>
+                <Seg
+                  value={orientation}
+                  onChange={setOrientation}
+                  options={[
+                    ["portrait", "Portrait"],
+                    ["landscape", "Landscape"],
+                  ]}
+                />
+              </div>
             </div>
-            <div>
-              <div style={fieldLabel}>Orientation</div>
-              <Seg
-                value={orientation}
-                onChange={setOrientation}
-                options={[
-                  ["portrait", "Portrait"],
-                  ["landscape", "Landscape"],
-                ]}
-              />
-            </div>
-          </div>
 
-          {items.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <button
                 type="button"
@@ -470,15 +559,15 @@ export function LabelStudio({ products }: { products: StudioProduct[] }) {
                 {plan.pages} {paper} page{plan.pages === 1 ? "" : "s"}
               </span>
             </div>
-          )}
 
-          {plan.placements.length > 0 && (
-            <div>
-              <div style={fieldLabel}>File preview</div>
-              <div ref={previewRef} className="sheet-preview" />
-            </div>
-          )}
-        </div>
+            {plan.placements.length > 0 && (
+              <div>
+                <div style={fieldLabel}>File preview</div>
+                <div ref={previewRef} className="sheet-preview" />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
