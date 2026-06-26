@@ -665,6 +665,11 @@ function BillDoc({
               {shopAddress}
             </div>
           )}
+          {isQuote && (
+            <div style={{ fontSize: 12, color: "#52525b", lineHeight: 1.5 }}>
+              * ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน
+            </div>
+          )}
         </div>
         <div style={{ textAlign: "right", flex: "none" }}>
           <div
@@ -777,7 +782,7 @@ function BillDoc({
           {totalsBlock}
         </div>
       )}
-      {(note || isQuote) && (
+      {note && (
         <div
           style={{
             padding: "10px 18px",
@@ -786,14 +791,9 @@ function BillDoc({
             color: "#52525b",
           }}
         >
-          {note && (
-            <div>
-              <span style={{ fontWeight: 600 }}>Note:</span> {note}
-            </div>
-          )}
-          {isQuote && (
-            <div style={{ marginTop: note ? 4 : 0 }}>* ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน</div>
-          )}
+          <div>
+            <span style={{ fontWeight: 600 }}>Note:</span> {note}
+          </div>
         </div>
       )}
     </div>
