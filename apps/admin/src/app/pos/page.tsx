@@ -747,7 +747,7 @@ function BillDoc({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: "flex-start",
             gap: 18,
             padding: "12px 18px",
             borderTop: "2px solid #18181b",
@@ -755,7 +755,7 @@ function BillDoc({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <QrPlaceholder size={76} />
+            <QrPlaceholder size={56} />
             <div>
               <div style={{ fontWeight: 600 }}>สนใจติดต่อร้าน</div>
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
