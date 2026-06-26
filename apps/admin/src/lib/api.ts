@@ -15,6 +15,7 @@ export interface ProductRow {
   carBrands: string[];
   offlinePriceSatang: number;
   onlinePriceSatang: number;
+  b2bPriceSatang?: number; // wholesale price (optional until the list API exposes it)
   itemCostSatang: number;
   onlineCommissionBp: number;
   taxOnCost: number;
@@ -540,6 +541,7 @@ export interface SaleRow {
   saleType: string | null;
   licensePlate: string | null;
   vehicle: string | null;
+  channel?: string | null; // "online" | "onsite" — for the Parts subtitle (design exploration)
 }
 
 export async function refundSale(

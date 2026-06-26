@@ -816,6 +816,7 @@ async function listProducts(env: Env): Promise<Response> {
             u.name AS usageName,
             COALESCE(pp.target_price_satang, 0) AS offlinePriceSatang,
             COALESCE(pp.online_price_satang, 0) AS onlinePriceSatang,
+            COALESCE(pp.b2b_price_satang, 0) AS b2bPriceSatang,
             COALESCE(pp.item_cost_satang, 0) AS itemCostSatang,
             COALESCE(pp.online_commission_bp, 0) AS onlineCommissionBp,
             COALESCE(pp.tax_on_cost, 0) AS taxOnCost,

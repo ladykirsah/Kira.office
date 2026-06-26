@@ -16,7 +16,13 @@ import {
 } from "@/lib/api";
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
-import { lineTotalSatang, cartTotalSatang } from "@/lib/posCart";
+import {
+  lineTotalSatang,
+  cartTotalSatang,
+  discountSatangOf,
+  distributeDiscount,
+  type DiscountKind,
+} from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
 import { flushOutbox, type OutboxStore, type QueuedSale } from "@/lib/outbox";
 import { createIdbStore } from "@/lib/outbox-idb";
@@ -24,8 +30,9 @@ import { useToast } from "../ToastProvider";
 
 type SaleType = "parts" | "repair";
 type AddKind = "product" | "service";
-type AddMethod = "scan" | "code";
+type AddMethod = "scan" | "code" | "search";
 type LineKind = "part" | "service";
+type PriceTier = "retail" | "wholesale";
 
 interface SaleLine {
   uid: string;
@@ -37,6 +44,9 @@ interface SaleLine {
   tags?: string[]; // part detail tags (brand · system · part name)
   quantity: number;
   unitPriceSatang: number;
+  b2cPriceSatang?: number; // retail price
+  b2bPriceSatang?: number; // wholesale price
+  tier?: PriceTier; // per-line B2C/B2B choice
 }
 
 async function syncSale(sale: QueuedSale): Promise<boolean> {
@@ -211,12 +221,14 @@ function CartItem({
   barcode,
   onQty,
   onPrice,
+  onTier,
   onRemove,
 }: {
   line: SaleLine;
   barcode?: string;
   onQty: (q: number) => void;
   onPrice: (satang: number) => void;
+  onTier: (t: PriceTier) => void;
   onRemove: () => void;
 }) {
   const isService = line.kind === "service";
@@ -279,49 +291,81 @@ function CartItem({
         ✕
       </button>
 
-      {/* Row 2: money — ฿ price × qty pcs. (left) · line total (right). Divider above to skim by. */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: 12,
-          paddingTop: 12,
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            fontSize: 13,
-            color: "var(--text-muted)",
-          }}
-        >
-          <span>฿</span>
-          <input
-            type="number"
-            min={0}
-            value={line.unitPriceSatang / 100}
-            onChange={(e) =>
-              onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
-            }
-            style={miniInput}
-            title="Unit price"
-          />
-          <span>×</span>
-          <input
-            type="number"
-            min={1}
-            value={line.quantity}
-            onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-            style={{ ...miniInput, width: 48, textAlign: "center" }}
-            title="Quantity"
-          />
-          <span>pcs.</span>
+      {/* Row 2: per-line price tier (parts) + money (฿ price × qty · total). Divider above. */}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+        {!isService && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span className="muted" style={{ fontSize: 11 }}>
+              Price
+            </span>
+            <span
+              style={{
+                display: "inline-flex",
+                border: "1px solid var(--border)",
+                borderRadius: 7,
+                overflow: "hidden",
+              }}
+            >
+              {(["retail", "wholesale"] as PriceTier[]).map((t) => {
+                const active = (line.tier ?? "retail") === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => onTier(t)}
+                    style={{
+                      padding: "4px 11px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      border: "none",
+                      borderRight: t === "retail" ? "1px solid var(--border)" : "none",
+                      background: active ? "var(--primary-soft)" : "transparent",
+                      color: active ? "var(--primary)" : "var(--text-muted)",
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {t === "retail" ? "B2C" : "B2B"}
+                  </button>
+                );
+              })}
+            </span>
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 13,
+              color: "var(--text-muted)",
+            }}
+          >
+            <span>฿</span>
+            <input
+              type="number"
+              min={0}
+              value={line.unitPriceSatang / 100}
+              onChange={(e) =>
+                onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
+              }
+              style={miniInput}
+              title="Unit price"
+            />
+            <span>×</span>
+            <input
+              type="number"
+              min={1}
+              value={line.quantity}
+              onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              style={{ ...miniInput, width: 48, textAlign: "center" }}
+              title="Quantity"
+            />
+            <span>pcs.</span>
+          </div>
+          <div style={{ fontWeight: 600, fontSize: 16 }}>{formatBaht(lineTotalSatang(line))}</div>
         </div>
-        <div style={{ fontWeight: 600, fontSize: 16 }}>{formatBaht(lineTotalSatang(line))}</div>
       </div>
     </div>
   );
@@ -400,6 +444,8 @@ function BillDoc({
   vehicle,
   plate,
   lines,
+  subtotalSatang,
+  discountSatang,
   totalSatang,
   note,
 }: {
@@ -411,6 +457,8 @@ function BillDoc({
   vehicle: string;
   plate: string;
   lines: SaleLine[];
+  subtotalSatang: number;
+  discountSatang: number;
   totalSatang: number;
   note: string;
 }) {
@@ -469,6 +517,33 @@ function BillDoc({
           ))
         )}
         {dash}
+        {discountSatang > 0 && (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 12,
+                color: muted,
+              }}
+            >
+              <span>รวมย่อย</span>
+              <span>฿{amt(subtotalSatang)}</span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 12,
+                color: muted,
+                marginBottom: 3,
+              }}
+            >
+              <span>ส่วนลด</span>
+              <span>−฿{amt(discountSatang)}</span>
+            </div>
+          </>
+        )}
         <div
           style={{
             display: "flex",
@@ -618,16 +693,32 @@ function BillDoc({
       </table>
       <div
         style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "baseline",
-          gap: 24,
-          padding: "12px 18px",
+          padding: "10px 18px",
           borderTop: "2px solid #18181b",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 4,
         }}
       >
-        <span style={{ fontWeight: 700, letterSpacing: 1 }}>{isQuote ? "ESTIMATE" : "TOTAL"}</span>
-        <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
+        {discountSatang > 0 && (
+          <>
+            <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
+              <span>Subtotal</span>
+              <span>฿{amt(subtotalSatang)}</span>
+            </div>
+            <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
+              <span>Discount</span>
+              <span>−฿{amt(discountSatang)}</span>
+            </div>
+          </>
+        )}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 24 }}>
+          <span style={{ fontWeight: 700, letterSpacing: 1 }}>
+            {isQuote ? "ESTIMATE" : "TOTAL"}
+          </span>
+          <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
+        </div>
       </div>
       {(note || isQuote) && (
         <div
@@ -700,6 +791,11 @@ export default function PosPage() {
   // Add-part inputs
   const [scanVal, setScanVal] = useState("");
   const [codeVal, setCodeVal] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+
+  // Bill pricing options
+  const [discountKind, setDiscountKind] = useState<DiscountKind>("thb");
+  const [discountValue, setDiscountValue] = useState("");
 
   // Add-service inputs. svcId is "" / a service id / MANUAL; svcPrice is the price for either path.
   const [svcId, setSvcId] = useState("");
@@ -811,7 +907,24 @@ export default function PosPage() {
     }
   }, [lines, plate, note, billDate, carBrandId, carModelId, carYear, docType]);
 
-  const totalSatang = cartTotalSatang(lines);
+  const subtotalSatang = cartTotalSatang(lines);
+  const discountSatang = discountSatangOf(subtotalSatang, discountKind, discountValue);
+  const totalSatang = subtotalSatang - discountSatang;
+
+  // Product search (fallback when a barcode/sticker is unreadable) — filter the loaded catalogue,
+  // and hide anything already in the cart (matched by variant, falling back to product code).
+  const inCart = new Set(
+    lines.filter((l) => l.kind === "part").map((l) => l.productVariantId ?? l.productCode),
+  );
+  const searchResults = (() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return [] as ProductRow[];
+    return products
+      .filter((p) => p.name.toLowerCase().includes(q) || p.productCode.toLowerCase().includes(q))
+      .filter((p) => !inCart.has(p.variantId ?? p.productCode))
+      .slice(0, 8);
+  })();
+  const tierPrice = (p: ProductRow): number => p.offlinePriceSatang || 0;
 
   // Vehicle (repair): cascade brand → model → year off the car-fitment tree.
   const selectedBrand = carFitment.find((b) => b.id === carBrandId) ?? null;
@@ -833,6 +946,8 @@ export default function PosPage() {
   function addProductLine(p: ProductRow, barcodeValue?: string) {
     const tags = [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t);
     const barcode = barcodeValue ?? codeToBarcode.get(p.productCode);
+    const b2c = p.offlinePriceSatang || 0;
+    const b2b = p.b2bPriceSatang || b2c; // fall back to retail when no wholesale price is set
     setLines((ls) => {
       const existing = ls.find((l) => l.kind === "part" && l.productVariantId === p.variantId);
       if (existing && p.variantId) {
@@ -849,11 +964,32 @@ export default function PosPage() {
           productCode: p.productCode,
           tags,
           quantity: 1,
-          unitPriceSatang: p.offlinePriceSatang || 0,
+          unitPriceSatang: b2c,
+          b2cPriceSatang: b2c,
+          b2bPriceSatang: b2b,
+          tier: "retail",
         },
       ];
     });
     toast(`Added ${p.name}`, "success");
+  }
+
+  /** Switch one line between B2C/B2B and reprice it. */
+  function setLineTier(uid: string, t: PriceTier) {
+    setLines((ls) =>
+      ls.map((l) =>
+        l.uid === uid
+          ? {
+              ...l,
+              tier: t,
+              unitPriceSatang:
+                t === "wholesale"
+                  ? (l.b2bPriceSatang ?? l.unitPriceSatang)
+                  : (l.b2cPriceSatang ?? l.unitPriceSatang),
+            }
+          : l,
+      ),
+    );
   }
 
   async function addByScan() {
@@ -877,6 +1013,8 @@ export default function PosPage() {
       const tags = prod
         ? [prod.brandName, prod.usageName, prod.typeName].filter((t): t is string => !!t)
         : [];
+      const b2c = prod?.offlinePriceSatang || 0;
+      const b2b = prod?.b2bPriceSatang || b2c;
       setLines((ls) => [
         ...ls,
         {
@@ -888,7 +1026,10 @@ export default function PosPage() {
           productCode: found.productCode,
           tags,
           quantity: 1,
-          unitPriceSatang: prod?.offlinePriceSatang || 0,
+          unitPriceSatang: b2c,
+          b2cPriceSatang: b2c,
+          b2bPriceSatang: b2b,
+          tier: "retail",
         },
       ]);
       toast(`Added ${found.name}`, "success");
@@ -960,6 +1101,11 @@ export default function PosPage() {
   async function saveSale(): Promise<boolean> {
     // A sale counts as a repair when it has a vehicle/plate or any service line; else it's parts.
     const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
+    // Spread the bill discount across the lines so the server's per-line discount + profit is exact.
+    const perLineDiscount = distributeDiscount(
+      lines.map((l) => l.unitPriceSatang * l.quantity),
+      discountSatang,
+    );
     const sale: QueuedSale = {
       clientUuid: crypto.randomUUID(),
       paymentMethod: "cash",
@@ -967,13 +1113,14 @@ export default function PosPage() {
       licensePlate: plate.trim() || undefined,
       vehicle: vehicleLabel || undefined,
       notes: note.trim() || undefined,
-      lines: lines.map((l) => ({
+      lines: lines.map((l, i) => ({
         productVariantId: l.kind === "part" ? (l.productVariantId ?? null) : null,
         lineType: l.kind,
         description: l.name,
         barcodeValue: l.barcodeValue,
         quantity: l.quantity,
         unitPriceSatang: l.unitPriceSatang,
+        discountSatang: perLineDiscount[i] || undefined,
       })),
       queuedAt: Date.now(),
     };
@@ -1130,6 +1277,9 @@ export default function PosPage() {
                   <Tab active={method === "code"} onClick={() => setMethod("code")}>
                     ⌨️ Type code
                   </Tab>
+                  <Tab active={method === "search"} onClick={() => setMethod("search")}>
+                    🔍 Search
+                  </Tab>
                 </div>
 
                 {method === "scan" && (
@@ -1171,6 +1321,63 @@ export default function PosPage() {
                       Add
                     </button>
                   </form>
+                )}
+
+                {method === "search" && (
+                  <div style={{ position: "relative" }}>
+                    <input
+                      autoFocus
+                      value={searchQ}
+                      onChange={(e) => setSearchQ(e.target.value)}
+                      placeholder="Search by product name or code…"
+                      style={{ width: "100%", ...inputS }}
+                    />
+                    {searchQ.trim() && (
+                      <div className="combo-pop">
+                        {searchResults.length === 0 ? (
+                          <p className="muted" style={{ fontSize: 13, margin: "6px 8px" }}>
+                            No product matches “{searchQ.trim()}”.
+                          </p>
+                        ) : (
+                          searchResults.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="combo-opt"
+                              onClick={() => addProductLine(p)}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 8,
+                              }}
+                            >
+                              <span style={{ minWidth: 0 }}>
+                                <span
+                                  style={{
+                                    display: "block",
+                                    fontWeight: 600,
+                                    fontSize: 13,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {p.name}
+                                </span>
+                                <span className="muted" style={{ fontSize: 12 }}>
+                                  {p.productCode}
+                                </span>
+                              </span>
+                              <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>
+                                ฿{amt(tierPrice(p))}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1237,6 +1444,7 @@ export default function PosPage() {
                     barcode={l.barcodeValue || codeToBarcode.get(l.productCode ?? "")}
                     onQty={(quantity) => updateLine(l.uid, { quantity })}
                     onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
+                    onTier={(t) => setLineTier(l.uid, t)}
                     onRemove={() => removeLine(l.uid)}
                   />
                 ))}
@@ -1289,6 +1497,8 @@ export default function PosPage() {
               vehicle={vehicleLabel}
               plate={plate.trim()}
               lines={lines}
+              subtotalSatang={subtotalSatang}
+              discountSatang={discountSatang}
               totalSatang={totalSatang}
               note={note.trim()}
             />
@@ -1320,6 +1530,43 @@ export default function PosPage() {
                     }}
                   >
                     {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Discount — ฿ or % off the whole bill */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                Discount
+              </span>
+              <input
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                inputMode="decimal"
+                placeholder="0"
+                style={{ flex: 1, ...inputS }}
+              />
+              {(["thb", "pct"] as DiscountKind[]).map((k) => {
+                const active = discountKind === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setDiscountKind(k)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 8,
+                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                      background: active ? "var(--primary-soft)" : "var(--surface)",
+                      color: active ? "var(--primary)" : "var(--text)",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {k === "thb" ? "฿" : "%"}
                   </button>
                 );
               })}
