@@ -613,6 +613,28 @@ function BillDoc({
   }
 
   // Invoice
+  // Shared totals stack (subtotal/discount when discounted, then the grand total). On a quotation it
+  // sits to the right of the contact QR; on a cash bill it's the full-width right-aligned total row.
+  const totalsBlock = (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+      {discountSatang > 0 && (
+        <>
+          <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
+            <span>Subtotal</span>
+            <span>฿{amt(subtotalSatang)}</span>
+          </div>
+          <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
+            <span>Discount</span>
+            <span>−฿{amt(discountSatang)}</span>
+          </div>
+        </>
+      )}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 24 }}>
+        <span style={{ fontWeight: 700, letterSpacing: 1 }}>{isQuote ? "ESTIMATE" : "TOTAL"}</span>
+        <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
+      </div>
+    </div>
+  );
   return (
     <div
       style={{
@@ -719,35 +741,42 @@ function BillDoc({
           )}
         </tbody>
       </table>
-      <div
-        style={{
-          padding: "10px 18px",
-          borderTop: "2px solid #18181b",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 4,
-        }}
-      >
-        {discountSatang > 0 && (
-          <>
-            <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
-              <span>Subtotal</span>
-              <span>฿{amt(subtotalSatang)}</span>
+      {isQuote ? (
+        // Quotation footer: contact QR on the left, the estimate total on the right — one row.
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 18,
+            padding: "12px 18px",
+            borderTop: "2px solid #18181b",
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <QrPlaceholder size={76} />
+            <div>
+              <div style={{ fontWeight: 600 }}>สนใจติดต่อร้าน</div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                สแกน QR เพื่อแชท / จองคิว ได้ทันที
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
-              <span>Discount</span>
-              <span>−฿{amt(discountSatang)}</span>
-            </div>
-          </>
-        )}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 24 }}>
-          <span style={{ fontWeight: 700, letterSpacing: 1 }}>
-            {isQuote ? "ESTIMATE" : "TOTAL"}
-          </span>
-          <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
+          </div>
+          {totalsBlock}
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            padding: "10px 18px",
+            borderTop: "2px solid #18181b",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          {totalsBlock}
+        </div>
+      )}
       {(note || isQuote) && (
         <div
           style={{
@@ -765,26 +794,6 @@ function BillDoc({
           {isQuote && (
             <div style={{ marginTop: note ? 4 : 0 }}>* ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน</div>
           )}
-        </div>
-      )}
-      {isQuote && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            padding: "14px 18px",
-            borderTop: "1px solid #e5e5e5",
-            background: "#fafafa",
-          }}
-        >
-          <QrPlaceholder size={76} />
-          <div>
-            <div style={{ fontWeight: 600 }}>สนใจติดต่อร้าน</div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-              สแกน QR เพื่อแชท / จองคิว ได้ทันที
-            </div>
-          </div>
         </div>
       )}
     </div>
