@@ -9,6 +9,8 @@ import {
   fetchServices,
   fetchShopInfo,
   fetchCarFitment,
+  imageUrl,
+  EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
   type ShopInfo,
@@ -16,6 +18,7 @@ import {
 } from "@/lib/api";
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
+import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import {
   lineTotalSatang,
   cartTotalSatang,
@@ -33,6 +36,7 @@ type AddKind = "product" | "service";
 type AddMethod = "scan" | "code" | "search";
 type LineKind = "part" | "service";
 type PriceTier = "retail" | "wholesale";
+type BillLang = "th" | "en";
 
 interface SaleLine {
   uid: string;
@@ -87,6 +91,13 @@ function thaiDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/** English-locale date for the EN bill (e.g. 26 June 2026). */
+function englishDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
 function Seg({
@@ -466,8 +477,8 @@ function QrPlaceholder({ size = 80 }: { size?: number }) {
 function BillDoc({
   billStyle,
   docType,
-  shopName,
-  shopAddress,
+  lang,
+  shop,
   dateLabel,
   vehicle,
   plate,
@@ -479,8 +490,8 @@ function BillDoc({
 }: {
   billStyle: BillStyle;
   docType: DocType;
-  shopName: string;
-  shopAddress: string;
+  lang: BillLang;
+  shop: ShopInfo;
   dateLabel: string;
   vehicle: string;
   plate: string;
@@ -493,8 +504,68 @@ function BillDoc({
   const muted = "#6b7280";
   const empty = lines.length === 0;
   const isQuote = docType === "quotation";
+  const en = lang === "en";
   const headEn = isQuote ? "QUOTATION" : "CASH BILL";
   const headTh = isQuote ? "ใบเสนอราคา" : "บิลเงินสด";
+
+  // Pick the Thai or English value, falling back to Thai when the English one is blank.
+  const pick = (th: string, enVal: string) => (en && enVal.trim() ? enVal : th);
+  const shopName = pick(shop.name, shop.nameEn) || "—";
+  const shopAddress = pick(shop.address, shop.addressEn);
+  const quoteNote = pick(shop.quoteNote || SHOP_DEFAULTS.quoteNote, shop.quoteNoteEn);
+  const qrHeadline = pick(shop.qrHeadline || SHOP_DEFAULTS.qrHeadline, shop.qrHeadlineEn);
+  const qrSubtitle = pick(shop.qrSubtitle || SHOP_DEFAULTS.qrSubtitle, shop.qrSubtitleEn);
+
+  // Structural labels. The Thai column is byte-identical to the previous hardcoded strings, so the
+  // Thai bill is unchanged; only the English path is new.
+  const t = en
+    ? {
+        date: "Date",
+        vehicle: "Vehicle",
+        plate: "Plate",
+        item: "Item",
+        qty: "Qty",
+        price: "Price",
+        amount: "Amount",
+        empty: "No items yet",
+        subtotal: "Subtotal",
+        discount: "Discount",
+        grandCash: "Total",
+        grandQuote: "Estimate",
+        note: "Note",
+        thanks: "*** Thank you ***",
+      }
+    : {
+        date: "วันที่",
+        vehicle: "รถ",
+        plate: "ทะเบียน",
+        item: "รายการ",
+        qty: "จำนวน",
+        price: "ราคา",
+        amount: "รวม",
+        empty: "ยังไม่มีรายการ",
+        subtotal: "รวมย่อย",
+        discount: "ส่วนลด",
+        grandCash: "รวมทั้งสิ้น",
+        grandQuote: "รวมโดยประมาณ",
+        note: "หมายเหตุ",
+        thanks: "*** ขอบคุณที่ใช้บริการ ***",
+      };
+
+  // Contact QR: the uploaded image when set, otherwise the sample placeholder.
+  const qrNode = (size: number) =>
+    shop.qrKey ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl(shop.qrKey)}
+        alt="Contact QR"
+        width={size}
+        height={size}
+        style={{ display: "block", objectFit: "contain" }}
+      />
+    ) : (
+      <QrPlaceholder size={size} />
+    );
 
   if (billStyle === "thermal") {
     const dash = <div style={{ borderTop: "1.5px dashed #9aa0a6", margin: "11px 0" }} />;
@@ -527,12 +598,12 @@ function BillDoc({
           )}
         </div>
         {dash}
-        {metaRow("วันที่", dateLabel)}
-        {vehicle && metaRow("รถ", vehicle)}
-        {plate && metaRow("ทะเบียน", plate)}
+        {metaRow(t.date, dateLabel)}
+        {vehicle && metaRow(t.vehicle, vehicle)}
+        {plate && metaRow(t.plate, plate)}
         {dash}
         {empty ? (
-          <div style={{ color: muted, padding: "4px 0" }}>ยังไม่มีรายการ</div>
+          <div style={{ color: muted, padding: "4px 0" }}>{t.empty}</div>
         ) : (
           lines.map((l) => (
             <div key={l.uid} style={{ marginBottom: 6 }}>
@@ -555,7 +626,7 @@ function BillDoc({
                 color: muted,
               }}
             >
-              <span>รวมย่อย</span>
+              <span>{t.subtotal}</span>
               <span>฿{amt(subtotalSatang)}</span>
             </div>
             <div
@@ -567,7 +638,7 @@ function BillDoc({
                 marginBottom: 3,
               }}
             >
-              <span>ส่วนลด</span>
+              <span>{t.discount}</span>
               <span>−฿{amt(discountSatang)}</span>
             </div>
           </>
@@ -580,32 +651,27 @@ function BillDoc({
             fontSize: 14,
           }}
         >
-          <span>{isQuote ? "รวมโดยประมาณ" : "รวมทั้งสิ้น"}</span>
+          <span>{isQuote ? t.grandQuote : t.grandCash}</span>
           <span>฿{amt(totalSatang)}</span>
         </div>
-        {isQuote && (
-          <div style={{ fontSize: 10.5, color: muted, marginTop: 4 }}>
-            * ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน
-          </div>
-        )}
+        {isQuote && <div style={{ fontSize: 10.5, color: muted, marginTop: 4 }}>{quoteNote}</div>}
         {note && (
           <>
             {dash}
-            <div style={{ fontSize: 11, color: "#52525b" }}>หมายเหตุ: {note}</div>
+            <div style={{ fontSize: 11, color: "#52525b" }}>
+              {t.note}: {note}
+            </div>
           </>
         )}
         {isQuote ? (
           <div style={{ textAlign: "center", marginTop: 12 }}>
-            <div style={{ display: "inline-block" }}>
-              <QrPlaceholder size={92} />
-            </div>
-            <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>
-              สแกนเพื่อติดต่อร้าน · จองคิว
-            </div>
+            <div style={{ display: "inline-block" }}>{qrNode(92)}</div>
+            <div style={{ fontWeight: 600, marginTop: 4 }}>{qrHeadline}</div>
+            <div style={{ fontSize: 11, color: muted }}>{qrSubtitle}</div>
           </div>
         ) : (
           <div style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: muted }}>
-            *** ขอบคุณที่ใช้บริการ ***
+            {t.thanks}
           </div>
         )}
       </div>
@@ -666,9 +732,7 @@ function BillDoc({
             </div>
           )}
           {isQuote && (
-            <div style={{ fontSize: 12, color: "#52525b", lineHeight: 1.5 }}>
-              * ราคาประเมิน อาจเปลี่ยนแปลงตามหน้างาน
-            </div>
+            <div style={{ fontSize: 12, color: "#52525b", lineHeight: 1.5 }}>{quoteNote}</div>
           )}
         </div>
         <div style={{ textAlign: "right", flex: "none" }}>
@@ -702,12 +766,12 @@ function BillDoc({
         >
           {vehicle && (
             <div>
-              <span style={{ color: muted }}>รถ:</span> {vehicle}
+              <span style={{ color: muted }}>{t.vehicle}:</span> {vehicle}
             </div>
           )}
           {plate && (
             <div>
-              <span style={{ color: muted }}>ทะเบียน:</span> {plate}
+              <span style={{ color: muted }}>{t.plate}:</span> {plate}
             </div>
           )}
         </div>
@@ -716,12 +780,12 @@ function BillDoc({
         <thead>
           <tr style={{ background: "#fafafa", color: muted, fontSize: 11 }}>
             <th style={{ textAlign: "left", padding: "8px 8px 8px 18px", fontWeight: 600 }}>
-              รายการ
+              {t.item}
             </th>
-            <th style={{ textAlign: "center", padding: 8, fontWeight: 600 }}>จำนวน</th>
-            <th style={{ textAlign: "right", padding: 8, fontWeight: 600 }}>ราคา</th>
+            <th style={{ textAlign: "center", padding: 8, fontWeight: 600 }}>{t.qty}</th>
+            <th style={{ textAlign: "right", padding: 8, fontWeight: 600 }}>{t.price}</th>
             <th style={{ textAlign: "right", padding: "8px 18px 8px 8px", fontWeight: 600 }}>
-              รวม
+              {t.amount}
             </th>
           </tr>
         </thead>
@@ -729,7 +793,7 @@ function BillDoc({
           {empty ? (
             <tr>
               <td colSpan={4} style={{ padding: "14px 18px", color: "#9aa0a6" }}>
-                ยังไม่มีรายการ
+                {t.empty}
               </td>
             </tr>
           ) : (
@@ -760,12 +824,10 @@ function BillDoc({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <QrPlaceholder size={56} />
+            {qrNode(56)}
             <div>
-              <div style={{ fontWeight: 600 }}>สนใจติดต่อร้าน</div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                สแกน QR เพื่อแชท / จองคิว ได้ทันที
-              </div>
+              <div style={{ fontWeight: 600 }}>{qrHeadline}</div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{qrSubtitle}</div>
             </div>
           </div>
           {totalsBlock}
@@ -810,6 +872,7 @@ export default function PosPage() {
   const [note, setNote] = useState("");
   const [billStyle, setBillStyle] = useState<BillStyle>("invoice");
   const [docType, setDocType] = useState<DocType>("bill");
+  const [billLang, setBillLang] = useState<BillLang>("th"); // Thai default; switch flips the bill
 
   // Vehicle: brand → model → year, plus the plate.
   const [carBrandId, setCarBrandId] = useState("");
@@ -822,7 +885,7 @@ export default function PosPage() {
   const [barcodeToProductId, setBarcodeToProductId] = useState<Map<string, string>>(new Map());
   const [codeToBarcode, setCodeToBarcode] = useState<Map<string, string>>(new Map());
   const [services, setServices] = useState<ServiceRow[]>([]);
-  const [shop, setShop] = useState<ShopInfo>({ name: "", address: "" });
+  const [shop, setShop] = useState<ShopInfo>(EMPTY_SHOP_INFO);
   const [carFitment, setCarFitment] = useState<CarBrandTree[]>([]);
 
   // Add-part inputs
@@ -1542,9 +1605,9 @@ export default function PosPage() {
             <BillDoc
               billStyle={billStyle}
               docType={docType}
-              shopName={shop.name || "—"}
-              shopAddress={shop.address}
-              dateLabel={thaiDate(billDate)}
+              lang={billLang}
+              shop={shop}
+              dateLabel={billLang === "en" ? englishDate(billDate) : thaiDate(billDate)}
               vehicle={vehicleLabel}
               plate={plate.trim()}
               lines={lines}
@@ -1581,6 +1644,36 @@ export default function PosPage() {
                     }}
                   >
                     {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Language — which language the bill prints in (Thai is the default) */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                Language
+              </span>
+              {(["th", "en"] as BillLang[]).map((l) => {
+                const active = billLang === l;
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setBillLang(l)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                      background: active ? "var(--primary-soft)" : "var(--surface)",
+                      color: active ? "var(--primary)" : "var(--text-muted)",
+                      fontWeight: active ? 600 : 500,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {l === "th" ? "ไทย" : "English"}
                   </button>
                 );
               })}

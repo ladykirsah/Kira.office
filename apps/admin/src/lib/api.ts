@@ -449,23 +449,71 @@ export async function saveTermsTemplate(template: string): Promise<void> {
 }
 
 export interface ShopInfo {
-  name: string;
-  address: string;
+  name: string; // Thai shop name (primary)
+  nameEn: string;
+  address: string; // Thai address (primary)
+  addressEn: string;
+  quoteNote: string; // quotation disclaimer
+  quoteNoteEn: string;
+  qrHeadline: string; // contact-QR headline
+  qrHeadlineEn: string;
+  qrSubtitle: string; // contact-QR subtitle
+  qrSubtitleEn: string;
+  logoKey: string | null; // R2 key, served at /img/<key>
+  qrKey: string | null;
 }
+
+/** Text-only subset persisted via PUT (images are uploaded through their own endpoints). */
+export type ShopInfoText = Omit<ShopInfo, "logoKey" | "qrKey">;
+
+export const EMPTY_SHOP_INFO: ShopInfo = {
+  name: "",
+  nameEn: "",
+  address: "",
+  addressEn: "",
+  quoteNote: "",
+  quoteNoteEn: "",
+  qrHeadline: "",
+  qrHeadlineEn: "",
+  qrSubtitle: "",
+  qrSubtitleEn: "",
+  logoKey: null,
+  qrKey: null,
+};
 
 export async function fetchShopInfo(): Promise<ShopInfo> {
   const res = await fetch(`${apiBase}/shop-info`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load shop info (HTTP ${res.status})`);
-  return (await res.json()) as ShopInfo;
+  // Fill any missing keys so the UI stays robust against an older API (name/address only).
+  return { ...EMPTY_SHOP_INFO, ...((await res.json()) as Partial<ShopInfo>) };
 }
 
-export async function saveShopInfo(info: ShopInfo): Promise<void> {
+export async function saveShopInfo(info: ShopInfoText): Promise<void> {
   const res = await fetch(`${apiBase}/shop-info`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(info),
   });
   if (!res.ok) throw new Error(`Save failed (HTTP ${res.status})`);
+}
+
+/** Upload the shop logo or contact-QR image (jpeg/png/webp, ≤5MB). Returns the stored R2 key. */
+export async function uploadShopImage(
+  slot: "logo" | "qr",
+  file: File,
+): Promise<{ key: string; url: string }> {
+  const res = await fetch(`${apiBase}/shop-info/${slot}`, {
+    method: "POST",
+    headers: { "content-type": file.type },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`Upload failed (HTTP ${res.status})`);
+  return (await res.json()) as { key: string; url: string };
+}
+
+/** Absolute URL for an R2 image key, served by the API at /img/:key. */
+export function imageUrl(key: string): string {
+  return `${apiBase}/img/${key}`;
 }
 
 export interface FinanceSummary {
