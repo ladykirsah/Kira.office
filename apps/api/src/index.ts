@@ -582,6 +582,37 @@ function validateImage(bytes: ArrayBuffer, contentType: string | null): string {
   return ALLOWED_IMAGE_TYPES[contentType];
 }
 
+/** Editable shop-info text fields, stored one KV key each as `shop:<field>`. Bilingual: a TH key
+ *  plus its `*En` counterpart. Image keys (logo/QR) are stored separately on upload, not here. */
+export const SHOP_TEXT_FIELDS = [
+  "name",
+  "nameEn",
+  "address",
+  "addressEn",
+  "quoteNote",
+  "quoteNoteEn",
+  "qrHeadline",
+  "qrHeadlineEn",
+  "qrSubtitle",
+  "qrSubtitleEn",
+] as const;
+
+/** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
+ *  slot). Validates type + size via the shared image validator. Served back via GET /img/:key. */
+export async function storeShopImage(
+  bucket: R2Bucket,
+  kv: KVNamespace,
+  slot: "logo" | "qr",
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<UploadImageResult> {
+  const ext = validateImage(bytes, contentType);
+  const key = `shop/${slot}-${crypto.randomUUID()}.${ext}`;
+  await bucket.put(key, bytes, { httpMetadata: { contentType: contentType! } });
+  await kv.put(slot === "logo" ? "shop:logoKey" : "shop:qrKey", key);
+  return { key, url: `/img/${key}` };
+}
+
 /** Keep products.image_key pointing at the first gallery image (the cover), or null if none. */
 async function syncCoverImage(db: D1Database, productId: string): Promise<void> {
   const first = await db
@@ -1705,19 +1736,42 @@ const worker = {
 
     // Shop identity (name + address) — shown on bills and labels.
     if (url.pathname === "/shop-info" && request.method === "GET") {
-      const [name, address] = await Promise.all([
-        env.KV.get("shop:name"),
-        env.KV.get("shop:address"),
+      const [texts, logoKey, qrKey] = await Promise.all([
+        Promise.all(SHOP_TEXT_FIELDS.map((f) => env.KV.get(`shop:${f}`))),
+        env.KV.get("shop:logoKey"),
+        env.KV.get("shop:qrKey"),
       ]);
-      return json({ name: name ?? "", address: address ?? "" });
+      const out: Record<string, string | null> = {};
+      SHOP_TEXT_FIELDS.forEach((f, i) => (out[f] = texts[i] ?? ""));
+      out.logoKey = logoKey; // null when unset
+      out.qrKey = qrKey;
+      return json(out);
     }
     if (url.pathname === "/shop-info" && request.method === "PUT") {
-      const body = (await request.json().catch(() => ({}))) as { name?: string; address?: string };
-      await Promise.all([
-        env.KV.put("shop:name", (body.name ?? "").trim()),
-        env.KV.put("shop:address", (body.address ?? "").trim()),
-      ]);
+      const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      await Promise.all(
+        SHOP_TEXT_FIELDS.map((f) => env.KV.put(`shop:${f}`, String(body[f] ?? "").trim())),
+      );
       return json({ ok: true });
+    }
+    if (
+      (url.pathname === "/shop-info/logo" || url.pathname === "/shop-info/qr") &&
+      request.method === "POST"
+    ) {
+      const slot = url.pathname.endsWith("/logo") ? "logo" : "qr";
+      const bytes = await request.arrayBuffer();
+      try {
+        const out = await storeShopImage(
+          env.IMAGES,
+          env.KV,
+          slot,
+          bytes,
+          request.headers.get("content-type"),
+        );
+        return json(out, 201);
+      } catch (err) {
+        return json({ error: (err as Error).message }, 400);
+      }
     }
 
     if (url.pathname === "/stock/adjust" && request.method === "POST") {
