@@ -14,7 +14,6 @@ const cardStyle = {
   border: "1px solid var(--border)",
   borderRadius: 12,
   padding: "16px 18px",
-  maxWidth: 620,
   display: "flex",
   flexDirection: "column" as const,
   gap: 16,
