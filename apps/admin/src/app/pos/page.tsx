@@ -299,40 +299,65 @@ function CartItem({
             <span className="muted" style={{ fontSize: 11 }}>
               Price
             </span>
-            <span
-              style={{
-                display: "inline-flex",
-                border: "1px solid var(--border)",
-                borderRadius: 7,
-                overflow: "hidden",
-              }}
-            >
-              {(["retail", "wholesale"] as PriceTier[]).map((t) => {
-                const active = (line.tier ?? "retail") === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      if (!active) onTier(t); // re-tapping the active tier must not wipe a manual price
-                    }}
+            {(() => {
+              // Wholesale switch: off = retail (B2C), on = wholesale (B2B). Flipping reprices the line.
+              const wholesale = (line.tier ?? "retail") === "wholesale";
+              return (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={wholesale}
+                  aria-label="Wholesale price (B2B)"
+                  onClick={() => onTier(wholesale ? "retail" : "wholesale")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                  }}
+                >
+                  <span
                     style={{
-                      padding: "4px 11px",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      border: "none",
-                      borderRight: t === "retail" ? "1px solid var(--border)" : "none",
-                      background: active ? "var(--primary-soft)" : "transparent",
-                      color: active ? "var(--primary)" : "var(--text-muted)",
-                      cursor: "pointer",
-                      minHeight: 0,
+                      position: "relative",
+                      width: 36,
+                      height: 20,
+                      borderRadius: 999,
+                      background: wholesale
+                        ? "var(--primary)"
+                        : "color-mix(in srgb, var(--text-muted) 30%, transparent)",
+                      transition: "background .15s",
+                      flex: "none",
                     }}
                   >
-                    {t === "retail" ? "B2C" : "B2B"}
-                  </button>
-                );
-              })}
-            </span>
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 2,
+                        left: wholesale ? 18 : 2,
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%",
+                        background: "#fff",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+                        transition: "left .15s",
+                      }}
+                    />
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: wholesale ? "var(--primary)" : "var(--text-muted)",
+                    }}
+                  >
+                    Wholesale (B2B)
+                  </span>
+                </button>
+              );
+            })()}
           </div>
         )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
