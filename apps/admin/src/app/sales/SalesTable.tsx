@@ -39,7 +39,6 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
             <tr>
               <th>When</th>
               <th>Job</th>
-              <th>Payment</th>
               <th style={right}>Total</th>
               <th style={right}>Profit</th>
               <th>Status</th>
@@ -50,6 +49,15 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
             {filtered.map((s) => {
               const type = saleTypeBadge(s.saleType);
               const veh = vehicleLabel(s.vehicle, s.licensePlate);
+              // Repair rows show the vehicle; Parts rows show the channel (Online / On-site).
+              const sub =
+                s.saleType === "repair"
+                  ? veh
+                  : s.saleType === "parts"
+                    ? s.channel === "online"
+                      ? "Online"
+                      : "On-site"
+                    : "";
               return (
                 <tr key={s.id}>
                   <td style={{ whiteSpace: "nowrap" }}>
@@ -57,14 +65,11 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
                   </td>
                   <td>
                     {type ? <span className={`pill ${type.pill}`}>{type.label}</span> : "—"}
-                    {veh && (
+                    {sub && (
                       <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                        {veh}
+                        {sub}
                       </div>
                     )}
-                  </td>
-                  <td>
-                    {s.paymentMethod ? <span className="pill off">{s.paymentMethod}</span> : "—"}
                   </td>
                   <td style={right}>{formatBaht(s.grandTotalSatang)}</td>
                   <td style={right}>{formatBaht(s.grossProfitSatang)}</td>
