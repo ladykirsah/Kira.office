@@ -9,6 +9,7 @@ export interface QueuedLine {
   barcodeValue?: string;
   quantity: number;
   unitPriceSatang: number;
+  unitCostSatang?: number; // product cost (for gross-profit on the server)
   discountSatang?: number; // this line's share of the bill discount
 }
 

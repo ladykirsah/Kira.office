@@ -213,12 +213,11 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
     const lineStatements: D1PreparedStatement[] = [];
 
     for (const line of sale.lines) {
-      subtotal += line.unitPriceSatang * line.quantity;
-      discountTotal += line.discountSatang ?? 0;
-      taxTotal += line.taxSatang ?? 0;
-
       // Service/labour line: no variant, no stock movement, never an oversell — just the bill line.
       if (line.lineType === "service" || !line.productVariantId) {
+        subtotal += line.unitPriceSatang * line.quantity;
+        discountTotal += line.discountSatang ?? 0;
+        taxTotal += line.taxSatang ?? 0;
         lineStatements.push(
           db
             .prepare(
@@ -252,6 +251,10 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
         continue; // oversell: skip this line's stock movement, surface for review
       }
       available[vid] = after;
+      // Count toward the total only now that the line is actually sold (oversold lines are skipped above).
+      subtotal += line.unitPriceSatang * line.quantity;
+      discountTotal += line.discountSatang ?? 0;
+      taxTotal += line.taxSatang ?? 0;
 
       lineStatements.push(
         db
@@ -291,6 +294,9 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
           ),
       );
     }
+
+    // Every line oversold (or no lines) — surface the conflicts but never write a phantom zero-line sale.
+    if (lineStatements.length === 0) continue;
 
     statements.push(
       db

@@ -47,6 +47,7 @@ interface SaleLine {
   b2cPriceSatang?: number; // retail price
   b2bPriceSatang?: number; // wholesale price
   tier?: PriceTier; // per-line B2C/B2B choice
+  unitCostSatang?: number; // product cost — sent to the server for gross-profit
 }
 
 async function syncSale(sale: QueuedSale): Promise<boolean> {
@@ -312,7 +313,9 @@ function CartItem({
                   <button
                     key={t}
                     type="button"
-                    onClick={() => onTier(t)}
+                    onClick={() => {
+                      if (!active) onTier(t); // re-tapping the active tier must not wipe a manual price
+                    }}
                     style={{
                       padding: "4px 11px",
                       fontSize: 11,
@@ -886,7 +889,12 @@ export default function PosPage() {
     if (!draftReady.current) return;
     try {
       const empty =
-        lines.length === 0 && !plate.trim() && !note.trim() && !carBrandId && !carModelId;
+        lines.length === 0 &&
+        !plate.trim() &&
+        !note.trim() &&
+        !carBrandId &&
+        !carModelId &&
+        docType === "bill";
       if (empty) {
         localStorage.removeItem(DRAFT_KEY);
       } else {
@@ -968,6 +976,7 @@ export default function PosPage() {
           b2cPriceSatang: b2c,
           b2bPriceSatang: b2b,
           tier: "retail",
+          unitCostSatang: p.itemCostSatang || 0,
         },
       ];
     });
@@ -1030,6 +1039,7 @@ export default function PosPage() {
           b2cPriceSatang: b2c,
           b2bPriceSatang: b2b,
           tier: "retail",
+          unitCostSatang: prod?.itemCostSatang || 0,
         },
       ]);
       toast(`Added ${found.name}`, "success");
@@ -1120,6 +1130,7 @@ export default function PosPage() {
         barcodeValue: l.barcodeValue,
         quantity: l.quantity,
         unitPriceSatang: l.unitPriceSatang,
+        unitCostSatang: l.unitCostSatang,
         discountSatang: perLineDiscount[i] || undefined,
       })),
       queuedAt: Date.now(),
@@ -1156,6 +1167,10 @@ export default function PosPage() {
       setCarYear("");
       setAddKind("product");
       setBillDate(toISODate(new Date()));
+      // Reset bill options + inputs so nothing carries to the next customer (esp. the discount).
+      setDiscountValue("");
+      setDiscountKind("thb");
+      setSearchQ("");
     } finally {
       setBusy(false);
     }

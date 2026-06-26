@@ -551,13 +551,44 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     expect(batched.length).toBe(0);
   });
 
-  it("surfaces an oversell conflict, still records the sale", async () => {
-    const { db } = makeDb({ existing: [], available: [{ variantId: "v1", available: 1 }] });
+  it("all-oversold sale: surfaces the conflict and writes NO phantom header", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 1 }],
+    });
     const out = await applySyncToDb(db, [
       { clientUuid: "u2", lines: [{ productVariantId: "v1", quantity: 5, unitPriceSatang: 5000 }] },
     ]);
-    expect(out.applied).toBe(1);
+    expect(out.applied).toBe(0); // every line dropped → no sale recorded
     expect(out.conflicts).toEqual([{ productVariantId: "v1", requested: 5, available: 1 }]);
+    expect(batched.some((s) => /INSERT OR IGNORE INTO onsite_sales/.test(s.sql))).toBe(false);
+  });
+
+  it("partial oversell: the header total counts only the lines actually sold", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [
+        { variantId: "v1", available: 10 },
+        { variantId: "v2", available: 1 },
+      ],
+    });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "u3",
+        lines: [
+          { productVariantId: "v1", quantity: 2, unitPriceSatang: 5000 }, // sold → 10000
+          { productVariantId: "v2", quantity: 5, unitPriceSatang: 3000 }, // oversold → dropped
+        ],
+      },
+    ]);
+    expect(out.applied).toBe(1);
+    expect(out.conflicts).toEqual([{ productVariantId: "v2", requested: 5, available: 1 }]);
+    const header = batched.find((s) => /INSERT OR IGNORE INTO onsite_sales/.test(s.sql)) as
+      | { sql: string; boundArgs: unknown[] }
+      | undefined;
+    // bind order: …, subtotal(8), discount(9), tax(10), grand(11). Only v1 counts (not 25000).
+    expect(header?.boundArgs[8]).toBe(10000);
+    expect(header?.boundArgs[11]).toBe(10000);
   });
 });
 
