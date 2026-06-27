@@ -391,8 +391,23 @@ describe("api worker routes", () => {
 
   it("GET /img/:key > 404 when the object is missing", async () => {
     const env = { IMAGES: { get: async () => null } } as unknown as Env;
-    const res = await worker.fetch!(new Request("https://x/img/nope.png"), env, ctx);
+    const res = await worker.fetch!(new Request("https://x/img/products/p1/missing.png"), env, ctx);
     expect(res.status).toBe(404);
+  });
+
+  it("GET /img/:key > refuses non-image keys — never serves the backups/ dump from the same bucket", async () => {
+    let readKey: string | null = null;
+    const env = {
+      IMAGES: {
+        get: async (k: string) => {
+          readKey = k;
+          return { body: "SECRET DB DUMP", httpMetadata: { contentType: "application/json" } };
+        },
+      },
+    } as unknown as Env;
+    const res = await worker.fetch!(new Request("https://x/img/backups/2026-06-27.json"), env, ctx);
+    expect(res.status).toBe(404); // refused by the namespace allowlist…
+    expect(readKey).toBeNull(); // …without ever reading the object
   });
 
   it("GET /products/by-barcode/:code > 404 for an unknown barcode", async () => {

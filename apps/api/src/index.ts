@@ -2088,6 +2088,12 @@ const worker = {
 
     if (url.pathname.startsWith("/img/") && request.method === "GET") {
       const key = decodeURIComponent(url.pathname.slice("/img/".length));
+      // This route is public (auth-exempt) so <img> tags work. The IMAGES bucket also holds the
+      // daily full-DB backup (backups/*.json) — restrict public reads to the image namespaces only,
+      // never serve anything else, so a guessable key can't leak the backup or other objects.
+      if (!/^(products|shop)\//.test(key)) {
+        return new Response("Not found", { status: 404, headers: SECURITY_HEADERS });
+      }
       const obj = await env.IMAGES.get(key);
       if (!obj) return new Response("Not found", { status: 404, headers: SECURITY_HEADERS });
       return new Response(obj.body, {
