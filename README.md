@@ -9,22 +9,26 @@ from one workspace.
 > **Picking this up?** Read **[docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md)** — the current
 > as-built snapshot (what's done, in progress, and next). The summary below is the short version.
 
-- **Live API on Cloudflare:** the `kira-office` Worker is deployed at **`https://api.homeseeker.me`**,
+- **Live API on Cloudflare:** the `kira-office` Worker runs at **`https://api.homeseeker.me`**,
   backed by **D1** (`kira-office`) + **R2** (`kiraoffice-images`) + **KV** + the **`StockLedger`
-  Durable Object**, with a daily backup cron; auto-deployed from `main` via Workers Builds. CI green.
+  Durable Object**, with a daily backup cron. **Deploy is manual** (`npm run deploy`) — pushing to
+  `main` does **not** auto-deploy (CI deploy jobs skip on unset secrets; Workers Builds fails on the
+  custom-domain DNS). See [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §6.
 - **Full REST surface** — products CRUD + image gallery, pricing, stock/ledger, barcodes, attributes,
-  car-fitment tree, sales/refunds, finance, CSV imports, idempotent `/sync`. See
-  [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
-- **Admin app (Next.js 15 / React 19, OpenNext)** is built: product editor (view+edit, gallery,
-  pricing, fitment), car-fitment + attribute settings, POS, stock, sales, finance, import, terms.
-- `packages/core` — pure domain logic, test-first. **186 tests** across `core` + `api`.
-  `packages/db` — Drizzle schema + 13 SQL migrations (`0000`–`0012`); see
-  [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md).
+  car-fitment tree, services, **bilingual shop info + logo/QR uploads**, sales/refunds, finance, CSV
+  imports, idempotent `/sync`. See [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
+- **Admin app (Next.js 15 / React 19, OpenNext)** is built: product editor, car-fitment + attribute +
+  services + **shop-info (view/edit, bilingual)** settings, a full **on-site POS** (parts/repair,
+  scan/code/search, B2C/B2B pricing, ฿/% discount) with a **printable bill** (Cash bill vs Quotation,
+  Invoice vs Receipt, **Thai/English switch**, contact-QR), stock, sales, finance, import, terms.
+- `packages/core` — pure domain logic, test-first. **238 tests** across `core` + `api`.
+  `packages/db` — Drizzle schema + 16 SQL migrations (`0000`–`0015`); see
+  [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md). (Shop settings live in **KV**, not D1.)
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
   sellers; the back office runs fully without it (CSV bridge meanwhile).
-- **Next:** activate Cloudflare Access auth + an `audit_logs` table; Queues + Cron for Shopee sync;
-  product variants; confirm the admin production deploy. Details in
-  [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §5.
+- **Next:** activate Cloudflare Access auth + an `audit_logs` table; move the daily backup to a private
+  R2 bucket; the logo on the printed bill; the Sales online/on-site channel split; Shopee sync (Queues
+  + Cron). Details in [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §5.
 
 ## Confirmed Scope
 

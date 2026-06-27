@@ -9,8 +9,8 @@
 > **this file and the code win** — older docs (`DATA_MODEL.md`, parts of `ARCHITECTURE.md`/`README`)
 > describe the original plan and lag the implementation.
 
-**Snapshot:** 2026-06-24 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
-**Tests:** 186 passing across 17 files · **Migrations:** 0000–0012 applied to prod **and** staging D1.
+**Snapshot:** 2026-06-27 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
+**Tests:** 238 passing · **Migrations:** 0000–0015 applied to prod **and** staging D1.
 
 ---
 
@@ -64,7 +64,22 @@ o-ring usage) are the most developed surfaces — spec in
 CSV parse/map, order dedupe, finance — all unit-tested. This is the money-critical, framework-free
 layer; change it test-first.
 
-**Recent work (the last feature arc, newest first):** product-view image gallery (350px main +
+**Newest arc — on-site sales + bilingual shop branding (2026-06; migrations `0013`–`0015`):**
+**Services** catalogue (`/settings/services`, table + API). **POS rebuild** (`/pos`): selling type
+(parts/repair), three add methods (scan / type code / search-dropdown), a per-line **B2C/B2B** price
+toggle, **฿ or % discount** spread across lines, services + parts in one cart. **Printable bill**
+(`BillDoc`): **Cash bill** (a real sale → `/sync`, deducts stock) vs **Quotation** (print-only),
+**Invoice** vs **Receipt** paper, a **Thai/English language switch** (Thai default), a configurable
+contact-QR + quotation note; the Invoice stacks under the builder when its column is < 500px.
+**Checkout** persists offline-first via the outbox → `/sync`. **Bilingual Shop info**
+(`/settings/shop`, a view/edit page mirroring the product detail page): TH+EN shop
+name/address/quotation-note/QR-headline/QR-subtitle + **logo and contact-QR image uploads** (R2),
+all stored in **KV** (no migration). Money-correctness + security fixes from adversarial bug-hunts:
+oversold lines no longer inflate the sale header total; the POS now sends `unitCostSatang` so gross
+profit is correct; and the public `/img/` route (which could leak the daily DB backup) is now locked
+to the `products/` + `shop/` image namespaces only.
+
+**Prior arc (newest first):** product-view image gallery (350px main +
 rows-of-3 thumbnail column); product overview card polish; pricing UI (margin bars, profit emphasis,
 slim cost bar); header `[Cancel][Save]`/`[Back][Edit]` with the Edit-auto-save bug fixed; "Last
 updated" timestamp; car models as **generations with an era**; per-model **service notes** + **o-ring
@@ -117,12 +132,17 @@ npm install
 npm run format        # prettier --write
 npm run lint          # prettier --check
 npm run typecheck     # tsc: packages/core + apps/api
-npm test              # vitest (186 tests) — node env
+npm test              # vitest (238 tests) — node env
 NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck+build
 ```
 
-Deploy: push to `main` → Cloudflare Workers Builds auto-deploys the Worker (~30–60s). Admin changes
-are admin-only and need no Worker redeploy.
+**Deploy — pushing to `main` does NOT auto-deploy (verified 2026-06-27).** The GitHub Actions
+`deploy`/`deploy-admin` jobs **skip** because their `CLOUDFLARE_API_TOKEN` / `CF_ADMIN_API_TOKEN`
+secrets are unset (they exit green WITHOUT deploying — never read a green `deploy` check as a real
+deploy), and the Cloudflare **Workers Builds** integration fails on every push (its managed token
+lacks zone-DNS edit for the custom domain — see §7). **The owner deploys manually:**
+`npm run deploy` (API Worker) and `npm run deploy -w @l-shopee/admin` (admin). After any API change,
+tell the owner to `npm run deploy` — the change is not live until they do.
 
 **Migrations workflow (important):** write a new numbered SQL file in `packages/db/migrations/`,
 apply it to **BOTH** prod (`2e88a362-…`) and staging (`85f22f44-…`) D1 (via the Cloudflare D1 MCP
@@ -142,3 +162,19 @@ Keep changes additive/nullable when an older Worker may still be live during rol
 - Re-running the multi-agent code review: the workflow script is saved under the session's
   `workflows/scripts/`; it fans out 7 review dimensions with adversarial verification. It returned
   zero findings only because every agent was rate-limited — that is **not** a clean bill of health.
+- **`/img/:key` is public (auth-exempt) so `<img>` tags work — it is the only auth-exempt route.**
+  It now hard-restricts reads to `products/` + `shop/` keys; never widen it. The same R2 bucket holds
+  the daily DB backup (`backups/*.json`), so anything outside those prefixes must 404. (Hardening TODO:
+  move backups to a separate, private R2 bucket so sensitive data never shares the image bucket.)
+- **The admin talks to PROD by default** (`apiBase` → `https://api.homeseeker.me` when
+  `NEXT_PUBLIC_API_BASE` is unset). To exercise the admin against unreleased API changes, run the local
+  Worker (`wrangler dev`, port 8788 — Miniflare D1+KV+R2, persists across restarts), write a gitignored
+  `apps/admin/.env.local` with `NEXT_PUBLIC_API_BASE=http://localhost:8788`, then **restart** the admin
+  dev server (env is inlined at boot). Delete it + restart to return to prod. Never POST mock data to prod.
+- **The Next dev console retains stale HMR compile errors** across reloads/restarts. Verify "clean" via
+  `build:check` passing + the page rendering with no error boundary — not the console buffer.
+- **One CI check fails on every push and is NOT a code bug:** `Workers Builds: kira-office` (Cloudflare's
+  redundant Git integration; its managed token lacks zone-DNS edit). Ignore it / disconnect it in the
+  Cloudflare dashboard. The real gate is GitHub Actions `build`.
+- **Owner's UI vocabulary:** the tall input is the "L input box" (`inputL`), the compact one the "S input
+  box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.

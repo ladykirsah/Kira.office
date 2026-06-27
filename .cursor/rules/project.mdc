@@ -1,0 +1,61 @@
+---
+description: Kira.office (L Shopee back office) — project rules, conventions, and handoff pointers. Always loaded.
+alwaysApply: true
+---
+
+# Kira.office — working rules for AI agents (Cursor & others)
+
+Admin back-office for a **Shopee Thailand** car-A/C-parts shop (Den Air Service, Surin). Non-developer
+owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudflare** platform.
+
+**Read these first (source-of-truth chain):**
+1. [`AGENTS.md`](../../AGENTS.md) — the full project rules (TDD, Cloudflare, Shopee, GitHub).
+2. [`docs/STATE_OF_THE_BUILD.md`](../../docs/STATE_OF_THE_BUILD.md) — the current as-built snapshot
+   (what's done / in progress / next). **When a doc disagrees with the code, the code + this file win.**
+3. [`docs/DECISIONS.md`](../../docs/DECISIONS.md) — confirmed product choices.
+4. [`docs/API_REFERENCE.md`](../../docs/API_REFERENCE.md) · [`docs/SCHEMA_AS_BUILT.md`](../../docs/SCHEMA_AS_BUILT.md).
+
+## Layout
+- `apps/api` — Cloudflare Worker (`api.homeseeker.me`), **raw SQL over D1**, `StockLedger` Durable
+  Object, R2 (`IMAGES`) + KV. Main file: `apps/api/src/index.ts`. Config: root `wrangler.jsonc`.
+- `apps/admin` — Next.js 15 / React 19 on OpenNext. Calls the Worker from the browser.
+- `packages/core` — pure-TS money/stock/sync logic (no I/O). `packages/db` — D1 SQL migrations + Drizzle `schema.ts`.
+
+## Must-not-break conventions
+- **Money is integer satang** in D1 (1 THB = 100 satang); convert at the persistence boundary
+  (`Math.round(thb*100)`). `packages/core` computes in THB decimals. Rates → basis points (7% → `700`).
+- **TDD for money/stock/sync logic** — write the failing test first; show red→green. These are critical-path.
+- Stock mutations go through the **`StockLedger` Durable Object** (single writer); `/sync` is **idempotent
+  on `clientUuid`** and must never lose or double-count a sale or stock movement.
+- Schema lives in **two synced places**: `packages/db/migrations/*.sql` (applied DDL) and
+  `packages/db/src/schema.ts` (Drizzle shapes). Keep migrations additive/nullable for safe rollout.
+- Shop settings (incl. the bilingual shop info) live in **KV**, not D1 — no migration needed to add fields.
+
+## The gate (run before claiming done)
+```bash
+npm run format && npm run lint && npm run typecheck && npm test   # 237 vitest tests
+rm -rf apps/admin/.next-verify apps/admin/.next/types && \
+  NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
+```
+
+## Agent gotchas (save yourself time)
+- **The admin talks to PROD by default** (`apiBase` falls back to `https://api.homeseeker.me`). To test
+  admin UI against unreleased API changes, run the local Worker (`wrangler dev`, port 8788 — simulates
+  D1+KV+R2 via Miniflare, persists across restarts), write a gitignored `apps/admin/.env.local` with
+  `NEXT_PUBLIC_API_BASE=http://localhost:8788`, then **restart** the admin dev server (env is inlined at
+  boot). Delete it + restart to return to prod. Never POST mock data to prod.
+- **Deploy is automatic:** pushing to `main` runs GitHub Actions which deploys both the API Worker and the
+  admin (secrets are set). No manual `npm run deploy` needed.
+- **One CI check fails on every push and it's NOT your code:** `Workers Builds: kira-office` (Cloudflare's
+  redundant Git integration) — its managed token lacks zone DNS edit for the custom domain. GitHub Actions
+  already deploys. Ignore it / it should be disconnected in the Cloudflare dashboard. Never chase it as a bug.
+- **Stale HMR console errors:** the Next dev console can retain old compile errors (e.g. a transient
+  `priceTier is not defined`) across reloads. Verify "clean" via `build:check` passing + the page rendering
+  with no error boundary, not the console buffer.
+- **Input-box sizing vocabulary:** the owner calls the tall input the "L input box" (`inputL`) and the
+  compact one the "S input box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.
+- **Non-submit `<button>` needs `type="button"`** — inside a form a bare button submits on click.
+- Live prod keeps intentional demo rows (`prod-demo`, 5 × `DEMO-AC-*`) — don't delete them as junk.
+
+## GitHub
+- Private repo `ladykirsah/Kira.office`. Don't force-push or rewrite history. Work on a branch and open a PR.

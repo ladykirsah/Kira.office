@@ -73,6 +73,27 @@ Before reporting implementation work as done:
 - Verify important user workflows manually or with browser tests.
 - Report any command that could not be run.
 
+## Build, gate & deploy
+
+Run the gate before claiming work done (see also `.cursor/rules/project.mdc` for the same, for Cursor):
+
+```bash
+npm run format && npm run lint && npm run typecheck && npm test   # 238 vitest tests
+rm -rf apps/admin/.next-verify apps/admin/.next/types && \
+  NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
+```
+
+- **Pushing to `main` does NOT deploy.** The GitHub Actions `deploy`/`deploy-admin` jobs skip (their
+  secrets are unset; a skip shows green — don't mistake it for a deploy) and the Cloudflare Workers
+  Builds integration fails on the custom-domain DNS. **The owner deploys manually** with `npm run deploy`
+  (API) and `npm run deploy -w @l-shopee/admin` (admin); the agent has no wrangler auth. After any API
+  change, tell the owner to deploy — it is not live until they do.
+- **The admin defaults to the PROD API.** To verify admin UI against unreleased API changes, point it at
+  the local Worker via a gitignored `apps/admin/.env.local` (`NEXT_PUBLIC_API_BASE=http://localhost:8788`)
+  + restart the dev server; never write mock data to prod.
+- The current as-built status, gotchas, and migration workflow live in
+  [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) — keep it updated.
+
 ## GitHub Rules
 
 - Do not force-push. Do not rewrite user-owned history.

@@ -29,7 +29,19 @@ function.
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness probe. |
-| `GET` | `/img/:key` | Serves an R2 object (`IMAGES` bucket) by key. **Public.** `:key` is URL-encoded; product images use keys like `products/<id>/<uuid>.png`. |
+| `GET` | `/img/:key` | Serves an R2 object (`IMAGES` bucket) by key. **Public (the only auth-exempt route).** Restricted to the image namespaces — the key must start with `products/` or `shop/`; anything else (e.g. the daily `backups/*.json` DB dump in the same bucket) returns `404`. `:key` is URL-encoded. |
+
+## Shop info & services
+
+Shop settings live in **KV** (no D1 table), one key each as `shop:<field>`; uploaded images go to R2 and are served via `GET /img/shop/...`.
+
+| Method | Path | Client fn | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/shop-info` | `fetchShopInfo()` | Bilingual `ShopInfo`: `name`/`nameEn`, `address`/`addressEn`, `quoteNote`/`quoteNoteEn`, `qrHeadline`/`qrHeadlineEn`, `qrSubtitle`/`qrSubtitleEn`, plus `logoKey`/`qrKey` (R2 keys, or `null`). |
+| `PUT` | `/shop-info` | `saveShopInfo()` | Writes the 10 text fields (replaces all — the admin always sends the full set). |
+| `POST` | `/shop-info/logo` | `uploadShopImage("logo", file)` | Raw image body (jpeg/png/webp ≤5 MB) → stores R2 `shop/logo-<uuid>.<ext>`, records `shop:logoKey`; returns `{key, url}`. |
+| `POST` | `/shop-info/qr` | `uploadShopImage("qr", file)` | As logo, for the contact-QR (`shop:qrKey`) — printed on the quotation. |
+| `GET` | `/services` | `fetchServices()` | Managed labour/service catalogue (the POS "Service" add method). |
 
 ## Products
 
