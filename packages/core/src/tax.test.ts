@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeTax } from "./tax";
+import { computeTax, lineTaxSatang } from "./tax";
 import { round2 } from "./money";
 
 describe("computeTax > per-product VAT", () => {
@@ -46,5 +46,19 @@ describe("computeTax > per-product VAT", () => {
         expect(round2(r.salesExTax + r.taxAmount)).toBe(r.buyerPrice);
       }
     }
+  });
+});
+
+describe("lineTaxSatang", () => {
+  it("given VAT-inclusive 107 THB × 1 with no discount > 700 satang", () => {
+    expect(lineTaxSatang({ unitPriceSatang: 10700, quantity: 1 })).toBe(700);
+  });
+
+  it("given a line discount > taxes the net amount after discount", () => {
+    expect(lineTaxSatang({ unitPriceSatang: 10700, quantity: 1, discountSatang: 1070 })).toBe(630);
+  });
+
+  it("given non-taxable > zero", () => {
+    expect(lineTaxSatang({ unitPriceSatang: 10700, quantity: 1, isTaxable: false })).toBe(0);
   });
 });

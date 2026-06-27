@@ -26,8 +26,8 @@ from one workspace.
   [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md). (Shop settings live in **KV**, not D1.)
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
   sellers; the back office runs fully without it (CSV bridge meanwhile).
-- **Next:** activate Cloudflare Access auth + an `audit_logs` table; move the daily backup to a private
-  R2 bucket; the logo on the printed bill; the Sales online/on-site channel split; Shopee sync (Queues
+- **Next:** activate Cloudflare Access auth (secrets + deploy); move the daily backup to a private
+  R2 bucket; the Sales online/on-site channel split; Shopee sync (Queues
   + Cron). Details in [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §5.
 
 ## Confirmed Scope

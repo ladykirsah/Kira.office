@@ -1,5 +1,7 @@
 /** Typed client for the kiraoffice API Worker. */
-export const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.homeseeker.me";
+import { apiFetch, apiBase } from "./apiFetch";
+
+export { apiBase };
 
 export interface ProductRow {
   id: string;
@@ -26,7 +28,7 @@ export async function uploadProductImage(
   productId: string,
   file: File,
 ): Promise<{ key: string; url: string }> {
-  const res = await fetch(`${apiBase}/products/${productId}/image`, {
+  const res = await apiFetch(`/products/${productId}/image`, {
     method: "POST",
     headers: { "content-type": file.type },
     body: file,
@@ -39,7 +41,7 @@ export async function uploadProductImage(
 }
 
 export async function fetchProducts(): Promise<ProductRow[]> {
-  const res = await fetch(`${apiBase}/products`, { cache: "no-store" });
+  const res = await apiFetch(`/products`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load products (HTTP ${res.status})`);
   type Raw = Omit<ProductRow, "carBrands"> & { carBrandsCsv: string | null };
   const data = (await res.json()) as { products: Raw[] };
@@ -63,7 +65,7 @@ export interface CreateProductResult {
 }
 
 export async function createProduct(input: CreateProductInput): Promise<CreateProductResult> {
-  const res = await fetch(`${apiBase}/products`, {
+  const res = await apiFetch(`/products`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -84,7 +86,7 @@ export interface BarcodeLookup {
 }
 
 export async function lookupBarcode(code: string): Promise<BarcodeLookup | null> {
-  const res = await fetch(`${apiBase}/products/by-barcode/${encodeURIComponent(code)}`, {
+  const res = await apiFetch(`/products/by-barcode/${encodeURIComponent(code)}`, {
     cache: "no-store",
   });
   if (res.status === 404) return null;
@@ -105,8 +107,8 @@ export async function checkIdentifier(
   kind: IdentifierKind,
   value: string,
 ): Promise<IdentifierMatch | null> {
-  const res = await fetch(
-    `${apiBase}/products/identifier-check?kind=${kind}&value=${encodeURIComponent(value)}`,
+  const res = await apiFetch(
+    `/products/identifier-check?kind=${kind}&value=${encodeURIComponent(value)}`,
     { cache: "no-store" },
   );
   if (!res.ok) return null;
@@ -141,13 +143,13 @@ export interface Fitment {
 }
 
 export async function fetchAttributes(): Promise<Attributes> {
-  const res = await fetch(`${apiBase}/attributes`, { cache: "no-store" });
+  const res = await apiFetch(`/attributes`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load attributes (HTTP ${res.status})`);
   return (await res.json()) as Attributes;
 }
 
 export async function addAttribute(kind: AttrKind, name: string): Promise<AttrOption> {
-  const res = await fetch(`${apiBase}/attributes/${kind}`, {
+  const res = await apiFetch(`/attributes/${kind}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name }),
@@ -160,7 +162,7 @@ export async function addAttribute(kind: AttrKind, name: string): Promise<AttrOp
 }
 
 export async function deleteAttribute(kind: AttrKind, id: string): Promise<void> {
-  const res = await fetch(`${apiBase}/attributes/${kind}/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/attributes/${kind}/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
@@ -171,13 +173,13 @@ export interface ServiceRow {
 }
 
 export async function fetchServices(): Promise<ServiceRow[]> {
-  const res = await fetch(`${apiBase}/services`, { cache: "no-store" });
+  const res = await apiFetch(`/services`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load services (HTTP ${res.status})`);
   return ((await res.json()) as { services: ServiceRow[] }).services;
 }
 
 export async function addService(name: string, basePriceSatang: number): Promise<ServiceRow> {
-  const res = await fetch(`${apiBase}/services`, {
+  const res = await apiFetch(`/services`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name, basePriceSatang }),
@@ -190,7 +192,7 @@ export async function updateService(
   id: string,
   fields: { name: string; basePriceSatang: number },
 ): Promise<void> {
-  const res = await fetch(`${apiBase}/services/${id}`, {
+  const res = await apiFetch(`/services/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(fields),
@@ -199,7 +201,7 @@ export async function updateService(
 }
 
 export async function deleteService(id: string): Promise<void> {
-  const res = await fetch(`${apiBase}/services/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/services/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete service failed (HTTP ${res.status})`);
 }
 
@@ -229,13 +231,13 @@ export interface CarBrandTree {
 }
 
 export async function fetchCarFitment(): Promise<CarBrandTree[]> {
-  const res = await fetch(`${apiBase}/car-fitment`, { cache: "no-store" });
+  const res = await apiFetch(`/car-fitment`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load car fitment (HTTP ${res.status})`);
   return ((await res.json()) as { brands: CarBrandTree[] }).brands;
 }
 
 export async function addCarBrand(name: string): Promise<AttrOption> {
-  const res = await fetch(`${apiBase}/car-fitment/brands`, {
+  const res = await apiFetch(`/car-fitment/brands`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name }),
@@ -253,7 +255,7 @@ export async function addCarModel(
   yearFrom: number | null = null,
   yearTo: number | null = null,
 ): Promise<AttrOption> {
-  const res = await fetch(`${apiBase}/car-fitment/brands/${brandId}/models`, {
+  const res = await apiFetch(`/car-fitment/brands/${brandId}/models`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name, yearFrom, yearTo }),
@@ -266,17 +268,17 @@ export async function addCarModel(
 }
 
 export async function deleteCarBrand(id: string): Promise<void> {
-  const res = await fetch(`${apiBase}/car-fitment/brands/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/car-fitment/brands/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
 export async function deleteCarModel(id: string): Promise<void> {
-  const res = await fetch(`${apiBase}/car-fitment/models/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/car-fitment/models/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
 export async function updateCarModel(id: string, info: CarModelInfo): Promise<void> {
-  const res = await fetch(`${apiBase}/car-fitment/models/${id}`, {
+  const res = await apiFetch(`/car-fitment/models/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(info),
@@ -324,7 +326,7 @@ export interface ProductDetail {
 }
 
 export async function getProductDetail(id: string): Promise<ProductDetail> {
-  const res = await fetch(`${apiBase}/products/${id}`, { cache: "no-store" });
+  const res = await apiFetch(`/products/${id}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load product (HTTP ${res.status})`);
   return (await res.json()) as ProductDetail;
 }
@@ -346,7 +348,7 @@ export async function updateProduct(
     fitments?: Fitment[];
   },
 ): Promise<void> {
-  const res = await fetch(`${apiBase}/products/${id}`, {
+  const res = await apiFetch(`/products/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(fields),
@@ -358,7 +360,7 @@ export async function updateProduct(
 }
 
 export async function uploadGalleryImage(productId: string, file: File): Promise<ProductImage> {
-  const res = await fetch(`${apiBase}/products/${productId}/images`, {
+  const res = await apiFetch(`/products/${productId}/images`, {
     method: "POST",
     headers: { "content-type": file.type },
     body: file,
@@ -372,7 +374,7 @@ export async function uploadGalleryImage(productId: string, file: File): Promise
 }
 
 export async function deleteGalleryImage(productId: string, imageId: string): Promise<void> {
-  const res = await fetch(`${apiBase}/products/${productId}/images/${imageId}`, {
+  const res = await apiFetch(`/products/${productId}/images/${imageId}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
@@ -389,7 +391,7 @@ export async function setProductPricing(
     taxOnCost: boolean;
   },
 ): Promise<void> {
-  const res = await fetch(`${apiBase}/products/${id}/pricing`, {
+  const res = await apiFetch(`/products/${id}/pricing`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(pricing),
@@ -409,7 +411,7 @@ export async function importShopeeOrdersCsv(
   csv: string,
   mapping: Record<string, string>,
 ): Promise<OrderImportResult> {
-  const res = await fetch(`${apiBase}/import/shopee-orders`, {
+  const res = await apiFetch(`/import/shopee-orders`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ csv, mapping }),
@@ -428,19 +430,19 @@ export interface OrderRow {
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {
-  const res = await fetch(`${apiBase}/orders`, { cache: "no-store" });
+  const res = await apiFetch(`/orders`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load orders (HTTP ${res.status})`);
   return ((await res.json()) as { orders: OrderRow[] }).orders;
 }
 
 export async function fetchTermsTemplate(): Promise<string> {
-  const res = await fetch(`${apiBase}/terms/template`, { cache: "no-store" });
+  const res = await apiFetch(`/terms/template`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load template (HTTP ${res.status})`);
   return ((await res.json()) as { template: string }).template;
 }
 
 export async function saveTermsTemplate(template: string): Promise<void> {
-  const res = await fetch(`${apiBase}/terms/template`, {
+  const res = await apiFetch(`/terms/template`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ template }),
@@ -482,14 +484,14 @@ export const EMPTY_SHOP_INFO: ShopInfo = {
 };
 
 export async function fetchShopInfo(): Promise<ShopInfo> {
-  const res = await fetch(`${apiBase}/shop-info`, { cache: "no-store" });
+  const res = await apiFetch(`/shop-info`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load shop info (HTTP ${res.status})`);
   // Fill any missing keys so the UI stays robust against an older API (name/address only).
   return { ...EMPTY_SHOP_INFO, ...((await res.json()) as Partial<ShopInfo>) };
 }
 
 export async function saveShopInfo(info: ShopInfoText): Promise<void> {
-  const res = await fetch(`${apiBase}/shop-info`, {
+  const res = await apiFetch(`/shop-info`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(info),
@@ -502,7 +504,7 @@ export async function uploadShopImage(
   slot: "logo" | "qr",
   file: File,
 ): Promise<{ key: string; url: string }> {
-  const res = await fetch(`${apiBase}/shop-info/${slot}`, {
+  const res = await apiFetch(`/shop-info/${slot}`, {
     method: "POST",
     headers: { "content-type": file.type },
     body: file,
@@ -526,7 +528,7 @@ export interface FinanceSummary {
 }
 
 export async function fetchFinanceSummary(): Promise<FinanceSummary> {
-  const res = await fetch(`${apiBase}/finance/summary`, { cache: "no-store" });
+  const res = await apiFetch(`/finance/summary`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load finance summary (HTTP ${res.status})`);
   return (await res.json()) as FinanceSummary;
 }
@@ -537,7 +539,7 @@ export async function adjustStock(input: {
   movementType: string;
   reason?: string;
 }): Promise<{ applied: boolean; quantityAfter: number; reason?: string }> {
-  const res = await fetch(`${apiBase}/stock/adjust`, {
+  const res = await apiFetch(`/stock/adjust`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -547,7 +549,7 @@ export async function adjustStock(input: {
 }
 
 export async function archiveProduct(id: string): Promise<void> {
-  const res = await fetch(`${apiBase}/products/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/products/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Archive failed (HTTP ${res.status})`);
 }
 
@@ -560,7 +562,7 @@ export interface BarcodeRow {
 }
 
 export async function fetchBarcodes(): Promise<BarcodeRow[]> {
-  const res = await fetch(`${apiBase}/barcodes`, { cache: "no-store" });
+  const res = await apiFetch(`/barcodes`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load barcodes (HTTP ${res.status})`);
   return ((await res.json()) as { barcodes: BarcodeRow[] }).barcodes;
 }
@@ -569,7 +571,7 @@ export async function addBarcode(
   productId: string,
   barcodeValue?: string,
 ): Promise<{ barcodeValue: string; generated: boolean }> {
-  const res = await fetch(`${apiBase}/products/${productId}/barcode`, {
+  const res = await apiFetch(`/products/${productId}/barcode`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ barcodeValue }),
@@ -595,13 +597,13 @@ export interface SaleRow {
 export async function refundSale(
   saleId: string,
 ): Promise<{ applied: boolean; reason?: string; restockedLines: number }> {
-  const res = await fetch(`${apiBase}/sales/${saleId}/refund`, { method: "POST" });
+  const res = await apiFetch(`/sales/${saleId}/refund`, { method: "POST" });
   if (!res.ok) throw new Error(`Refund failed (HTTP ${res.status})`);
   return (await res.json()) as { applied: boolean; reason?: string; restockedLines: number };
 }
 
 export async function fetchSales(): Promise<SaleRow[]> {
-  const res = await fetch(`${apiBase}/sales`, { cache: "no-store" });
+  const res = await apiFetch(`/sales`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load sales (HTTP ${res.status})`);
   const data = (await res.json()) as { sales: SaleRow[] };
   return data.sales;
@@ -618,7 +620,7 @@ export async function importProductsCsv(
   csv: string,
   mapping: Record<string, string>,
 ): Promise<ImportResult> {
-  const res = await fetch(`${apiBase}/import/products`, {
+  const res = await apiFetch(`/import/products`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ csv, mapping }),

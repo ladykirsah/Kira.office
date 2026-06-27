@@ -26,7 +26,8 @@ finance) before any live Shopee writes, then connect Shopee as a gated phase. Se
 - `packages/db` Drizzle schema → D1 migration applied (16 tables) ✅
 - Stock-ledger **Durable Object** + idempotent `/sync` ✅
 - Bindings provisioned: D1 + KV ✅ · custom domain `api.homeseeker.me` ✅ · CI + auto-deploy ✅
-- _Remaining:_ `apps/admin` (Next.js UI), **Cloudflare Access** auth + audit log, R2 (images), Queues.
+- _Remaining:_ **Cloudflare Access** secrets + staff RBAC wiring (stubs in `apps/api/src/auth.ts`);
+  Queues for Shopee (commented in `wrangler.jsonc`).
 
 ## Phase 2 — Product Catalog MVP ✅ (largely built)
 
@@ -38,8 +39,8 @@ notes added on top. _Remaining:_ real product **variants** (one implicit variant
 ## Phase 3 — Inventory & Offline POS 🚧 (partial)
 
 Stock ledger (Durable Object) + barcode lookup + idempotent `/sync` + a POS screen + stock/sales
-pages — **built**. _Remaining:_ harden the offline outbox/PWA reliability; audit logs (no
-`audit_logs` table yet); multi-location.
+pages — **built**. _Remaining:_ harden the offline outbox/PWA reliability; wire RBAC on routes;
+  multi-location. (`audit_logs` table + mutation writes — migration `0016`.)
 
 ## Phase 4 — Pricing & Finance ✅ (largely built)
 
@@ -55,8 +56,10 @@ queue. CSV bridge serves order import/stock export until then.
 
 ## Phase 6 — Production Hardening
 
-Error monitoring; backups; access-control review; data export/import; sync retry dashboard;
-deployment automation; PWA/offline reliability testing.
+Error monitoring; backups (private R2 `BACKUPS` binding prepared); access-control review; data
+export/import; sync retry dashboard; deployment automation; PWA/offline reliability testing.
+
+**Gated-phase prep index:** [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 
 ## Suggested First Development Slice
 

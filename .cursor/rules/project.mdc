@@ -40,9 +40,9 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
 
 ## Agent gotchas (save yourself time)
 - **The admin talks to PROD by default** (`apiBase` falls back to `https://api.homeseeker.me`). To test
-  admin UI against unreleased API changes, run the local Worker (`wrangler dev`, port 8788 — simulates
+  admin UI against unreleased API changes, run the local Worker (`wrangler dev --local --port 8787` — simulates
   D1+KV+R2 via Miniflare, persists across restarts), write a gitignored `apps/admin/.env.local` with
-  `NEXT_PUBLIC_API_BASE=http://localhost:8788`, then **restart** the admin dev server (env is inlined at
+  `NEXT_PUBLIC_API_BASE=http://localhost:8787`, then **restart** the admin dev server (env is inlined at
   boot). Delete it + restart to return to prod. Never POST mock data to prod.
 - **Deploy is automatic:** pushing to `main` runs GitHub Actions which deploys both the API Worker and the
   admin (secrets are set). No manual `npm run deploy` needed.

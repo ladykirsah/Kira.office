@@ -65,6 +65,7 @@ export const products = sqliteTable("products", {
   shopeeListed: integer("shopee_listed", { mode: "boolean" }).notNull().default(false),
   // Shopee item id for linking this product to its Shopee listing (own category is separate).
   shopeeItemId: text("shopee_item_id"),
+  defaultTermsPatternId: text("default_terms_pattern_id"),
   // Manufacturer/catalog product id that ships with some parts (e.g. "DI446610-1710").
   productRef: text("product_ref"),
   category: text("category"),
@@ -169,11 +170,93 @@ export const productVariants = sqliteTable(
       .references(() => products.id),
     sku: text("sku"),
     variantName: text("variant_name"),
+    option1Name: text("option_1_name"),
+    option1Value: text("option_1_value"),
+    option2Name: text("option_2_name"),
+    option2Value: text("option_2_value"),
     barcodePrimary: text("barcode_primary"),
     status: text("status").notNull().default("active"),
     createdAt: createdAt(),
   },
   (t) => [index("variant_product_idx").on(t.productId)],
+);
+
+export const shopConnections = sqliteTable("shop_connections", {
+  id: id(),
+  provider: text("provider").notNull().default("shopee"),
+  shopId: text("shop_id"),
+  shopName: text("shop_name"),
+  region: text("region").notNull().default("TH"),
+  partnerIdReference: text("partner_id_reference"),
+  accessTokenSecretReference: text("access_token_secret_reference"),
+  refreshTokenSecretReference: text("refresh_token_secret_reference"),
+  tokenExpiresAt: integer("token_expires_at", { mode: "timestamp_ms" }),
+  status: text("status").notNull().default("disconnected"),
+  createdAt: createdAt(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const shopeeListings = sqliteTable("shopee_listings", {
+  id: id(),
+  shopConnectionId: text("shop_connection_id")
+    .notNull()
+    .references(() => shopConnections.id),
+  productId: text("product_id")
+    .notNull()
+    .references(() => products.id),
+  shopeeItemId: text("shopee_item_id"),
+  listingStatus: text("listing_status"),
+  lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
+  syncStatus: text("sync_status").notNull().default("unlinked"),
+  createdAt: createdAt(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const shopeeListingModels = sqliteTable(
+  "shopee_listing_models",
+  {
+    id: id(),
+    shopeeListingId: text("shopee_listing_id")
+      .notNull()
+      .references(() => shopeeListings.id),
+    productVariantId: text("product_variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    shopeeModelId: text("shopee_model_id"),
+    shopeeModelSku: text("shopee_model_sku"),
+    shopeeStock: integer("shopee_stock"),
+    lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [uniqueIndex("shopee_listing_models_variant_uq").on(t.productVariantId)],
+);
+
+export const termsPatterns = sqliteTable("terms_patterns", {
+  id: id(),
+  name: text("name").notNull(),
+  language: text("language").notNull().default("th"),
+  bodyTemplate: text("body_template").notNull(),
+  requiredFieldsJson: text("required_fields_json"),
+  status: text("status").notNull().default("active"),
+  createdAt: createdAt(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const productTerms = sqliteTable(
+  "product_terms",
+  {
+    id: id(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    termsPatternId: text("terms_pattern_id").references(() => termsPatterns.id),
+    generatedBody: text("generated_body").notNull(),
+    version: integer("version").notNull().default(1),
+    status: text("status").notNull().default("draft"),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id),
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("product_terms_product_idx").on(t.productId)],
 );
 
 export const barcodes = sqliteTable("barcodes", {
@@ -376,6 +459,26 @@ export const financialRecords = sqliteTable(
     notes: text("notes"),
   },
   (t) => [index("finance_channel_time_idx").on(t.channel, t.occurredAt)],
+);
+
+/** Append-only mutation audit (actor email from Access JWT; user_id wired when RBAC lands). */
+export const auditLogs = sqliteTable(
+  "audit_logs",
+  {
+    id: id(),
+    actorEmail: text("actor_email"),
+    userId: text("user_id").references(() => users.id),
+    action: text("action").notNull(),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    beforeJson: text("before_json"),
+    afterJson: text("after_json"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    index("audit_logs_created_at_idx").on(t.createdAt),
+    index("audit_logs_entity_idx").on(t.entityType, t.entityId),
+  ],
 );
 
 export const syncJobs = sqliteTable("sync_jobs", {

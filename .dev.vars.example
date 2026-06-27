@@ -2,6 +2,13 @@
 # NEVER commit real values. In deployed environments set these with `wrangler secret put <NAME>`
 # (or the Secrets Store), not here. Declare required names via `secrets.required` in wrangler.jsonc.
 
+# Cloudflare Access (set both to enforce JWT on the API Worker; leave blank for open local dev)
+ACCESS_TEAM_DOMAIN=""
+ACCESS_AUD=""
+
+# Optional comma-separated browser origins for credentialed CORS (defaults include localhost:3000 + app.homeseeker.me)
+# ALLOWED_CORS_ORIGINS="http://localhost:3000,https://app.homeseeker.me"
+
 # App session/auth signing secret (generate a long random string; unique per environment)
 AUTH_SECRET=""
 

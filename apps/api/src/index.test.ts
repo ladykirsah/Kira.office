@@ -4,8 +4,11 @@ import worker, {
   applyAdjustmentToDb,
   applySyncToDb,
   archiveProduct,
+  buildCorsHeaders,
   createProduct,
+  deleteGalleryImage,
   ean13CheckDigit,
+  entityFromPath,
   generateInternalBarcode,
   getProductDetail,
   setVariantPricing,
@@ -26,8 +29,13 @@ import worker, {
   refundSaleToDb,
   requireAccess,
   runDailyBackup,
+  backupR2Bucket,
+  resolveActor,
+  requireRole,
   salesToCsv,
   storeProductImage,
+  validateSyncLine,
+  writeAuditLog,
   type Env,
 } from "./index";
 
@@ -76,6 +84,13 @@ function makeDb(canned: {
   financeProfit?: unknown;
   financeRefunds?: unknown;
   identifierMatch?: unknown;
+  taxProfiles?: {
+    variantId: string;
+    vatRateBp: number;
+    priceIncludesVat: number;
+    isTaxable: number;
+  }[];
+  userRow?: { id: string; role: "owner" | "manager" | "stock_operator" | "finance_viewer" } | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -109,6 +124,8 @@ function makeDb(canned: {
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
         if (sql.includes("client_uuid IN"))
           return { results: (canned.existing ?? []).map((u) => ({ clientUuid: u })) as T[] };
+        if (sql.includes("LEFT JOIN tax_profiles"))
+          return { results: (canned.taxProfiles ?? []) as T[] };
         if (sql.includes("SUM(quantity_delta)"))
           return { results: (canned.available ?? []) as T[] };
         if (sql.includes("external_order_id AS externalOrderId"))
@@ -141,7 +158,10 @@ function makeDb(canned: {
         if (sql.includes("FROM product_variants WHERE product_id"))
           return (canned.variantRow ?? null) as T | null;
         if (sql.includes("FROM pricing_profiles")) return (canned.pricingRow ?? null) as T | null;
+        if (sql.includes("image_key AS imageKey FROM product_images"))
+          return { imageKey: "products/p1/gallery.png" } as T;
         if (sql.includes("FROM barcodes")) return (canned.barcode ?? null) as T | null;
+        if (sql.includes("FROM users WHERE email")) return (canned.userRow ?? null) as T | null;
         return null;
       },
       async run() {
@@ -171,6 +191,50 @@ function makeDb(canned: {
   } as unknown as D1Database;
   return { db, env: { DB: db } as unknown as Env, batched, runs };
 }
+
+describe("writeAuditLog", () => {
+  it("inserts an append-only row for a mutation", async () => {
+    const { db, runs } = makeDb({});
+    await writeAuditLog(db, {
+      actorEmail: "owner@example.com",
+      method: "POST",
+      path: "/sync",
+    });
+    const row = runs.find((r) => r.sql.includes("INSERT INTO audit_logs"));
+    expect(row).toBeDefined();
+    expect(row?.binds[1]).toBe("owner@example.com");
+    expect(row?.binds[2]).toBe("POST /sync");
+  });
+});
+
+describe("entityFromPath", () => {
+  it("extracts product ids from /products/:id paths", () => {
+    expect(entityFromPath("/products/p1/pricing")).toEqual({
+      entityType: "product",
+      entityId: "p1",
+    });
+  });
+});
+
+describe("buildCorsHeaders", () => {
+  it("allows credentials for an allowlisted admin origin", () => {
+    const req = new Request("https://api.example.com/products", {
+      headers: { Origin: "http://localhost:3000" },
+    });
+    const h = buildCorsHeaders(req);
+    expect(h["access-control-allow-origin"]).toBe("http://localhost:3000");
+    expect(h["access-control-allow-credentials"]).toBe("true");
+  });
+
+  it("uses wildcard without credentials for unknown origins", () => {
+    const req = new Request("https://api.example.com/products", {
+      headers: { Origin: "https://evil.example" },
+    });
+    const h = buildCorsHeaders(req);
+    expect(h["access-control-allow-origin"]).toBe("*");
+    expect(h["access-control-allow-credentials"]).toBeUndefined();
+  });
+});
 
 describe("api worker routes", () => {
   it("GET /health > 200 ok", async () => {
@@ -438,6 +502,7 @@ describe("api worker routes", () => {
             applied: sales.length,
             duplicates: 0,
             conflicts: [],
+            validationErrors: [],
           }),
         }),
       },
@@ -450,7 +515,12 @@ describe("api worker routes", () => {
       env,
       ctx,
     );
-    expect(await res.json()).toEqual({ applied: 1, duplicates: 0, conflicts: [] });
+    expect(await res.json()).toEqual({
+      applied: 1,
+      duplicates: 0,
+      conflicts: [],
+      validationErrors: [],
+    });
   });
 });
 
@@ -467,6 +537,52 @@ describe("runDailyBackup", () => {
     expect(key).toBe("backups/1970-01-01.json");
     expect(puts.length).toBe(1);
     expect(JSON.parse(puts[0]!.body)).toHaveProperty("tables");
+  });
+
+  it("uses BACKUPS bucket when bound", async () => {
+    const { env } = makeDb({});
+    const puts: { key: string; body: string }[] = [];
+    (env as unknown as { BACKUPS: unknown }).BACKUPS = {
+      put: async (k: string, v: string) => {
+        puts.push({ key: k, body: v });
+      },
+    };
+    (env as unknown as { IMAGES: unknown }).IMAGES = {
+      put: async () => {
+        throw new Error("IMAGES should not be used when BACKUPS is set");
+      },
+    };
+    expect(backupR2Bucket(env)).toBe((env as unknown as { BACKUPS: unknown }).BACKUPS);
+    await runDailyBackup(env, 0);
+    expect(puts.length).toBe(1);
+  });
+});
+
+describe("resolveActor + requireRole (RBAC prep)", () => {
+  it("resolveActor > Access off > rbac not enforced", async () => {
+    const { env } = makeDb({});
+    const actor = await resolveActor(env.DB, null, false);
+    expect(actor.rbacEnforced).toBe(false);
+    expect(requireRole(actor, "product.delete")).toBeNull();
+  });
+
+  it("resolveActor > Access on + known user > returns role", async () => {
+    const { env } = makeDb({ userRow: { id: "u1", role: "manager" } });
+    const actor = await resolveActor(env.DB, "boss@shop.test", true);
+    expect(actor).toMatchObject({ userId: "u1", role: "manager", rbacEnforced: true });
+    expect(requireRole(actor, "product.delete")).toEqual({
+      error: "forbidden",
+      reason: "insufficient_role",
+    });
+  });
+
+  it("resolveActor > Access on + unknown email > forbidden", async () => {
+    const { env } = makeDb({ userRow: null });
+    const actor = await resolveActor(env.DB, "stranger@test", true);
+    expect(requireRole(actor, "product.write")).toEqual({
+      error: "forbidden",
+      reason: "unknown_user",
+    });
   });
 });
 
@@ -505,7 +621,7 @@ describe("applySyncToDb (single-writer sync logic)", () => {
         lines: [{ productVariantId: "v1", quantity: 2, unitPriceSatang: 10700 }],
       },
     ]);
-    expect(out).toEqual({ applied: 1, duplicates: 0, conflicts: [] });
+    expect(out).toEqual({ applied: 1, duplicates: 0, conflicts: [], validationErrors: [] });
     expect(batched.length).toBe(3); // onsite_sales + line + ledger
   });
 
@@ -562,7 +678,7 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     const out = await applySyncToDb(db, [
       { clientUuid: "u1", lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 100 }] },
     ]);
-    expect(out).toEqual({ applied: 0, duplicates: 1, conflicts: [] });
+    expect(out).toEqual({ applied: 0, duplicates: 1, conflicts: [], validationErrors: [] });
     expect(batched.length).toBe(0);
   });
 
@@ -579,7 +695,7 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     expect(batched.some((s) => /INSERT OR IGNORE INTO onsite_sales/.test(s.sql))).toBe(false);
   });
 
-  it("partial oversell: the header total counts only the lines actually sold", async () => {
+  it("partial oversell: fail-closed — rejects the entire sale when any line oversells", async () => {
     const { db, batched } = makeDb({
       existing: [],
       available: [
@@ -591,19 +707,82 @@ describe("applySyncToDb (single-writer sync logic)", () => {
       {
         clientUuid: "u3",
         lines: [
-          { productVariantId: "v1", quantity: 2, unitPriceSatang: 5000 }, // sold → 10000
-          { productVariantId: "v2", quantity: 5, unitPriceSatang: 3000 }, // oversold → dropped
+          { productVariantId: "v1", quantity: 2, unitPriceSatang: 5000 },
+          { productVariantId: "v2", quantity: 5, unitPriceSatang: 3000 },
+        ],
+      },
+    ]);
+    expect(out.applied).toBe(0);
+    expect(out.conflicts).toEqual([{ productVariantId: "v2", requested: 5, available: 1 }]);
+    expect(batched.some((s) => /INSERT OR IGNORE INTO onsite_sales/.test(s.sql))).toBe(false);
+  });
+
+  it("rejects a service line that carries a product variant (stock bypass)", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "bad1",
+        lines: [
+          {
+            lineType: "service",
+            productVariantId: "v1",
+            quantity: 1,
+            unitPriceSatang: 1000,
+          },
+        ],
+      },
+    ]);
+    expect(out.applied).toBe(0);
+    expect(out.validationErrors).toEqual([
+      { clientUuid: "bad1", reason: "service lines must not have a product variant" },
+    ]);
+    expect(batched.length).toBe(0);
+  });
+
+  it("rejects negative quantity", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "bad2",
+        lines: [{ productVariantId: "v1", quantity: -1, unitPriceSatang: 1000 }],
+      },
+    ]);
+    expect(out.applied).toBe(0);
+    expect(out.validationErrors[0]?.reason).toMatch(/positive integer/);
+    expect(batched.length).toBe(0);
+  });
+
+  it("fills in taxSatang when omitted for a VAT-inclusive part line", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "tax1",
+        lines: [
+          {
+            productVariantId: "v1",
+            quantity: 1,
+            unitPriceSatang: 10700,
+            unitCostSatang: 6000,
+          },
         ],
       },
     ]);
     expect(out.applied).toBe(1);
-    expect(out.conflicts).toEqual([{ productVariantId: "v2", requested: 5, available: 1 }]);
-    const header = batched.find((s) => /INSERT OR IGNORE INTO onsite_sales/.test(s.sql)) as
+    const line = batched.find((s) => /INSERT INTO onsite_sale_lines/.test(s.sql)) as
       | { sql: string; boundArgs: unknown[] }
       | undefined;
-    // bind order: …, subtotal(8), discount(9), tax(10), grand(11). Only v1 counts (not 25000).
-    expect(header?.boundArgs[8]).toBe(10000);
-    expect(header?.boundArgs[11]).toBe(10000);
+    // bind order: …, tax_satang(8), gross_profit(10)
+    expect(line?.boundArgs[8]).toBe(700);
+    expect(line?.boundArgs[10]).toBe(4000);
   });
 });
 
@@ -687,6 +866,25 @@ describe("importProducts (CSV catalog import)", () => {
       errors: [{ rowIndex: 2, reason: "missing required field: name" }],
     });
     expect(batched.length).toBe(1); // one INSERT for the valid row
+  });
+});
+
+describe("validateSyncLine", () => {
+  it("rejects service lines with a variant", () => {
+    expect(
+      validateSyncLine({
+        lineType: "service",
+        productVariantId: "v1",
+        quantity: 1,
+        unitPriceSatang: 100,
+      }),
+    ).toMatch(/service lines must not have a product variant/);
+  });
+
+  it("rejects non-positive quantity", () => {
+    expect(validateSyncLine({ productVariantId: "v1", quantity: 0, unitPriceSatang: 100 })).toMatch(
+      /positive integer/,
+    );
   });
 });
 
@@ -1177,6 +1375,20 @@ describe("storeGalleryImage", () => {
     await expect(
       storeGalleryImage(db, bucket, "p1", new Uint8Array([1]).buffer, "image/gif"),
     ).rejects.toThrow(/unsupported/);
+  });
+});
+
+describe("deleteGalleryImage", () => {
+  it("deletes the DB row and the R2 object", async () => {
+    const deleted: string[] = [];
+    const bucket = {
+      delete: async (key: string) => {
+        deleted.push(key);
+      },
+    } as unknown as R2Bucket;
+    const { db } = makeDb({});
+    await deleteGalleryImage(db, bucket, "p1", "img1");
+    expect(deleted).toEqual(["products/p1/gallery.png"]);
   });
 });
 

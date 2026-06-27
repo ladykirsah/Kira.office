@@ -27,9 +27,18 @@
   ],
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
+  // Phase 6: provision a private bucket and add (uncomment after bucket exists in dashboard):
+  // { "binding": "BACKUPS", "bucket_name": "kiraoffice-backups" },
   // Daily backup at 19:00 UTC (= 02:00 Asia/Bangkok). Shopee periodic sync hooks into the same
-  // scheduled() handler once SHOPEE_* creds are set. Queues are added with the live Shopee adapter.
+  // scheduled() handler once SHOPEE_* creds are set.
   "triggers": { "crons": ["0 19 * * *"] },
+  // Phase 5 Shopee queue (uncomment after queue + dead-letter are provisioned):
+  // "queues": {
+  //   "producers": [{ "binding": "SHOPEE_QUEUE", "queue": "kira-shopee-sync" }],
+  //   "consumers": [{ "queue": "kira-shopee-sync", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "kira-shopee-sync-dlq" }]
+  // },
+  // Secrets (set via `wrangler secret put`, never vars): ACCESS_TEAM_DOMAIN, ACCESS_AUD
+  // Optional var: ALLOWED_CORS_ORIGINS (comma-separated; defaults include localhost:3000 + app.homeseeker.me)
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the build token to have zone DNS/Workers-routes edit.
   "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }],
@@ -55,6 +64,7 @@
       ],
       "kv_namespaces": [{ "binding": "KV", "id": "c876509fba5c40608e1c0f1abf5d4502" }],
       "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images-staging" }]
+      // "r2_buckets": [..., { "binding": "BACKUPS", "bucket_name": "kiraoffice-backups-staging" }]
     }
   }
 }

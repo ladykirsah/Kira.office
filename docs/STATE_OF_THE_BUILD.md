@@ -10,7 +10,7 @@
 > describe the original plan and lag the implementation.
 
 **Snapshot:** 2026-06-27 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
-**Tests:** 238 passing · **Migrations:** 0000–0015 applied to prod **and** staging D1.
+**Tests:** 260+ passing · **Migrations:** 0000–0016 applied to prod **and** staging D1.
 
 ---
 
@@ -100,22 +100,23 @@ settings pages. Migrations `0009`–`0012` back these.
 
 Ordered roughly by leverage. None of these are blocked by the others.
 
-1. **Auth + audit are not active.** The `users` table exists but there is no user-management UI, and
-   there is **no `audit_logs` table** (the planned append-only audit is currently just a `console.log`
-   line in the Worker). Cloudflare Access is coded but off. To secure prod: create the Access app,
-   set `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` as Worker secrets, then add the audit_logs table + writes.
-2. **Shopee live sync (Phase 5, gated).** Needs managed-seller Open API eligibility. The plumbing
-   (Queues + dead-letter, the `scheduled()` Shopee hook) is **not built yet**; `sync_jobs` table and
-   the CSV order/product importers exist as the bridge. Keep Shopee behind the integration boundary.
-3. **Variants are effectively single-per-product.** The schema is variant-ready (`product_variants`,
-   per-variant pricing/stock/barcode) but the editor manages one implicit variant. Real variant axes
-   (size/pack/etc.) are unconfirmed — see [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) #17.
+1. **Auth is coded but not active in prod.** Cloudflare Access JWT verification + admin `/api/worker`
+   proxy (forwards `Cf-Access-Jwt-Assertion`) + credentialed CORS are built. **`audit_logs` table
+   exists** (migration `0016`) and mutations write append-only rows. **[OWNER]** still must create the
+   Access app and set `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` Worker secrets, then deploy API + admin.
+2. **Shopee live sync (Phase 5, gated).** Needs managed-seller Open API eligibility. D1 mapping
+   tables exist (migration `0017`); Queues + live adapter are **not wired** — see
+   [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md). CSV importers remain the bridge.
+3. **Variants are effectively single-per-product.** Option columns on `product_variants` are ready
+   (migration `0017`); the editor still manages one implicit variant. Real variant axes are
+   unconfirmed — see [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) #17.
 4. **Admin production deploy is unverified.** The app is built and exercised against the live API via
    the dev/preview server; the CORS allowlist names `app.homeseeker.me` as the intended prod origin,
    but whether the admin is actually deployed there was **not** confirmed in this pass. Verify before
    relying on it.
-5. **Thai T&C generation** (`terms_patterns`/`product_terms`) — the template endpoint exists; the
-   per-product generate+approve flow is not built.
+5. **Thai T&C generation** — D1 `terms_patterns`/`product_terms` + core helpers exist (migration
+   `0017`, `packages/core/src/productTerms.ts`); KV template endpoint unchanged; generate+approve UI
+   not built. See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 6. **Multi-location, receipt printing, accountant export format** — defaulted assumptions, see
    [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
 7. **A full code review never completed** — two attempts were throttled by transient server
@@ -165,11 +166,12 @@ Keep changes additive/nullable when an older Worker may still be live during rol
 - **`/img/:key` is public (auth-exempt) so `<img>` tags work — it is the only auth-exempt route.**
   It now hard-restricts reads to `products/` + `shop/` keys; never widen it. The same R2 bucket holds
   the daily DB backup (`backups/*.json`), so anything outside those prefixes must 404. (Hardening TODO:
-  move backups to a separate, private R2 bucket so sensitive data never shares the image bucket.)
+  move backups to a separate, private R2 bucket — **`Env.BACKUPS` + `backupR2Bucket()` are coded**;
+  owner uncomments the binding in `wrangler.jsonc` after creating the bucket.)
 - **The admin talks to PROD by default** (`apiBase` → `https://api.homeseeker.me` when
   `NEXT_PUBLIC_API_BASE` is unset). To exercise the admin against unreleased API changes, run the local
-  Worker (`wrangler dev`, port 8788 — Miniflare D1+KV+R2, persists across restarts), write a gitignored
-  `apps/admin/.env.local` with `NEXT_PUBLIC_API_BASE=http://localhost:8788`, then **restart** the admin
+  Worker (`wrangler dev --local --port 8787`, Miniflare D1+KV+R2, persists across restarts), write a gitignored
+  `apps/admin/.env.local` with `NEXT_PUBLIC_API_BASE=http://localhost:8787`, then **restart** the admin
   dev server (env is inlined at boot). Delete it + restart to return to prod. Never POST mock data to prod.
 - **The Next dev console retains stale HMR compile errors** across reloads/restarts. Verify "clean" via
   `build:check` passing + the page rendering with no error boundary — not the console buffer.

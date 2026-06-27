@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
-  apiBase,
   lookupBarcode,
   fetchProducts,
   fetchBarcodes,
@@ -27,7 +26,15 @@ import {
   type DiscountKind,
 } from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
-import { flushOutbox, type OutboxStore, type QueuedSale } from "@/lib/outbox";
+import {
+  flushOutbox,
+  formatSyncFailureMessage,
+  isSyncSuccess,
+  type OutboxStore,
+  type QueuedSale,
+  type SyncResponse,
+} from "@/lib/outbox";
+import { apiFetch } from "@/lib/apiFetch";
 import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
 
@@ -54,13 +61,20 @@ interface SaleLine {
   unitCostSatang?: number; // product cost — sent to the server for gross-profit
 }
 
-async function syncSale(sale: QueuedSale): Promise<boolean> {
-  const res = await fetch(`${apiBase}/sync`, {
+async function syncSale(sale: QueuedSale): Promise<{ ok: boolean; message?: string }> {
+  const res = await apiFetch("/sync", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ sales: [sale] }),
   });
-  return res.ok;
+  if (!res.ok) {
+    return { ok: false, message: `Server error (HTTP ${res.status})` };
+  }
+  const body = (await res.json()) as SyncResponse;
+  if (!isSyncSuccess(body)) {
+    return { ok: false, message: formatSyncFailureMessage(body) };
+  }
+  return { ok: true };
 }
 
 const card: CSSProperties = {
@@ -940,9 +954,11 @@ export default function PosPage() {
   useEffect(() => {
     let cancelled = false;
     async function flush() {
-      const r = await flushOutbox(store, syncSale);
+      const r = await flushOutbox(store, async (sale) => (await syncSale(sale)).ok);
       if (cancelled) return;
       if (r.synced) toast(`Synced ${r.synced} queued sale(s)`, "success");
+      if (r.failed)
+        toast(`${r.failed} queued sale(s) could not sync — check stock and try again`, "error");
       setPending((await store.all()).length);
     }
     flush();
@@ -1233,8 +1249,9 @@ export default function PosPage() {
       queuedAt: Date.now(),
     };
     try {
-      if (await syncSale(sale)) return true;
-      toast("Server rejected the sale — check the items and try again.", "error");
+      const result = await syncSale(sale);
+      if (result.ok) return true;
+      toast(result.message ?? "Server rejected the sale — check the items and try again.", "error");
       return false;
     } catch {
       await store.add(sale);

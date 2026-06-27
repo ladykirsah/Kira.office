@@ -2,6 +2,37 @@
 // dedupes on clientUuid so retries are safe. Storage is abstracted behind OutboxStore so the flush
 // logic is pure + unit-testable (IndexedDB adapter lives in outbox-idb.ts, browser-only).
 
+/** Result shape returned by POST /sync. */
+export interface SyncResponse {
+  applied: number;
+  duplicates: number;
+  conflicts: { productVariantId: string; requested: number; available: number }[];
+  validationErrors: { clientUuid: string; reason: string }[];
+}
+
+/** True when a sale was applied or was already synced, with no conflicts or validation errors. */
+export function isSyncSuccess(body: SyncResponse): boolean {
+  if ((body.conflicts?.length ?? 0) > 0) return false;
+  if ((body.validationErrors?.length ?? 0) > 0) return false;
+  return (body.applied ?? 0) > 0 || (body.duplicates ?? 0) > 0;
+}
+
+/** Human-readable reason when POST /sync did not fully apply the sale. */
+export function formatSyncFailureMessage(body: SyncResponse): string {
+  if (body.validationErrors?.length) {
+    return body.validationErrors.map((e) => e.reason).join("; ");
+  }
+  if (body.conflicts?.length) {
+    return body.conflicts
+      .map(
+        (c) =>
+          `Not enough stock for a line (${c.available} on hand, ${c.requested} requested) — adjust quantities or restock`,
+      )
+      .join("; ");
+  }
+  return "Server rejected the sale — check the items and try again.";
+}
+
 export interface QueuedLine {
   productVariantId?: string | null; // null for service/labour lines
   lineType?: "part" | "service";
@@ -11,6 +42,7 @@ export interface QueuedLine {
   unitPriceSatang: number;
   unitCostSatang?: number; // product cost (for gross-profit on the server)
   discountSatang?: number; // this line's share of the bill discount
+  taxSatang?: number; // VAT portion (satang); server fills in when omitted
 }
 
 export interface QueuedSale {
