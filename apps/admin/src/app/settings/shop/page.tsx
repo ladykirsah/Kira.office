@@ -141,9 +141,10 @@ export default function ShopInfoPage() {
         TEXT_KEYS.map((k) => [k, (info[k] as string).trim()]),
       ) as Record<(typeof TEXT_KEYS)[number], string>;
       await saveShopInfo(text);
-      const next = { ...info, ...text };
-      setInfo(next);
-      setSaved(next);
+      // Merge only the text fields, functionally — so a logo/QR uploaded while this PUT was in
+      // flight (its own functional setState) isn't clobbered by a stale full snapshot.
+      setInfo((s) => (s ? { ...s, ...text } : s));
+      setSaved((s) => (s ? { ...s, ...text } : s));
       setEditing(false);
       toast("Shop info saved", "success");
     } catch (e) {
@@ -262,7 +263,7 @@ export default function ShopInfoPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
           {editing ? (
             <>
-              <button type="button" onClick={cancel}>
+              <button type="button" onClick={cancel} disabled={busy}>
                 Cancel
               </button>
               <button type="button" className="btn-primary" onClick={save} disabled={busy}>
