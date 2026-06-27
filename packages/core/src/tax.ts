@@ -1,4 +1,4 @@
-import { round2 } from "./money";
+import { round2, toSatang } from "./money";
 
 export interface TaxInput {
   /** Price after discount, in THB. */
@@ -40,4 +40,30 @@ export function computeTax(input: TaxInput): TaxResult {
   const salesExTax = round2(netOfDiscount);
   const taxAmount = round2(netOfDiscount * vatRate);
   return { taxAmount, salesExTax, buyerPrice: round2(salesExTax + taxAmount) };
+}
+
+export interface LineTaxInput {
+  unitPriceSatang: number;
+  quantity: number;
+  discountSatang?: number;
+  /** Basis points, e.g. 700 = 7%. Defaults to 700. */
+  vatRateBp?: number;
+  /** Defaults to true (Thailand shop default). */
+  priceIncludesVat?: boolean;
+  isTaxable?: boolean;
+}
+
+/** VAT portion in satang for one sale line (after line discount). */
+export function lineTaxSatang(input: LineTaxInput): number {
+  const grossSatang = input.unitPriceSatang * input.quantity;
+  const netSatang = grossSatang - (input.discountSatang ?? 0);
+  if (netSatang <= 0) return 0;
+  const vatRate = (input.vatRateBp ?? 700) / 10000;
+  const { taxAmount } = computeTax({
+    netOfDiscount: netSatang / 100,
+    vatRate,
+    priceIncludesVat: input.priceIncludesVat ?? true,
+    isTaxable: input.isTaxable ?? true,
+  });
+  return toSatang(taxAmount);
 }

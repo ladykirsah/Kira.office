@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   computeSaleProfit,
+  lineTaxSatang,
   partitionByClientUuid,
   parseCsv,
   mapRows,
@@ -15,10 +16,18 @@ export interface Env {
   KV: KVNamespace;
   STOCK_LEDGER: DurableObjectNamespace<StockLedger>;
   IMAGES: R2Bucket;
+  /** Optional private bucket for daily DB backups (Phase 6). Falls back to IMAGES when unset. */
+  BACKUPS?: R2Bucket;
+  /** Shopee sync queue — wired when live Open API access is confirmed (Phase 5). */
+  SHOPEE_QUEUE?: Queue;
   /** Set both to enable Cloudflare Access JWT enforcement (defense-in-depth). Unset = open. */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  /** Comma-separated browser origins allowed to call this API with credentials (admin UI). */
+  ALLOWED_CORS_ORIGINS?: string;
 }
+
+export { resolveActor, requireRole, type ActorContext } from "./auth";
 
 interface SyncLine {
   productVariantId?: string | null; // null/absent for service (labour) lines
@@ -48,27 +57,65 @@ interface SyncConflict {
   available: number;
 }
 
+export interface SyncValidationError {
+  clientUuid: string;
+  reason: string;
+}
+
 export interface SyncResult {
   applied: number;
   duplicates: number;
   conflicts: SyncConflict[];
+  validationErrors: SyncValidationError[];
 }
 
-const SECURITY_HEADERS: Record<string, string> = {
+const STATIC_SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "no-referrer",
-  // CORS: the admin UI (separate origin: localhost in dev, app.homeseeker.me in prod) calls this API
-  // from the browser in its client components. No cookies are used (Access JWT rides a header), so a
-  // wildcard origin is safe here.
+};
+
+export const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:3000",
+  "https://app.homeseeker.me",
+  "https://homeseeker.me",
+];
+
+/** CORS headers for this request — allowlisted origins get credentials; others stay wildcard (no cookies). */
+export function buildCorsHeaders(
+  request: Request,
+  allowedOriginsCsv?: string,
+): Record<string, string> {
+  const allowlist = (allowedOriginsCsv ?? DEFAULT_CORS_ORIGINS.join(","))
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const origin = request.headers.get("Origin");
+  const shared = {
+    ...STATIC_SECURITY_HEADERS,
+    "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "access-control-allow-headers": "content-type, cf-access-jwt-assertion",
+    "access-control-max-age": "86400",
+  };
+  if (origin && allowlist.includes(origin)) {
+    return {
+      ...shared,
+      "access-control-allow-origin": origin,
+      "access-control-allow-credentials": "true",
+      Vary: "Origin",
+    };
+  }
+  return { ...shared, "access-control-allow-origin": "*" };
+}
+
+/** Per-request response headers (set at the top of fetch()). */
+let responseHeaders: Record<string, string> = {
+  ...STATIC_SECURITY_HEADERS,
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "access-control-allow-headers": "content-type, cf-access-jwt-assertion",
-  "access-control-max-age": "86400",
 };
 
 const json = (data: unknown, status = 200): Response =>
-  Response.json(data, { status, headers: SECURITY_HEADERS });
+  Response.json(data, { status, headers: responseHeaders });
 
 function base64urlToBytes(s: string): Uint8Array {
   const b64 = s
@@ -148,6 +195,55 @@ export async function requireAccess(
   }
 }
 
+export interface AuditLogInput {
+  actorEmail: string | null;
+  method: string;
+  path: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  detail?: unknown;
+}
+
+/** Persist an append-only audit row for a mutation. Swallows D1 errors so the request still completes. */
+export async function writeAuditLog(db: D1Database, input: AuditLogInput): Promise<void> {
+  const action = `${input.method} ${input.path.split("?")[0]}`;
+  const afterJson = input.detail != null ? JSON.stringify(input.detail) : null;
+  try {
+    await db
+      .prepare(
+        `INSERT INTO audit_logs
+         (id, actor_email, user_id, action, entity_type, entity_id, before_json, after_json, created_at)
+         VALUES (?, ?, NULL, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        input.actorEmail,
+        action,
+        input.entityType ?? null,
+        input.entityId ?? null,
+        afterJson,
+        Date.now(),
+      )
+      .run();
+  } catch (err) {
+    console.error("audit_log write failed:", err);
+  }
+}
+
+/** Best-effort entity id from common REST paths (/products/:id, /sales/:id/refund, …). */
+export function entityFromPath(pathname: string): {
+  entityType: string | null;
+  entityId: string | null;
+} {
+  const product = pathname.match(/^\/products\/([^/]+)/);
+  if (product) return { entityType: "product", entityId: product[1] ?? null };
+  const sale = pathname.match(/^\/sales\/([^/]+)/);
+  if (sale) return { entityType: "sale", entityId: sale[1] ?? null };
+  const service = pathname.match(/^\/services\/([^/]+)/);
+  if (service) return { entityType: "service", entityId: service[1] ?? null };
+  return { entityType: null, entityId: null };
+}
+
 /**
  * Per-line gross profit in satang for an on-site sale line: (price·qty − discount − tax) − cost·qty.
  * Tax is the VAT portion the line carries (POS computes it via @l-shopee/core); revenue is ex-VAT.
@@ -159,6 +255,49 @@ export function lineGrossProfitSatang(line: SyncLine): number {
   return revenueExTax - cost;
 }
 
+/** True when the line deducts stock (a part), not a labour/service line. */
+export function isPartLine(line: SyncLine): boolean {
+  if (line.lineType === "service") return false;
+  return !!line.productVariantId;
+}
+
+/** Reject malformed sync lines before any stock or money is touched. */
+export function validateSyncLine(line: SyncLine): string | null {
+  const qty = line.quantity;
+  if (!Number.isInteger(qty) || qty <= 0) {
+    return "quantity must be a positive integer";
+  }
+  if (line.lineType === "service" && line.productVariantId) {
+    return "service lines must not have a product variant";
+  }
+  if (line.lineType === "part" && !line.productVariantId) {
+    return "part lines require a product variant";
+  }
+  return null;
+}
+
+interface VariantTaxProfile {
+  variantId: string;
+  vatRateBp: number;
+  priceIncludesVat: boolean;
+  isTaxable: boolean;
+}
+
+/** Fill missing taxSatang on part lines from the product tax profile (defaults: 7% inclusive). */
+function enrichLineTax(line: SyncLine, taxByVariant: Record<string, VariantTaxProfile>): SyncLine {
+  if (line.taxSatang != null || !isPartLine(line)) return line;
+  const profile = taxByVariant[line.productVariantId!];
+  const taxSatang = lineTaxSatang({
+    unitPriceSatang: line.unitPriceSatang,
+    quantity: line.quantity,
+    discountSatang: line.discountSatang,
+    vatRateBp: profile?.vatRateBp ?? 700,
+    priceIncludesVat: profile?.priceIncludesVat ?? true,
+    isTaxable: profile?.isTaxable ?? true,
+  });
+  return { ...line, taxSatang };
+}
+
 /**
  * Idempotent offline-sale persistence against D1. Dedupes by client_uuid (server-applied + in-batch),
  * applies stock as ledger deltas (blocking oversell, surfaced as conflicts), and writes sale + lines
@@ -166,7 +305,7 @@ export function lineGrossProfitSatang(line: SyncLine): number {
  * serialize (single writer); D1's unique index on client_uuid is the backstop against double-counting.
  */
 export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<SyncResult> {
-  if (sales.length === 0) return { applied: 0, duplicates: 0, conflicts: [] };
+  if (sales.length === 0) return { applied: 0, duplicates: 0, conflicts: [], validationErrors: [] };
 
   const uuids = sales.map((s) => s.clientUuid);
   const existingRows = await db
@@ -178,13 +317,11 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
   const existing = (existingRows.results ?? []).map((r) => r.clientUuid);
   const { fresh, duplicates } = partitionByClientUuid(existing, sales);
   if (fresh.length === 0) {
-    return { applied: 0, duplicates: duplicates.length, conflicts: [] };
+    return { applied: 0, duplicates: duplicates.length, conflicts: [], validationErrors: [] };
   }
 
   const variantIds = [
-    ...new Set(
-      fresh.flatMap((s) => s.lines.map((l) => l.productVariantId).filter((x): x is string => !!x)),
-    ),
+    ...new Set(fresh.flatMap((s) => s.lines.filter(isPartLine).map((l) => l.productVariantId!))),
   ];
   const available: Record<string, number> = {};
   for (const id of variantIds) available[id] = 0;
@@ -200,21 +337,85 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
     for (const row of availRows.results ?? []) available[row.variantId] = Number(row.available);
   }
 
+  const taxByVariant: Record<string, VariantTaxProfile> = {};
+  if (variantIds.length > 0) {
+    const taxRows = await db
+      .prepare(
+        `SELECT v.id AS variantId,
+                COALESCE(tp.vat_rate_bp, 700) AS vatRateBp,
+                COALESCE(tp.price_includes_vat, 1) AS priceIncludesVat,
+                COALESCE(tp.is_taxable, 1) AS isTaxable
+         FROM product_variants v
+         JOIN products p ON p.id = v.product_id
+         LEFT JOIN tax_profiles tp ON tp.id = p.tax_profile_id
+         WHERE v.id IN (${variantIds.map(() => "?").join(",")})`,
+      )
+      .bind(...variantIds)
+      .all<{
+        variantId: string;
+        vatRateBp: number;
+        priceIncludesVat: number;
+        isTaxable: number;
+      }>();
+    for (const row of taxRows.results ?? []) {
+      taxByVariant[row.variantId] = {
+        variantId: row.variantId,
+        vatRateBp: Number(row.vatRateBp),
+        priceIncludesVat: !!row.priceIncludesVat,
+        isTaxable: !!row.isTaxable,
+      };
+    }
+  }
+
   const now = Date.now();
   const statements: D1PreparedStatement[] = [];
   const conflicts: SyncConflict[] = [];
+  const validationErrors: SyncValidationError[] = [];
   let applied = 0;
 
   for (const sale of fresh) {
+    let invalidReason: string | null = null;
+    for (const line of sale.lines) {
+      invalidReason = validateSyncLine(line);
+      if (invalidReason) break;
+    }
+    if (invalidReason) {
+      validationErrors.push({ clientUuid: sale.clientUuid, reason: invalidReason });
+      continue;
+    }
+
+    const enrichedLines = sale.lines.map((l) => enrichLineTax(l, taxByVariant));
+
+    const saleConflicts: SyncConflict[] = [];
+    const simAvailable = { ...available };
+    for (const line of enrichedLines) {
+      if (!isPartLine(line)) continue;
+      const vid = line.productVariantId!;
+      const current = simAvailable[vid] ?? 0;
+      const after = current - line.quantity;
+      if (after < 0) {
+        saleConflicts.push({
+          productVariantId: vid,
+          requested: line.quantity,
+          available: current,
+        });
+      } else {
+        simAvailable[vid] = after;
+      }
+    }
+    if (saleConflicts.length > 0) {
+      conflicts.push(...saleConflicts);
+      continue;
+    }
+
     const saleId = crypto.randomUUID();
     let subtotal = 0;
     let discountTotal = 0;
     let taxTotal = 0;
     const lineStatements: D1PreparedStatement[] = [];
 
-    for (const line of sale.lines) {
-      // Service/labour line: no variant, no stock movement, never an oversell — just the bill line.
-      if (line.lineType === "service" || !line.productVariantId) {
+    for (const line of enrichedLines) {
+      if (!isPartLine(line)) {
         subtotal += line.unitPriceSatang * line.quantity;
         discountTotal += line.discountSatang ?? 0;
         taxTotal += line.taxSatang ?? 0;
@@ -239,19 +440,10 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
         continue;
       }
 
-      const vid = line.productVariantId;
+      const vid = line.productVariantId!;
       const current = available[vid] ?? 0;
       const after = current - line.quantity;
-      if (after < 0) {
-        conflicts.push({
-          productVariantId: vid,
-          requested: line.quantity,
-          available: current,
-        });
-        continue; // oversell: skip this line's stock movement, surface for review
-      }
       available[vid] = after;
-      // Count toward the total only now that the line is actually sold (oversold lines are skipped above).
       subtotal += line.unitPriceSatang * line.quantity;
       discountTotal += line.discountSatang ?? 0;
       taxTotal += line.taxSatang ?? 0;
@@ -295,7 +487,6 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       );
     }
 
-    // Every line oversold (or no lines) — surface the conflicts but never write a phantom zero-line sale.
     if (lineStatements.length === 0) continue;
 
     statements.push(
@@ -327,7 +518,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
   }
 
   if (statements.length > 0) await db.batch(statements);
-  return { applied, duplicates: duplicates.length, conflicts };
+  return { applied, duplicates: duplicates.length, conflicts, validationErrors };
 }
 
 /**
@@ -657,16 +848,22 @@ export async function storeGalleryImage(
   return { id: imageId, imageKey: key, url: `/img/${key}`, isCover };
 }
 
-/** Remove a gallery image and re-sync the cover. (The R2 object is left in place.) */
+/** Remove a gallery image, delete its R2 object, and re-sync the cover. */
 export async function deleteGalleryImage(
   db: D1Database,
+  images: R2Bucket,
   productId: string,
   imageId: string,
 ): Promise<void> {
+  const row = await db
+    .prepare("SELECT image_key AS imageKey FROM product_images WHERE id = ? AND product_id = ?")
+    .bind(imageId, productId)
+    .first<{ imageKey: string }>();
   await db
     .prepare("DELETE FROM product_images WHERE id = ? AND product_id = ?")
     .bind(imageId, productId)
     .run();
+  if (row?.imageKey) await images.delete(row.imageKey);
   await syncCoverImage(db, productId);
 }
 
@@ -937,6 +1134,11 @@ const BACKUP_TABLES = [
   "financial_records",
 ];
 
+/** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
+export function backupR2Bucket(env: Env): R2Bucket {
+  return env.BACKUPS ?? env.IMAGES;
+}
+
 /** Daily logical backup: dump key tables to a dated JSON object in R2. Returns the object key. */
 export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
   const dump: Record<string, unknown[]> = {};
@@ -945,7 +1147,7 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
     dump[table] = results ?? [];
   }
   const key = `backups/${new Date(atMs).toISOString().slice(0, 10)}.json`;
-  await env.IMAGES.put(key, JSON.stringify({ exportedAt: atMs, tables: dump }));
+  await backupR2Bucket(env).put(key, JSON.stringify({ exportedAt: atMs, tables: dump }));
   return key;
 }
 
@@ -1667,11 +1869,12 @@ export async function setVariantPricing(
  */
 const worker = {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+    responseHeaders = buildCorsHeaders(request, env.ALLOWED_CORS_ORIGINS);
     const url = new URL(request.url);
 
     // CORS preflight — answer before auth (preflights carry no credentials).
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: SECURITY_HEADERS });
+      return new Response(null, { status: 204, headers: responseHeaders });
     }
 
     // Health + image serving stay public; everything else passes the Access gate (a no-op until
@@ -1693,7 +1896,7 @@ const worker = {
 <p style="color:#566071">API health: <a href="/health" style="color:#566071">/health</a></p>`;
       return new Response(body, {
         status: 200,
-        headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8" },
+        headers: { ...responseHeaders, "content-type": "text/html; charset=utf-8" },
       });
     }
 
@@ -1705,7 +1908,14 @@ const worker = {
       userEmail = gate.email;
     }
     if (request.method !== "GET") {
-      console.log(`audit: ${request.method} ${url.pathname} by ${userEmail ?? "anon"}`);
+      const entity = entityFromPath(url.pathname);
+      await writeAuditLog(env.DB, {
+        actorEmail: userEmail,
+        method: request.method,
+        path: url.pathname,
+        entityType: entity.entityType,
+        entityId: entity.entityId,
+      });
     }
 
     if (url.pathname === "/pricing/preview" && request.method === "POST") {
@@ -1800,7 +2010,7 @@ const worker = {
       const csv = salesToCsv(await querySales(env.DB));
       return new Response(csv, {
         headers: {
-          ...SECURITY_HEADERS,
+          ...responseHeaders,
           "content-type": "text/csv; charset=utf-8",
           "content-disposition": 'attachment; filename="sales.csv"',
         },
@@ -2066,7 +2276,7 @@ const worker = {
     // Gallery: add an image (POST) up to 10, or remove one (DELETE /products/:id/images/:imageId).
     const galleryItem = url.pathname.match(/^\/products\/([^/]+)\/images\/([^/]+)$/);
     if (galleryItem && request.method === "DELETE") {
-      await deleteGalleryImage(env.DB, galleryItem[1]!, galleryItem[2]!);
+      await deleteGalleryImage(env.DB, env.IMAGES, galleryItem[1]!, galleryItem[2]!);
       return json({ ok: true });
     }
     const gallery = url.pathname.match(/^\/products\/([^/]+)\/images$/);
@@ -2092,13 +2302,13 @@ const worker = {
       // daily full-DB backup (backups/*.json) — restrict public reads to the image namespaces only,
       // never serve anything else, so a guessable key can't leak the backup or other objects.
       if (!/^(products|shop)\//.test(key)) {
-        return new Response("Not found", { status: 404, headers: SECURITY_HEADERS });
+        return new Response("Not found", { status: 404, headers: responseHeaders });
       }
       const obj = await env.IMAGES.get(key);
-      if (!obj) return new Response("Not found", { status: 404, headers: SECURITY_HEADERS });
+      if (!obj) return new Response("Not found", { status: 404, headers: responseHeaders });
       return new Response(obj.body, {
         headers: {
-          ...SECURITY_HEADERS,
+          ...responseHeaders,
           "content-type": obj.httpMetadata?.contentType ?? "application/octet-stream",
           "cache-control": "public, max-age=31536000, immutable",
         },
@@ -2137,7 +2347,7 @@ const worker = {
       return json(await ledger.applySync(body.sales ?? []));
     }
 
-    return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
+    return new Response("Not Found", { status: 404, headers: responseHeaders });
   },
 
   // Cron (see wrangler.jsonc triggers.crons): daily D1→R2 backup. The Shopee periodic order pull

@@ -114,7 +114,7 @@ car_brand, car_model}`.
 
 | Method | Path | Client fn | Notes |
 | --- | --- | --- | --- |
-| `POST` | `/sync` | _(POS outbox)_ | Body `{sales: SyncSale[]}` (each `{clientUuid, paymentMethod?, lines[]}`) → `SyncResult {applied, duplicates, conflicts[]}`. **Idempotent on `clientUuid`**; runs through the `StockLedger` DO; oversell surfaces as `conflicts`, never a silent partial. |
+| `POST` | `/sync` | _(POS outbox via `/api/worker`)_ | Body `{sales: SyncSale[]}` → `SyncResult {applied, duplicates, conflicts[], validationErrors[]}`. **Idempotent on `clientUuid`**; runs through the `StockLedger` DO; **fail-closed** on oversell (entire sale rejected) or invalid lines (`validationErrors`). |
 | `POST` | `/import/products` | `importProductsCsv()` | Body `{csv, mapping}` → `{received, valid, invalid, errors[]}`. |
 | `POST` | `/import/shopee-orders` | `importShopeeOrdersCsv()` | Body `{csv, mapping}` → `{received, imported, duplicates, invalid, errors[]}`. CSV bridge until live Shopee API. |
 

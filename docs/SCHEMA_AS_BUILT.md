@@ -1,6 +1,6 @@
 # Schema — As Built
 
-The **actual** D1 (SQLite) schema, derived from the applied migrations `0000`–`0012` in
+The actual D1 (SQLite) schema, derived from the applied migrations `0000`–`0016` in
 [`packages/db/migrations/`](../packages/db/migrations/) and mirrored in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts) (Drizzle, the shape source of truth).
 
@@ -17,7 +17,7 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
   rollout (e.g. migration `0010` added `oring_usage` and intentionally **left `oring_size` in place,
   now unused**).
 
-## Tables (23)
+## Tables (24)
 
 ### Catalog & attributes
 | Table | Key columns |
@@ -70,11 +70,13 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
 | --- | --- |
 | `shop_settings` | `id`, `base_currency` (THB), `timezone` (Asia/Bangkok), `cost_method` (`moving_average`), `default_vat_rate_bp` (700), `vat_registered` (1), `updated_at` |
 | `users` | `id`, `name`, `email` (uq), `role`, `status` (`active`), `created_at` — **no user-management UI / auth wiring yet** |
+| `audit_logs` | `id`, `actor_email`, `user_id`→users (nullable), `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `created_at` — append-only mutation audit |
 | `sync_jobs` | `id`, `provider`, `job_type`, `entity_type`, `entity_id`, `status` (`pending`), `attempts`, `last_error`, `next_retry_at`, `created_at` — for the (gated) Shopee queue |
 
-**Not built:** `audit_logs` (planned append-only audit; today the Worker only `console.log`s a one-line
-audit). Shopee mapping tables (`shop_connections`, `shopee_listings`, `shopee_listing_models`) and
-`terms_patterns`/`product_terms` from the plan are **not** created yet.
+Shopee mapping tables (`shop_connections`, `shopee_listings`, `shopee_listing_models`) and
+`terms_patterns`/`product_terms` are **created by migration `0017`** (empty until Phase 5 / T&C UI).
+`product_variants` has nullable `option_1_*` / `option_2_*` columns for a future multi-variant editor.
+See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 
 ## Migration history
 
@@ -93,6 +95,11 @@ audit). Shopee mapping tables (`shop_connections`, `shopee_listings`, `shopee_li
 | `0010_oring_usage` | `car_models.oring_usage` JSON (supersedes `oring_size`). |
 | `0011_model_era` | Uniqueness → `(brand, name, year_from, year_to)` (model = generation). |
 | `0012_product_updated_at` | `products.updated_at` (+ backfill from `created_at`). |
+| `0013_services` | `services` catalogue table. |
+| `0014_repair_orders` | On-site sale repair fields (`sale_type`, service lines). |
+| `0015_sale_vehicle` | `license_plate`, `vehicle`, `notes` on onsite sales. |
+| `0016_audit_logs` | Append-only `audit_logs` table + indexes. |
+| `0017_gated_phase_prep` | Shopee mapping + T&C tables; variant option columns; `products.default_terms_pattern_id`. |
 
 ## Migration workflow (do this exactly)
 
