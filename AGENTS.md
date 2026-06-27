@@ -79,3 +79,28 @@ Before reporting implementation work as done:
 - Private repository only unless the owner explicitly approves public visibility.
 - Confirm the exact repository owner before pushing. The authenticated CLI account may differ
   from the owner's account (see [docs/GITHUB_CHECKLIST.md](docs/GITHUB_CHECKLIST.md)).
+
+## Cursor Cloud specific instructions
+
+Standard commands live in [README.md](README.md) and `package.json` / app `package.json`s — use those
+(`npm run lint`, `npm run typecheck`, `npm test`, `npm run build:check -w @l-shopee/admin`). The VM
+startup update script runs `npm install`. Notes below cover only the non-obvious bits for running the
+two services **fully locally** (no Cloudflare account / no live prod API needed):
+
+- **API Worker (`apps/api`)** runs with `npx wrangler dev --local --port 8787` from the repo root
+  (root `wrangler.jsonc` points `main` at `apps/api/src/index.ts`). `--local` uses Miniflare with
+  **local** D1/KV/R2/Durable Object state under `.wrangler/` — no real Cloudflare resources are touched.
+- **Local D1 must be migrated before the API will work.** Run
+  `npx wrangler d1 migrations apply kira-office --local` once (re-runnable; idempotent). Without this,
+  endpoints error because the tables don't exist. The migrations also seed reference data (brands,
+  part types, usages, car brands/models visible at `GET /attributes`). The local DB starts with **zero
+  products** — that empty state is expected.
+- **Admin app (`apps/admin`)** runs with `npm run dev -w @l-shopee/admin` (Next dev on port 3000).
+  It calls the API from the **browser**, and `NEXT_PUBLIC_API_BASE` defaults to the **live prod API**
+  `https://api.homeseeker.me`. For local end-to-end work, start it as
+  `NEXT_PUBLIC_API_BASE=http://localhost:8787 npm run dev -w @l-shopee/admin` so the UI hits the local
+  Worker instead of prod. (It's a build/runtime browser env var, so set it on the dev/build command.)
+- The API sends `access-control-allow-origin: *` and uses no cookies, so the cross-origin
+  localhost:3000 → localhost:8787 calls work without extra CORS setup.
+- Deploy commands (`wrangler deploy`, OpenNext deploy) and applying migrations with `--remote` require
+  Cloudflare account credentials and are **not** needed for local development or testing.
