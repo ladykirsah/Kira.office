@@ -213,11 +213,18 @@ function StepTimeline() {
             type="button"
             onClick={() => go(s.n)}
             title={`Go to ${s.label}`}
+            aria-label={`Go to ${s.label}`}
             style={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: 7,
-              background: "none",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: 999,
+              background: "var(--primary)",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 700,
               border: 0,
               padding: 0,
               cursor: "pointer",
@@ -225,23 +232,7 @@ function StepTimeline() {
               flex: "0 0 auto",
             }}
           >
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 24,
-                height: 24,
-                borderRadius: 999,
-                background: "var(--primary)",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {s.n}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{s.label}</span>
+            {s.n}
           </button>
           {i < POS_STEPS.length - 1 && (
             <div
