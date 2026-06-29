@@ -1154,11 +1154,13 @@ a.card:hover {
   gap: 8px;
 }
 
-/* One step = its headline + its card, grouped as a single unit. Structural only — no frame —
-   so spacing/styling can be tuned per group later. */
+/* One step = its headline + its card, grouped as a single unit. The 6px gap between the headline
+   and card is empty group space (not covered by either child), so clicking it in the preview
+   selects the group (#pos-group-n) itself rather than a child. */
 .pos-step-group {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
 
 /* POS "freeze the page, scroll only the groups" layout — wide screens only.
