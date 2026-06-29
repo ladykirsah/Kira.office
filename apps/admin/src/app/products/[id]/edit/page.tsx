@@ -499,12 +499,7 @@ export default function EditProductPage() {
             <div style={overviewGrid}>
               {/* Column 1 — Status & stock, then Part & spec */}
               <div>
-                <div style={groupHead}>Status &amp; stock</div>
-                <Field label="Shopee">
-                  <span className={shopeeActive ? "pill on" : "pill off"}>
-                    {shopeeActive ? "Active on Shopee" : "Not listed"}
-                  </span>
-                </Field>
+                <div style={groupHead}>Stock</div>
                 <Field label="Stock on hand">
                   <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
                 </Field>
@@ -544,6 +539,11 @@ export default function EditProductPage() {
                   )}
                 </Field>
                 <Field label="Shopee ID">{p.shopeeItemId || "—"}</Field>
+                <Field label="Shopee">
+                  <span className={shopeeActive ? "pill on" : "pill off"}>
+                    {shopeeActive ? "Active on Shopee" : "Not listed"}
+                  </span>
+                </Field>
               </div>
             </div>
           </div>
