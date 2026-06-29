@@ -25,6 +25,8 @@ export function PartDetails({
   onProductRefChange,
   shopeeItemId,
   onShopeeItemIdChange,
+  shopeeActive,
+  onShopeeActiveChange,
   refWarning,
   shopeeWarning,
 }: {
@@ -35,6 +37,9 @@ export function PartDetails({
   onProductRefChange: (v: string) => void;
   shopeeItemId: string;
   onShopeeItemIdChange: (v: string) => void;
+  /** "Active on Shopee" (= live/listed on Shopee). Rendered only when a handler is supplied. */
+  shopeeActive?: boolean;
+  onShopeeActiveChange?: (v: boolean) => void;
   /** Optional "already used by …" warnings shown under the matching identifier field. */
   refWarning?: string | null;
   shopeeWarning?: string | null;
@@ -140,6 +145,25 @@ export function PartDetails({
         />
         {warn(shopeeWarning)}
       </label>
+
+      {/* "Active on Shopee" lives with the Shopee ID: it means the product is live/listed on Shopee.
+          Turning it on also makes the product active on-site; off leaves the on-site status as-is. */}
+      {onShopeeActiveChange ? (
+        <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={!!shopeeActive}
+              onChange={(e) => onShopeeActiveChange(e.target.checked)}
+            />
+            <span className="slider" />
+          </span>
+          <span>Active on Shopee</span>
+          <small className="muted" style={{ fontSize: 12 }}>
+            — product is live on Shopee
+          </small>
+        </label>
+      ) : null}
     </div>
   );
 }

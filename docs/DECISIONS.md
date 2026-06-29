@@ -25,6 +25,7 @@ _Last confirmed: 2026-06-22._
 | --- | --- |
 | Product ID | The **Product ID** (`product_ref`, the manufacturer/catalog part no.) is the **sole** product identifier and the barcode source. The old internal `product_code` (`P-…`) was **removed entirely** in migration `0018` — there is no `product_code` column; `product_ref` is `UNIQUE` (app-required, since SQLite can't add NOT NULL in place) and is the variant SKU + CSV-import key. |
 | Barcodes | The owner **scans the manufacturer's box barcode** (confirmed 2026-06-29: those are themselves encodings of the Product ID). When a part ships **without** a barcode, the shop **mints one from the Product ID** (verbatim, rendered as Code 128) — **never a random/internal EAN-13** (that generator was removed). An existing scanned/real barcode is **never overwritten**. Logic: `@l-shopee/core` `resolveProductBarcode` / `deriveBarcodeFromProductId`. |
+| Product status | Two **independent** states: on-site `status` (draft / active / archived) and **live on Shopee** (`shopee_listed`). The editor's **"Active on Shopee"** toggle (next to the Shopee ID) controls Shopee-listed — turning it on also marks the product active on-site; turning it off leaves the on-site status as-is. The products list reflects this as **Listed / Not listed / Pause**. |
 | Variants | Enabled (size / color / scent / bundle / pack quantity). _Assumption — confirm exact variant axes._ |
 | Categorization | By **type**, **brand**, and **usage**. |
 | Images | Upload + reorder; keep originals (compression optional later). |

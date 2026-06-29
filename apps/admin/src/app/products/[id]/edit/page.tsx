@@ -170,7 +170,7 @@ export default function EditProductPage() {
   const [name, setName] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [productRef, setProductRef] = useState("");
-  const [active, setActive] = useState(true);
+  const [shopeeActive, setShopeeActive] = useState(true);
   const [weightKg, setWeightKg] = useState("");
   const [stockQty, setStockQty] = useState("");
   const [attributes, setAttributes] = useState<Attributes | null>(null);
@@ -198,7 +198,7 @@ export default function EditProductPage() {
       usage: d.product.usageName ?? "",
       type: d.product.typeName ?? "",
     });
-    setActive(d.product.status === "active");
+    setShopeeActive(Boolean(d.product.shopeeListed));
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
     setStockQty(String(d.onHand ?? 0));
     setFitments(d.fitments ?? []);
@@ -253,8 +253,10 @@ export default function EditProductPage() {
     try {
       await updateProduct(id, {
         name,
-        status: active ? "active" : "draft",
-        shopeeListed: active, // one "Active" toggle = active on-site AND listed on Shopee
+        // "Active on Shopee" = listed live on Shopee. ON also makes the product active on-site (a
+        // live product can't be a draft); OFF leaves the on-site status unchanged (→ "Not listed").
+        status: shopeeActive ? "active" : (detail?.product.status ?? "active"),
+        shopeeListed: shopeeActive,
         shopeeItemId,
         productRef,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
@@ -424,18 +426,6 @@ export default function EditProductPage() {
               />
             </label>
 
-            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <span className="switch">
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(e) => setActive(e.target.checked)}
-                />
-                <span className="slider" />
-              </span>
-              <span>Active</span>
-            </label>
-
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
               <label style={field}>
                 Stock on hand
@@ -470,6 +460,8 @@ export default function EditProductPage() {
                 onProductRefChange={setProductRef}
                 shopeeItemId={shopeeItemId}
                 onShopeeItemIdChange={setShopeeItemId}
+                shopeeActive={shopeeActive}
+                onShopeeActiveChange={setShopeeActive}
               />
             </div>
 
@@ -508,9 +500,9 @@ export default function EditProductPage() {
               {/* Column 1 — Status & stock, then Part & spec */}
               <div>
                 <div style={groupHead}>Status &amp; stock</div>
-                <Field label="Status">
-                  <span className={active ? "pill on" : "pill off"}>
-                    {active ? "Active" : "Draft"}
+                <Field label="Shopee">
+                  <span className={shopeeActive ? "pill on" : "pill off"}>
+                    {shopeeActive ? "Active on Shopee" : "Not listed"}
                   </span>
                 </Field>
                 <Field label="Stock on hand">
