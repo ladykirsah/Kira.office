@@ -498,32 +498,26 @@ export default function EditProductPage() {
             }}
           >
             <div style={overviewGrid}>
-              {/* Column 1 — Status & stock, then Part & spec */}
+              {/* Column 1 — Part & stock */}
               <div>
-                <div style={groupHead}>Stock</div>
+                <div style={groupHead}>Part &amp; Stock</div>
+                <Field label="Part details">
+                  {partTags.length ? (
+                    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                      {partTags.map((t, i) => (
+                        <span key={i} className="tag">
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </Field>
                 <Field label="Stock on hand">
                   <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
                 </Field>
-
-                <div
-                  style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}
-                >
-                  <div style={groupHead}>Part &amp; spec</div>
-                  <Field label="Part details">
-                    {partTags.length ? (
-                      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-                        {partTags.map((t, i) => (
-                          <span key={i} className="tag">
-                            {t}
-                          </span>
-                        ))}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </Field>
-                  <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
-                </div>
+                <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
               </div>
 
               {/* Column 2 — Identifiers */}
