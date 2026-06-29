@@ -54,7 +54,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   const s = q.trim().toLowerCase();
   const rows = s
     ? byTab.filter(
-        (p) => p.productCode.toLowerCase().includes(s) || p.name.toLowerCase().includes(s),
+        (p) => p.productRef.toLowerCase().includes(s) || p.name.toLowerCase().includes(s),
       )
     : byTab;
 
@@ -275,7 +275,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                               </div>
                             ) : (
                               <div className="muted" style={{ fontSize: 12 }}>
-                                {p.productCode}
+                                {p.productRef}
                               </div>
                             );
                           })()}

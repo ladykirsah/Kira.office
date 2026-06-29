@@ -6,7 +6,7 @@ export { apiBase };
 export interface ProductRow {
   id: string;
   variantId: string | null;
-  productCode: string;
+  productRef: string;
   name: string;
   status: string;
   imageKey: string | null;
@@ -52,7 +52,7 @@ export async function fetchProducts(): Promise<ProductRow[]> {
 }
 
 export interface CreateProductInput {
-  productCode: string;
+  productRef: string;
   name: string;
   description?: string;
   barcode?: string;
@@ -81,7 +81,7 @@ export interface BarcodeLookup {
   barcode: string;
   variantId: string;
   productId: string;
-  productCode: string;
+  productRef: string;
   name: string;
 }
 
@@ -98,7 +98,7 @@ export type IdentifierKind = "ref" | "barcode" | "shopee";
 export interface IdentifierMatch {
   id: string;
   name: string;
-  productCode: string;
+  productRef: string;
   status: string;
 }
 
@@ -292,14 +292,13 @@ export async function updateCarModel(id: string, info: CarModelInfo): Promise<vo
 export interface ProductDetail {
   product: {
     id: string;
-    productCode: string;
     name: string;
     description: string | null;
     status: string;
     imageKey: string | null;
     shopeeListed: number;
     shopeeItemId: string | null;
-    productRef: string | null;
+    productRef: string;
     category: string | null;
     weightGrams: number;
     brandId: string | null;
@@ -556,7 +555,7 @@ export async function archiveProduct(id: string): Promise<void> {
 export interface BarcodeRow {
   variantId: string;
   productId: string;
-  productCode: string;
+  productRef: string;
   productName: string;
   barcode: string | null;
 }

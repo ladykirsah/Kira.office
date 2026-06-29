@@ -7,6 +7,7 @@ import {
   mapRows,
   dedupeOrders,
   orderKey,
+  resolveProductBarcode,
   type RowError,
   type SaleLineInput,
 } from "@l-shopee/core";
@@ -543,7 +544,7 @@ export class StockLedger extends DurableObject<Env> {
 export interface ImportResult {
   /** Data rows seen (excludes the header). */
   received: number;
-  /** Rows that mapped to a valid product (re-import is idempotent on product_code). */
+  /** Rows that mapped to a valid product (re-import is idempotent on the Product ID). */
   valid: number;
   /** Rows skipped for a missing required field. */
   invalid: number;
@@ -552,8 +553,9 @@ export interface ImportResult {
 
 /**
  * Import products from a CSV (e.g. a Google Sheet export). `mapping` maps fields to header columns;
- * `product_code` + `name` are required. Idempotent: INSERT OR IGNORE on the unique product_code, so
- * re-importing the same file does not create duplicates. Variants/barcodes/pricing follow later.
+ * `product_ref` (Product ID) + `name` are required. Idempotent: INSERT OR IGNORE on the unique
+ * product_ref, so re-importing the same file does not create duplicates. Variants/barcodes/pricing
+ * follow later.
  */
 export async function importProducts(
   db: D1Database,
@@ -561,17 +563,17 @@ export async function importProducts(
   mapping: Record<string, string>,
 ): Promise<ImportResult> {
   const rows = parseCsv(csv);
-  const { records, errors } = mapRows(rows, mapping, ["product_code", "name"]);
+  const { records, errors } = mapRows(rows, mapping, ["product_ref", "name"]);
   const now = Date.now();
   const statements = records.map((r) =>
     db
       .prepare(
-        `INSERT OR IGNORE INTO products (id, product_code, name, description, status, created_at)
+        `INSERT OR IGNORE INTO products (id, product_ref, name, description, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         crypto.randomUUID(),
-        r["product_code"] ?? "",
+        r["product_ref"] ?? "",
         r["name"] ?? "",
         r["description"] ?? null,
         "active",
@@ -660,7 +662,8 @@ export async function importShopeeOrders(
 }
 
 export interface CreateProductInput {
-  productCode: string;
+  /** The Product ID (manufacturer/catalog part no.) — the sole product identifier and barcode source. */
+  productRef: string;
   name: string;
   description?: string;
   barcode?: string;
@@ -674,21 +677,21 @@ export interface CreateProductResult {
 }
 
 /**
- * Create a product + a default variant (sku = product_code) and, if a barcode is given, a primary
+ * Create a product + a default variant (sku = Product ID) and, if a barcode is given, a primary
  * barcode — in one D1 batch. Idempotent: returns the existing product (created=false) if the
- * product_code is already used, so no orphan variants are produced. Throws on missing code/name.
+ * Product ID is already used, so no orphan variants are produced. Throws on missing Product ID/name.
  */
 export async function createProduct(
   db: D1Database,
   input: CreateProductInput,
 ): Promise<CreateProductResult> {
-  const code = input.productCode.trim();
+  const ref = input.productRef.trim();
   const name = input.name.trim();
-  if (!code || !name) throw new Error("productCode and name are required");
+  if (!ref || !name) throw new Error("productRef and name are required");
 
   const existing = await db
-    .prepare("SELECT id FROM products WHERE product_code = ?")
-    .bind(code)
+    .prepare("SELECT id FROM products WHERE product_ref = ?")
+    .bind(ref)
     .first<{ id: string }>();
   if (existing) return { productId: existing.id, variantId: null, created: false };
 
@@ -699,14 +702,14 @@ export async function createProduct(
   const statements = [
     db
       .prepare(
-        `INSERT INTO products (id, product_code, name, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO products (id, product_ref, name, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(productId, code, name, input.description?.trim() || null, "active", now),
+      .bind(productId, ref, name, input.description?.trim() || null, "active", now),
     db
       .prepare(
         `INSERT INTO product_variants (id, product_id, sku, barcode_primary, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(variantId, productId, code, barcode || null, "active", now),
+      .bind(variantId, productId, ref, barcode || null, "active", now),
   ];
   if (barcode) {
     statements.push(
@@ -1014,7 +1017,7 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
 /** On-hand stock per variant (ledger sum) with product info, for the stock screen. */
 async function listStock(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_code AS productCode,
+    `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_ref AS productRef,
             COALESCE(SUM(e.quantity_delta), 0) AS onHand
      FROM product_variants v
      JOIN products p ON p.id = v.product_id
@@ -1042,7 +1045,7 @@ async function getTerms(env: Env): Promise<Response> {
 /** Products with the default variant's price (offline + online), on-hand stock, and Shopee status. */
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    `SELECT p.id, p.product_code AS productCode, p.name, p.status, p.image_key AS imageKey,
+    `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
             v.id AS variantId,
             b.name AS brandName,
@@ -1194,7 +1197,7 @@ export interface BarcodeLookup {
   barcode: string;
   variantId: string;
   productId: string;
-  productCode: string;
+  productRef: string;
   name: string;
 }
 
@@ -1205,7 +1208,7 @@ export async function lookupBarcode(db: D1Database, code: string): Promise<Barco
       `SELECT b.barcode_value AS barcode,
               v.id AS variantId,
               p.id AS productId,
-              p.product_code AS productCode,
+              p.product_ref AS productRef,
               p.name AS name
        FROM barcodes b
        JOIN product_variants v ON v.id = b.product_variant_id
@@ -1228,21 +1231,18 @@ export function ean13CheckDigit(digits12: string): string {
   return String((10 - (sum % 10)) % 10);
 }
 
-/** Generate an internal EAN-13 barcode (prefix 200 = in-store range) for unlabeled products. */
-export function generateInternalBarcode(): string {
-  let body = "200";
-  const rnd = crypto.getRandomValues(new Uint8Array(9));
-  for (let i = 0; i < 9; i++) body += String(rnd[i]! % 10);
-  return body + ean13CheckDigit(body);
-}
-
 export interface AddBarcodeResult {
   barcodeValue: string;
   generated: boolean;
   variantId: string | null;
 }
 
-/** Add a barcode to a product's default variant (generating an internal one if none provided). */
+/**
+ * Add a barcode to a product's default variant. A provided/scanned manufacturer code is kept as-is;
+ * when none is given the barcode is *derived from the product's Product ID* (the owner's policy — see
+ * @l-shopee/core resolveProductBarcode). A product with neither a code nor a Product ID gets no
+ * barcode (no-op) rather than a random one.
+ */
 export async function addBarcodeToProduct(
   db: D1Database,
   productId: string,
@@ -1256,8 +1256,18 @@ export async function addBarcodeToProduct(
     .first<{ id: string; barcodePrimary: string | null }>();
   if (!variant) return { barcodeValue: "", generated: false, variantId: null };
 
-  const generated = !providedValue?.trim();
-  const barcodeValue = providedValue?.trim() || generateInternalBarcode();
+  const provided = providedValue?.trim() ?? "";
+  const refRow = await db
+    .prepare("SELECT product_ref AS productRef FROM products WHERE id = ? LIMIT 1")
+    .bind(productId)
+    .first<{ productRef: string | null }>();
+  const productRef = refRow?.productRef?.trim() ?? "";
+  // No provided code and no Product ID to derive from → nothing to make.
+  if (!provided && !productRef)
+    return { barcodeValue: "", generated: false, variantId: variant.id };
+
+  const generated = !provided;
+  const barcodeValue = resolveProductBarcode({ productId: productRef, scannedBarcode: provided });
   const now = Date.now();
   const statements = [
     db
@@ -1287,7 +1297,7 @@ export async function addBarcodeToProduct(
 /** Variants with their primary barcode + product info, for the barcode-management screen. */
 async function listBarcodes(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    `SELECT v.id AS variantId, p.id AS productId, p.product_code AS productCode,
+    `SELECT v.id AS variantId, p.id AS productId, p.product_ref AS productRef,
             p.name AS productName, v.barcode_primary AS barcode
      FROM product_variants v JOIN products p ON p.id = v.product_id
      ORDER BY p.name LIMIT 500`,
@@ -1312,14 +1322,13 @@ export interface Fitment {
 export interface ProductDetail {
   product: {
     id: string;
-    productCode: string;
     name: string;
     description: string | null;
     status: string;
     imageKey: string | null;
     shopeeListed: number;
     shopeeItemId: string | null;
-    productRef: string | null;
+    productRef: string;
     category: string | null;
     weightGrams: number;
     brandId: string | null;
@@ -1349,8 +1358,8 @@ export interface ProductDetail {
 export async function getProductDetail(db: D1Database, id: string): Promise<ProductDetail | null> {
   const product = await db
     .prepare(
-      `SELECT p.id, p.product_code AS productCode, p.name, p.description, p.status, p.image_key AS imageKey,
-              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId, p.product_ref AS productRef,
+      `SELECT p.id, p.product_ref AS productRef, p.name, p.description, p.status, p.image_key AS imageKey,
+              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId,
               p.category, p.weight_grams AS weightGrams,
               p.brand_id AS brandId, b.name AS brandName,
               p.type_id AS typeId, t.name AS typeName,
@@ -2032,19 +2041,19 @@ const worker = {
       let match: unknown = null;
       if (kind === "ref") {
         match = await env.DB.prepare(
-          "SELECT id, name, product_code AS productCode, status FROM products WHERE product_ref = ? COLLATE NOCASE LIMIT 1",
+          "SELECT id, name, product_ref AS productRef, status FROM products WHERE product_ref = ? COLLATE NOCASE LIMIT 1",
         )
           .bind(value)
           .first();
       } else if (kind === "shopee") {
         match = await env.DB.prepare(
-          "SELECT id, name, product_code AS productCode, status FROM products WHERE shopee_item_id = ? COLLATE NOCASE LIMIT 1",
+          "SELECT id, name, product_ref AS productRef, status FROM products WHERE shopee_item_id = ? COLLATE NOCASE LIMIT 1",
         )
           .bind(value)
           .first();
       } else if (kind === "barcode") {
         match = await env.DB.prepare(
-          "SELECT p.id, p.name, p.product_code AS productCode, p.status FROM barcodes b JOIN product_variants v ON v.id = b.product_variant_id JOIN products p ON p.id = v.product_id WHERE b.barcode_value = ? LIMIT 1",
+          "SELECT p.id, p.name, p.product_ref AS productRef, p.status FROM barcodes b JOIN product_variants v ON v.id = b.product_variant_id JOIN products p ON p.id = v.product_id WHERE b.barcode_value = ? LIMIT 1",
         )
           .bind(value)
           .first();
@@ -2317,8 +2326,8 @@ const worker = {
 
     if (url.pathname === "/products" && request.method === "POST") {
       const body = (await request.json()) as Partial<CreateProductInput>;
-      if (!body?.productCode || !body?.name) {
-        return json({ error: "productCode and name are required" }, 400);
+      if (!body?.productRef || !body?.name) {
+        return json({ error: "productRef and name are required" }, 400);
       }
       return json(await createProduct(env.DB, body as CreateProductInput), 201);
     }

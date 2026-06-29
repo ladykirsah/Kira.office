@@ -23,7 +23,7 @@ export default async function BarcodesPage() {
   const barcodeByProduct = new Map(barcodes.map((b) => [b.productId, b.barcode]));
   const studioProducts: StudioProduct[] = products.map((p) => ({
     id: p.id,
-    code: p.productCode,
+    code: p.productRef,
     name: p.name,
     imageKey: p.imageKey,
     tags: [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t),

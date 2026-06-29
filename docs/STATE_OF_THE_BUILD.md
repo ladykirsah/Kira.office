@@ -91,6 +91,17 @@ settings pages. Migrations `0009`–`0012` back these.
 - **Money → integer satang** in D1; convert at the persistence boundary (`Math.round(thb*100)`).
   `packages/core` computes in THB decimals. Rates → **basis points** (7% → `700`).
 - **Timestamps → integer epoch ms (UTC)**, rendered Asia/Bangkok at the edges.
+- **Product ID is the single identifier; the barcode is made from it** (2026-06-29). `product_ref`
+  (the "Product ID") is the SOLE identifier (variant SKU + CSV-import key) and the barcode source. The
+  owner scans manufacturer box barcodes; a part without one gets a **Code-128 barcode minted from its
+  Product ID** — no random internal EAN-13 (that generator was removed), and a real scanned barcode is
+  never overwritten. Core helper: `resolveProductBarcode`. **Done:** core rule, API
+  (`createProduct`/`importProducts`/`addBarcodeToProduct` + all reads now key on `product_ref`), the
+  Add **and** Edit flows (Product ID required, barcode auto-created when blank, live preview + hint),
+  and **migration `0018`** which backfills `product_ref`, makes it `UNIQUE`, and **drops the
+  `product_code` column** (applied to local D1; **[OWNER]** applies to prod + staging at deploy —
+  fails loudly if duplicate Product IDs exist; rollback = re-add the column or restore the daily
+  backup).
 - Schema lives in **two places that must stay in sync**: the SQL files in
   `packages/db/migrations/` (the applied DDL) and `packages/db/src/schema.ts` (Drizzle shapes).
   The Worker does **not** use the Drizzle query builder at runtime — it runs raw `db.prepare(...)`

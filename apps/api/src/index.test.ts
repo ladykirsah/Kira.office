@@ -9,7 +9,6 @@ import worker, {
   deleteGalleryImage,
   ean13CheckDigit,
   entityFromPath,
-  generateInternalBarcode,
   getProductDetail,
   setVariantPricing,
   setVariantBarcode,
@@ -65,6 +64,7 @@ function makeDb(canned: {
   barcode?: unknown | null;
   productDetail?: unknown | null;
   variantRow?: unknown | null;
+  productRef?: { productRef: string | null } | null;
   pricingRow?: unknown | null;
   images?: unknown[];
   brands?: unknown[];
@@ -140,6 +140,10 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("SELECT product_ref AS productRef"))
+          return (canned.productRef ?? null) as T | null;
+        if (sql.includes("SELECT id FROM products WHERE product_ref"))
+          return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("product_ref =") || sql.includes("shopee_item_id ="))
           return (canned.identifierMatch ?? null) as T | null;
         if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
@@ -151,8 +155,6 @@ function makeDb(canned: {
           return (canned.financeSales ?? null) as T | null;
         if (sql.includes("FROM onsite_sales WHERE id"))
           return (canned.saleHeader ?? null) as T | null;
-        if (sql.includes("FROM products WHERE product_code"))
-          return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("FROM products p")) return (canned.productDetail ?? null) as T | null;
         if (sql.includes("COLLATE NOCASE")) return (canned.attrOption ?? null) as T | null;
         if (sql.includes("FROM product_variants WHERE product_id"))
@@ -285,7 +287,7 @@ describe("api worker routes", () => {
     const row = {
       id: "p1",
       variantId: "v1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
       status: "active",
       brandName: "DENSO",
@@ -302,7 +304,7 @@ describe("api worker routes", () => {
   });
 
   it("GET /products/identifier-check > finds a product (any status) using the id", async () => {
-    const match = { id: "p9", name: "Old part", productCode: "OLD-1", status: "archived" };
+    const match = { id: "p9", name: "Old part", productRef: "OLD-1", status: "archived" };
     const { env } = makeDb({ identifierMatch: match });
     const res = await worker.fetch!(
       new Request("https://x/products/identifier-check?kind=ref&value=DI-1"),
@@ -339,7 +341,7 @@ describe("api worker routes", () => {
 
   it("GET /stock > reads on-hand per variant from D1", async () => {
     const stock = [
-      { variantId: "v1", sku: "S1", productName: "Cream", productCode: "C1", onHand: 20 },
+      { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },
     ];
     const { env } = makeDb({ stock });
     const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
@@ -381,7 +383,7 @@ describe("api worker routes", () => {
 
   it("GET /barcodes > lists variants with barcodes", async () => {
     const barcodes = [
-      { variantId: "v1", productId: "p1", productCode: "C1", productName: "Cream", barcode: "885" },
+      { variantId: "v1", productId: "p1", productRef: "C1", productName: "Cream", barcode: "885" },
     ];
     const { env } = makeDb({ barcodes });
     const res = await worker.fetch!(new Request("https://x/barcodes"), env, ctx);
@@ -485,7 +487,7 @@ describe("api worker routes", () => {
       barcode: "885",
       variantId: "v1",
       productId: "p1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
     };
     const { env } = makeDb({ barcode: hit });
@@ -852,9 +854,9 @@ describe("importProducts (CSV catalog import)", () => {
     const { db, batched } = makeDb({});
     const out = await importProducts(
       db,
-      "product_code,name,description\nC1,Cream,Nice\nC2,,Oops\n",
+      "product_ref,name,description\nC1,Cream,Nice\nC2,,Oops\n",
       {
-        product_code: "product_code",
+        product_ref: "product_ref",
         name: "name",
         description: "description",
       },
@@ -905,7 +907,7 @@ describe("lineGrossProfitSatang", () => {
 describe("createProduct", () => {
   it("creates a product + default variant", async () => {
     const { db, batched } = makeDb({ existingProduct: null });
-    const out = await createProduct(db, { productCode: "P1", name: "Cream" });
+    const out = await createProduct(db, { productRef: "P1", name: "Cream" });
     expect(out.created).toBe(true);
     expect(out.variantId).not.toBeNull();
     expect(batched.length).toBe(2); // product + variant
@@ -913,21 +915,21 @@ describe("createProduct", () => {
 
   it("also inserts a barcode row when a barcode is given", async () => {
     const { db, batched } = makeDb({ existingProduct: null });
-    const out = await createProduct(db, { productCode: "P2", name: "Serum", barcode: "8850001" });
+    const out = await createProduct(db, { productRef: "P2", name: "Serum", barcode: "8850001" });
     expect(out.created).toBe(true);
     expect(batched.length).toBe(3); // product + variant + barcode
   });
 
   it("is idempotent: returns the existing product without inserting", async () => {
     const { db, batched } = makeDb({ existingProduct: { id: "existing-1" } });
-    const out = await createProduct(db, { productCode: "P1", name: "Cream" });
+    const out = await createProduct(db, { productRef: "P1", name: "Cream" });
     expect(out).toEqual({ productId: "existing-1", variantId: null, created: false });
     expect(batched.length).toBe(0);
   });
 
   it("rejects a missing required field", async () => {
     const { db } = makeDb({});
-    await expect(createProduct(db, { productCode: "", name: "X" })).rejects.toThrow(/required/);
+    await expect(createProduct(db, { productRef: "", name: "X" })).rejects.toThrow(/required/);
   });
 });
 
@@ -974,7 +976,7 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
   it("returns product + default variant + pricing", async () => {
     const product = {
       id: "p1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
       description: "d",
       status: "active",
@@ -1265,25 +1267,34 @@ describe("barcodes", () => {
     expect(ean13CheckDigit("978014300723")).toBe("4");
   });
 
-  it("generateInternalBarcode is a self-consistent 13-digit 200-prefixed code", () => {
-    const bc = generateInternalBarcode();
-    expect(bc).toHaveLength(13);
-    expect(bc.startsWith("200")).toBe(true);
-    expect(ean13CheckDigit(bc.slice(0, 12))).toBe(bc[12]);
-  });
-
-  it("addBarcodeToProduct generates + sets primary when none exists", async () => {
-    const { db, batched } = makeDb({ variantRow: { id: "v1", barcodePrimary: null } });
+  it("addBarcodeToProduct derives the barcode from the product's Product ID when none is given", async () => {
+    const { db, batched } = makeDb({
+      variantRow: { id: "v1", barcodePrimary: null },
+      productRef: { productRef: "AC-CMP-VIOS14" },
+    });
     const out = await addBarcodeToProduct(db, "p1");
     expect(out.generated).toBe(true);
+    expect(out.barcodeValue).toBe("AC-CMP-VIOS14");
     expect(out.variantId).toBe("v1");
     expect(batched.length).toBe(2); // insert barcode + set primary
   });
 
-  it("addBarcodeToProduct adds a provided code without overwriting the primary", async () => {
+  it("addBarcodeToProduct makes no barcode when the product has no Product ID and none is given", async () => {
+    const { db, batched } = makeDb({
+      variantRow: { id: "v1", barcodePrimary: null },
+      productRef: { productRef: null },
+    });
+    const out = await addBarcodeToProduct(db, "p1");
+    expect(out.generated).toBe(false);
+    expect(out.barcodeValue).toBe("");
+    expect(batched.length).toBe(0);
+  });
+
+  it("addBarcodeToProduct keeps a provided/scanned code without overwriting the primary", async () => {
     const { db, batched } = makeDb({ variantRow: { id: "v1", barcodePrimary: "111" } });
     const out = await addBarcodeToProduct(db, "p1", "8850000000000");
     expect(out.generated).toBe(false);
+    expect(out.barcodeValue).toBe("8850000000000");
     expect(batched.length).toBe(1);
   });
 });
@@ -1294,7 +1305,7 @@ describe("lookupBarcode", () => {
       barcode: "885",
       variantId: "v1",
       productId: "p1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
     };
     const { db } = makeDb({ barcode: hit });

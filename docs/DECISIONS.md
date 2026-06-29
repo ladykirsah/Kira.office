@@ -23,7 +23,8 @@ _Last confirmed: 2026-06-22._
 
 | Topic | Decision |
 | --- | --- |
-| Barcodes | Most products **already have barcodes** (EAN/UPC). Scan existing codes as primary; generate an internal barcode **only when a product has none**. |
+| Product ID | The **Product ID** (`product_ref`, the manufacturer/catalog part no.) is the **sole** product identifier and the barcode source. The old internal `product_code` (`P-…`) was **removed entirely** in migration `0018` — there is no `product_code` column; `product_ref` is `UNIQUE` (app-required, since SQLite can't add NOT NULL in place) and is the variant SKU + CSV-import key. |
+| Barcodes | The owner **scans the manufacturer's box barcode** (confirmed 2026-06-29: those are themselves encodings of the Product ID). When a part ships **without** a barcode, the shop **mints one from the Product ID** (verbatim, rendered as Code 128) — **never a random/internal EAN-13** (that generator was removed). An existing scanned/real barcode is **never overwritten**. Logic: `@l-shopee/core` `resolveProductBarcode` / `deriveBarcodeFromProductId`. |
 | Variants | Enabled (size / color / scent / bundle / pack quantity). _Assumption — confirm exact variant axes._ |
 | Categorization | By **type**, **brand**, and **usage**. |
 | Images | Upload + reorder; keep originals (compression optional later). |

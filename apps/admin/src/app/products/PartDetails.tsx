@@ -128,13 +128,20 @@ export function PartDetails({
           <input
             value={barcode}
             onChange={(e) => onBarcodeChange(e.target.value)}
-            placeholder="scan / type"
+            placeholder="scan / type — or leave blank to use the Product ID"
             style={inputL}
           />
           {warn(barcodeWarning)}
+          {/* No barcode scanned → it's auto-created from the Product ID (Code 128). */}
+          {!barcode.trim() && productRef.trim() ? (
+            <small className="muted" style={{ fontSize: 12 }}>
+              Auto-created from Product ID — scan a manufacturer barcode to override.
+            </small>
+          ) : null}
         </label>
-        {/* A barcode already used by another product can't be reused — hide its preview. */}
-        {barcodeWarning ? null : <BarcodePreview value={barcode} />}
+        {/* Preview the scanned barcode, else the one auto-created from the Product ID. A barcode
+            already used by another product can't be reused — hide its preview. */}
+        {barcodeWarning ? null : <BarcodePreview value={barcode.trim() || productRef.trim()} />}
       </div>
 
       <label style={field}>

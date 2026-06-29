@@ -247,6 +247,10 @@ export default function EditProductPage() {
 
   async function save(e?: FormEvent) {
     e?.preventDefault();
+    if (!productRef.trim()) {
+      toast("Product ID is required", "error");
+      return;
+    }
     setBusy(true);
     try {
       await updateProduct(id, {
@@ -256,7 +260,8 @@ export default function EditProductPage() {
         shopeeItemId,
         productRef,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
-        barcode,
+        // No barcode entered → auto-create one from the Product ID (a real/scanned barcode is kept).
+        barcode: barcode.trim() || productRef.trim(),
         brandName: part.brand,
         usageName: part.usage,
         typeName: part.type,
@@ -392,7 +397,7 @@ export default function EditProductPage() {
         </div>
       </div>
       <p className="muted" style={{ marginTop: 4 }}>
-        {p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productCode}
+        {p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
       </p>
 
       {editing ? (

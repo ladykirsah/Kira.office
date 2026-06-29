@@ -53,7 +53,6 @@ export const taxProfiles = sqliteTable("tax_profiles", {
 
 export const products = sqliteTable("products", {
   id: id(),
-  productCode: text("product_code").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
   typeId: text("type_id"),
@@ -66,8 +65,10 @@ export const products = sqliteTable("products", {
   // Shopee item id for linking this product to its Shopee listing (own category is separate).
   shopeeItemId: text("shopee_item_id"),
   defaultTermsPatternId: text("default_terms_pattern_id"),
-  // Manufacturer/catalog product id that ships with some parts (e.g. "DI446610-1710").
-  productRef: text("product_ref"),
+  // The Product ID: the manufacturer/catalog part no. (e.g. "DI446610-1710"). The SOLE product
+  // identifier (the old internal product_code was removed in migration 0018) and the barcode source.
+  // App-enforced required; unique via products_product_ref_unique.
+  productRef: text("product_ref").notNull().unique(),
   category: text("category"),
   weightGrams: integer("weight_grams").notNull().default(0),
   createdAt: createdAt(),

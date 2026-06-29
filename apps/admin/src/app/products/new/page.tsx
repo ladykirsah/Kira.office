@@ -34,7 +34,7 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
       try {
         const m = await checkIdentifier(kind, v);
         if (!cancelled) {
-          setWarn(m ? `Already used by “${m.name}” (${m.productCode} · ${m.status})` : null);
+          setWarn(m ? `Already used by “${m.name}” (${m.productRef} · ${m.status})` : null);
         }
       } catch {
         if (!cancelled) setWarn(null);
@@ -95,12 +95,14 @@ export default function NewProductPage() {
       toast("Enter a product name first", "error");
       return null;
     }
-    // Product code is auto-generated (not a form field); it only needs to be unique.
-    const productCode = `P-${Date.now().toString(36).toUpperCase()}${Math.random()
-      .toString(36)
-      .slice(2, 4)
-      .toUpperCase()}`;
-    const out = await createProduct({ productCode, name });
+    // The Product ID is the single product identifier: it is the product code (SKU) and the source
+    // of the barcode. No separate auto-generated code.
+    const code = productRef.trim();
+    if (!code) {
+      toast("Enter a Product ID first", "error");
+      return null;
+    }
+    const out = await createProduct({ productRef: code, name });
     if (!out.created) {
       toast("Could not create the product — please try again", "error");
       return null;
@@ -124,7 +126,8 @@ export default function NewProductPage() {
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
         productRef: productRef || undefined,
-        barcode: barcode || undefined,
+        // No barcode entered → auto-create one from the Product ID (a real/scanned barcode is kept).
+        barcode: barcode.trim() || productRef.trim(),
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,

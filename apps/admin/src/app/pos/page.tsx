@@ -51,7 +51,7 @@ interface SaleLine {
   name: string;
   productVariantId?: string | null;
   barcodeValue?: string;
-  productCode?: string;
+  productRef?: string;
   tags?: string[]; // part detail tags (brand · system · part name)
   quantity: number;
   unitPriceSatang: number;
@@ -934,7 +934,7 @@ export default function PosPage() {
         for (const b of bs)
           if (b.barcode) {
             byBarcode.set(b.barcode, b.productId);
-            byCode.set(b.productCode, b.barcode);
+            byCode.set(b.productRef, b.barcode);
           }
         setBarcodeToProductId(byBarcode);
         setCodeToBarcode(byCode);
@@ -1035,14 +1035,14 @@ export default function PosPage() {
   // Product search (fallback when a barcode/sticker is unreadable) — filter the loaded catalogue,
   // and hide anything already in the cart (matched by variant, falling back to product code).
   const inCart = new Set(
-    lines.filter((l) => l.kind === "part").map((l) => l.productVariantId ?? l.productCode),
+    lines.filter((l) => l.kind === "part").map((l) => l.productVariantId ?? l.productRef),
   );
   const searchResults = (() => {
     const q = searchQ.trim().toLowerCase();
     if (!q) return [] as ProductRow[];
     return products
-      .filter((p) => p.name.toLowerCase().includes(q) || p.productCode.toLowerCase().includes(q))
-      .filter((p) => !inCart.has(p.variantId ?? p.productCode))
+      .filter((p) => p.name.toLowerCase().includes(q) || p.productRef.toLowerCase().includes(q))
+      .filter((p) => !inCart.has(p.variantId ?? p.productRef))
       .slice(0, 8);
   })();
   const tierPrice = (p: ProductRow): number => p.offlinePriceSatang || 0;
@@ -1066,7 +1066,7 @@ export default function PosPage() {
 
   function addProductLine(p: ProductRow, barcodeValue?: string) {
     const tags = [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t);
-    const barcode = barcodeValue ?? codeToBarcode.get(p.productCode);
+    const barcode = barcodeValue ?? codeToBarcode.get(p.productRef);
     const b2c = p.offlinePriceSatang || 0;
     const b2b = p.b2bPriceSatang || b2c; // fall back to retail when no wholesale price is set
     setLines((ls) => {
@@ -1082,7 +1082,7 @@ export default function PosPage() {
           name: p.name,
           productVariantId: p.variantId,
           barcodeValue: barcode,
-          productCode: p.productCode,
+          productRef: p.productRef,
           tags,
           quantity: 1,
           unitPriceSatang: b2c,
@@ -1145,7 +1145,7 @@ export default function PosPage() {
           name: found.name,
           productVariantId: found.variantId,
           barcodeValue: v,
-          productCode: found.productCode,
+          productRef: found.productRef,
           tags,
           quantity: 1,
           unitPriceSatang: b2c,
@@ -1167,7 +1167,7 @@ export default function PosPage() {
   function addByCode() {
     const v = codeVal.trim().toLowerCase();
     if (!v) return;
-    const p = products.find((x) => x.productCode.toLowerCase() === v);
+    const p = products.find((x) => x.productRef.toLowerCase() === v);
     if (!p) {
       toast(`No product with code “${codeVal.trim()}”.`, "error");
       return;
@@ -1497,7 +1497,7 @@ export default function PosPage() {
                                   {p.name}
                                 </span>
                                 <span className="muted" style={{ fontSize: 12 }}>
-                                  {p.productCode}
+                                  {p.productRef}
                                 </span>
                               </span>
                               <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>
@@ -1572,7 +1572,7 @@ export default function PosPage() {
                   <CartItem
                     key={l.uid}
                     line={l}
-                    barcode={l.barcodeValue || codeToBarcode.get(l.productCode ?? "")}
+                    barcode={l.barcodeValue || codeToBarcode.get(l.productRef ?? "")}
                     onQty={(quantity) => updateLine(l.uid, { quantity })}
                     onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
                     onTier={(t) => setLineTier(l.uid, t)}
