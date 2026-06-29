@@ -1427,7 +1427,7 @@ export default function PosPage() {
           {/* Only these 3 groups scroll; the rest of the page is frozen (wide screens). */}
           <div className="pos-groups-scroll">
             {/* ── Step 1 · Setup — document type, paper, language ── */}
-            <div className="pos-step-group">
+            <div id="pos-group-1" className="pos-step-group">
               <StepHead n={1} label="Setup" />
               <div style={card}>
                 {/* Document type — Cash bill vs Quotation */}
@@ -1528,7 +1528,7 @@ export default function PosPage() {
             </div>
 
             {/* ── Step 2 · Info — date + vehicle ── */}
-            <div className="pos-step-group">
+            <div id="pos-group-2" className="pos-step-group">
               <StepHead n={2} label="Info" />
               <div style={card}>
                 {/* Date */}
@@ -1611,7 +1611,7 @@ export default function PosPage() {
             </div>
 
             {/* ── Step 3 · Items — add items, cart, discount ── */}
-            <div className="pos-step-group">
+            <div id="pos-group-3" className="pos-step-group">
               <StepHead n={3} label="Items" />
               <div style={card}>
                 {/* Add item — Product / Service toggle switches the workspace */}
