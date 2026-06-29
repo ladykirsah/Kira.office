@@ -1447,7 +1447,7 @@ export default function PosPage() {
             </div>
 
             {/* Vehicle — brand → model → year + plate */}
-            <div>
+            <div style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}>
               <div style={fieldLabel}>Vehicle</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <select
