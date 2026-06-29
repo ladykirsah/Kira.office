@@ -1291,9 +1291,7 @@ export default function PosPage() {
   }
 
   return (
-    // container-type lets the bill column react to its OWN available width (not the viewport),
-    // so the wide Invoice bill can stack under the builder when its column would be < 500px.
-    <main style={{ containerType: "inline-size" }}>
+    <main>
       <h1>Point of Sale</h1>
       {pending > 0 && (
         <p style={{ color: "var(--warn)" }} className="bill-no-print">
@@ -1308,7 +1306,7 @@ export default function PosPage() {
           gap: 20,
           alignItems: "start",
         }}
-        className={`pos-grid${billStyle === "invoice" ? " pos-grid--bill-wide" : ""}`}
+        className="pos-grid"
       >
         {/* ---- LEFT: build the sale ---- */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 528 }}>

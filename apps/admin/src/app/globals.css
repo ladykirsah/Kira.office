@@ -1140,16 +1140,6 @@ a.card:hover {
   }
 }
 
-/* The Invoice bill is a wide table — when its column would drop below 500px, stack it under the
-   builder (the Items section) instead of cramming it into the side slot. Driven by the POS <main>
-   container width (= 528px builder + 20px gap + 500px bill = 1048px), so it's accurate regardless
-   of the sidebar/viewport. The narrow Receipt keeps the 900px rule above. */
-@container (max-width: 1047px) {
-  .pos-grid.pos-grid--bill-wide {
-    grid-template-columns: 1fr !important;
-  }
-}
-
 /* ---- Point of Sale: bill document ---- */
 .bill-doc {
   background: #ffffff;
