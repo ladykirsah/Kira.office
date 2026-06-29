@@ -1582,11 +1582,9 @@ export default function PosPage() {
               </div>
             )}
           </div>
-        </div>
 
-        {/* ---- RIGHT: bill ---- */}
-        <div style={{ position: "sticky", top: 16 }}>
-          {/* Document type — big toggle above the preview (not printed) */}
+          {/* Bill options (moved from the bill column — final order TBD) */}
+          {/* Document type — Cash bill vs Quotation */}
           <div className="bill-no-print" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             {(["bill", "quotation"] as DocType[]).map((d) => {
               const active = docType === d;
@@ -1618,6 +1616,106 @@ export default function PosPage() {
             })}
           </div>
 
+          {/* Paper — Invoice vs Receipt */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+              Paper
+            </span>
+            {(["invoice", "thermal"] as BillStyle[]).map((s) => {
+              const active = billStyle === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setBillStyle(s)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 999,
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    background: active ? "var(--primary-soft)" : "var(--surface)",
+                    color: active ? "var(--primary)" : "var(--text-muted)",
+                    fontWeight: active ? 600 : 500,
+                    fontSize: 12.5,
+                    cursor: "pointer",
+                    minHeight: 0,
+                  }}
+                >
+                  {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Language — Thai is the default */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+              Language
+            </span>
+            {(["th", "en"] as BillLang[]).map((l) => {
+              const active = billLang === l;
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setBillLang(l)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 999,
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    background: active ? "var(--primary-soft)" : "var(--surface)",
+                    color: active ? "var(--primary)" : "var(--text-muted)",
+                    fontWeight: active ? 600 : 500,
+                    fontSize: 12.5,
+                    cursor: "pointer",
+                    minHeight: 0,
+                  }}
+                >
+                  {l === "th" ? "ไทย" : "English"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Discount — ฿ or % off the whole bill */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+              Discount
+            </span>
+            <input
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+              style={{ flex: 1, ...inputS }}
+            />
+            {(["thb", "pct"] as DiscountKind[]).map((k) => {
+              const active = discountKind === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setDiscountKind(k)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    background: active ? "var(--primary-soft)" : "var(--surface)",
+                    color: active ? "var(--primary)" : "var(--text)",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    minHeight: 0,
+                  }}
+                >
+                  {k === "thb" ? "฿" : "%"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ---- RIGHT: bill (preview + note + actions only) ---- */}
+        <div style={{ position: "sticky", top: 16 }}>
           <div className="bill-print">
             <BillDoc
               billStyle={billStyle}
@@ -1635,103 +1733,8 @@ export default function PosPage() {
             />
           </div>
 
-          {/* Controls (not printed) — paper, note, actions */}
+          {/* Controls (not printed) — note + actions */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                Paper
-              </span>
-              {(["invoice", "thermal"] as BillStyle[]).map((s) => {
-                const active = billStyle === s;
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setBillStyle(s)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 999,
-                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                      background: active ? "var(--primary-soft)" : "var(--surface)",
-                      color: active ? "var(--primary)" : "var(--text-muted)",
-                      fontWeight: active ? 600 : 500,
-                      fontSize: 12.5,
-                      cursor: "pointer",
-                      minHeight: 0,
-                    }}
-                  >
-                    {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Language — which language the bill prints in (Thai is the default) */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                Language
-              </span>
-              {(["th", "en"] as BillLang[]).map((l) => {
-                const active = billLang === l;
-                return (
-                  <button
-                    key={l}
-                    type="button"
-                    onClick={() => setBillLang(l)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 999,
-                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                      background: active ? "var(--primary-soft)" : "var(--surface)",
-                      color: active ? "var(--primary)" : "var(--text-muted)",
-                      fontWeight: active ? 600 : 500,
-                      fontSize: 12.5,
-                      cursor: "pointer",
-                      minHeight: 0,
-                    }}
-                  >
-                    {l === "th" ? "ไทย" : "English"}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Discount — ฿ or % off the whole bill */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                Discount
-              </span>
-              <input
-                value={discountValue}
-                onChange={(e) => setDiscountValue(e.target.value)}
-                inputMode="decimal"
-                placeholder="0"
-                style={{ flex: 1, ...inputS }}
-              />
-              {(["thb", "pct"] as DiscountKind[]).map((k) => {
-                const active = discountKind === k;
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setDiscountKind(k)}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 8,
-                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                      background: active ? "var(--primary-soft)" : "var(--surface)",
-                      color: active ? "var(--primary)" : "var(--text)",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      cursor: "pointer",
-                      minHeight: 0,
-                    }}
-                  >
-                    {k === "thb" ? "฿" : "%"}
-                  </button>
-                );
-              })}
-            </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
