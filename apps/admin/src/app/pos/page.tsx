@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   lookupBarcode,
   fetchProducts,
@@ -173,10 +173,20 @@ function Tab({
   );
 }
 
-/** Numbered group heading for the POS builder steps (Setup → Info → Items). */
+/** Numbered group heading for the POS builder steps (Setup → Info → Items). Also a scroll anchor
+ *  (`pos-step-<n>`) the StepTimeline jumps to; scrollMarginTop clears the 56px sticky topbar. */
 function StepHead({ n, label }: { n: number; label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: n === 1 ? 0 : 8 }}>
+    <div
+      id={`pos-step-${n}`}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 9,
+        marginTop: n === 1 ? 0 : 8,
+        scrollMarginTop: 68,
+      }}
+    >
       <span
         style={{
           display: "inline-flex",
@@ -195,6 +205,80 @@ function StepHead({ n, label }: { n: number; label: string }) {
         {n}
       </span>
       <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{label}</span>
+    </div>
+  );
+}
+
+/** Clickable horizontal step timeline at the top of the POS builder — jumps to each group. */
+const POS_STEPS = [
+  { n: 1, label: "Setup" },
+  { n: 2, label: "Info" },
+  { n: 3, label: "Items" },
+] as const;
+
+function StepTimeline() {
+  const go = (n: number) =>
+    document
+      .getElementById(`pos-step-${n}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        paddingBottom: 12,
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      {POS_STEPS.map((s, i) => (
+        <Fragment key={s.n}>
+          <button
+            type="button"
+            onClick={() => go(s.n)}
+            title={`Go to ${s.label}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              background: "none",
+              border: 0,
+              padding: 0,
+              cursor: "pointer",
+              minHeight: 0,
+              flex: "0 0 auto",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 24,
+                height: 24,
+                borderRadius: 999,
+                background: "var(--primary)",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {s.n}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{s.label}</span>
+          </button>
+          {i < POS_STEPS.length - 1 && (
+            <div
+              style={{
+                flex: 1,
+                height: 2,
+                borderRadius: 2,
+                background: "var(--border)",
+                margin: "0 10px",
+              }}
+            />
+          )}
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -1356,6 +1440,8 @@ export default function PosPage() {
       >
         {/* ---- LEFT: build the sale ---- */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 528 }}>
+          {/* Clickable step timeline — jump to a group */}
+          <StepTimeline />
           {/* ── Step 1 · Setup — document type, paper, language ── */}
           <StepHead n={1} label="Setup" />
           <div style={card}>
