@@ -39,7 +39,7 @@ import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
 
 type SaleType = "parts" | "repair";
-type AddKind = "product" | "service";
+type AddKind = "product" | "service" | "addon";
 type AddMethod = "scan" | "code" | "search";
 type LineKind = "part" | "service";
 type PriceTier = "retail" | "wholesale";
@@ -933,6 +933,10 @@ export default function PosPage() {
   const [codeVal, setCodeVal] = useState("");
   const [searchQ, setSearchQ] = useState("");
 
+  // Add-on (one-off custom line) inputs
+  const [addonName, setAddonName] = useState("");
+  const [addonPrice, setAddonPrice] = useState("");
+
   // Bill pricing options
   const [discountKind, setDiscountKind] = useState<DiscountKind>("thb");
   const [discountValue, setDiscountValue] = useState("");
@@ -1238,6 +1242,20 @@ export default function PosPage() {
     setManualName("");
   }
 
+  /** Add a one-off custom line (name + price) not in the catalog. No stock is touched. */
+  function addAddon() {
+    const name = addonName.trim();
+    if (!name) return;
+    const price = Math.max(0, Math.round((parseFloat(addonPrice) || 0) * 100));
+    setLines((ls) => [
+      ...ls,
+      { uid: crypto.randomUUID(), kind: "service", name, quantity: 1, unitPriceSatang: price },
+    ]);
+    toast(`Added ${name}`, "success");
+    setAddonName("");
+    setAddonPrice("");
+  }
+
   function updateLine(uid: string, patch: Partial<SaleLine>) {
     setLines((ls) => ls.map((l) => (l.uid === uid ? { ...l, ...patch } : l)));
   }
@@ -1306,6 +1324,8 @@ export default function PosPage() {
       setCarModelId("");
       setCarYear("");
       setAddKind("product");
+      setAddonName("");
+      setAddonPrice("");
       setBillDate(toISODate(new Date()));
       // Reset bill options + inputs so nothing carries to the next customer (esp. the discount).
       setDiscountValue("");
@@ -1517,14 +1537,24 @@ export default function PosPage() {
             {/* Add item — Product / Service toggle switches the workspace */}
             <div style={{ marginBottom: 14 }}>
               <div style={fieldLabel}>Add item</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                 <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
                   📦 Product
                 </Seg>
                 <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
                   🔧 Service
                 </Seg>
+                <Seg active={addKind === "addon"} onClick={() => setAddKind("addon")}>
+                  ➕ Add-on
+                </Seg>
               </div>
+              <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
+                {addKind === "product"
+                  ? "Scan a barcode, type the code, or search your catalog."
+                  : addKind === "service"
+                    ? "Pick a saved service, or add one manually."
+                    : "A one-off item not in your catalog — type a name and price."}
+              </p>
 
               {addKind === "product" && (
                 <div>
@@ -1685,6 +1715,40 @@ export default function PosPage() {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* Add-on — a one-off custom line (name + price), not from the catalog */}
+              {addKind === "addon" && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addAddon();
+                  }}
+                  style={{ display: "flex", gap: 8 }}
+                >
+                  <input
+                    autoFocus
+                    value={addonName}
+                    onChange={(e) => setAddonName(e.target.value)}
+                    placeholder="Item name…"
+                    style={{ flex: 1, ...inputS }}
+                  />
+                  <input
+                    value={addonPrice}
+                    onChange={(e) => setAddonPrice(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="฿ price"
+                    style={{ width: 96, ...inputS }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn-soft"
+                    disabled={!addonName.trim()}
+                    style={inputS}
+                  >
+                    Add
+                  </button>
+                </form>
               )}
             </div>
 
