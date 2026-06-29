@@ -206,14 +206,7 @@ function StepTimeline() {
       .getElementById(`pos-step-${n}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        paddingBottom: 12,
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
+    <div style={{ display: "flex", alignItems: "center" }}>
       {POS_STEPS.map((s, i) => (
         <Fragment key={s.n}>
           <button
