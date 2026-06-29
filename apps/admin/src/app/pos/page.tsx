@@ -173,8 +173,9 @@ function Tab({
   );
 }
 
-/** Plain 32px group headline for the POS builder steps (Setup → Info → Items). Also a scroll anchor
- *  (`pos-step-<n>`) the StepTimeline jumps to; scrollMarginTop clears the 56px sticky topbar. */
+/** Plain 20px group headline for the POS builder steps (Setup → Info → Items). Also a scroll anchor
+ *  (`pos-step-<n>`) the StepTimeline jumps to; scrollMarginTop clears the 56px sticky topbar plus the
+ *  frozen ~50px timeline below it, so a jumped-to heading lands just under the frozen chrome. */
 function StepHead({ n, label }: { n: number; label: string }) {
   return (
     <div
@@ -185,7 +186,7 @@ function StepHead({ n, label }: { n: number; label: string }) {
         lineHeight: 1.1,
         color: "var(--text)",
         marginTop: n === 1 ? 0 : 8,
-        scrollMarginTop: 68,
+        scrollMarginTop: 114,
       }}
     >
       {label}
@@ -205,8 +206,20 @@ function StepTimeline() {
     document
       .getElementById(`pos-step-${n}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Frozen below the 56px topbar; the Setup/Info/Items groups scroll behind it.
+  // Opaque --bg masks the scrolling cards; paddingBottom keeps the 24px gap to Setup.
   return (
-    <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        position: "sticky",
+        top: 56,
+        zIndex: 4,
+        background: "var(--bg)",
+        paddingBottom: 10,
+      }}
+    >
       {POS_STEPS.map((s, i) => (
         <Fragment key={s.n}>
           <button
@@ -1878,7 +1891,8 @@ export default function PosPage() {
         </div>
 
         {/* ---- RIGHT: bill (preview + note + actions only) ---- */}
-        <div style={{ position: "sticky", top: 16 }}>
+        {/* Frozen alongside the timeline — clears the 56px topbar (+16 gap). */}
+        <div style={{ position: "sticky", top: 72 }}>
           <div className="bill-print">
             <BillDoc
               billStyle={billStyle}
