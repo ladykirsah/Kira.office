@@ -180,7 +180,7 @@ function StepHead({ n, label }: { n: number; label: string }) {
     <div
       id={`pos-step-${n}`}
       style={{
-        fontSize: 32,
+        fontSize: 20,
         fontWeight: 700,
         lineHeight: 1.1,
         color: "var(--text)",
