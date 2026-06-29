@@ -1147,11 +1147,12 @@ a.card:hover {
   scroll-margin-top: 114px;
 }
 
-/* The 3 step groups stack with a consistent gap (replaces the old per-heading margin). */
+/* The 3 step groups stack with a 24px gap — larger than the 12px headline↔card gap inside a group,
+   so each step reads as a discrete unit (proximity grouping). */
 .pos-groups-scroll {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 24px;
 }
 
 /* One step = its headline + its card, grouped as a single unit. The 12px gap between the headline
