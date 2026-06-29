@@ -19,6 +19,7 @@ import {
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { BarcodePreview } from "../../BarcodePreview";
+import { CopyButton } from "../../CopyButton";
 import { PricingFields, type PricingForm } from "../../PricingFields";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
 import { ProfitPeek } from "../../ProfitPeek";
@@ -531,14 +532,26 @@ export default function EditProductPage() {
                 <Field label="Product ID">
                   {p.productRef ? (
                     <div style={{ display: "grid", gap: 6 }}>
-                      <span>{p.productRef}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        {p.productRef}
+                        <CopyButton value={p.productRef} label="Product ID" />
+                      </span>
                       <BarcodePreview value={p.productRef} />
                     </div>
                   ) : (
                     "—"
                   )}
                 </Field>
-                <Field label="Shopee ID">{p.shopeeItemId || "—"}</Field>
+                <Field label="Shopee ID">
+                  {p.shopeeItemId ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      {p.shopeeItemId}
+                      <CopyButton value={p.shopeeItemId} label="Shopee ID" />
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </Field>
                 <Field label="Shopee">
                   <span className={shopeeActive ? "pill on" : "pill off"}>
                     {shopeeActive ? "Active on Shopee" : "Not listed"}
