@@ -161,6 +161,8 @@ export function AttributeManager({
             gap: 14,
             marginTop: 16,
             maxWidth: 900,
+            // Each card sizes to its own content instead of stretching to the tallest in the row.
+            alignItems: "start",
           }}
         >
           {kinds.map((k) => (
