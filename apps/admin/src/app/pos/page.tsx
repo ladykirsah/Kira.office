@@ -173,6 +173,32 @@ function Tab({
   );
 }
 
+/** Numbered group heading for the POS builder steps (Setup → Info → Items). */
+function StepHead({ n, label }: { n: number; label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: n === 1 ? 0 : 8 }}>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 22,
+          height: 22,
+          borderRadius: 999,
+          background: "var(--primary)",
+          color: "#fff",
+          fontSize: 12,
+          fontWeight: 700,
+          flex: "0 0 auto",
+        }}
+      >
+        {n}
+      </span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{label}</span>
+    </div>
+  );
+}
+
 function chip(kind: "part" | "service"): CSSProperties {
   if (kind === "service") {
     return {
@@ -1310,6 +1336,104 @@ export default function PosPage() {
       >
         {/* ---- LEFT: build the sale ---- */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 528 }}>
+          {/* ── Step 1 · Setup — document type, paper, language ── */}
+          <StepHead n={1} label="Setup" />
+          <div style={card}>
+            {/* Document type — Cash bill vs Quotation */}
+            <div className="bill-no-print" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {(["bill", "quotation"] as DocType[]).map((d) => {
+                const active = docType === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDocType(d)}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      padding: "11px 10px",
+                      borderRadius: 10,
+                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                      background: active ? "var(--primary)" : "var(--surface)",
+                      color: active ? "#fff" : "var(--text)",
+                      fontWeight: active ? 600 : 500,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {d === "bill" ? "💵 Cash bill" : "📝 Quotation"}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Paper — Invoice vs Receipt */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                Paper
+              </span>
+              {(["invoice", "thermal"] as BillStyle[]).map((s) => {
+                const active = billStyle === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setBillStyle(s)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                      background: active ? "var(--primary-soft)" : "var(--surface)",
+                      color: active ? "var(--primary)" : "var(--text-muted)",
+                      fontWeight: active ? 600 : 500,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Language — Thai is the default */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                Language
+              </span>
+              {(["th", "en"] as BillLang[]).map((l) => {
+                const active = billLang === l;
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setBillLang(l)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                      background: active ? "var(--primary-soft)" : "var(--surface)",
+                      color: active ? "var(--primary)" : "var(--text-muted)",
+                      fontWeight: active ? 600 : 500,
+                      fontSize: 12.5,
+                      cursor: "pointer",
+                      minHeight: 0,
+                    }}
+                  >
+                    {l === "th" ? "ไทย" : "English"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Step 2 · Info — date + vehicle ── */}
+          <StepHead n={2} label="Info" />
           {/* Date */}
           <div style={card}>
             <div style={fieldLabel}>Date</div>
@@ -1385,6 +1509,8 @@ export default function PosPage() {
             </div>
           </div>
 
+          {/* ── Step 3 · Items — add items, cart, discount ── */}
+          <StepHead n={3} label="Items" />
           {/* Add item — Product / Service toggle switches the workspace */}
           <div style={card}>
             <div style={fieldLabel}>Add item</div>
@@ -1579,99 +1705,6 @@ export default function PosPage() {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Bill options (moved from the bill column — final order TBD) */}
-          {/* Document type — Cash bill vs Quotation */}
-          <div className="bill-no-print" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {(["bill", "quotation"] as DocType[]).map((d) => {
-              const active = docType === d;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDocType(d)}
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "11px 10px",
-                    borderRadius: 10,
-                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                    background: active ? "var(--primary)" : "var(--surface)",
-                    color: active ? "#fff" : "var(--text)",
-                    fontWeight: active ? 600 : 500,
-                    fontSize: 14,
-                    cursor: "pointer",
-                    minHeight: 0,
-                  }}
-                >
-                  {d === "bill" ? "💵 Cash bill" : "📝 Quotation"}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Paper — Invoice vs Receipt */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-              Paper
-            </span>
-            {(["invoice", "thermal"] as BillStyle[]).map((s) => {
-              const active = billStyle === s;
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setBillStyle(s)}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 999,
-                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                    background: active ? "var(--primary-soft)" : "var(--surface)",
-                    color: active ? "var(--primary)" : "var(--text-muted)",
-                    fontWeight: active ? 600 : 500,
-                    fontSize: 12.5,
-                    cursor: "pointer",
-                    minHeight: 0,
-                  }}
-                >
-                  {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Language — Thai is the default */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-              Language
-            </span>
-            {(["th", "en"] as BillLang[]).map((l) => {
-              const active = billLang === l;
-              return (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setBillLang(l)}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 999,
-                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                    background: active ? "var(--primary-soft)" : "var(--surface)",
-                    color: active ? "var(--primary)" : "var(--text-muted)",
-                    fontWeight: active ? 600 : 500,
-                    fontSize: 12.5,
-                    cursor: "pointer",
-                    minHeight: 0,
-                  }}
-                >
-                  {l === "th" ? "ไทย" : "English"}
-                </button>
-              );
-            })}
           </div>
 
           {/* Discount — ฿ or % off the whole bill */}
