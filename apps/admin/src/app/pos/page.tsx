@@ -1390,8 +1390,7 @@ export default function PosPage() {
 
   return (
     <main>
-      {/* Even 24px gaps across the header trio (Point of Sale → timeline → Setup). */}
-      <h1 style={{ marginBottom: 24 }}>Point of Sale</h1>
+      <h1>Point of Sale</h1>
       {pending > 0 && (
         <p style={{ color: "var(--warn)" }} className="bill-no-print">
           ⏳ {pending} sale(s) queued offline — will sync when online.
