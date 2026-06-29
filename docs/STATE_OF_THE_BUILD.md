@@ -97,7 +97,8 @@ settings pages. Migrations `0009`–`0012` back these.
   Product ID** — no random internal EAN-13 (that generator was removed), and a real scanned barcode is
   never overwritten. Core helper: `resolveProductBarcode`. **Done:** core rule, API
   (`createProduct`/`importProducts`/`addBarcodeToProduct` + all reads now key on `product_ref`), the
-  Add **and** Edit flows (Product ID required, barcode auto-created when blank, live preview + hint),
+  Add **and** Edit flows (Product ID required and **merged with the barcode into one field** — type
+  or scan; the barcode is created from it and previewed beside it, no separate barcode input),
   and **migration `0018`** which backfills `product_ref`, makes it `UNIQUE`, and **drops the
   `product_code` column** (applied to local D1; **[OWNER]** applies to prod + staging at deploy —
   fails loudly if duplicate Product IDs exist; rollback = re-add the column or restore the daily

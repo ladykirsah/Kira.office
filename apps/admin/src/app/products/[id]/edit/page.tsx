@@ -168,7 +168,6 @@ export default function EditProductPage() {
 
   // editable fields
   const [name, setName] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [productRef, setProductRef] = useState("");
   const [active, setActive] = useState(true);
@@ -192,7 +191,6 @@ export default function EditProductPage() {
 
   function hydrate(d: ProductDetail) {
     setName(d.product.name);
-    setBarcode(d.barcode ?? "");
     setShopeeItemId(d.product.shopeeItemId ?? "");
     setProductRef(d.product.productRef ?? "");
     setPart({
@@ -260,8 +258,8 @@ export default function EditProductPage() {
         shopeeItemId,
         productRef,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
-        // No barcode entered → auto-create one from the Product ID (a real/scanned barcode is kept).
-        barcode: barcode.trim() || productRef.trim(),
+        // The barcode is the Product ID (one identifier).
+        barcode: productRef.trim(),
         brandName: part.brand,
         usageName: part.usage,
         typeName: part.type,
@@ -468,8 +466,6 @@ export default function EditProductPage() {
                 value={part}
                 onChange={updatePart}
                 attributes={attributes}
-                barcode={barcode}
-                onBarcodeChange={setBarcode}
                 productRef={productRef}
                 onProductRefChange={setProductRef}
                 shopeeItemId={shopeeItemId}
@@ -545,10 +541,16 @@ export default function EditProductPage() {
               {/* Column 2 — Identifiers */}
               <div>
                 <div style={groupHead}>Identifiers</div>
-                <Field label="Barcode">
-                  {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
+                <Field label="Product ID">
+                  {p.productRef ? (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <span>{p.productRef}</span>
+                      <BarcodePreview value={p.productRef} />
+                    </div>
+                  ) : (
+                    "—"
+                  )}
                 </Field>
-                <Field label="Product ID">{p.productRef || "—"}</Field>
                 <Field label="Shopee ID">{p.shopeeItemId || "—"}</Field>
               </div>
             </div>

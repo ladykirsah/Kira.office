@@ -58,7 +58,6 @@ export default function NewProductPage() {
   const [weightKg, setWeightKg] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const [productRef, setProductRef] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [pricing, setPricing] = useState<PricingForm>({
     costThb: "",
@@ -85,7 +84,6 @@ export default function NewProductPage() {
     setPricing((prev) => ({ ...prev, ...patch }));
 
   const refWarn = useIdentifierCheck("ref", productRef);
-  const barcodeWarn = useIdentifierCheck("barcode", barcode);
   const shopeeWarn = useIdentifierCheck("shopee", shopeeItemId);
 
   /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
@@ -126,8 +124,8 @@ export default function NewProductPage() {
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
         productRef: productRef || undefined,
-        // No barcode entered → auto-create one from the Product ID (a real/scanned barcode is kept).
-        barcode: barcode.trim() || productRef.trim(),
+        // The barcode is the Product ID (one identifier; scanning the part's barcode fills it in).
+        barcode: productRef.trim(),
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
@@ -250,14 +248,11 @@ export default function NewProductPage() {
             value={part}
             onChange={updatePart}
             attributes={attributes}
-            barcode={barcode}
-            onBarcodeChange={setBarcode}
             productRef={productRef}
             onProductRefChange={setProductRef}
             shopeeItemId={shopeeItemId}
             onShopeeItemIdChange={setShopeeItemId}
             refWarning={refWarn}
-            barcodeWarning={barcodeWarn}
             shopeeWarning={shopeeWarn}
           />
         </div>

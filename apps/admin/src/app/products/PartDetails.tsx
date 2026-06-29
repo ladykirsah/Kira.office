@@ -15,33 +15,28 @@ export interface PartForm {
 const field: CSSProperties = { display: "grid", gap: 4 };
 const names = (opts: { name: string }[] | undefined) => (opts ?? []).map((o) => o.name);
 
-/** Part taxonomy dropdowns + identifiers (Product ID, barcode, Shopee ID) for the part. */
+/** Part taxonomy dropdowns + identifiers (Product ID, Shopee ID) for the part. The barcode is the
+ *  Product ID — there is no separate barcode field; it's previewed beside the Product ID input. */
 export function PartDetails({
   value,
   onChange,
   attributes,
-  barcode,
-  onBarcodeChange,
   productRef,
   onProductRefChange,
   shopeeItemId,
   onShopeeItemIdChange,
   refWarning,
-  barcodeWarning,
   shopeeWarning,
 }: {
   value: PartForm;
   onChange: (patch: Partial<PartForm>) => void;
   attributes: Attributes | null;
-  barcode: string;
-  onBarcodeChange: (v: string) => void;
   productRef: string;
   onProductRefChange: (v: string) => void;
   shopeeItemId: string;
   onShopeeItemIdChange: (v: string) => void;
   /** Optional "already used by …" warnings shown under the matching identifier field. */
   refWarning?: string | null;
-  barcodeWarning?: string | null;
   shopeeWarning?: string | null;
 }) {
   const warn = (msg: string | null | undefined) =>
@@ -104,17 +99,9 @@ export function PartDetails({
         Category: {composed || "—"} · pick from the list or type a new value to add it.
       </small>
 
-      <label style={field}>
-        Product ID
-        <input
-          value={productRef}
-          onChange={(e) => onProductRefChange(e.target.value)}
-          placeholder="catalog / part no. (comes with the product)"
-          style={inputL}
-        />
-        {warn(refWarning)}
-      </label>
-
+      {/* The Product ID is the single identifier — type it, or scan the part's barcode (which encodes
+          it). The barcode is created from this value and previewed beside it; there is no separate
+          barcode field. */}
       <div
         style={{
           display: "grid",
@@ -124,24 +111,23 @@ export function PartDetails({
         }}
       >
         <label style={field}>
-          Barcode
+          Product ID
           <input
-            value={barcode}
-            onChange={(e) => onBarcodeChange(e.target.value)}
-            placeholder="scan / type — or leave blank to use the Product ID"
+            value={productRef}
+            onChange={(e) => onProductRefChange(e.target.value)}
+            onKeyDown={(e) => {
+              // A USB scanner ends a scan with Enter — don't let that submit the form.
+              if (e.key === "Enter") e.preventDefault();
+            }}
+            placeholder="type or scan the part no."
             style={inputL}
           />
-          {warn(barcodeWarning)}
-          {/* No barcode scanned → it's auto-created from the Product ID (Code 128). */}
-          {!barcode.trim() && productRef.trim() ? (
-            <small className="muted" style={{ fontSize: 12 }}>
-              Auto-created from Product ID — scan a manufacturer barcode to override.
-            </small>
-          ) : null}
+          {warn(refWarning)}
+          <small className="muted" style={{ fontSize: 12 }}>
+            Type it, or scan the part’s barcode — the barcode is created from this.
+          </small>
         </label>
-        {/* Preview the scanned barcode, else the one auto-created from the Product ID. A barcode
-            already used by another product can't be reused — hide its preview. */}
-        {barcodeWarning ? null : <BarcodePreview value={barcode.trim() || productRef.trim()} />}
+        {productRef.trim() ? <BarcodePreview value={productRef.trim()} /> : null}
       </div>
 
       <label style={field}>
