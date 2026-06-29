@@ -173,38 +173,22 @@ function Tab({
   );
 }
 
-/** Numbered group heading for the POS builder steps (Setup → Info → Items). Also a scroll anchor
+/** Plain 32px group headline for the POS builder steps (Setup → Info → Items). Also a scroll anchor
  *  (`pos-step-<n>`) the StepTimeline jumps to; scrollMarginTop clears the 56px sticky topbar. */
 function StepHead({ n, label }: { n: number; label: string }) {
   return (
     <div
       id={`pos-step-${n}`}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 9,
+        fontSize: 32,
+        fontWeight: 700,
+        lineHeight: 1.1,
+        color: "var(--text)",
         marginTop: n === 1 ? 0 : 8,
         scrollMarginTop: 68,
       }}
     >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 22,
-          height: 22,
-          borderRadius: 999,
-          background: "var(--primary)",
-          color: "#fff",
-          fontSize: 12,
-          fontWeight: 700,
-          flex: "0 0 auto",
-        }}
-      >
-        {n}
-      </span>
-      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{label}</span>
+      {label}
     </div>
   );
 }
