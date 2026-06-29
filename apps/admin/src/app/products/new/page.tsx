@@ -2,51 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { inputL, inputS } from "@/lib/inputStyles";
+import { inputL } from "@/lib/inputStyles";
 import {
   createProduct,
   updateProduct,
   adjustStock,
   setProductPricing,
   fetchAttributes,
-  checkIdentifier,
   type Attributes,
-  type IdentifierKind,
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
+import { useBarcodeAndIdCheck, useIdentifierCheck } from "../useIdentifierCheck";
 
 const field = { display: "grid", gap: 4 } as const;
-
-/** Debounced check: warn if another product (any status) already uses this Product ID / barcode / Shopee ID. */
-function useIdentifierCheck(kind: IdentifierKind, value: string): string | null {
-  const [warn, setWarn] = useState<string | null>(null);
-  useEffect(() => {
-    const v = value.trim();
-    if (!v) {
-      setWarn(null);
-      return;
-    }
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const m = await checkIdentifier(kind, v);
-        if (!cancelled) {
-          setWarn(m ? `Already used by “${m.name}” (${m.productCode} · ${m.status})` : null);
-        }
-      } catch {
-        if (!cancelled) setWarn(null);
-      }
-    }, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [kind, value]);
-  return warn;
-}
 
 /** Add product — same sections as the editor (photos, part details, pricing). The product is created
  *  lazily on the first photo upload or on save; "Save draft" / "Save product" set the status. */
@@ -58,7 +29,6 @@ export default function NewProductPage() {
   const [weightKg, setWeightKg] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const [productRef, setProductRef] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [pricing, setPricing] = useState<PricingForm>({
     costThb: "",
@@ -84,8 +54,7 @@ export default function NewProductPage() {
   const updatePricing = (patch: Partial<PricingForm>) =>
     setPricing((prev) => ({ ...prev, ...patch }));
 
-  const refWarn = useIdentifierCheck("ref", productRef);
-  const barcodeWarn = useIdentifierCheck("barcode", barcode);
+  const refWarn = useBarcodeAndIdCheck(productRef);
   const shopeeWarn = useIdentifierCheck("shopee", shopeeItemId);
 
   /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
@@ -124,7 +93,7 @@ export default function NewProductPage() {
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
         productRef: productRef || undefined,
-        barcode: barcode || undefined,
+        barcode: productRef.trim() || undefined,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
@@ -168,7 +137,7 @@ export default function NewProductPage() {
       >
         <h1 style={{ margin: 0 }}>Add product</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          <button type="button" onClick={() => router.push("/products")} disabled={busy}>
+          <button type="button" className="btn" onClick={() => router.push("/products")} disabled={busy}>
             Cancel
           </button>
           <button
@@ -227,7 +196,7 @@ export default function NewProductPage() {
               value={stockQty}
               onChange={(e) => setStockQty(e.target.value)}
               inputMode="numeric"
-              style={{ ...inputS, width: 160 }}
+              style={{ ...inputL, width: 160 }}
             />
           </label>
           <label style={field}>
@@ -237,7 +206,7 @@ export default function NewProductPage() {
               onChange={(e) => setWeightKg(e.target.value)}
               inputMode="decimal"
               placeholder="0"
-              style={{ ...inputS, width: 160 }}
+              style={{ ...inputL, width: 160 }}
             />
           </label>
         </div>
@@ -247,14 +216,11 @@ export default function NewProductPage() {
             value={part}
             onChange={updatePart}
             attributes={attributes}
-            barcode={barcode}
-            onBarcodeChange={setBarcode}
             productRef={productRef}
             onProductRefChange={setProductRef}
             shopeeItemId={shopeeItemId}
             onShopeeItemIdChange={setShopeeItemId}
             refWarning={refWarn}
-            barcodeWarning={barcodeWarn}
             shopeeWarning={shopeeWarn}
           />
         </div>

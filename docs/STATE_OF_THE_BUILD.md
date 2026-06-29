@@ -179,4 +179,7 @@ Keep changes additive/nullable when an older Worker may still be live during rol
   redundant Git integration; its managed token lacks zone-DNS edit). Ignore it / disconnect it in the
   Cloudflare dashboard. The real gate is GitHub Actions `build`.
 - **Owner's UI vocabulary:** the tall input is the "L input box" (`inputL`), the compact one the "S input
-  box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.
+  box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`. Button names when designing:
+  **Default button** — Cancel; class `.btn`. **Faded button** — Save draft; class `.btn-soft`.
+  **Colored button** — Save product; class `.btn-primary`. **Secondary button** — row Actions dropdown;
+  class `.actions-btn`. **Icon button** — borderless inline glyph; class `.icon-btn`.

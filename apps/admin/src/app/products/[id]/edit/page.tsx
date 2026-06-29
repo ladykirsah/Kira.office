@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { inputL, inputS } from "@/lib/inputStyles";
+import { inputL } from "@/lib/inputStyles";
 import { useParams, useRouter } from "next/navigation";
 import {
   apiBase,
@@ -26,6 +26,7 @@ import { PartDetails, type PartForm } from "../../PartDetails";
 import { formatUpdatedAt } from "@/lib/format";
 import { FitmentSection } from "../../FitmentSection";
 import { DeleteProductCard } from "../../DeleteProductCard";
+import { useBarcodeAndIdCheck } from "../../useIdentifierCheck";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
@@ -168,7 +169,6 @@ export default function EditProductPage() {
 
   // editable fields
   const [name, setName] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [productRef, setProductRef] = useState("");
   const [active, setActive] = useState(true);
@@ -190,11 +190,12 @@ export default function EditProductPage() {
   const updatePricing = (patch: Partial<PricingForm>) =>
     setPricing((prev) => ({ ...prev, ...patch }));
 
+  const barcodeAndIdWarn = useBarcodeAndIdCheck(productRef, id);
+
   function hydrate(d: ProductDetail) {
     setName(d.product.name);
-    setBarcode(d.barcode ?? "");
     setShopeeItemId(d.product.shopeeItemId ?? "");
-    setProductRef(d.product.productRef ?? "");
+    setProductRef(d.product.productRef ?? d.barcode ?? "");
     setPart({
       brand: d.product.brandName ?? "",
       usage: d.product.usageName ?? "",
@@ -256,7 +257,7 @@ export default function EditProductPage() {
         shopeeItemId,
         productRef,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
-        barcode,
+        barcode: productRef.trim() || undefined,
         brandName: part.brand,
         usageName: part.usage,
         typeName: part.type,
@@ -421,19 +422,15 @@ export default function EditProductPage() {
               />
             </label>
 
-            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <span className="switch">
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(e) => setActive(e.target.checked)}
-                />
-                <span className="slider" />
-              </span>
-              <span>Active</span>
-            </label>
-
-            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 24,
+                flexWrap: "wrap",
+                alignItems: "flex-end",
+                gridColumn: "1 / -1",
+              }}
+            >
               <label style={field}>
                 Stock on hand
                 <input
@@ -441,11 +438,8 @@ export default function EditProductPage() {
                   onChange={(e) => setStockQty(e.target.value)}
                   placeholder="0"
                   inputMode="numeric"
-                  style={{ ...inputS, width: 140 }}
+                  style={{ ...inputL, width: 140 }}
                 />
-                <small className="muted">
-                  now {detail.onHand ?? 0} · change logged as adjustment
-                </small>
               </label>
               <label style={field}>
                 Weight (kg)
@@ -453,7 +447,7 @@ export default function EditProductPage() {
                   value={weightKg}
                   onChange={(e) => setWeightKg(e.target.value)}
                   placeholder="0"
-                  style={{ ...inputS, width: 140 }}
+                  style={{ ...inputL, width: 140 }}
                 />
               </label>
             </div>
@@ -463,12 +457,13 @@ export default function EditProductPage() {
                 value={part}
                 onChange={updatePart}
                 attributes={attributes}
-                barcode={barcode}
-                onBarcodeChange={setBarcode}
                 productRef={productRef}
                 onProductRefChange={setProductRef}
                 shopeeItemId={shopeeItemId}
                 onShopeeItemIdChange={setShopeeItemId}
+                refWarning={barcodeAndIdWarn}
+                active={active}
+                onActiveChange={setActive}
               />
             </div>
 
@@ -504,46 +499,45 @@ export default function EditProductPage() {
             }}
           >
             <div style={overviewGrid}>
-              {/* Column 1 — Status & stock, then Part & spec */}
+              {/* Column 1 — part & stock */}
               <div>
-                <div style={groupHead}>Status &amp; stock</div>
-                <Field label="Status">
-                  <span className={active ? "pill on" : "pill off"}>
-                    {active ? "Active" : "Draft"}
-                  </span>
+                <div style={groupHead}>Part &amp; stock</div>
+                <Field label="Part details">
+                  {partTags.length ? (
+                    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                      {partTags.map((t, i) => (
+                        <span key={i} className="tag">
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </Field>
                 <Field label="Stock on hand">
                   <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
                 </Field>
-
-                <div
-                  style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}
-                >
-                  <div style={groupHead}>Part &amp; spec</div>
-                  <Field label="Part details">
-                    {partTags.length ? (
-                      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-                        {partTags.map((t, i) => (
-                          <span key={i} className="tag">
-                            {t}
-                          </span>
-                        ))}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </Field>
-                  <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
-                </div>
+                <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
               </div>
 
               {/* Column 2 — Identifiers */}
               <div>
                 <div style={groupHead}>Identifiers</div>
-                <Field label="Barcode">
-                  {detail.barcode ? <BarcodePreview value={detail.barcode} /> : "—"}
+                <Field label="Barcode and ID">
+                  {p.productRef ? (
+                    <BarcodePreview value={p.productRef} />
+                  ) : detail.barcode ? (
+                    <BarcodePreview value={detail.barcode} />
+                  ) : (
+                    "—"
+                  )}
                 </Field>
-                <Field label="Product ID">{p.productRef || "—"}</Field>
+                <Field label="Status">
+                  <span className={active ? "pill on" : "pill off"}>
+                    {active ? "Active" : "Draft"}
+                  </span>
+                </Field>
                 <Field label="Shopee ID">{p.shopeeItemId || "—"}</Field>
               </div>
             </div>

@@ -15,34 +15,33 @@ export interface PartForm {
 const field: CSSProperties = { display: "grid", gap: 4 };
 const names = (opts: { name: string }[] | undefined) => (opts ?? []).map((o) => o.name);
 
-/** Part taxonomy dropdowns + identifiers (Product ID, barcode, Shopee ID) for the part. */
+/** Part taxonomy dropdowns + identifiers (barcode/ID, Shopee ID) for the part. */
 export function PartDetails({
   value,
   onChange,
   attributes,
-  barcode,
-  onBarcodeChange,
   productRef,
   onProductRefChange,
   shopeeItemId,
   onShopeeItemIdChange,
   refWarning,
-  barcodeWarning,
   shopeeWarning,
+  active,
+  onActiveChange,
 }: {
   value: PartForm;
   onChange: (patch: Partial<PartForm>) => void;
   attributes: Attributes | null;
-  barcode: string;
-  onBarcodeChange: (v: string) => void;
   productRef: string;
   onProductRefChange: (v: string) => void;
   shopeeItemId: string;
   onShopeeItemIdChange: (v: string) => void;
   /** Optional "already used by …" warnings shown under the matching identifier field. */
   refWarning?: string | null;
-  barcodeWarning?: string | null;
   shopeeWarning?: string | null;
+  /** When set, shows the Active toggle beside Shopee ID (live on Shopee). */
+  active?: boolean;
+  onActiveChange?: (v: boolean) => void;
 }) {
   const warn = (msg: string | null | undefined) =>
     msg ? <small style={{ color: "var(--danger)", fontSize: 12 }}>{msg}</small> : null;
@@ -104,17 +103,6 @@ export function PartDetails({
         Category: {composed || "—"} · pick from the list or type a new value to add it.
       </small>
 
-      <label style={field}>
-        Product ID
-        <input
-          value={productRef}
-          onChange={(e) => onProductRefChange(e.target.value)}
-          placeholder="catalog / part no. (comes with the product)"
-          style={inputL}
-        />
-        {warn(refWarning)}
-      </label>
-
       <div
         style={{
           display: "grid",
@@ -124,29 +112,50 @@ export function PartDetails({
         }}
       >
         <label style={field}>
-          Barcode
+          Barcode and ID
           <input
-            value={barcode}
-            onChange={(e) => onBarcodeChange(e.target.value)}
-            placeholder="scan / type"
+            value={productRef}
+            onChange={(e) => onProductRefChange(e.target.value)}
+            placeholder="catalog / part no. (scanned as barcode)"
             style={inputL}
           />
-          {warn(barcodeWarning)}
+          {warn(refWarning)}
         </label>
-        {/* A barcode already used by another product can't be reused — hide its preview. */}
-        {barcodeWarning ? null : <BarcodePreview value={barcode} />}
+        {refWarning ? null : <BarcodePreview value={productRef} />}
       </div>
 
-      <label style={field}>
-        Shopee ID (link)
-        <input
-          value={shopeeItemId}
-          onChange={(e) => onShopeeItemIdChange(e.target.value)}
-          placeholder="Shopee item id"
-          style={inputL}
-        />
-        {warn(shopeeWarning)}
-      </label>
+      <div
+        style={{
+          display: "flex",
+          gap: 24,
+          flexWrap: "wrap",
+          alignItems: "flex-end",
+        }}
+      >
+        <label style={{ ...field, flex: "1 1 240px", minWidth: 0 }}>
+          Shopee ID (link)
+          <input
+            value={shopeeItemId}
+            onChange={(e) => onShopeeItemIdChange(e.target.value)}
+            placeholder="Shopee item id"
+            style={inputL}
+          />
+          {warn(shopeeWarning)}
+        </label>
+        {onActiveChange ? (
+          <label style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 36 }}>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={active ?? false}
+                onChange={(e) => onActiveChange(e.target.checked)}
+              />
+              <span className="slider" />
+            </span>
+            <span>Active</span>
+          </label>
+        ) : null}
+      </div>
     </div>
   );
 }

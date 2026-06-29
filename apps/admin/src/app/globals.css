@@ -99,7 +99,10 @@ textarea {
   font-family: inherit;
   font-size: 15px;
 }
-button {
+/* Default button — bordered surface page action (Cancel, etc.).
+   Design name: "Default button". Class: .btn (plain <button> uses the same styles). */
+button,
+.btn {
   min-height: 44px;
   padding: 10px 16px;
   border-radius: 10px;
@@ -113,13 +116,16 @@ button {
     box-shadow 0.15s,
     transform 0.1s;
 }
-button:hover:not(:disabled) {
+button:hover:not(:disabled),
+.btn:hover:not(:disabled) {
   background: var(--hover);
 }
-button:active:not(:disabled) {
+button:active:not(:disabled),
+.btn:active:not(:disabled) {
   transform: scale(0.98);
 }
-button:disabled {
+button:disabled,
+.btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -162,7 +168,8 @@ input[type="number"]::-webkit-inner-spin-button {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-muted) 20%, transparent);
 }
 
-/* Primary / danger actions (opt-in classes) */
+/* Colored button — coral filled CTA (Save product, etc.).
+   Design name: "Colored button". Class: .btn-primary */
 .btn-primary {
   background: var(--primary);
   border-color: var(--primary);
@@ -176,7 +183,8 @@ input[type="number"]::-webkit-inner-spin-button {
   border-color: var(--danger);
   color: #fff;
 }
-/* Soft secondary action — recognizable but lighter than .btn-primary */
+/* Faded button — soft tinted secondary action (Save draft, etc.).
+   Design name: "Faded button". Class: .btn-soft */
 .btn-soft {
   background: var(--primary-soft);
   border-color: var(--primary-soft);
@@ -922,7 +930,8 @@ html[data-theme="dark"] .pill.pause {
   max-width: 52ch;
 }
 
-/* Plain icon button — no frame (inline cell editors, etc.) */
+/* Icon button — borderless inline glyph control (edit/save icons in table cells, etc.).
+   Design name: "Icon button". Class: .icon-btn */
 .icon-btn {
   min-height: 0;
   padding: 2px;
@@ -937,7 +946,8 @@ html[data-theme="dark"] .pill.pause {
   color: var(--text);
 }
 
-/* Per-row Actions dropdown (products table) */
+/* Secondary button — bordered surface control (row Actions menus, etc.).
+   Design name: "Secondary button". Class: .actions-btn */
 .actions-btn {
   display: inline-flex;
   align-items: center;
@@ -1098,6 +1108,9 @@ a.card:hover {
   width: 100%;
   max-width: 1080px;
 }
+.content:has(.pos-grid) {
+  max-width: none;
+}
 
 /* Responsive: sidebar becomes a horizontal bar (tablet/phone at the counter) */
 @media (max-width: 760px) {
@@ -1127,16 +1140,49 @@ a.card:hover {
 }
 
 /* Point of Sale two-column workspace collapses to one column when cramped. */
+.pos-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  width: 100%;
+}
+.pos-grid.pos-grid--bill-wide {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.pos-builder-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  width: 100%;
+}
+.pos-preview-column {
+  position: sticky;
+  top: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+.pos-preview-column .bill-print {
+  width: 100%;
+}
+.pos-preview-actions {
+  margin-top: 0;
+}
+
 @media (max-width: 900px) {
   .pos-grid {
     grid-template-columns: 1fr !important;
   }
+  .pos-preview-column {
+    position: static;
+  }
 }
 
-/* The Invoice bill is a wide table — when its column would drop below 500px, stack it under the
-   builder (the Items section) instead of cramming it into the side slot. Driven by the POS <main>
-   container width (= 528px builder + 20px gap + 500px bill = 1048px), so it's accurate regardless
-   of the sidebar/viewport. The narrow Receipt keeps the 900px rule above. */
+/* Invoice bill needs ~500px preview width — stack columns when the POS main is too narrow. */
 @container (max-width: 1047px) {
   .pos-grid.pos-grid--bill-wide {
     grid-template-columns: 1fr !important;

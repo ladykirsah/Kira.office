@@ -54,6 +54,17 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
   with no error boundary, not the console buffer.
 - **Input-box sizing vocabulary:** the owner calls the tall input the "L input box" (`inputL`) and the
   compact one the "S input box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.
+- **Default button:** bordered surface page action (e.g. **Cancel**) — class `.btn`. Say **"Default button"**
+  when designing.
+- **Faded button:** soft tinted secondary action (e.g. **Save draft**) — class `.btn-soft`. Say **"Faded button"**
+  when designing.
+- **Colored button:** coral filled CTA (e.g. **Save product**) — class `.btn-primary`. Say **"Colored button"**
+  when designing.
+- **Icon button:** borderless inline glyph control (e.g. edit-stock pencil) — class `.icon-btn`. Say **"Icon button"**
+  when designing; implement with `className="icon-btn"`.
+- **Secondary button:** compact bordered surface control (e.g. row **Actions** dropdown with chevron) —
+  class `.actions-btn`. Say **"Secondary button"** when designing; pair with `.actions-menu` /
+  `.actions-item` for dropdown menus.
 - **Non-submit `<button>` needs `type="button"`** — inside a form a bare button submits on click.
 - Live prod keeps intentional demo rows (`prod-demo`, 5 × `DEMO-AC-*`) — don't delete them as junk.
 

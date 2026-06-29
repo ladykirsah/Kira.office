@@ -113,7 +113,12 @@ export function FitmentSection({
           ))}
         </tbody>
       </table>
-      <button type="button" onClick={add} style={{ justifySelf: "start", marginTop: 4 }}>
+      <button
+        type="button"
+        className="btn-soft"
+        onClick={add}
+        style={{ justifySelf: "start", marginTop: 4 }}
+      >
         + Add car
       </button>
     </div>
