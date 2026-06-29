@@ -56,7 +56,7 @@ export function CopyButton({ value, label }: { value: string; label?: string }) 
       onClick={copy}
       aria-label={copied ? "Copied" : `Copy ${label ?? value}`}
       title={copied ? "Copied" : "Copy"}
-      style={copied ? { color: "var(--primary)" } : undefined}
+      style={copied ? { color: "var(--ok)" } : undefined}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}
     </button>
