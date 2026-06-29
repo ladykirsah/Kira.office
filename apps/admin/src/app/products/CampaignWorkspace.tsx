@@ -139,7 +139,7 @@ export function CampaignWorkspace({
             })}
           </tbody>
         </table>
-        <button type="button" onClick={add} style={{ marginTop: 10 }}>
+        <button type="button" className="btn-sm" onClick={add} style={{ marginTop: 10 }}>
           + Add scenario
         </button>
       </div>

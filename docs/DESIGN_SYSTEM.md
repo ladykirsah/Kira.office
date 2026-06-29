@@ -47,8 +47,10 @@ their labels are `--text-muted` ~13px. Status is never color-only — pair with 
   thumbnails in rows of 3 (3×110 + 2×10 gap = 350), active thumb gets a 2px coral border.
 - **Master–detail / spine grouping** — `.md-*` classes give the car-fitment editor a colored "spine"
   so an expanded editor visibly belongs to its row; era chips + a "has notes" dot summarize a row.
-- **Buttons** — primary `.btn-primary` (coral); header actions are plain white buttons. Always set
-  `type="button"` on non-submit buttons.
+- **Buttons** — default buttons are a **44px** touch target; primary `.btn-primary` (coral),
+  `.btn-danger` (red), `.btn-soft` (lighter coral, 36px). For a **smaller** secondary/utility button
+  use the size-only `.btn-sm` modifier (36px) — it composes with any colour (e.g. `btn-danger btn-sm`).
+  Header actions are plain white buttons. Always set `type="button"` on non-submit buttons.
 
 ## Formatting
 

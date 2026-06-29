@@ -45,7 +45,12 @@ export function DeleteProductCard({ productId }: { productId: string }) {
           aria-label="Type DELETE to confirm"
           style={{ ...inputS, width: 200 }}
         />
-        <button type="button" className="btn-danger" disabled={!armed || busy} onClick={onDelete}>
+        <button
+          type="button"
+          className="btn-danger btn-sm"
+          disabled={!armed || busy}
+          onClick={onDelete}
+        >
           Delete product
         </button>
       </div>

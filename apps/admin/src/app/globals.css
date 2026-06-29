@@ -190,6 +190,13 @@ input[type="number"]::-webkit-inner-spin-button {
   border-color: var(--primary);
 }
 
+/* Smaller button size — composes with any colour (on its own, or e.g. `btn-danger btn-sm`). */
+.btn-sm {
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
 /* Tables */
 table {
   border-collapse: collapse;
