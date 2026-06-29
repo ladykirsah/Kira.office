@@ -1689,7 +1689,7 @@ export default function PosPage() {
             </div>
 
             {/* Cart */}
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
               <div style={fieldLabel}>Items ({lines.length})</div>
               {lines.length === 0 ? (
                 <p className="muted" style={{ fontSize: 13, margin: 0 }}>
@@ -1713,7 +1713,15 @@ export default function PosPage() {
             </div>
 
             {/* Discount — ฿ or % off the whole bill */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                paddingTop: 14,
+                borderTop: "1px solid var(--border)",
+              }}
+            >
               <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
                 Discount
               </span>
