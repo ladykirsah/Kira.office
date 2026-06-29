@@ -1141,6 +1141,47 @@ a.card:hover {
   }
 }
 
+/* POS step anchors clear the sticky topbar (56px) + frozen timeline (~50px) when the whole
+   page scrolls — i.e. on narrow screens where the freeze layout below is disabled. */
+.pos-step-anchor {
+  scroll-margin-top: 114px;
+}
+
+/* POS "freeze the page, scroll only the groups" layout — wide screens only.
+   The page is locked to the viewport; the Setup/Info/Items groups get the only scrollbar.
+   Below 901px this is off, so the page scrolls normally and the sticky timeline/bill freeze. */
+@media (min-width: 901px) {
+  .pos-page {
+    /* viewport − 56px topbar − 48px content padding (24 top + 24 bottom) */
+    height: calc(100vh - 104px);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .pos-page > .pos-grid {
+    flex: 1;
+    min-height: 0;
+  }
+  .pos-col-left {
+    min-height: 0;
+  }
+  .pos-groups-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    /* keep the cards clear of the scrollbar */
+    padding-right: 2px;
+  }
+  .pos-col-right {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* Inside the groups scroller, a jumped-to heading sits just below the scroller's top. */
+  .pos-step-anchor {
+    scroll-margin-top: 8px;
+  }
+}
+
 /* ---- Point of Sale: bill document ---- */
 .bill-doc {
   background: #ffffff;
