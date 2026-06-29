@@ -1147,6 +1147,20 @@ a.card:hover {
   scroll-margin-top: 114px;
 }
 
+/* The 3 step groups stack with a consistent gap (replaces the old per-heading margin). */
+.pos-groups-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* One step = its headline + its card, grouped as a single unit. Structural only — no frame —
+   so spacing/styling can be tuned per group later. */
+.pos-step-group {
+  display: flex;
+  flex-direction: column;
+}
+
 /* POS "freeze the page, scroll only the groups" layout — wide screens only.
    The page is locked to the viewport; the Setup/Info/Items groups get the only scrollbar.
    Below 901px this is off, so the page scrolls normally and the sticky timeline/bill freeze. */
