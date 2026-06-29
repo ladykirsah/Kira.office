@@ -1402,7 +1402,7 @@ export default function PosPage() {
             </div>
 
             {/* Language — Thai is the default */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
                 Language
               </span>
@@ -1713,7 +1713,7 @@ export default function PosPage() {
             </div>
 
             {/* Discount — ฿ or % off the whole bill */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
                 Discount
               </span>
