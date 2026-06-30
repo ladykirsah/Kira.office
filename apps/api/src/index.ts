@@ -1533,6 +1533,7 @@ export async function deleteAttribute(db: D1Database, table: string, id: string)
 export interface ServiceRow {
   id: string;
   name: string;
+  nameEn: string;
   basePriceSatang: number;
 }
 
@@ -1540,7 +1541,7 @@ export interface ServiceRow {
 export async function listServices(db: D1Database): Promise<ServiceRow[]> {
   const { results } = await db
     .prepare(
-      "SELECT id, name, base_price_satang AS basePriceSatang FROM services ORDER BY sort_order, name",
+      "SELECT id, name, name_en AS nameEn, base_price_satang AS basePriceSatang FROM services ORDER BY sort_order, name",
     )
     .all<ServiceRow>();
   return results ?? [];
@@ -1550,10 +1551,12 @@ export async function listServices(db: D1Database): Promise<ServiceRow[]> {
 export async function addService(
   db: D1Database,
   name: string,
+  nameEn: string,
   basePriceSatang: number,
 ): Promise<ServiceRow> {
   const n = name.trim();
   if (!n) throw new Error("name is required");
+  const en = nameEn.trim();
   const price = Math.max(0, Math.round(basePriceSatang || 0));
   const existing = await db
     .prepare("SELECT id FROM services WHERE name = ? COLLATE NOCASE")
@@ -1561,30 +1564,35 @@ export async function addService(
     .first<{ id: string }>();
   if (existing) {
     await db
-      .prepare("UPDATE services SET base_price_satang = ? WHERE id = ?")
-      .bind(price, existing.id)
+      .prepare("UPDATE services SET name_en = ?, base_price_satang = ? WHERE id = ?")
+      .bind(en, price, existing.id)
       .run();
-    return { id: existing.id, name: n, basePriceSatang: price };
+    return { id: existing.id, name: n, nameEn: en, basePriceSatang: price };
   }
   const sid = crypto.randomUUID();
   await db
     .prepare(
-      "INSERT INTO services (id, name, base_price_satang, sort_order, created_at) VALUES (?, ?, ?, 0, ?)",
+      "INSERT INTO services (id, name, name_en, base_price_satang, sort_order, created_at) VALUES (?, ?, ?, ?, 0, ?)",
     )
-    .bind(sid, n, price, Date.now())
+    .bind(sid, n, en, price, Date.now())
     .run();
-  return { id: sid, name: n, basePriceSatang: price };
+  return { id: sid, name: n, nameEn: en, basePriceSatang: price };
 }
 
 /** Update a service's name and/or base price. */
 export async function updateService(
   db: D1Database,
   id: string,
-  fields: { name: string; basePriceSatang: number },
+  fields: { name: string; nameEn: string; basePriceSatang: number },
 ): Promise<void> {
   await db
-    .prepare("UPDATE services SET name = ?, base_price_satang = ? WHERE id = ?")
-    .bind(fields.name.trim(), Math.max(0, Math.round(fields.basePriceSatang || 0)), id)
+    .prepare("UPDATE services SET name = ?, name_en = ?, base_price_satang = ? WHERE id = ?")
+    .bind(
+      fields.name.trim(),
+      fields.nameEn.trim(),
+      Math.max(0, Math.round(fields.basePriceSatang || 0)),
+      id,
+    )
     .run();
 }
 
@@ -2094,20 +2102,26 @@ const worker = {
     if (url.pathname === "/services" && request.method === "POST") {
       const body = (await request.json().catch(() => ({}))) as {
         name?: string;
+        nameEn?: string;
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      return json(await addService(env.DB, body.name, body.basePriceSatang ?? 0), 201);
+      return json(
+        await addService(env.DB, body.name, body.nameEn ?? "", body.basePriceSatang ?? 0),
+        201,
+      );
     }
     const serviceById = url.pathname.match(/^\/services\/([^/]+)$/);
     if (serviceById && request.method === "PATCH") {
       const body = (await request.json().catch(() => ({}))) as {
         name?: string;
+        nameEn?: string;
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
       await updateService(env.DB, serviceById[1]!, {
         name: body.name,
+        nameEn: body.nameEn ?? "",
         basePriceSatang: body.basePriceSatang ?? 0,
       });
       return json({ ok: true });

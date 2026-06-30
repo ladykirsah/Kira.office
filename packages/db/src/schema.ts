@@ -97,6 +97,7 @@ export const services = sqliteTable(
   {
     id: id(),
     name: text("name").notNull(),
+    nameEn: text("name_en").notNull().default(""),
     basePriceSatang: integer("base_price_satang").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
