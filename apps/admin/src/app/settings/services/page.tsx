@@ -276,10 +276,10 @@ export default function ServicesPage() {
 
   return (
     <main>
-      {/* Headline + subtitle side by side (24px gap); the 40px gap sits below this group. */}
-      <div style={{ display: "flex", alignItems: "baseline", gap: 24, marginBottom: 40 }}>
-        <h1 style={{ margin: 0 }}>Services</h1>
-        <p className="muted" style={{ margin: 0, flex: 1 }}>
+      {/* Headline over subtitle (2 rows); the 40px gap sits below this group. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 40 }}>
+        <h1 style={{ margin: 0 }}>Service Setup</h1>
+        <p className="muted" style={{ margin: 0 }}>
           Manage the repair / labour services the Point of Sale can add to a bill. Each has a base
           price that prefills when you pick it — you can still change the price per sale.
         </p>
