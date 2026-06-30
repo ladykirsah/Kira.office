@@ -630,6 +630,8 @@ html[data-theme="dark"] .pill.pause {
   grid-template-columns: 220px 1fr;
   gap: 14px;
   margin-top: 16px;
+  /* Each pane fits its own content instead of stretching to the taller column. */
+  align-items: start;
 }
 .md-pane {
   background: var(--surface);
