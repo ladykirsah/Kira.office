@@ -100,7 +100,7 @@ function ServiceItem({
     name.trim() !== svc.name || nameEn.trim() !== svc.nameEn || priceSatang !== svc.basePriceSatang;
 
   async function save() {
-    if (!name.trim()) return;
+    if (!name.trim() || priceSatang <= 0) return;
     setBusy(true);
     try {
       await updateService(svc.id, {
@@ -209,7 +209,7 @@ function ServiceItem({
           <button
             type="button"
             className="btn-primary btn-sm"
-            disabled={!dirty || !name.trim() || busy}
+            disabled={!dirty || !name.trim() || priceSatang <= 0 || busy}
             onClick={save}
           >
             Save
