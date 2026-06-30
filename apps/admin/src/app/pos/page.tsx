@@ -537,6 +537,7 @@ const DRAFT_KEY = "pos:draft:v1";
 interface PosDraft {
   lines: SaleLine[];
   plate: string;
+  mileage: string;
   note: string;
   billDate: string;
   carBrandId: string;
@@ -592,6 +593,7 @@ function BillDoc({
   dateLabel,
   vehicle,
   plate,
+  mileage,
   lines,
   subtotalSatang,
   discountSatang,
@@ -605,6 +607,7 @@ function BillDoc({
   dateLabel: string;
   vehicle: string;
   plate: string;
+  mileage: string;
   lines: SaleLine[];
   subtotalSatang: number;
   discountSatang: number;
@@ -633,6 +636,7 @@ function BillDoc({
         date: "Date",
         vehicle: "Vehicle",
         plate: "Plate",
+        mileage: "Mileage",
         item: "Item",
         qty: "Qty",
         price: "Price",
@@ -649,6 +653,7 @@ function BillDoc({
         date: "วันที่",
         vehicle: "รถ",
         plate: "ทะเบียน",
+        mileage: "เลขไมล์",
         item: "รายการ",
         qty: "จำนวน",
         price: "ราคา",
@@ -711,6 +716,7 @@ function BillDoc({
         {metaRow(t.date, dateLabel)}
         {vehicle && metaRow(t.vehicle, vehicle)}
         {plate && metaRow(t.plate, plate)}
+        {mileage && metaRow(t.mileage, `${mileage} km`)}
         {dash}
         {empty ? (
           <div style={{ color: muted, padding: "4px 0" }}>{t.empty}</div>
@@ -863,7 +869,7 @@ function BillDoc({
           <div style={{ fontSize: 12, color: "#52525b", marginTop: 7 }}>{dateLabel}</div>
         </div>
       </div>
-      {(vehicle || plate) && (
+      {(vehicle || plate || mileage) && (
         <div
           style={{
             display: "flex",
@@ -882,6 +888,11 @@ function BillDoc({
           {plate && (
             <div>
               <span style={{ color: muted }}>{t.plate}:</span> {plate}
+            </div>
+          )}
+          {mileage && (
+            <div>
+              <span style={{ color: muted }}>{t.mileage}:</span> {mileage} km
             </div>
           )}
         </div>
@@ -989,6 +1000,7 @@ export default function PosPage() {
   const [carModelId, setCarModelId] = useState("");
   const [carYear, setCarYear] = useState("");
   const [plate, setPlate] = useState("");
+  const [mileage, setMileage] = useState("");
 
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -1080,6 +1092,7 @@ export default function PosPage() {
         const d = JSON.parse(raw) as Partial<PosDraft>;
         if (Array.isArray(d.lines) && d.lines.length) setLines(d.lines);
         if (typeof d.plate === "string") setPlate(d.plate);
+        if (typeof d.mileage === "string") setMileage(d.mileage);
         if (typeof d.note === "string") setNote(d.note);
         if (typeof d.billDate === "string") setBillDate(d.billDate);
         if (typeof d.carBrandId === "string") setCarBrandId(d.carBrandId);
@@ -1103,6 +1116,7 @@ export default function PosPage() {
       const empty =
         lines.length === 0 &&
         !plate.trim() &&
+        !mileage.trim() &&
         !note.trim() &&
         !carBrandId &&
         !carModelId &&
@@ -1113,6 +1127,7 @@ export default function PosPage() {
         const draft: PosDraft = {
           lines,
           plate,
+          mileage,
           note,
           billDate,
           carBrandId,
@@ -1125,7 +1140,7 @@ export default function PosPage() {
     } catch {
       // ignore storage errors (private mode / quota)
     }
-  }, [lines, plate, note, billDate, carBrandId, carModelId, carYear, docType]);
+  }, [lines, plate, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
 
   const subtotalSatang = cartTotalSatang(lines);
   const discountSatang = discountSatangOf(subtotalSatang, discountKind, discountValue);
@@ -1380,6 +1395,7 @@ export default function PosPage() {
       toast("Sale saved ✓", "success");
       setLines([]);
       setPlate("");
+      setMileage("");
       setNote("");
       setCarBrandId("");
       setCarModelId("");
@@ -1592,13 +1608,24 @@ export default function PosPage() {
                     </select>
                   </div>
                   <div style={{ marginTop: 12 }}>
-                    <div style={fieldLabel}>ทะเบียนรถ (license plate)</div>
-                    <input
-                      value={plate}
-                      onChange={(e) => setPlate(e.target.value)}
-                      placeholder="เช่น 1กก 1234 สุรินทร์"
-                      style={inputL}
-                    />
+                    <div style={fieldLabel}>ทะเบียน / เลขไมล์</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        value={plate}
+                        onChange={(e) => setPlate(e.target.value)}
+                        placeholder="เช่น 1กก 1234 สุรินทร์"
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <input
+                        value={mileage}
+                        onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder="เลขไมล์"
+                        inputMode="numeric"
+                        aria-label="Mileage (km)"
+                        style={{ width: 120 }}
+                      />
+                      <span className="muted">km</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1894,6 +1921,7 @@ export default function PosPage() {
               dateLabel={billLang === "en" ? englishDate(billDate) : thaiDate(billDate)}
               vehicle={vehicleLabel}
               plate={plate.trim()}
+              mileage={mileage.trim()}
               lines={lines}
               subtotalSatang={subtotalSatang}
               discountSatang={discountSatang}
