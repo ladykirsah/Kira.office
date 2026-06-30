@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
+import { inputS } from "@/lib/inputStyles";
 
 const numStyle = { width: 110, minHeight: 0, padding: "8px 10px" } as const;
 
@@ -228,6 +229,7 @@ export default function ServicesPage() {
   const [nameEn, setNameEn] = useState("");
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
 
   async function load() {
     try {
@@ -259,6 +261,13 @@ export default function ServicesPage() {
       setBusy(false);
     }
   }
+
+  const term = q.trim().toLowerCase();
+  const filtered = term
+    ? services.filter(
+        (s) => s.name.toLowerCase().includes(term) || (s.nameEn ?? "").toLowerCase().includes(term),
+      )
+    : services;
 
   return (
     <main>
@@ -316,20 +325,42 @@ export default function ServicesPage() {
             No services yet. Add one above.
           </p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th style={firstCol}>Service</th>
-                <th style={priceCol}>Price</th>
-                <th style={actionCol}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.map((s) => (
-                <ServiceItem key={s.id} svc={s} onChanged={load} />
-              ))}
-            </tbody>
-          </table>
+          <>
+            <input
+              className="tbar-input"
+              placeholder="Search services…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{
+                ...inputS,
+                width: 240,
+                maxWidth: "100%",
+                color: "var(--text)",
+                fontWeight: 500,
+                marginBottom: 12,
+              }}
+            />
+            {filtered.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13 }}>
+                No services match “{q}”.
+              </p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th style={firstCol}>Service</th>
+                    <th style={priceCol}>Price</th>
+                    <th style={actionCol}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s) => (
+                    <ServiceItem key={s.id} svc={s} onChanged={load} />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </div>
     </main>
