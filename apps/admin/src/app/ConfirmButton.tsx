@@ -26,7 +26,7 @@ export function ConfirmButton({
     return (
       <span className="confirm">
         <button
-          className="btn-danger"
+          className="btn-danger btn-sm"
           onClick={() => {
             setArmed(false);
             onConfirm();
@@ -34,7 +34,9 @@ export function ConfirmButton({
         >
           {confirmLabel}
         </button>
-        <button onClick={() => setArmed(false)}>Cancel</button>
+        <button className="btn-sm" onClick={() => setArmed(false)}>
+          Cancel
+        </button>
       </span>
     );
   }
