@@ -88,7 +88,7 @@ function ListCard({
           placeholder={placeholder}
           style={{ ...inputS, flex: 1, minWidth: 0 }}
         />
-        <button type="submit" className="btn-primary" disabled={busy || !val.trim()}>
+        <button type="submit" className="btn-primary btn-sm" disabled={busy || !val.trim()}>
           Add
         </button>
       </form>
