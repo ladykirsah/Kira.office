@@ -117,7 +117,7 @@ function ServiceItem({
             <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{svc.nameEn}</div>
           ) : null}
         </div>
-        <span style={{ fontWeight: 600 }}>
+        <span className="pill soft" style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
           ฿{(svc.basePriceSatang / 100).toLocaleString("en-US")}
         </span>
         <span
