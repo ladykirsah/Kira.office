@@ -11,7 +11,7 @@ import {
   type Attributes,
 } from "@/lib/api";
 import { useToast } from "../ToastProvider";
-import { ConfirmButton } from "../ConfirmButton";
+import { ConfirmButton, XIcon } from "../ConfirmButton";
 
 export interface AttrKindConfig {
   kind: AttrKind;
@@ -74,8 +74,13 @@ function ListCard({
               }}
             >
               <span>{o.name}</span>
-              <ConfirmButton confirmLabel="Remove?" onConfirm={() => onDelete(o.id)}>
-                ✕
+              <ConfirmButton
+                className="icon-btn"
+                ariaLabel={`Remove ${o.name}`}
+                confirmLabel="Remove?"
+                onConfirm={() => onDelete(o.id)}
+              >
+                <XIcon />
               </ConfirmButton>
             </div>
           ))}

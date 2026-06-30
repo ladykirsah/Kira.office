@@ -12,7 +12,7 @@ import {
   type CarModelNode,
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
-import { ConfirmButton } from "../../ConfirmButton";
+import { ConfirmButton, XIcon } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
 
@@ -214,10 +214,12 @@ export default function CarFitmentPage() {
                               style={{ display: "flex", alignItems: "center" }}
                             >
                               <ConfirmButton
+                                className="icon-btn"
+                                ariaLabel={`Remove ${m.name}`}
                                 confirmLabel="Remove?"
                                 onConfirm={() => run(() => deleteCarModel(m.id), selected.id)}
                               >
-                                ✕
+                                <XIcon />
                               </ConfirmButton>
                             </span>
                           </div>
