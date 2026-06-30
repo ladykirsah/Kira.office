@@ -336,6 +336,7 @@ function BarcodePreview({ value }: { value: string }) {
  * Row 2 (separated by a clear gap): editable ฿ price × qty pcs. on the left, bold line total right. */
 function CartItem({
   line,
+  lang,
   barcode,
   onQty,
   onPrice,
@@ -343,6 +344,7 @@ function CartItem({
   onRemove,
 }: {
   line: SaleLine;
+  lang: BillLang;
   barcode?: string;
   onQty: (q: number) => void;
   onPrice: (satang: number) => void;
@@ -365,7 +367,9 @@ function CartItem({
       {/* Row 1: identity — name + tags (left), barcode (right) */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingRight: 28 }}>
         <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{line.name}</div>
+          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>
+            {lang === "en" && line.nameEn ? line.nameEn : line.name}
+          </div>
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
             {isService ? (
               <span style={chip("service")}>Service</span>
@@ -1820,6 +1824,7 @@ export default function PosPage() {
                         <CartItem
                           key={l.uid}
                           line={l}
+                          lang={billLang}
                           barcode={l.barcodeValue || codeToBarcode.get(l.productRef ?? "")}
                           onQty={(quantity) => updateLine(l.uid, { quantity })}
                           onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
