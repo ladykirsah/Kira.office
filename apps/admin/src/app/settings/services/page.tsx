@@ -13,6 +13,15 @@ import { ConfirmButton } from "../../ConfirmButton";
 
 const numStyle = { width: 110, minHeight: 0, padding: "8px 10px" } as const;
 
+const rowStyle = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  flexWrap: "wrap" as const,
+  padding: "8px 0",
+  borderTop: "1px solid var(--border)",
+};
+
 function ServiceItem({
   svc,
   onChanged,
@@ -21,6 +30,7 @@ function ServiceItem({
   onChanged: () => void | Promise<void>;
 }) {
   const toast = useToast();
+  const [editing, setEditing] = useState(false);
   const [name, setName] = useState(svc.name);
   const [price, setPrice] = useState((svc.basePriceSatang / 100).toString());
   const [busy, setBusy] = useState(false);
@@ -32,12 +42,19 @@ function ServiceItem({
     setBusy(true);
     try {
       await updateService(svc.id, { name: name.trim(), basePriceSatang: priceSatang });
+      setEditing(false);
       await onChanged();
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
       setBusy(false);
     }
+  }
+
+  function cancel() {
+    setName(svc.name);
+    setPrice((svc.basePriceSatang / 100).toString());
+    setEditing(false);
   }
 
   async function del() {
@@ -49,17 +66,31 @@ function ServiceItem({
     }
   }
 
+  // Saved (view) mode — name + price as text, with Edit / Delete.
+  if (!editing) {
+    return (
+      <div style={rowStyle}>
+        <span style={{ flex: "1 1 200px", minWidth: 0 }}>{svc.name}</span>
+        <span style={{ fontWeight: 600 }}>
+          ฿{(svc.basePriceSatang / 100).toLocaleString("en-US")}
+        </span>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          style={{ minHeight: 0, padding: "8px 12px" }}
+        >
+          Edit
+        </button>
+        <ConfirmButton confirmLabel="Remove?" onConfirm={del}>
+          Delete
+        </ConfirmButton>
+      </div>
+    );
+  }
+
+  // Edit mode — inputs, with Save / Cancel.
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 8,
-        alignItems: "center",
-        flexWrap: "wrap",
-        padding: "8px 0",
-        borderTop: "1px solid var(--border)",
-      }}
-    >
+    <div style={rowStyle}>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -77,16 +108,21 @@ function ServiceItem({
       />
       <button
         type="button"
-        className="btn-soft"
-        disabled={!dirty || busy}
+        className="btn-primary"
+        disabled={!dirty || !name.trim() || busy}
         onClick={save}
         style={{ minHeight: 0, padding: "8px 12px" }}
       >
         Save
       </button>
-      <ConfirmButton confirmLabel="Remove?" onConfirm={del}>
-        Delete
-      </ConfirmButton>
+      <button
+        type="button"
+        onClick={cancel}
+        disabled={busy}
+        style={{ minHeight: 0, padding: "8px 12px" }}
+      >
+        Cancel
+      </button>
     </div>
   );
 }
