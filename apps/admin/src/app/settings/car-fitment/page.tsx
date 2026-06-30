@@ -267,6 +267,7 @@ export default function CarFitmentPage() {
                     placeholder="Add model…"
                     style={{ ...inputS, flex: 1, minWidth: 100 }}
                   />
+                  <span className="muted">year</span>
                   <input
                     value={newModelFrom}
                     onChange={(e) => setNewModelFrom(e.target.value)}
