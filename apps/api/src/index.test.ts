@@ -16,6 +16,9 @@ import worker, {
   listAttributes,
   addAttribute,
   resolveAttribute,
+  addService,
+  listServices,
+  updateService,
   setProductFitments,
   listCarFitment,
   addCarModel,
@@ -72,6 +75,8 @@ function makeDb(canned: {
   usages?: unknown[];
   carBrands?: unknown[];
   carModels?: unknown[];
+  services?: unknown[];
+  serviceByName?: { id: string } | null;
   fitments?: unknown[];
   attrOption?: unknown | null;
   stock?: unknown[];
@@ -117,6 +122,7 @@ function makeDb(canned: {
         if (sql.includes("FROM usage_categories")) return { results: (canned.usages ?? []) as T[] };
         if (sql.includes("FROM car_brands")) return { results: (canned.carBrands ?? []) as T[] };
         if (sql.includes("FROM car_models")) return { results: (canned.carModels ?? []) as T[] };
+        if (sql.includes("FROM services")) return { results: (canned.services ?? []) as T[] };
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
         if (sql.includes("FROM product_variants v JOIN products"))
@@ -156,6 +162,8 @@ function makeDb(canned: {
         if (sql.includes("FROM onsite_sales WHERE id"))
           return (canned.saleHeader ?? null) as T | null;
         if (sql.includes("FROM products p")) return (canned.productDetail ?? null) as T | null;
+        if (sql.includes("FROM services WHERE name"))
+          return (canned.serviceByName ?? null) as T | null;
         if (sql.includes("COLLATE NOCASE")) return (canned.attrOption ?? null) as T | null;
         if (sql.includes("FROM product_variants WHERE product_id"))
           return (canned.variantRow ?? null) as T | null;
@@ -193,6 +201,108 @@ function makeDb(canned: {
   } as unknown as D1Database;
   return { db, env: { DB: db } as unknown as Env, batched, runs };
 }
+
+describe("services (bilingual name_en)", () => {
+  it("listServices > selects name_en AS nameEn and returns the rows", async () => {
+    const { db } = makeDb({
+      services: [
+        { id: "sv1", name: "ตรวจเช็คระบบแอร์", nameEn: "A/C system check", basePriceSatang: 30000 },
+      ],
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    const rows = await listServices(db);
+    // The SQL mock doesn't execute aliasing, so assert the SELECT itself maps name_en → nameEn.
+    expect(prepare.mock.calls[0]?.[0]).toContain("name_en AS nameEn");
+    expect(rows).toEqual([
+      { id: "sv1", name: "ตรวจเช็คระบบแอร์", nameEn: "A/C system check", basePriceSatang: 30000 },
+    ]);
+  });
+
+  it("addService > inserts the English name and returns it (both trimmed)", async () => {
+    const { db, runs } = makeDb({}); // no existing service → insert path
+    const result = await addService(db, "  Brake check  ", "  Brake inspection  ", 35000);
+    expect(result).toMatchObject({
+      name: "Brake check",
+      nameEn: "Brake inspection",
+      basePriceSatang: 35000,
+    });
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO services"));
+    expect(insert?.sql).toContain("name_en");
+    expect(insert?.binds).toContain("Brake inspection");
+  });
+
+  it("addService > existing name updates name_en instead of inserting", async () => {
+    const { db, runs } = makeDb({ serviceByName: { id: "sv-existing" } });
+    const result = await addService(db, "Brake check", "Brake inspection", 35000);
+    expect(result.id).toBe("sv-existing");
+    expect(result.nameEn).toBe("Brake inspection");
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name_en"));
+    expect(update?.binds).toEqual(["Brake inspection", 35000, "sv-existing"]);
+    expect(runs.some((r) => r.sql.includes("INSERT INTO services"))).toBe(false);
+  });
+
+  it("updateService > persists the English name (trimmed)", async () => {
+    const { db, runs } = makeDb({});
+    await updateService(db, "sv1", {
+      name: "  Wash  ",
+      nameEn: "  Coil cleaning  ",
+      basePriceSatang: 120000,
+    });
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name ="));
+    expect(update?.sql).toContain("name_en");
+    expect(update?.binds).toEqual(["Wash", "Coil cleaning", 120000, "sv1"]);
+  });
+
+  it("POST /services > round-trips nameEn from the request body", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Brake check",
+          nameEn: "Brake inspection",
+          basePriceSatang: 35000,
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({
+      name: "Brake check",
+      nameEn: "Brake inspection",
+      basePriceSatang: 35000,
+    });
+  });
+
+  it("POST /services > rejects a missing name with 400", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services", {
+        method: "POST",
+        body: JSON.stringify({ nameEn: "orphan", basePriceSatang: 100 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("PATCH /services/:id > persists the updated English name", async () => {
+    const { env, runs } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services/sv1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Wash", nameEn: "Coil cleaning", basePriceSatang: 120000 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name ="));
+    expect(update?.binds).toEqual(["Wash", "Coil cleaning", 120000, "sv1"]);
+  });
+});
 
 describe("writeAuditLog", () => {
   it("inserts an append-only row for a mutation", async () => {
