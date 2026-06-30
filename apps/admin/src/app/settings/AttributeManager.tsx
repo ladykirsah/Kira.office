@@ -60,7 +60,7 @@ function ListCard({
           No values yet.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 4, marginBottom: 12 }}>
+        <div style={{ display: "grid", gap: 0, marginBottom: 12 }}>
           {items.map((o) => (
             <div
               key={o.id}
