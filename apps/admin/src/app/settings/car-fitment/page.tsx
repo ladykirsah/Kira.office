@@ -147,7 +147,7 @@ export default function CarFitmentPage() {
                 placeholder="Add brand…"
                 style={{ ...inputS, flex: 1, minWidth: 0 }}
               />
-              <button type="submit" className="btn-primary" disabled={!newBrand.trim()}>
+              <button type="submit" className="btn-primary btn-sm" disabled={!newBrand.trim()}>
                 +
               </button>
             </form>
@@ -167,6 +167,7 @@ export default function CarFitmentPage() {
                 >
                   <span style={{ fontWeight: 600 }}>{selected.name} · models</span>
                   <ConfirmButton
+                    className="btn-sm"
                     confirmLabel="Remove brand?"
                     onConfirm={() => run(() => deleteCarBrand(selected.id))}
                   >
@@ -274,7 +275,7 @@ export default function CarFitmentPage() {
                     aria-label="Era to year"
                     style={{ ...inputS, width: 64 }}
                   />
-                  <button type="submit" className="btn-primary" disabled={!newModel.trim()}>
+                  <button type="submit" className="btn-primary btn-sm" disabled={!newModel.trim()}>
                     Add
                   </button>
                 </form>
