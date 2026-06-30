@@ -224,11 +224,11 @@ export function ModelInfoEditor({
       </label>
 
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button type="button" className="btn-primary" onClick={save} disabled={saving}>
+        <button type="button" className="btn-primary btn-sm" onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save notes"}
         </button>
         {onCancel && (
-          <button type="button" onClick={onCancel} disabled={saving}>
+          <button type="button" className="btn-sm" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
         )}
