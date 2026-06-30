@@ -230,6 +230,9 @@ export default function ServicesPage() {
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
+  // Adding requires a Thai name and a positive price; the English name is optional.
+  const addPriceSatang = Math.max(0, Math.round((parseFloat(price) || 0) * 100));
+  const canAdd = name.trim() !== "" && addPriceSatang > 0;
 
   async function load() {
     try {
@@ -247,10 +250,10 @@ export default function ServicesPage() {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!canAdd) return;
     setBusy(true);
     try {
-      await addService(name.trim(), nameEn.trim(), Math.round((parseFloat(price) || 0) * 100));
+      await addService(name.trim(), nameEn.trim(), addPriceSatang);
       setName("");
       setNameEn("");
       setPrice("");
@@ -307,7 +310,7 @@ export default function ServicesPage() {
             onChange={(e) => setPrice(e.target.value)}
             style={{ width: 110 }}
           />
-          <button type="submit" className="btn-primary" disabled={busy || !name.trim()}>
+          <button type="submit" className="btn-primary" disabled={busy || !canAdd}>
             Add
           </button>
         </form>
