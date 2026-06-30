@@ -13,16 +13,34 @@ import { ConfirmButton } from "../../ConfirmButton";
 
 const numStyle = { width: 110, minHeight: 0, padding: "8px 10px" } as const;
 
-const rowStyle = {
-  display: "flex",
-  gap: 8,
-  alignItems: "center",
-  flexWrap: "wrap" as const,
-  // Fits the 2-line (Thai + English) saved row, so the row keeps the same height in edit mode.
-  minHeight: 64,
-  padding: "8px 0",
-  borderTop: "1px solid var(--border)",
-};
+// Card frame shared by the two sections (Add / Available services).
+const cardStyle = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  padding: "14px 16px",
+} as const;
+const cardLabel = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--text-muted)",
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+  marginBottom: 12,
+} as const;
+
+// Available-services table columns: Service stretches; Price + Actions shrink to content (the
+// `width: 1` + nowrap trick) and sit on the right. The actions column carries the row divider.
+const firstCol = { paddingLeft: 0 } as const;
+const priceCol = { width: 1, whiteSpace: "nowrap" } as const;
+const actionCol = {
+  width: 1,
+  whiteSpace: "nowrap",
+  borderLeft: "1px solid var(--border)",
+  paddingRight: 0,
+} as const;
+// Flex layout for the full-width edit row (rendered in a single colSpan cell).
+const editRow = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } as const;
 
 const EditIcon = () => (
   <svg
@@ -121,78 +139,89 @@ function ServiceItem({
   // Saved (view) mode — Thai name over English, price, a divider, then icon actions (Design 2).
   if (!editing) {
     return (
-      <div style={rowStyle}>
-        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+      <tr>
+        <td style={firstCol}>
           <div>{svc.name}</div>
           {svc.nameEn ? (
             <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{svc.nameEn}</div>
           ) : null}
-        </div>
-        <span className="pill soft" style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-          ฿{(svc.basePriceSatang / 100).toLocaleString("en-US")}
-        </span>
-        <RowDivider />
-        {!deleting && (
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={`Edit ${svc.name}`}
-            onClick={() => setEditing(true)}
+        </td>
+        <td style={priceCol}>
+          <span className="pill soft" style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+            ฿{(svc.basePriceSatang / 100).toLocaleString("en-US")}
+          </span>
+        </td>
+        <td style={actionCol}>
+          <div
+            style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}
           >
-            <EditIcon />
-          </button>
-        )}
-        <ConfirmButton
-          className="icon-btn"
-          ariaLabel={`Delete ${svc.name}`}
-          confirmLabel="Remove?"
-          onConfirm={del}
-          onArmedChange={setDeleting}
-        >
-          <TrashIcon />
-        </ConfirmButton>
-      </div>
+            {!deleting && (
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={`Edit ${svc.name}`}
+                onClick={() => setEditing(true)}
+              >
+                <EditIcon />
+              </button>
+            )}
+            <ConfirmButton
+              className="icon-btn"
+              ariaLabel={`Delete ${svc.name}`}
+              confirmLabel="Remove?"
+              onConfirm={del}
+              onArmedChange={setDeleting}
+            >
+              <TrashIcon />
+            </ConfirmButton>
+          </div>
+        </td>
+      </tr>
     );
   }
 
   // Edit mode — Thai + English name inputs + price, with Save / Cancel.
   return (
-    <div style={rowStyle}>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="ชื่อบริการ (ไทย)"
-        style={{ flex: "1 1 150px", minWidth: 0, minHeight: 0, padding: "8px 10px" }}
-      />
-      <input
-        value={nameEn}
-        onChange={(e) => setNameEn(e.target.value)}
-        placeholder="Service name (EN)"
-        style={{ flex: "1 1 150px", minWidth: 0, minHeight: 0, padding: "8px 10px" }}
-      />
-      <span className="muted" style={{ fontSize: 13 }}>
-        ฿
-      </span>
-      <input
-        type="number"
-        min={0}
-        value={price}
-        onChange={(e) => setPrice(e.target.value)}
-        style={numStyle}
-      />
-      <RowDivider />
-      <button
-        type="button"
-        className="btn-primary btn-sm"
-        disabled={!dirty || !name.trim() || busy}
-        onClick={save}
-      >
-        Save
-      </button>
-      <button type="button" className="btn-sm" onClick={cancel} disabled={busy}>
-        Cancel
-      </button>
-    </div>
+    <tr>
+      <td colSpan={3} style={firstCol}>
+        <div style={editRow}>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="ชื่อบริการ (ไทย)"
+            style={{ flex: "1 1 150px", minWidth: 0, minHeight: 0, padding: "8px 10px" }}
+          />
+          <input
+            value={nameEn}
+            onChange={(e) => setNameEn(e.target.value)}
+            placeholder="Service name (EN)"
+            style={{ flex: "1 1 150px", minWidth: 0, minHeight: 0, padding: "8px 10px" }}
+          />
+          <span className="muted" style={{ fontSize: 13 }}>
+            ฿
+          </span>
+          <input
+            type="number"
+            min={0}
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            style={numStyle}
+          />
+          <RowDivider />
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            disabled={!dirty || !name.trim() || busy}
+            onClick={save}
+          >
+            Save
+          </button>
+          <button type="button" className="btn-sm" onClick={cancel} disabled={busy}>
+            Cancel
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -238,20 +267,15 @@ export default function ServicesPage() {
 
   return (
     <main>
-      <h1>Available services</h1>
+      <h1>Services</h1>
       <p className="muted">
         Manage the repair / labour services the Point of Sale can add to a bill. Each has a base
         price that prefills when you pick it — you can still change the price per sale.
       </p>
 
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "14px 16px",
-        }}
-      >
+      {/* Frame 1 — add a service */}
+      <div style={cardStyle}>
+        <div style={cardLabel}>Add a service</div>
         <form
           onSubmit={add}
           style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
@@ -288,23 +312,35 @@ export default function ServicesPage() {
             Add
           </button>
         </form>
+      </div>
 
-        <div style={{ marginTop: 8 }}>
-          {loading ? (
-            <p className="muted" style={{ fontSize: 13 }}>
-              Loading…
-            </p>
-          ) : services.length === 0 ? (
-            <p
-              className="muted"
-              style={{ fontSize: 13, paddingTop: 10, borderTop: "1px solid var(--border)" }}
-            >
-              No services yet. Add one above.
-            </p>
-          ) : (
-            services.map((s) => <ServiceItem key={s.id} svc={s} onChanged={load} />)
-          )}
-        </div>
+      {/* Frame 2 — available services (table) */}
+      <div style={{ ...cardStyle, marginTop: 16 }}>
+        <div style={cardLabel}>Available services</div>
+        {loading ? (
+          <p className="muted" style={{ fontSize: 13 }}>
+            Loading…
+          </p>
+        ) : services.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13 }}>
+            No services yet. Add one above.
+          </p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th style={firstCol}>Service</th>
+                <th style={priceCol}>Price</th>
+                <th style={actionCol} aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {services.map((s) => (
+                <ServiceItem key={s.id} svc={s} onChanged={load} />
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </main>
   );
