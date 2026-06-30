@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import type { CarModelNode } from "@/lib/api";
 import { ConfirmButton } from "../../ConfirmButton";
 
@@ -14,6 +14,7 @@ export function ModelInfoView({
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  const [removing, setRemoving] = useState(false); // delete armed → hide Edit, show only Remove/Cancel
   // Note: the era (year range) is shown as a chip on the model's row header, so it's omitted here.
   const rows: { label: string; value: ReactNode }[] = [];
   if (model.generationCode)
@@ -53,14 +54,17 @@ export function ModelInfoView({
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button type="button" className="btn-primary btn-sm" onClick={onEdit}>
-          Edit
-        </button>
+        {!removing && (
+          <button type="button" className="btn-primary btn-sm" onClick={onEdit}>
+            Edit
+          </button>
+        )}
         <ConfirmButton
           className="btn-sm"
           ariaLabel={`Remove ${model.name}`}
           confirmLabel="Remove model?"
           onConfirm={onRemove}
+          onArmedChange={setRemoving}
         >
           Remove
         </ConfirmButton>
