@@ -719,7 +719,7 @@ html[data-theme="dark"] .pill.pause {
 }
 /* Inline per-model service-note editor (the customer-service cheat sheet) */
 .md-minfo {
-  padding: 6px 12px 12px;
+  padding: 12px;
   background: transparent;
 }
 /* Read-only view: a scannable label → value table */
