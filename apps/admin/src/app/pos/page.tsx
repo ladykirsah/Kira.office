@@ -1608,18 +1608,18 @@ export default function PosPage() {
                     </select>
                   </div>
                   <div style={{ marginTop: 12 }}>
-                    <div style={fieldLabel}>ทะเบียน / เลขไมล์</div>
+                    <div style={fieldLabel}>Plate / mileage</div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input
                         value={plate}
                         onChange={(e) => setPlate(e.target.value)}
-                        placeholder="เช่น 1กก 1234 สุรินทร์"
+                        placeholder="License plate"
                         style={{ flex: 1, minWidth: 0 }}
                       />
                       <input
                         value={mileage}
                         onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
-                        placeholder="เลขไมล์"
+                        placeholder="Mileage"
                         inputMode="numeric"
                         aria-label="Mileage (km)"
                         style={{ width: 120 }}
