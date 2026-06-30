@@ -273,7 +273,7 @@ export default function CarFitmentPage() {
                     placeholder="from"
                     inputMode="numeric"
                     aria-label="Era from year"
-                    style={{ ...inputS, width: 64 }}
+                    style={{ ...inputS, width: 80 }}
                   />
                   <span className="muted">–</span>
                   <input
@@ -282,7 +282,7 @@ export default function CarFitmentPage() {
                     placeholder="to"
                     inputMode="numeric"
                     aria-label="Era to year"
-                    style={{ ...inputS, width: 64 }}
+                    style={{ ...inputS, width: 80 }}
                   />
                   <button type="submit" className="btn-primary btn-sm" disabled={!newModel.trim()}>
                     Add
