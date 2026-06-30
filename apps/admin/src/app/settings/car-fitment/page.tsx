@@ -12,7 +12,7 @@ import {
   type CarModelNode,
 } from "@/lib/api";
 import { useToast } from "../../ToastProvider";
-import { ConfirmButton, XIcon } from "../../ConfirmButton";
+import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
 
@@ -193,13 +193,6 @@ export default function CarFitmentPage() {
                             }}
                           >
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span
-                                className="md-caret"
-                                aria-hidden="true"
-                                style={{ fontSize: 11, width: 8, display: "inline-block" }}
-                              >
-                                {open ? "▾" : "▸"}
-                              </span>
                               {m.name}
                               {eraStr(m.yearFrom, m.yearTo) && (
                                 <span className="md-era">{eraStr(m.yearFrom, m.yearTo)}</span>
@@ -211,17 +204,29 @@ export default function CarFitmentPage() {
                               )}
                             </span>
                             <span
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ display: "flex", alignItems: "center" }}
+                              aria-hidden="true"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                color: "var(--text-muted)",
+                              }}
                             >
-                              <ConfirmButton
-                                className="icon-btn"
-                                ariaLabel={`Remove ${m.name}`}
-                                confirmLabel="Remove?"
-                                onConfirm={() => run(() => deleteCarModel(m.id), selected.id)}
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                style={{
+                                  transform: open ? "rotate(180deg)" : "none",
+                                  transition: "transform .12s",
+                                }}
                               >
-                                <XIcon />
-                              </ConfirmButton>
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
                             </span>
                           </div>
                           {open &&
@@ -235,7 +240,11 @@ export default function CarFitmentPage() {
                                 onCancel={() => setEditMode(false)}
                               />
                             ) : (
-                              <ModelInfoView model={m} onEdit={() => setEditMode(true)} />
+                              <ModelInfoView
+                                model={m}
+                                onEdit={() => setEditMode(true)}
+                                onRemove={() => run(() => deleteCarModel(m.id), selected.id)}
+                              />
                             ))}
                         </div>
                       );

@@ -2,9 +2,18 @@
 
 import { Fragment, type ReactNode } from "react";
 import type { CarModelNode } from "@/lib/api";
+import { ConfirmButton } from "../../ConfirmButton";
 
-/** Read-only display of a car model's service notes, with an Edit button to switch to the form. */
-export function ModelInfoView({ model, onEdit }: { model: CarModelNode; onEdit: () => void }) {
+/** Read-only display of a car model's service notes, with Edit + Remove actions. */
+export function ModelInfoView({
+  model,
+  onEdit,
+  onRemove,
+}: {
+  model: CarModelNode;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
   // Note: the era (year range) is shown as a chip on the model's row header, so it's omitted here.
   const rows: { label: string; value: ReactNode }[] = [];
   if (model.generationCode)
@@ -43,21 +52,19 @@ export function ModelInfoView({ model, onEdit }: { model: CarModelNode; onEdit: 
           ))}
         </div>
       )}
-      <button
-        type="button"
-        className="btn-primary"
-        onClick={onEdit}
-        style={{
-          marginTop: 14,
-          padding: 8,
-          minHeight: 0,
-          fontSize: 13,
-          fontWeight: 400,
-          borderRadius: 8,
-        }}
-      >
-        Edit
-      </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button type="button" className="btn-primary btn-sm" onClick={onEdit}>
+          Edit
+        </button>
+        <ConfirmButton
+          className="btn-sm"
+          ariaLabel={`Remove ${model.name}`}
+          confirmLabel="Remove model?"
+          onConfirm={onRemove}
+        >
+          Remove
+        </ConfirmButton>
+      </div>
     </div>
   );
 }
