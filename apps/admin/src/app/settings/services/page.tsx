@@ -177,19 +177,13 @@ function ServiceItem({
       />
       <button
         type="button"
-        className="btn-primary"
+        className="btn-primary btn-sm"
         disabled={!dirty || !name.trim() || busy}
         onClick={save}
-        style={{ minHeight: 0, padding: "8px 12px" }}
       >
         Save
       </button>
-      <button
-        type="button"
-        onClick={cancel}
-        disabled={busy}
-        style={{ minHeight: 0, padding: "8px 12px" }}
-      >
+      <button type="button" className="btn-sm" onClick={cancel} disabled={busy}>
         Cancel
       </button>
     </div>
