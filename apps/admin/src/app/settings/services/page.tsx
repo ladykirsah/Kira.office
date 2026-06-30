@@ -33,7 +33,6 @@ const cardLabel = {
 // Available-services table columns: Service stretches; Price shrinks to content (the `width: 1` +
 // nowrap trick); Actions is a fixed 112px centered column. The divider is a short RowDivider inside
 // each body cell (not a full-height cell border) and is absent from the header.
-const firstCol = { paddingLeft: 0 } as const;
 const priceCol = { width: 1, whiteSpace: "nowrap" } as const;
 const actionCol = { width: 112, whiteSpace: "nowrap", textAlign: "center" } as const;
 // Flex layout for the full-width edit row (rendered in a single colSpan cell).
@@ -139,7 +138,7 @@ function ServiceItem({
   if (!editing) {
     return (
       <tr>
-        <td style={firstCol}>
+        <td>
           <div style={{ fontWeight: 600 }}>{svc.name}</div>
           {svc.nameEn ? (
             <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{svc.nameEn}</div>
@@ -183,7 +182,7 @@ function ServiceItem({
   // Edit mode — Thai + English name inputs + price, with Save / Cancel.
   return (
     <tr>
-      <td colSpan={3} style={firstCol}>
+      <td colSpan={3}>
         <div style={editRow}>
           <input
             value={name}
@@ -358,7 +357,7 @@ export default function ServicesPage() {
               <table>
                 <thead>
                   <tr>
-                    <th style={firstCol}>Service</th>
+                    <th>Service</th>
                     <th style={priceCol}>Price</th>
                     <th style={actionCol}>Actions</th>
                   </tr>
