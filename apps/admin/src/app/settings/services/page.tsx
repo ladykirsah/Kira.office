@@ -179,7 +179,6 @@ export default function ServicesPage() {
           border: "1px solid var(--border)",
           borderRadius: 12,
           padding: "14px 16px",
-          maxWidth: 560,
         }}
       >
         <form
