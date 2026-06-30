@@ -37,7 +37,6 @@ const actionCol = {
   width: 1,
   whiteSpace: "nowrap",
   borderLeft: "1px solid var(--border)",
-  paddingRight: 0,
 } as const;
 // Flex layout for the full-width edit row (rendered in a single colSpan cell).
 const editRow = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } as const;
