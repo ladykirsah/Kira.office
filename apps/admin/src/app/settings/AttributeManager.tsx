@@ -51,7 +51,7 @@ function ListCard({
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
-        padding: "14px 16px",
+        padding: 16,
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 10 }}>{label}</div>
@@ -70,7 +70,7 @@ function ListCard({
                 alignItems: "center",
                 gap: 8,
                 borderTop: "1px solid var(--border)",
-                padding: "6px 0",
+                padding: "8px 0",
               }}
             >
               <span>{o.name}</span>
