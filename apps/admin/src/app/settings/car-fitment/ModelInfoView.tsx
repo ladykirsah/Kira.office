@@ -17,10 +17,6 @@ export function ModelInfoView({
   const [removing, setRemoving] = useState(false); // delete armed → hide Edit, show only Remove/Cancel
   // Note: the era (year range) is shown as a chip on the model's row header, so it's omitted here.
   const rows: { label: string; value: ReactNode }[] = [];
-  if (model.generationCode)
-    rows.push({ label: "Generation / chassis", value: model.generationCode });
-  if (model.refrigerant) rows.push({ label: "Refrigerant", value: model.refrigerant });
-  if (model.coolantLiters) rows.push({ label: "Coolant (liters)", value: model.coolantLiters });
   if (model.oringUsage?.length) {
     rows.push({
       label: "O-ring usage",
