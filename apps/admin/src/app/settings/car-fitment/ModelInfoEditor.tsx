@@ -68,12 +68,12 @@ export function ModelInfoEditor({
     const oringUsage: OringEntry[] = [];
     for (const size of BASIC_SIZES) {
       const qty = parseInt(basicQty[size] ?? "", 10);
-      if (Number.isFinite(qty)) oringUsage.push({ size, qty });
+      if (Number.isFinite(qty) && qty > 0) oringUsage.push({ size, qty });
     }
     for (const sp of specials) {
       const size = sp.size.trim();
       const qty = parseInt(sp.qty, 10);
-      if (size && Number.isFinite(qty)) oringUsage.push({ size, qty });
+      if (size && Number.isFinite(qty) && qty > 0) oringUsage.push({ size, qty });
     }
     setSaving(true);
     try {

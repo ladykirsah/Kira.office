@@ -97,7 +97,9 @@ function ServiceItem({
   const [busy, setBusy] = useState(false);
   const priceSatang = Math.max(0, Math.round((parseFloat(price) || 0) * 100));
   const dirty =
-    name.trim() !== svc.name || nameEn.trim() !== svc.nameEn || priceSatang !== svc.basePriceSatang;
+    name.trim() !== svc.name ||
+    nameEn.trim() !== (svc.nameEn ?? "") ||
+    priceSatang !== svc.basePriceSatang;
 
   async function save() {
     if (!name.trim() || priceSatang <= 0) return;

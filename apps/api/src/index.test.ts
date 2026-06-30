@@ -302,6 +302,31 @@ describe("services (bilingual name_en)", () => {
     const update = runs.find((r) => r.sql.includes("UPDATE services SET name ="));
     expect(update?.binds).toEqual(["Wash", "Coil cleaning", 120000, "sv1"]);
   });
+
+  it("POST /services > rejects a zero or absent price with 400", async () => {
+    const { env } = makeDb({});
+    for (const body of [{ name: "Free check", basePriceSatang: 0 }, { name: "No price" }]) {
+      const res = await worker.fetch!(
+        new Request("https://x/services", { method: "POST", body: JSON.stringify(body) }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("PATCH /services/:id > rejects a zero price with 400", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services/sv1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Wash", basePriceSatang: 0 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("writeAuditLog", () => {

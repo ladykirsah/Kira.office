@@ -2106,8 +2106,10 @@ const worker = {
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      if (!body.basePriceSatang || body.basePriceSatang <= 0)
+        return json({ error: "basePriceSatang must be greater than 0" }, 400);
       return json(
-        await addService(env.DB, body.name, body.nameEn ?? "", body.basePriceSatang ?? 0),
+        await addService(env.DB, body.name, body.nameEn ?? "", body.basePriceSatang),
         201,
       );
     }
@@ -2119,10 +2121,12 @@ const worker = {
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      if (!body.basePriceSatang || body.basePriceSatang <= 0)
+        return json({ error: "basePriceSatang must be greater than 0" }, 400);
       await updateService(env.DB, serviceById[1]!, {
         name: body.name,
         nameEn: body.nameEn ?? "",
-        basePriceSatang: body.basePriceSatang ?? 0,
+        basePriceSatang: body.basePriceSatang,
       });
       return json({ ok: true });
     }
