@@ -26,6 +26,7 @@ import {
   type DiscountKind,
 } from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
+import { ServiceSelect } from "./ServiceSelect";
 import {
   flushOutbox,
   formatSyncFailureMessage,
@@ -1764,19 +1765,12 @@ export default function PosPage() {
                     <div>
                       <div style={fieldLabel}>Add service</div>
                       {/* Row 1: pick a service, or choose to add manually */}
-                      <select
+                      <ServiceSelect
+                        services={services}
                         value={svcId}
-                        onChange={(e) => selectService(e.target.value)}
-                        style={{ width: "100%", ...inputS }}
-                      >
-                        <option value="">Choose a service…</option>
-                        {services.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                        <option value={MANUAL}>✎ Add manually…</option>
-                      </select>
+                        manualValue={MANUAL}
+                        onSelect={selectService}
+                      />
 
                       {/* Manual description appears between the dropdown and the price */}
                       {isManualService && (
