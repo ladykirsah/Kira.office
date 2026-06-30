@@ -169,6 +169,7 @@ export async function deleteAttribute(kind: AttrKind, id: string): Promise<void>
 export interface ServiceRow {
   id: string;
   name: string;
+  nameEn: string;
   basePriceSatang: number;
 }
 
@@ -178,11 +179,15 @@ export async function fetchServices(): Promise<ServiceRow[]> {
   return ((await res.json()) as { services: ServiceRow[] }).services;
 }
 
-export async function addService(name: string, basePriceSatang: number): Promise<ServiceRow> {
+export async function addService(
+  name: string,
+  nameEn: string,
+  basePriceSatang: number,
+): Promise<ServiceRow> {
   const res = await apiFetch(`/services`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, basePriceSatang }),
+    body: JSON.stringify({ name, nameEn, basePriceSatang }),
   });
   if (!res.ok) throw new Error(`Add service failed (HTTP ${res.status})`);
   return (await res.json()) as ServiceRow;
@@ -190,7 +195,7 @@ export async function addService(name: string, basePriceSatang: number): Promise
 
 export async function updateService(
   id: string,
-  fields: { name: string; basePriceSatang: number },
+  fields: { name: string; nameEn: string; basePriceSatang: number },
 ): Promise<void> {
   const res = await apiFetch(`/services/${id}`, {
     method: "PATCH",
