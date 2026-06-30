@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ServiceRow } from "@/lib/api";
 
-const MANUAL_LABEL = "✎ Add manually…";
-
 /**
  * Service picker styled like the products "Actions" dropdown: a full-width button that opens a
- * popover menu (the saved services, then "Add manually"). Closes on outside-click, Escape, or scroll.
+ * popover menu of the saved services. Closes on outside-click, Escape, or scroll. (Ad-hoc items
+ * are handled by the separate "Add-on" mode, so there's no manual-entry option here.)
  *
  * The menu is `position: fixed` (anchored to the button via getBoundingClientRect) because the POS
  * service workspace sits inside `.pos-groups-scroll` (overflow:auto) — an absolute popover would be
@@ -16,12 +15,10 @@ const MANUAL_LABEL = "✎ Add manually…";
 export function ServiceSelect({
   services,
   value,
-  manualValue,
   onSelect,
 }: {
   services: ServiceRow[];
   value: string;
-  manualValue: string;
   onSelect: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -59,9 +56,7 @@ export function ServiceSelect({
   const placeholder = value === "";
   const label = placeholder
     ? "Choose a service…"
-    : value === manualValue
-      ? MANUAL_LABEL
-      : (services.find((s) => s.id === value)?.name ?? "Choose a service…");
+    : (services.find((s) => s.id === value)?.name ?? "Choose a service…");
 
   function choose(id: string) {
     onSelect(id);
@@ -135,14 +130,6 @@ export function ServiceSelect({
               {s.name}
             </button>
           ))}
-          <button
-            type="button"
-            className="actions-item"
-            role="menuitem"
-            onClick={() => choose(manualValue)}
-          >
-            {MANUAL_LABEL}
-          </button>
         </div>
       )}
     </div>

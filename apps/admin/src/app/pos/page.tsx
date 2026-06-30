@@ -1007,10 +1007,9 @@ export default function PosPage() {
   const [discountKind, setDiscountKind] = useState<DiscountKind>("thb");
   const [discountValue, setDiscountValue] = useState("");
 
-  // Add-service inputs. svcId is "" / a service id / MANUAL; svcPrice is the price for either path.
+  // Add-service inputs. svcId is "" or a saved service id; svcPrice prefills from its base price.
   const [svcId, setSvcId] = useState("");
   const [svcPrice, setSvcPrice] = useState("");
-  const [manualName, setManualName] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
@@ -1272,22 +1271,13 @@ export default function PosPage() {
     setCodeVal("");
   }
 
-  const MANUAL = "__manual__";
-  const isManualService = svcId === MANUAL;
-  const serviceName = isManualService
-    ? manualName.trim()
-    : (services.find((s) => s.id === svcId)?.name ?? "");
-  const serviceNameEn = isManualService ? "" : (services.find((s) => s.id === svcId)?.nameEn ?? "");
+  const serviceName = services.find((s) => s.id === svcId)?.name ?? "";
+  const serviceNameEn = services.find((s) => s.id === svcId)?.nameEn ?? "";
 
   function selectService(id: string) {
     setSvcId(id);
-    setManualName("");
-    if (id === MANUAL || id === "") {
-      setSvcPrice("");
-    } else {
-      const s = services.find((x) => x.id === id);
-      setSvcPrice(s ? (s.basePriceSatang / 100).toString() : "");
-    }
+    const s = services.find((x) => x.id === id);
+    setSvcPrice(s ? (s.basePriceSatang / 100).toString() : "");
   }
 
   function addService() {
@@ -1307,7 +1297,6 @@ export default function PosPage() {
     toast(`Added ${serviceName}`, "success");
     setSvcId("");
     setSvcPrice("");
-    setManualName("");
   }
 
   /** Add a one-off custom line (name + price) not in the catalog. No stock is touched. */
@@ -1636,7 +1625,7 @@ export default function PosPage() {
                     {addKind === "product"
                       ? "Scan a barcode, type the code, or search your catalog."
                       : addKind === "service"
-                        ? "Pick a saved service, or add one manually."
+                        ? "Pick a saved service. For a one-off, use Add-on."
                         : "A one-off item not in your catalog — type a name and price."}
                   </p>
 
@@ -1764,24 +1753,7 @@ export default function PosPage() {
                   {addKind === "service" && (
                     <div>
                       <div style={fieldLabel}>Add service</div>
-                      {/* Row 1: pick a service, or choose to add manually */}
-                      <ServiceSelect
-                        services={services}
-                        value={svcId}
-                        manualValue={MANUAL}
-                        onSelect={selectService}
-                      />
-
-                      {/* Manual description appears between the dropdown and the price */}
-                      {isManualService && (
-                        <input
-                          value={manualName}
-                          onChange={(e) => setManualName(e.target.value)}
-                          placeholder="Service description…"
-                          autoFocus
-                          style={{ width: "100%", marginTop: 8, ...inputS }}
-                        />
-                      )}
+                      <ServiceSelect services={services} value={svcId} onSelect={selectService} />
 
                       {/* Add — the price is set on the item in the cart below */}
                       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
