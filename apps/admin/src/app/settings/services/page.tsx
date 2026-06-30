@@ -57,6 +57,14 @@ const TrashIcon = () => (
   </svg>
 );
 
+/** Hairline separating the price from the row's actions — same in saved, edit, and remove modes. */
+const RowDivider = () => (
+  <span
+    aria-hidden="true"
+    style={{ width: 1, alignSelf: "stretch", background: "var(--border)", margin: "0 8px" }}
+  />
+);
+
 function ServiceItem({
   svc,
   onChanged,
@@ -123,10 +131,7 @@ function ServiceItem({
         <span className="pill soft" style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
           ฿{(svc.basePriceSatang / 100).toLocaleString("en-US")}
         </span>
-        <span
-          aria-hidden="true"
-          style={{ width: 1, alignSelf: "stretch", background: "var(--border)", margin: "0 8px" }}
-        />
+        <RowDivider />
         {!deleting && (
           <button
             type="button"
@@ -175,6 +180,7 @@ function ServiceItem({
         onChange={(e) => setPrice(e.target.value)}
         style={numStyle}
       />
+      <RowDivider />
       <button
         type="button"
         className="btn-primary btn-sm"
