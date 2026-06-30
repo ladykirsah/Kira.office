@@ -279,13 +279,13 @@ export default function ServicesPage() {
             placeholder="ชื่อบริการ (ไทย)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{ flex: "1 1 150px", minWidth: 0, minHeight: 0, padding: "8px 10px" }}
+            style={{ flex: "1 1 150px", minWidth: 0 }}
           />
           <input
             placeholder="Service name (EN)"
             value={nameEn}
             onChange={(e) => setNameEn(e.target.value)}
-            style={{ flex: "1 1 150px", minWidth: 0, minHeight: 0, padding: "8px 10px" }}
+            style={{ flex: "1 1 150px", minWidth: 0 }}
           />
           <span className="muted" style={{ fontSize: 13 }}>
             ฿
@@ -296,14 +296,9 @@ export default function ServicesPage() {
             placeholder="0"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            style={numStyle}
+            style={{ width: 110 }}
           />
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={busy || !name.trim()}
-            style={{ minHeight: 0, padding: "8px 14px" }}
-          >
+          <button type="submit" className="btn-primary" disabled={busy || !name.trim()}>
             Add
           </button>
         </form>
