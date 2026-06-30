@@ -37,6 +37,8 @@ const priceCol = { width: 1, whiteSpace: "nowrap" } as const;
 const actionCol = { width: 112, whiteSpace: "nowrap", textAlign: "center" } as const;
 // Flex layout for the full-width edit row (rendered in a single colSpan cell).
 const editRow = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } as const;
+// Every body row uses the 2-line (Thai + English) view height, so edit / English-less rows match.
+const bodyRow = { height: 72 } as const;
 
 const EditIcon = () => (
   <svg
@@ -137,7 +139,7 @@ function ServiceItem({
   // Saved (view) mode — Thai name over English, price, a divider, then icon actions (Design 2).
   if (!editing) {
     return (
-      <tr>
+      <tr style={bodyRow}>
         <td>
           <div style={{ fontWeight: 600 }}>{svc.name}</div>
           {svc.nameEn ? (
@@ -181,7 +183,7 @@ function ServiceItem({
 
   // Edit mode — Thai + English name inputs + price, with Save / Cancel.
   return (
-    <tr>
+    <tr style={bodyRow}>
       <td colSpan={3}>
         <div style={editRow}>
           <input
