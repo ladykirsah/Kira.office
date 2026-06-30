@@ -1415,10 +1415,7 @@ export default function PosPage() {
         className="pos-grid"
       >
         {/* ---- LEFT: build the sale ---- */}
-        <div
-          className="pos-col-left"
-          style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 528 }}
-        >
+        <div className="pos-col-left" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Clickable step timeline — frozen above the scroll area */}
           <StepTimeline />
           {/* Only these 3 groups scroll; the rest of the page is frozen (wide screens). */}
