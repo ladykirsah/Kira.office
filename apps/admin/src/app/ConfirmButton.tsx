@@ -10,6 +10,7 @@ export function ConfirmButton({
   disabled,
   className,
   ariaLabel,
+  onArmedChange,
 }: {
   onConfirm: () => void;
   children: ReactNode;
@@ -19,8 +20,14 @@ export function ConfirmButton({
   className?: string;
   /** Accessible name for the trigger — required when `children` is an icon. */
   ariaLabel?: string;
+  /** Notified when the inline confirm is shown/hidden — e.g. to hide sibling controls while armed. */
+  onArmedChange?: (armed: boolean) => void;
 }) {
   const [armed, setArmed] = useState(false);
+  const arm = (next: boolean) => {
+    setArmed(next);
+    onArmedChange?.(next);
+  };
 
   if (armed) {
     return (
@@ -28,13 +35,13 @@ export function ConfirmButton({
         <button
           className="btn-danger btn-sm"
           onClick={() => {
-            setArmed(false);
+            arm(false);
             onConfirm();
           }}
         >
           {confirmLabel}
         </button>
-        <button className="btn-sm" onClick={() => setArmed(false)}>
+        <button className="btn-sm" onClick={() => arm(false)}>
           Cancel
         </button>
       </span>
@@ -46,7 +53,7 @@ export function ConfirmButton({
       type="button"
       className={className}
       aria-label={ariaLabel}
-      onClick={() => setArmed(true)}
+      onClick={() => arm(true)}
       disabled={disabled}
     >
       {children}

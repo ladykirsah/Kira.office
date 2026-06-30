@@ -66,6 +66,7 @@ function ServiceItem({
 }) {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false); // delete confirm armed → hide the Edit icon
   const [name, setName] = useState(svc.name);
   // `?? ""` guards the deploy gap: until the API ships name_en, older rows arrive without it.
   const [nameEn, setNameEn] = useState(svc.nameEn ?? "");
@@ -126,19 +127,22 @@ function ServiceItem({
           aria-hidden="true"
           style={{ width: 1, alignSelf: "stretch", background: "var(--border)", margin: "0 8px" }}
         />
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label={`Edit ${svc.name}`}
-          onClick={() => setEditing(true)}
-        >
-          <EditIcon />
-        </button>
+        {!deleting && (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={`Edit ${svc.name}`}
+            onClick={() => setEditing(true)}
+          >
+            <EditIcon />
+          </button>
+        )}
         <ConfirmButton
           className="icon-btn"
           ariaLabel={`Delete ${svc.name}`}
           confirmLabel="Remove?"
           onConfirm={del}
+          onArmedChange={setDeleting}
         >
           <TrashIcon />
         </ConfirmButton>
