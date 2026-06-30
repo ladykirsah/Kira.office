@@ -49,6 +49,7 @@ interface SaleLine {
   uid: string;
   kind: LineKind;
   name: string;
+  nameEn?: string; // English name for catalog services; the bill prints it when lang=en
   productVariantId?: string | null;
   barcodeValue?: string;
   productRef?: string;
@@ -711,7 +712,7 @@ function BillDoc({
         ) : (
           lines.map((l) => (
             <div key={l.uid} style={{ marginBottom: 6 }}>
-              <div>{l.name}</div>
+              <div>{pick(l.name, l.nameEn ?? "")}</div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#3f3f46" }}>
                 <span style={{ color: muted }}>×{l.quantity}</span>
                 <span>{amt(lineTotalSatang(l))}</span>
@@ -903,7 +904,7 @@ function BillDoc({
           ) : (
             lines.map((l) => (
               <tr key={l.uid} style={{ borderBottom: "1px solid #efefef" }}>
-                <td style={{ padding: "9px 8px 9px 18px" }}>{l.name}</td>
+                <td style={{ padding: "9px 8px 9px 18px" }}>{pick(l.name, l.nameEn ?? "")}</td>
                 <td style={{ textAlign: "center", padding: 9 }}>{l.quantity}</td>
                 <td style={{ textAlign: "right", padding: 9 }}>{amt(l.unitPriceSatang)}</td>
                 <td style={{ textAlign: "right", padding: "9px 18px 9px 8px" }}>
@@ -1275,6 +1276,7 @@ export default function PosPage() {
   const serviceName = isManualService
     ? manualName.trim()
     : (services.find((s) => s.id === svcId)?.name ?? "");
+  const serviceNameEn = isManualService ? "" : (services.find((s) => s.id === svcId)?.nameEn ?? "");
 
   function selectService(id: string) {
     setSvcId(id);
@@ -1296,6 +1298,7 @@ export default function PosPage() {
         uid: crypto.randomUUID(),
         kind: "service",
         name: serviceName,
+        nameEn: serviceNameEn,
         quantity: 1,
         unitPriceSatang: price,
       },
