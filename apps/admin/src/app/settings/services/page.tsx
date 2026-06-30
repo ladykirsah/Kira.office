@@ -122,7 +122,7 @@ function ServiceItem({
         </span>
         <span
           aria-hidden="true"
-          style={{ width: 1, alignSelf: "stretch", background: "var(--border)", margin: "0 2px" }}
+          style={{ width: 1, alignSelf: "stretch", background: "var(--border)", margin: "0 8px" }}
         />
         <button
           type="button"
