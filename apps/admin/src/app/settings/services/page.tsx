@@ -18,6 +18,8 @@ const rowStyle = {
   gap: 8,
   alignItems: "center",
   flexWrap: "wrap" as const,
+  // Fits the 2-line (Thai + English) saved row, so the row keeps the same height in edit mode.
+  minHeight: 64,
   padding: "8px 0",
   borderTop: "1px solid var(--border)",
 };
