@@ -29,14 +29,15 @@ const cardLabel = {
   marginBottom: 12,
 } as const;
 
-// Available-services table columns: Service stretches; Price + Actions shrink to content (the
-// `width: 1` + nowrap trick) and sit on the right. The actions column carries the row divider.
+// Available-services table columns: Service stretches; Price shrinks to content (the `width: 1` +
+// nowrap trick); Actions is a fixed 112px centered column whose left border is the row divider.
 const firstCol = { paddingLeft: 0 } as const;
 const priceCol = { width: 1, whiteSpace: "nowrap" } as const;
 const actionCol = {
-  width: 1,
+  width: 112,
   whiteSpace: "nowrap",
   borderLeft: "1px solid var(--border)",
+  textAlign: "center",
 } as const;
 // Flex layout for the full-width edit row (rendered in a single colSpan cell).
 const editRow = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } as const;
@@ -151,9 +152,7 @@ function ServiceItem({
           </span>
         </td>
         <td style={actionCol}>
-          <div
-            style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}
-          >
+          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
             {!deleting && (
               <button
                 type="button"
@@ -330,7 +329,7 @@ export default function ServicesPage() {
               <tr>
                 <th style={firstCol}>Service</th>
                 <th style={priceCol}>Price</th>
-                <th style={actionCol} aria-label="Actions" />
+                <th style={actionCol}>Actions</th>
               </tr>
             </thead>
             <tbody>
