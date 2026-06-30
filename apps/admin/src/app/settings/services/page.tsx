@@ -30,15 +30,11 @@ const cardLabel = {
 } as const;
 
 // Available-services table columns: Service stretches; Price shrinks to content (the `width: 1` +
-// nowrap trick); Actions is a fixed 112px centered column whose left border is the row divider.
+// nowrap trick); Actions is a fixed 112px centered column. The divider is a short RowDivider inside
+// each body cell (not a full-height cell border) and is absent from the header.
 const firstCol = { paddingLeft: 0 } as const;
 const priceCol = { width: 1, whiteSpace: "nowrap" } as const;
-const actionCol = {
-  width: 112,
-  whiteSpace: "nowrap",
-  borderLeft: "1px solid var(--border)",
-  textAlign: "center",
-} as const;
+const actionCol = { width: 112, whiteSpace: "nowrap", textAlign: "center" } as const;
 // Flex layout for the full-width edit row (rendered in a single colSpan cell).
 const editRow = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } as const;
 
@@ -153,6 +149,7 @@ function ServiceItem({
         </td>
         <td style={actionCol}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+            <RowDivider />
             {!deleting && (
               <button
                 type="button"
