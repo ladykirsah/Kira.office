@@ -782,6 +782,8 @@ html[data-theme="dark"] .pill.pause {
 .md-oring-amt {
   width: 100%;
   text-align: center;
+  min-height: 0;
+  padding: 8px 10px;
 }
 @media (max-width: 560px) {
   .md {
