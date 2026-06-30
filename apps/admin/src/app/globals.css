@@ -630,7 +630,6 @@ html[data-theme="dark"] .pill.pause {
   grid-template-columns: 220px 1fr;
   gap: 14px;
   margin-top: 16px;
-  max-width: 760px;
 }
 .md-pane {
   background: var(--surface);
