@@ -98,11 +98,11 @@ input,
 select,
 textarea {
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14px;
 }
 button {
-  min-height: 44px;
-  padding: 10px 16px;
+  min-height: 40px;
+  padding: 8px 16px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -126,7 +126,7 @@ button:disabled {
 }
 input,
 select {
-  min-height: 44px;
+  min-height: 40px;
 }
 input,
 select,
@@ -182,8 +182,8 @@ input[type="number"]::-webkit-inner-spin-button {
   background: var(--primary-soft);
   border-color: var(--primary-soft);
   color: var(--primary);
-  min-height: 36px;
-  padding: 7px 14px;
+  min-height: 32px;
+  padding: 6px 14px;
   font-size: 14px;
 }
 .btn-soft:hover:not(:disabled) {
@@ -193,8 +193,8 @@ input[type="number"]::-webkit-inner-spin-button {
 
 /* Smaller button size — composes with any colour (on its own, or e.g. `btn-danger btn-sm`). */
 .btn-sm {
-  min-height: 36px;
-  padding: 7px 14px;
+  min-height: 32px;
+  padding: 6px 14px;
   font-size: 14px;
 }
 
@@ -205,7 +205,7 @@ table {
 }
 th {
   text-align: left;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   padding: 12px;
