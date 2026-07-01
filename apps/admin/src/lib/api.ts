@@ -522,21 +522,6 @@ export function imageUrl(key: string): string {
   return `${apiBase}/img/${key}`;
 }
 
-export interface FinanceSummary {
-  salesCount: number;
-  revenueSatang: number;
-  vatSatang: number;
-  grossProfitSatang: number;
-  refundCount: number;
-  refundedSatang: number;
-}
-
-export async function fetchFinanceSummary(): Promise<FinanceSummary> {
-  const res = await apiFetch(`/finance/summary`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load finance summary (HTTP ${res.status})`);
-  return (await res.json()) as FinanceSummary;
-}
-
 export async function adjustStock(input: {
   productVariantId: string;
   quantityDelta: number;

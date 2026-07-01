@@ -1,0 +1,109 @@
+import { describe, it, expect } from "vitest";
+import { rangeFor, summarize, type SaleLike } from "./salesSummary";
+
+/** Build a local-time timestamp (month is 0-based), so expectations are timezone-independent. */
+const ts = (y: number, m: number, d: number, h = 0, mi = 0) =>
+  new Date(y, m, d, h, mi, 0, 0).getTime();
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// Wednesday, 17 June 2026, 14:30 local.
+const NOW = ts(2026, 5, 17, 14, 30);
+
+describe("rangeFor", () => {
+  it("given today > returns local midnight to next midnight", () => {
+    const r = rangeFor("today", NOW);
+    expect(r.startMs).toBe(ts(2026, 5, 17));
+    expect(r.endMs).toBe(ts(2026, 5, 18));
+  });
+
+  it("given thisWeek > spans 7 days from a Sunday midnight containing now", () => {
+    const r = rangeFor("thisWeek", NOW);
+    const start = new Date(r.startMs);
+    expect(start.getDay()).toBe(0); // Sunday
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(r.endMs - r.startMs).toBe(7 * DAY);
+    expect(r.startMs).toBeLessThanOrEqual(NOW);
+    expect(NOW).toBeLessThan(r.endMs);
+  });
+
+  it("given lastWeek > is the 7 days immediately before thisWeek", () => {
+    const tw = rangeFor("thisWeek", NOW);
+    const lw = rangeFor("lastWeek", NOW);
+    expect(lw.endMs).toBe(tw.startMs);
+    expect(tw.startMs - lw.startMs).toBe(7 * DAY);
+  });
+
+  it("given thisMonth > spans the 1st of this month to the 1st of next", () => {
+    const r = rangeFor("thisMonth", NOW);
+    expect(r.startMs).toBe(ts(2026, 5, 1));
+    expect(r.endMs).toBe(ts(2026, 6, 1));
+  });
+
+  it("given lastMonth > spans the 1st of last month to the 1st of this month", () => {
+    const r = rangeFor("lastMonth", NOW);
+    expect(r.startMs).toBe(ts(2026, 4, 1));
+    expect(r.endMs).toBe(ts(2026, 5, 1));
+  });
+
+  it("given custom with start and end > covers whole days inclusive of the end date", () => {
+    const r = rangeFor("custom", NOW, { start: "2026-06-10", end: "2026-06-12" });
+    expect(r.startMs).toBe(ts(2026, 5, 10));
+    expect(r.endMs).toBe(ts(2026, 5, 13)); // +1 day so the 12th is fully included
+  });
+});
+
+describe("summarize", () => {
+  const sale = (over: Partial<SaleLike>): SaleLike => ({
+    createdAt: ts(2026, 5, 17, 12),
+    grandTotalSatang: 0,
+    taxTotalSatang: 0,
+    grossProfitSatang: 0,
+    saleStatus: "completed",
+    ...over,
+  });
+
+  const range = { startMs: ts(2026, 5, 15), endMs: ts(2026, 5, 22) };
+
+  it("given completed and refunded sales in range > totals completed and splits out refunds", () => {
+    const sales: SaleLike[] = [
+      sale({ grandTotalSatang: 10000, taxTotalSatang: 654, grossProfitSatang: 3000 }),
+      sale({ grandTotalSatang: 20000, taxTotalSatang: 1308, grossProfitSatang: 5000 }),
+      sale({
+        grandTotalSatang: 5000,
+        taxTotalSatang: 327,
+        grossProfitSatang: 1500,
+        saleStatus: "refunded",
+      }),
+    ];
+    const s = summarize(sales, range);
+    expect(s.salesCount).toBe(2); // completed only
+    expect(s.revenueSatang).toBe(30000);
+    expect(s.vatSatang).toBe(1962);
+    expect(s.grossProfitSatang).toBe(8000);
+    expect(s.refundCount).toBe(1);
+    expect(s.refundedSatang).toBe(5000);
+  });
+
+  it("given a sale outside the range > excludes it from every total", () => {
+    const sales: SaleLike[] = [
+      sale({ createdAt: ts(2026, 5, 1), grandTotalSatang: 99999 }), // before start
+      sale({ createdAt: ts(2026, 5, 17), grandTotalSatang: 10000, grossProfitSatang: 2000 }),
+    ];
+    const s = summarize(sales, range);
+    expect(s.salesCount).toBe(1);
+    expect(s.revenueSatang).toBe(10000);
+    expect(s.grossProfitSatang).toBe(2000);
+  });
+
+  it("given the half-open boundary > includes startMs and excludes endMs", () => {
+    const sales: SaleLike[] = [
+      sale({ createdAt: range.startMs, grandTotalSatang: 100 }),
+      sale({ createdAt: range.endMs, grandTotalSatang: 200 }),
+    ];
+    const s = summarize(sales, range);
+    expect(s.salesCount).toBe(1);
+    expect(s.revenueSatang).toBe(100);
+  });
+});
