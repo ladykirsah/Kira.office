@@ -118,86 +118,88 @@ export function PricingFields({
         </div>
       </div>
 
-      <table className="ptbl">
-        <colgroup>
-          <col style={{ width: "26%" }} />
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "16%" }} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Tier</th>
-            <th>Price (฿)</th>
-            <th>Commission</th>
-            <th>Profit</th>
-            <th>Margin</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="on">
-            <td>Online · default</td>
-            <td>
-              <input
-                value={form.onlineThb}
-                onChange={(e) => update({ onlineThb: e.target.value })}
-                style={numStyle}
-              />
-            </td>
-            <td>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <div style={{ overflowX: "auto" }}>
+        <table className="ptbl">
+          <colgroup>
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "22%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Tier</th>
+              <th>Price (฿)</th>
+              <th>Commission</th>
+              <th>Profit</th>
+              <th>Margin</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="on">
+              <td>Online · default</td>
+              <td>
                 <input
-                  value={form.onlineCommPct}
-                  onChange={(e) => update({ onlineCommPct: e.target.value })}
-                  style={{ ...inputS, width: 56 }}
+                  value={form.onlineThb}
+                  onChange={(e) => update({ onlineThb: e.target.value })}
+                  style={numStyle}
                 />
-                <span className="muted">%</span>
-              </span>
-            </td>
-            <td>
-              <Profit value={onlineProfit} show={online > 0} />
-            </td>
-            <td>
-              <MarginBar profit={onlineProfit} price={online} />
-            </td>
-          </tr>
-          <tr>
-            <td>On-site · B2C</td>
-            <td>
-              <input
-                value={form.b2cThb}
-                onChange={(e) => update({ b2cThb: e.target.value })}
-                style={numStyle}
-              />
-            </td>
-            <td className="muted">—</td>
-            <td>
-              <Profit value={b2cProfit} show={b2c > 0} />
-            </td>
-            <td>
-              <MarginBar profit={b2cProfit} price={b2c} />
-            </td>
-          </tr>
-          <tr>
-            <td>On-site · B2B</td>
-            <td>
-              <input
-                value={form.b2bThb}
-                onChange={(e) => update({ b2bThb: e.target.value })}
-                style={numStyle}
-              />
-            </td>
-            <td className="muted">—</td>
-            <td>
-              <Profit value={b2bProfit} show={b2b > 0} />
-            </td>
-            <td>
-              <MarginBar profit={b2bProfit} price={b2b} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              </td>
+              <td>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    value={form.onlineCommPct}
+                    onChange={(e) => update({ onlineCommPct: e.target.value })}
+                    style={{ ...inputS, width: 56 }}
+                  />
+                  <span className="muted">%</span>
+                </span>
+              </td>
+              <td>
+                <Profit value={onlineProfit} show={online > 0} />
+              </td>
+              <td>
+                <MarginBar profit={onlineProfit} price={online} />
+              </td>
+            </tr>
+            <tr>
+              <td>On-site · B2C</td>
+              <td>
+                <input
+                  value={form.b2cThb}
+                  onChange={(e) => update({ b2cThb: e.target.value })}
+                  style={numStyle}
+                />
+              </td>
+              <td className="muted">—</td>
+              <td>
+                <Profit value={b2cProfit} show={b2c > 0} />
+              </td>
+              <td>
+                <MarginBar profit={b2cProfit} price={b2c} />
+              </td>
+            </tr>
+            <tr>
+              <td>On-site · B2B</td>
+              <td>
+                <input
+                  value={form.b2bThb}
+                  onChange={(e) => update({ b2bThb: e.target.value })}
+                  style={numStyle}
+                />
+              </td>
+              <td className="muted">—</td>
+              <td>
+                <Profit value={b2bProfit} show={b2b > 0} />
+              </td>
+              <td>
+                <MarginBar profit={b2bProfit} price={b2b} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

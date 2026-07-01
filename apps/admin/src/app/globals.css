@@ -545,6 +545,7 @@ html[data-theme="dark"] .pill.pause {
 /* Pricing table — aligned, evenly padded, tabular numbers */
 .ptbl {
   width: 100%;
+  min-width: 500px;
   border-collapse: collapse;
   table-layout: fixed;
   font-variant-numeric: tabular-nums;
@@ -554,14 +555,14 @@ html[data-theme="dark"] .pill.pause {
   font-weight: 500;
   color: var(--text-muted);
   text-align: right;
-  padding: 14px;
+  padding: 12px 8px;
 }
 .ptbl th:first-child {
   text-align: left;
   border-left: 3px solid transparent;
 }
 .ptbl td {
-  padding: 14px;
+  padding: 12px 8px;
   border-top: 1px solid var(--border);
   vertical-align: middle;
   text-align: right;
