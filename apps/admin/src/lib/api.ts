@@ -571,6 +571,7 @@ export async function addBarcode(
 
 export interface SaleRow {
   id: string;
+  saleNumber: string | null;
   paymentMethod: string | null;
   grandTotalSatang: number;
   taxTotalSatang: number;

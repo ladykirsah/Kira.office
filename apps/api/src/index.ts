@@ -44,6 +44,7 @@ interface SyncLine {
 
 interface SyncSale {
   clientUuid: string;
+  saleNumber?: string;
   paymentMethod?: string;
   saleType?: "parts" | "repair";
   licensePlate?: string;
@@ -494,12 +495,13 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       db
         .prepare(
           `INSERT OR IGNORE INTO onsite_sales
-           (id, client_uuid, payment_method, sale_type, license_plate, vehicle, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, vehicle, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           saleId,
           sale.clientUuid,
+          sale.saleNumber?.trim() || null,
           sale.paymentMethod ?? null,
           sale.saleType ?? "parts",
           sale.licensePlate?.trim() || null,
@@ -1088,6 +1090,7 @@ export interface SaleExportRow {
 }
 
 const SALES_SELECT = `SELECT s.id,
+        s.sale_number AS saleNumber,
         s.payment_method AS paymentMethod,
         s.grand_total_satang AS grandTotalSatang,
         s.tax_total_satang AS taxTotalSatang,

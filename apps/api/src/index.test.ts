@@ -762,6 +762,41 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     expect(batched.length).toBe(3); // onsite_sales + line + ledger
   });
 
+  it("persists the device-minted sale_number on the onsite_sales insert", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    await applySyncToDb(db, [
+      {
+        clientUuid: "u-sn",
+        saleNumber: "DAS202607-01001",
+        lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 10000 }],
+      },
+    ]);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO onsite_sales"),
+    );
+    expect(insert?.boundArgs?.[2]).toBe("DAS202607-01001"); // (id, client_uuid, sale_number, …)
+  });
+
+  it("binds null sale_number when the device did not mint one", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    await applySyncToDb(db, [
+      {
+        clientUuid: "u-nosn",
+        lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 10000 }],
+      },
+    ]);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO onsite_sales"),
+    );
+    expect(insert?.boundArgs?.[2]).toBeNull();
+  });
+
   it("records a repair service line with no variant and no stock movement", async () => {
     const { db, batched } = makeDb({ existing: [], available: [] });
     const out = await applySyncToDb(db, [

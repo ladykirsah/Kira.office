@@ -37,6 +37,7 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
         <table>
           <thead>
             <tr>
+              <th>Order ID</th>
               <th>When</th>
               <th>Job</th>
               <th style={right}>Total</th>
@@ -60,6 +61,9 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
                     : "";
               return (
                 <tr key={s.id}>
+                  <td style={{ whiteSpace: "nowrap", fontFamily: "var(--font-mono, monospace)" }}>
+                    {s.saleNumber ?? <span className="muted">—</span>}
+                  </td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     {new Date(s.createdAt).toLocaleString("th-TH")}
                   </td>
