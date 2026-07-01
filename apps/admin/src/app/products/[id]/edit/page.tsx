@@ -169,6 +169,7 @@ export default function EditProductPage() {
 
   // editable fields
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [productRef, setProductRef] = useState("");
   const [shopeeActive, setShopeeActive] = useState(true);
@@ -192,6 +193,7 @@ export default function EditProductPage() {
 
   function hydrate(d: ProductDetail) {
     setName(d.product.name);
+    setDescription(d.product.description ?? "");
     setShopeeItemId(d.product.shopeeItemId ?? "");
     setProductRef(d.product.productRef ?? "");
     setPart({
@@ -254,6 +256,7 @@ export default function EditProductPage() {
     try {
       await updateProduct(id, {
         name,
+        description,
         // "Active on Shopee" = listed live on Shopee. ON also makes the product active on-site (a
         // live product can't be a draft); OFF leaves the on-site status unchanged (→ "Not listed").
         status: shopeeActive ? "active" : (detail?.product.status ?? "active"),
@@ -427,6 +430,17 @@ export default function EditProductPage() {
               />
             </label>
 
+            <label style={field}>
+              Description
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                placeholder="Short spec — refrigerant, type, fitment note…"
+                style={{ width: "100%", resize: "vertical" }}
+              />
+            </label>
+
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
               <label style={field}>
                 Stock on hand
@@ -489,6 +503,11 @@ export default function EditProductPage() {
           <div style={{ margin: "12px 0 18px" }}>
             <StaticFrames images={detail.images} name={p.name} />
           </div>
+          {p.description && (
+            <p className="muted" style={{ margin: "-6px 0 18px", fontSize: 14 }}>
+              {p.description}
+            </p>
+          )}
           <div
             style={{
               border: "1px solid var(--border)",
