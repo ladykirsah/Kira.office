@@ -7,6 +7,7 @@ import {
   fetchBarcodes,
   fetchServices,
   fetchShopInfo,
+  fetchSales,
   fetchCarFitment,
   imageUrl,
   EMPTY_SHOP_INFO,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/api";
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
+import { nextSalesId, latestSalesIdForDay } from "@/lib/salesId";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import {
   lineTotalSatang,
@@ -534,6 +536,7 @@ type DocType = "bill" | "quotation";
 
 /** The in-progress POS cart, saved locally so a page switch / refresh doesn't lose it. */
 const DRAFT_KEY = "pos:draft:v1";
+const LAST_SALE_ID_KEY = "pos:lastSaleId:v1";
 interface PosDraft {
   lines: SaleLine[];
   plate: string;
@@ -591,6 +594,7 @@ function BillDoc({
   lang,
   shop,
   dateLabel,
+  saleNumber,
   vehicle,
   plate,
   mileage,
@@ -605,6 +609,7 @@ function BillDoc({
   lang: BillLang;
   shop: ShopInfo;
   dateLabel: string;
+  saleNumber: string;
   vehicle: string;
   plate: string;
   mileage: string;
@@ -633,6 +638,7 @@ function BillDoc({
   // Thai bill is unchanged; only the English path is new.
   const t = en
     ? {
+        saleId: "Sales ID",
         date: "Date",
         vehicle: "Vehicle",
         plate: "Plate",
@@ -650,6 +656,7 @@ function BillDoc({
         thanks: "*** Thank you ***",
       }
     : {
+        saleId: "เลขที่บิล",
         date: "วันที่",
         vehicle: "รถ",
         plate: "ทะเบียน",
@@ -713,6 +720,7 @@ function BillDoc({
           )}
         </div>
         {dash}
+        {saleNumber && metaRow(t.saleId, saleNumber)}
         {metaRow(t.date, dateLabel)}
         {vehicle && metaRow(t.vehicle, vehicle)}
         {plate && metaRow(t.plate, plate)}
@@ -867,6 +875,11 @@ function BillDoc({
             {headEn}
           </div>
           <div style={{ fontSize: 12, color: "#52525b", marginTop: 7 }}>{dateLabel}</div>
+          {saleNumber && (
+            <div style={{ fontSize: 12, color: "#52525b", marginTop: 2 }}>
+              {t.saleId}: {saleNumber}
+            </div>
+          )}
         </div>
       </div>
       {(vehicle || plate || mileage) && (
@@ -1001,6 +1014,7 @@ export default function PosPage() {
   const [carYear, setCarYear] = useState("");
   const [plate, setPlate] = useState("");
   const [mileage, setMileage] = useState("");
+  const [saleNumber, setSaleNumber] = useState("");
 
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -1059,6 +1073,17 @@ export default function PosPage() {
       .catch(() => {});
     fetchCarFitment()
       .then((b) => setCarFitment(b))
+      .catch(() => {});
+    // Seed the sale-number counter from the server's latest for today, so a fresh device continues
+    // past backfilled / other-session numbers instead of restarting at 001.
+    fetchSales()
+      .then((sales) => {
+        const seed = latestSalesIdForDay(
+          [localStorage.getItem(LAST_SALE_ID_KEY), ...sales.map((s) => s.saleNumber)],
+          Date.now(),
+        );
+        if (seed) localStorage.setItem(LAST_SALE_ID_KEY, seed);
+      })
       .catch(() => {});
   }, []);
 
@@ -1341,7 +1366,7 @@ export default function PosPage() {
 
   // Save the whole order — parts (deduct stock) and services (labour lines) plus the sale type,
   // plate and note — to the sales ledger. Offline-safe via the outbox; the server dedupes on uuid.
-  async function saveSale(): Promise<boolean> {
+  async function saveSale(saleNo: string): Promise<boolean> {
     // A sale counts as a repair when it has a vehicle/plate or any service line; else it's parts.
     const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
     // Spread the bill discount across the lines so the server's per-line discount + profit is exact.
@@ -1351,6 +1376,7 @@ export default function PosPage() {
     );
     const sale: QueuedSale = {
       clientUuid: crypto.randomUUID(),
+      saleNumber: saleNo || undefined,
       paymentMethod: "cash",
       saleType: isRepair ? "repair" : "parts",
       licensePlate: plate.trim() || undefined,
@@ -1389,10 +1415,22 @@ export default function PosPage() {
     if (lines.length === 0) return;
     setBusy(true);
     try {
-      const ok = await saveSale();
-      if (!ok) return;
+      // Mint the sales number on-device so it prints on the receipt; roll the counter back if the
+      // server rejects the sale, so a failed checkout doesn't burn a number.
+      const prevId = localStorage.getItem(LAST_SALE_ID_KEY);
+      const saleNo = nextSalesId(prevId, Date.now());
+      localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
+      setSaleNumber(saleNo);
+      const ok = await saveSale(saleNo);
+      if (!ok) {
+        if (prevId) localStorage.setItem(LAST_SALE_ID_KEY, prevId);
+        else localStorage.removeItem(LAST_SALE_ID_KEY);
+        setSaleNumber("");
+        return;
+      }
       printBill();
       toast("Sale saved ✓", "success");
+      setSaleNumber(""); // printBill already captured it; clear so the next customer starts fresh
       setLines([]);
       setPlate("");
       setMileage("");
@@ -1919,6 +1957,7 @@ export default function PosPage() {
               lang={billLang}
               shop={shop}
               dateLabel={billLang === "en" ? englishDate(billDate) : thaiDate(billDate)}
+              saleNumber={saleNumber}
               vehicle={vehicleLabel}
               plate={plate.trim()}
               mileage={mileage.trim()}
