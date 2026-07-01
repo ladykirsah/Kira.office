@@ -774,29 +774,6 @@ export interface GalleryImage {
   isCover: boolean;
 }
 
-/**
- * Store a product image in the R2 images bucket and record its key on the product. Validates the
- * content type (jpeg/png/webp) and size (≤5MB). The bytes are served back via GET /img/:key.
- */
-export async function storeProductImage(
-  db: D1Database,
-  bucket: R2Bucket,
-  productId: string,
-  bytes: ArrayBuffer,
-  contentType: string | null,
-): Promise<UploadImageResult> {
-  if (!contentType || !ALLOWED_IMAGE_TYPES[contentType]) {
-    throw new Error("unsupported image type (use jpeg, png or webp)");
-  }
-  if (bytes.byteLength === 0) throw new Error("empty image");
-  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("image too large (max 5MB)");
-
-  const key = `products/${productId}/${crypto.randomUUID()}.${ALLOWED_IMAGE_TYPES[contentType]}`;
-  await bucket.put(key, bytes, { httpMetadata: { contentType } });
-  await db.prepare("UPDATE products SET image_key = ? WHERE id = ?").bind(key, productId).run();
-  return { key, url: `/img/${key}` };
-}
-
 function validateImage(bytes: ArrayBuffer, contentType: string | null): string {
   if (!contentType || !ALLOWED_IMAGE_TYPES[contentType]) {
     throw new Error("unsupported image type (use jpeg, png or webp)");
@@ -2314,23 +2291,6 @@ const worker = {
     if (productById && request.method === "DELETE") {
       await archiveProduct(env.DB, productById[1]!);
       return json({ ok: true });
-    }
-
-    const imageUpload = url.pathname.match(/^\/products\/([^/]+)\/image$/);
-    if (imageUpload && request.method === "POST") {
-      const bytes = await request.arrayBuffer();
-      try {
-        const out = await storeProductImage(
-          env.DB,
-          env.IMAGES,
-          imageUpload[1]!,
-          bytes,
-          request.headers.get("content-type"),
-        );
-        return json(out, 201);
-      } catch (err) {
-        return json({ error: (err as Error).message }, 400);
-      }
     }
 
     // Gallery: add an image (POST) up to 10, or remove one (DELETE /products/:id/images/:imageId).

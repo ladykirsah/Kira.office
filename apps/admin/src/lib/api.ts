@@ -24,22 +24,6 @@ export interface ProductRow {
   onHand: number;
 }
 
-export async function uploadProductImage(
-  productId: string,
-  file: File,
-): Promise<{ key: string; url: string }> {
-  const res = await apiFetch(`/products/${productId}/image`, {
-    method: "POST",
-    headers: { "content-type": file.type },
-    body: file,
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `Upload failed (HTTP ${res.status})`);
-  }
-  return (await res.json()) as { key: string; url: string };
-}
-
 export async function fetchProducts(): Promise<ProductRow[]> {
   const res = await apiFetch(`/products`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load products (HTTP ${res.status})`);

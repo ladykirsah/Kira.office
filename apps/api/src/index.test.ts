@@ -37,7 +37,6 @@ import worker, {
   resolveActor,
   requireRole,
   salesToCsv,
-  storeProductImage,
   validateSyncLine,
   writeAuditLog,
   type Env,
@@ -1547,45 +1546,6 @@ describe("lookupBarcode", () => {
   it("returns null for an unknown barcode", async () => {
     const { db } = makeDb({ barcode: null });
     expect(await lookupBarcode(db, "nope")).toBeNull();
-  });
-});
-
-describe("storeProductImage", () => {
-  function fakeBucket() {
-    const puts: { key: string }[] = [];
-    const bucket = { put: async (key: string) => void puts.push({ key }) } as unknown as R2Bucket;
-    return { bucket, puts };
-  }
-
-  it("stores a png in R2 and records the key on the product", async () => {
-    const { db } = makeDb({});
-    const { bucket, puts } = fakeBucket();
-    const out = await storeProductImage(
-      db,
-      bucket,
-      "p1",
-      new Uint8Array([1, 2, 3]).buffer,
-      "image/png",
-    );
-    expect(out.key).toMatch(/^products\/p1\/.*\.png$/);
-    expect(out.url).toBe(`/img/${out.key}`);
-    expect(puts.length).toBe(1);
-  });
-
-  it("rejects an unsupported content type", async () => {
-    const { db } = makeDb({});
-    const { bucket } = fakeBucket();
-    await expect(
-      storeProductImage(db, bucket, "p1", new Uint8Array([1]).buffer, "image/gif"),
-    ).rejects.toThrow(/unsupported/);
-  });
-
-  it("rejects an oversized image", async () => {
-    const { db } = makeDb({});
-    const { bucket } = fakeBucket();
-    await expect(
-      storeProductImage(db, bucket, "p1", new ArrayBuffer(5 * 1024 * 1024 + 1), "image/png"),
-    ).rejects.toThrow(/too large/);
   });
 });
 
