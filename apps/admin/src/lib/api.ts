@@ -430,6 +430,9 @@ export interface OrderRow {
   externalOrderId: string;
   orderStatus: string | null;
   paymentStatus: string | null;
+  grandTotalSatang: number;
+  feeTotalSatang: number;
+  orderCreatedAt: number | null;
   importedAt: number;
 }
 

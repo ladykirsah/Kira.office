@@ -8,9 +8,11 @@ import {
   type OrderRow,
 } from "@/lib/api";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
-import { formatUpdatedAt } from "@/lib/format";
+import { formatBaht, formatUpdatedAt } from "@/lib/format";
 
-const PLACEHOLDER = "external_order_id,order_status,payment_status\n2406ABCDEF,paid,paid\n";
+const PLACEHOLDER =
+  "external_order_id,order_status,payment_status,order_total,order_fee,order_date\n" +
+  "2406ABCDEF,paid,paid,890.00,62.00,2026-06-14\n";
 
 export default function OrdersPage() {
   const [csv, setCsv] = useState(PLACEHOLDER);
@@ -41,6 +43,9 @@ export default function OrdersPage() {
         external_order_id: "external_order_id",
         order_status: "order_status",
         payment_status: "payment_status",
+        order_total: "order_total",
+        order_fee: "order_fee",
+        order_date: "order_date",
       });
       setResult(out);
       setMsg("");
@@ -57,7 +62,10 @@ export default function OrdersPage() {
       <h1>Shopee orders (CSV import)</h1>
       <p style={{ color: "var(--text-muted)" }}>
         Paste a Seller Centre order export (header row required). Required column:{" "}
-        <code>external_order_id</code>. Re-importing is safe — duplicates are skipped.
+        <code>external_order_id</code>. Optional: <code>order_status</code>,{" "}
+        <code>payment_status</code>, <code>order_total</code>, <code>order_fee</code>,{" "}
+        <code>order_date</code> — each captured only when the column is present. Re-importing is
+        safe — duplicates are skipped.
       </p>
       <textarea
         value={csv}
@@ -91,8 +99,10 @@ export default function OrdersPage() {
               <tr>
                 <th>Order</th>
                 <th>Channel</th>
+                <th style={{ textAlign: "right" }}>Total</th>
                 <th>Status</th>
                 <th>Payment</th>
+                <th>Order date</th>
                 <th>Imported</th>
               </tr>
             </thead>
@@ -102,6 +112,13 @@ export default function OrdersPage() {
                   <td>{o.externalOrderId}</td>
                   <td>
                     <span className="pill soft">{o.channel}</span>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {o.grandTotalSatang ? (
+                      formatBaht(o.grandTotalSatang)
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
                   </td>
                   <td>
                     {o.orderStatus ? (
@@ -119,6 +136,13 @@ export default function OrdersPage() {
                       </span>
                     ) : (
                       "—"
+                    )}
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {o.orderCreatedAt ? (
+                      formatUpdatedAt(o.orderCreatedAt)
+                    ) : (
+                      <span className="muted">—</span>
                     )}
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>{formatUpdatedAt(o.importedAt)}</td>

@@ -600,11 +600,26 @@ export interface OrderImportResult {
   errors: RowError[];
 }
 
+/** Parse a money string ("1,234.50", "฿890") to integer satang; 0 if blank/unparseable. */
+export function parseMoneyToSatang(s: string | undefined): number {
+  if (!s) return 0;
+  const n = Number(s.replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+/** Parse an order-date string to epoch ms (Date.parse-tolerant); null if blank/unparseable. */
+export function parseOrderDateMs(s: string | undefined): number | null {
+  if (!s) return null;
+  const t = Date.parse(s.trim());
+  return Number.isFinite(t) ? t : null;
+}
+
 /**
  * Import Shopee orders from a Seller Centre CSV export (the bridge before the live v2 API). Required
- * field: `external_order_id`. Deduped by (channel, external_order_id) via core.dedupeOrders + an
- * INSERT OR IGNORE on the unique index, so re-importing the same export never creates duplicates.
- * Records order headers/status; full order lines + profit come from the API phase.
+ * field: `external_order_id`; optional: order_status, payment_status, order_total, order_fee,
+ * order_date (only captured when the CSV actually has that column). Deduped by (channel,
+ * external_order_id) via core.dedupeOrders + an INSERT OR IGNORE on the unique index, so re-importing
+ * the same export never creates duplicates.
  */
 export async function importShopeeOrders(
   db: D1Database,
@@ -612,12 +627,22 @@ export async function importShopeeOrders(
   mapping: Record<string, string>,
 ): Promise<OrderImportResult> {
   const rows = parseCsv(csv);
-  const { records, errors } = mapRows(rows, mapping, ["external_order_id"]);
+  // Optional columns (totals/date/fees) are only mapped when the CSV actually has them, so a minimal
+  // export (ids + statuses) still imports without mapRows throwing on a missing column.
+  const header = rows[0] ?? [];
+  const effectiveMapping: Record<string, string> = {};
+  for (const [field, col] of Object.entries(mapping)) {
+    if (field === "external_order_id" || header.includes(col)) effectiveMapping[field] = col;
+  }
+  const { records, errors } = mapRows(rows, effectiveMapping, ["external_order_id"]);
   const incoming = records.map((r) => ({
     channel: "shopee" as const,
     externalOrderId: r["external_order_id"] ?? "",
     orderStatus: r["order_status"] ?? null,
     paymentStatus: r["payment_status"] ?? null,
+    grandTotalSatang: parseMoneyToSatang(r["order_total"]),
+    feeTotalSatang: parseMoneyToSatang(r["order_fee"]),
+    orderCreatedAt: parseOrderDateMs(r["order_date"]),
   }));
 
   let existingKeys: string[] = [];
@@ -640,8 +665,8 @@ export async function importShopeeOrders(
     db
       .prepare(
         `INSERT OR IGNORE INTO sales_orders
-         (id, channel, external_order_id, order_status, payment_status, imported_at, import_source)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (id, channel, external_order_id, order_status, payment_status, grand_total_satang, fee_total_satang, order_created_at, imported_at, import_source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         crypto.randomUUID(),
@@ -649,6 +674,9 @@ export async function importShopeeOrders(
         o.externalOrderId,
         o.orderStatus,
         o.paymentStatus,
+        o.grandTotalSatang,
+        o.feeTotalSatang,
+        o.orderCreatedAt,
         now,
         "csv",
       ),
@@ -1161,7 +1189,9 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
 async function listOrders(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
-            payment_status AS paymentStatus, imported_at AS importedAt
+            payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
+            fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+            imported_at AS importedAt
      FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });

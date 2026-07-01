@@ -26,6 +26,8 @@ import worker, {
   updateProduct,
   importProducts,
   importShopeeOrders,
+  parseMoneyToSatang,
+  parseOrderDateMs,
   lineGrossProfitSatang,
   lookupBarcode,
   refundSaleToDb,
@@ -341,6 +343,66 @@ describe("writeAuditLog", () => {
     expect(row).toBeDefined();
     expect(row?.binds[1]).toBe("owner@example.com");
     expect(row?.binds[2]).toBe("POST /sync");
+  });
+});
+
+describe("parseMoneyToSatang", () => {
+  it("parses plain and grouped amounts to satang", () => {
+    expect(parseMoneyToSatang("890")).toBe(89000);
+    expect(parseMoneyToSatang("1,234.50")).toBe(123450);
+    expect(parseMoneyToSatang("฿ 89.00")).toBe(8900);
+  });
+  it("returns 0 for blank or unparseable input", () => {
+    expect(parseMoneyToSatang(undefined)).toBe(0);
+    expect(parseMoneyToSatang("")).toBe(0);
+    expect(parseMoneyToSatang("n/a")).toBe(0);
+  });
+});
+
+describe("parseOrderDateMs", () => {
+  it("parses an ISO date to epoch ms", () => {
+    expect(parseOrderDateMs("2026-06-14")).toBe(Date.parse("2026-06-14"));
+  });
+  it("returns null for blank or unparseable input", () => {
+    expect(parseOrderDateMs(undefined)).toBeNull();
+    expect(parseOrderDateMs("")).toBeNull();
+    expect(parseOrderDateMs("not a date")).toBeNull();
+  });
+});
+
+describe("importShopeeOrders (enriched)", () => {
+  it("captures total, fee, and order date from mapped columns", async () => {
+    const { db, batched } = makeDb({ existingOrders: [] });
+    const csv = "oid,total,fee,date\n2406ABC,890.00,62.00,2026-06-14\n";
+    const out = await importShopeeOrders(db, csv, {
+      external_order_id: "oid",
+      order_total: "total",
+      order_fee: "fee",
+      order_date: "date",
+    });
+    expect(out.imported).toBe(1);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO sales_orders"),
+    );
+    // binds: (id, channel, external_order_id, order_status, payment_status, grand_total, fee_total, order_created_at, …)
+    expect(insert?.boundArgs?.[5]).toBe(89000);
+    expect(insert?.boundArgs?.[6]).toBe(6200);
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+  });
+
+  it("still imports a minimal export (ids only) when the money columns are absent", async () => {
+    const { db, batched } = makeDb({ existingOrders: [] });
+    const csv = "external_order_id\n2406XYZ\n";
+    const out = await importShopeeOrders(db, csv, {
+      external_order_id: "external_order_id",
+      order_total: "total", // column absent → dropped, no throw
+    });
+    expect(out.imported).toBe(1);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO sales_orders"),
+    );
+    expect(insert?.boundArgs?.[5]).toBe(0);
+    expect(insert?.boundArgs?.[7]).toBeNull();
   });
 });
 
