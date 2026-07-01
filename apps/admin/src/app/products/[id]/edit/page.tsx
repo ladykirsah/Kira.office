@@ -38,8 +38,8 @@ const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{children}</div>
+      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{children}</div>
     </div>
   );
 }

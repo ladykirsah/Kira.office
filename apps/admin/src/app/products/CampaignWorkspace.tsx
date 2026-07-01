@@ -44,7 +44,7 @@ export function CampaignWorkspace({
           minWidth: 0,
         }}
       >
-        <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
           Baseline — saved online default profit{" "}
           <span style={{ color: "var(--ok)", fontWeight: 600 }}>{baht(defaultProfitSatang)}</span>
         </div>

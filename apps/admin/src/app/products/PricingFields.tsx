@@ -35,7 +35,7 @@ function Profit({ value, show }: { value: number; show: boolean }) {
   if (!show) return <span className="muted">—</span>;
   return (
     <span
-      style={{ fontSize: 15, fontWeight: 600, color: value >= 0 ? "var(--ok)" : "var(--danger)" }}
+      style={{ fontSize: 14, fontWeight: 600, color: value >= 0 ? "var(--ok)" : "var(--danger)" }}
     >
       {baht(value)}
     </span>
@@ -89,7 +89,7 @@ export function PricingFields({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="muted" style={{ fontSize: 13 }}>
+            <span className="muted" style={{ fontSize: 12 }}>
               Item cost ฿
             </span>
             <input
@@ -107,11 +107,11 @@ export function PricingFields({
               />
               <span className="slider" />
             </span>
-            <span style={{ fontSize: 13 }}>Add VAT 7%</span>
+            <span style={{ fontSize: 12 }}>Add VAT 7%</span>
           </label>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span className="muted" style={{ fontSize: 13 }}>
+          <span className="muted" style={{ fontSize: 12 }}>
             Total cost · base
           </span>
           <span style={{ fontSize: 16, fontWeight: 600 }}>{baht(tc)}</span>

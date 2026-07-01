@@ -50,7 +50,7 @@ export function ProfitPeek({ value }: { value: number }) {
           profit {baht(value)}
         </strong>
       ) : (
-        <span style={{ fontSize: 13, color: "var(--text-faint)" }}>hold to see profit</span>
+        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>hold to see profit</span>
       )}
     </span>
   );

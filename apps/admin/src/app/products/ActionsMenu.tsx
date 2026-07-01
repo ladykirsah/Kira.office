@@ -85,7 +85,7 @@ export function ActionsMenu({ productId, status }: { productId: string; status: 
             <span className="actions-item is-disabled">Archived</span>
           ) : armed ? (
             <div className="actions-confirm">
-              <span className="muted" style={{ fontSize: 13 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
                 Archive this product?
               </span>
               <div style={{ display: "flex", gap: 6 }}>
