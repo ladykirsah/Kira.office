@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiBase, fetchSales, type SaleRow } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
+import { inputS } from "@/lib/inputStyles";
 import { rangeFor, summarize, type RangePreset } from "@/lib/salesSummary";
 import { SalesTable } from "./SalesTable";
 
@@ -21,8 +22,6 @@ const card = {
   padding: "14px 18px",
   minWidth: 150,
 } as const;
-
-const dateInput = { minHeight: 0, padding: "8px 10px" } as const;
 
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[] | null>(null);
@@ -73,43 +72,45 @@ export default function SalesPage() {
           alignItems: "center",
           flexWrap: "wrap",
           gap: 8,
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              className={p.key === preset ? "btn-primary btn-sm" : "btn-sm"}
-              onClick={() => setPreset(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Period</span>
+          <select
+            value={preset}
+            onChange={(e) => setPreset(e.target.value as RangePreset)}
+            aria-label="Date range"
+            style={inputS}
+          >
+            {PRESETS.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          {preset === "custom" && (
+            <>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                aria-label="From date"
+                style={inputS}
+              />
+              <span className="muted">–</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                aria-label="To date"
+                style={inputS}
+              />
+            </>
+          )}
         </div>
         <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
       </div>
-
-      {preset === "custom" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <input
-            type="date"
-            value={customStart}
-            onChange={(e) => setCustomStart(e.target.value)}
-            aria-label="From date"
-            style={dateInput}
-          />
-          <span className="muted">–</span>
-          <input
-            type="date"
-            value={customEnd}
-            onChange={(e) => setCustomEnd(e.target.value)}
-            aria-label="To date"
-            style={dateInput}
-          />
-        </div>
-      )}
 
       {sales === null ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
