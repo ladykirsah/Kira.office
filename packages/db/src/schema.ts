@@ -281,9 +281,6 @@ export const pricingProfiles = sqliteTable("pricing_profiles", {
     .references(() => productVariants.id),
   // all *_satang are integer THB minor units
   itemCostSatang: integer("item_cost_satang").notNull().default(0),
-  inboundShippingSatang: integer("inbound_shipping_satang").notNull().default(0),
-  packagingSatang: integer("packaging_satang").notNull().default(0),
-  otherAllocatedSatang: integer("other_allocated_satang").notNull().default(0),
   targetPriceSatang: integer("target_price_satang").notNull().default(0), // on-site B2C price
   onlinePriceSatang: integer("online_price_satang").notNull().default(0), // online default price
   b2bPriceSatang: integer("b2b_price_satang").notNull().default(0), // on-site B2B price
