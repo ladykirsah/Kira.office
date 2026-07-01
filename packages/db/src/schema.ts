@@ -198,40 +198,6 @@ export const shopConnections = sqliteTable("shop_connections", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
 
-export const shopeeListings = sqliteTable("shopee_listings", {
-  id: id(),
-  shopConnectionId: text("shop_connection_id")
-    .notNull()
-    .references(() => shopConnections.id),
-  productId: text("product_id")
-    .notNull()
-    .references(() => products.id),
-  shopeeItemId: text("shopee_item_id"),
-  listingStatus: text("listing_status"),
-  lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
-  syncStatus: text("sync_status").notNull().default("unlinked"),
-  createdAt: createdAt(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-});
-
-export const shopeeListingModels = sqliteTable(
-  "shopee_listing_models",
-  {
-    id: id(),
-    shopeeListingId: text("shopee_listing_id")
-      .notNull()
-      .references(() => shopeeListings.id),
-    productVariantId: text("product_variant_id")
-      .notNull()
-      .references(() => productVariants.id),
-    shopeeModelId: text("shopee_model_id"),
-    shopeeModelSku: text("shopee_model_sku"),
-    shopeeStock: integer("shopee_stock"),
-    lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
-  },
-  (t) => [uniqueIndex("shopee_listing_models_variant_uq").on(t.productVariantId)],
-);
-
 export const termsPatterns = sqliteTable("terms_patterns", {
   id: id(),
   name: text("name").notNull(),
