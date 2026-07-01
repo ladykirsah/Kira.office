@@ -290,21 +290,6 @@ export const pricingProfiles = sqliteTable("pricing_profiles", {
   activeTo: integer("active_to", { mode: "timestamp_ms" }),
 });
 
-export const commissionProfiles = sqliteTable("commission_profiles", {
-  id: id(),
-  name: text("name").notNull(),
-  channel: text("channel", { enum: ["shopee"] })
-    .notNull()
-    .default("shopee"),
-  commissionRateBp: integer("commission_rate_bp").notNull().default(0),
-  transactionFeeRateBp: integer("transaction_fee_rate_bp").notNull().default(0),
-  serviceFeeRateBp: integer("service_fee_rate_bp").notNull().default(0),
-  fixedFeeSatang: integer("fixed_fee_satang").notNull().default(0),
-  feeBase: text("fee_base", { enum: ["buyer_price", "ex_tax"] })
-    .notNull()
-    .default("buyer_price"),
-});
-
 export const costLayers = sqliteTable(
   "cost_layers",
   {
