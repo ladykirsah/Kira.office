@@ -1014,7 +1014,7 @@ export default function PosPage() {
   const [carYear, setCarYear] = useState("");
   const [plate, setPlate] = useState("");
   const [mileage, setMileage] = useState("");
-  const [saleNumber, setSaleNumber] = useState("");
+  const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -1075,14 +1075,19 @@ export default function PosPage() {
       .then((b) => setCarFitment(b))
       .catch(() => {});
     // Seed the sale-number counter from the server's latest for today, so a fresh device continues
-    // past backfilled / other-session numbers instead of restarting at 001.
+    // past backfilled / other-session numbers instead of restarting at 001. lastSaleId drives the
+    // pending number shown on the bill.
+    setLastSaleId(localStorage.getItem(LAST_SALE_ID_KEY));
     fetchSales()
       .then((sales) => {
         const seed = latestSalesIdForDay(
           [localStorage.getItem(LAST_SALE_ID_KEY), ...sales.map((s) => s.saleNumber)],
           Date.now(),
         );
-        if (seed) localStorage.setItem(LAST_SALE_ID_KEY, seed);
+        if (seed) {
+          localStorage.setItem(LAST_SALE_ID_KEY, seed);
+          setLastSaleId(seed);
+        }
       })
       .catch(() => {});
   }, []);
@@ -1415,22 +1420,15 @@ export default function PosPage() {
     if (lines.length === 0) return;
     setBusy(true);
     try {
-      // Mint the sales number on-device so it prints on the receipt; roll the counter back if the
-      // server rejects the sale, so a failed checkout doesn't burn a number.
-      const prevId = localStorage.getItem(LAST_SALE_ID_KEY);
-      const saleNo = nextSalesId(prevId, Date.now());
-      localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
-      setSaleNumber(saleNo);
+      // The bill already shows this pending number; only advance the counter once the server accepts
+      // the sale, so a rejected checkout reuses the same number and none get burned.
+      const saleNo = nextSalesId(lastSaleId, Date.now());
       const ok = await saveSale(saleNo);
-      if (!ok) {
-        if (prevId) localStorage.setItem(LAST_SALE_ID_KEY, prevId);
-        else localStorage.removeItem(LAST_SALE_ID_KEY);
-        setSaleNumber("");
-        return;
-      }
-      printBill();
+      if (!ok) return;
+      printBill(); // prints saleNo — the counter hasn't advanced yet
+      localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
+      setLastSaleId(saleNo);
       toast("Sale saved ✓", "success");
-      setSaleNumber(""); // printBill already captured it; clear so the next customer starts fresh
       setLines([]);
       setPlate("");
       setMileage("");
@@ -1957,7 +1955,7 @@ export default function PosPage() {
               lang={billLang}
               shop={shop}
               dateLabel={billLang === "en" ? englishDate(billDate) : thaiDate(billDate)}
-              saleNumber={saleNumber}
+              saleNumber={nextSalesId(lastSaleId, Date.now())}
               vehicle={vehicleLabel}
               plate={plate.trim()}
               mileage={mileage.trim()}
