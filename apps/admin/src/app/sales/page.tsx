@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiBase, fetchSales, type SaleRow } from "@/lib/api";
+import { apiBase, fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import { rangeFor, summarize, type RangePreset } from "@/lib/salesSummary";
 import { SalesTable } from "./SalesTable";
+import { OnlineOrders } from "./OnlineOrders";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "today", label: "Today" },
@@ -23,8 +24,12 @@ const card = {
   minWidth: 150,
 } as const;
 
+/** An order's effective sale date: when it was placed, falling back to when it was imported. */
+const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
+
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[] | null>(null);
+  const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preset, setPreset] = useState<RangePreset>("thisMonth");
   const [customStart, setCustomStart] = useState("");
@@ -34,6 +39,9 @@ export default function SalesPage() {
     fetchSales()
       .then(setSales)
       .catch((err) => setError((err as Error).message));
+    fetchOrders()
+      .then(setOrders)
+      .catch(() => setOrders([]));
   }, []);
 
   if (error) {
@@ -51,6 +59,11 @@ export default function SalesPage() {
   );
   const s = summarize(inRange, range);
 
+  const shopeeInRange = (orders ?? []).filter(
+    (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
+  );
+  const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
+
   const Card = ({ label, value }: { label: string; value: string }) => (
     <div style={card}>
       <div style={{ color: "var(--text-muted)", fontSize: 13 }}>{label}</div>
@@ -58,11 +71,31 @@ export default function SalesPage() {
     </div>
   );
 
+  const Section = ({ title, stat }: { title: string; stat: string }) => (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 12,
+        borderTop: "1px solid var(--border)",
+        paddingTop: 18,
+        marginTop: 26,
+        marginBottom: 14,
+      }}
+    >
+      <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
+      <span className="muted" style={{ fontSize: 13 }}>
+        {stat}
+      </span>
+    </div>
+  );
+
   return (
     <main>
       <h1>Sales</h1>
       <p className="muted" style={{ marginTop: -4 }}>
-        On-site sales.
+        All channels.
       </p>
 
       <div
@@ -116,7 +149,11 @@ export default function SalesPage() {
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
       ) : (
         <>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <Section
+            title="Onsite · POS"
+            stat={`${s.salesCount} sales · ${formatBaht(s.revenueSatang)}`}
+          />
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
             <Card label="Revenue" value={formatBaht(s.revenueSatang)} />
             <Card label="Gross profit" value={formatBaht(s.grossProfitSatang)} />
             <Card label="VAT collected" value={formatBaht(s.vatSatang)} />
@@ -124,6 +161,18 @@ export default function SalesPage() {
             <Card label="Refunds" value={`${s.refundCount} · ${formatBaht(s.refundedSatang)}`} />
           </div>
           <SalesTable sales={inRange} />
+
+          <Section
+            title="Online · Shopee"
+            stat={`${shopeeInRange.length} orders · ${formatBaht(shopeeTotal)}`}
+          />
+          <OnlineOrders orders={shopeeInRange} />
+
+          <Section title="Online · AirPro" stat="not connected" />
+          <div className="empty">
+            <div className="empty-icon">☁️</div>AirPro orders will appear here once its channel is
+            connected.
+          </div>
         </>
       )}
     </main>
