@@ -81,6 +81,7 @@ function makeDb(canned: {
   fitments?: unknown[];
   attrOption?: unknown | null;
   stock?: unknown[];
+  movements?: unknown[];
   stockOnHand?: number;
   saleHeader?: unknown | null;
   saleLines?: unknown[];
@@ -126,6 +127,8 @@ function makeDb(canned: {
         if (sql.includes("FROM services")) return { results: (canned.services ?? []) as T[] };
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
+        if (sql.includes("movement_type AS movementType"))
+          return { results: (canned.movements ?? []) as T[] };
         if (sql.includes("FROM product_variants v JOIN products"))
           return { results: (canned.barcodes ?? []) as T[] };
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
@@ -542,6 +545,24 @@ describe("api worker routes", () => {
     const { env } = makeDb({ stock });
     const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
     expect(await res.json()).toEqual({ stock });
+  });
+
+  it("GET /stock/movements > returns recent ledger movements from D1", async () => {
+    const movements = [
+      {
+        id: "m1",
+        variantId: "v1",
+        sku: "S1",
+        productName: "Cream",
+        movementType: "onsite_sale",
+        quantityDelta: -2,
+        quantityAfter: 18,
+        createdAt: 1720000000000,
+      },
+    ];
+    const { env } = makeDb({ movements });
+    const res = await worker.fetch!(new Request("https://x/stock/movements"), env, ctx);
+    expect(await res.json()).toEqual({ movements });
   });
 
   it("GET /finance/summary > aggregates sales, profit and refunds", async () => {
@@ -1029,6 +1050,20 @@ describe("refundSaleToDb", () => {
     const out = await refundSaleToDb(db, "s1");
     expect(out).toEqual({ saleId: "s1", applied: true, restockedLines: 1 });
     expect(batched.length).toBe(3); // 1 restock ledger + update sale + finance record
+  });
+
+  it("writes the restock as a refund_return movement (schema enum, not 'refund')", async () => {
+    const { db, batched } = makeDb({
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleLines: [{ productVariantId: "v1", quantity: 2 }],
+      stockOnHand: 18,
+    });
+    await refundSaleToDb(db, "s1");
+    const ledger = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT INTO stock_ledger_entries"),
+    );
+    // boundArgs order: (id, variant_id, movement_type, delta, after, source_type, source_id, at)
+    expect(ledger?.boundArgs?.[2]).toBe("refund_return");
   });
 
   it("rejects an unknown sale", async () => {

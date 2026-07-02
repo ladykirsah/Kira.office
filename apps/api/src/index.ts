@@ -992,7 +992,7 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
         .bind(
           crypto.randomUUID(),
           line.productVariantId,
-          "refund",
+          "refund_return",
           line.quantity,
           after,
           "refund",
@@ -1034,6 +1034,21 @@ async function listStock(env: Env): Promise<Response> {
      LIMIT 200`,
   ).all();
   return json({ stock: results });
+}
+
+/** Recent stock-ledger movements (newest first) with product/variant labels, for the stock screen. */
+async function listStockMovements(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT e.id, e.product_variant_id AS variantId, v.sku, p.name AS productName,
+            e.movement_type AS movementType, e.quantity_delta AS quantityDelta,
+            e.quantity_after AS quantityAfter, e.created_at AS createdAt
+     FROM stock_ledger_entries e
+     JOIN product_variants v ON v.id = e.product_variant_id
+     JOIN products p ON p.id = v.product_id
+     ORDER BY e.created_at DESC
+     LIMIT 100`,
+  ).all();
+  return json({ movements: results });
 }
 
 const DEFAULT_TERMS_TEMPLATE = [
@@ -1960,6 +1975,10 @@ const worker = {
 
     if (url.pathname === "/stock" && request.method === "GET") {
       return listStock(env);
+    }
+
+    if (url.pathname === "/stock/movements" && request.method === "GET") {
+      return listStockMovements(env);
     }
 
     if (url.pathname === "/terms/template" && request.method === "GET") {

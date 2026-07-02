@@ -17,6 +17,10 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
     links: [["/pos", "🛒", "Point of Sale"]],
   },
   {
+    section: "Inventory",
+    links: [["/stock", "📊", "Stock"]],
+  },
+  {
     section: "Orders & money",
     links: [
       ["/orders", "🧾", "Orders"],

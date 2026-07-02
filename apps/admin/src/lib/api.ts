@@ -509,6 +509,39 @@ export function imageUrl(key: string): string {
   return `${apiBase}/img/${key}`;
 }
 
+export interface StockRow {
+  variantId: string;
+  sku: string | null;
+  productName: string;
+  productRef: string | null;
+  onHand: number;
+}
+
+export async function fetchStock(): Promise<StockRow[]> {
+  const res = await apiFetch(`/stock`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load stock (HTTP ${res.status})`);
+  const data = (await res.json()) as { stock: StockRow[] };
+  return data.stock;
+}
+
+export interface StockMovementRow {
+  id: string;
+  variantId: string;
+  sku: string | null;
+  productName: string;
+  movementType: string;
+  quantityDelta: number;
+  quantityAfter: number;
+  createdAt: number;
+}
+
+export async function fetchStockMovements(): Promise<StockMovementRow[]> {
+  const res = await apiFetch(`/stock/movements`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load movements (HTTP ${res.status})`);
+  const data = (await res.json()) as { movements: StockMovementRow[] };
+  return data.movements;
+}
+
 export async function adjustStock(input: {
   productVariantId: string;
   quantityDelta: number;
