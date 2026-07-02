@@ -1,11 +1,11 @@
 {
-  // Live config for the api Worker (Cloudflare Workers Builds: account "GoGoCash").
+  // Live config for the api Worker (Cloudflare account "GoGoCash").
   // `name` MUST match the Worker created in the dashboard so deploys update it.
-  // Deployed from repo root via `npx wrangler deploy` (build root directory = "/").
+  // Deployed from repo root via `npx wrangler deploy` — run by the GitHub Actions `deploy` job
+  // (.github/workflows) on push to main, once the CLOUDFLARE_API_TOKEN secret is set.
   // Bindings (D1, R2, KV, Queues, Durable Objects) are added as resources are provisioned —
   // see the full target config in docs/CLOUDFLARE_ARCHITECTURE.md.
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Must match the Workers Builds project name on GoGoCash ("kira-office").
   "name": "kira-office",
   // Pin the GoGoCash account so `wrangler deploy` doesn't fail in CI when the token can see
   // multiple accounts ("unable to select one in non-interactive mode"). account_id is not a secret.
@@ -40,7 +40,8 @@
   // Secrets (set via `wrangler secret put`, never vars): ACCESS_TEAM_DOMAIN, ACCESS_AUD
   // Optional var: ALLOWED_CORS_ORIGINS (comma-separated; defaults include localhost:3000 + app.homeseeker.me)
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
-  // the DNS record + cert. Requires the build token to have zone DNS/Workers-routes edit.
+  // the DNS record + cert. Requires the deploy token (CLOUDFLARE_API_TOKEN) to have zone
+  // DNS/Workers-routes edit.
   "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }],
   // Queues + Cron are the next phase (Shopee sync) — see docs/CLOUDFLARE_ARCHITECTURE.md.
 
