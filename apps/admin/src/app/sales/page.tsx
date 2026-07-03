@@ -92,6 +92,7 @@ export default function SalesPage() {
     (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
   );
   const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
+  const shopeeFees = shopeeInRange.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
 
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
@@ -122,10 +123,10 @@ export default function SalesPage() {
       </p>
 
       <div className="tabs">
-        <TabBtn id="summary" label="Summary" />
+        <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />
         <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
         <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
-        <TabBtn id="airplus" label="AirPlus" />
+        <TabBtn id="airplus" label="AirPlus (0)" />
       </div>
 
       <div
@@ -176,38 +177,44 @@ export default function SalesPage() {
       ) : (
         <>
           {tab === "summary" && (
-            <div
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: 18,
-                overflowX: "auto",
-              }}
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th>Channel</th>
-                    <th style={right}>Sales</th>
-                    <th style={right}>Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {channelRows.map((r) => (
-                    <tr key={r.key}>
-                      <td>{r.label}</td>
-                      <td style={right}>{r.count}</td>
-                      <td style={right}>{formatBaht(r.revenueSatang)}</td>
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                <Card label="Total revenue" value={formatBaht(channelTotal.revenueSatang)} />
+                <Card label="Total sales" value={String(channelTotal.count)} />
+              </div>
+              <div
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: 18,
+                  overflowX: "auto",
+                }}
+              >
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th style={right}>Sales</th>
+                      <th style={right}>Revenue</th>
                     </tr>
-                  ))}
-                  <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
-                    <td>Total</td>
-                    <td style={right}>{channelTotal.count}</td>
-                    <td style={right}>{formatBaht(channelTotal.revenueSatang)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {channelRows.map((r) => (
+                      <tr key={r.key}>
+                        <td>{r.label}</td>
+                        <td style={right}>{r.count}</td>
+                        <td style={right}>{formatBaht(r.revenueSatang)}</td>
+                      </tr>
+                    ))}
+                    <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+                      <td>Total</td>
+                      <td style={right}>{channelTotal.count}</td>
+                      <td style={right}>{formatBaht(channelTotal.revenueSatang)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
 
           {tab === "onsite" && (
@@ -226,13 +233,28 @@ export default function SalesPage() {
             </>
           )}
 
-          {tab === "shopee" && <OnlineOrders orders={shopeeInRange} />}
+          {tab === "shopee" && (
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                <Card label="Revenue" value={formatBaht(shopeeTotal)} />
+                <Card label="Orders" value={String(shopeeInRange.length)} />
+                <Card label="Fees" value={formatBaht(shopeeFees)} />
+              </div>
+              <OnlineOrders orders={shopeeInRange} />
+            </>
+          )}
 
           {tab === "airplus" && (
-            <div className="empty">
-              <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel
-              is connected.
-            </div>
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                <Card label="Revenue" value={formatBaht(0)} />
+                <Card label="Orders" value="0" />
+              </div>
+              <div className="empty">
+                <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel
+                is connected.
+              </div>
+            </>
           )}
         </>
       )}
