@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { apiBase, fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
-import { rangeFor, summarize, type RangePreset } from "@/lib/salesSummary";
+import {
+  rangeFor,
+  summarize,
+  totalChannelSales,
+  type RangePreset,
+  type ChannelSales,
+} from "@/lib/salesSummary";
 import { SalesTable } from "./SalesTable";
 import { OnlineOrders } from "./OnlineOrders";
 
@@ -23,6 +29,8 @@ const card = {
   padding: "14px 18px",
   minWidth: 150,
 } as const;
+
+const right = { textAlign: "right" } as const;
 
 /** An order's effective sale date: when it was placed, falling back to when it was imported. */
 const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
@@ -64,6 +72,14 @@ export default function SalesPage() {
   );
   const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
 
+  // Group 1 — product sales across channels (roll-up shown in the summary table).
+  const channelRows: ChannelSales[] = [
+    { key: "onsite", label: "Onsite", count: s.salesCount, revenueSatang: s.revenueSatang },
+    { key: "shopee", label: "Shopee", count: shopeeInRange.length, revenueSatang: shopeeTotal },
+    { key: "airplus", label: "AirPlus", count: 0, revenueSatang: 0 },
+  ];
+  const channelTotal = totalChannelSales(channelRows);
+
   const Card = ({ label, value }: { label: string; value: string }) => (
     <div style={card}>
       <div style={{ color: "var(--text-muted)", fontSize: 13 }}>{label}</div>
@@ -91,11 +107,15 @@ export default function SalesPage() {
     </div>
   );
 
+  const GroupHeading = ({ title }: { title: string }) => (
+    <h2 style={{ fontSize: 18, margin: "30px 0 14px" }}>{title}</h2>
+  );
+
   return (
     <main>
       <h1>Sales</h1>
       <p className="muted" style={{ marginTop: -4 }}>
-        All channels.
+        Product sales by channel, plus affiliate commission.
       </p>
 
       <div
@@ -149,6 +169,34 @@ export default function SalesPage() {
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
       ) : (
         <>
+          <GroupHeading title="Product sales" />
+
+          <div className="card" style={{ overflowX: "auto", marginBottom: 8 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th style={right}>Sales</th>
+                  <th style={right}>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {channelRows.map((r) => (
+                  <tr key={r.key}>
+                    <td>{r.label}</td>
+                    <td style={right}>{r.count}</td>
+                    <td style={right}>{formatBaht(r.revenueSatang)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+                  <td>Total</td>
+                  <td style={right}>{channelTotal.count}</td>
+                  <td style={right}>{formatBaht(channelTotal.revenueSatang)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <Section
             title="Onsite · POS"
             stat={`${s.salesCount} sales · ${formatBaht(s.revenueSatang)}`}
@@ -172,6 +220,18 @@ export default function SalesPage() {
           <div className="empty">
             <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel is
             connected.
+          </div>
+
+          <GroupHeading title="Affiliate" />
+          <p className="muted" style={{ marginTop: -8, marginBottom: 12, fontSize: 13 }}>
+            Commission from promoting other sellers&rsquo; products — kept out of the product-sales
+            totals above.
+          </p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+            <Card label="Commission income" value={formatBaht(0)} />
+          </div>
+          <div className="empty">
+            <div className="empty-icon">🤝</div>No affiliate income recorded yet.
           </div>
         </>
       )}

@@ -113,6 +113,22 @@ export function rangeFor(
   }
 }
 
+/** One row of the product-sales summary table (one per channel). */
+export interface ChannelSales {
+  key: string;
+  label: string;
+  count: number;
+  revenueSatang: number;
+}
+
+/** Total count + revenue across the product-sales channels — the summary table's Total row. */
+export function totalChannelSales(rows: ChannelSales[]): { count: number; revenueSatang: number } {
+  return rows.reduce(
+    (t, r) => ({ count: t.count + r.count, revenueSatang: t.revenueSatang + r.revenueSatang }),
+    { count: 0, revenueSatang: 0 },
+  );
+}
+
 export function summarize(sales: SaleLike[], range: Range): SalesSummary {
   const out: SalesSummary = {
     salesCount: 0,

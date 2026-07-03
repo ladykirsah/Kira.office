@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { rangeFor, summarize, type SaleLike } from "./salesSummary";
+import { rangeFor, summarize, totalChannelSales, type SaleLike } from "./salesSummary";
+
+describe("totalChannelSales", () => {
+  it("sums count and revenue across channels", () => {
+    const rows = [
+      { key: "onsite", label: "Onsite", count: 3, revenueSatang: 30000 },
+      { key: "shopee", label: "Shopee", count: 2, revenueSatang: 20000 },
+      { key: "airplus", label: "AirPlus", count: 0, revenueSatang: 0 },
+    ];
+    expect(totalChannelSales(rows)).toEqual({ count: 5, revenueSatang: 50000 });
+  });
+
+  it("given no channels > returns zeros", () => {
+    expect(totalChannelSales([])).toEqual({ count: 0, revenueSatang: 0 });
+  });
+});
 
 /** Build a local-time timestamp (month is 0-based), so expectations are timezone-independent. */
 const ts = (y: number, m: number, d: number, h = 0, mi = 0) =>
