@@ -560,7 +560,9 @@ describe("api worker routes", () => {
     expect(sqls.find((s) => s.includes("FROM onsite_sales WHERE sale_status"))).toContain(
       "stage = 'bill'",
     );
-    expect(sqls.find((s) => s.includes("FROM onsite_sale_lines l JOIN"))).toContain("stage = 'bill'");
+    expect(sqls.find((s) => s.includes("FROM onsite_sale_lines l JOIN"))).toContain(
+      "stage = 'bill'",
+    );
   });
 
   it("GET /stock > reads on-hand per variant from D1", async () => {
