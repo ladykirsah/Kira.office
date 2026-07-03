@@ -1,7 +1,7 @@
 "use client";
 
 import { type SaleRow } from "@/lib/api";
-import { formatBaht } from "@/lib/format";
+import { formatBahtTrim } from "@/lib/format";
 import { saleStatusPill, saleTypeBadge, vehicleLabel } from "@/lib/badges";
 import { RefundButton } from "./RefundButton";
 
@@ -50,7 +50,15 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
                   {s.saleNumber ?? <span className="muted">—</span>}
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  {new Date(s.createdAt).toLocaleString("th-TH")}
+                  <div style={{ fontSize: 14 }}>
+                    {new Date(s.createdAt).toLocaleDateString("th-TH")}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
+                    {new Date(s.createdAt).toLocaleTimeString("th-TH", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
                 </td>
                 <td>
                   {type ? <span className={`pill ${type.pill}`}>{type.label}</span> : "—"}
@@ -60,8 +68,8 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
                     </div>
                   )}
                 </td>
-                <td style={right}>{formatBaht(s.grandTotalSatang)}</td>
-                <td style={right}>{formatBaht(s.grossProfitSatang)}</td>
+                <td style={right}>{formatBahtTrim(s.grandTotalSatang)}</td>
+                <td style={right}>{formatBahtTrim(s.grossProfitSatang)}</td>
                 <td>
                   <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
                 </td>
