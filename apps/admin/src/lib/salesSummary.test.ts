@@ -6,8 +6,25 @@ import {
   toDateInputValue,
   matchesSalesSearch,
   salesView,
+  growthRatePct,
   type SaleLike,
 } from "./salesSummary";
+
+describe("growthRatePct", () => {
+  it("computes percent change vs the previous period", () => {
+    expect(growthRatePct(150, 100)).toBe(50);
+    expect(growthRatePct(50, 100)).toBe(-50);
+    expect(growthRatePct(100, 100)).toBe(0);
+  });
+
+  it("returns 0 when both are zero", () => {
+    expect(growthRatePct(0, 0)).toBe(0);
+  });
+
+  it("returns null when there is no baseline (previous 0, current > 0)", () => {
+    expect(growthRatePct(100, 0)).toBeNull();
+  });
+});
 
 const searchable = (over = {}) => ({
   saleNumber: "DAS202607-01001",

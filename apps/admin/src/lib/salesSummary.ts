@@ -172,6 +172,15 @@ export function salesView<T extends SaleSearchable>(
   return out;
 }
 
+/**
+ * Period-over-period growth %, e.g. this-period revenue vs the previous equal-length period.
+ * Returns null when there is no baseline (previous 0 but current > 0) so the UI can show "—".
+ */
+export function growthRatePct(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return ((current - previous) / previous) * 100;
+}
+
 export function summarize(sales: SaleLike[], range: Range): SalesSummary {
   const out: SalesSummary = {
     salesCount: 0,

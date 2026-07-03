@@ -10,6 +10,7 @@ import {
   totalChannelSales,
   toDateInputValue,
   salesView,
+  growthRatePct,
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
@@ -97,6 +98,20 @@ export default function SalesPage() {
   const onsiteView = salesView(inRange, { search, sortBy, filterVal });
   const onsiteSumm = summarize(onsiteView, range);
   const onsiteStatuses = Array.from(new Set(inRange.map((x) => x.saleStatus))).sort();
+
+  // Growth rate: this period's revenue vs the previous equal-length period (same search/filter).
+  const prevRange = {
+    startMs: range.startMs - (range.endMs - range.startMs),
+    endMs: range.startMs,
+  };
+  const prevView = salesView(
+    (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
+    { search, sortBy, filterVal },
+  );
+  const onsiteGrowth = growthRatePct(
+    onsiteSumm.revenueSatang,
+    summarize(prevView, prevRange).revenueSatang,
+  );
 
   const shopeeInRange = (orders ?? []).filter(
     (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
@@ -237,12 +252,15 @@ export default function SalesPage() {
               {/* Shortcut info — reflects the filtered view */}
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
                 <Card label="Revenue" value={formatBaht(onsiteSumm.revenueSatang)} />
-                <Card label="Gross profit" value={formatBaht(onsiteSumm.grossProfitSatang)} />
-                <Card label="VAT collected" value={formatBaht(onsiteSumm.vatSatang)} />
-                <Card label="Sales" value={String(onsiteSumm.salesCount)} />
+                <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
+                <Card label="Profit" value={formatBaht(onsiteSumm.grossProfitSatang)} />
                 <Card
-                  label="Refunds"
-                  value={`${onsiteSumm.refundCount} · ${formatBaht(onsiteSumm.refundedSatang)}`}
+                  label="Growth rate"
+                  value={
+                    onsiteGrowth === null
+                      ? "—"
+                      : `${onsiteGrowth >= 0 ? "+" : ""}${Math.round(onsiteGrowth)}%`
+                  }
                 />
               </div>
 
