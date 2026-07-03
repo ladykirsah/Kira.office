@@ -1,11 +1,9 @@
 "use client";
 
 import { type SaleRow } from "@/lib/api";
-import { formatBaht } from "@/lib/format";
 import { saleStatusPill, saleTypeBadge, vehicleLabel } from "@/lib/badges";
+import { PriceProfitCell } from "../products/PriceProfitCell";
 import { RefundButton } from "./RefundButton";
-
-const right = { textAlign: "right" } as const;
 
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
 export function SalesTable({ sales }: { sales: SaleRow[] }) {
@@ -25,8 +23,7 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
             <th>Order ID</th>
             <th>When</th>
             <th>Job</th>
-            <th style={right}>Total</th>
-            <th style={right}>Profit</th>
+            <th>Total</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -60,8 +57,12 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
                     </div>
                   )}
                 </td>
-                <td style={right}>{formatBaht(s.grandTotalSatang)}</td>
-                <td style={right}>{formatBaht(s.grossProfitSatang)}</td>
+                <td>
+                  <PriceProfitCell
+                    priceSatang={s.grandTotalSatang}
+                    profitSatang={s.grossProfitSatang}
+                  />
+                </td>
                 <td>
                   <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
                 </td>
