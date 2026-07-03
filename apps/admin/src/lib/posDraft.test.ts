@@ -30,9 +30,7 @@ describe("cartToDraftLines", () => {
 
   it("maps a service line to a null variant and zero cost", () => {
     expect(
-      cartToDraftLines([
-        { kind: "service", name: "Regas", quantity: 1, unitPriceSatang: 80000 },
-      ]),
+      cartToDraftLines([{ kind: "service", name: "Regas", quantity: 1, unitPriceSatang: 80000 }]),
     ).toEqual([
       {
         productVariantId: null,
