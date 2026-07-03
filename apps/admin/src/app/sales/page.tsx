@@ -176,7 +176,14 @@ export default function SalesPage() {
       ) : (
         <>
           {tab === "summary" && (
-            <div className="card" style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: 18,
+                overflowX: "auto",
+              }}
+            >
               <table>
                 <thead>
                   <tr>
