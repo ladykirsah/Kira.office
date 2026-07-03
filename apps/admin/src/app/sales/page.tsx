@@ -32,6 +32,8 @@ const card = {
 
 const right = { textAlign: "right" } as const;
 
+type SalesTab = "summary" | "onsite" | "shopee" | "airplus" | "affiliate";
+
 /** An order's effective sale date: when it was placed, falling back to when it was imported. */
 const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
 
@@ -42,6 +44,7 @@ export default function SalesPage() {
   const [preset, setPreset] = useState<RangePreset>("thisMonth");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [tab, setTab] = useState<SalesTab>("summary");
 
   useEffect(() => {
     fetchSales()
@@ -87,28 +90,10 @@ export default function SalesPage() {
     </div>
   );
 
-  const Section = ({ title, stat }: { title: string; stat: string }) => (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        gap: 12,
-        borderTop: "1px solid var(--border)",
-        paddingTop: 18,
-        marginTop: 26,
-        marginBottom: 14,
-      }}
-    >
-      <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
-      <span className="muted" style={{ fontSize: 13 }}>
-        {stat}
-      </span>
-    </div>
-  );
-
-  const GroupHeading = ({ title }: { title: string }) => (
-    <h2 style={{ fontSize: 18, margin: "30px 0 14px" }}>{title}</h2>
+  const TabBtn = ({ id, label }: { id: SalesTab; label: string }) => (
+    <button className={tab === id ? "tab active" : "tab"} onClick={() => setTab(id)}>
+      {label}
+    </button>
   );
 
   return (
@@ -169,70 +154,81 @@ export default function SalesPage() {
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
       ) : (
         <>
-          <GroupHeading title="Product sales" />
+          <div className="tabs">
+            <TabBtn id="summary" label="Summary" />
+            <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
+            <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
+            <TabBtn id="airplus" label="AirPlus" />
+            <TabBtn id="affiliate" label="Affiliate" />
+          </div>
 
-          <div className="card" style={{ overflowX: "auto", marginBottom: 8 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Channel</th>
-                  <th style={right}>Sales</th>
-                  <th style={right}>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {channelRows.map((r) => (
-                  <tr key={r.key}>
-                    <td>{r.label}</td>
-                    <td style={right}>{r.count}</td>
-                    <td style={right}>{formatBaht(r.revenueSatang)}</td>
+          {tab === "summary" && (
+            <div className="card" style={{ overflowX: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Channel</th>
+                    <th style={right}>Sales</th>
+                    <th style={right}>Revenue</th>
                   </tr>
-                ))}
-                <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
-                  <td>Total</td>
-                  <td style={right}>{channelTotal.count}</td>
-                  <td style={right}>{formatBaht(channelTotal.revenueSatang)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {channelRows.map((r) => (
+                    <tr key={r.key}>
+                      <td>{r.label}</td>
+                      <td style={right}>{r.count}</td>
+                      <td style={right}>{formatBaht(r.revenueSatang)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+                    <td>Total</td>
+                    <td style={right}>{channelTotal.count}</td>
+                    <td style={right}>{formatBaht(channelTotal.revenueSatang)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          <Section
-            title="Onsite · POS"
-            stat={`${s.salesCount} sales · ${formatBaht(s.revenueSatang)}`}
-          />
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-            <Card label="Revenue" value={formatBaht(s.revenueSatang)} />
-            <Card label="Gross profit" value={formatBaht(s.grossProfitSatang)} />
-            <Card label="VAT collected" value={formatBaht(s.vatSatang)} />
-            <Card label="Sales" value={String(s.salesCount)} />
-            <Card label="Refunds" value={`${s.refundCount} · ${formatBaht(s.refundedSatang)}`} />
-          </div>
-          <SalesTable sales={inRange} />
+          {tab === "onsite" && (
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                <Card label="Revenue" value={formatBaht(s.revenueSatang)} />
+                <Card label="Gross profit" value={formatBaht(s.grossProfitSatang)} />
+                <Card label="VAT collected" value={formatBaht(s.vatSatang)} />
+                <Card label="Sales" value={String(s.salesCount)} />
+                <Card
+                  label="Refunds"
+                  value={`${s.refundCount} · ${formatBaht(s.refundedSatang)}`}
+                />
+              </div>
+              <SalesTable sales={inRange} />
+            </>
+          )}
 
-          <Section
-            title="Online · Shopee"
-            stat={`${shopeeInRange.length} orders · ${formatBaht(shopeeTotal)}`}
-          />
-          <OnlineOrders orders={shopeeInRange} />
+          {tab === "shopee" && <OnlineOrders orders={shopeeInRange} />}
 
-          <Section title="Online · AirPlus" stat="not connected" />
-          <div className="empty">
-            <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel is
-            connected.
-          </div>
+          {tab === "airplus" && (
+            <div className="empty">
+              <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel
+              is connected.
+            </div>
+          )}
 
-          <GroupHeading title="Affiliate" />
-          <p className="muted" style={{ marginTop: -8, marginBottom: 12, fontSize: 13 }}>
-            Commission from promoting other sellers&rsquo; products — kept out of the product-sales
-            totals above.
-          </p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-            <Card label="Commission income" value={formatBaht(0)} />
-          </div>
-          <div className="empty">
-            <div className="empty-icon">🤝</div>No affiliate income recorded yet.
-          </div>
+          {tab === "affiliate" && (
+            <>
+              <p className="muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
+                Commission from promoting other sellers&rsquo; products — kept out of the
+                product-sales totals.
+              </p>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                <Card label="Commission income" value={formatBaht(0)} />
+              </div>
+              <div className="empty">
+                <div className="empty-icon">🤝</div>No affiliate income recorded yet.
+              </div>
+            </>
+          )}
         </>
       )}
     </main>
