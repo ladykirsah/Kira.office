@@ -70,4 +70,10 @@ describe("latestSalesIdForDay", () => {
   it("given an empty list > returns null", () => {
     expect(latestSalesIdForDay([], now)).toBeNull();
   });
+
+  it("given a prefix > seeds from that series only (QT and DAS are independent)", () => {
+    const ids = ["DAS202607-01009", "QT202607-01002", "QT202607-01001"];
+    expect(latestSalesIdForDay(ids, now, "QT")).toBe("QT202607-01002");
+    expect(latestSalesIdForDay(ids, now, "DAS")).toBe("DAS202607-01009");
+  });
 });

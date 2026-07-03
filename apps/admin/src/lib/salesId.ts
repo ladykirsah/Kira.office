@@ -58,10 +58,12 @@ export function nextSalesId(prev: string | null, now: number, prefix = PREFIX): 
 /**
  * The highest-numbered id issued for the day containing `now`, or null if none match — used to seed
  * a fresh POS device's counter from the server's history so it continues past backfilled numbers.
+ * Pass `prefix` to seed a single series (e.g. "QT" quotations vs "DAS" bills, which number apart).
  */
 export function latestSalesIdForDay(
   ids: readonly (string | null | undefined)[],
   now: number,
+  prefix?: string,
 ): string | null {
   const d = new Date(now);
   const year = d.getFullYear();
@@ -72,6 +74,7 @@ export function latestSalesIdForDay(
     if (!id) continue;
     const p = parseSalesId(id);
     if (!p || p.year !== year || p.month !== month || p.day !== day) continue;
+    if (prefix && p.prefix !== prefix) continue;
     if (!best || p.seq > best.seq) best = { id, seq: p.seq };
   }
   return best ? best.id : null;
