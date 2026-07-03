@@ -25,6 +25,7 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
     links: [
       ["/orders", "🧾", "Orders"],
       ["/sales", "💰", "Sales"],
+      ["/affiliate", "🤝", "Affiliate"],
     ],
   },
   {

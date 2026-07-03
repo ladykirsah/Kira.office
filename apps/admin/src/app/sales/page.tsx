@@ -32,7 +32,7 @@ const card = {
 
 const right = { textAlign: "right" } as const;
 
-type SalesTab = "summary" | "onsite" | "shopee" | "airplus" | "affiliate";
+type SalesTab = "summary" | "onsite" | "shopee" | "airplus";
 
 /** An order's effective sale date: when it was placed, falling back to when it was imported. */
 const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
@@ -100,7 +100,7 @@ export default function SalesPage() {
     <main>
       <h1>Sales</h1>
       <p className="muted" style={{ marginTop: -4 }}>
-        Product sales by channel, plus affiliate commission.
+        Product sales by channel.
       </p>
 
       <div
@@ -159,7 +159,6 @@ export default function SalesPage() {
             <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
             <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
             <TabBtn id="airplus" label="AirPlus" />
-            <TabBtn id="affiliate" label="Affiliate" />
           </div>
 
           {tab === "summary" && (
@@ -213,21 +212,6 @@ export default function SalesPage() {
               <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel
               is connected.
             </div>
-          )}
-
-          {tab === "affiliate" && (
-            <>
-              <p className="muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
-                Commission from promoting other sellers&rsquo; products — kept out of the
-                product-sales totals.
-              </p>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Commission income" value={formatBaht(0)} />
-              </div>
-              <div className="empty">
-                <div className="empty-icon">🤝</div>No affiliate income recorded yet.
-              </div>
-            </>
           )}
         </>
       )}
