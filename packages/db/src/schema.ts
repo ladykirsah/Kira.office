@@ -256,22 +256,6 @@ export const pricingProfiles = sqliteTable("pricing_profiles", {
   activeTo: integer("active_to", { mode: "timestamp_ms" }),
 });
 
-export const costLayers = sqliteTable(
-  "cost_layers",
-  {
-    id: id(),
-    productVariantId: text("product_variant_id")
-      .notNull()
-      .references(() => productVariants.id),
-    locationId: text("location_id"),
-    receivedQty: integer("received_qty").notNull(),
-    remainingQty: integer("remaining_qty").notNull(),
-    unitCostSatang: integer("unit_cost_satang").notNull(),
-    receivedAt: integer("received_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (t) => [index("cost_layer_variant_idx").on(t.productVariantId)],
-);
-
 export const stockLedgerEntries = sqliteTable(
   "stock_ledger_entries",
   {
@@ -279,7 +263,6 @@ export const stockLedgerEntries = sqliteTable(
     productVariantId: text("product_variant_id")
       .notNull()
       .references(() => productVariants.id),
-    locationId: text("location_id"),
     movementType: text("movement_type", {
       enum: [
         "opening_balance",
@@ -301,25 +284,7 @@ export const stockLedgerEntries = sqliteTable(
     userId: text("user_id").references(() => users.id),
     createdAt: createdAt(),
   },
-  (t) => [index("ledger_variant_loc_idx").on(t.productVariantId, t.locationId)],
-);
-
-export const inventorySnapshots = sqliteTable(
-  "inventory_snapshots",
-  {
-    id: id(),
-    productVariantId: text("product_variant_id")
-      .notNull()
-      .references(() => productVariants.id),
-    locationId: text("location_id"),
-    stockOnHand: integer("stock_on_hand").notNull().default(0),
-    reservedStock: integer("reserved_stock").notNull().default(0),
-    availableStock: integer("available_stock").notNull().default(0),
-    shopeePublishedStock: integer("shopee_published_stock"),
-    reorderThreshold: integer("reorder_threshold"),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (t) => [uniqueIndex("snapshot_variant_loc_uq").on(t.productVariantId, t.locationId)],
+  (t) => [index("ledger_variant_idx").on(t.productVariantId)],
 );
 
 export const onsiteSales = sqliteTable("onsite_sales", {
@@ -430,16 +395,3 @@ export const auditLogs = sqliteTable(
     index("audit_logs_entity_idx").on(t.entityType, t.entityId),
   ],
 );
-
-export const syncJobs = sqliteTable("sync_jobs", {
-  id: id(),
-  provider: text("provider").notNull(),
-  jobType: text("job_type").notNull(),
-  entityType: text("entity_type"),
-  entityId: text("entity_id"),
-  status: text("status").notNull().default("pending"),
-  attempts: integer("attempts").notNull().default(0),
-  lastError: text("last_error"),
-  nextRetryAt: integer("next_retry_at", { mode: "timestamp_ms" }),
-  createdAt: createdAt(),
-});
