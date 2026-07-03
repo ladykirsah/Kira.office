@@ -302,7 +302,7 @@ export default function SalesPage() {
                     placeholder="Search plate / car / bill / amount…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    style={{ ...inputS, flex: "1 1 240px", maxWidth: "100%", color: "var(--text)" }}
+                    style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
                   />
                   <select
                     aria-label="Status"
