@@ -9,6 +9,7 @@ import {
   summarize,
   totalChannelSales,
   toDateInputValue,
+  salesView,
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
@@ -49,6 +50,9 @@ export default function SalesPage() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [tab, setTab] = useState<SalesTab>("summary");
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("");
+  const [filterVal, setFilterVal] = useState("");
 
   useEffect(() => {
     fetchSales()
@@ -89,6 +93,11 @@ export default function SalesPage() {
   );
   const s = summarize(inRange, range);
 
+  // Onsite table/info/CSV view: period → search + status filter/sort. Feeds the cards + table.
+  const onsiteView = salesView(inRange, { search, sortBy, filterVal });
+  const onsiteSumm = summarize(onsiteView, range);
+  const onsiteStatuses = Array.from(new Set(inRange.map((x) => x.saleStatus))).sort();
+
   const shopeeInRange = (orders ?? []).filter(
     (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
   );
@@ -116,6 +125,41 @@ export default function SalesPage() {
     </button>
   );
 
+  const PeriodSelect = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Period</span>
+      <select
+        value={preset}
+        onChange={(e) => setPreset(e.target.value as RangePreset)}
+        aria-label="Date range"
+        style={inputS}
+      >
+        {PRESETS.map((p) => (
+          <option key={p.key} value={p.key}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      <input
+        type="date"
+        value={fromDisplay}
+        onChange={(e) => editFrom(e.target.value)}
+        aria-label="From date"
+        style={inputS}
+      />
+      <span className="muted">–</span>
+      <input
+        type="date"
+        value={toDisplay}
+        onChange={(e) => editTo(e.target.value)}
+        aria-label="To date"
+        style={inputS}
+      />
+    </div>
+  );
+
+  const DownloadCsv = () => <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>;
+
   return (
     <main>
       <PageHeader title="Sales" subtitle="Product sales by channel." />
@@ -127,48 +171,21 @@ export default function SalesPage() {
         <TabBtn id="airplus" label="AirPlus (0)" />
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 8,
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Period</span>
-          <select
-            value={preset}
-            onChange={(e) => setPreset(e.target.value as RangePreset)}
-            aria-label="Date range"
-            style={inputS}
-          >
-            {PRESETS.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={fromDisplay}
-            onChange={(e) => editFrom(e.target.value)}
-            aria-label="From date"
-            style={inputS}
-          />
-          <span className="muted">–</span>
-          <input
-            type="date"
-            value={toDisplay}
-            onChange={(e) => editTo(e.target.value)}
-            aria-label="To date"
-            style={inputS}
-          />
+      {tab !== "onsite" && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: 16,
+          }}
+        >
+          <PeriodSelect />
+          <DownloadCsv />
         </div>
-        <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
-      </div>
+      )}
 
       {sales === null ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
@@ -217,17 +234,79 @@ export default function SalesPage() {
 
           {tab === "onsite" && (
             <>
+              {/* Shortcut info — reflects the filtered view */}
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Revenue" value={formatBaht(s.revenueSatang)} />
-                <Card label="Gross profit" value={formatBaht(s.grossProfitSatang)} />
-                <Card label="VAT collected" value={formatBaht(s.vatSatang)} />
-                <Card label="Sales" value={String(s.salesCount)} />
+                <Card label="Revenue" value={formatBaht(onsiteSumm.revenueSatang)} />
+                <Card label="Gross profit" value={formatBaht(onsiteSumm.grossProfitSatang)} />
+                <Card label="VAT collected" value={formatBaht(onsiteSumm.vatSatang)} />
+                <Card label="Sales" value={String(onsiteSumm.salesCount)} />
                 <Card
                   label="Refunds"
-                  value={`${s.refundCount} · ${formatBaht(s.refundedSatang)}`}
+                  value={`${onsiteSumm.refundCount} · ${formatBaht(onsiteSumm.refundedSatang)}`}
                 />
               </div>
-              <SalesTable sales={inRange} />
+
+              <div style={{ marginBottom: 14 }}>
+                <DownloadCsv />
+              </div>
+
+              {/* Table frame: toolbar → period → data */}
+              <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 18 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <input
+                    className="tbar-input"
+                    placeholder="Search plate / car / bill / amount…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
+                  />
+                  <select
+                    aria-label="Sort by"
+                    value={sortBy}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setFilterVal("");
+                    }}
+                    style={{
+                      ...inputS,
+                      color: sortBy ? "var(--text)" : "var(--text-faint)",
+                    }}
+                  >
+                    <option value="">Sort by…</option>
+                    <option value="status">Status</option>
+                  </select>
+                  <select
+                    aria-label="Filter"
+                    value={filterVal}
+                    onChange={(e) => setFilterVal(e.target.value)}
+                    disabled={sortBy !== "status"}
+                    style={{
+                      ...inputS,
+                      color: filterVal ? "var(--text)" : "var(--text-faint)",
+                    }}
+                  >
+                    <option value="">{sortBy === "status" ? "All status" : "Filter…"}</option>
+                    {sortBy === "status" &&
+                      onsiteStatuses.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <PeriodSelect />
+                </div>
+                <SalesTable sales={onsiteView} />
+              </div>
             </>
           )}
 

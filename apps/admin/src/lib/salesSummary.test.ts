@@ -4,8 +4,58 @@ import {
   summarize,
   totalChannelSales,
   toDateInputValue,
+  matchesSalesSearch,
+  salesView,
   type SaleLike,
 } from "./salesSummary";
+
+const searchable = (over = {}) => ({
+  saleNumber: "DAS202607-01001",
+  vehicle: "Toyota Vigo",
+  licensePlate: "1กก1234",
+  grandTotalSatang: 470000,
+  saleStatus: "completed",
+  ...over,
+});
+
+describe("matchesSalesSearch", () => {
+  it("empty query matches everything", () => {
+    expect(matchesSalesSearch(searchable(), "")).toBe(true);
+    expect(matchesSalesSearch(searchable(), "  ")).toBe(true);
+  });
+
+  it("matches bill ID, car model, and plate (case-insensitive)", () => {
+    expect(matchesSalesSearch(searchable(), "01001")).toBe(true);
+    expect(matchesSalesSearch(searchable(), "vigo")).toBe(true);
+    expect(matchesSalesSearch(searchable(), "1กก")).toBe(true);
+  });
+
+  it("matches the paid amount in baht", () => {
+    expect(matchesSalesSearch(searchable(), "4700")).toBe(true);
+  });
+
+  it("returns false when nothing matches", () => {
+    expect(matchesSalesSearch(searchable(), "honda")).toBe(false);
+  });
+});
+
+describe("salesView", () => {
+  const a = searchable({ saleNumber: "A", vehicle: "Toyota", saleStatus: "completed" });
+  const b = searchable({ saleNumber: "B", vehicle: "Honda", saleStatus: "refunded" });
+
+  it("filters by search text", () => {
+    expect(salesView([a, b], { search: "honda", sortBy: "", filterVal: "" })).toEqual([b]);
+  });
+
+  it("filters by status value when sorting by status", () => {
+    expect(salesView([a, b], { search: "", sortBy: "status", filterVal: "refunded" })).toEqual([b]);
+  });
+
+  it("sorts by status", () => {
+    const out = salesView([b, a], { search: "", sortBy: "status", filterVal: "" });
+    expect(out.map((s) => s.saleStatus)).toEqual(["completed", "refunded"]);
+  });
+});
 
 describe("toDateInputValue", () => {
   it("formats a timestamp as local YYYY-MM-DD", () => {

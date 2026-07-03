@@ -137,6 +137,41 @@ export function toDateInputValue(ms: number): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+/** Fields the Onsite table searches over. */
+export interface SaleSearchable {
+  saleNumber: string | null;
+  vehicle: string | null;
+  licensePlate: string | null;
+  grandTotalSatang: number;
+  saleStatus: string;
+}
+
+/** True if the query appears in the bill ID, car model, plate, or paid amount (baht). Empty = all. */
+export function matchesSalesSearch(sale: SaleSearchable, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const baht = (sale.grandTotalSatang / 100).toFixed(2);
+  return [sale.saleNumber, sale.vehicle, sale.licensePlate, baht]
+    .filter((f): f is string => Boolean(f))
+    .some((f) => f.toLowerCase().includes(q));
+}
+
+/**
+ * The Onsite table/info/CSV view: free-text search, then (when sorting by Status) an optional status
+ * filter, then sort by status. Mirrors the Products toolbar's linked sort+filter.
+ */
+export function salesView<T extends SaleSearchable>(
+  sales: T[],
+  opts: { search: string; sortBy: string; filterVal: string },
+): T[] {
+  let out = sales.filter((s) => matchesSalesSearch(s, opts.search));
+  if (opts.sortBy === "status") {
+    if (opts.filterVal) out = out.filter((s) => s.saleStatus === opts.filterVal);
+    out = [...out].sort((a, b) => a.saleStatus.localeCompare(b.saleStatus));
+  }
+  return out;
+}
+
 export function summarize(sales: SaleLike[], range: Range): SalesSummary {
   const out: SalesSummary = {
     salesCount: 0,
