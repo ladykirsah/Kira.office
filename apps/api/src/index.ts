@@ -1448,6 +1448,78 @@ export async function upsertCustomerByPlate(
   return { ok: true, licensePlate: plate };
 }
 
+/**
+ * The customer/car list — derived from bills (so a car appears as soon as it has one), LEFT JOINed
+ * to the directory for the editable name/phone. `q` matches plate, phone, or name (empty = all).
+ */
+export async function searchCustomers(db: D1Database, q: string): Promise<unknown[]> {
+  const term = `%${q.trim()}%`;
+  const rows = await db
+    .prepare(
+      `SELECT s.license_plate AS licensePlate,
+              MAX(s.vehicle) AS vehicle,
+              c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
+              COUNT(*) AS billCount, MAX(s.created_at) AS lastVisitAt
+       FROM onsite_sales s
+       LEFT JOIN customers c ON c.license_plate = s.license_plate
+       WHERE s.stage = 'bill' AND s.license_plate IS NOT NULL AND s.license_plate <> ''
+         AND (? = '' OR s.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?)
+       GROUP BY s.license_plate
+       ORDER BY lastVisitAt DESC
+       LIMIT 100`,
+    )
+    .bind(q.trim(), term, term, term)
+    .all();
+  return rows.results ?? [];
+}
+
+/** One car: directory info + its bill history and open quotations (each with lines), for the page. */
+export async function getCustomerDetail(db: D1Database, plate: string): Promise<unknown> {
+  const customer = await db
+    .prepare(
+      `SELECT license_plate AS licensePlate, plate_province AS plateProvince,
+              customer_name AS customerName, phone, car_model AS carModel, notes
+       FROM customers WHERE license_plate = ?`,
+    )
+    .bind(normalizePlate(plate))
+    .first();
+  const salesRows = await db
+    .prepare(
+      `SELECT id, sale_number AS saleNumber, stage, created_at AS createdAt,
+              grand_total_satang AS grandTotalSatang, notes, vehicle
+       FROM onsite_sales
+       WHERE license_plate = ? AND stage IN ('bill', 'quotation')
+       ORDER BY created_at DESC LIMIT 200`,
+    )
+    .bind(plate)
+    .all<{ id: string; stage: string; vehicle: string | null }>();
+  const sales = salesRows.results ?? [];
+  const ids = sales.map((s) => s.id);
+  const byId = new Map<string, unknown[]>();
+  if (ids.length > 0) {
+    const lines = await db
+      .prepare(
+        `SELECT onsite_sale_id AS onsiteSaleId, description, line_type AS lineType,
+                quantity, unit_price_satang AS unitPriceSatang
+         FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
+      )
+      .bind(...ids)
+      .all<{ onsiteSaleId: string }>();
+    for (const l of lines.results ?? []) {
+      const arr = byId.get(l.onsiteSaleId) ?? [];
+      arr.push(l);
+      byId.set(l.onsiteSaleId, arr);
+    }
+  }
+  const withLines = sales.map((s) => ({ ...s, lines: byId.get(s.id) ?? [] }));
+  return {
+    customer: customer ?? null,
+    vehicle: sales[0]?.vehicle ?? null,
+    history: withLines.filter((s) => s.stage === "bill"),
+    quotations: withLines.filter((s) => s.stage === "quotation"),
+  };
+}
+
 const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 const thb = (satang: number): string => (satang / 100).toFixed(2);
 
@@ -2242,11 +2314,18 @@ const worker = {
       const sale = await getOnsiteSale(env.DB, decodeURIComponent(saleGet[1]!));
       return sale ? json({ sale }) : json({ error: "not found" }, 404);
     }
+    if (url.pathname === "/customers" && request.method === "GET") {
+      return json({ customers: await searchCustomers(env.DB, url.searchParams.get("q") ?? "") });
+    }
     if (url.pathname === "/customers/by-plate" && request.method === "PUT") {
       const body = (await request.json().catch(() => ({}))) as Partial<CustomerUpsert>;
       if (!body.licensePlate) return json({ ok: false, error: "licensePlate required" }, 400);
       const result = await upsertCustomerByPlate(env.DB, body as CustomerUpsert);
       return json(result, result.ok ? 200 : 400);
+    }
+    const customerGet = url.pathname.match(/^\/customers\/([^/]+)$/);
+    if (customerGet && request.method === "GET") {
+      return json(await getCustomerDetail(env.DB, decodeURIComponent(customerGet[1]!)));
     }
 
     if (url.pathname === "/stock" && request.method === "GET") {

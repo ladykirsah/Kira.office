@@ -668,6 +668,59 @@ describe("api worker routes", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET /customers > lists cars (from bills) joined to the directory for name/phone", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(new Request("https://x/customers?q=nav"), env, ctx);
+    expect(res.status).toBe(200);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("LEFT JOIN customers"));
+    expect(sql).toContain("GROUP BY s.license_plate");
+    expect(sql).toContain("s.stage = 'bill'");
+  });
+
+  it("GET /customers/:plate > returns info + bill history + open quotations", async () => {
+    const { env } = makeDb({
+      sales: [
+        {
+          id: "s1",
+          saleNumber: "DAS202607-04001",
+          stage: "bill",
+          createdAt: 2,
+          grandTotalSatang: 80000,
+          vehicle: "Nissan Navara",
+        },
+        {
+          id: "s2",
+          saleNumber: "QT202607-04001",
+          stage: "quotation",
+          createdAt: 3,
+          grandTotalSatang: 50000,
+          vehicle: "Nissan Navara",
+        },
+      ],
+      saleLines: [
+        {
+          onsiteSaleId: "s1",
+          description: "Regas",
+          lineType: "service",
+          quantity: 1,
+          unitPriceSatang: 80000,
+        },
+      ],
+    });
+    const res = await worker.fetch!(
+      new Request("https://x/customers/5%E0%B8%88%E0%B8%887890"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { history: unknown[]; quotations: unknown[] };
+    expect(body.history).toHaveLength(1);
+    expect(body.quotations).toHaveLength(1);
+  });
+
   it("GET /stock > reads on-hand per variant from D1", async () => {
     const stock = [
       { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },
