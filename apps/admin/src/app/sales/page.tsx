@@ -14,6 +14,7 @@ import {
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
+import { onsiteSalesToCsv } from "@/lib/salesCsv";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { OnlineOrders } from "./OnlineOrders";
@@ -112,6 +113,13 @@ export default function SalesPage() {
     onsiteSumm.revenueSatang,
     summarize(prevView, prevRange).revenueSatang,
   );
+  // No "+"; negatives shown accounting-style, e.g. -5% → "(5%)".
+  const growthLabel =
+    onsiteGrowth === null
+      ? "—"
+      : Math.round(onsiteGrowth) < 0
+        ? `(${Math.abs(Math.round(onsiteGrowth))}%)`
+        : `${Math.round(onsiteGrowth)}%`;
 
   const shopeeInRange = (orders ?? []).filter(
     (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
@@ -174,6 +182,16 @@ export default function SalesPage() {
   );
 
   const DownloadCsv = () => <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>;
+
+  const downloadOnsiteCsv = () => {
+    const blob = new Blob([onsiteSalesToCsv(onsiteView)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "onsite-sales.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <main>
@@ -254,18 +272,19 @@ export default function SalesPage() {
                 <Card label="Revenue" value={formatBaht(onsiteSumm.revenueSatang)} />
                 <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
                 <Card label="Profit" value={formatBaht(onsiteSumm.grossProfitSatang)} />
-                <Card
-                  label="Growth rate"
-                  value={
-                    onsiteGrowth === null
-                      ? "—"
-                      : `${onsiteGrowth >= 0 ? "+" : ""}${Math.round(onsiteGrowth)}%`
-                  }
-                />
+                <Card label="Growth rate" value={growthLabel} />
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <DownloadCsv />
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    downloadOnsiteCsv();
+                  }}
+                >
+                  Download CSV
+                </a>
               </div>
 
               {/* Table frame: toolbar → period → data */}
