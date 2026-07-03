@@ -241,6 +241,80 @@ export async function deleteDraft(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete draft failed (HTTP ${res.status})`);
 }
 
+// ── Customers (car directory + service history) ─────────────────────────────────────────────────
+export interface CustomerListItem {
+  licensePlate: string;
+  vehicle: string | null;
+  customerName: string | null;
+  phone: string | null;
+  carModel: string | null;
+  billCount: number;
+  lastVisitAt: number;
+}
+
+export interface CustomerSaleLine {
+  onsiteSaleId?: string;
+  description: string | null;
+  lineType: string;
+  quantity: number;
+  unitPriceSatang: number;
+}
+
+export interface CustomerSale {
+  id: string;
+  saleNumber: string | null;
+  stage: string;
+  createdAt: number;
+  grandTotalSatang: number;
+  notes: string | null;
+  vehicle: string | null;
+  lines: CustomerSaleLine[];
+}
+
+export interface CustomerInfo {
+  licensePlate: string;
+  plateProvince: string | null;
+  customerName: string | null;
+  phone: string | null;
+  carModel: string | null;
+  notes: string | null;
+}
+
+export interface CustomerDetail {
+  customer: CustomerInfo | null;
+  vehicle: string | null;
+  history: CustomerSale[];
+  quotations: CustomerSale[];
+}
+
+export async function searchCustomers(q: string): Promise<CustomerListItem[]> {
+  const res = await apiFetch(`/customers?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load customers (HTTP ${res.status})`);
+  return ((await res.json()) as { customers: CustomerListItem[] }).customers;
+}
+
+export async function getCustomerDetail(plate: string): Promise<CustomerDetail> {
+  const res = await apiFetch(`/customers/${encodeURIComponent(plate)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load car (HTTP ${res.status})`);
+  return (await res.json()) as CustomerDetail;
+}
+
+export async function saveCustomer(input: {
+  licensePlate: string;
+  customerName?: string | null;
+  phone?: string | null;
+  plateProvince?: string | null;
+  carModel?: string | null;
+  notes?: string | null;
+}): Promise<void> {
+  const res = await apiFetch(`/customers/by-plate`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Save customer failed (HTTP ${res.status})`);
+}
+
 /** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */
 export interface OringEntry {
   size: string;
