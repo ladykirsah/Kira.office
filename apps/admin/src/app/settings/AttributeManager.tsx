@@ -10,6 +10,7 @@ import {
   type AttrOption,
   type Attributes,
 } from "@/lib/api";
+import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
 import { ConfirmButton, XIcon } from "../ConfirmButton";
 
@@ -151,10 +152,7 @@ export function AttributeManager({
 
   return (
     <main>
-      <h1>{title}</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        {subtitle}
-      </p>
+      <PageHeader title={title} subtitle={subtitle} />
 
       {loading ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />

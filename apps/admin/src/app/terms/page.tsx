@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { renderTerms, extractPlaceholders, findMissingPlaceholders } from "@l-shopee/core";
 import { inputS } from "@/lib/inputStyles";
 import { fetchTermsTemplate, saveTermsTemplate } from "@/lib/api";
+import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
 
 export default function TermsPage() {
@@ -51,10 +52,14 @@ export default function TermsPage() {
 
   return (
     <main>
-      <h1>Thai T&amp;C editor</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Use <code>{"{{placeholder}}"}</code> for fields filled in per product/sale.
-      </p>
+      <PageHeader
+        title="Thai T&amp;C editor"
+        subtitle={
+          <>
+            Use <code>{"{{placeholder}}"}</code> for fields filled in per product/sale.
+          </>
+        }
+      />
       <textarea
         value={template}
         onChange={(e) => setTemplate(e.target.value)}

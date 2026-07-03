@@ -1,4 +1,5 @@
 import { formatBaht } from "@/lib/format";
+import { PageHeader } from "../PageHeader";
 
 const card = {
   border: "1px solid var(--border)",
@@ -10,11 +11,15 @@ const card = {
 export default function AffiliatePage() {
   return (
     <main>
-      <h1>Affiliate income</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        Commission from promoting other sellers&rsquo; products — separate from your own product
-        sales (no stock, no cost).
-      </p>
+      <PageHeader
+        title="Affiliate income"
+        subtitle={
+          <>
+            Commission from promoting other sellers&rsquo; products — separate from your own product
+            sales (no stock, no cost).
+          </>
+        }
+      />
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "16px 0" }}>
         <div style={card}>

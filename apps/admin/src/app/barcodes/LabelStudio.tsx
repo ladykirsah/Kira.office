@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { apiBase } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
+import { PageHeader } from "../PageHeader";
 import {
   drawLabel,
   downloadLabelSheet,
@@ -400,11 +401,10 @@ export function LabelStudio({
 
   return (
     <main>
-      <h1>Barcode labels</h1>
-      <p className="muted" style={{ marginTop: 4 }}>
-        Add the products you need, set each label’s size and quantity, then download one PDF with
-        all of them.
-      </p>
+      <PageHeader
+        title="Barcode labels"
+        subtitle="Add the products you need, set each label’s size and quantity, then download one PDF with all of them."
+      />
 
       {/* Row 1 — full-option product search */}
       <div

@@ -8,6 +8,7 @@ import {
   deleteService,
   type ServiceRow,
 } from "@/lib/api";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
@@ -279,14 +280,10 @@ export default function ServicesPage() {
 
   return (
     <main>
-      {/* Headline over subtitle (2 rows); the 40px gap sits below this group. */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 40 }}>
-        <h1 style={{ margin: 0 }}>Service Setup</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          Manage the repair / labour services the Point of Sale can add to a bill. Each has a base
-          price that prefills when you pick it — you can still change the price per sale.
-        </p>
-      </div>
+      <PageHeader
+        title="Service Setup"
+        subtitle="Manage the repair / labour services the Point of Sale can add to a bill. Each has a base price that prefills when you pick it — you can still change the price per sale."
+      />
 
       {/* Frame 1 — add a service */}
       <div style={cardStyle}>

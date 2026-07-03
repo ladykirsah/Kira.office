@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { importProductsCsv, type ImportResult } from "@/lib/api";
+import { PageHeader } from "../PageHeader";
 
 const PLACEHOLDER = "product_ref,name,description\nAC-CMP-VIOS14,ครีมบำรุงผิว,หลอด 50ml\n";
 
@@ -32,12 +33,16 @@ export default function ImportPage() {
 
   return (
     <main>
-      <h1>Import products (CSV)</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Paste a CSV with a header row. Columns <code>product_ref</code> (Product ID) and{" "}
-        <code>name</code> are required; <code>description</code> is optional. Re-importing is safe
-        (idempotent on the Product ID).
-      </p>
+      <PageHeader
+        title="Import products (CSV)"
+        subtitle={
+          <>
+            Paste a CSV with a header row. Columns <code>product_ref</code> (Product ID) and{" "}
+            <code>name</code> are required; <code>description</code> is optional. Re-importing is
+            safe (idempotent on the Product ID).
+          </>
+        }
+      />
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}

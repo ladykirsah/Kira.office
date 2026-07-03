@@ -13,6 +13,7 @@ import {
   type Attributes,
   type IdentifierKind,
 } from "@/lib/api";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
@@ -159,41 +160,34 @@ export default function NewProductPage() {
 
   return (
     <main>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Add product</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          <button type="button" onClick={() => router.push("/products")} disabled={busy}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn-soft"
-            onClick={() => submit("draft")}
-            disabled={busy}
-            style={{ minHeight: 44, padding: "10px 16px", fontSize: 14 }}
-          >
-            Save draft
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => submit("active")}
-            disabled={busy}
-          >
-            Save product
-          </button>
-        </div>
-      </div>
-      <p className="muted" style={{ marginTop: 4 }}>
-        New product — fitments are added on the edit page after saving.
-      </p>
+      <PageHeader
+        title="Add product"
+        subtitle="New product — fitments are added on the edit page after saving."
+        action={
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+            <button type="button" onClick={() => router.push("/products")} disabled={busy}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-soft"
+              onClick={() => submit("draft")}
+              disabled={busy}
+              style={{ minHeight: 44, padding: "10px 16px", fontSize: 14 }}
+            >
+              Save draft
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => submit("active")}
+              disabled={busy}
+            >
+              Save product
+            </button>
+          </div>
+        }
+      />
 
       <form
         onSubmit={(e) => {

@@ -11,6 +11,7 @@ import {
   type CarBrandTree,
   type CarModelNode,
 } from "@/lib/api";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
@@ -106,12 +107,17 @@ export default function CarFitmentPage() {
 
   return (
     <main>
-      <h1>Car fitment</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        Choose a brand on the left, then manage its models on the right. Click a model to add
-        service notes (chassis, years, refrigerant, o-ring, coolant) you can reach during customer
-        service. These also feed a product&apos;s &ldquo;Fits these cars&rdquo; dropdowns.
-      </p>
+      <PageHeader
+        title="Car fitment"
+        subtitle={
+          <>
+            Choose a brand on the left, then manage its models on the right. Click a model to add
+            service notes (chassis, years, refrigerant, o-ring, coolant) you can reach during
+            customer service. These also feed a product&apos;s &ldquo;Fits these cars&rdquo;
+            dropdowns.
+          </>
+        }
+      />
 
       {loading ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />

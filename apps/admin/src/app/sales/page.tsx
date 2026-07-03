@@ -12,6 +12,7 @@ import {
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
+import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { OnlineOrders } from "./OnlineOrders";
 
@@ -117,10 +118,7 @@ export default function SalesPage() {
 
   return (
     <main>
-      <h1>Sales</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        Product sales by channel.
-      </p>
+      <PageHeader title="Sales" subtitle="Product sales by channel." />
 
       <div className="tabs">
         <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />

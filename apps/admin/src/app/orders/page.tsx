@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
 import { formatBaht, formatUpdatedAt } from "@/lib/format";
+import { PageHeader } from "../PageHeader";
 
 const PLACEHOLDER =
   "external_order_id,order_status,payment_status,order_total,order_fee,order_date\n" +
@@ -59,14 +60,18 @@ export default function OrdersPage() {
 
   return (
     <main>
-      <h1>Shopee orders (CSV import)</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Paste a Seller Centre order export (header row required). Required column:{" "}
-        <code>external_order_id</code>. Optional: <code>order_status</code>,{" "}
-        <code>payment_status</code>, <code>order_total</code>, <code>order_fee</code>,{" "}
-        <code>order_date</code> — each captured only when the column is present. Re-importing is
-        safe — duplicates are skipped.
-      </p>
+      <PageHeader
+        title="Shopee orders (CSV import)"
+        subtitle={
+          <>
+            Paste a Seller Centre order export (header row required). Required column:{" "}
+            <code>external_order_id</code>. Optional: <code>order_status</code>,{" "}
+            <code>payment_status</code>, <code>order_total</code>, <code>order_fee</code>,{" "}
+            <code>order_date</code> — each captured only when the column is present. Re-importing is
+            safe — duplicates are skipped.
+          </>
+        }
+      />
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}

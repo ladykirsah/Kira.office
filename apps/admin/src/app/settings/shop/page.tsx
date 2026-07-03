@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchShopInfo, saveShopInfo, uploadShopImage, imageUrl, type ShopInfo } from "@/lib/api";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 
 // Shared with the product detail page's look: uppercase section heads, muted sub-labels, a card.
@@ -275,31 +276,28 @@ export default function ShopInfoPage() {
 
   return (
     <main>
-      <div
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
-      >
-        <h1 style={{ margin: 0 }}>Shop info</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          {editing ? (
-            <>
-              <button type="button" onClick={cancel} disabled={busy}>
-                Cancel
+      <PageHeader
+        title="Shop info"
+        subtitle="Shown on printed bills and quotations. Thai prints by default; a Thai/English switch on the POS picks which language to print. Barcode labels use the Thai shop name."
+        action={
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+            {editing ? (
+              <>
+                <button type="button" onClick={cancel} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary" onClick={save} disabled={busy}>
+                  Save
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
+                Edit
               </button>
-              <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-                Save
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="muted" style={{ marginTop: 4 }}>
-        Shown on printed bills and quotations. Thai prints by default; a Thai/English switch on the
-        POS picks which language to print. Barcode labels use the Thai shop name.
-      </p>
+            )}
+          </div>
+        }
+      />
 
       <div style={{ ...cardStyle, marginTop: 14 }}>
         {editing ? (

@@ -11,6 +11,7 @@ import {
 import { formatUpdatedAt } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import { movementLabel, planAdjustment, type AdjustAction } from "@/lib/stock";
+import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
 
 const right = { textAlign: "right" } as const;
@@ -93,11 +94,15 @@ export default function StockMovementsPage() {
 
   return (
     <main>
-      <h1>Stock movements</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        Receive stock, write off damage, or correct a count — every change is logged below. Current
-        on-hand per product lives on <a href="/products">Products</a>.
-      </p>
+      <PageHeader
+        title="Stock movements"
+        subtitle={
+          <>
+            Receive stock, write off damage, or correct a count — every change is logged below.
+            Current on-hand per product lives on <a href="/products">Products</a>.
+          </>
+        }
+      />
 
       {stock === null ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />

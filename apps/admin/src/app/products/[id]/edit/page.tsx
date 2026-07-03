@@ -16,6 +16,7 @@ import {
   type Fitment,
   type CarBrandTree,
 } from "@/lib/api";
+import { PageHeader } from "../../../PageHeader";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { BarcodePreview } from "../../BarcodePreview";
@@ -366,43 +367,36 @@ export default function EditProductPage() {
 
   return (
     <main>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>{p.name}</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          <button
-            type="button"
-            onClick={() => {
-              if (editing) {
-                if (detail) hydrate(detail); // discard unsaved edits
-                setEditing(false); // back to view mode (stay on the product)
-              } else {
-                router.push("/products");
-              }
-            }}
-          >
-            {editing ? "Cancel" : "Back"}
-          </button>
-          {editing ? (
-            <button type="button" className="btn-primary" onClick={() => save()} disabled={busy}>
-              Save
+      <PageHeader
+        title={p.name}
+        subtitle={p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
+        action={
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (editing) {
+                  if (detail) hydrate(detail); // discard unsaved edits
+                  setEditing(false); // back to view mode (stay on the product)
+                } else {
+                  router.push("/products");
+                }
+              }}
+            >
+              {editing ? "Cancel" : "Back"}
             </button>
-          ) : (
-            <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="muted" style={{ marginTop: 4 }}>
-        {p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
-      </p>
+            {editing ? (
+              <button type="button" className="btn-primary" onClick={() => save()} disabled={busy}>
+                Save
+              </button>
+            ) : (
+              <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {editing ? (
         <>
