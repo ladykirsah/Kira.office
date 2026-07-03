@@ -1,5 +1,6 @@
 /** Typed client for the kiraoffice API Worker. */
 import { apiFetch, apiBase } from "./apiFetch";
+import type { DraftApiLine } from "./posDraft";
 
 export { apiBase };
 
@@ -192,6 +193,52 @@ export async function updateService(
 export async function deleteService(id: string): Promise<void> {
   const res = await apiFetch(`/services/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete service failed (HTTP ${res.status})`);
+}
+
+// ── On-site drafts & quotations ────────────────────────────────────────────────────────────────
+export interface SaveDraftInput {
+  draftId: string;
+  stage: "draft" | "quotation";
+  saleNumber?: string | null;
+  saleType?: "parts" | "repair";
+  licensePlate?: string | null;
+  vehicle?: string | null;
+  notes?: string | null;
+  lines: DraftApiLine[];
+}
+
+/** A parked draft/quotation returned by GET /onsite/drafts, with its lines, for the reopen tray. */
+export interface OpenDraft {
+  id: string;
+  saleNumber: string | null;
+  saleType: string | null;
+  licensePlate: string | null;
+  vehicle: string | null;
+  notes: string | null;
+  stage: "draft" | "quotation";
+  grandTotalSatang: number;
+  createdAt: number;
+  lines: DraftApiLine[];
+}
+
+export async function saveDraft(input: SaveDraftInput): Promise<void> {
+  const res = await apiFetch(`/onsite/drafts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Save draft failed (HTTP ${res.status})`);
+}
+
+export async function listDrafts(): Promise<OpenDraft[]> {
+  const res = await apiFetch(`/onsite/drafts`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load drafts (HTTP ${res.status})`);
+  return ((await res.json()) as { drafts: OpenDraft[] }).drafts;
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  const res = await apiFetch(`/onsite/drafts/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete draft failed (HTTP ${res.status})`);
 }
 
 /** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */
