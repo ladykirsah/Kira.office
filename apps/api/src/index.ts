@@ -1124,16 +1124,17 @@ const SALES_SELECT = `SELECT s.id,
           0
         ) AS grossProfitSatang
  FROM onsite_sales s
+ WHERE s.stage = 'bill'
  ORDER BY s.created_at DESC
  LIMIT 100`;
 
 /** Finance summary: on-site sales revenue/VAT/profit + refund totals (all-time). */
 async function financeSummary(env: Env): Promise<Response> {
   const sales = await env.DB.prepare(
-    "SELECT COUNT(*) AS salesCount, COALESCE(SUM(grand_total_satang),0) AS revenueSatang, COALESCE(SUM(tax_total_satang),0) AS vatSatang FROM onsite_sales WHERE sale_status = 'completed'",
+    "SELECT COUNT(*) AS salesCount, COALESCE(SUM(grand_total_satang),0) AS revenueSatang, COALESCE(SUM(tax_total_satang),0) AS vatSatang FROM onsite_sales WHERE sale_status = 'completed' AND stage = 'bill'",
   ).first<{ salesCount: number; revenueSatang: number; vatSatang: number }>();
   const profit = await env.DB.prepare(
-    "SELECT COALESCE(SUM(l.gross_profit_satang),0) AS grossProfitSatang FROM onsite_sale_lines l JOIN onsite_sales s ON s.id = l.onsite_sale_id WHERE s.sale_status = 'completed'",
+    "SELECT COALESCE(SUM(l.gross_profit_satang),0) AS grossProfitSatang FROM onsite_sale_lines l JOIN onsite_sales s ON s.id = l.onsite_sale_id WHERE s.sale_status = 'completed' AND s.stage = 'bill'",
   ).first<{ grossProfitSatang: number }>();
   const refunds = await env.DB.prepare(
     "SELECT COUNT(*) AS refundCount, COALESCE(SUM(-amount_satang),0) AS refundedSatang FROM financial_records WHERE record_type = 'refund'",

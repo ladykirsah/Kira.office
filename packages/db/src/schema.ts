@@ -316,6 +316,11 @@ export const onsiteSales = sqliteTable("onsite_sales", {
   taxTotalSatang: integer("tax_total_satang").notNull().default(0),
   grandTotalSatang: integer("grand_total_satang").notNull().default(0),
   saleStatus: text("sale_status").notNull().default("completed"),
+  // Document lifecycle (see @l-shopee/core onsiteDoc): draft/quotation = WIP (no revenue, no stock);
+  // bill = finalized. Revenue/stock/list queries filter stage = 'bill'.
+  stage: text("stage", { enum: ["draft", "quotation", "bill"] })
+    .notNull()
+    .default("bill"),
   createdAt: createdAt(),
 });
 

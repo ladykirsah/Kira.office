@@ -538,6 +538,31 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({ sales: [sale] });
   });
 
+  it("GET /sales > lists only finalized bills (drafts & quotations are fenced out)", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/sales"), env, ctx);
+    const salesSql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("FROM onsite_sales s"));
+    expect(salesSql).toContain("stage = 'bill'");
+  });
+
+  it("GET /finance/summary > revenue and profit count only finalized bills", async () => {
+    const { db, env } = makeDb({
+      financeSales: { salesCount: 0, revenueSatang: 0, vatSatang: 0 },
+      financeProfit: { grossProfitSatang: 0 },
+      financeRefunds: { refundCount: 0, refundedSatang: 0 },
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/finance/summary"), env, ctx);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.find((s) => s.includes("FROM onsite_sales WHERE sale_status"))).toContain(
+      "stage = 'bill'",
+    );
+    expect(sqls.find((s) => s.includes("FROM onsite_sale_lines l JOIN"))).toContain("stage = 'bill'");
+  });
+
   it("GET /stock > reads on-hand per variant from D1", async () => {
     const stock = [
       { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },
