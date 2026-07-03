@@ -257,6 +257,31 @@ export function lineGrossProfitSatang(line: SyncLine): number {
   return revenueExTax - cost;
 }
 
+export interface DraftTotals {
+  subtotalSatang: number;
+  discountTotalSatang: number;
+  taxTotalSatang: number;
+  grandTotalSatang: number;
+}
+
+/** Draft/quotation header totals from its lines. Mirrors the sale path: grand = subtotal − discount. */
+export function draftHeaderTotals(lines: SyncLine[]): DraftTotals {
+  let subtotal = 0;
+  let discount = 0;
+  let tax = 0;
+  for (const l of lines) {
+    subtotal += l.unitPriceSatang * l.quantity;
+    discount += l.discountSatang ?? 0;
+    tax += l.taxSatang ?? 0;
+  }
+  return {
+    subtotalSatang: subtotal,
+    discountTotalSatang: discount,
+    taxTotalSatang: tax,
+    grandTotalSatang: subtotal - discount,
+  };
+}
+
 /** True when the line deducts stock (a part), not a labour/service line. */
 export function isPartLine(line: SyncLine): boolean {
   if (line.lineType === "service") return false;
@@ -1200,6 +1225,148 @@ async function listSales(env: Env): Promise<Response> {
   return json({ sales: await querySales(env.DB) });
 }
 
+// ── On-site drafts & quotations ────────────────────────────────────────────────────────────────
+// A draft/quotation is a work-in-progress cart stored server-side so any POS device can reopen it.
+// It is a NO-MONEY document: no stock check, no ledger, no financial record. Stock and revenue only
+// move when it is finalized to a bill via the normal checkout (/sync) path. See @l-shopee/core
+// onsiteDoc for the stage rules.
+export interface DraftInput {
+  draftId: string;
+  clientUuid?: string;
+  stage: "draft" | "quotation";
+  saleNumber?: string | null; // QT… for a quotation (client-minted); null for a bare draft
+  saleType?: "parts" | "repair";
+  licensePlate?: string | null;
+  vehicle?: string | null;
+  notes?: string | null;
+  lines: SyncLine[];
+}
+
+export type SaveDraftResult =
+  | { ok: true; draftId: string; totals: DraftTotals }
+  | { ok: false; error: string };
+
+/** Persist a draft/quotation and REPLACE its lines. No stock, no ledger — pure cart storage. */
+export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<SaveDraftResult> {
+  if (draft.stage !== "draft" && draft.stage !== "quotation") {
+    return { ok: false, error: "stage must be 'draft' or 'quotation'" };
+  }
+  for (const line of draft.lines) {
+    const reason = validateSyncLine(line);
+    if (reason) return { ok: false, error: reason };
+  }
+  const totals = draftHeaderTotals(draft.lines);
+  const id = draft.draftId;
+  const now = Date.now();
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO onsite_sales
+           (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, sync_status,
+            subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang,
+            sale_status, stage, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, 'open', ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           sale_number = excluded.sale_number,
+           sale_type = excluded.sale_type,
+           license_plate = excluded.license_plate,
+           vehicle = excluded.vehicle,
+           notes = excluded.notes,
+           subtotal_satang = excluded.subtotal_satang,
+           discount_total_satang = excluded.discount_total_satang,
+           tax_total_satang = excluded.tax_total_satang,
+           grand_total_satang = excluded.grand_total_satang,
+           stage = excluded.stage`,
+      )
+      .bind(
+        id,
+        draft.clientUuid ?? id,
+        draft.saleNumber?.trim() || null,
+        draft.saleType ?? "parts",
+        draft.licensePlate?.trim() || null,
+        draft.vehicle?.trim() || null,
+        draft.notes?.trim() || null,
+        totals.subtotalSatang,
+        totals.discountTotalSatang,
+        totals.taxTotalSatang,
+        totals.grandTotalSatang,
+        draft.stage,
+        now,
+      ),
+    db.prepare(`DELETE FROM onsite_sale_lines WHERE onsite_sale_id = ?`).bind(id),
+    ...draft.lines.map((l) =>
+      db
+        .prepare(
+          `INSERT INTO onsite_sale_lines
+             (id, onsite_sale_id, product_variant_id, line_type, description, barcode_value, quantity,
+              unit_price_satang, discount_satang, tax_satang, unit_cost_satang, gross_profit_satang)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          id,
+          l.productVariantId ?? null,
+          isPartLine(l) ? "part" : "service",
+          l.description ?? null,
+          l.barcodeValue ?? null,
+          l.quantity,
+          l.unitPriceSatang,
+          l.discountSatang ?? 0,
+          l.taxSatang ?? 0,
+          l.unitCostSatang ?? 0,
+          lineGrossProfitSatang(l),
+        ),
+    ),
+  ];
+  await db.batch(statements);
+  return { ok: true, draftId: id, totals };
+}
+
+/** Open drafts + quotations (newest first) with their lines, so a POS device can reopen them. */
+export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
+  const heads = await db
+    .prepare(
+      `SELECT id, client_uuid AS clientUuid, sale_number AS saleNumber, sale_type AS saleType,
+              license_plate AS licensePlate, vehicle, notes, stage,
+              grand_total_satang AS grandTotalSatang, created_at AS createdAt
+       FROM onsite_sales WHERE stage IN ('draft', 'quotation')
+       ORDER BY created_at DESC LIMIT 100`,
+    )
+    .all<{ id: string }>();
+  const rows = heads.results ?? [];
+  const ids = rows.map((r) => r.id);
+  const byDraft = new Map<string, unknown[]>();
+  if (ids.length > 0) {
+    const lines = await db
+      .prepare(
+        `SELECT onsite_sale_id AS onsiteSaleId, product_variant_id AS productVariantId,
+                line_type AS lineType, description, barcode_value AS barcodeValue, quantity,
+                unit_price_satang AS unitPriceSatang, discount_satang AS discountSatang,
+                tax_satang AS taxSatang, unit_cost_satang AS unitCostSatang
+         FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
+      )
+      .bind(...ids)
+      .all<{ onsiteSaleId: string }>();
+    for (const l of lines.results ?? []) {
+      const list = byDraft.get(l.onsiteSaleId) ?? [];
+      list.push(l);
+      byDraft.set(l.onsiteSaleId, list);
+    }
+  }
+  return rows.map((r) => ({ ...r, lines: byDraft.get(r.id) ?? [] }));
+}
+
+/** Delete a draft/quotation and its lines. The stage guard makes it impossible to delete a bill. */
+export async function deleteDraftFromDb(db: D1Database, id: string): Promise<{ ok: true }> {
+  await db.batch([
+    db.prepare(`DELETE FROM onsite_sale_lines WHERE onsite_sale_id = ?`).bind(id),
+    db
+      .prepare(`DELETE FROM onsite_sales WHERE id = ? AND stage IN ('draft', 'quotation')`)
+      .bind(id),
+  ]);
+  return { ok: true };
+}
+
 const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 const thb = (satang: number): string => (satang / 100).toFixed(2);
 
@@ -1972,6 +2139,22 @@ const worker = {
 
     if (url.pathname === "/sales" && request.method === "GET") {
       return listSales(env);
+    }
+
+    if (url.pathname === "/onsite/drafts" && request.method === "GET") {
+      return json({ drafts: await listOpenDrafts(env.DB) });
+    }
+    if (url.pathname === "/onsite/drafts" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as Partial<DraftInput>;
+      if (!body.draftId || !Array.isArray(body.lines)) {
+        return json({ ok: false, error: "draftId and lines are required" }, 400);
+      }
+      const result = await saveDraftToDb(env.DB, body as DraftInput);
+      return json(result, result.ok ? 200 : 400);
+    }
+    const draftDelete = url.pathname.match(/^\/onsite\/drafts\/([^/]+)$/);
+    if (draftDelete && request.method === "DELETE") {
+      return json(await deleteDraftFromDb(env.DB, decodeURIComponent(draftDelete[1]!)));
     }
 
     if (url.pathname === "/stock" && request.method === "GET") {

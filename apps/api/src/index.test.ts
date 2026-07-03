@@ -37,6 +37,7 @@ import worker, {
   resolveActor,
   requireRole,
   salesToCsv,
+  draftHeaderTotals,
   validateSyncLine,
   writeAuditLog,
   type Env,
@@ -562,6 +563,57 @@ describe("api worker routes", () => {
     );
     expect(sqls.find((s) => s.includes("FROM onsite_sale_lines l JOIN"))).toContain(
       "stage = 'bill'",
+    );
+  });
+
+  it("POST /onsite/drafts > saves a draft with its lines and never touches stock", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "d1",
+          stage: "draft",
+          saleType: "repair",
+          licensePlate: "1กก1234",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => s.includes("INTO onsite_sales"))).toBe(true);
+    expect(sqls.some((s) => s.includes("INTO onsite_sale_lines"))).toBe(true);
+    // a draft is a no-money document — nothing may hit the stock ledger
+    expect(sqls.some((s) => s.includes("stock_ledger_entries"))).toBe(false);
+  });
+
+  it("GET /onsite/drafts > lists only open drafts and quotations", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/onsite/drafts"), env, ctx);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("FROM onsite_sales") && s.includes("stage IN"));
+    expect(sql).toContain("stage IN ('draft', 'quotation')");
+  });
+
+  it("DELETE /onsite/drafts/:id > removes a draft but is fenced from bills", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts/d1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => s.includes("DELETE FROM onsite_sale_lines"))).toBe(true);
+    expect(sqls.find((s) => s.includes("DELETE FROM onsite_sales"))).toContain(
+      "stage IN ('draft', 'quotation')",
     );
   });
 
@@ -1194,6 +1246,31 @@ describe("lineGrossProfitSatang", () => {
         unitCostSatang: 6000,
       }),
     ).toBe(4000);
+  });
+});
+
+describe("draftHeaderTotals", () => {
+  it("sums lines: grand = subtotal − discount, tax tracked separately", () => {
+    expect(
+      draftHeaderTotals([
+        { quantity: 2, unitPriceSatang: 15000, discountSatang: 1000, taxSatang: 900 },
+        { quantity: 1, unitPriceSatang: 30000, taxSatang: 1962 },
+      ]),
+    ).toEqual({
+      subtotalSatang: 60000,
+      discountTotalSatang: 1000,
+      taxTotalSatang: 2862,
+      grandTotalSatang: 59000,
+    });
+  });
+
+  it("given no lines > all zero", () => {
+    expect(draftHeaderTotals([])).toEqual({
+      subtotalSatang: 0,
+      discountTotalSatang: 0,
+      taxTotalSatang: 0,
+      grandTotalSatang: 0,
+    });
   });
 });
 
