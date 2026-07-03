@@ -8,6 +8,7 @@ import {
   rangeFor,
   summarize,
   totalChannelSales,
+  toDateInputValue,
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
@@ -33,6 +34,8 @@ const card = {
 const right = { textAlign: "right" } as const;
 
 type SalesTab = "summary" | "onsite" | "shopee" | "airplus";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** An order's effective sale date: when it was placed, falling back to when it was imported. */
 const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
@@ -65,6 +68,21 @@ export default function SalesPage() {
   }
 
   const range = rangeFor(preset, Date.now(), { start: customStart, end: customEnd });
+  // Date inputs always reflect the effective range (endMs is exclusive, so show the last included
+  // day); editing one switches to a custom range, seeding the other end if it was empty.
+  const fromDisplay = toDateInputValue(range.startMs);
+  const toDisplay = toDateInputValue(range.endMs - DAY_MS);
+  const editFrom = (v: string) => {
+    setCustomStart(v);
+    setCustomEnd(customEnd || toDisplay);
+    setPreset("custom");
+  };
+  const editTo = (v: string) => {
+    setCustomEnd(v);
+    setCustomStart(customStart || fromDisplay);
+    setPreset("custom");
+  };
+
   const inRange = (sales ?? []).filter(
     (s) => s.createdAt >= range.startMs && s.createdAt < range.endMs,
   );
@@ -134,25 +152,21 @@ export default function SalesPage() {
               </option>
             ))}
           </select>
-          {preset === "custom" && (
-            <>
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                aria-label="From date"
-                style={inputS}
-              />
-              <span className="muted">–</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                aria-label="To date"
-                style={inputS}
-              />
-            </>
-          )}
+          <input
+            type="date"
+            value={fromDisplay}
+            onChange={(e) => editFrom(e.target.value)}
+            aria-label="From date"
+            style={inputS}
+          />
+          <span className="muted">–</span>
+          <input
+            type="date"
+            value={toDisplay}
+            onChange={(e) => editTo(e.target.value)}
+            aria-label="To date"
+            style={inputS}
+          />
         </div>
         <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
       </div>

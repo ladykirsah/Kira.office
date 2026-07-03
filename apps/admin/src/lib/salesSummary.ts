@@ -129,6 +129,14 @@ export function totalChannelSales(rows: ChannelSales[]): { count: number; revenu
   );
 }
 
+/** Local YYYY-MM-DD for a timestamp — the value shape an <input type="date"> expects. */
+export function toDateInputValue(ms: number): string {
+  const d = new Date(ms);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 export function summarize(sales: SaleLike[], range: Range): SalesSummary {
   const out: SalesSummary = {
     salesCount: 0,

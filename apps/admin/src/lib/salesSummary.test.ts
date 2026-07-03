@@ -1,5 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { rangeFor, summarize, totalChannelSales, type SaleLike } from "./salesSummary";
+import {
+  rangeFor,
+  summarize,
+  totalChannelSales,
+  toDateInputValue,
+  type SaleLike,
+} from "./salesSummary";
+
+describe("toDateInputValue", () => {
+  it("formats a timestamp as local YYYY-MM-DD", () => {
+    expect(toDateInputValue(new Date(2026, 6, 3, 14, 30).getTime())).toBe("2026-07-03");
+  });
+
+  it("zero-pads single-digit month and day", () => {
+    expect(toDateInputValue(new Date(2026, 0, 5).getTime())).toBe("2026-01-05");
+  });
+});
 
 describe("totalChannelSales", () => {
   it("sums count and revenue across channels", () => {
