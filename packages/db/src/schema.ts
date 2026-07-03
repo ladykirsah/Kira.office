@@ -263,11 +263,16 @@ export const stockLedgerEntries = sqliteTable(
     productVariantId: text("product_variant_id")
       .notNull()
       .references(() => productVariants.id),
+    // DB-enforced via CHECK (migration 0026). Includes the descriptive manual sub-types the
+    // Stock-movements adjust bar writes (receive / write_off / correction) alongside the base enum.
     movementType: text("movement_type", {
       enum: [
         "opening_balance",
         "purchase_receipt",
         "manual_adjustment",
+        "receive",
+        "write_off",
+        "correction",
         "onsite_sale",
         "online_sale",
         "refund_return",
