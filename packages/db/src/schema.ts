@@ -339,7 +339,9 @@ export const salesOrders = sqliteTable(
   "sales_orders",
   {
     id: id(),
-    channel: text("channel", { enum: ["shopee"] }).notNull(),
+    // Marketplace orders only (ORDER_CHANNELS in @l-shopee/core). onsite uses onsite_sales;
+    // affiliate is money-only (no order).
+    channel: text("channel", { enum: ["shopee", "airplus"] }).notNull(),
     externalOrderId: text("external_order_id").notNull(),
     orderStatus: text("order_status"),
     paymentStatus: text("payment_status"),
@@ -364,7 +366,8 @@ export const financialRecords = sqliteTable(
     sourceType: text("source_type").notNull(),
     sourceId: text("source_id").notNull(),
     recordType: text("record_type").notNull(),
-    channel: text("channel", { enum: ["onsite", "shopee"] }).notNull(),
+    // All money sources (CHANNELS in @l-shopee/core) — including affiliate commission.
+    channel: text("channel", { enum: ["onsite", "shopee", "airplus", "affiliate"] }).notNull(),
     amountSatang: integer("amount_satang").notNull(),
     taxSatang: integer("tax_satang").notNull().default(0),
     feeSatang: integer("fee_satang").notNull().default(0),

@@ -5,6 +5,7 @@ export * from "./stock";
 export * from "./terms";
 export * from "./pricing";
 export * from "./sync";
+export * from "./channels";
 export * from "./orders";
 export * from "./imports";
 export * from "./finance";

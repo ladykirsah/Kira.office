@@ -168,9 +168,9 @@ export default function SalesPage() {
           />
           <OnlineOrders orders={shopeeInRange} />
 
-          <Section title="Online · AirPro" stat="not connected" />
+          <Section title="Online · AirPlus" stat="not connected" />
           <div className="empty">
-            <div className="empty-icon">☁️</div>AirPro orders will appear here once its channel is
+            <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel is
             connected.
           </div>
         </>

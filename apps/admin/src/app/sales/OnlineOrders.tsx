@@ -6,7 +6,7 @@ import { orderStatusPill, paymentPill } from "@/lib/badges";
 
 const right = { textAlign: "right" } as const;
 
-/** Read-only table of online marketplace orders (Shopee today, AirPro later) for a channel section. */
+/** Read-only table of online marketplace orders (Shopee today, AirPlus later) for a channel section. */
 export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
   if (orders.length === 0) {
     return (
