@@ -34,3 +34,26 @@ const MOVEMENT_LABELS: Record<string, string> = {
 export function movementLabel(type: string): string {
   return MOVEMENT_LABELS[type] ?? type;
 }
+
+export type AdjustAction = "receive" | "write_off" | "correction";
+
+export interface AdjustPlan {
+  movementType: string;
+  quantityDelta: number;
+}
+
+/**
+ * Turn a user action into a ledger movement. For receive/write_off, `amount` is a quantity (its
+ * magnitude is used, so a stray minus never flips the direction). For correction, `amount` is the
+ * counted on-hand target and the delta is the difference from `currentOnHand` (a stocktake).
+ */
+export function planAdjustment(
+  action: AdjustAction,
+  amount: number,
+  currentOnHand: number,
+): AdjustPlan {
+  if (action === "receive") return { movementType: "receive", quantityDelta: Math.abs(amount) };
+  if (action === "write_off")
+    return { movementType: "write_off", quantityDelta: -Math.abs(amount) };
+  return { movementType: "correction", quantityDelta: amount - currentOnHand };
+}

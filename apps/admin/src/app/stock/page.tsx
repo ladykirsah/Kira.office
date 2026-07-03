@@ -1,10 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { fetchStock, fetchStockMovements, type StockRow, type StockMovementRow } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  fetchStock,
+  fetchStockMovements,
+  adjustStock,
+  type StockRow,
+  type StockMovementRow,
+} from "@/lib/api";
 import { formatUpdatedAt } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
-import { stockStatus, movementLabel, type StockStatus } from "@/lib/stock";
+import {
+  stockStatus,
+  movementLabel,
+  planAdjustment,
+  type StockStatus,
+  type AdjustAction,
+} from "@/lib/stock";
+import { useToast } from "../ToastProvider";
+
+const ACTIONS: { key: AdjustAction; label: string; amountLabel: string }[] = [
+  { key: "receive", label: "Receive", amountLabel: "Qty in" },
+  { key: "write_off", label: "Write-off", amountLabel: "Qty out" },
+  { key: "correction", label: "Correct to", amountLabel: "Counted" },
+];
 
 const card = {
   border: "1px solid var(--border)",
@@ -23,8 +42,14 @@ export default function StockPage() {
   const [movements, setMovements] = useState<StockMovementRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | StockStatus>("all");
+  const toast = useToast();
+  const [adjVariant, setAdjVariant] = useState("");
+  const [adjAction, setAdjAction] = useState<AdjustAction>("receive");
+  const [adjAmount, setAdjAmount] = useState("");
+  const [adjNote, setAdjNote] = useState("");
+  const [adjBusy, setAdjBusy] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetchStock()
       .then(setStock)
       .catch((err) => setError((err as Error).message));
@@ -32,6 +57,45 @@ export default function StockPage() {
       .then(setMovements)
       .catch(() => setMovements([]));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function applyAdjustment() {
+    const variant = (stock ?? []).find((r) => r.variantId === adjVariant);
+    const amount = Math.round(parseFloat(adjAmount));
+    if (!variant || !Number.isFinite(amount)) {
+      toast("Pick a product and enter a number", "error");
+      return;
+    }
+    const plan = planAdjustment(adjAction, amount, variant.onHand);
+    if (plan.quantityDelta === 0) {
+      toast("No change — on-hand already matches", "info");
+      return;
+    }
+    setAdjBusy(true);
+    try {
+      const res = await adjustStock({
+        productVariantId: variant.variantId,
+        quantityDelta: plan.quantityDelta,
+        movementType: plan.movementType,
+        reason: adjNote.trim() || undefined,
+      });
+      if (res.applied) {
+        toast(`${variant.productName} → ${res.quantityAfter} on hand`, "success");
+        setAdjAmount("");
+        setAdjNote("");
+        load();
+      } else {
+        toast(res.reason ?? "Adjustment rejected", "error");
+      }
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setAdjBusy(false);
+    }
+  }
 
   const counts = useMemo(() => {
     const rows = stock ?? [];
@@ -101,6 +165,86 @@ export default function StockPage() {
           </div>
 
           <Section title="On hand" stat={`${rows.length} shown`} />
+
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              padding: "12px 14px",
+              marginBottom: 14,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+              gap: 10,
+            }}
+          >
+            <label style={{ display: "grid", gap: 4 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Product
+              </span>
+              <select
+                value={adjVariant}
+                onChange={(e) => setAdjVariant(e.target.value)}
+                style={{ ...inputS, minWidth: 220 }}
+              >
+                <option value="">Select…</option>
+                {(stock ?? []).map((r) => (
+                  <option key={r.variantId} value={r.variantId}>
+                    {r.productName}
+                    {r.sku ? ` · ${r.sku}` : ""} ({r.onHand})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Action
+              </span>
+              <select
+                value={adjAction}
+                onChange={(e) => setAdjAction(e.target.value as AdjustAction)}
+                style={inputS}
+              >
+                {ACTIONS.map((a) => (
+                  <option key={a.key} value={a.key}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {ACTIONS.find((a) => a.key === adjAction)?.amountLabel ?? "Amount"}
+              </span>
+              <input
+                value={adjAmount}
+                onChange={(e) => setAdjAmount(e.target.value)}
+                inputMode="numeric"
+                aria-label="Adjustment amount"
+                style={{ ...inputS, width: 90 }}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 4, flex: "1 1 160px" }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Note (optional)
+              </span>
+              <input
+                value={adjNote}
+                onChange={(e) => setAdjNote(e.target.value)}
+                placeholder="e.g. supplier delivery"
+                style={{ ...inputS, width: "100%" }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              disabled={adjBusy}
+              onClick={applyAdjustment}
+            >
+              {adjBusy ? "Applying…" : "Apply"}
+            </button>
+          </div>
+
           <div className="card" style={{ overflowX: "auto" }}>
             <div style={{ marginBottom: 12 }}>
               <label>

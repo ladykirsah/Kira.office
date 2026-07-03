@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stockStatus, movementLabel, LOW_STOCK_THRESHOLD } from "./stock";
+import { stockStatus, movementLabel, planAdjustment, LOW_STOCK_THRESHOLD } from "./stock";
 
 describe("stockStatus", () => {
   it("given onHand of zero or less > flags out", () => {
@@ -39,5 +39,36 @@ describe("movementLabel", () => {
 
   it("falls back to the raw type for unknown values", () => {
     expect(movementLabel("something_new")).toBe("something_new");
+  });
+});
+
+describe("planAdjustment", () => {
+  it("given receive > returns a positive delta tagged 'receive'", () => {
+    expect(planAdjustment("receive", 5, 8)).toEqual({ movementType: "receive", quantityDelta: 5 });
+  });
+
+  it("given receive with a negative amount > uses the magnitude (never removes stock)", () => {
+    expect(planAdjustment("receive", -5, 8)).toEqual({
+      movementType: "receive",
+      quantityDelta: 5,
+    });
+  });
+
+  it("given write_off > returns a negative delta tagged 'write_off'", () => {
+    expect(planAdjustment("write_off", 3, 8)).toEqual({
+      movementType: "write_off",
+      quantityDelta: -3,
+    });
+  });
+
+  it("given correction > returns the delta from current to the counted target", () => {
+    expect(planAdjustment("correction", 10, 8)).toEqual({
+      movementType: "correction",
+      quantityDelta: 2,
+    });
+    expect(planAdjustment("correction", 5, 8)).toEqual({
+      movementType: "correction",
+      quantityDelta: -3,
+    });
   });
 });
