@@ -10,12 +10,17 @@ import {
   fetchSales,
   fetchCarFitment,
   imageUrl,
+  saveDraft,
+  listDrafts,
+  deleteDraft,
   EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
   type ShopInfo,
   type CarBrandTree,
+  type OpenDraft,
 } from "@/lib/api";
+import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
 import { nextSalesId, latestSalesIdForDay } from "@/lib/salesId";
@@ -1016,6 +1021,14 @@ export default function PosPage() {
   const [mileage, setMileage] = useState("");
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
+  // Server-parked drafts/quotations: a stable id for the current cart, the one currently reopened
+  // (deleted once it finalizes to a bill), the reopen tray, and the QT quotation counter.
+  const [draftId, setDraftId] = useState(() => crypto.randomUUID());
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<OpenDraft[]>([]);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [lastQuoteId, setLastQuoteId] = useState<string | null>(null);
+
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [barcodeToProductId, setBarcodeToProductId] = useState<Map<string, string>>(new Map());
@@ -1428,6 +1441,12 @@ export default function PosPage() {
       printBill(); // prints saleNo — the counter hasn't advanced yet
       localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
       setLastSaleId(saleNo);
+      // Finalizing a reopened draft/quotation converts it to this bill — drop the parked copy.
+      if (activeDraftId) {
+        await deleteDraft(activeDraftId).catch(() => {});
+        setActiveDraftId(null);
+      }
+      setDraftId(crypto.randomUUID()); // the next cart is a fresh draft
       toast("Sale saved ✓", "success");
       setLines([]);
       setPlate("");
@@ -1449,9 +1468,96 @@ export default function PosPage() {
     }
   }
 
+  // ── Server-parked drafts & quotations ──
+  function buildDraftInput(stage: "draft" | "quotation", saleNumber?: string) {
+    const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
+    return {
+      draftId,
+      stage,
+      saleNumber: saleNumber ?? null,
+      saleType: (isRepair ? "repair" : "parts") as "repair" | "parts",
+      licensePlate: plate.trim() || null,
+      vehicle: vehicleLabel || null,
+      notes: note.trim() || null,
+      lines: cartToDraftLines(lines),
+    };
+  }
+
+  async function saveDraftNow() {
+    if (lines.length === 0) return;
+    setBusy(true);
+    try {
+      await saveDraft(buildDraftInput("draft"));
+      setActiveDraftId(draftId);
+      toast("Draft saved — reopen it any time.", "success");
+    } catch {
+      toast("Couldn't save the draft (offline?).", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveQuotationNow() {
+    if (lines.length === 0) return;
+    setBusy(true);
+    try {
+      const qtNo = nextSalesId(lastQuoteId, Date.now(), "QT");
+      await saveDraft(buildDraftInput("quotation", qtNo));
+      setLastQuoteId(qtNo);
+      setActiveDraftId(draftId);
+      toast(`Quotation ${qtNo} saved ✓`, "success");
+    } catch {
+      toast("Couldn't save the quotation (offline?).", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openDraftsTray() {
+    try {
+      setDrafts(await listDrafts());
+      setDraftsOpen(true);
+    } catch {
+      toast("Couldn't load saved drafts.", "error");
+    }
+  }
+
+  function reopenDraft(d: OpenDraft) {
+    setLines(draftToCartLines(d.lines, () => crypto.randomUUID()) as SaleLine[]);
+    setPlate(d.licensePlate ?? "");
+    setNote(d.notes ?? "");
+    setDocType(d.stage === "quotation" ? "quotation" : "bill");
+    // The car brand/model/year selects aren't reconstructed from the stored label — plate is the key.
+    setCarBrandId("");
+    setCarModelId("");
+    setCarYear("");
+    setDraftId(d.id);
+    setActiveDraftId(d.id);
+    setDraftsOpen(false);
+    toast("Draft reopened.", "success");
+  }
+
+  async function discardDraft(d: OpenDraft) {
+    try {
+      await deleteDraft(d.id);
+      setDrafts((ds) => ds.filter((x) => x.id !== d.id));
+      if (activeDraftId === d.id) setActiveDraftId(null);
+    } catch {
+      toast("Couldn't delete the draft.", "error");
+    }
+  }
+
   return (
     <main className="pos-page">
-      <h1>Point of Sale</h1>
+      <div
+        className="bill-no-print"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+      >
+        <h1 style={{ margin: 0 }}>Point of Sale</h1>
+        <button type="button" className="btn-soft" onClick={openDraftsTray}>
+          📋 Open drafts{activeDraftId ? " · editing 1" : ""}
+        </button>
+      </div>
       {pending > 0 && (
         <p style={{ color: "var(--warn)" }} className="bill-no-print">
           ⏳ {pending} sale(s) queued offline — will sync when online.
@@ -1976,35 +2082,135 @@ export default function PosPage() {
               rows={2}
               style={{ width: "100%", fontFamily: "inherit", marginBottom: 10 }}
             />
-            {docType === "quotation" ? (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={printBill}
-                disabled={lines.length === 0}
-                style={{ width: "100%" }}
-              >
-                Create PDF
-              </button>
-            ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="btn-soft" onClick={printBill} style={{ flex: 1 }}>
+                <button
+                  type="button"
+                  className="btn-soft"
+                  onClick={printBill}
+                  disabled={lines.length === 0}
+                  style={{ flex: 1 }}
+                >
                   Create PDF
                 </button>
+                <button
+                  type="button"
+                  className="btn-soft"
+                  onClick={saveDraftNow}
+                  disabled={busy || lines.length === 0}
+                  style={{ flex: 1 }}
+                >
+                  Save draft
+                </button>
+              </div>
+              {docType === "quotation" ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={saveQuotationNow}
+                  disabled={busy || lines.length === 0}
+                  style={{ width: "100%" }}
+                >
+                  Save quotation
+                </button>
+              ) : (
                 <button
                   type="button"
                   className="btn-primary"
                   onClick={checkout}
                   disabled={busy || lines.length === 0}
-                  style={{ flex: 1 }}
+                  style={{ width: "100%" }}
                 >
                   Save File
                 </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {draftsOpen && (
+        <div
+          className="bill-no-print"
+          onClick={() => setDraftsOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              padding: 18,
+              width: "min(560px, 92vw)",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: 18 }}>Saved drafts &amp; quotations</h2>
+              <button type="button" className="btn-soft" onClick={() => setDraftsOpen(false)}>
+                Close
+              </button>
+            </div>
+            {drafts.length === 0 ? (
+              <p className="muted">No parked drafts. Save one from a cart to reopen it here.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {drafts.map((d) => (
+                  <div
+                    key={d.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                    }}
+                  >
+                    <span className={`pill ${d.stage === "quotation" ? "soft" : "off"}`}>
+                      {d.stage === "quotation" ? (d.saleNumber ?? "Quotation") : "Draft"}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14 }}>{d.vehicle || d.licensePlate || "Walk-in"}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
+                        {formatBaht(d.grandTotalSatang)} · {d.lines.length} item(s)
+                      </div>
+                    </div>
+                    <button type="button" className="btn-primary" onClick={() => reopenDraft(d)}>
+                      Reopen
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-soft"
+                      onClick={() => discardDraft(d)}
+                      aria-label="Delete draft"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
