@@ -1394,6 +1394,60 @@ export async function getOnsiteSale(db: D1Database, id: string): Promise<unknown
   return { ...header, lines: lines.results ?? [] };
 }
 
+// ── Customers (directory keyed by car plate) ────────────────────────────────────────────────────
+/** Canonical plate key: trimmed, internal whitespace collapsed to a single space. */
+export function normalizePlate(plate: string): string {
+  return plate.trim().replace(/\s+/g, " ");
+}
+
+export interface CustomerUpsert {
+  licensePlate: string;
+  plateProvince?: string | null;
+  customerName?: string | null;
+  phone?: string | null;
+  carModel?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * Upsert a customer/car by plate. Auto-created from plated sales; the owner fills name/phone later.
+ * Provided fields overwrite; omitted (null) fields are LEFT ALONE (never blanks an existing name/phone).
+ */
+export async function upsertCustomerByPlate(
+  db: D1Database,
+  input: CustomerUpsert,
+): Promise<{ ok: true; licensePlate: string } | { ok: false; error: string }> {
+  const plate = normalizePlate(input.licensePlate ?? "");
+  if (!plate) return { ok: false, error: "license plate is required" };
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO customers
+         (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(license_plate) DO UPDATE SET
+         plate_province = COALESCE(excluded.plate_province, customers.plate_province),
+         customer_name = COALESCE(excluded.customer_name, customers.customer_name),
+         phone = COALESCE(excluded.phone, customers.phone),
+         car_model = COALESCE(excluded.car_model, customers.car_model),
+         notes = COALESCE(excluded.notes, customers.notes),
+         updated_at = excluded.updated_at`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      plate,
+      input.plateProvince ?? null,
+      input.customerName ?? null,
+      input.phone ?? null,
+      input.carModel ?? null,
+      input.notes ?? null,
+      now,
+      now,
+    )
+    .run();
+  return { ok: true, licensePlate: plate };
+}
+
 const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 const thb = (satang: number): string => (satang / 100).toFixed(2);
 
@@ -2187,6 +2241,12 @@ const worker = {
     if (saleGet && request.method === "GET") {
       const sale = await getOnsiteSale(env.DB, decodeURIComponent(saleGet[1]!));
       return sale ? json({ sale }) : json({ error: "not found" }, 404);
+    }
+    if (url.pathname === "/customers/by-plate" && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as Partial<CustomerUpsert>;
+      if (!body.licensePlate) return json({ ok: false, error: "licensePlate required" }, 400);
+      const result = await upsertCustomerByPlate(env.DB, body as CustomerUpsert);
+      return json(result, result.ok ? 200 : 400);
     }
 
     if (url.pathname === "/stock" && request.method === "GET") {

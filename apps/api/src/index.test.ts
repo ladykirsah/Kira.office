@@ -38,6 +38,7 @@ import worker, {
   requireRole,
   salesToCsv,
   draftHeaderTotals,
+  normalizePlate,
   validateSyncLine,
   writeAuditLog,
   type Env,
@@ -635,6 +636,36 @@ describe("api worker routes", () => {
     const { env } = makeDb({ saleHeader: null });
     const res = await worker.fetch!(new Request("https://x/onsite/sales/nope"), env, ctx);
     expect(res.status).toBe(404);
+  });
+
+  it("PUT /customers/by-plate > upserts by plate and never blanks an existing name/phone", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/customers/by-plate", {
+        method: "PUT",
+        body: JSON.stringify({ licensePlate: "1กก1234", phone: "0810000000" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("INSERT INTO customers"));
+    expect(sql).toContain("ON CONFLICT(license_plate)");
+    expect(sql).toContain("COALESCE(excluded.customer_name, customers.customer_name)");
+    expect(sql).toContain("COALESCE(excluded.phone, customers.phone)");
+  });
+
+  it("PUT /customers/by-plate > 400 without a plate", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/customers/by-plate", { method: "PUT", body: JSON.stringify({}) }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
   });
 
   it("GET /stock > reads on-hand per variant from D1", async () => {
@@ -1320,6 +1351,14 @@ describe("createProduct", () => {
   it("rejects a missing required field", async () => {
     const { db } = makeDb({});
     await expect(createProduct(db, { productRef: "", name: "X" })).rejects.toThrow(/required/);
+  });
+});
+
+describe("normalizePlate", () => {
+  it("trims and collapses internal whitespace to a single space", () => {
+    expect(normalizePlate("  1กก  1234 ")).toBe("1กก 1234");
+    expect(normalizePlate("1กก1234")).toBe("1กก1234");
+    expect(normalizePlate("")).toBe("");
   });
 });
 

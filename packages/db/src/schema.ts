@@ -408,3 +408,24 @@ export const auditLogs = sqliteTable(
     index("audit_logs_entity_idx").on(t.entityType, t.entityId),
   ],
 );
+
+/**
+ * Customer directory keyed by car plate — ONE record per car. Auto-created from plated on-site
+ * sales; the owner fills/edits name + phone. Phone is the grouping key (a family shares a phone
+ * across plates → search-by-phone finds all their cars). Sales link by the plate string (no FK).
+ */
+export const customers = sqliteTable(
+  "customers",
+  {
+    id: id(),
+    licensePlate: text("license_plate").notNull().unique(),
+    plateProvince: text("plate_province"),
+    customerName: text("customer_name"),
+    phone: text("phone"),
+    carModel: text("car_model"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("customers_phone_idx").on(t.phone)],
+);
