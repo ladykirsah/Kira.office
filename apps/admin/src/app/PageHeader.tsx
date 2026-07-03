@@ -24,7 +24,7 @@ export function PageHeader({
         marginBottom: 40,
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         <h1 style={{ margin: 0 }}>{title}</h1>
         {subtitle ? (
           <p className="muted" style={{ margin: 0 }}>
