@@ -617,6 +617,26 @@ describe("api worker routes", () => {
     );
   });
 
+  it("GET /onsite/sales/:id > returns the bill header with its lines (for reprint)", async () => {
+    const { env } = makeDb({
+      saleHeader: { id: "s1", saleNumber: "DAS202607-04001", grandTotalSatang: 80000 },
+      saleLines: [
+        { lineType: "service", description: "Regas", quantity: 1, unitPriceSatang: 80000 },
+      ],
+    });
+    const res = await worker.fetch!(new Request("https://x/onsite/sales/s1"), env, ctx);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { sale: { saleNumber: string; lines: unknown[] } };
+    expect(body.sale.saleNumber).toBe("DAS202607-04001");
+    expect(body.sale.lines).toHaveLength(1);
+  });
+
+  it("GET /onsite/sales/:id > 404 when the bill is missing", async () => {
+    const { env } = makeDb({ saleHeader: null });
+    const res = await worker.fetch!(new Request("https://x/onsite/sales/nope"), env, ctx);
+    expect(res.status).toBe(404);
+  });
+
   it("GET /stock > reads on-hand per variant from D1", async () => {
     const stock = [
       { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },

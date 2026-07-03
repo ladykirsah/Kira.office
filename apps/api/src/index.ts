@@ -1367,6 +1367,33 @@ export async function deleteDraftFromDb(db: D1Database, id: string): Promise<{ o
   return { ok: true };
 }
 
+/** One on-site sale (bill/quotation/draft) with its lines — the data source for reprint. */
+export async function getOnsiteSale(db: D1Database, id: string): Promise<unknown | null> {
+  const header = await db
+    .prepare(
+      `SELECT id, sale_number AS saleNumber, sale_type AS saleType, license_plate AS licensePlate,
+              vehicle, notes, payment_method AS paymentMethod, stage, sale_status AS saleStatus,
+              subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
+              tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
+              created_at AS createdAt
+       FROM onsite_sales WHERE id = ?`,
+    )
+    .bind(id)
+    .first();
+  if (!header) return null;
+  const lines = await db
+    .prepare(
+      `SELECT product_variant_id AS productVariantId, line_type AS lineType, description,
+              barcode_value AS barcodeValue, quantity, unit_price_satang AS unitPriceSatang,
+              discount_satang AS discountSatang, tax_satang AS taxSatang,
+              unit_cost_satang AS unitCostSatang
+       FROM onsite_sale_lines WHERE onsite_sale_id = ?`,
+    )
+    .bind(id)
+    .all();
+  return { ...header, lines: lines.results ?? [] };
+}
+
 const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 const thb = (satang: number): string => (satang / 100).toFixed(2);
 
@@ -2155,6 +2182,11 @@ const worker = {
     const draftDelete = url.pathname.match(/^\/onsite\/drafts\/([^/]+)$/);
     if (draftDelete && request.method === "DELETE") {
       return json(await deleteDraftFromDb(env.DB, decodeURIComponent(draftDelete[1]!)));
+    }
+    const saleGet = url.pathname.match(/^\/onsite\/sales\/([^/]+)$/);
+    if (saleGet && request.method === "GET") {
+      const sale = await getOnsiteSale(env.DB, decodeURIComponent(saleGet[1]!));
+      return sale ? json({ sale }) : json({ error: "not found" }, 404);
     }
 
     if (url.pathname === "/stock" && request.method === "GET") {
