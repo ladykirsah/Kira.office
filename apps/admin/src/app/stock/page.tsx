@@ -11,6 +11,7 @@ import {
 import { formatUpdatedAt } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import { movementLabel, planAdjustment, type AdjustAction } from "@/lib/stock";
+import { tableText } from "@/lib/tableText";
 import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
 
@@ -230,10 +231,9 @@ export default function StockMovementsPage() {
                     {m.productName}
                     {m.sku && (
                       <span
-                        className="muted"
                         style={{
+                          ...tableText.subtitle,
                           fontFamily: "var(--font-mono, monospace)",
-                          fontSize: 12,
                           marginLeft: 6,
                         }}
                       >

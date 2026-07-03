@@ -4,6 +4,7 @@ import {
   paymentPill,
   orderStatusPill,
   vehicleLabel,
+  stripCarYear,
   saleTypeBadge,
 } from "./badges";
 
@@ -38,10 +39,24 @@ describe("vehicleLabel", () => {
   it("given neither > then empty string", () => expect(vehicleLabel(null, null)).toBe(""));
 });
 
+describe("stripCarYear", () => {
+  it("given a model ending in a year > drops the year", () =>
+    expect(stripCarYear("Toyota Vios 2014")).toBe("Toyota Vios"));
+  it("given a model with no year > returns it unchanged", () =>
+    expect(stripCarYear("Toyota Vios")).toBe("Toyota Vios"));
+  it("given a model whose name contains a number > drops only the trailing year", () =>
+    expect(stripCarYear("Mazda 2 2019")).toBe("Mazda 2"));
+  it("given empty/nullish > then empty string", () => {
+    expect(stripCarYear("")).toBe("");
+    expect(stripCarYear(null)).toBe("");
+    expect(stripCarYear(undefined)).toBe("");
+  });
+});
+
 describe("saleTypeBadge", () => {
-  it("given repair > then soft pill with label", () =>
-    expect(saleTypeBadge("repair")).toEqual({ pill: "soft", label: "🔧 Repair" }));
-  it("given parts > then off pill with label", () =>
-    expect(saleTypeBadge("parts")).toEqual({ pill: "off", label: "📦 Parts" }));
+  it("given repair > then soft pill with Service label", () =>
+    expect(saleTypeBadge("repair")).toEqual({ pill: "soft", label: "🔧 Service" }));
+  it("given parts > then off pill with Products label", () =>
+    expect(saleTypeBadge("parts")).toEqual({ pill: "off", label: "📦 Products" }));
   it("given null > then null", () => expect(saleTypeBadge(null)).toBeNull());
 });

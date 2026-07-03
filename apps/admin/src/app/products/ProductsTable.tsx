@@ -6,6 +6,7 @@ import { inputS } from "@/lib/inputStyles";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { productStatusTag } from "@/lib/productStatus";
 import { stockStatus } from "@/lib/stock";
+import { tableText } from "@/lib/tableText";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
@@ -279,9 +280,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                                 ))}
                               </div>
                             ) : (
-                              <div className="muted" style={{ fontSize: 12 }}>
-                                {p.productRef}
-                              </div>
+                              <div style={tableText.subtitle}>{p.productRef}</div>
                             );
                           })()}
                         </div>

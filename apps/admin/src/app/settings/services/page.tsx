@@ -144,7 +144,7 @@ function ServiceItem({
         <td>
           <div style={{ fontWeight: 600 }}>{svc.name}</div>
           {svc.nameEn ? (
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{svc.nameEn}</div>
+            <div style={{ fontSize: 13, color: "var(--text-faint)" }}>{svc.nameEn}</div>
           ) : (
             <div style={{ fontSize: 13, color: "var(--text-faint)" }}>Not added</div>
           )}

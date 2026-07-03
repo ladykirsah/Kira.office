@@ -39,6 +39,11 @@ export function orderStatusPill(status: string | null): PillClass {
   }
 }
 
+/** The car model without its trailing model year — "Toyota Vios 2014" → "Toyota Vios". */
+export function stripCarYear(vehicle?: string | null): string {
+  return (vehicle ?? "").replace(/\s+(?:19|20)\d{2}$/, "").trim();
+}
+
 /** "Toyota Vios 2014 · 1กก 1234" — drops whichever part is missing; empty when neither is set. */
 export function vehicleLabel(vehicle?: string | null, plate?: string | null): string {
   const v = vehicle?.trim();
@@ -49,7 +54,7 @@ export function vehicleLabel(vehicle?: string | null, plate?: string | null): st
 
 /** A parts/repair chip for on-site sales; null when the sale type is unknown. */
 export function saleTypeBadge(type: string | null): { pill: PillClass; label: string } | null {
-  if (type === "repair") return { pill: "soft", label: "🔧 Repair" };
-  if (type === "parts") return { pill: "off", label: "📦 Parts" };
+  if (type === "repair") return { pill: "soft", label: "🔧 Service" };
+  if (type === "parts") return { pill: "off", label: "📦 Products" };
   return null;
 }
