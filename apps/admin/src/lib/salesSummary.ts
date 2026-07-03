@@ -157,19 +157,17 @@ export function matchesSalesSearch(sale: SaleSearchable, query: string): boolean
 }
 
 /**
- * The Onsite table/info/CSV view: free-text search, then (when sorting by Status) an optional status
- * filter, then sort by status. Mirrors the Products toolbar's linked sort+filter.
+ * The Onsite table/info/CSV view: free-text search + a direct status filter ("" = all). Drives the
+ * cards, the table, and the CSV export together.
  */
 export function salesView<T extends SaleSearchable>(
   sales: T[],
-  opts: { search: string; sortBy: string; filterVal: string },
+  opts: { search: string; status: string },
 ): T[] {
-  let out = sales.filter((s) => matchesSalesSearch(s, opts.search));
-  if (opts.sortBy === "status") {
-    if (opts.filterVal) out = out.filter((s) => s.saleStatus === opts.filterVal);
-    out = [...out].sort((a, b) => a.saleStatus.localeCompare(b.saleStatus));
-  }
-  return out;
+  return sales.filter(
+    (s) =>
+      matchesSalesSearch(s, opts.search) && (opts.status === "" || s.saleStatus === opts.status),
+  );
 }
 
 /**

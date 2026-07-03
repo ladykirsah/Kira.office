@@ -53,8 +53,7 @@ export default function SalesPage() {
   const [customEnd, setCustomEnd] = useState("");
   const [tab, setTab] = useState<SalesTab>("summary");
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("");
-  const [filterVal, setFilterVal] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
     fetchSales()
@@ -96,7 +95,7 @@ export default function SalesPage() {
   const s = summarize(inRange, range);
 
   // Onsite table/info/CSV view: period → search + status filter/sort. Feeds the cards + table.
-  const onsiteView = salesView(inRange, { search, sortBy, filterVal });
+  const onsiteView = salesView(inRange, { search, status: statusFilter });
   const onsiteSumm = summarize(onsiteView, range);
   const onsiteStatuses = Array.from(new Set(inRange.map((x) => x.saleStatus))).sort();
 
@@ -107,7 +106,7 @@ export default function SalesPage() {
   };
   const prevView = salesView(
     (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
-    { search, sortBy, filterVal },
+    { search, status: statusFilter },
   );
   const onsiteGrowth = growthRatePct(
     onsiteSumm.revenueSatang,
@@ -287,7 +286,7 @@ export default function SalesPage() {
                 </a>
               </div>
 
-              {/* Table frame: toolbar → period → data */}
+              {/* Table frame: toolbar → (custom dates) → data */}
               <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 18 }}>
                 <div
                   style={{
@@ -303,45 +302,64 @@ export default function SalesPage() {
                     placeholder="Search plate / car / bill / amount…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
+                    style={{ ...inputS, flex: "1 1 240px", maxWidth: "100%", color: "var(--text)" }}
                   />
                   <select
-                    aria-label="Sort by"
-                    value={sortBy}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setFilterVal("");
-                    }}
+                    aria-label="Status"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
                     style={{
                       ...inputS,
-                      color: sortBy ? "var(--text)" : "var(--text-faint)",
+                      color: statusFilter ? "var(--text)" : "var(--text-faint)",
                     }}
                   >
-                    <option value="">Sort by…</option>
-                    <option value="status">Status</option>
+                    <option value="">All status</option>
+                    {onsiteStatuses.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
                   </select>
                   <select
-                    aria-label="Filter"
-                    value={filterVal}
-                    onChange={(e) => setFilterVal(e.target.value)}
-                    disabled={sortBy !== "status"}
-                    style={{
-                      ...inputS,
-                      color: filterVal ? "var(--text)" : "var(--text-faint)",
-                    }}
+                    aria-label="Date range"
+                    value={preset}
+                    onChange={(e) => setPreset(e.target.value as RangePreset)}
+                    style={inputS}
                   >
-                    <option value="">{sortBy === "status" ? "All status" : "Filter…"}</option>
-                    {sortBy === "status" &&
-                      onsiteStatuses.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
-                      ))}
+                    {PRESETS.map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div style={{ marginBottom: 12 }}>
-                  <PeriodSelect />
-                </div>
+                {preset === "custom" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <input
+                      type="date"
+                      value={fromDisplay}
+                      onChange={(e) => editFrom(e.target.value)}
+                      aria-label="From date"
+                      style={inputS}
+                    />
+                    <span className="muted">–</span>
+                    <input
+                      type="date"
+                      value={toDisplay}
+                      onChange={(e) => editTo(e.target.value)}
+                      aria-label="To date"
+                      style={inputS}
+                    />
+                  </div>
+                )}
                 <SalesTable sales={onsiteView} />
               </div>
             </>

@@ -61,16 +61,19 @@ describe("salesView", () => {
   const b = searchable({ saleNumber: "B", vehicle: "Honda", saleStatus: "refunded" });
 
   it("filters by search text", () => {
-    expect(salesView([a, b], { search: "honda", sortBy: "", filterVal: "" })).toEqual([b]);
+    expect(salesView([a, b], { search: "honda", status: "" })).toEqual([b]);
   });
 
-  it("filters by status value when sorting by status", () => {
-    expect(salesView([a, b], { search: "", sortBy: "status", filterVal: "refunded" })).toEqual([b]);
+  it("filters by status", () => {
+    expect(salesView([a, b], { search: "", status: "refunded" })).toEqual([b]);
   });
 
-  it("sorts by status", () => {
-    const out = salesView([b, a], { search: "", sortBy: "status", filterVal: "" });
-    expect(out.map((s) => s.saleStatus)).toEqual(["completed", "refunded"]);
+  it("empty status keeps everything (search-only)", () => {
+    expect(salesView([a, b], { search: "", status: "" })).toEqual([a, b]);
+  });
+
+  it("combines search and status", () => {
+    expect(salesView([a, b], { search: "honda", status: "completed" })).toEqual([]);
   });
 });
 
