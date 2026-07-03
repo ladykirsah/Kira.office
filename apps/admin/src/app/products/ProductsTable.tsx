@@ -5,11 +5,12 @@ import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { productStatusTag } from "@/lib/productStatus";
+import { stockStatus } from "@/lib/stock";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 
-type Tab = "all" | "listed" | "offshopee" | "draft" | "out";
+type Tab = "all" | "listed" | "offshopee" | "draft" | "low" | "out";
 
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
@@ -40,6 +41,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   const drafts = products.filter((p) => p.status === "draft");
   const offShopee = products.filter((p) => !p.shopeeListed && p.status !== "draft");
   const outOfStock = products.filter((p) => p.onHand <= 0);
+  const lowStock = products.filter((p) => stockStatus(p.onHand) === "low");
 
   const byTab =
     tab === "listed"
@@ -48,9 +50,11 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         ? offShopee
         : tab === "draft"
           ? drafts
-          : tab === "out"
-            ? outOfStock
-            : products;
+          : tab === "low"
+            ? lowStock
+            : tab === "out"
+              ? outOfStock
+              : products;
   const s = q.trim().toLowerCase();
   const rows = s
     ? byTab.filter(
@@ -101,6 +105,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         <TabBtn id="listed" label="On Shopee" n={listed.length} />
         <TabBtn id="offshopee" label="Off Shopee" n={offShopee.length} />
         <TabBtn id="draft" label="Not listed" n={drafts.length} />
+        <TabBtn id="low" label="Low stock" n={lowStock.length} />
         <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
       </div>
 

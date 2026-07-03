@@ -18,7 +18,7 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
   },
   {
     section: "Inventory",
-    links: [["/stock", "📊", "Stock"]],
+    links: [["/stock", "📊", "Stock movements"]],
   },
   {
     section: "Orders & money",
