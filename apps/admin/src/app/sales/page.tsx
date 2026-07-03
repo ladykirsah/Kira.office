@@ -103,6 +103,13 @@ export default function SalesPage() {
         Product sales by channel.
       </p>
 
+      <div className="tabs">
+        <TabBtn id="summary" label="Summary" />
+        <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
+        <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
+        <TabBtn id="airplus" label="AirPlus" />
+      </div>
+
       <div
         style={{
           display: "flex",
@@ -154,13 +161,6 @@ export default function SalesPage() {
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
       ) : (
         <>
-          <div className="tabs">
-            <TabBtn id="summary" label="Summary" />
-            <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
-            <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
-            <TabBtn id="airplus" label="AirPlus" />
-          </div>
-
           {tab === "summary" && (
             <div className="card" style={{ overflowX: "auto" }}>
               <table>
