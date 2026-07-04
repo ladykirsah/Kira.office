@@ -1,7 +1,7 @@
 // Maps sale/order/payment statuses to the themed `.pill` variants in globals.css, plus a couple
 // of label helpers. Pure + unit-tested so the tables can render consistent, dark-mode-aware badges.
 
-export type PillClass = "good" | "warn" | "bad" | "off" | "soft";
+export type PillClass = "good" | "warn" | "bad" | "off" | "soft" | "info";
 
 /** A completed sale is good; a refunded one is muted; anything mid-flight is amber. */
 export function saleStatusPill(status: string): PillClass {
@@ -63,4 +63,21 @@ export function saleTypeBadge(type: string | null): { pill: PillClass; label: st
   if (type === "repair") return { pill: "soft", label: "🔧 Service" };
   if (type === "parts") return { pill: "off", label: "📦 Products" };
   return null;
+}
+
+/**
+ * Map a (verbose, Thai) Shopee order status to a short label + themed colour:
+ * Complete=green · Shipped=blue · Shipping=yellow · Cancelled=gray · Refund=red.
+ * Order matters — "buyer received" text also mentions refund eligibility, so it's checked first.
+ */
+export function shopeeStatusBadge(raw: string | null): { pill: PillClass; label: string } {
+  const s = raw ?? "";
+  // "buyer received" text contains refund-eligibility wording, and "refund success" contains
+  // "สำเร็จ" — so check those before the plain สำเร็จ / status keywords.
+  if (s.includes("ผู้ซื้อได้รับสินค้า")) return { pill: "info", label: "Shipped" };
+  if (s.includes("คืนเงิน") || s.includes("คืนสินค้า")) return { pill: "bad", label: "Refund" };
+  if (s.includes("ยกเลิก")) return { pill: "off", label: "Cancelled" };
+  if (s.includes("สำเร็จ")) return { pill: "good", label: "Complete" };
+  if (s.includes("จัดส่ง") || s.includes("รอ")) return { pill: "warn", label: "Shipping" };
+  return { pill: "off", label: s || "—" };
 }

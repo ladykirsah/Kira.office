@@ -1209,7 +1209,8 @@ async function listOrders(env: Env): Promise<Response> {
     `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
             payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
             fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
-            imported_at AS importedAt
+            imported_at AS importedAt, buyer_username AS buyerUsername,
+            sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs
      FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });

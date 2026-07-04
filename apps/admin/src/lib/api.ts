@@ -578,6 +578,10 @@ export interface OrderRow {
   feeTotalSatang: number;
   orderCreatedAt: number | null;
   importedAt: number;
+  buyerUsername?: string | null; // ชื่อผู้ใช้ (ผู้ซื้อ)
+  salesSatang?: number | null; // ราคาสินค้าที่ชำระโดยผู้ซื้อ
+  feeBp?: number | null; // ค่าธรรมเนียม (%) as basis points, 321 = 3.21%
+  shipTimeMs?: number | null; // เวลาส่งสินค้า
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {

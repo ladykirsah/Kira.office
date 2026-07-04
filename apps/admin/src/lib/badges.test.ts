@@ -7,6 +7,7 @@ import {
   stripCarYear,
   carYearOf,
   saleTypeBadge,
+  shopeeStatusBadge,
 } from "./badges";
 
 describe("saleStatusPill", () => {
@@ -72,4 +73,24 @@ describe("saleTypeBadge", () => {
   it("given parts > then off pill with Products label", () =>
     expect(saleTypeBadge("parts")).toEqual({ pill: "off", label: "📦 Products" }));
   it("given null > then null", () => expect(saleTypeBadge(null)).toBeNull());
+});
+
+describe("shopeeStatusBadge", () => {
+  it("สำเร็จแล้ว > Complete/green", () =>
+    expect(shopeeStatusBadge("สำเร็จแล้ว")).toEqual({ pill: "good", label: "Complete" }));
+  it("buyer-received (mentions refund) > Shipped/blue, not Refund", () =>
+    expect(
+      shopeeStatusBadge(
+        "ผู้ซื้อได้รับสินค้าแล้ว โปรดทราบว่าผู้ซื้อสามารถยื่นคำขอคืนเงิน/คืนสินค้าได้จนถึง 2026-07-03",
+      ),
+    ).toEqual({ pill: "info", label: "Shipped" }));
+  it("กำลังจัดส่ง > Shipping/yellow", () =>
+    expect(shopeeStatusBadge("กำลังจัดส่ง")).toEqual({ pill: "warn", label: "Shipping" }));
+  it("ยกเลิกแล้ว > Cancelled/gray", () =>
+    expect(shopeeStatusBadge("ยกเลิกแล้ว")).toEqual({ pill: "off", label: "Cancelled" }));
+  it("คืนเงินสำเร็จ > Refund/red", () =>
+    expect(shopeeStatusBadge("การคืนเงิน/คืนสินค้าสำเร็จ")).toEqual({
+      pill: "bad",
+      label: "Refund",
+    }));
 });

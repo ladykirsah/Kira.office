@@ -16,6 +16,7 @@ import {
   type ChannelSales,
 } from "@/lib/salesSummary";
 import { onsiteSalesToCsv, onlineOrdersToCsv } from "@/lib/salesCsv";
+import { shopeeStatusBadge } from "@/lib/badges";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { OnlineOrders } from "./OnlineOrders";
@@ -136,10 +137,13 @@ export default function SalesPage() {
   const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
   const shopeeFees = shopeeInRange.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
   // Shopee tab view: search + order-status filter over the period (cards + table reflect it).
-  const shopeeView = ordersView(shopeeInRange, { search, status: statusFilter });
+  // Status filters on the short mapped label (Complete/Shipped/…), not the verbose raw status.
   const shopeeStatuses = Array.from(
-    new Set(shopeeInRange.map((o) => o.orderStatus).filter((x): x is string => !!x)),
+    new Set(shopeeInRange.map((o) => shopeeStatusBadge(o.orderStatus).label)),
   ).sort();
+  const shopeeView = ordersView(shopeeInRange, { search, status: "" }).filter(
+    (o) => statusFilter === "" || shopeeStatusBadge(o.orderStatus).label === statusFilter,
+  );
   const shopeeViewTotal = shopeeView.reduce((sum, o) => sum + o.grandTotalSatang, 0);
   const shopeeViewFees = shopeeView.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
 

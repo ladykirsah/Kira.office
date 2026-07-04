@@ -355,6 +355,15 @@ tbody tr:hover {
   background: var(--primary-soft);
   color: var(--primary);
 }
+/* Info = blue (e.g. a Shopee order delivered but not yet confirmed). */
+.pill.info {
+  background: color-mix(in srgb, #2563eb 14%, transparent);
+  color: #1d4ed8;
+}
+html[data-theme="dark"] .pill.info {
+  background: color-mix(in srgb, #60a5fa 22%, transparent);
+  color: #93c5fd;
+}
 /* Pause = caution yellow. Soft pale-yellow tint like the other pills, but built from a
    true-yellow hue (#facc15) so the tint reads yellow instead of the tan that --warn gives.
    Text stays a dark amber because a light-enough yellow isn't legible. */
