@@ -66,7 +66,7 @@ export default function SalesPage() {
       .catch((err) => setError((err as Error).message));
     fetchOrders()
       .then(setOrders)
-      .catch(() => setOrders([]));
+      .catch((err) => setError((err as Error).message));
   }, []);
 
   // Filters are per-tab; reset search/status/type on tab switch (the period persists).

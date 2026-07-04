@@ -41,7 +41,7 @@ export default function StockMovementsPage() {
       .catch((err) => setError((err as Error).message));
     fetchStockMovements()
       .then(setMovements)
-      .catch(() => setMovements([]));
+      .catch((err) => setError((err as Error).message));
   }, []);
 
   useEffect(() => {
