@@ -18,98 +18,106 @@ import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
 
 const frame = { border: "1px solid var(--border)", borderRadius: 8, padding: 18 } as const;
-const billRow = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
+const rowBetween = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
 const mono = { fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" } as const;
+const right = { textAlign: "right" } as const;
 const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
 
-/** One bill/quotation as a self-contained receipt card: full items + prices, discount, note, reprint. */
-function BillCard({ sale }: { sale: CustomerSale }) {
+/** One bill/quotation as a fully-shown table row: date · bill · all items+prices+total+note · reprint. */
+function BillRow({ sale }: { sale: CustomerSale }) {
   return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "14px 16px",
-      }}
-    >
-      <div style={{ marginBottom: 10 }}>
-        <div style={tableText.body2}>
-          {new Date(sale.createdAt).toLocaleDateString("th-TH")} ·{" "}
+    <tr style={{ verticalAlign: "top" }}>
+      <td style={{ whiteSpace: "nowrap" }}>
+        <div style={tableText.body2}>{new Date(sale.createdAt).toLocaleDateString("th-TH")}</div>
+        <div style={tableText.subtitle}>
           {new Date(sale.createdAt).toLocaleTimeString("th-TH", {
             hour: "2-digit",
             minute: "2-digit",
           })}
         </div>
-        <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
-          {sale.saleNumber ?? "—"}
+      </td>
+      <td style={{ ...mono, fontSize: 13 }}>{sale.saleNumber ?? "—"}</td>
+      <td>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {sale.lines.length === 0 ? (
+            <span className="muted">No items.</span>
+          ) : (
+            sale.lines.map((l, i) => (
+              <div key={i} style={rowBetween}>
+                <span>
+                  {l.description || (l.lineType === "service" ? "Service" : "Item")}
+                  {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
+                </span>
+                <span style={mono}>{formatBaht(lineTotal(l))}</span>
+              </div>
+            ))
+          )}
         </div>
-      </div>
-
-      <div
-        style={{
-          borderTop: "1px solid var(--border)",
-          paddingTop: 10,
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-        }}
-      >
-        {sale.lines.length === 0 ? (
-          <span className="muted">No items.</span>
-        ) : (
-          sale.lines.map((l, i) => (
-            <div key={i} style={billRow}>
-              <span>
-                {l.description || (l.lineType === "service" ? "Service" : "Item")}
-                {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
-              </span>
-              <span style={mono}>{formatBaht(lineTotal(l))}</span>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div
-        style={{
-          borderTop: "1px solid var(--border)",
-          marginTop: 10,
-          paddingTop: 10,
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-        }}
-      >
-        {sale.discountTotalSatang > 0 && (
-          <>
-            <div style={{ ...billRow, ...tableText.subtitle }}>
-              <span>Subtotal</span>
-              <span style={mono}>{formatBaht(sale.subtotalSatang)}</span>
-            </div>
-            <div style={{ ...billRow, ...tableText.subtitle }}>
-              <span>Discount</span>
-              <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
-            </div>
-          </>
-        )}
-        <div style={{ ...billRow, fontWeight: 500 }}>
-          <span>Total</span>
-          <span style={mono}>{formatBaht(sale.grandTotalSatang)}</span>
-        </div>
-        {sale.taxTotalSatang > 0 && (
-          <div style={{ ...tableText.subtitle, textAlign: "right" }}>
-            incl. VAT {formatBaht(sale.taxTotalSatang)}
+        <div
+          style={{
+            borderTop: "1px solid var(--border)",
+            marginTop: 6,
+            paddingTop: 6,
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          {sale.discountTotalSatang > 0 && (
+            <>
+              <div style={{ ...rowBetween, ...tableText.subtitle }}>
+                <span>Subtotal</span>
+                <span style={mono}>{formatBaht(sale.subtotalSatang)}</span>
+              </div>
+              <div style={{ ...rowBetween, ...tableText.subtitle }}>
+                <span>Discount</span>
+                <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
+              </div>
+            </>
+          )}
+          <div style={{ ...rowBetween, fontWeight: 500 }}>
+            <span>Total</span>
+            <span style={mono}>{formatBaht(sale.grandTotalSatang)}</span>
           </div>
-        )}
-        {sale.notes && (
-          <div style={{ ...tableText.subtitle, marginTop: 4 }}>Note — {sale.notes}</div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 12 }}>
+          {sale.taxTotalSatang > 0 && (
+            <div style={{ ...tableText.subtitle, ...right }}>
+              incl. VAT {formatBaht(sale.taxTotalSatang)}
+            </div>
+          )}
+          {sale.notes && (
+            <div style={{ ...tableText.subtitle, marginTop: 2 }}>Note — {sale.notes}</div>
+          )}
+        </div>
+      </td>
+      <td style={{ ...right, whiteSpace: "nowrap" }}>
         <a className="btn-soft" href={`/pos?reprint=${encodeURIComponent(sale.id)}`}>
-          🖨 Preview &amp; reprint
+          🖨 Reprint
         </a>
+      </td>
+    </tr>
+  );
+}
+
+/** A framed Date · Bill · Items · Action table of bills/quotations. */
+function BillTable({ sales }: { sales: CustomerSale[] }) {
+  return (
+    <div style={frame}>
+      <div style={{ overflowX: "auto" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Bill</th>
+              <th>Items</th>
+              <th style={right}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sales.map((s) => (
+              <BillRow key={s.id} sale={s} />
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -217,11 +225,7 @@ export default function CustomersPage() {
         {detail && detail.quotations.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Open quotations</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {detail.quotations.map((s) => (
-                <BillCard key={s.id} sale={s} />
-              ))}
-            </div>
+            <BillTable sales={detail.quotations} />
           </div>
         )}
 
@@ -234,11 +238,7 @@ export default function CustomersPage() {
               <div className="empty-icon">🧾</div>No bills yet for this car.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {detail.history.map((s) => (
-                <BillCard key={s.id} sale={s} />
-              ))}
-            </div>
+            <BillTable sales={detail.history} />
           )}
         </div>
       </main>
