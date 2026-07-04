@@ -327,10 +327,15 @@ tbody tr:hover {
 .pill {
   display: inline-block;
   padding: 2px 10px;
-  /* 8px: uniform gentle rounding — short pills read as rounded rects, big multi-line tags as boxes. */
-  border-radius: 8px;
+  line-height: 1.35;
+  /* Single-line pills round fully into a stadium; AutoPill adds .boxed when a tag wraps to 2+
+     lines, dropping it to an 8px rounded box (a huge radius looks wrong on a tall multi-line box). */
+  border-radius: 360px;
   font-size: 12px;
   font-weight: 600;
+}
+.pill.boxed {
+  border-radius: 8px;
 }
 .pill.on {
   background: color-mix(in srgb, var(--ok) 16%, transparent);

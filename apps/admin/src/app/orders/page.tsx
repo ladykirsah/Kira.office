@@ -10,6 +10,7 @@ import {
 import { orderStatusPill, paymentPill } from "@/lib/badges";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
+import { AutoPill } from "../AutoPill";
 import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
 
@@ -152,9 +153,9 @@ export default function OrdersPage() {
                   </td>
                   <td style={tableText.body2}>
                     {o.orderStatus ? (
-                      <span className={`pill ${orderStatusPill(o.orderStatus)}`}>
+                      <AutoPill className={`pill ${orderStatusPill(o.orderStatus)}`}>
                         {o.orderStatus}
-                      </span>
+                      </AutoPill>
                     ) : (
                       "—"
                     )}
