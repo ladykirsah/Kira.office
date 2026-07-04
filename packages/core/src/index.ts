@@ -15,3 +15,4 @@ export * from "./rbac";
 export * from "./productTerms";
 export * from "./barcode";
 export * from "./xlsx";
+export * from "./promptpay";

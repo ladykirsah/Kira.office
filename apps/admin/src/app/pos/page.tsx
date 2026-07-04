@@ -39,6 +39,7 @@ import {
 } from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
 import { ServiceSelect } from "./ServiceSelect";
+import { PromptPayQr } from "./PromptPayQr";
 import {
   flushOutbox,
   formatSyncFailureMessage,
@@ -665,6 +666,7 @@ function BillDoc({
         grandQuote: "Estimate",
         note: "Note",
         thanks: "*** Thank you ***",
+        scanPay: "Scan to pay — PromptPay",
       }
     : {
         saleId: "เลขที่บิล",
@@ -683,7 +685,12 @@ function BillDoc({
         grandQuote: "รวมโดยประมาณ",
         note: "หมายเหตุ",
         thanks: "*** ขอบคุณที่ใช้บริการ ***",
+        scanPay: "สแกนจ่ายผ่านพร้อมเพย์",
       };
+
+  // Scan-to-pay QR on cash bills, only when the shop set a PromptPay ID (Shop info → Payment).
+  const promptpayId = (shop.promptpayId ?? "").trim();
+  const showPromptPay = !isQuote && !!promptpayId && totalSatang > 0;
 
   // Contact QR: the uploaded image when set, otherwise the sample placeholder.
   const qrNode = (size: number) =>
@@ -797,6 +804,15 @@ function BillDoc({
               {t.note}: {note}
             </div>
           </>
+        )}
+        {showPromptPay && (
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <div style={{ display: "inline-block" }}>
+              <PromptPayQr promptpayId={promptpayId} amountSatang={totalSatang} size={110} />
+            </div>
+            <div style={{ fontWeight: 600, marginTop: 2 }}>{t.scanPay}</div>
+            <div style={{ fontSize: 11, color: muted }}>฿{amt(totalSatang)}</div>
+          </div>
         )}
         {isQuote ? (
           <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -973,6 +989,31 @@ function BillDoc({
             <div>
               <div style={{ fontWeight: 600 }}>{qrHeadline}</div>
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{qrSubtitle}</div>
+            </div>
+          </div>
+          {totalsBlock}
+        </div>
+      ) : showPromptPay ? (
+        // Cash-bill footer with PromptPay: scan-to-pay QR on the left, total on the right — mirrors
+        // the quotation footer's layout so both docs read the same way.
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 18,
+            padding: "12px 18px",
+            borderTop: "2px solid #18181b",
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <PromptPayQr promptpayId={promptpayId} amountSatang={totalSatang} size={64} />
+            <div>
+              <div style={{ fontWeight: 600 }}>{t.scanPay}</div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                ฿{amt(totalSatang)}
+              </div>
             </div>
           </div>
           {totalsBlock}

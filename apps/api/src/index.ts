@@ -872,6 +872,7 @@ export const SHOP_TEXT_FIELDS = [
   "qrHeadlineEn",
   "qrSubtitle",
   "qrSubtitleEn",
+  "promptpayId", // PromptPay target (phone / national ID / e-wallet) — payment QR on the bill
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per

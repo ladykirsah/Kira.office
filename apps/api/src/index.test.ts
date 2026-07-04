@@ -971,6 +971,28 @@ describe("api worker routes", () => {
     expect(saved).toBe("T {{x}}");
   });
 
+  it("shop-info round-trips promptpayId (PromptPay QR on the bill needs it)", async () => {
+    const store = new Map<string, string>();
+    const env = {
+      KV: {
+        get: async (k: string) => store.get(k) ?? null,
+        put: async (k: string, v: string) => void store.set(k, v),
+      },
+    } as unknown as Env;
+    await worker.fetch!(
+      new Request("https://x/shop-info", {
+        method: "PUT",
+        body: JSON.stringify({ name: "ร้าน", promptpayId: "081-234-5678" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(store.get("shop:promptpayId")).toBe("081-234-5678");
+    const res = await worker.fetch!(new Request("https://x/shop-info"), env, ctx);
+    const body = (await res.json()) as Record<string, string | null>;
+    expect(body.promptpayId).toBe("081-234-5678");
+  });
+
   it("GET /img/:key > serves an object from R2", async () => {
     const env = {
       IMAGES: {
