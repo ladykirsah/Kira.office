@@ -382,8 +382,19 @@ describe("parseMoneyToSatang", () => {
 });
 
 describe("parseOrderDateMs", () => {
-  it("parses an ISO date to epoch ms", () => {
-    expect(parseOrderDateMs("2026-06-14")).toBe(Date.parse("2026-06-14"));
+  // Shopee export timestamps are Bangkok wall-clock with no offset. They must parse to the same
+  // instant regardless of the runtime's timezone (Workers run UTC; naive Date.parse would be 7h off).
+  it("anchors a naive Shopee datetime to Asia/Bangkok (+07:00)", () => {
+    expect(parseOrderDateMs("2026-06-23 13:49")).toBe(Date.parse("2026-06-23T13:49:00+07:00"));
+  });
+  it("anchors a date-only string to Bangkok midnight", () => {
+    expect(parseOrderDateMs("2026-06-14")).toBe(Date.parse("2026-06-14T00:00:00+07:00"));
+  });
+  it("respects an explicit offset/Z when the string carries one", () => {
+    expect(parseOrderDateMs("2026-06-23T13:49:00Z")).toBe(Date.parse("2026-06-23T13:49:00Z"));
+    expect(parseOrderDateMs("2026-06-23T13:49:00+02:00")).toBe(
+      Date.parse("2026-06-23T13:49:00+02:00"),
+    );
   });
   it("returns null for blank or unparseable input", () => {
     expect(parseOrderDateMs(undefined)).toBeNull();
@@ -427,12 +438,12 @@ describe("importShopeeOrders (enriched)", () => {
     // Total (grand_total) = net payout = Sales − fees = 145000 − 10500
     expect(insert?.boundArgs?.[5]).toBe(134500);
     expect(insert?.boundArgs?.[6]).toBe(10500);
-    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14T00:00:00+07:00"));
     // appended enriched binds: buyer_username, sales_satang, fee_bp, ship_time_ms
     expect(insert?.boundArgs?.[10]).toBe("shopper99");
     expect(insert?.boundArgs?.[11]).toBe(145000);
     expect(insert?.boundArgs?.[12]).toBe(724);
-    expect(insert?.boundArgs?.[13]).toBe(Date.parse("2026-06-20"));
+    expect(insert?.boundArgs?.[13]).toBe(Date.parse("2026-06-20T00:00:00+07:00"));
   });
 
   it("captures total, fee, and order date from mapped columns", async () => {
@@ -451,7 +462,7 @@ describe("importShopeeOrders (enriched)", () => {
     // binds: (id, channel, external_order_id, order_status, payment_status, grand_total, fee_total, order_created_at, …)
     expect(insert?.boundArgs?.[5]).toBe(89000);
     expect(insert?.boundArgs?.[6]).toBe(6200);
-    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14T00:00:00+07:00"));
   });
 
   it("still imports a minimal export (ids only) when the money columns are absent", async () => {
