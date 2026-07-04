@@ -299,6 +299,41 @@ export async function getCustomerDetail(plate: string): Promise<CustomerDetail> 
   return (await res.json()) as CustomerDetail;
 }
 
+export interface FullBillLine {
+  productVariantId: string | null;
+  lineType: string;
+  description: string | null;
+  quantity: number;
+  unitPriceSatang: number;
+  discountSatang: number;
+  taxSatang: number;
+}
+
+/** A whole on-site sale with its lines — the full-track detail behind a history row. */
+export interface FullBill {
+  id: string;
+  saleNumber: string | null;
+  saleType: string | null;
+  licensePlate: string | null;
+  vehicle: string | null;
+  notes: string | null;
+  paymentMethod: string | null;
+  stage: string;
+  saleStatus: string;
+  subtotalSatang: number;
+  discountTotalSatang: number;
+  taxTotalSatang: number;
+  grandTotalSatang: number;
+  createdAt: number;
+  lines: FullBillLine[];
+}
+
+export async function getOnsiteSale(id: string): Promise<FullBill> {
+  const res = await apiFetch(`/onsite/sales/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load bill (HTTP ${res.status})`);
+  return ((await res.json()) as { sale: FullBill }).sale;
+}
+
 export async function saveCustomer(input: {
   licensePlate: string;
   customerName?: string | null;
