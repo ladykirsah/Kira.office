@@ -6,6 +6,8 @@ import {
   toDateInputValue,
   matchesSalesSearch,
   salesView,
+  matchesOrderSearch,
+  ordersView,
   growthRatePct,
   type SaleLike,
 } from "./salesSummary";
@@ -82,6 +84,32 @@ describe("salesView", () => {
     expect(salesView([p, s], { search: "", status: "", type: "parts" })).toEqual([p]);
     expect(salesView([p, s], { search: "", status: "", type: "repair" })).toEqual([s]);
     expect(salesView([p, s], { search: "", status: "", type: "" })).toEqual([p, s]);
+  });
+});
+
+describe("ordersView / matchesOrderSearch", () => {
+  const ord = (over = {}) => ({
+    externalOrderId: "SP-2026-0001",
+    orderStatus: "completed",
+    paymentStatus: "paid",
+    grandTotalSatang: 235000,
+    ...over,
+  });
+
+  it("matchesOrderSearch matches id / status / paid amount, and rejects a non-match", () => {
+    expect(matchesOrderSearch(ord(), "sp-2026")).toBe(true);
+    expect(matchesOrderSearch(ord(), "paid")).toBe(true);
+    expect(matchesOrderSearch(ord(), "2350")).toBe(true);
+    expect(matchesOrderSearch(ord(), "zzz")).toBe(false);
+    expect(matchesOrderSearch(ord(), "")).toBe(true);
+  });
+
+  it("ordersView filters by search and order status", () => {
+    const a = ord({ externalOrderId: "SP-A", orderStatus: "completed" });
+    const b = ord({ externalOrderId: "SP-B", orderStatus: "cancelled" });
+    expect(ordersView([a, b], { search: "sp-b", status: "" })).toEqual([b]);
+    expect(ordersView([a, b], { search: "", status: "cancelled" })).toEqual([b]);
+    expect(ordersView([a, b], { search: "", status: "" })).toEqual([a, b]);
   });
 });
 

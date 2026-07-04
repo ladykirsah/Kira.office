@@ -10,11 +10,12 @@ import {
   totalChannelSales,
   toDateInputValue,
   salesView,
+  ordersView,
   growthRatePct,
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
-import { onsiteSalesToCsv } from "@/lib/salesCsv";
+import { onsiteSalesToCsv, onlineOrdersToCsv } from "@/lib/salesCsv";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { OnlineOrders } from "./OnlineOrders";
@@ -65,6 +66,13 @@ export default function SalesPage() {
       .then(setOrders)
       .catch(() => setOrders([]));
   }, []);
+
+  // Filters are per-tab; reset search/status/type on tab switch (the period persists).
+  useEffect(() => {
+    setSearch("");
+    setStatusFilter("");
+    setTypeFilter("");
+  }, [tab]);
 
   if (error) {
     return (
@@ -127,6 +135,13 @@ export default function SalesPage() {
   );
   const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
   const shopeeFees = shopeeInRange.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
+  // Shopee tab view: search + order-status filter over the period (cards + table reflect it).
+  const shopeeView = ordersView(shopeeInRange, { search, status: statusFilter });
+  const shopeeStatuses = Array.from(
+    new Set(shopeeInRange.map((o) => o.orderStatus).filter((x): x is string => !!x)),
+  ).sort();
+  const shopeeViewTotal = shopeeView.reduce((sum, o) => sum + o.grandTotalSatang, 0);
+  const shopeeViewFees = shopeeView.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
 
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
@@ -149,50 +164,132 @@ export default function SalesPage() {
     </button>
   );
 
-  const PeriodSelect = () => (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Period</span>
-      <select
-        value={preset}
-        onChange={(e) => setPreset(e.target.value as RangePreset)}
-        aria-label="Date range"
-        style={inputS}
-      >
-        {PRESETS.map((p) => (
-          <option key={p.key} value={p.key}>
-            {p.label}
-          </option>
-        ))}
-      </select>
-      <input
-        type="date"
-        value={fromDisplay}
-        onChange={(e) => editFrom(e.target.value)}
-        aria-label="From date"
-        style={inputS}
-      />
-      <span className="muted">–</span>
-      <input
-        type="date"
-        value={toDisplay}
-        onChange={(e) => editTo(e.target.value)}
-        aria-label="To date"
-        style={inputS}
-      />
-    </div>
+  const cardsRow = { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 } as const;
+  const frameStyle = {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: 18,
+    background: "var(--surface)",
+  } as const;
+  const toolbarStyle = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    alignItems: "center",
+    marginBottom: 12,
+  } as const;
+
+  // The framed toolbar shared by every tab: optional search + status + type, always a date range.
+  // A plain function (not a component) so its inputs keep focus while typing.
+  const toolbar = (opts: {
+    searchPlaceholder?: string;
+    statuses?: string[];
+    showType?: boolean;
+  }) => (
+    <>
+      <div style={toolbarStyle}>
+        {opts.searchPlaceholder && (
+          <input
+            className="tbar-input"
+            placeholder={opts.searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
+          />
+        )}
+        {opts.statuses && (
+          <select
+            aria-label="Status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ ...inputS, color: statusFilter ? "var(--text)" : "var(--text-faint)" }}
+          >
+            <option value="">All status</option>
+            {opts.statuses.map((st) => (
+              <option key={st} value={st}>
+                {st}
+              </option>
+            ))}
+          </select>
+        )}
+        {opts.showType && (
+          <select
+            aria-label="Type"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            style={{ ...inputS, color: typeFilter ? "var(--text)" : "var(--text-faint)" }}
+          >
+            <option value="">All types</option>
+            <option value="parts">Products</option>
+            <option value="repair">Service</option>
+          </select>
+        )}
+        <select
+          aria-label="Date range"
+          value={preset}
+          onChange={(e) => setPreset(e.target.value as RangePreset)}
+          style={inputS}
+        >
+          {PRESETS.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {preset === "custom" && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <input
+            type="date"
+            value={fromDisplay}
+            onChange={(e) => editFrom(e.target.value)}
+            aria-label="From date"
+            style={inputS}
+          />
+          <span className="muted">–</span>
+          <input
+            type="date"
+            value={toDisplay}
+            onChange={(e) => editTo(e.target.value)}
+            aria-label="To date"
+            style={inputS}
+          />
+        </div>
+      )}
+    </>
   );
 
-  const DownloadCsv = () => <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>;
-
-  const downloadOnsiteCsv = () => {
-    const blob = new Blob([onsiteSalesToCsv(onsiteView)], { type: "text/csv;charset=utf-8" });
+  const download = (csv: string, filename: string) => {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "onsite-sales.csv";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const csvLink = (onClick: () => void) => (
+    <div style={{ marginBottom: 14 }}>
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          onClick();
+        }}
+      >
+        Download CSV
+      </a>
+    </div>
+  );
 
   return (
     <main>
@@ -205,184 +302,66 @@ export default function SalesPage() {
         <TabBtn id="airplus" label="AirPlus (0)" />
       </div>
 
-      {tab !== "onsite" && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          <PeriodSelect />
-          <DownloadCsv />
-        </div>
-      )}
-
       {sales === null ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
       ) : (
         <>
           {tab === "summary" && (
             <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+              <div style={cardsRow}>
                 <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
                 <Card label="Total sales" value={String(channelTotal.count)} />
               </div>
-              <div
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: 18,
-                  overflowX: "auto",
-                  background: "var(--surface)",
-                }}
-              >
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Channel</th>
-                      <th style={right}>Sales</th>
-                      <th style={right}>Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {channelRows.map((r) => (
-                      <tr key={r.key}>
-                        <td>{r.label}</td>
-                        <td style={right}>{r.count}</td>
-                        <td style={right}>{formatBahtTrim(r.revenueSatang)}</td>
+              <div style={{ marginBottom: 14 }}>
+                <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
+              </div>
+              <div style={frameStyle}>
+                {toolbar({})}
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Channel</th>
+                        <th style={right}>Sales</th>
+                        <th style={right}>Revenue</th>
                       </tr>
-                    ))}
-                    <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
-                      <td>Total</td>
-                      <td style={right}>{channelTotal.count}</td>
-                      <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {channelRows.map((r) => (
+                        <tr key={r.key}>
+                          <td>{r.label}</td>
+                          <td style={right}>{r.count}</td>
+                          <td style={right}>{formatBahtTrim(r.revenueSatang)}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+                        <td>Total</td>
+                        <td style={right}>{channelTotal.count}</td>
+                        <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </>
           )}
 
           {tab === "onsite" && (
             <>
-              {/* Shortcut info — reflects the filtered view */}
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+              {/* Cards reflect the filtered view */}
+              <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(onsiteSumm.revenueSatang)} />
                 <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
                 <Card label="Profit" value={formatBahtTrim(onsiteSumm.grossProfitSatang)} />
                 <Card label="Growth rate" value={growthLabel} />
               </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    downloadOnsiteCsv();
-                  }}
-                >
-                  Download CSV
-                </a>
-              </div>
-
-              {/* Table frame: toolbar → (custom dates) → data */}
-              <div
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: 18,
-                  background: "var(--surface)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 10,
-                    alignItems: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  <input
-                    className="tbar-input"
-                    placeholder="Search plate / car / bill / amount…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
-                  />
-                  <select
-                    aria-label="Status"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    style={{
-                      ...inputS,
-                      color: statusFilter ? "var(--text)" : "var(--text-faint)",
-                    }}
-                  >
-                    <option value="">All status</option>
-                    {onsiteStatuses.map((st) => (
-                      <option key={st} value={st}>
-                        {st}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Type"
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    style={{
-                      ...inputS,
-                      color: typeFilter ? "var(--text)" : "var(--text-faint)",
-                    }}
-                  >
-                    <option value="">All types</option>
-                    <option value="parts">Products</option>
-                    <option value="repair">Service</option>
-                  </select>
-                  <select
-                    aria-label="Date range"
-                    value={preset}
-                    onChange={(e) => setPreset(e.target.value as RangePreset)}
-                    style={inputS}
-                  >
-                    {PRESETS.map((p) => (
-                      <option key={p.key} value={p.key}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {preset === "custom" && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <input
-                      type="date"
-                      value={fromDisplay}
-                      onChange={(e) => editFrom(e.target.value)}
-                      aria-label="From date"
-                      style={inputS}
-                    />
-                    <span className="muted">–</span>
-                    <input
-                      type="date"
-                      value={toDisplay}
-                      onChange={(e) => editTo(e.target.value)}
-                      aria-label="To date"
-                      style={inputS}
-                    />
-                  </div>
-                )}
+              {csvLink(() => download(onsiteSalesToCsv(onsiteView), "onsite-sales.csv"))}
+              <div style={frameStyle}>
+                {toolbar({
+                  searchPlaceholder: "Search plate / car / bill / amount…",
+                  statuses: onsiteStatuses,
+                  showType: true,
+                })}
                 <SalesTable sales={onsiteView} />
               </div>
             </>
@@ -390,24 +369,35 @@ export default function SalesPage() {
 
           {tab === "shopee" && (
             <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Revenue" value={formatBahtTrim(shopeeTotal)} />
-                <Card label="Orders" value={String(shopeeInRange.length)} />
-                <Card label="Fees" value={formatBahtTrim(shopeeFees)} />
+              <div style={cardsRow}>
+                <Card label="Revenue" value={formatBahtTrim(shopeeViewTotal)} />
+                <Card label="Orders" value={String(shopeeView.length)} />
+                <Card label="Fees" value={formatBahtTrim(shopeeViewFees)} />
               </div>
-              <OnlineOrders orders={shopeeInRange} />
+              {csvLink(() => download(onlineOrdersToCsv(shopeeView), "shopee-orders.csv"))}
+              <div style={frameStyle}>
+                {toolbar({
+                  searchPlaceholder: "Search order / status / amount…",
+                  statuses: shopeeStatuses,
+                })}
+                <OnlineOrders orders={shopeeView} />
+              </div>
             </>
           )}
 
           {tab === "airplus" && (
             <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+              <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(0)} />
                 <Card label="Orders" value="0" />
               </div>
-              <div className="empty">
-                <div className="empty-icon">☁️</div>AirPlus orders will appear here once its channel
-                is connected.
+              {csvLink(() => download(onlineOrdersToCsv([]), "airplus-orders.csv"))}
+              <div style={frameStyle}>
+                {toolbar({ searchPlaceholder: "Search order / status / amount…", statuses: [] })}
+                <div className="empty">
+                  <div className="empty-icon">☁️</div>AirPlus orders will appear here once its
+                  channel is connected.
+                </div>
               </div>
             </>
           )}

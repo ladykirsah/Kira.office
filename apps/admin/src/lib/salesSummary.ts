@@ -173,6 +173,35 @@ export function salesView<T extends SaleSearchable>(
   );
 }
 
+/** Fields the online-orders table searches over. */
+export interface OrderSearchable {
+  externalOrderId: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  grandTotalSatang: number;
+}
+
+/** True if the query appears in the order id, status, payment, or paid amount (baht). Empty = all. */
+export function matchesOrderSearch(order: OrderSearchable, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const baht = (order.grandTotalSatang / 100).toFixed(2);
+  return [order.externalOrderId, order.orderStatus, order.paymentStatus, baht]
+    .filter((f): f is string => Boolean(f))
+    .some((f) => f.toLowerCase().includes(q));
+}
+
+/** The online-orders view: free-text search + a direct order-status filter ("" = all). */
+export function ordersView<T extends OrderSearchable>(
+  orders: T[],
+  opts: { search: string; status: string },
+): T[] {
+  return orders.filter(
+    (o) =>
+      matchesOrderSearch(o, opts.search) && (opts.status === "" || o.orderStatus === opts.status),
+  );
+}
+
 /**
  * Period-over-period growth %, e.g. this-period revenue vs the previous equal-length period.
  * Returns null when there is no baseline (previous 0 but current > 0) so the UI can show "—".

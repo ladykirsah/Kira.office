@@ -33,3 +33,34 @@ export function onsiteSalesToCsv(rows: CsvSaleRow[]): string {
   }
   return lines.join("\n");
 }
+
+/** Rows the online-orders CSV export needs (a subset of OrderRow). */
+export interface CsvOrderRow {
+  externalOrderId: string;
+  orderCreatedAt: number | null;
+  importedAt: number;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  grandTotalSatang: number;
+  feeTotalSatang: number;
+}
+
+const ORDER_HEADER = "Order ID,Date,Status,Payment,Total (THB),Fees (THB)";
+
+/** CSV of the current online-orders view (client-side; reflects the active search/filter/period). */
+export function onlineOrdersToCsv(rows: CsvOrderRow[]): string {
+  const lines = [ORDER_HEADER];
+  for (const r of rows) {
+    lines.push(
+      [
+        esc(r.externalOrderId),
+        stamp(r.orderCreatedAt ?? r.importedAt),
+        esc(r.orderStatus ?? ""),
+        esc(r.paymentStatus ?? ""),
+        baht(r.grandTotalSatang),
+        baht(r.feeTotalSatang),
+      ].join(","),
+    );
+  }
+  return lines.join("\n");
+}
