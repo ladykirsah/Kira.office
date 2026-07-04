@@ -415,7 +415,7 @@ export default function ShopInfoPage() {
                           }
                           placeholder="ตำแหน่ง (เจ้าของ / พนักงาน)"
                           aria-label="Position"
-                          style={{ ...inputL, flex: 1, minWidth: 0 }}
+                          style={{ ...inputL, flex: "0 0 120px", minWidth: 0 }}
                         />
                         <input
                           value={pm.label}
