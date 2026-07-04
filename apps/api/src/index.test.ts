@@ -548,6 +548,14 @@ describe("api worker routes", () => {
     expect(res.status).toBe(404);
   });
 
+  it("unexpected errors become a 500 with CORS + JSON, not an unhandled rejection", async () => {
+    // {} as Env has no DB; a DB-backed route throws inside — the boundary must catch it.
+    const res = await worker.fetch!(new Request("https://x/customers?q=x"), {} as Env, ctx);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(((await res.json()) as { error?: string }).error).toBeTruthy();
+  });
+
   it("GET /products > reads from D1 (incl. part-detail names)", async () => {
     const row = {
       id: "p1",
