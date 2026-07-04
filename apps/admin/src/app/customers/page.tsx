@@ -196,7 +196,6 @@ export default function CustomersPage() {
       <main>
         <PageHeader
           title={headline}
-          subtitle="On-site customer"
           below={
             <button type="button" onClick={() => setSelected(null)} style={backLink}>
               ← All customers
