@@ -582,6 +582,9 @@ export interface OrderRow {
   salesSatang?: number | null; // ราคาสินค้าที่ชำระโดยผู้ซื้อ
   feeBp?: number | null; // ค่าธรรมเนียม (%) as basis points, 321 = 3.21%
   shipTimeMs?: number | null; // เวลาส่งสินค้า
+  // Profit = Total − Kira cost of the ordered items. Null until the order's line SKUs are matched to
+  // Kira products (Shopee listing SKU must be set to the Kira product code first).
+  profitSatang?: number | null;
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {

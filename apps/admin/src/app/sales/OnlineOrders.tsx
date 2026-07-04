@@ -28,6 +28,7 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
             <th>Sales</th>
             <th>Total</th>
             <th>Fees</th>
+            <th>Profit</th>
             <th>Date</th>
             <th>Status</th>
           </tr>
@@ -65,6 +66,14 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
                     )}
                   </div>
                   {o.feeBp ? <div style={tableText.subtitle}>{feePct(o.feeBp)}</div> : null}
+                </td>
+                {/* Profit = Total − Kira cost; null until order line SKUs are matched to products */}
+                <td>
+                  {o.profitSatang != null ? (
+                    formatBahtTrim(o.profitSatang)
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
                 {/* Ship date + estimated completion (ship + 10 days) */}
                 <td style={{ whiteSpace: "nowrap" }}>
