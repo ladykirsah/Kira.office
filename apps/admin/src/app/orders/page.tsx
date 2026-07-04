@@ -13,8 +13,8 @@ import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
 
 const PLACEHOLDER =
-  "external_order_id,order_status,payment_status,order_total,order_fee,order_date\n" +
-  "2406ABCDEF,paid,paid,890.00,62.00,2026-06-14\n";
+  "external_order_id,order_status,payment_status,order_fee,order_date,buyer_username,sales_total,fee_pct,ship_date\n" +
+  "2406ABCDEF,paid,paid,105.00,2026-06-14,shopper99,1450.00,7.24,2026-06-16\n";
 
 export default function OrdersPage() {
   const [csv, setCsv] = useState(PLACEHOLDER);
@@ -48,6 +48,10 @@ export default function OrdersPage() {
         order_total: "order_total",
         order_fee: "order_fee",
         order_date: "order_date",
+        buyer_username: "buyer_username",
+        sales_total: "sales_total",
+        fee_pct: "fee_pct",
+        ship_date: "ship_date",
       });
       setResult(out);
       setMsg("");
@@ -67,9 +71,11 @@ export default function OrdersPage() {
           <>
             Paste a Seller Centre order export (header row required). Required column:{" "}
             <code>external_order_id</code>. Optional: <code>order_status</code>,{" "}
-            <code>payment_status</code>, <code>order_total</code>, <code>order_fee</code>,{" "}
-            <code>order_date</code> — each captured only when the column is present. Re-importing is
-            safe — duplicates are skipped.
+            <code>payment_status</code>, <code>order_fee</code>, <code>order_date</code>,{" "}
+            <code>buyer_username</code>, <code>sales_total</code>, <code>fee_pct</code>,{" "}
+            <code>ship_date</code> — each captured only when the column is present. When{" "}
+            <code>sales_total</code> is given, Total is stored as the net payout (Sales − fees).
+            Re-importing is safe — duplicates are skipped.
           </>
         }
       />
