@@ -18,11 +18,12 @@ import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
 
 const frame = { border: "1px solid var(--border)", borderRadius: 8, padding: 18 } as const;
+const billRow = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
+const mono = { fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" } as const;
 const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
 
 /** One bill/quotation as a self-contained receipt card: full items + prices, discount, note, reprint. */
 function BillCard({ sale }: { sale: CustomerSale }) {
-  const hasBreakdown = sale.discountTotalSatang > 0 || sale.taxTotalSatang > 0;
   return (
     <div
       style={{
@@ -32,29 +33,16 @@ function BillCard({ sale }: { sale: CustomerSale }) {
         padding: "14px 16px",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 12,
-          marginBottom: 10,
-        }}
-      >
-        <div>
-          <div style={tableText.body2}>
-            {new Date(sale.createdAt).toLocaleDateString("th-TH")} ·{" "}
-            {new Date(sale.createdAt).toLocaleTimeString("th-TH", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-          <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
-            {sale.saleNumber ?? "—"}
-          </div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={tableText.body2}>
+          {new Date(sale.createdAt).toLocaleDateString("th-TH")} ·{" "}
+          {new Date(sale.createdAt).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
         </div>
-        <div style={{ ...tableText.body1, fontWeight: 700 }}>
-          {formatBaht(sale.grandTotalSatang)}
+        <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
+          {sale.saleNumber ?? "—"}
         </div>
       </div>
 
@@ -71,40 +59,52 @@ function BillCard({ sale }: { sale: CustomerSale }) {
           <span className="muted">No items.</span>
         ) : (
           sale.lines.map((l, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <div key={i} style={billRow}>
               <span>
                 {l.description || (l.lineType === "service" ? "Service" : "Item")}
                 {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
               </span>
-              <span style={{ fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" }}>
-                {formatBaht(lineTotal(l))}
-              </span>
+              <span style={mono}>{formatBaht(lineTotal(l))}</span>
             </div>
           ))
         )}
       </div>
 
-      {hasBreakdown && (
-        <div
-          style={{
-            marginTop: 8,
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-            alignItems: "flex-end",
-          }}
-        >
-          <div style={tableText.subtitle}>Subtotal {formatBaht(sale.subtotalSatang)}</div>
-          {sale.discountTotalSatang > 0 && (
-            <div style={tableText.subtitle}>Discount −{formatBaht(sale.discountTotalSatang)}</div>
-          )}
-          {sale.taxTotalSatang > 0 && (
-            <div style={tableText.subtitle}>VAT {formatBaht(sale.taxTotalSatang)}</div>
-          )}
+      <div
+        style={{
+          borderTop: "1px solid var(--border)",
+          marginTop: 10,
+          paddingTop: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {sale.discountTotalSatang > 0 && (
+          <>
+            <div style={{ ...billRow, ...tableText.subtitle }}>
+              <span>Subtotal</span>
+              <span style={mono}>{formatBaht(sale.subtotalSatang)}</span>
+            </div>
+            <div style={{ ...billRow, ...tableText.subtitle }}>
+              <span>Discount</span>
+              <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
+            </div>
+          </>
+        )}
+        <div style={{ ...billRow, fontWeight: 500 }}>
+          <span>Total</span>
+          <span style={mono}>{formatBaht(sale.grandTotalSatang)}</span>
         </div>
-      )}
-
-      {sale.notes && <div style={{ marginTop: 8, ...tableText.subtitle }}>Note — {sale.notes}</div>}
+        {sale.taxTotalSatang > 0 && (
+          <div style={{ ...tableText.subtitle, textAlign: "right" }}>
+            incl. VAT {formatBaht(sale.taxTotalSatang)}
+          </div>
+        )}
+        {sale.notes && (
+          <div style={{ ...tableText.subtitle, marginTop: 4 }}>Note — {sale.notes}</div>
+        )}
+      </div>
 
       <div style={{ marginTop: 12 }}>
         <a className="btn-soft" href={`/pos?reprint=${encodeURIComponent(sale.id)}`}>
