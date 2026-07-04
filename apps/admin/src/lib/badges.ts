@@ -1,7 +1,7 @@
 // Maps sale/order/payment statuses to the themed `.pill` variants in globals.css, plus a couple
 // of label helpers. Pure + unit-tested so the tables can render consistent, dark-mode-aware badges.
 
-export type PillClass = "good" | "warn" | "bad" | "off" | "soft";
+export type PillClass = "good" | "warn" | "bad" | "off" | "soft" | "info";
 
 /** A completed sale is good; a refunded one is muted; anything mid-flight is amber. */
 export function saleStatusPill(status: string): PillClass {
@@ -39,6 +39,17 @@ export function orderStatusPill(status: string | null): PillClass {
   }
 }
 
+/** The car model without its trailing model year — "Toyota Vios 2014" → "Toyota Vios". */
+export function stripCarYear(vehicle?: string | null): string {
+  return (vehicle ?? "").replace(/\s+(?:19|20)\d{2}$/, "").trim();
+}
+
+/** The trailing model year on its own — "Toyota Vios 2014" → "2014"; empty when there is none. */
+export function carYearOf(vehicle?: string | null): string {
+  const m = /\s+((?:19|20)\d{2})$/.exec(vehicle ?? "");
+  return m ? m[1] : "";
+}
+
 /** "Toyota Vios 2014 · 1กก 1234" — drops whichever part is missing; empty when neither is set. */
 export function vehicleLabel(vehicle?: string | null, plate?: string | null): string {
   const v = vehicle?.trim();
@@ -49,7 +60,38 @@ export function vehicleLabel(vehicle?: string | null, plate?: string | null): st
 
 /** A parts/repair chip for on-site sales; null when the sale type is unknown. */
 export function saleTypeBadge(type: string | null): { pill: PillClass; label: string } | null {
-  if (type === "repair") return { pill: "soft", label: "🔧 Repair" };
-  if (type === "parts") return { pill: "off", label: "📦 Parts" };
+  if (type === "repair") return { pill: "soft", label: "🔧 Service" };
+  if (type === "parts") return { pill: "off", label: "📦 Products" };
   return null;
+}
+
+/**
+ * Map a (verbose, Thai) Shopee order status to a short label + themed colour:
+ * Complete=green · Shipped=blue · Shipping=yellow · Cancelled=gray · Refund=red.
+ * Order matters — "buyer received" text also mentions refund eligibility, so it's checked first.
+ */
+export function shopeeStatusBadge(raw: string | null): { pill: PillClass; label: string } {
+  const s = raw ?? "";
+  // "buyer received" text contains refund-eligibility wording, and "refund success" contains
+  // "สำเร็จ" — so check those before the plain สำเร็จ / status keywords.
+  if (s.includes("ผู้ซื้อได้รับสินค้า")) return { pill: "info", label: "Shipped" };
+  if (s.includes("คืนเงิน") || s.includes("คืนสินค้า")) return { pill: "bad", label: "Refund" };
+  if (s.includes("ยกเลิก")) return { pill: "off", label: "Cancelled" };
+  if (s.includes("สำเร็จ")) return { pill: "good", label: "Complete" };
+  if (s.includes("จัดส่ง") || s.includes("รอ")) return { pill: "warn", label: "Shipping" };
+  return { pill: "off", label: s || "—" };
+}
+
+/**
+ * Map an AirPlus order status to a short label + colour. NOTE the colours differ from Shopee:
+ * Done=green · Shipping=yellow · Refund=gray · Cancelled=red.
+ */
+export function airplusStatusBadge(raw: string | null): { pill: PillClass; label: string } {
+  const s = (raw ?? "").toLowerCase();
+  if (s.includes("cancel") || s.includes("ยกเลิก")) return { pill: "bad", label: "Cancelled" };
+  if (s.includes("refund") || s.includes("คืน")) return { pill: "off", label: "Refund" };
+  if (s.includes("shipping") || s.includes("จัดส่ง")) return { pill: "warn", label: "Shipping" };
+  if (s.includes("done") || s.includes("arrived") || s.includes("สำเร็จ"))
+    return { pill: "good", label: "Done" };
+  return { pill: "off", label: s || "—" };
 }

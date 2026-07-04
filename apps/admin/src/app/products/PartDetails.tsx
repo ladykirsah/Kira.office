@@ -15,33 +15,33 @@ export interface PartForm {
 const field: CSSProperties = { display: "grid", gap: 4 };
 const names = (opts: { name: string }[] | undefined) => (opts ?? []).map((o) => o.name);
 
-/** Part taxonomy dropdowns + identifiers (Product ID, barcode, Shopee ID) for the part. */
+/** Part taxonomy dropdowns + identifiers (Product ID, Shopee ID) for the part. The barcode is the
+ *  Product ID — there is no separate barcode field; it's previewed beside the Product ID input. */
 export function PartDetails({
   value,
   onChange,
   attributes,
-  barcode,
-  onBarcodeChange,
   productRef,
   onProductRefChange,
   shopeeItemId,
   onShopeeItemIdChange,
+  shopeeActive,
+  onShopeeActiveChange,
   refWarning,
-  barcodeWarning,
   shopeeWarning,
 }: {
   value: PartForm;
   onChange: (patch: Partial<PartForm>) => void;
   attributes: Attributes | null;
-  barcode: string;
-  onBarcodeChange: (v: string) => void;
   productRef: string;
   onProductRefChange: (v: string) => void;
   shopeeItemId: string;
   onShopeeItemIdChange: (v: string) => void;
+  /** "Active on Shopee" (= live/listed on Shopee). Rendered only when a handler is supplied. */
+  shopeeActive?: boolean;
+  onShopeeActiveChange?: (v: boolean) => void;
   /** Optional "already used by …" warnings shown under the matching identifier field. */
   refWarning?: string | null;
-  barcodeWarning?: string | null;
   shopeeWarning?: string | null;
 }) {
   const warn = (msg: string | null | undefined) =>
@@ -104,17 +104,9 @@ export function PartDetails({
         Category: {composed || "—"} · pick from the list or type a new value to add it.
       </small>
 
-      <label style={field}>
-        Product ID
-        <input
-          value={productRef}
-          onChange={(e) => onProductRefChange(e.target.value)}
-          placeholder="catalog / part no. (comes with the product)"
-          style={inputL}
-        />
-        {warn(refWarning)}
-      </label>
-
+      {/* The Product ID is the single identifier — type it, or scan the part's barcode (which encodes
+          it). The barcode is created from this value and previewed beside it; there is no separate
+          barcode field. */}
       <div
         style={{
           display: "grid",
@@ -124,17 +116,23 @@ export function PartDetails({
         }}
       >
         <label style={field}>
-          Barcode
+          Product ID
           <input
-            value={barcode}
-            onChange={(e) => onBarcodeChange(e.target.value)}
-            placeholder="scan / type"
+            value={productRef}
+            onChange={(e) => onProductRefChange(e.target.value)}
+            onKeyDown={(e) => {
+              // A USB scanner ends a scan with Enter — don't let that submit the form.
+              if (e.key === "Enter") e.preventDefault();
+            }}
+            placeholder="type or scan the part no."
             style={inputL}
           />
-          {warn(barcodeWarning)}
+          {warn(refWarning)}
+          <small className="muted" style={{ fontSize: 12 }}>
+            Type it, or scan the part’s barcode — the barcode is created from this.
+          </small>
         </label>
-        {/* A barcode already used by another product can't be reused — hide its preview. */}
-        {barcodeWarning ? null : <BarcodePreview value={barcode} />}
+        {productRef.trim() ? <BarcodePreview value={productRef.trim()} /> : null}
       </div>
 
       <label style={field}>
@@ -147,6 +145,25 @@ export function PartDetails({
         />
         {warn(shopeeWarning)}
       </label>
+
+      {/* "Active on Shopee" lives with the Shopee ID: it means the product is live/listed on Shopee.
+          Turning it on also makes the product active on-site; off leaves the on-site status as-is. */}
+      {onShopeeActiveChange ? (
+        <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={!!shopeeActive}
+              onChange={(e) => onShopeeActiveChange(e.target.checked)}
+            />
+            <span className="slider" />
+          </span>
+          <span>Active on Shopee</span>
+          <small className="muted" style={{ fontSize: 12 }}>
+            — product is live on Shopee
+          </small>
+        </label>
+      ) : null}
     </div>
   );
 }

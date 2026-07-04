@@ -7,6 +7,7 @@ import {
   mapRows,
   dedupeOrders,
   orderKey,
+  resolveProductBarcode,
   type RowError,
   type SaleLineInput,
 } from "@l-shopee/core";
@@ -43,6 +44,7 @@ interface SyncLine {
 
 interface SyncSale {
   clientUuid: string;
+  saleNumber?: string;
   paymentMethod?: string;
   saleType?: "parts" | "repair";
   licensePlate?: string;
@@ -253,6 +255,31 @@ export function lineGrossProfitSatang(line: SyncLine): number {
   const revenueExTax = gross - (line.discountSatang ?? 0) - (line.taxSatang ?? 0);
   const cost = (line.unitCostSatang ?? 0) * line.quantity;
   return revenueExTax - cost;
+}
+
+export interface DraftTotals {
+  subtotalSatang: number;
+  discountTotalSatang: number;
+  taxTotalSatang: number;
+  grandTotalSatang: number;
+}
+
+/** Draft/quotation header totals from its lines. Mirrors the sale path: grand = subtotal − discount. */
+export function draftHeaderTotals(lines: SyncLine[]): DraftTotals {
+  let subtotal = 0;
+  let discount = 0;
+  let tax = 0;
+  for (const l of lines) {
+    subtotal += l.unitPriceSatang * l.quantity;
+    discount += l.discountSatang ?? 0;
+    tax += l.taxSatang ?? 0;
+  }
+  return {
+    subtotalSatang: subtotal,
+    discountTotalSatang: discount,
+    taxTotalSatang: tax,
+    grandTotalSatang: subtotal - discount,
+  };
 }
 
 /** True when the line deducts stock (a part), not a labour/service line. */
@@ -493,12 +520,13 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       db
         .prepare(
           `INSERT OR IGNORE INTO onsite_sales
-           (id, client_uuid, payment_method, sale_type, license_plate, vehicle, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, vehicle, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           saleId,
           sale.clientUuid,
+          sale.saleNumber?.trim() || null,
           sale.paymentMethod ?? null,
           sale.saleType ?? "parts",
           sale.licensePlate?.trim() || null,
@@ -543,7 +571,7 @@ export class StockLedger extends DurableObject<Env> {
 export interface ImportResult {
   /** Data rows seen (excludes the header). */
   received: number;
-  /** Rows that mapped to a valid product (re-import is idempotent on product_code). */
+  /** Rows that mapped to a valid product (re-import is idempotent on the Product ID). */
   valid: number;
   /** Rows skipped for a missing required field. */
   invalid: number;
@@ -552,8 +580,9 @@ export interface ImportResult {
 
 /**
  * Import products from a CSV (e.g. a Google Sheet export). `mapping` maps fields to header columns;
- * `product_code` + `name` are required. Idempotent: INSERT OR IGNORE on the unique product_code, so
- * re-importing the same file does not create duplicates. Variants/barcodes/pricing follow later.
+ * `product_ref` (Product ID) + `name` are required. Idempotent: INSERT OR IGNORE on the unique
+ * product_ref, so re-importing the same file does not create duplicates. Variants/barcodes/pricing
+ * follow later.
  */
 export async function importProducts(
   db: D1Database,
@@ -561,17 +590,17 @@ export async function importProducts(
   mapping: Record<string, string>,
 ): Promise<ImportResult> {
   const rows = parseCsv(csv);
-  const { records, errors } = mapRows(rows, mapping, ["product_code", "name"]);
+  const { records, errors } = mapRows(rows, mapping, ["product_ref", "name"]);
   const now = Date.now();
   const statements = records.map((r) =>
     db
       .prepare(
-        `INSERT OR IGNORE INTO products (id, product_code, name, description, status, created_at)
+        `INSERT OR IGNORE INTO products (id, product_ref, name, description, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         crypto.randomUUID(),
-        r["product_code"] ?? "",
+        r["product_ref"] ?? "",
         r["name"] ?? "",
         r["description"] ?? null,
         "active",
@@ -596,11 +625,35 @@ export interface OrderImportResult {
   errors: RowError[];
 }
 
+/** Parse a money string ("1,234.50", "฿890") to integer satang; 0 if blank/unparseable. */
+export function parseMoneyToSatang(s: string | undefined): number {
+  if (!s) return 0;
+  const n = Number(s.replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+/** Parse an order-date string to epoch ms (Date.parse-tolerant); null if blank/unparseable. */
+export function parseOrderDateMs(s: string | undefined): number | null {
+  if (!s) return null;
+  const t = Date.parse(s.trim());
+  return Number.isFinite(t) ? t : null;
+}
+
+/** Parse a fee-rate string like "3.21%" to basis points (321); 0 if blank/unparseable. */
+export function parseFeePct(s: string | undefined): number {
+  if (!s) return 0;
+  const n = Number(String(s).replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
 /**
  * Import Shopee orders from a Seller Centre CSV export (the bridge before the live v2 API). Required
- * field: `external_order_id`. Deduped by (channel, external_order_id) via core.dedupeOrders + an
- * INSERT OR IGNORE on the unique index, so re-importing the same export never creates duplicates.
- * Records order headers/status; full order lines + profit come from the API phase.
+ * field: `external_order_id`; optional: order_status, payment_status, order_total, order_fee,
+ * order_date, plus the enriched order-level columns buyer_username, sales_total (→ Sales; Total is
+ * then computed as Sales − fees = the seller's net payout), fee_pct (→ basis points) and ship_date
+ * (only captured when the CSV actually has that column). Deduped by (channel,
+ * external_order_id) via core.dedupeOrders + an INSERT OR IGNORE on the unique index, so re-importing
+ * the same export never creates duplicates.
  */
 export async function importShopeeOrders(
   db: D1Database,
@@ -608,13 +661,34 @@ export async function importShopeeOrders(
   mapping: Record<string, string>,
 ): Promise<OrderImportResult> {
   const rows = parseCsv(csv);
-  const { records, errors } = mapRows(rows, mapping, ["external_order_id"]);
-  const incoming = records.map((r) => ({
-    channel: "shopee" as const,
-    externalOrderId: r["external_order_id"] ?? "",
-    orderStatus: r["order_status"] ?? null,
-    paymentStatus: r["payment_status"] ?? null,
-  }));
+  // Optional columns (totals/date/fees) are only mapped when the CSV actually has them, so a minimal
+  // export (ids + statuses) still imports without mapRows throwing on a missing column.
+  const header = rows[0] ?? [];
+  const effectiveMapping: Record<string, string> = {};
+  for (const [field, col] of Object.entries(mapping)) {
+    if (field === "external_order_id" || header.includes(col)) effectiveMapping[field] = col;
+  }
+  const { records, errors } = mapRows(rows, effectiveMapping, ["external_order_id"]);
+  const incoming = records.map((r) => {
+    const feeTotalSatang = parseMoneyToSatang(r["order_fee"]);
+    // Sales = what the buyer paid for the product; null when the column isn't mapped.
+    const salesSatang = r["sales_total"] != null ? parseMoneyToSatang(r["sales_total"]) : null;
+    return {
+      channel: "shopee" as const,
+      externalOrderId: r["external_order_id"] ?? "",
+      orderStatus: r["order_status"] ?? null,
+      paymentStatus: r["payment_status"] ?? null,
+      // Total = seller net payout = Sales − fees when Sales is present; else the mapped order_total.
+      grandTotalSatang:
+        salesSatang != null ? salesSatang - feeTotalSatang : parseMoneyToSatang(r["order_total"]),
+      feeTotalSatang,
+      orderCreatedAt: parseOrderDateMs(r["order_date"]),
+      buyerUsername: r["buyer_username"] ?? null,
+      salesSatang,
+      feeBp: r["fee_pct"] != null ? parseFeePct(r["fee_pct"]) : null,
+      shipTimeMs: parseOrderDateMs(r["ship_date"]),
+    };
+  });
 
   let existingKeys: string[] = [];
   const ids = incoming.map((o) => o.externalOrderId);
@@ -636,8 +710,8 @@ export async function importShopeeOrders(
     db
       .prepare(
         `INSERT OR IGNORE INTO sales_orders
-         (id, channel, external_order_id, order_status, payment_status, imported_at, import_source)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (id, channel, external_order_id, order_status, payment_status, grand_total_satang, fee_total_satang, order_created_at, imported_at, import_source, buyer_username, sales_satang, fee_bp, ship_time_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         crypto.randomUUID(),
@@ -645,8 +719,15 @@ export async function importShopeeOrders(
         o.externalOrderId,
         o.orderStatus,
         o.paymentStatus,
+        o.grandTotalSatang,
+        o.feeTotalSatang,
+        o.orderCreatedAt,
         now,
         "csv",
+        o.buyerUsername,
+        o.salesSatang,
+        o.feeBp,
+        o.shipTimeMs,
       ),
   );
   if (statements.length > 0) await db.batch(statements);
@@ -660,7 +741,8 @@ export async function importShopeeOrders(
 }
 
 export interface CreateProductInput {
-  productCode: string;
+  /** The Product ID (manufacturer/catalog part no.) — the sole product identifier and barcode source. */
+  productRef: string;
   name: string;
   description?: string;
   barcode?: string;
@@ -674,21 +756,21 @@ export interface CreateProductResult {
 }
 
 /**
- * Create a product + a default variant (sku = product_code) and, if a barcode is given, a primary
+ * Create a product + a default variant (sku = Product ID) and, if a barcode is given, a primary
  * barcode — in one D1 batch. Idempotent: returns the existing product (created=false) if the
- * product_code is already used, so no orphan variants are produced. Throws on missing code/name.
+ * Product ID is already used, so no orphan variants are produced. Throws on missing Product ID/name.
  */
 export async function createProduct(
   db: D1Database,
   input: CreateProductInput,
 ): Promise<CreateProductResult> {
-  const code = input.productCode.trim();
+  const ref = input.productRef.trim();
   const name = input.name.trim();
-  if (!code || !name) throw new Error("productCode and name are required");
+  if (!ref || !name) throw new Error("productRef and name are required");
 
   const existing = await db
-    .prepare("SELECT id FROM products WHERE product_code = ?")
-    .bind(code)
+    .prepare("SELECT id FROM products WHERE product_ref = ?")
+    .bind(ref)
     .first<{ id: string }>();
   if (existing) return { productId: existing.id, variantId: null, created: false };
 
@@ -699,14 +781,14 @@ export async function createProduct(
   const statements = [
     db
       .prepare(
-        `INSERT INTO products (id, product_code, name, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO products (id, product_ref, name, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(productId, code, name, input.description?.trim() || null, "active", now),
+      .bind(productId, ref, name, input.description?.trim() || null, "active", now),
     db
       .prepare(
         `INSERT INTO product_variants (id, product_id, sku, barcode_primary, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(variantId, productId, code, barcode || null, "active", now),
+      .bind(variantId, productId, ref, barcode || null, "active", now),
   ];
   if (barcode) {
     statements.push(
@@ -739,29 +821,6 @@ export interface GalleryImage {
   imageKey: string;
   url: string;
   isCover: boolean;
-}
-
-/**
- * Store a product image in the R2 images bucket and record its key on the product. Validates the
- * content type (jpeg/png/webp) and size (≤5MB). The bytes are served back via GET /img/:key.
- */
-export async function storeProductImage(
-  db: D1Database,
-  bucket: R2Bucket,
-  productId: string,
-  bytes: ArrayBuffer,
-  contentType: string | null,
-): Promise<UploadImageResult> {
-  if (!contentType || !ALLOWED_IMAGE_TYPES[contentType]) {
-    throw new Error("unsupported image type (use jpeg, png or webp)");
-  }
-  if (bytes.byteLength === 0) throw new Error("empty image");
-  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error("image too large (max 5MB)");
-
-  const key = `products/${productId}/${crypto.randomUUID()}.${ALLOWED_IMAGE_TYPES[contentType]}`;
-  await bucket.put(key, bytes, { httpMetadata: { contentType } });
-  await db.prepare("UPDATE products SET image_key = ? WHERE id = ?").bind(key, productId).run();
-  return { key, url: `/img/${key}` };
 }
 
 function validateImage(bytes: ArrayBuffer, contentType: string | null): string {
@@ -982,7 +1041,7 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
         .bind(
           crypto.randomUUID(),
           line.productVariantId,
-          "refund",
+          "refund_return",
           line.quantity,
           after,
           "refund",
@@ -1014,7 +1073,7 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
 /** On-hand stock per variant (ledger sum) with product info, for the stock screen. */
 async function listStock(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_code AS productCode,
+    `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_ref AS productRef,
             COALESCE(SUM(e.quantity_delta), 0) AS onHand
      FROM product_variants v
      JOIN products p ON p.id = v.product_id
@@ -1024,6 +1083,21 @@ async function listStock(env: Env): Promise<Response> {
      LIMIT 200`,
   ).all();
   return json({ stock: results });
+}
+
+/** Recent stock-ledger movements (newest first) with product/variant labels, for the stock screen. */
+async function listStockMovements(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT e.id, e.product_variant_id AS variantId, v.sku, p.name AS productName,
+            e.movement_type AS movementType, e.quantity_delta AS quantityDelta,
+            e.quantity_after AS quantityAfter, e.created_at AS createdAt
+     FROM stock_ledger_entries e
+     JOIN product_variants v ON v.id = e.product_variant_id
+     JOIN products p ON p.id = v.product_id
+     ORDER BY e.created_at DESC
+     LIMIT 100`,
+  ).all();
+  return json({ movements: results });
 }
 
 const DEFAULT_TERMS_TEMPLATE = [
@@ -1042,7 +1116,7 @@ async function getTerms(env: Env): Promise<Response> {
 /** Products with the default variant's price (offline + online), on-hand stock, and Shopee status. */
 async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    `SELECT p.id, p.product_code AS productCode, p.name, p.status, p.image_key AS imageKey,
+    `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
             v.id AS variantId,
             b.name AS brandName,
@@ -1085,6 +1159,7 @@ export interface SaleExportRow {
 }
 
 const SALES_SELECT = `SELECT s.id,
+        s.sale_number AS saleNumber,
         s.payment_method AS paymentMethod,
         s.grand_total_satang AS grandTotalSatang,
         s.tax_total_satang AS taxTotalSatang,
@@ -1098,16 +1173,17 @@ const SALES_SELECT = `SELECT s.id,
           0
         ) AS grossProfitSatang
  FROM onsite_sales s
+ WHERE s.stage = 'bill'
  ORDER BY s.created_at DESC
  LIMIT 100`;
 
 /** Finance summary: on-site sales revenue/VAT/profit + refund totals (all-time). */
 async function financeSummary(env: Env): Promise<Response> {
   const sales = await env.DB.prepare(
-    "SELECT COUNT(*) AS salesCount, COALESCE(SUM(grand_total_satang),0) AS revenueSatang, COALESCE(SUM(tax_total_satang),0) AS vatSatang FROM onsite_sales WHERE sale_status = 'completed'",
+    "SELECT COUNT(*) AS salesCount, COALESCE(SUM(grand_total_satang),0) AS revenueSatang, COALESCE(SUM(tax_total_satang),0) AS vatSatang FROM onsite_sales WHERE sale_status = 'completed' AND stage = 'bill'",
   ).first<{ salesCount: number; revenueSatang: number; vatSatang: number }>();
   const profit = await env.DB.prepare(
-    "SELECT COALESCE(SUM(l.gross_profit_satang),0) AS grossProfitSatang FROM onsite_sale_lines l JOIN onsite_sales s ON s.id = l.onsite_sale_id WHERE s.sale_status = 'completed'",
+    "SELECT COALESCE(SUM(l.gross_profit_satang),0) AS grossProfitSatang FROM onsite_sale_lines l JOIN onsite_sales s ON s.id = l.onsite_sale_id WHERE s.sale_status = 'completed' AND s.stage = 'bill'",
   ).first<{ grossProfitSatang: number }>();
   const refunds = await env.DB.prepare(
     "SELECT COUNT(*) AS refundCount, COALESCE(SUM(-amount_satang),0) AS refundedSatang FROM financial_records WHERE record_type = 'refund'",
@@ -1155,7 +1231,11 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
 async function listOrders(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
-            payment_status AS paymentStatus, imported_at AS importedAt
+            payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
+            fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+            imported_at AS importedAt, buyer_username AS buyerUsername,
+            sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
+            carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
      FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });
@@ -1169,6 +1249,304 @@ async function querySales(db: D1Database): Promise<SaleExportRow[]> {
 
 async function listSales(env: Env): Promise<Response> {
   return json({ sales: await querySales(env.DB) });
+}
+
+// ── On-site drafts & quotations ────────────────────────────────────────────────────────────────
+// A draft/quotation is a work-in-progress cart stored server-side so any POS device can reopen it.
+// It is a NO-MONEY document: no stock check, no ledger, no financial record. Stock and revenue only
+// move when it is finalized to a bill via the normal checkout (/sync) path. See @l-shopee/core
+// onsiteDoc for the stage rules.
+export interface DraftInput {
+  draftId: string;
+  clientUuid?: string;
+  stage: "draft" | "quotation";
+  saleNumber?: string | null; // QT… for a quotation (client-minted); null for a bare draft
+  saleType?: "parts" | "repair";
+  licensePlate?: string | null;
+  vehicle?: string | null;
+  notes?: string | null;
+  lines: SyncLine[];
+}
+
+export type SaveDraftResult =
+  | { ok: true; draftId: string; totals: DraftTotals }
+  | { ok: false; error: string };
+
+/** Persist a draft/quotation and REPLACE its lines. No stock, no ledger — pure cart storage. */
+export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<SaveDraftResult> {
+  if (draft.stage !== "draft" && draft.stage !== "quotation") {
+    return { ok: false, error: "stage must be 'draft' or 'quotation'" };
+  }
+  for (const line of draft.lines) {
+    const reason = validateSyncLine(line);
+    if (reason) return { ok: false, error: reason };
+  }
+  const totals = draftHeaderTotals(draft.lines);
+  const id = draft.draftId;
+  const now = Date.now();
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO onsite_sales
+           (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, sync_status,
+            subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang,
+            sale_status, stage, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, 'open', ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           sale_number = excluded.sale_number,
+           sale_type = excluded.sale_type,
+           license_plate = excluded.license_plate,
+           vehicle = excluded.vehicle,
+           notes = excluded.notes,
+           subtotal_satang = excluded.subtotal_satang,
+           discount_total_satang = excluded.discount_total_satang,
+           tax_total_satang = excluded.tax_total_satang,
+           grand_total_satang = excluded.grand_total_satang,
+           stage = excluded.stage`,
+      )
+      .bind(
+        id,
+        draft.clientUuid ?? id,
+        draft.saleNumber?.trim() || null,
+        draft.saleType ?? "parts",
+        draft.licensePlate?.trim() || null,
+        draft.vehicle?.trim() || null,
+        draft.notes?.trim() || null,
+        totals.subtotalSatang,
+        totals.discountTotalSatang,
+        totals.taxTotalSatang,
+        totals.grandTotalSatang,
+        draft.stage,
+        now,
+      ),
+    db.prepare(`DELETE FROM onsite_sale_lines WHERE onsite_sale_id = ?`).bind(id),
+    ...draft.lines.map((l) =>
+      db
+        .prepare(
+          `INSERT INTO onsite_sale_lines
+             (id, onsite_sale_id, product_variant_id, line_type, description, barcode_value, quantity,
+              unit_price_satang, discount_satang, tax_satang, unit_cost_satang, gross_profit_satang)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          id,
+          l.productVariantId ?? null,
+          isPartLine(l) ? "part" : "service",
+          l.description ?? null,
+          l.barcodeValue ?? null,
+          l.quantity,
+          l.unitPriceSatang,
+          l.discountSatang ?? 0,
+          l.taxSatang ?? 0,
+          l.unitCostSatang ?? 0,
+          lineGrossProfitSatang(l),
+        ),
+    ),
+  ];
+  await db.batch(statements);
+  return { ok: true, draftId: id, totals };
+}
+
+/** Open drafts + quotations (newest first) with their lines, so a POS device can reopen them. */
+export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
+  const heads = await db
+    .prepare(
+      `SELECT id, client_uuid AS clientUuid, sale_number AS saleNumber, sale_type AS saleType,
+              license_plate AS licensePlate, vehicle, notes, stage,
+              grand_total_satang AS grandTotalSatang, created_at AS createdAt
+       FROM onsite_sales WHERE stage IN ('draft', 'quotation')
+       ORDER BY created_at DESC LIMIT 100`,
+    )
+    .all<{ id: string }>();
+  const rows = heads.results ?? [];
+  const ids = rows.map((r) => r.id);
+  const byDraft = new Map<string, unknown[]>();
+  if (ids.length > 0) {
+    const lines = await db
+      .prepare(
+        `SELECT onsite_sale_id AS onsiteSaleId, product_variant_id AS productVariantId,
+                line_type AS lineType, description, barcode_value AS barcodeValue, quantity,
+                unit_price_satang AS unitPriceSatang, discount_satang AS discountSatang,
+                tax_satang AS taxSatang, unit_cost_satang AS unitCostSatang
+         FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
+      )
+      .bind(...ids)
+      .all<{ onsiteSaleId: string }>();
+    for (const l of lines.results ?? []) {
+      const list = byDraft.get(l.onsiteSaleId) ?? [];
+      list.push(l);
+      byDraft.set(l.onsiteSaleId, list);
+    }
+  }
+  return rows.map((r) => ({ ...r, lines: byDraft.get(r.id) ?? [] }));
+}
+
+/** Delete a draft/quotation and its lines. The stage guard makes it impossible to delete a bill. */
+export async function deleteDraftFromDb(db: D1Database, id: string): Promise<{ ok: true }> {
+  await db.batch([
+    db.prepare(`DELETE FROM onsite_sale_lines WHERE onsite_sale_id = ?`).bind(id),
+    db
+      .prepare(`DELETE FROM onsite_sales WHERE id = ? AND stage IN ('draft', 'quotation')`)
+      .bind(id),
+  ]);
+  return { ok: true };
+}
+
+/** One on-site sale (bill/quotation/draft) with its lines — the data source for reprint. */
+export async function getOnsiteSale(db: D1Database, id: string): Promise<unknown | null> {
+  const header = await db
+    .prepare(
+      `SELECT id, sale_number AS saleNumber, sale_type AS saleType, license_plate AS licensePlate,
+              vehicle, notes, payment_method AS paymentMethod, stage, sale_status AS saleStatus,
+              subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
+              tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
+              created_at AS createdAt
+       FROM onsite_sales WHERE id = ?`,
+    )
+    .bind(id)
+    .first();
+  if (!header) return null;
+  const lines = await db
+    .prepare(
+      `SELECT product_variant_id AS productVariantId, line_type AS lineType, description,
+              barcode_value AS barcodeValue, quantity, unit_price_satang AS unitPriceSatang,
+              discount_satang AS discountSatang, tax_satang AS taxSatang,
+              unit_cost_satang AS unitCostSatang
+       FROM onsite_sale_lines WHERE onsite_sale_id = ?`,
+    )
+    .bind(id)
+    .all();
+  return { ...header, lines: lines.results ?? [] };
+}
+
+// ── Customers (directory keyed by car plate) ────────────────────────────────────────────────────
+/** Canonical plate key: trimmed, internal whitespace collapsed to a single space. */
+export function normalizePlate(plate: string): string {
+  return plate.trim().replace(/\s+/g, " ");
+}
+
+export interface CustomerUpsert {
+  licensePlate: string;
+  plateProvince?: string | null;
+  customerName?: string | null;
+  phone?: string | null;
+  carModel?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * Upsert a customer/car by plate. Auto-created from plated sales; the owner fills name/phone later.
+ * Provided fields overwrite; omitted (null) fields are LEFT ALONE (never blanks an existing name/phone).
+ */
+export async function upsertCustomerByPlate(
+  db: D1Database,
+  input: CustomerUpsert,
+): Promise<{ ok: true; licensePlate: string } | { ok: false; error: string }> {
+  const plate = normalizePlate(input.licensePlate ?? "");
+  if (!plate) return { ok: false, error: "license plate is required" };
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO customers
+         (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(license_plate) DO UPDATE SET
+         plate_province = COALESCE(excluded.plate_province, customers.plate_province),
+         customer_name = COALESCE(excluded.customer_name, customers.customer_name),
+         phone = COALESCE(excluded.phone, customers.phone),
+         car_model = COALESCE(excluded.car_model, customers.car_model),
+         notes = COALESCE(excluded.notes, customers.notes),
+         updated_at = excluded.updated_at`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      plate,
+      input.plateProvince ?? null,
+      input.customerName ?? null,
+      input.phone ?? null,
+      input.carModel ?? null,
+      input.notes ?? null,
+      now,
+      now,
+    )
+    .run();
+  return { ok: true, licensePlate: plate };
+}
+
+/**
+ * The customer/car list — derived from bills (so a car appears as soon as it has one), LEFT JOINed
+ * to the directory for the editable name/phone. `q` matches plate, phone, or name (empty = all).
+ */
+export async function searchCustomers(db: D1Database, q: string): Promise<unknown[]> {
+  const term = `%${q.trim()}%`;
+  const rows = await db
+    .prepare(
+      `SELECT s.license_plate AS licensePlate,
+              MAX(s.vehicle) AS vehicle,
+              c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
+              COUNT(*) AS billCount, MAX(s.created_at) AS lastVisitAt
+       FROM onsite_sales s
+       LEFT JOIN customers c ON c.license_plate = s.license_plate
+       WHERE s.stage = 'bill' AND s.license_plate IS NOT NULL AND s.license_plate <> ''
+         AND (? = '' OR s.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
+              OR s.vehicle LIKE ? OR c.car_model LIKE ?)
+       GROUP BY s.license_plate
+       ORDER BY lastVisitAt DESC
+       LIMIT 100`,
+    )
+    .bind(q.trim(), term, term, term, term, term)
+    .all();
+  return rows.results ?? [];
+}
+
+/** One car: directory info + its bill history and open quotations (each with lines), for the page. */
+export async function getCustomerDetail(db: D1Database, plate: string): Promise<unknown> {
+  const customer = await db
+    .prepare(
+      `SELECT license_plate AS licensePlate, plate_province AS plateProvince,
+              customer_name AS customerName, phone, car_model AS carModel, notes
+       FROM customers WHERE license_plate = ?`,
+    )
+    .bind(normalizePlate(plate))
+    .first();
+  const salesRows = await db
+    .prepare(
+      `SELECT id, sale_number AS saleNumber, stage, created_at AS createdAt,
+              subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
+              tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
+              notes, vehicle
+       FROM onsite_sales
+       WHERE license_plate = ? AND stage IN ('bill', 'quotation')
+       ORDER BY created_at DESC LIMIT 200`,
+    )
+    .bind(plate)
+    .all<{ id: string; stage: string; vehicle: string | null }>();
+  const sales = salesRows.results ?? [];
+  const ids = sales.map((s) => s.id);
+  const byId = new Map<string, unknown[]>();
+  if (ids.length > 0) {
+    const lines = await db
+      .prepare(
+        `SELECT onsite_sale_id AS onsiteSaleId, description, line_type AS lineType,
+                quantity, unit_price_satang AS unitPriceSatang, discount_satang AS discountSatang
+         FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
+      )
+      .bind(...ids)
+      .all<{ onsiteSaleId: string }>();
+    for (const l of lines.results ?? []) {
+      const arr = byId.get(l.onsiteSaleId) ?? [];
+      arr.push(l);
+      byId.set(l.onsiteSaleId, arr);
+    }
+  }
+  const withLines = sales.map((s) => ({ ...s, lines: byId.get(s.id) ?? [] }));
+  return {
+    customer: customer ?? null,
+    vehicle: sales[0]?.vehicle ?? null,
+    history: withLines.filter((s) => s.stage === "bill"),
+    quotations: withLines.filter((s) => s.stage === "quotation"),
+  };
 }
 
 const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
@@ -1194,7 +1572,7 @@ export interface BarcodeLookup {
   barcode: string;
   variantId: string;
   productId: string;
-  productCode: string;
+  productRef: string;
   name: string;
 }
 
@@ -1205,7 +1583,7 @@ export async function lookupBarcode(db: D1Database, code: string): Promise<Barco
       `SELECT b.barcode_value AS barcode,
               v.id AS variantId,
               p.id AS productId,
-              p.product_code AS productCode,
+              p.product_ref AS productRef,
               p.name AS name
        FROM barcodes b
        JOIN product_variants v ON v.id = b.product_variant_id
@@ -1228,21 +1606,18 @@ export function ean13CheckDigit(digits12: string): string {
   return String((10 - (sum % 10)) % 10);
 }
 
-/** Generate an internal EAN-13 barcode (prefix 200 = in-store range) for unlabeled products. */
-export function generateInternalBarcode(): string {
-  let body = "200";
-  const rnd = crypto.getRandomValues(new Uint8Array(9));
-  for (let i = 0; i < 9; i++) body += String(rnd[i]! % 10);
-  return body + ean13CheckDigit(body);
-}
-
 export interface AddBarcodeResult {
   barcodeValue: string;
   generated: boolean;
   variantId: string | null;
 }
 
-/** Add a barcode to a product's default variant (generating an internal one if none provided). */
+/**
+ * Add a barcode to a product's default variant. A provided/scanned manufacturer code is kept as-is;
+ * when none is given the barcode is *derived from the product's Product ID* (the owner's policy — see
+ * @l-shopee/core resolveProductBarcode). A product with neither a code nor a Product ID gets no
+ * barcode (no-op) rather than a random one.
+ */
 export async function addBarcodeToProduct(
   db: D1Database,
   productId: string,
@@ -1256,8 +1631,18 @@ export async function addBarcodeToProduct(
     .first<{ id: string; barcodePrimary: string | null }>();
   if (!variant) return { barcodeValue: "", generated: false, variantId: null };
 
-  const generated = !providedValue?.trim();
-  const barcodeValue = providedValue?.trim() || generateInternalBarcode();
+  const provided = providedValue?.trim() ?? "";
+  const refRow = await db
+    .prepare("SELECT product_ref AS productRef FROM products WHERE id = ? LIMIT 1")
+    .bind(productId)
+    .first<{ productRef: string | null }>();
+  const productRef = refRow?.productRef?.trim() ?? "";
+  // No provided code and no Product ID to derive from → nothing to make.
+  if (!provided && !productRef)
+    return { barcodeValue: "", generated: false, variantId: variant.id };
+
+  const generated = !provided;
+  const barcodeValue = resolveProductBarcode({ productId: productRef, scannedBarcode: provided });
   const now = Date.now();
   const statements = [
     db
@@ -1287,7 +1672,7 @@ export async function addBarcodeToProduct(
 /** Variants with their primary barcode + product info, for the barcode-management screen. */
 async function listBarcodes(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
-    `SELECT v.id AS variantId, p.id AS productId, p.product_code AS productCode,
+    `SELECT v.id AS variantId, p.id AS productId, p.product_ref AS productRef,
             p.name AS productName, v.barcode_primary AS barcode
      FROM product_variants v JOIN products p ON p.id = v.product_id
      ORDER BY p.name LIMIT 500`,
@@ -1312,14 +1697,13 @@ export interface Fitment {
 export interface ProductDetail {
   product: {
     id: string;
-    productCode: string;
     name: string;
     description: string | null;
     status: string;
     imageKey: string | null;
     shopeeListed: number;
     shopeeItemId: string | null;
-    productRef: string | null;
+    productRef: string;
     category: string | null;
     weightGrams: number;
     brandId: string | null;
@@ -1349,8 +1733,8 @@ export interface ProductDetail {
 export async function getProductDetail(db: D1Database, id: string): Promise<ProductDetail | null> {
   const product = await db
     .prepare(
-      `SELECT p.id, p.product_code AS productCode, p.name, p.description, p.status, p.image_key AS imageKey,
-              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId, p.product_ref AS productRef,
+      `SELECT p.id, p.product_ref AS productRef, p.name, p.description, p.status, p.image_key AS imageKey,
+              p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId,
               p.category, p.weight_grams AS weightGrams,
               p.brand_id AS brandId, b.name AS brandName,
               p.type_id AS typeId, t.name AS typeName,
@@ -1524,6 +1908,7 @@ export async function deleteAttribute(db: D1Database, table: string, id: string)
 export interface ServiceRow {
   id: string;
   name: string;
+  nameEn: string;
   basePriceSatang: number;
 }
 
@@ -1531,7 +1916,7 @@ export interface ServiceRow {
 export async function listServices(db: D1Database): Promise<ServiceRow[]> {
   const { results } = await db
     .prepare(
-      "SELECT id, name, base_price_satang AS basePriceSatang FROM services ORDER BY sort_order, name",
+      "SELECT id, name, name_en AS nameEn, base_price_satang AS basePriceSatang FROM services ORDER BY sort_order, name",
     )
     .all<ServiceRow>();
   return results ?? [];
@@ -1541,10 +1926,12 @@ export async function listServices(db: D1Database): Promise<ServiceRow[]> {
 export async function addService(
   db: D1Database,
   name: string,
+  nameEn: string,
   basePriceSatang: number,
 ): Promise<ServiceRow> {
   const n = name.trim();
   if (!n) throw new Error("name is required");
+  const en = nameEn.trim();
   const price = Math.max(0, Math.round(basePriceSatang || 0));
   const existing = await db
     .prepare("SELECT id FROM services WHERE name = ? COLLATE NOCASE")
@@ -1552,30 +1939,35 @@ export async function addService(
     .first<{ id: string }>();
   if (existing) {
     await db
-      .prepare("UPDATE services SET base_price_satang = ? WHERE id = ?")
-      .bind(price, existing.id)
+      .prepare("UPDATE services SET name_en = ?, base_price_satang = ? WHERE id = ?")
+      .bind(en, price, existing.id)
       .run();
-    return { id: existing.id, name: n, basePriceSatang: price };
+    return { id: existing.id, name: n, nameEn: en, basePriceSatang: price };
   }
   const sid = crypto.randomUUID();
   await db
     .prepare(
-      "INSERT INTO services (id, name, base_price_satang, sort_order, created_at) VALUES (?, ?, ?, 0, ?)",
+      "INSERT INTO services (id, name, name_en, base_price_satang, sort_order, created_at) VALUES (?, ?, ?, ?, 0, ?)",
     )
-    .bind(sid, n, price, Date.now())
+    .bind(sid, n, en, price, Date.now())
     .run();
-  return { id: sid, name: n, basePriceSatang: price };
+  return { id: sid, name: n, nameEn: en, basePriceSatang: price };
 }
 
 /** Update a service's name and/or base price. */
 export async function updateService(
   db: D1Database,
   id: string,
-  fields: { name: string; basePriceSatang: number },
+  fields: { name: string; nameEn: string; basePriceSatang: number },
 ): Promise<void> {
   await db
-    .prepare("UPDATE services SET name = ?, base_price_satang = ? WHERE id = ?")
-    .bind(fields.name.trim(), Math.max(0, Math.round(fields.basePriceSatang || 0)), id)
+    .prepare("UPDATE services SET name = ?, name_en = ?, base_price_satang = ? WHERE id = ?")
+    .bind(
+      fields.name.trim(),
+      fields.nameEn.trim(),
+      Math.max(0, Math.round(fields.basePriceSatang || 0)),
+      id,
+    )
     .run();
 }
 
@@ -1931,8 +2323,46 @@ const worker = {
       return listSales(env);
     }
 
+    if (url.pathname === "/onsite/drafts" && request.method === "GET") {
+      return json({ drafts: await listOpenDrafts(env.DB) });
+    }
+    if (url.pathname === "/onsite/drafts" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as Partial<DraftInput>;
+      if (!body.draftId || !Array.isArray(body.lines)) {
+        return json({ ok: false, error: "draftId and lines are required" }, 400);
+      }
+      const result = await saveDraftToDb(env.DB, body as DraftInput);
+      return json(result, result.ok ? 200 : 400);
+    }
+    const draftDelete = url.pathname.match(/^\/onsite\/drafts\/([^/]+)$/);
+    if (draftDelete && request.method === "DELETE") {
+      return json(await deleteDraftFromDb(env.DB, decodeURIComponent(draftDelete[1]!)));
+    }
+    const saleGet = url.pathname.match(/^\/onsite\/sales\/([^/]+)$/);
+    if (saleGet && request.method === "GET") {
+      const sale = await getOnsiteSale(env.DB, decodeURIComponent(saleGet[1]!));
+      return sale ? json({ sale }) : json({ error: "not found" }, 404);
+    }
+    if (url.pathname === "/customers" && request.method === "GET") {
+      return json({ customers: await searchCustomers(env.DB, url.searchParams.get("q") ?? "") });
+    }
+    if (url.pathname === "/customers/by-plate" && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as Partial<CustomerUpsert>;
+      if (!body.licensePlate) return json({ ok: false, error: "licensePlate required" }, 400);
+      const result = await upsertCustomerByPlate(env.DB, body as CustomerUpsert);
+      return json(result, result.ok ? 200 : 400);
+    }
+    const customerGet = url.pathname.match(/^\/customers\/([^/]+)$/);
+    if (customerGet && request.method === "GET") {
+      return json(await getCustomerDetail(env.DB, decodeURIComponent(customerGet[1]!)));
+    }
+
     if (url.pathname === "/stock" && request.method === "GET") {
       return listStock(env);
+    }
+
+    if (url.pathname === "/stock/movements" && request.method === "GET") {
+      return listStockMovements(env);
     }
 
     if (url.pathname === "/terms/template" && request.method === "GET") {
@@ -2032,19 +2462,19 @@ const worker = {
       let match: unknown = null;
       if (kind === "ref") {
         match = await env.DB.prepare(
-          "SELECT id, name, product_code AS productCode, status FROM products WHERE product_ref = ? COLLATE NOCASE LIMIT 1",
+          "SELECT id, name, product_ref AS productRef, status FROM products WHERE product_ref = ? COLLATE NOCASE LIMIT 1",
         )
           .bind(value)
           .first();
       } else if (kind === "shopee") {
         match = await env.DB.prepare(
-          "SELECT id, name, product_code AS productCode, status FROM products WHERE shopee_item_id = ? COLLATE NOCASE LIMIT 1",
+          "SELECT id, name, product_ref AS productRef, status FROM products WHERE shopee_item_id = ? COLLATE NOCASE LIMIT 1",
         )
           .bind(value)
           .first();
       } else if (kind === "barcode") {
         match = await env.DB.prepare(
-          "SELECT p.id, p.name, p.product_code AS productCode, p.status FROM barcodes b JOIN product_variants v ON v.id = b.product_variant_id JOIN products p ON p.id = v.product_id WHERE b.barcode_value = ? LIMIT 1",
+          "SELECT p.id, p.name, p.product_ref AS productRef, p.status FROM barcodes b JOIN product_variants v ON v.id = b.product_variant_id JOIN products p ON p.id = v.product_id WHERE b.barcode_value = ? LIMIT 1",
         )
           .bind(value)
           .first();
@@ -2085,21 +2515,31 @@ const worker = {
     if (url.pathname === "/services" && request.method === "POST") {
       const body = (await request.json().catch(() => ({}))) as {
         name?: string;
+        nameEn?: string;
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      return json(await addService(env.DB, body.name, body.basePriceSatang ?? 0), 201);
+      if (!body.basePriceSatang || body.basePriceSatang <= 0)
+        return json({ error: "basePriceSatang must be greater than 0" }, 400);
+      return json(
+        await addService(env.DB, body.name, body.nameEn ?? "", body.basePriceSatang),
+        201,
+      );
     }
     const serviceById = url.pathname.match(/^\/services\/([^/]+)$/);
     if (serviceById && request.method === "PATCH") {
       const body = (await request.json().catch(() => ({}))) as {
         name?: string;
+        nameEn?: string;
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      if (!body.basePriceSatang || body.basePriceSatang <= 0)
+        return json({ error: "basePriceSatang must be greater than 0" }, 400);
       await updateService(env.DB, serviceById[1]!, {
         name: body.name,
-        basePriceSatang: body.basePriceSatang ?? 0,
+        nameEn: body.nameEn ?? "",
+        basePriceSatang: body.basePriceSatang,
       });
       return json({ ok: true });
     }
@@ -2256,23 +2696,6 @@ const worker = {
       return json({ ok: true });
     }
 
-    const imageUpload = url.pathname.match(/^\/products\/([^/]+)\/image$/);
-    if (imageUpload && request.method === "POST") {
-      const bytes = await request.arrayBuffer();
-      try {
-        const out = await storeProductImage(
-          env.DB,
-          env.IMAGES,
-          imageUpload[1]!,
-          bytes,
-          request.headers.get("content-type"),
-        );
-        return json(out, 201);
-      } catch (err) {
-        return json({ error: (err as Error).message }, 400);
-      }
-    }
-
     // Gallery: add an image (POST) up to 10, or remove one (DELETE /products/:id/images/:imageId).
     const galleryItem = url.pathname.match(/^\/products\/([^/]+)\/images\/([^/]+)$/);
     if (galleryItem && request.method === "DELETE") {
@@ -2317,8 +2740,8 @@ const worker = {
 
     if (url.pathname === "/products" && request.method === "POST") {
       const body = (await request.json()) as Partial<CreateProductInput>;
-      if (!body?.productCode || !body?.name) {
-        return json({ error: "productCode and name are required" }, 400);
+      if (!body?.productRef || !body?.name) {
+        return json({ error: "productRef and name are required" }, 400);
       }
       return json(await createProduct(env.DB, body as CreateProductInput), 201);
     }

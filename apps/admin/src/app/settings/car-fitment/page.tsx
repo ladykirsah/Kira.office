@@ -11,6 +11,7 @@ import {
   type CarBrandTree,
   type CarModelNode,
 } from "@/lib/api";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
@@ -106,12 +107,17 @@ export default function CarFitmentPage() {
 
   return (
     <main>
-      <h1>Car fitment</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        Choose a brand on the left, then manage its models on the right. Click a model to add
-        service notes (chassis, years, refrigerant, o-ring, coolant) you can reach during customer
-        service. These also feed a product&apos;s &ldquo;Fits these cars&rdquo; dropdowns.
-      </p>
+      <PageHeader
+        title="Car fitment"
+        subtitle={
+          <>
+            Choose a brand on the left, then manage its models on the right. Click a model to add
+            service notes (chassis, years, refrigerant, o-ring, coolant) you can reach during
+            customer service. These also feed a product&apos;s &ldquo;Fits these cars&rdquo;
+            dropdowns.
+          </>
+        }
+      />
 
       {loading ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
@@ -147,7 +153,7 @@ export default function CarFitmentPage() {
                 placeholder="Add brand…"
                 style={{ ...inputS, flex: 1, minWidth: 0 }}
               />
-              <button type="submit" className="btn-primary" disabled={!newBrand.trim()}>
+              <button type="submit" className="btn-primary btn-sm" disabled={!newBrand.trim()}>
                 +
               </button>
             </form>
@@ -167,6 +173,7 @@ export default function CarFitmentPage() {
                 >
                   <span style={{ fontWeight: 600 }}>{selected.name} · models</span>
                   <ConfirmButton
+                    className="btn-sm"
                     confirmLabel="Remove brand?"
                     onConfirm={() => run(() => deleteCarBrand(selected.id))}
                   >
@@ -192,13 +199,6 @@ export default function CarFitmentPage() {
                             }}
                           >
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span
-                                className="md-caret"
-                                aria-hidden="true"
-                                style={{ fontSize: 11, width: 8, display: "inline-block" }}
-                              >
-                                {open ? "▾" : "▸"}
-                              </span>
                               {m.name}
                               {eraStr(m.yearFrom, m.yearTo) && (
                                 <span className="md-era">{eraStr(m.yearFrom, m.yearTo)}</span>
@@ -210,15 +210,29 @@ export default function CarFitmentPage() {
                               )}
                             </span>
                             <span
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ display: "flex", alignItems: "center" }}
+                              aria-hidden="true"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                color: "var(--text-muted)",
+                              }}
                             >
-                              <ConfirmButton
-                                confirmLabel="Remove?"
-                                onConfirm={() => run(() => deleteCarModel(m.id), selected.id)}
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                style={{
+                                  transform: open ? "rotate(180deg)" : "none",
+                                  transition: "transform .12s",
+                                }}
                               >
-                                ✕
-                              </ConfirmButton>
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
                             </span>
                           </div>
                           {open &&
@@ -232,7 +246,11 @@ export default function CarFitmentPage() {
                                 onCancel={() => setEditMode(false)}
                               />
                             ) : (
-                              <ModelInfoView model={m} onEdit={() => setEditMode(true)} />
+                              <ModelInfoView
+                                model={m}
+                                onEdit={() => setEditMode(true)}
+                                onRemove={() => run(() => deleteCarModel(m.id), selected.id)}
+                              />
                             ))}
                         </div>
                       );
@@ -255,13 +273,14 @@ export default function CarFitmentPage() {
                     placeholder="Add model…"
                     style={{ ...inputS, flex: 1, minWidth: 100 }}
                   />
+                  <span className="muted">year</span>
                   <input
                     value={newModelFrom}
                     onChange={(e) => setNewModelFrom(e.target.value)}
                     placeholder="from"
                     inputMode="numeric"
                     aria-label="Era from year"
-                    style={{ ...inputS, width: 64 }}
+                    style={{ ...inputS, width: 80 }}
                   />
                   <span className="muted">–</span>
                   <input
@@ -270,9 +289,9 @@ export default function CarFitmentPage() {
                     placeholder="to"
                     inputMode="numeric"
                     aria-label="Era to year"
-                    style={{ ...inputS, width: 64 }}
+                    style={{ ...inputS, width: 80 }}
                   />
-                  <button type="submit" className="btn-primary" disabled={!newModel.trim()}>
+                  <button type="submit" className="btn-primary btn-sm" disabled={!newModel.trim()}>
                     Add
                   </button>
                 </form>

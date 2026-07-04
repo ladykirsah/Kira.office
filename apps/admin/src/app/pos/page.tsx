@@ -1,22 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   lookupBarcode,
   fetchProducts,
   fetchBarcodes,
   fetchServices,
   fetchShopInfo,
+  fetchSales,
   fetchCarFitment,
   imageUrl,
+  saveDraft,
+  listDrafts,
+  deleteDraft,
+  getOnsiteSale,
   EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
   type ShopInfo,
   type CarBrandTree,
+  type OpenDraft,
 } from "@/lib/api";
+import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
 import JsBarcode from "jsbarcode";
-import { formatBaht } from "@/lib/format";
+import { formatBaht, formatBahtTrim } from "@/lib/format";
+import { productDisplayName } from "@/lib/productLabel";
+import { nextSalesId, latestSalesIdForDay } from "@/lib/salesId";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import {
   lineTotalSatang,
@@ -26,6 +35,7 @@ import {
   type DiscountKind,
 } from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
+import { ServiceSelect } from "./ServiceSelect";
 import {
   flushOutbox,
   formatSyncFailureMessage,
@@ -39,7 +49,7 @@ import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
 
 type SaleType = "parts" | "repair";
-type AddKind = "product" | "service";
+type AddKind = "product" | "service" | "addon";
 type AddMethod = "scan" | "code" | "search";
 type LineKind = "part" | "service";
 type PriceTier = "retail" | "wholesale";
@@ -49,9 +59,10 @@ interface SaleLine {
   uid: string;
   kind: LineKind;
   name: string;
+  nameEn?: string; // English name for catalog services; the bill prints it when lang=en
   productVariantId?: string | null;
   barcodeValue?: string;
-  productCode?: string;
+  productRef?: string;
   tags?: string[]; // part detail tags (brand · system · part name)
   quantity: number;
   unitPriceSatang: number;
@@ -173,6 +184,96 @@ function Tab({
   );
 }
 
+/** Plain 20px group headline for the POS builder steps (Setup → Info → Items). Also a scroll anchor
+ *  (`pos-step-<n>`) the StepTimeline jumps to; scrollMarginTop clears the 56px sticky topbar plus the
+ *  frozen ~50px timeline below it, so a jumped-to heading lands just under the frozen chrome. */
+function StepHead({ n, label }: { n: number; label: string }) {
+  return (
+    <div
+      id={`pos-step-${n}`}
+      className="pos-step-anchor"
+      style={{
+        fontSize: 20,
+        fontWeight: 700,
+        lineHeight: 1.1,
+        color: "var(--text)",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+/** Clickable horizontal step timeline at the top of the POS builder — jumps to each group. */
+const POS_STEPS = [
+  { n: 1, label: "Setup" },
+  { n: 2, label: "Info" },
+  { n: 3, label: "Items" },
+] as const;
+
+function StepTimeline() {
+  const go = (n: number) =>
+    document
+      .getElementById(`pos-step-${n}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Frozen below the 56px topbar; the Setup/Info/Items groups scroll behind it.
+  // Opaque --bg masks the scrolling cards; paddingBottom keeps the 24px gap to Setup.
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        position: "sticky",
+        top: 56,
+        zIndex: 4,
+        background: "var(--bg)",
+        paddingBottom: 10,
+      }}
+    >
+      {POS_STEPS.map((s, i) => (
+        <Fragment key={s.n}>
+          <button
+            type="button"
+            onClick={() => go(s.n)}
+            title={`Go to ${s.label}`}
+            aria-label={`Go to ${s.label}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: 999,
+              background: "var(--primary)",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 700,
+              border: 0,
+              padding: 0,
+              cursor: "pointer",
+              minHeight: 0,
+              flex: "0 0 auto",
+            }}
+          >
+            {s.n}
+          </button>
+          {i < POS_STEPS.length - 1 && (
+            <div
+              style={{
+                flex: 1,
+                height: 2,
+                borderRadius: 2,
+                background: "var(--border)",
+                margin: "0 10px",
+              }}
+            />
+          )}
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 function chip(kind: "part" | "service"): CSSProperties {
   if (kind === "service") {
     return {
@@ -244,6 +345,7 @@ function BarcodePreview({ value }: { value: string }) {
  * Row 2 (separated by a clear gap): editable ฿ price × qty pcs. on the left, bold line total right. */
 function CartItem({
   line,
+  lang,
   barcode,
   onQty,
   onPrice,
@@ -251,6 +353,7 @@ function CartItem({
   onRemove,
 }: {
   line: SaleLine;
+  lang: BillLang;
   barcode?: string;
   onQty: (q: number) => void;
   onPrice: (satang: number) => void;
@@ -273,7 +376,9 @@ function CartItem({
       {/* Row 1: identity — name + tags (left), barcode (right) */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingRight: 28 }}>
         <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{line.name}</div>
+          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>
+            {lang === "en" && line.nameEn ? line.nameEn : line.name}
+          </div>
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
             {isService ? (
               <span style={chip("service")}>Service</span>
@@ -438,9 +543,11 @@ type DocType = "bill" | "quotation";
 
 /** The in-progress POS cart, saved locally so a page switch / refresh doesn't lose it. */
 const DRAFT_KEY = "pos:draft:v1";
+const LAST_SALE_ID_KEY = "pos:lastSaleId:v1";
 interface PosDraft {
   lines: SaleLine[];
   plate: string;
+  mileage: string;
   note: string;
   billDate: string;
   carBrandId: string;
@@ -494,8 +601,10 @@ function BillDoc({
   lang,
   shop,
   dateLabel,
+  saleNumber,
   vehicle,
   plate,
+  mileage,
   lines,
   subtotalSatang,
   discountSatang,
@@ -507,8 +616,10 @@ function BillDoc({
   lang: BillLang;
   shop: ShopInfo;
   dateLabel: string;
+  saleNumber: string;
   vehicle: string;
   plate: string;
+  mileage: string;
   lines: SaleLine[];
   subtotalSatang: number;
   discountSatang: number;
@@ -534,9 +645,11 @@ function BillDoc({
   // Thai bill is unchanged; only the English path is new.
   const t = en
     ? {
+        saleId: "Sales ID",
         date: "Date",
         vehicle: "Vehicle",
         plate: "Plate",
+        mileage: "Mileage",
         item: "Item",
         qty: "Qty",
         price: "Price",
@@ -550,9 +663,11 @@ function BillDoc({
         thanks: "*** Thank you ***",
       }
     : {
+        saleId: "เลขที่บิล",
         date: "วันที่",
         vehicle: "รถ",
         plate: "ทะเบียน",
+        mileage: "เลขไมล์",
         item: "รายการ",
         qty: "จำนวน",
         price: "ราคา",
@@ -612,16 +727,18 @@ function BillDoc({
           )}
         </div>
         {dash}
+        {saleNumber && metaRow(t.saleId, saleNumber)}
         {metaRow(t.date, dateLabel)}
         {vehicle && metaRow(t.vehicle, vehicle)}
         {plate && metaRow(t.plate, plate)}
+        {mileage && metaRow(t.mileage, `${mileage} km`)}
         {dash}
         {empty ? (
           <div style={{ color: muted, padding: "4px 0" }}>{t.empty}</div>
         ) : (
           lines.map((l) => (
             <div key={l.uid} style={{ marginBottom: 6 }}>
-              <div>{l.name}</div>
+              <div>{pick(l.name, l.nameEn ?? "")}</div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#3f3f46" }}>
                 <span style={{ color: muted }}>×{l.quantity}</span>
                 <span>{amt(lineTotalSatang(l))}</span>
@@ -765,9 +882,14 @@ function BillDoc({
             {headEn}
           </div>
           <div style={{ fontSize: 12, color: "#52525b", marginTop: 7 }}>{dateLabel}</div>
+          {saleNumber && (
+            <div style={{ fontSize: 12, color: "#52525b", marginTop: 2 }}>
+              {t.saleId}: {saleNumber}
+            </div>
+          )}
         </div>
       </div>
-      {(vehicle || plate) && (
+      {(vehicle || plate || mileage) && (
         <div
           style={{
             display: "flex",
@@ -786,6 +908,11 @@ function BillDoc({
           {plate && (
             <div>
               <span style={{ color: muted }}>{t.plate}:</span> {plate}
+            </div>
+          )}
+          {mileage && (
+            <div>
+              <span style={{ color: muted }}>{t.mileage}:</span> {mileage} km
             </div>
           )}
         </div>
@@ -813,7 +940,7 @@ function BillDoc({
           ) : (
             lines.map((l) => (
               <tr key={l.uid} style={{ borderBottom: "1px solid #efefef" }}>
-                <td style={{ padding: "9px 8px 9px 18px" }}>{l.name}</td>
+                <td style={{ padding: "9px 8px 9px 18px" }}>{pick(l.name, l.nameEn ?? "")}</td>
                 <td style={{ textAlign: "center", padding: 9 }}>{l.quantity}</td>
                 <td style={{ textAlign: "right", padding: 9 }}>{amt(l.unitPriceSatang)}</td>
                 <td style={{ textAlign: "right", padding: "9px 18px 9px 8px" }}>
@@ -893,6 +1020,20 @@ export default function PosPage() {
   const [carModelId, setCarModelId] = useState("");
   const [carYear, setCarYear] = useState("");
   const [plate, setPlate] = useState("");
+  const [mileage, setMileage] = useState("");
+  const [lastSaleId, setLastSaleId] = useState<string | null>(null);
+
+  // Server-parked drafts/quotations: a stable id for the current cart, the one currently reopened
+  // (deleted once it finalizes to a bill), the reopen tray, and the QT quotation counter.
+  const [draftId, setDraftId] = useState(() => crypto.randomUUID());
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<OpenDraft[]>([]);
+  const [lastQuoteId, setLastQuoteId] = useState<string | null>(null);
+  // Reprint mode: reopen a finalized bill read-only to reprint it. NEVER checkoutable (no double
+  // sale) — its original number + vehicle print, and only "Create PDF" is offered.
+  const [reprint, setReprint] = useState<{ saleNumber: string | null; vehicle: string } | null>(
+    null,
+  );
 
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -907,14 +1048,17 @@ export default function PosPage() {
   const [codeVal, setCodeVal] = useState("");
   const [searchQ, setSearchQ] = useState("");
 
+  // Add-on (one-off custom line) inputs
+  const [addonName, setAddonName] = useState("");
+  const [addonPrice, setAddonPrice] = useState("");
+
   // Bill pricing options
   const [discountKind, setDiscountKind] = useState<DiscountKind>("thb");
   const [discountValue, setDiscountValue] = useState("");
 
-  // Add-service inputs. svcId is "" / a service id / MANUAL; svcPrice is the price for either path.
+  // Add-service inputs. svcId is "" or a saved service id; svcPrice prefills from its base price.
   const [svcId, setSvcId] = useState("");
   const [svcPrice, setSvcPrice] = useState("");
-  const [manualName, setManualName] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
@@ -934,7 +1078,7 @@ export default function PosPage() {
         for (const b of bs)
           if (b.barcode) {
             byBarcode.set(b.barcode, b.productId);
-            byCode.set(b.productCode, b.barcode);
+            byCode.set(b.productRef, b.barcode);
           }
         setBarcodeToProductId(byBarcode);
         setCodeToBarcode(byCode);
@@ -948,6 +1092,22 @@ export default function PosPage() {
       .catch(() => {});
     fetchCarFitment()
       .then((b) => setCarFitment(b))
+      .catch(() => {});
+    // Seed the sale-number counter from the server's latest for today, so a fresh device continues
+    // past backfilled / other-session numbers instead of restarting at 001. lastSaleId drives the
+    // pending number shown on the bill.
+    setLastSaleId(localStorage.getItem(LAST_SALE_ID_KEY));
+    fetchSales()
+      .then((sales) => {
+        const seed = latestSalesIdForDay(
+          [localStorage.getItem(LAST_SALE_ID_KEY), ...sales.map((s) => s.saleNumber)],
+          Date.now(),
+        );
+        if (seed) {
+          localStorage.setItem(LAST_SALE_ID_KEY, seed);
+          setLastSaleId(seed);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -971,16 +1131,29 @@ export default function PosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
 
+  // Server-parked drafts/quotations feed the always-visible panel — load them on mount.
+  // Skip in reprint mode: a finalized bill loaded read-only isn't building a cart.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("reprint")) return;
+    listDrafts()
+      .then(setDrafts)
+      .catch(() => {});
+  }, []);
+
   // Auto-save the in-progress draft locally so switching pages / refreshing doesn't lose the cart.
   // A draft is NOT a sale (no revenue) — it's cleared on checkout, when the order goes to the ledger.
   const draftReady = useRef(false);
   useEffect(() => {
+    // In reprint mode the cart is a finalized bill loaded read-only — never touch the local draft
+    // (don't restore over it, and leave draftReady false so autosave stays off).
+    if (new URLSearchParams(window.location.search).has("reprint")) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw) as Partial<PosDraft>;
         if (Array.isArray(d.lines) && d.lines.length) setLines(d.lines);
         if (typeof d.plate === "string") setPlate(d.plate);
+        if (typeof d.mileage === "string") setMileage(d.mileage);
         if (typeof d.note === "string") setNote(d.note);
         if (typeof d.billDate === "string") setBillDate(d.billDate);
         if (typeof d.carBrandId === "string") setCarBrandId(d.carBrandId);
@@ -1004,6 +1177,7 @@ export default function PosPage() {
       const empty =
         lines.length === 0 &&
         !plate.trim() &&
+        !mileage.trim() &&
         !note.trim() &&
         !carBrandId &&
         !carModelId &&
@@ -1014,6 +1188,7 @@ export default function PosPage() {
         const draft: PosDraft = {
           lines,
           plate,
+          mileage,
           note,
           billDate,
           carBrandId,
@@ -1026,7 +1201,41 @@ export default function PosPage() {
     } catch {
       // ignore storage errors (private mode / quota)
     }
-  }, [lines, plate, note, billDate, carBrandId, carModelId, carYear, docType]);
+  }, [lines, plate, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
+
+  // Reprint: ?reprint=<id> loads that finalized bill read-only so it can be re-printed. The original
+  // number + vehicle print; the actions collapse to Create PDF only (no checkout → no double sale).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("reprint");
+    if (!id) return;
+    (async () => {
+      try {
+        const bill = await getOnsiteSale(id);
+        setLines(
+          bill.lines.map((l) => ({
+            uid: crypto.randomUUID(),
+            kind: l.lineType === "service" ? "service" : "part",
+            name: l.description ?? "",
+            productVariantId: l.productVariantId,
+            quantity: l.quantity,
+            unitPriceSatang: l.unitPriceSatang,
+          })) as SaleLine[],
+        );
+        setPlate(bill.licensePlate ?? "");
+        setNote(bill.notes ?? "");
+        setBillDate(toISODate(new Date(bill.createdAt)));
+        setDocType(bill.stage === "quotation" ? "quotation" : "bill");
+        if (bill.discountTotalSatang > 0) {
+          setDiscountKind("thb");
+          setDiscountValue(String(bill.discountTotalSatang / 100));
+        }
+        setReprint({ saleNumber: bill.saleNumber, vehicle: bill.vehicle ?? "" });
+      } catch {
+        toast("Couldn't load the bill to reprint.", "error");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const subtotalSatang = cartTotalSatang(lines);
   const discountSatang = discountSatangOf(subtotalSatang, discountKind, discountValue);
@@ -1035,14 +1244,14 @@ export default function PosPage() {
   // Product search (fallback when a barcode/sticker is unreadable) — filter the loaded catalogue,
   // and hide anything already in the cart (matched by variant, falling back to product code).
   const inCart = new Set(
-    lines.filter((l) => l.kind === "part").map((l) => l.productVariantId ?? l.productCode),
+    lines.filter((l) => l.kind === "part").map((l) => l.productVariantId ?? l.productRef),
   );
   const searchResults = (() => {
     const q = searchQ.trim().toLowerCase();
     if (!q) return [] as ProductRow[];
     return products
-      .filter((p) => p.name.toLowerCase().includes(q) || p.productCode.toLowerCase().includes(q))
-      .filter((p) => !inCart.has(p.variantId ?? p.productCode))
+      .filter((p) => p.name.toLowerCase().includes(q) || p.productRef.toLowerCase().includes(q))
+      .filter((p) => !inCart.has(p.variantId ?? p.productRef))
       .slice(0, 8);
   })();
   const tierPrice = (p: ProductRow): number => p.offlinePriceSatang || 0;
@@ -1065,8 +1274,10 @@ export default function PosPage() {
     .join(" ");
 
   function addProductLine(p: ProductRow, barcodeValue?: string) {
-    const tags = [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t);
-    const barcode = barcodeValue ?? codeToBarcode.get(p.productCode);
+    // The item name carries its brand inline ("Compressor · Denso"); no brand → just the name.
+    // Brand moves out of the detail chips so it isn't shown twice.
+    const tags = [p.usageName, p.typeName].filter((t): t is string => !!t);
+    const barcode = barcodeValue ?? codeToBarcode.get(p.productRef);
     const b2c = p.offlinePriceSatang || 0;
     const b2b = p.b2bPriceSatang || b2c; // fall back to retail when no wholesale price is set
     setLines((ls) => {
@@ -1079,10 +1290,10 @@ export default function PosPage() {
         {
           uid: crypto.randomUUID(),
           kind: "part",
-          name: p.name,
+          name: productDisplayName(p.name, p.brandName),
           productVariantId: p.variantId,
           barcodeValue: barcode,
-          productCode: p.productCode,
+          productRef: p.productRef,
           tags,
           quantity: 1,
           unitPriceSatang: b2c,
@@ -1145,7 +1356,7 @@ export default function PosPage() {
           name: found.name,
           productVariantId: found.variantId,
           barcodeValue: v,
-          productCode: found.productCode,
+          productRef: found.productRef,
           tags,
           quantity: 1,
           unitPriceSatang: b2c,
@@ -1167,7 +1378,7 @@ export default function PosPage() {
   function addByCode() {
     const v = codeVal.trim().toLowerCase();
     if (!v) return;
-    const p = products.find((x) => x.productCode.toLowerCase() === v);
+    const p = products.find((x) => x.productRef.toLowerCase() === v);
     if (!p) {
       toast(`No product with code “${codeVal.trim()}”.`, "error");
       return;
@@ -1176,21 +1387,13 @@ export default function PosPage() {
     setCodeVal("");
   }
 
-  const MANUAL = "__manual__";
-  const isManualService = svcId === MANUAL;
-  const serviceName = isManualService
-    ? manualName.trim()
-    : (services.find((s) => s.id === svcId)?.name ?? "");
+  const serviceName = services.find((s) => s.id === svcId)?.name ?? "";
+  const serviceNameEn = services.find((s) => s.id === svcId)?.nameEn ?? "";
 
   function selectService(id: string) {
     setSvcId(id);
-    setManualName("");
-    if (id === MANUAL || id === "") {
-      setSvcPrice("");
-    } else {
-      const s = services.find((x) => x.id === id);
-      setSvcPrice(s ? (s.basePriceSatang / 100).toString() : "");
-    }
+    const s = services.find((x) => x.id === id);
+    setSvcPrice(s ? (s.basePriceSatang / 100).toString() : "");
   }
 
   function addService() {
@@ -1202,6 +1405,7 @@ export default function PosPage() {
         uid: crypto.randomUUID(),
         kind: "service",
         name: serviceName,
+        nameEn: serviceNameEn,
         quantity: 1,
         unitPriceSatang: price,
       },
@@ -1209,7 +1413,20 @@ export default function PosPage() {
     toast(`Added ${serviceName}`, "success");
     setSvcId("");
     setSvcPrice("");
-    setManualName("");
+  }
+
+  /** Add a one-off custom line (name + price) not in the catalog. No stock is touched. */
+  function addAddon() {
+    const name = addonName.trim();
+    if (!name) return;
+    const price = Math.max(0, Math.round((parseFloat(addonPrice) || 0) * 100));
+    setLines((ls) => [
+      ...ls,
+      { uid: crypto.randomUUID(), kind: "service", name, quantity: 1, unitPriceSatang: price },
+    ]);
+    toast(`Added ${name}`, "success");
+    setAddonName("");
+    setAddonPrice("");
   }
 
   function updateLine(uid: string, patch: Partial<SaleLine>) {
@@ -1221,7 +1438,7 @@ export default function PosPage() {
 
   // Save the whole order — parts (deduct stock) and services (labour lines) plus the sale type,
   // plate and note — to the sales ledger. Offline-safe via the outbox; the server dedupes on uuid.
-  async function saveSale(): Promise<boolean> {
+  async function saveSale(saleNo: string): Promise<boolean> {
     // A sale counts as a repair when it has a vehicle/plate or any service line; else it's parts.
     const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
     // Spread the bill discount across the lines so the server's per-line discount + profit is exact.
@@ -1231,6 +1448,7 @@ export default function PosPage() {
     );
     const sale: QueuedSale = {
       clientUuid: crypto.randomUUID(),
+      saleNumber: saleNo || undefined,
       paymentMethod: "cash",
       saleType: isRepair ? "repair" : "parts",
       licensePlate: plate.trim() || undefined,
@@ -1269,17 +1487,31 @@ export default function PosPage() {
     if (lines.length === 0) return;
     setBusy(true);
     try {
-      const ok = await saveSale();
+      // The bill already shows this pending number; only advance the counter once the server accepts
+      // the sale, so a rejected checkout reuses the same number and none get burned.
+      const saleNo = nextSalesId(lastSaleId, Date.now());
+      const ok = await saveSale(saleNo);
       if (!ok) return;
-      printBill();
+      printBill(); // prints saleNo — the counter hasn't advanced yet
+      localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
+      setLastSaleId(saleNo);
+      // Finalizing a reopened draft/quotation converts it to this bill — drop the parked copy.
+      if (activeDraftId) {
+        await deleteDraft(activeDraftId).catch(() => {});
+        setActiveDraftId(null);
+      }
+      setDraftId(crypto.randomUUID()); // the next cart is a fresh draft
       toast("Sale saved ✓", "success");
       setLines([]);
       setPlate("");
+      setMileage("");
       setNote("");
       setCarBrandId("");
       setCarModelId("");
       setCarYear("");
       setAddKind("product");
+      setAddonName("");
+      setAddonPrice("");
       setBillDate(toISODate(new Date()));
       // Reset bill options + inputs so nothing carries to the next customer (esp. the discount).
       setDiscountValue("");
@@ -1290,15 +1522,163 @@ export default function PosPage() {
     }
   }
 
+  // ── Server-parked drafts & quotations ──
+  function buildDraftInput(stage: "draft" | "quotation", saleNumber?: string) {
+    const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
+    return {
+      draftId,
+      stage,
+      saleNumber: saleNumber ?? null,
+      saleType: (isRepair ? "repair" : "parts") as "repair" | "parts",
+      licensePlate: plate.trim() || null,
+      vehicle: vehicleLabel || null,
+      notes: note.trim() || null,
+      lines: cartToDraftLines(lines),
+    };
+  }
+
+  async function saveDraftNow() {
+    if (lines.length === 0) return;
+    setBusy(true);
+    try {
+      await saveDraft(buildDraftInput("draft"));
+      setActiveDraftId(draftId);
+      await reloadDrafts();
+      toast("Draft saved — reopen it any time.", "success");
+    } catch {
+      toast("Couldn't save the draft (offline?).", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveQuotationNow() {
+    if (lines.length === 0) return;
+    setBusy(true);
+    try {
+      const qtNo = nextSalesId(lastQuoteId, Date.now(), "QT");
+      await saveDraft(buildDraftInput("quotation", qtNo));
+      setLastQuoteId(qtNo);
+      setActiveDraftId(draftId);
+      await reloadDrafts();
+      toast(`Quotation ${qtNo} saved ✓`, "success");
+    } catch {
+      toast("Couldn't save the quotation (offline?).", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reloadDrafts() {
+    try {
+      setDrafts(await listDrafts());
+    } catch {
+      /* keep the current panel contents if the refresh fails */
+    }
+  }
+
+  function reopenDraft(d: OpenDraft) {
+    setLines(draftToCartLines(d.lines, () => crypto.randomUUID()) as SaleLine[]);
+    setPlate(d.licensePlate ?? "");
+    setNote(d.notes ?? "");
+    setDocType(d.stage === "quotation" ? "quotation" : "bill");
+    // The car brand/model/year selects aren't reconstructed from the stored label — plate is the key.
+    setCarBrandId("");
+    setCarModelId("");
+    setCarYear("");
+    setDraftId(d.id);
+    setActiveDraftId(d.id);
+    toast("Draft reopened.", "success");
+  }
+
+  async function discardDraft(d: OpenDraft) {
+    try {
+      await deleteDraft(d.id);
+      setDrafts((ds) => ds.filter((x) => x.id !== d.id));
+      if (activeDraftId === d.id) setActiveDraftId(null);
+    } catch {
+      toast("Couldn't delete the draft.", "error");
+    }
+  }
+
   return (
-    // container-type lets the bill column react to its OWN available width (not the viewport),
-    // so the wide Invoice bill can stack under the builder when its column would be < 500px.
-    <main style={{ containerType: "inline-size" }}>
-      <h1>Point of Sale</h1>
+    <main className="pos-page">
+      <div
+        className="bill-no-print"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+      >
+        <h1 style={{ margin: 0 }}>Point of Sale</h1>
+      </div>
       {pending > 0 && (
-        <p style={{ color: "var(--warn)" }} className="bill-no-print">
+        <p style={{ color: "var(--warn)", margin: 0 }} className="bill-no-print">
           ⏳ {pending} sale(s) queued offline — will sync when online.
         </p>
+      )}
+
+      {/* Saved drafts & quotations: always visible when any are parked, so staff (and the next
+          staff member on shift) can spot and resume a held cart without hunting for a button. */}
+      {drafts.length > 0 && (
+        <div
+          className="bill-no-print"
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            background: "var(--surface)",
+            padding: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>🗂 Saved drafts &amp; quotations</span>
+            <span className="pill off">{drafts.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {drafts.map((d) => {
+              const active = activeDraftId === d.id;
+              return (
+                <div
+                  key={d.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <span className={`pill ${d.stage === "quotation" ? "soft" : "off"}`}>
+                    {d.stage === "quotation" ? (d.saleNumber ?? "Quotation") : "Draft"}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14 }}>{d.vehicle || d.licensePlate || "Walk-in"}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
+                      {formatBahtTrim(d.grandTotalSatang)} · {d.lines.length} item(s)
+                      {active ? " · editing now" : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    onClick={() => reopenDraft(d)}
+                  >
+                    Reopen
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-soft btn-sm"
+                    onClick={() => discardDraft(d)}
+                    aria-label="Delete draft"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div
@@ -1306,318 +1686,491 @@ export default function PosPage() {
           display: "grid",
           gridTemplateColumns: "minmax(0, 528px) minmax(320px, 1fr)",
           gap: 20,
-          alignItems: "start",
         }}
-        className={`pos-grid${billStyle === "invoice" ? " pos-grid--bill-wide" : ""}`}
+        className="pos-grid"
       >
         {/* ---- LEFT: build the sale ---- */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 528 }}>
-          {/* Date */}
-          <div style={card}>
-            <div style={fieldLabel}>Date</div>
-            <input
-              type="date"
-              value={billDate}
-              onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
-              style={inputL}
-            />
-          </div>
-
-          {/* Vehicle — brand → model → year + plate */}
-          <div style={card}>
-            <div style={fieldLabel}>Vehicle</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <select
-                value={carBrandId}
-                onChange={(e) => {
-                  setCarBrandId(e.target.value);
-                  setCarModelId("");
-                  setCarYear("");
-                }}
-                style={{ flex: "1 1 130px", ...inputS }}
-              >
-                <option value="">Brand…</option>
-                {carFitment.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={carModelId}
-                onChange={(e) => {
-                  setCarModelId(e.target.value);
-                  setCarYear("");
-                }}
-                disabled={!selectedBrand || brandModels.length === 0}
-                style={{ flex: "1 1 130px", ...inputS }}
-              >
-                <option value="">
-                  {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
-                </option>
-                {brandModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                    {m.yearFrom || m.yearTo ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})` : ""}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={carYear}
-                onChange={(e) => setCarYear(e.target.value)}
-                disabled={!selectedModel}
-                style={{ flex: "0 1 104px", ...inputS }}
-              >
-                <option value="">Year…</option>
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <div style={fieldLabel}>ทะเบียนรถ (license plate)</div>
-              <input
-                value={plate}
-                onChange={(e) => setPlate(e.target.value)}
-                placeholder="เช่น 1กก 1234 สุรินทร์"
-                style={inputL}
-              />
-            </div>
-          </div>
-
-          {/* Add item — Product / Service toggle switches the workspace */}
-          <div style={card}>
-            <div style={fieldLabel}>Add item</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-              <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
-                📦 Product
-              </Seg>
-              <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
-                🔧 Service
-              </Seg>
-            </div>
-
-            {addKind === "product" && (
-              <div>
-                <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-                  <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
-                    📷 Scan barcode
-                  </Tab>
-                  <Tab active={method === "code"} onClick={() => setMethod("code")}>
-                    ⌨️ Type code
-                  </Tab>
-                  <Tab active={method === "search"} onClick={() => setMethod("search")}>
-                    🔍 Search
-                  </Tab>
-                </div>
-
-                {method === "scan" && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      addByScan();
-                    }}
-                    style={{ display: "flex", gap: 8 }}
-                  >
-                    <input
-                      autoFocus
-                      value={scanVal}
-                      onChange={(e) => setScanVal(e.target.value)}
-                      placeholder="Scan or paste a barcode…"
-                      style={{ flex: 1, ...inputS }}
-                    />
-                    <button type="submit" className="btn-soft" disabled={busy} style={inputS}>
-                      Add
-                    </button>
-                  </form>
-                )}
-
-                {method === "code" && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      addByCode();
-                    }}
-                    style={{ display: "flex", gap: 8 }}
-                  >
-                    <input
-                      value={codeVal}
-                      onChange={(e) => setCodeVal(e.target.value)}
-                      placeholder="Type a product code…"
-                      style={{ flex: 1, ...inputS }}
-                    />
-                    <button type="submit" className="btn-soft" style={inputS}>
-                      Add
-                    </button>
-                  </form>
-                )}
-
-                {method === "search" && (
-                  <div style={{ position: "relative" }}>
-                    <input
-                      autoFocus
-                      value={searchQ}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                      placeholder="Search by product name or code…"
-                      style={{ width: "100%", ...inputS }}
-                    />
-                    {searchQ.trim() && (
-                      <div className="combo-pop">
-                        {searchResults.length === 0 ? (
-                          <p className="muted" style={{ fontSize: 13, margin: "6px 8px" }}>
-                            No product matches “{searchQ.trim()}”.
-                          </p>
-                        ) : (
-                          searchResults.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              className="combo-opt"
-                              onClick={() => addProductLine(p)}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: 8,
-                              }}
-                            >
-                              <span style={{ minWidth: 0 }}>
-                                <span
-                                  style={{
-                                    display: "block",
-                                    fontWeight: 600,
-                                    fontSize: 13,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                  }}
-                                >
-                                  {p.name}
-                                </span>
-                                <span className="muted" style={{ fontSize: 12 }}>
-                                  {p.productCode}
-                                </span>
-                              </span>
-                              <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>
-                                ฿{amt(tierPrice(p))}
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Service workspace */}
-            {addKind === "service" && (
-              <div>
-                <div style={fieldLabel}>Add service</div>
-                {/* Row 1: pick a service, or choose to add manually */}
-                <select
-                  value={svcId}
-                  onChange={(e) => selectService(e.target.value)}
-                  style={{ width: "100%", ...inputS }}
+        <div className="pos-col-left" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Clickable step timeline — frozen above the scroll area */}
+          <StepTimeline />
+          {/* Only these 3 groups scroll; the rest of the page is frozen (wide screens). */}
+          <div className="pos-groups-scroll">
+            {/* ── Step 1 · Setup — document type, paper, language ── */}
+            <div id="pos-group-1" className="pos-step-group">
+              <StepHead n={1} label="Setup" />
+              <div style={card}>
+                {/* Document type — Cash bill vs Quotation */}
+                <div
+                  className="bill-no-print"
+                  style={{ display: "flex", gap: 8, marginBottom: 12 }}
                 >
-                  <option value="">Choose a service…</option>
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                  <option value={MANUAL}>✎ Add manually…</option>
-                </select>
+                  {(["bill", "quotation"] as DocType[]).map((d) => {
+                    const active = docType === d;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDocType(d)}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          padding: "11px 10px",
+                          borderRadius: 10,
+                          border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                          background: active ? "var(--primary)" : "var(--surface)",
+                          color: active ? "#fff" : "var(--text)",
+                          fontWeight: active ? 600 : 500,
+                          fontSize: 14,
+                          cursor: "pointer",
+                          minHeight: 0,
+                        }}
+                      >
+                        {d === "bill" ? "💵 Cash bill" : "📝 Quotation"}
+                      </button>
+                    );
+                  })}
+                </div>
 
-                {/* Manual description appears between the dropdown and the price */}
-                {isManualService && (
-                  <input
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                    placeholder="Service description…"
-                    autoFocus
-                    style={{ width: "100%", marginTop: 8, ...inputS }}
-                  />
-                )}
+                {/* Paper — Invoice vs Receipt */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                    Paper
+                  </span>
+                  {(["invoice", "thermal"] as BillStyle[]).map((s) => {
+                    const active = billStyle === s;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setBillStyle(s)}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 999,
+                          border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                          background: active ? "var(--primary-soft)" : "var(--surface)",
+                          color: active ? "var(--primary)" : "var(--text-muted)",
+                          fontWeight: active ? 600 : 500,
+                          fontSize: 12.5,
+                          cursor: "pointer",
+                          minHeight: 0,
+                        }}
+                      >
+                        {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                      </button>
+                    );
+                  })}
+                </div>
 
-                {/* Add — the price is set on the item in the cart below */}
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                  <button
-                    type="button"
-                    className="btn-soft"
-                    disabled={!serviceName}
-                    onClick={addService}
-                    style={{ ...inputS, padding: "8px 16px" }}
-                  >
-                    Add
-                  </button>
+                {/* Language — Thai is the default */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                    Language
+                  </span>
+                  {(["th", "en"] as BillLang[]).map((l) => {
+                    const active = billLang === l;
+                    return (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => setBillLang(l)}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 999,
+                          border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                          background: active ? "var(--primary-soft)" : "var(--surface)",
+                          color: active ? "var(--primary)" : "var(--text-muted)",
+                          fontWeight: active ? 600 : 500,
+                          fontSize: 12.5,
+                          cursor: "pointer",
+                          minHeight: 0,
+                        }}
+                      >
+                        {l === "th" ? "ไทย" : "English"}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Cart */}
-          <div style={card}>
-            <div style={fieldLabel}>Items ({lines.length})</div>
-            {lines.length === 0 ? (
-              <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                No items yet. Add a product or service above.
-              </p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {lines.map((l) => (
-                  <CartItem
-                    key={l.uid}
-                    line={l}
-                    barcode={l.barcodeValue || codeToBarcode.get(l.productCode ?? "")}
-                    onQty={(quantity) => updateLine(l.uid, { quantity })}
-                    onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
-                    onTier={(t) => setLineTier(l.uid, t)}
-                    onRemove={() => removeLine(l.uid)}
+            {/* ── Step 2 · Info — date + vehicle ── */}
+            <div id="pos-group-2" className="pos-step-group">
+              <StepHead n={2} label="Info" />
+              <div style={card}>
+                {/* Date */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={fieldLabel}>Date</div>
+                  <input
+                    type="date"
+                    value={billDate}
+                    onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
+                    style={inputL}
                   />
-                ))}
+                </div>
+
+                {/* Vehicle — brand → model → year + plate */}
+                <div style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+                  <div style={fieldLabel}>Vehicle</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <select
+                      value={carBrandId}
+                      onChange={(e) => {
+                        setCarBrandId(e.target.value);
+                        setCarModelId("");
+                        setCarYear("");
+                      }}
+                      style={{ flex: "1 1 130px", ...inputS }}
+                    >
+                      <option value="">Brand…</option>
+                      {carFitment.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={carModelId}
+                      onChange={(e) => {
+                        setCarModelId(e.target.value);
+                        setCarYear("");
+                      }}
+                      disabled={!selectedBrand || brandModels.length === 0}
+                      style={{ flex: "1 1 130px", ...inputS }}
+                    >
+                      <option value="">
+                        {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
+                      </option>
+                      {brandModels.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                          {m.yearFrom || m.yearTo
+                            ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={carYear}
+                      onChange={(e) => setCarYear(e.target.value)}
+                      disabled={!selectedModel}
+                      style={{ flex: "0 1 104px", ...inputS }}
+                    >
+                      <option value="">Year…</option>
+                      {yearOptions.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <div style={fieldLabel}>Plate / mileage</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        value={plate}
+                        onChange={(e) => setPlate(e.target.value)}
+                        placeholder="License plate"
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <input
+                        value={mileage}
+                        onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder="Mileage"
+                        inputMode="numeric"
+                        aria-label="Mileage (km)"
+                        style={{ width: 120 }}
+                      />
+                      <span className="muted">km</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* ── Step 3 · Items — add items, cart, discount ── */}
+            <div id="pos-group-3" className="pos-step-group">
+              <StepHead n={3} label="Items" />
+              <div style={card}>
+                {/* Add item — Product / Service toggle switches the workspace */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={fieldLabel}>Add item</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                    <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
+                      📦 Product
+                    </Seg>
+                    <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
+                      🔧 Service
+                    </Seg>
+                    <Seg active={addKind === "addon"} onClick={() => setAddKind("addon")}>
+                      ➕ Add-on
+                    </Seg>
+                  </div>
+                  <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
+                    {addKind === "product"
+                      ? "Scan a barcode, type the code, or search your catalog."
+                      : addKind === "service"
+                        ? "Pick a saved service. For a one-off, use Add-on."
+                        : "A one-off item not in your catalog — type a name and price."}
+                  </p>
+
+                  {addKind === "product" && (
+                    <div>
+                      <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                        <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
+                          📷 Scan barcode
+                        </Tab>
+                        <Tab active={method === "code"} onClick={() => setMethod("code")}>
+                          ⌨️ Type code
+                        </Tab>
+                        <Tab active={method === "search"} onClick={() => setMethod("search")}>
+                          🔍 Search
+                        </Tab>
+                      </div>
+
+                      {method === "scan" && (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            addByScan();
+                          }}
+                          style={{ display: "flex", gap: 8 }}
+                        >
+                          <input
+                            autoFocus
+                            value={scanVal}
+                            onChange={(e) => setScanVal(e.target.value)}
+                            placeholder="Scan or paste a barcode…"
+                            style={{ flex: 1, ...inputS }}
+                          />
+                          <button type="submit" className="btn-soft" disabled={busy} style={inputS}>
+                            Add
+                          </button>
+                        </form>
+                      )}
+
+                      {method === "code" && (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            addByCode();
+                          }}
+                          style={{ display: "flex", gap: 8 }}
+                        >
+                          <input
+                            value={codeVal}
+                            onChange={(e) => setCodeVal(e.target.value)}
+                            placeholder="Type a product code…"
+                            style={{ flex: 1, ...inputS }}
+                          />
+                          <button type="submit" className="btn-soft" style={inputS}>
+                            Add
+                          </button>
+                        </form>
+                      )}
+
+                      {method === "search" && (
+                        <div style={{ position: "relative" }}>
+                          <input
+                            autoFocus
+                            value={searchQ}
+                            onChange={(e) => setSearchQ(e.target.value)}
+                            placeholder="Search by product name or code…"
+                            style={{ width: "100%", ...inputS }}
+                          />
+                          {searchQ.trim() && (
+                            <div className="combo-pop">
+                              {searchResults.length === 0 ? (
+                                <p className="muted" style={{ fontSize: 13, margin: "6px 8px" }}>
+                                  No product matches “{searchQ.trim()}”.
+                                </p>
+                              ) : (
+                                searchResults.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    className="combo-opt"
+                                    onClick={() => addProductLine(p)}
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      gap: 8,
+                                    }}
+                                  >
+                                    <span style={{ minWidth: 0 }}>
+                                      <span
+                                        style={{
+                                          display: "block",
+                                          fontWeight: 600,
+                                          fontSize: 13,
+                                          whiteSpace: "nowrap",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                        }}
+                                      >
+                                        {p.name}
+                                      </span>
+                                      <span className="muted" style={{ fontSize: 12 }}>
+                                        {p.productRef}
+                                      </span>
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        fontSize: 13,
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      ฿{amt(tierPrice(p))}
+                                    </span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Service workspace */}
+                  {addKind === "service" && (
+                    <div>
+                      <div style={fieldLabel}>Add service</div>
+                      <ServiceSelect services={services} value={svcId} onSelect={selectService} />
+
+                      {/* Add — the price is set on the item in the cart below */}
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="btn-soft"
+                          disabled={!serviceName}
+                          onClick={addService}
+                          style={{ ...inputS, padding: "8px 16px" }}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add-on — a one-off custom line (name + price), not from the catalog */}
+                  {addKind === "addon" && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        addAddon();
+                      }}
+                      style={{ display: "flex", gap: 8 }}
+                    >
+                      <input
+                        autoFocus
+                        value={addonName}
+                        onChange={(e) => setAddonName(e.target.value)}
+                        placeholder="Item name…"
+                        style={{ flex: 1, ...inputS }}
+                      />
+                      <input
+                        value={addonPrice}
+                        onChange={(e) => setAddonPrice(e.target.value)}
+                        inputMode="decimal"
+                        placeholder="฿ price"
+                        style={{ width: 96, ...inputS }}
+                      />
+                      <button
+                        type="submit"
+                        className="btn-soft"
+                        disabled={!addonName.trim()}
+                        style={inputS}
+                      >
+                        Add
+                      </button>
+                    </form>
+                  )}
+                </div>
+
+                {/* Cart */}
+                <div
+                  style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}
+                >
+                  <div style={fieldLabel}>Items ({lines.length})</div>
+                  {lines.length === 0 ? (
+                    <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                      No items yet. Add a product or service above.
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {lines.map((l) => (
+                        <CartItem
+                          key={l.uid}
+                          line={l}
+                          lang={billLang}
+                          barcode={l.barcodeValue || codeToBarcode.get(l.productRef ?? "")}
+                          onQty={(quantity) => updateLine(l.uid, { quantity })}
+                          onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
+                          onTier={(t) => setLineTier(l.uid, t)}
+                          onRemove={() => removeLine(l.uid)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Discount — ฿ or % off the whole bill */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    paddingTop: 14,
+                    borderTop: "1px solid var(--border)",
+                  }}
+                >
+                  <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                    Discount
+                  </span>
+                  <input
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0"
+                    style={{ flex: 1, ...inputS }}
+                  />
+                  {(["thb", "pct"] as DiscountKind[]).map((k) => {
+                    const active = discountKind === k;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setDiscountKind(k)}
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: 8,
+                          border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                          background: active ? "var(--primary-soft)" : "var(--surface)",
+                          color: active ? "var(--primary)" : "var(--text)",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          minHeight: 0,
+                        }}
+                      >
+                        {k === "thb" ? "฿" : "%"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* ---- RIGHT: bill ---- */}
-        <div style={{ position: "sticky", top: 16 }}>
-          {/* Document type — big toggle above the preview (not printed) */}
-          <div className="bill-no-print" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {(["bill", "quotation"] as DocType[]).map((d) => {
-              const active = docType === d;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDocType(d)}
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "11px 10px",
-                    borderRadius: 10,
-                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                    background: active ? "var(--primary)" : "var(--surface)",
-                    color: active ? "#fff" : "var(--text)",
-                    fontWeight: active ? 600 : 500,
-                    fontSize: 14,
-                    cursor: "pointer",
-                    minHeight: 0,
-                  }}
-                >
-                  {d === "bill" ? "💵 Cash bill" : "📝 Quotation"}
-                </button>
-              );
-            })}
-          </div>
-
+        {/* ---- RIGHT: bill (preview + note + actions only) ---- */}
+        {/* Frozen alongside the timeline — clears the 56px topbar (+16 gap). */}
+        <div className="pos-col-right" style={{ position: "sticky", top: 72 }}>
           <div className="bill-print">
             <BillDoc
               billStyle={billStyle}
@@ -1625,8 +2178,12 @@ export default function PosPage() {
               lang={billLang}
               shop={shop}
               dateLabel={billLang === "en" ? englishDate(billDate) : thaiDate(billDate)}
-              vehicle={vehicleLabel}
+              saleNumber={
+                reprint ? (reprint.saleNumber ?? "") : nextSalesId(lastSaleId, Date.now())
+              }
+              vehicle={reprint ? reprint.vehicle : vehicleLabel}
               plate={plate.trim()}
+              mileage={mileage.trim()}
               lines={lines}
               subtotalSatang={subtotalSatang}
               discountSatang={discountSatang}
@@ -1635,103 +2192,8 @@ export default function PosPage() {
             />
           </div>
 
-          {/* Controls (not printed) — paper, note, actions */}
+          {/* Controls (not printed) — note + actions */}
           <div className="bill-no-print" style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                Paper
-              </span>
-              {(["invoice", "thermal"] as BillStyle[]).map((s) => {
-                const active = billStyle === s;
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setBillStyle(s)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 999,
-                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                      background: active ? "var(--primary-soft)" : "var(--surface)",
-                      color: active ? "var(--primary)" : "var(--text-muted)",
-                      fontWeight: active ? 600 : 500,
-                      fontSize: 12.5,
-                      cursor: "pointer",
-                      minHeight: 0,
-                    }}
-                  >
-                    {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Language — which language the bill prints in (Thai is the default) */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                Language
-              </span>
-              {(["th", "en"] as BillLang[]).map((l) => {
-                const active = billLang === l;
-                return (
-                  <button
-                    key={l}
-                    type="button"
-                    onClick={() => setBillLang(l)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 999,
-                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                      background: active ? "var(--primary-soft)" : "var(--surface)",
-                      color: active ? "var(--primary)" : "var(--text-muted)",
-                      fontWeight: active ? 600 : 500,
-                      fontSize: 12.5,
-                      cursor: "pointer",
-                      minHeight: 0,
-                    }}
-                  >
-                    {l === "th" ? "ไทย" : "English"}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Discount — ฿ or % off the whole bill */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                Discount
-              </span>
-              <input
-                value={discountValue}
-                onChange={(e) => setDiscountValue(e.target.value)}
-                inputMode="decimal"
-                placeholder="0"
-                style={{ flex: 1, ...inputS }}
-              />
-              {(["thb", "pct"] as DiscountKind[]).map((k) => {
-                const active = discountKind === k;
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setDiscountKind(k)}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 8,
-                      border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                      background: active ? "var(--primary-soft)" : "var(--surface)",
-                      color: active ? "var(--primary)" : "var(--text)",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      cursor: "pointer",
-                      minHeight: 0,
-                    }}
-                  >
-                    {k === "thb" ? "฿" : "%"}
-                  </button>
-                );
-              })}
-            </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -1739,30 +2201,85 @@ export default function PosPage() {
               rows={2}
               style={{ width: "100%", fontFamily: "inherit", marginBottom: 10 }}
             />
-            {docType === "quotation" ? (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={printBill}
-                disabled={lines.length === 0}
-                style={{ width: "100%" }}
-              >
-                Create PDF
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="btn-soft" onClick={printBill} style={{ flex: 1 }}>
-                  Create PDF
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={checkout}
-                  disabled={busy || lines.length === 0}
-                  style={{ flex: 1 }}
+            {reprint ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div
+                  style={{
+                    border: "1px solid var(--warn)",
+                    color: "var(--warn)",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                  }}
                 >
-                  Save File
-                </button>
+                  🖨 Reprinting {reprint.saleNumber ?? "this bill"} — printing only, no new sale is
+                  created.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={() => {
+                      window.location.href = "/pos";
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    Exit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={printBill}
+                    disabled={lines.length === 0}
+                    style={{ flex: 1 }}
+                  >
+                    Create PDF
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={printBill}
+                    disabled={lines.length === 0}
+                    style={{ flex: 1 }}
+                  >
+                    Create PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={saveDraftNow}
+                    disabled={busy || lines.length === 0}
+                    style={{ flex: 1 }}
+                  >
+                    Save draft
+                  </button>
+                </div>
+                {docType === "quotation" ? (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={saveQuotationNow}
+                    disabled={busy || lines.length === 0}
+                    style={{ width: "100%" }}
+                  >
+                    Save quotation
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={checkout}
+                    disabled={busy || lines.length === 0}
+                    style={{ width: "100%" }}
+                  >
+                    Save File
+                  </button>
+                )}
               </div>
             )}
           </div>

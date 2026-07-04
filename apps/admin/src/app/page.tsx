@@ -1,9 +1,10 @@
+import { PageHeader } from "./PageHeader";
+
 const SECTIONS: { href: string; icon: string; title: string; desc: string }[] = [
   { href: "/products", icon: "📦", title: "Products", desc: "Catalog, images, edit" },
   { href: "/barcodes", icon: "🏷️", title: "Barcodes", desc: "Generate & print" },
   { href: "/pos", icon: "🛒", title: "Point of Sale", desc: "Barcode selling (works offline)" },
-  { href: "/sales", icon: "💰", title: "Sales", desc: "Revenue, profit, refunds" },
-  { href: "/finance", icon: "📈", title: "Finance", desc: "Totals & VAT" },
+  { href: "/sales", icon: "💰", title: "Sales", desc: "Totals, VAT, profit, refunds" },
   { href: "/orders", icon: "🧾", title: "Orders", desc: "Shopee CSV import" },
   { href: "/import", icon: "⬆️", title: "Import", desc: "Bulk catalog CSV" },
   { href: "/terms", icon: "📝", title: "Terms", desc: "Thai T&C editor" },
@@ -12,8 +13,7 @@ const SECTIONS: { href: string; icon: string; title: string; desc: string }[] = 
 export default function DashboardPage() {
   return (
     <main>
-      <h1>Dashboard</h1>
-      <p className="muted">Welcome back. Pick a section to get started.</p>
+      <PageHeader title="Dashboard" subtitle="Welcome back. Pick a section to get started." />
       <div className="card-grid" style={{ marginTop: 18 }}>
         {SECTIONS.map((s) => (
           <a key={s.href} href={s.href} className="card">

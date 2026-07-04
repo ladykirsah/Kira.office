@@ -13,6 +13,7 @@ import {
   type Attributes,
   type IdentifierKind,
 } from "@/lib/api";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
@@ -34,7 +35,7 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
       try {
         const m = await checkIdentifier(kind, v);
         if (!cancelled) {
-          setWarn(m ? `Already used by “${m.name}” (${m.productCode} · ${m.status})` : null);
+          setWarn(m ? `Already used by “${m.name}” (${m.productRef} · ${m.status})` : null);
         }
       } catch {
         if (!cancelled) setWarn(null);
@@ -58,7 +59,6 @@ export default function NewProductPage() {
   const [weightKg, setWeightKg] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const [productRef, setProductRef] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [pricing, setPricing] = useState<PricingForm>({
     costThb: "",
@@ -85,7 +85,6 @@ export default function NewProductPage() {
     setPricing((prev) => ({ ...prev, ...patch }));
 
   const refWarn = useIdentifierCheck("ref", productRef);
-  const barcodeWarn = useIdentifierCheck("barcode", barcode);
   const shopeeWarn = useIdentifierCheck("shopee", shopeeItemId);
 
   /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
@@ -95,12 +94,14 @@ export default function NewProductPage() {
       toast("Enter a product name first", "error");
       return null;
     }
-    // Product code is auto-generated (not a form field); it only needs to be unique.
-    const productCode = `P-${Date.now().toString(36).toUpperCase()}${Math.random()
-      .toString(36)
-      .slice(2, 4)
-      .toUpperCase()}`;
-    const out = await createProduct({ productCode, name });
+    // The Product ID is the single product identifier: it is the product code (SKU) and the source
+    // of the barcode. No separate auto-generated code.
+    const code = productRef.trim();
+    if (!code) {
+      toast("Enter a Product ID first", "error");
+      return null;
+    }
+    const out = await createProduct({ productRef: code, name });
     if (!out.created) {
       toast("Could not create the product — please try again", "error");
       return null;
@@ -124,7 +125,8 @@ export default function NewProductPage() {
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
         productRef: productRef || undefined,
-        barcode: barcode || undefined,
+        // The barcode is the Product ID (one identifier; scanning the part's barcode fills it in).
+        barcode: productRef.trim(),
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
@@ -158,41 +160,34 @@ export default function NewProductPage() {
 
   return (
     <main>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Add product</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          <button type="button" onClick={() => router.push("/products")} disabled={busy}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn-soft"
-            onClick={() => submit("draft")}
-            disabled={busy}
-            style={{ minHeight: 44, padding: "10px 16px", fontSize: 15 }}
-          >
-            Save draft
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => submit("active")}
-            disabled={busy}
-          >
-            Save product
-          </button>
-        </div>
-      </div>
-      <p className="muted" style={{ marginTop: 4 }}>
-        New product — fitments are added on the edit page after saving.
-      </p>
+      <PageHeader
+        title="Add product"
+        subtitle="New product — fitments are added on the edit page after saving."
+        action={
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+            <button type="button" onClick={() => router.push("/products")} disabled={busy}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-soft"
+              onClick={() => submit("draft")}
+              disabled={busy}
+              style={{ minHeight: 44, padding: "10px 16px", fontSize: 14 }}
+            >
+              Save draft
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => submit("active")}
+              disabled={busy}
+            >
+              Save product
+            </button>
+          </div>
+        }
+      />
 
       <form
         onSubmit={(e) => {
@@ -247,14 +242,11 @@ export default function NewProductPage() {
             value={part}
             onChange={updatePart}
             attributes={attributes}
-            barcode={barcode}
-            onBarcodeChange={setBarcode}
             productRef={productRef}
             onProductRefChange={setProductRef}
             shopeeItemId={shopeeItemId}
             onShopeeItemIdChange={setShopeeItemId}
             refWarning={refWarn}
-            barcodeWarning={barcodeWarn}
             shopeeWarning={shopeeWarn}
           />
         </div>

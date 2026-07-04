@@ -1,16 +1,22 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import type { CarModelNode } from "@/lib/api";
+import { ConfirmButton } from "../../ConfirmButton";
 
-/** Read-only display of a car model's service notes, with an Edit button to switch to the form. */
-export function ModelInfoView({ model, onEdit }: { model: CarModelNode; onEdit: () => void }) {
+/** Read-only display of a car model's service notes, with Edit + Remove actions. */
+export function ModelInfoView({
+  model,
+  onEdit,
+  onRemove,
+}: {
+  model: CarModelNode;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const [removing, setRemoving] = useState(false); // delete armed → hide Edit, show only Remove/Cancel
   // Note: the era (year range) is shown as a chip on the model's row header, so it's omitted here.
   const rows: { label: string; value: ReactNode }[] = [];
-  if (model.generationCode)
-    rows.push({ label: "Generation / chassis", value: model.generationCode });
-  if (model.refrigerant) rows.push({ label: "Refrigerant", value: model.refrigerant });
-  if (model.coolantLiters) rows.push({ label: "Coolant (liters)", value: model.coolantLiters });
   if (model.oringUsage?.length) {
     rows.push({
       label: "O-ring usage",
@@ -43,21 +49,22 @@ export function ModelInfoView({ model, onEdit }: { model: CarModelNode; onEdit: 
           ))}
         </div>
       )}
-      <button
-        type="button"
-        className="btn-primary"
-        onClick={onEdit}
-        style={{
-          marginTop: 14,
-          padding: 8,
-          minHeight: 0,
-          fontSize: 13,
-          fontWeight: 400,
-          borderRadius: 8,
-        }}
-      >
-        Edit
-      </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        {!removing && (
+          <button type="button" className="btn-primary btn-sm" onClick={onEdit}>
+            Edit
+          </button>
+        )}
+        <ConfirmButton
+          className="btn-sm"
+          ariaLabel={`Remove ${model.name}`}
+          confirmLabel="Remove model?"
+          onConfirm={onRemove}
+          onArmedChange={setRemoving}
+        >
+          Remove
+        </ConfirmButton>
+      </div>
     </div>
   );
 }

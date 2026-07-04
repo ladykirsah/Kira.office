@@ -47,6 +47,7 @@ export interface QueuedLine {
 
 export interface QueuedSale {
   clientUuid: string;
+  saleNumber?: string;
   paymentMethod: string;
   saleType?: "parts" | "repair";
   licensePlate?: string;

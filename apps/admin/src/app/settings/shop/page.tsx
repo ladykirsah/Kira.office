@@ -4,19 +4,29 @@ import { useEffect, useState } from "react";
 import { fetchShopInfo, saveShopInfo, uploadShopImage, imageUrl, type ShopInfo } from "@/lib/api";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
+import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 
 // Shared with the product detail page's look: uppercase section heads, muted sub-labels, a card.
-const groupHead = {
-  fontSize: 12,
+// Section title — the dominant text level, clearly above the field labels (14px) below it.
+const sectionHead = {
+  fontSize: 16,
   fontWeight: 700,
   letterSpacing: "0.04em",
   textTransform: "uppercase" as const,
-  color: "var(--text-muted)",
-  marginBottom: 12,
+  color: "var(--text)",
+  marginBottom: 14,
 };
-const subLabel = { fontSize: 11, color: "var(--text-muted)", marginBottom: 3 } as const;
-const editLabel = { fontSize: 13, fontWeight: 600, marginBottom: 6 } as const;
+const subLabel = { fontSize: 12, color: "var(--text-muted)", marginBottom: 4 } as const;
+const editLabel = { fontSize: 14, fontWeight: 600, marginBottom: 7 } as const;
+// Titled groups (Branding / Shop identity / …) are separated by a hairline divider, centered in
+// the 28px gap (14 above + 14 below) so the divider adds the line without changing overall spacing.
+// The last section uses a plain <div> (no wrapper), so it correctly has no trailing divider.
+const sectionWrap = {
+  paddingBottom: 14,
+  marginBottom: 14,
+  borderBottom: "1px solid var(--border)",
+} as const;
 const valueStyle = {
   fontSize: 15,
   color: "var(--text)",
@@ -46,45 +56,50 @@ const TEXT_KEYS = [
   "qrSubtitleEn",
 ] as const;
 
-/** View-mode bilingual block: an uppercase section head, then the Thai value over the English one.
- * When the Thai value is blank but a default exists, show the default (muted, marked) — that's what
- * actually prints on the bill. */
+/** View-mode bilingual block — mirrors editPair's layout exactly (field label, then the Thai value
+ * beside the English one) so the page doesn't shift when toggling Edit. When the Thai value is blank
+ * but a default exists, show the default (muted, marked) — that's what actually prints on the bill. */
 function ViewPair({
   label,
   th,
   en,
   thDefault,
+  hideLabel,
 }: {
-  label: string;
+  label?: string;
   th: string;
   en: string;
   thDefault?: string;
+  hideLabel?: boolean;
 }) {
   const usingDefault = !th && !!thDefault;
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={groupHead}>{label}</div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={subLabel}>ไทย (Thai){usingDefault ? " · default" : ""}</div>
-        <div style={usingDefault ? valueMuted : valueStyle}>{th || thDefault || "—"}</div>
-      </div>
-      <div>
-        <div style={subLabel}>English</div>
-        <div style={en ? valueStyle : valueMuted}>{en || "—"}</div>
+      {!hideLabel && <div style={editLabel}>{label}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <div style={subLabel}>ไทย (Thai){usingDefault ? " · default" : ""}</div>
+          <div style={usingDefault ? valueMuted : valueStyle}>{th || thDefault || "—"}</div>
+        </div>
+        <div>
+          <div style={subLabel}>English</div>
+          <div style={en ? valueStyle : valueMuted}>{en || "—"}</div>
+        </div>
       </div>
     </div>
   );
 }
 
-/** View-mode image preview (logo / contact QR), or a muted "none" when unset. */
+/** View-mode image preview (logo / contact QR), or a muted "none" when unset. Mirrors editImage's
+ * label + 76px frame so the Branding row matches edit mode. */
 function ViewImage({ label, imgKey }: { label: string; imgKey: string | null }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={subLabel}>{label}</div>
+    <div>
+      <div style={editLabel}>{label}</div>
       <div
         style={{
-          width: 96,
-          height: 96,
+          width: 76,
+          height: 76,
           border: "1px solid var(--border)",
           borderRadius: 8,
           background: "#fff",
@@ -177,7 +192,12 @@ export default function ShopInfoPage() {
     label: string,
     thKey: keyof ShopInfo,
     enKey: keyof ShopInfo,
-    opts?: { multiline?: boolean; thPlaceholder?: string; enPlaceholder?: string },
+    opts?: {
+      multiline?: boolean;
+      thPlaceholder?: string;
+      enPlaceholder?: string;
+      hideLabel?: boolean;
+    },
   ) => {
     const fieldInput = (key: keyof ShopInfo, placeholder?: string) =>
       opts?.multiline ? (
@@ -197,9 +217,9 @@ export default function ShopInfoPage() {
         />
       );
     return (
-      <div style={{ marginBottom: 16 }}>
-        <div style={editLabel}>{label}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ marginBottom: 18 }}>
+        {!opts?.hideLabel && <div style={editLabel}>{label}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
             <div style={subLabel}>ไทย (Thai)</div>
             {fieldInput(thKey, opts?.thPlaceholder)}
@@ -214,7 +234,7 @@ export default function ShopInfoPage() {
   };
 
   const editImage = (label: string, slot: "logo" | "qr", imgKey: string | null, hint: string) => (
-    <div style={{ marginBottom: 16 }}>
+    <div>
       <div style={editLabel}>{label}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div
@@ -256,111 +276,130 @@ export default function ShopInfoPage() {
 
   return (
     <main>
-      <div
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
-      >
-        <h1 style={{ margin: 0 }}>Shop info</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-          {editing ? (
-            <>
-              <button type="button" onClick={cancel} disabled={busy}>
-                Cancel
+      <PageHeader
+        title="Shop info"
+        subtitle="Shown on printed bills and quotations. Thai prints by default; a Thai/English switch on the POS picks which language to print. Barcode labels use the Thai shop name."
+        action={
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+            {editing ? (
+              <>
+                <button type="button" onClick={cancel} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary" onClick={save} disabled={busy}>
+                  Save
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
+                Edit
               </button>
-              <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-                Save
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="muted" style={{ marginTop: 4 }}>
-        Shown on printed bills and quotations. Thai prints by default; a Thai/English switch on the
-        POS picks which language to print. Barcode labels use the Thai shop name.
-      </p>
+            )}
+          </div>
+        }
+      />
 
       <div style={{ ...cardStyle, marginTop: 14 }}>
         {editing ? (
           <>
-            {editPair("Shop name", "name", "nameEn", {
-              thPlaceholder: "เช่น เด่นแอร์ เซอร์วิส (สุรินทร์)",
-              enPlaceholder: "e.g. Den Air Service (Surin)",
-            })}
-            {editPair("Address", "address", "addressEn", {
-              multiline: true,
-              thPlaceholder: "123 ถนนหลักเมือง อ.เมือง จ.สุรินทร์ 32000",
-              enPlaceholder: "123 Lak Mueang Rd, Mueang, Surin 32000",
-            })}
-            {editPair("Quotation note", "quoteNote", "quoteNoteEn", {
-              multiline: true,
-              thPlaceholder: SHOP_DEFAULTS.quoteNote,
-              enPlaceholder: "* Estimate only; final price may change on inspection",
-            })}
-            <div style={{ borderTop: "1px solid var(--border)", margin: "2px 0 16px" }} />
-            {editPair("Contact-QR headline", "qrHeadline", "qrHeadlineEn", {
-              thPlaceholder: SHOP_DEFAULTS.qrHeadline,
-              enPlaceholder: "e.g. Contact the shop",
-            })}
-            {editPair("Contact-QR subtitle", "qrSubtitle", "qrSubtitleEn", {
-              thPlaceholder: SHOP_DEFAULTS.qrSubtitle,
-              enPlaceholder: "e.g. Scan to chat / book a slot",
-            })}
-            <div style={{ borderTop: "1px solid var(--border)", margin: "2px 0 16px" }} />
-            {editImage(
-              "Logo",
-              "logo",
-              info.logoKey,
-              "PNG/JPG/WebP, ≤5MB. Saved immediately. (Not on the bill yet.)",
-            )}
-            {editImage(
-              "Contact QR image",
-              "qr",
-              info.qrKey,
-              "PNG/JPG/WebP, ≤5MB. Saved immediately. Prints on the quotation.",
-            )}
+            {/* Branding (Logo + QR) — first, so the visual identity leads the form. */}
+            <div style={sectionWrap}>
+              <div style={sectionHead}>Branding</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {editImage(
+                  "Logo",
+                  "logo",
+                  info.logoKey,
+                  "PNG/JPG/WebP, ≤5MB. Saved immediately. (Not on the bill yet.)",
+                )}
+                {editImage(
+                  "Contact QR image",
+                  "qr",
+                  info.qrKey,
+                  "PNG/JPG/WebP, ≤5MB. Saved immediately. Prints on the quotation.",
+                )}
+              </div>
+            </div>
+
+            <div style={sectionWrap}>
+              <div style={sectionHead}>Shop identity</div>
+              {editPair("Shop name", "name", "nameEn", {
+                thPlaceholder: "เช่น เด่นแอร์ เซอร์วิส (สุรินทร์)",
+                enPlaceholder: "e.g. Den Air Service (Surin)",
+              })}
+              {editPair("Address", "address", "addressEn", {
+                multiline: true,
+                thPlaceholder: "123 ถนนหลักเมือง อ.เมือง จ.สุรินทร์ 32000",
+                enPlaceholder: "123 Lak Mueang Rd, Mueang, Surin 32000",
+              })}
+            </div>
+
+            <div style={sectionWrap}>
+              <div style={sectionHead}>Quotation note</div>
+              {editPair("Quotation note", "quoteNote", "quoteNoteEn", {
+                multiline: true,
+                hideLabel: true,
+                thPlaceholder: SHOP_DEFAULTS.quoteNote,
+                enPlaceholder: "* Estimate only; final price may change on inspection",
+              })}
+            </div>
+
+            <div>
+              <div style={sectionHead}>Contact QR caption</div>
+              {editPair("Headline", "qrHeadline", "qrHeadlineEn", {
+                thPlaceholder: SHOP_DEFAULTS.qrHeadline,
+                enPlaceholder: "e.g. Contact the shop",
+              })}
+              {editPair("Subtitle", "qrSubtitle", "qrSubtitleEn", {
+                thPlaceholder: SHOP_DEFAULTS.qrSubtitle,
+                enPlaceholder: "e.g. Scan to chat / book a slot",
+              })}
+            </div>
           </>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
-              gap: "0 36px",
-              alignItems: "start",
-            }}
-          >
-            <div>
+          <>
+            {/* View mode mirrors the edit form one-to-one: same sections, same positions, values
+                instead of inputs — so nothing shifts when toggling Edit. */}
+            <div style={sectionWrap}>
+              <div style={sectionHead}>Branding</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <ViewImage label="Logo" imgKey={info.logoKey} />
+                <ViewImage label="Contact QR image" imgKey={info.qrKey} />
+              </div>
+            </div>
+
+            <div style={sectionWrap}>
+              <div style={sectionHead}>Shop identity</div>
               <ViewPair label="Shop name" th={info.name} en={info.nameEn} />
               <ViewPair label="Address" th={info.address} en={info.addressEn} />
             </div>
-            <div>
+
+            <div style={sectionWrap}>
+              <div style={sectionHead}>Quotation note</div>
               <ViewPair
-                label="Quotation note"
+                hideLabel
                 th={info.quoteNote}
                 en={info.quoteNoteEn}
                 thDefault={SHOP_DEFAULTS.quoteNote}
               />
+            </div>
+
+            <div>
+              <div style={sectionHead}>Contact QR caption</div>
               <ViewPair
-                label="Contact-QR headline"
+                label="Headline"
                 th={info.qrHeadline}
                 en={info.qrHeadlineEn}
                 thDefault={SHOP_DEFAULTS.qrHeadline}
               />
               <ViewPair
-                label="Contact-QR subtitle"
+                label="Subtitle"
                 th={info.qrSubtitle}
                 en={info.qrSubtitleEn}
                 thDefault={SHOP_DEFAULTS.qrSubtitle}
               />
             </div>
-            <div>
-              <div style={groupHead}>Images</div>
-              <ViewImage label="Logo" imgKey={info.logoKey} />
-              <ViewImage label="Contact QR" imgKey={info.qrKey} />
-            </div>
-          </div>
+          </>
         )}
       </div>
     </main>

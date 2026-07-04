@@ -14,14 +14,21 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
   },
   {
     section: "Sell",
-    links: [["/pos", "🛒", "Point of Sale"]],
+    links: [
+      ["/pos", "🛒", "Point of Sale"],
+      ["/customers", "👥", "Customers"],
+    ],
+  },
+  {
+    section: "Inventory",
+    links: [["/stock", "📊", "Stock movements"]],
   },
   {
     section: "Orders & money",
     links: [
       ["/orders", "🧾", "Orders"],
       ["/sales", "💰", "Sales"],
-      ["/finance", "📈", "Finance"],
+      ["/affiliate", "🤝", "Affiliate"],
     ],
   },
   {
@@ -29,7 +36,7 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
     links: [
       ["/settings/shop", "🏪", "Shop info"],
       ["/settings/attributes", "🧩", "Part attributes"],
-      ["/settings/services", "🔧", "Services"],
+      ["/settings/services", "🔧", "Service Setup"],
       ["/settings/car-fitment", "🚗", "Car fitment"],
       ["/terms", "📝", "Terms"],
     ],
@@ -38,6 +45,11 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
 
 export function Sidebar() {
   const path = usePathname();
+  // The most specific matching link wins, so a sub-route (/customers/1กก) highlights its parent
+  // without also lighting up a shorter sibling (/products vs /products/new).
+  const activeHref = GROUPS.flatMap((g) => g.links.map((l) => l[0]))
+    .filter((h) => path === h || path.startsWith(`${h}/`))
+    .sort((a, b) => b.length - a.length)[0];
   return (
     <nav className="sidebar" aria-label="Main">
       <a className="brand" href="/">
@@ -47,7 +59,7 @@ export function Sidebar() {
         <div key={g.section}>
           <div className="nav-section-label">{g.section}</div>
           {g.links.map(([href, icon, label]) => {
-            const active = path === href;
+            const active = href === activeHref;
             return (
               <a
                 key={href}

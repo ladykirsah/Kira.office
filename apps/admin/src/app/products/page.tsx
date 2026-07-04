@@ -1,4 +1,5 @@
 import { fetchProducts } from "@/lib/api";
+import { PageHeader } from "../PageHeader";
 import { ProductsTable } from "./ProductsTable";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function ProductsPage() {
 
   return (
     <main>
-      <h1>Products ({products.length})</h1>
+      <PageHeader title={`Products (${products.length})`} />
       <ProductsTable products={products} />
     </main>
   );

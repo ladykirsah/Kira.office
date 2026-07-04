@@ -1,12 +1,13 @@
 /** Typed client for the kiraoffice API Worker. */
 import { apiFetch, apiBase } from "./apiFetch";
+import type { DraftApiLine } from "./posDraft";
 
 export { apiBase };
 
 export interface ProductRow {
   id: string;
   variantId: string | null;
-  productCode: string;
+  productRef: string;
   name: string;
   status: string;
   imageKey: string | null;
@@ -24,22 +25,6 @@ export interface ProductRow {
   onHand: number;
 }
 
-export async function uploadProductImage(
-  productId: string,
-  file: File,
-): Promise<{ key: string; url: string }> {
-  const res = await apiFetch(`/products/${productId}/image`, {
-    method: "POST",
-    headers: { "content-type": file.type },
-    body: file,
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `Upload failed (HTTP ${res.status})`);
-  }
-  return (await res.json()) as { key: string; url: string };
-}
-
 export async function fetchProducts(): Promise<ProductRow[]> {
   const res = await apiFetch(`/products`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load products (HTTP ${res.status})`);
@@ -52,7 +37,7 @@ export async function fetchProducts(): Promise<ProductRow[]> {
 }
 
 export interface CreateProductInput {
-  productCode: string;
+  productRef: string;
   name: string;
   description?: string;
   barcode?: string;
@@ -81,7 +66,7 @@ export interface BarcodeLookup {
   barcode: string;
   variantId: string;
   productId: string;
-  productCode: string;
+  productRef: string;
   name: string;
 }
 
@@ -98,7 +83,7 @@ export type IdentifierKind = "ref" | "barcode" | "shopee";
 export interface IdentifierMatch {
   id: string;
   name: string;
-  productCode: string;
+  productRef: string;
   status: string;
 }
 
@@ -169,6 +154,7 @@ export async function deleteAttribute(kind: AttrKind, id: string): Promise<void>
 export interface ServiceRow {
   id: string;
   name: string;
+  nameEn: string;
   basePriceSatang: number;
 }
 
@@ -178,11 +164,15 @@ export async function fetchServices(): Promise<ServiceRow[]> {
   return ((await res.json()) as { services: ServiceRow[] }).services;
 }
 
-export async function addService(name: string, basePriceSatang: number): Promise<ServiceRow> {
+export async function addService(
+  name: string,
+  nameEn: string,
+  basePriceSatang: number,
+): Promise<ServiceRow> {
   const res = await apiFetch(`/services`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, basePriceSatang }),
+    body: JSON.stringify({ name, nameEn, basePriceSatang }),
   });
   if (!res.ok) throw new Error(`Add service failed (HTTP ${res.status})`);
   return (await res.json()) as ServiceRow;
@@ -190,7 +180,7 @@ export async function addService(name: string, basePriceSatang: number): Promise
 
 export async function updateService(
   id: string,
-  fields: { name: string; basePriceSatang: number },
+  fields: { name: string; nameEn: string; basePriceSatang: number },
 ): Promise<void> {
   const res = await apiFetch(`/services/${id}`, {
     method: "PATCH",
@@ -203,6 +193,165 @@ export async function updateService(
 export async function deleteService(id: string): Promise<void> {
   const res = await apiFetch(`/services/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete service failed (HTTP ${res.status})`);
+}
+
+// ── On-site drafts & quotations ────────────────────────────────────────────────────────────────
+export interface SaveDraftInput {
+  draftId: string;
+  stage: "draft" | "quotation";
+  saleNumber?: string | null;
+  saleType?: "parts" | "repair";
+  licensePlate?: string | null;
+  vehicle?: string | null;
+  notes?: string | null;
+  lines: DraftApiLine[];
+}
+
+/** A parked draft/quotation returned by GET /onsite/drafts, with its lines, for the reopen tray. */
+export interface OpenDraft {
+  id: string;
+  saleNumber: string | null;
+  saleType: string | null;
+  licensePlate: string | null;
+  vehicle: string | null;
+  notes: string | null;
+  stage: "draft" | "quotation";
+  grandTotalSatang: number;
+  createdAt: number;
+  lines: DraftApiLine[];
+}
+
+export async function saveDraft(input: SaveDraftInput): Promise<void> {
+  const res = await apiFetch(`/onsite/drafts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Save draft failed (HTTP ${res.status})`);
+}
+
+export async function listDrafts(): Promise<OpenDraft[]> {
+  const res = await apiFetch(`/onsite/drafts`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load drafts (HTTP ${res.status})`);
+  return ((await res.json()) as { drafts: OpenDraft[] }).drafts;
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  const res = await apiFetch(`/onsite/drafts/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete draft failed (HTTP ${res.status})`);
+}
+
+// ── Customers (car directory + service history) ─────────────────────────────────────────────────
+export interface CustomerListItem {
+  licensePlate: string;
+  vehicle: string | null;
+  customerName: string | null;
+  phone: string | null;
+  carModel: string | null;
+  billCount: number;
+  lastVisitAt: number;
+}
+
+export interface CustomerSaleLine {
+  onsiteSaleId?: string;
+  description: string | null;
+  lineType: string;
+  quantity: number;
+  unitPriceSatang: number;
+  discountSatang: number;
+}
+
+export interface CustomerSale {
+  id: string;
+  saleNumber: string | null;
+  stage: string;
+  createdAt: number;
+  subtotalSatang: number;
+  discountTotalSatang: number;
+  taxTotalSatang: number;
+  grandTotalSatang: number;
+  notes: string | null;
+  vehicle: string | null;
+  lines: CustomerSaleLine[];
+}
+
+export interface CustomerInfo {
+  licensePlate: string;
+  plateProvince: string | null;
+  customerName: string | null;
+  phone: string | null;
+  carModel: string | null;
+  notes: string | null;
+}
+
+export interface CustomerDetail {
+  customer: CustomerInfo | null;
+  vehicle: string | null;
+  history: CustomerSale[];
+  quotations: CustomerSale[];
+}
+
+export async function searchCustomers(q: string): Promise<CustomerListItem[]> {
+  const res = await apiFetch(`/customers?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load customers (HTTP ${res.status})`);
+  return ((await res.json()) as { customers: CustomerListItem[] }).customers;
+}
+
+export async function getCustomerDetail(plate: string): Promise<CustomerDetail> {
+  const res = await apiFetch(`/customers/${encodeURIComponent(plate)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load car (HTTP ${res.status})`);
+  return (await res.json()) as CustomerDetail;
+}
+
+export interface FullBillLine {
+  productVariantId: string | null;
+  lineType: string;
+  description: string | null;
+  quantity: number;
+  unitPriceSatang: number;
+  discountSatang: number;
+  taxSatang: number;
+}
+
+/** A whole on-site sale with its lines — the full-track detail behind a history row. */
+export interface FullBill {
+  id: string;
+  saleNumber: string | null;
+  saleType: string | null;
+  licensePlate: string | null;
+  vehicle: string | null;
+  notes: string | null;
+  paymentMethod: string | null;
+  stage: string;
+  saleStatus: string;
+  subtotalSatang: number;
+  discountTotalSatang: number;
+  taxTotalSatang: number;
+  grandTotalSatang: number;
+  createdAt: number;
+  lines: FullBillLine[];
+}
+
+export async function getOnsiteSale(id: string): Promise<FullBill> {
+  const res = await apiFetch(`/onsite/sales/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load bill (HTTP ${res.status})`);
+  return ((await res.json()) as { sale: FullBill }).sale;
+}
+
+export async function saveCustomer(input: {
+  licensePlate: string;
+  customerName?: string | null;
+  phone?: string | null;
+  plateProvince?: string | null;
+  carModel?: string | null;
+  notes?: string | null;
+}): Promise<void> {
+  const res = await apiFetch(`/customers/by-plate`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Save customer failed (HTTP ${res.status})`);
 }
 
 /** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */
@@ -292,14 +441,13 @@ export async function updateCarModel(id: string, info: CarModelInfo): Promise<vo
 export interface ProductDetail {
   product: {
     id: string;
-    productCode: string;
     name: string;
     description: string | null;
     status: string;
     imageKey: string | null;
     shopeeListed: number;
     shopeeItemId: string | null;
-    productRef: string | null;
+    productRef: string;
     category: string | null;
     weightGrams: number;
     brandId: string | null;
@@ -426,7 +574,19 @@ export interface OrderRow {
   externalOrderId: string;
   orderStatus: string | null;
   paymentStatus: string | null;
+  grandTotalSatang: number;
+  feeTotalSatang: number;
+  orderCreatedAt: number | null;
   importedAt: number;
+  buyerUsername?: string | null; // ชื่อผู้ใช้ (ผู้ซื้อ)
+  salesSatang?: number | null; // ราคาสินค้าที่ชำระโดยผู้ซื้อ
+  feeBp?: number | null; // ค่าธรรมเนียม (%) as basis points, 321 = 3.21%
+  shipTimeMs?: number | null; // เวลาส่งสินค้า
+  // Profit = Total − Kira cost of the ordered items. Null until the order's line SKUs are matched to
+  // Kira products (Shopee listing SKU must be set to the Kira product code first).
+  profitSatang?: number | null;
+  carrier?: string | null; // shipping carrier (AirPlus)
+  trackingNo?: string | null; // parcel tracking number (AirPlus)
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {
@@ -518,19 +678,37 @@ export function imageUrl(key: string): string {
   return `${apiBase}/img/${key}`;
 }
 
-export interface FinanceSummary {
-  salesCount: number;
-  revenueSatang: number;
-  vatSatang: number;
-  grossProfitSatang: number;
-  refundCount: number;
-  refundedSatang: number;
+export interface StockRow {
+  variantId: string;
+  sku: string | null;
+  productName: string;
+  productRef: string | null;
+  onHand: number;
 }
 
-export async function fetchFinanceSummary(): Promise<FinanceSummary> {
-  const res = await apiFetch(`/finance/summary`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load finance summary (HTTP ${res.status})`);
-  return (await res.json()) as FinanceSummary;
+export async function fetchStock(): Promise<StockRow[]> {
+  const res = await apiFetch(`/stock`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load stock (HTTP ${res.status})`);
+  const data = (await res.json()) as { stock: StockRow[] };
+  return data.stock;
+}
+
+export interface StockMovementRow {
+  id: string;
+  variantId: string;
+  sku: string | null;
+  productName: string;
+  movementType: string;
+  quantityDelta: number;
+  quantityAfter: number;
+  createdAt: number;
+}
+
+export async function fetchStockMovements(): Promise<StockMovementRow[]> {
+  const res = await apiFetch(`/stock/movements`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load movements (HTTP ${res.status})`);
+  const data = (await res.json()) as { movements: StockMovementRow[] };
+  return data.movements;
 }
 
 export async function adjustStock(input: {
@@ -556,7 +734,7 @@ export async function archiveProduct(id: string): Promise<void> {
 export interface BarcodeRow {
   variantId: string;
   productId: string;
-  productCode: string;
+  productRef: string;
   productName: string;
   barcode: string | null;
 }
@@ -582,6 +760,7 @@ export async function addBarcode(
 
 export interface SaleRow {
   id: string;
+  saleNumber: string | null;
   paymentMethod: string | null;
   grandTotalSatang: number;
   taxTotalSatang: number;

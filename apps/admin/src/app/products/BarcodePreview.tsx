@@ -13,7 +13,7 @@ export function BarcodePreview({ value }: { value: string }) {
   useEffect(() => {
     const el = ref.current;
     if (!el || !format) return;
-    const opts = { height: 48, width: 1.6, fontSize: 13, margin: 6, displayValue: true } as const;
+    const opts = { height: 48, width: 1.6, fontSize: 12, margin: 6, displayValue: true } as const;
     try {
       JsBarcode(el, v, { format, ...opts });
     } catch {

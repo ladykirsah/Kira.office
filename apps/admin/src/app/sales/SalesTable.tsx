@@ -1,90 +1,78 @@
 "use client";
 
-import { useState } from "react";
 import { type SaleRow } from "@/lib/api";
-import { inputS } from "@/lib/inputStyles";
-import { formatBaht } from "@/lib/format";
-import { saleStatusPill, saleTypeBadge, vehicleLabel } from "@/lib/badges";
-import { RefundButton } from "./RefundButton";
+import { formatBahtTrim } from "@/lib/format";
+import { saleStatusPill, saleTypeBadge } from "@/lib/badges";
+import { tableText } from "@/lib/tableText";
+import { SalesActionsMenu } from "./SalesActionsMenu";
 
-const right = { textAlign: "right" } as const;
-
+/** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
 export function SalesTable({ sales }: { sales: SaleRow[] }) {
-  const [filter, setFilter] = useState("all");
-  const filtered = filter === "all" ? sales : sales.filter((s) => s.saleStatus === filter);
+  if (sales.length === 0) {
+    return (
+      <div className="empty">
+        <div className="empty-icon">💰</div>No sales for this view.
+      </div>
+    );
+  }
 
   return (
-    <div className="card" style={{ overflowX: "auto" }}>
-      <div style={{ marginBottom: 12 }}>
-        <label>
-          Show{" "}
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} style={inputS}>
-            <option value="all">all</option>
-            <option value="completed">completed</option>
-            <option value="refunded">refunded</option>
-          </select>
-        </label>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">💰</div>
-          {sales.length === 0
-            ? "No sales yet. Sales from the POS appear here."
-            : "No matching sales."}
-        </div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Job</th>
-              <th style={right}>Total</th>
-              <th style={right}>Profit</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => {
-              const type = saleTypeBadge(s.saleType);
-              const veh = vehicleLabel(s.vehicle, s.licensePlate);
-              // Repair rows show the vehicle; Parts rows show the channel (Online / On-site).
-              const sub =
-                s.saleType === "repair"
-                  ? veh
-                  : s.saleType === "parts"
-                    ? s.channel === "online"
-                      ? "Online"
-                      : "On-site"
-                    : "";
-              return (
-                <tr key={s.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {new Date(s.createdAt).toLocaleString("th-TH")}
-                  </td>
-                  <td>
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ tableLayout: "fixed", minWidth: 900 }}>
+        {/* Job (tag + bill id) needs a bit more room; the other five share the rest evenly. */}
+        <colgroup>
+          <col style={{ width: "30%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Total</th>
+            <th>Profit</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sales.map((s) => {
+            const type = saleTypeBadge(s.saleType);
+            return (
+              <tr key={s.id}>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {type ? <span className={`pill ${type.pill}`}>{type.label}</span> : "—"}
-                    {sub && (
-                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                        {sub}
-                      </div>
-                    )}
-                  </td>
-                  <td style={right}>{formatBaht(s.grandTotalSatang)}</td>
-                  <td style={right}>{formatBaht(s.grossProfitSatang)}</td>
-                  <td>
-                    <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
-                  </td>
-                  <td>
-                    <RefundButton saleId={s.id} status={s.saleStatus} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+                    <span style={{ ...tableText.body2, fontFamily: "var(--font-mono, monospace)" }}>
+                      {s.saleNumber ?? <span className="muted">—</span>}
+                    </span>
+                  </div>
+                </td>
+                <td>{formatBahtTrim(s.grandTotalSatang)}</td>
+                <td>{formatBahtTrim(s.grossProfitSatang)}</td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <div style={tableText.body2}>
+                    {new Date(s.createdAt).toLocaleDateString("th-TH")}
+                  </div>
+                </td>
+                <td>
+                  <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
+                </td>
+                <td>
+                  <SalesActionsMenu
+                    saleId={s.id}
+                    saleStatus={s.saleStatus}
+                    licensePlate={s.licensePlate}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

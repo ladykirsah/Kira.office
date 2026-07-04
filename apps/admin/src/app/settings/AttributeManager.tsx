@@ -10,8 +10,9 @@ import {
   type AttrOption,
   type Attributes,
 } from "@/lib/api";
+import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
-import { ConfirmButton } from "../ConfirmButton";
+import { ConfirmButton, XIcon } from "../ConfirmButton";
 
 export interface AttrKindConfig {
   kind: AttrKind;
@@ -51,7 +52,7 @@ function ListCard({
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
-        padding: "14px 16px",
+        padding: 16,
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 10 }}>{label}</div>
@@ -60,7 +61,7 @@ function ListCard({
           No values yet.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 4, marginBottom: 12 }}>
+        <div style={{ display: "grid", gap: 0, marginBottom: 12 }}>
           {items.map((o) => (
             <div
               key={o.id}
@@ -70,12 +71,17 @@ function ListCard({
                 alignItems: "center",
                 gap: 8,
                 borderTop: "1px solid var(--border)",
-                padding: "6px 0",
+                padding: "8px 0",
               }}
             >
               <span>{o.name}</span>
-              <ConfirmButton confirmLabel="Remove?" onConfirm={() => onDelete(o.id)}>
-                ✕
+              <ConfirmButton
+                className="icon-btn"
+                ariaLabel={`Remove ${o.name}`}
+                confirmLabel="Remove?"
+                onConfirm={() => onDelete(o.id)}
+              >
+                <XIcon />
               </ConfirmButton>
             </div>
           ))}
@@ -88,7 +94,7 @@ function ListCard({
           placeholder={placeholder}
           style={{ ...inputS, flex: 1, minWidth: 0 }}
         />
-        <button type="submit" className="btn-primary" disabled={busy || !val.trim()}>
+        <button type="submit" className="btn-primary btn-sm" disabled={busy || !val.trim()}>
           Add
         </button>
       </form>
@@ -146,10 +152,7 @@ export function AttributeManager({
 
   return (
     <main>
-      <h1>{title}</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        {subtitle}
-      </p>
+      <PageHeader title={title} subtitle={subtitle} />
 
       {loading ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />
@@ -161,6 +164,8 @@ export function AttributeManager({
             gap: 14,
             marginTop: 16,
             maxWidth: 900,
+            // Each card sizes to its own content instead of stretching to the tallest in the row.
+            alignItems: "start",
           }}
         >
           {kinds.map((k) => (

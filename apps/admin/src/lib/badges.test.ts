@@ -4,7 +4,11 @@ import {
   paymentPill,
   orderStatusPill,
   vehicleLabel,
+  stripCarYear,
+  carYearOf,
   saleTypeBadge,
+  shopeeStatusBadge,
+  airplusStatusBadge,
 } from "./badges";
 
 describe("saleStatusPill", () => {
@@ -38,10 +42,67 @@ describe("vehicleLabel", () => {
   it("given neither > then empty string", () => expect(vehicleLabel(null, null)).toBe(""));
 });
 
+describe("stripCarYear", () => {
+  it("given a model ending in a year > drops the year", () =>
+    expect(stripCarYear("Toyota Vios 2014")).toBe("Toyota Vios"));
+  it("given a model with no year > returns it unchanged", () =>
+    expect(stripCarYear("Toyota Vios")).toBe("Toyota Vios"));
+  it("given a model whose name contains a number > drops only the trailing year", () =>
+    expect(stripCarYear("Mazda 2 2019")).toBe("Mazda 2"));
+  it("given empty/nullish > then empty string", () => {
+    expect(stripCarYear("")).toBe("");
+    expect(stripCarYear(null)).toBe("");
+    expect(stripCarYear(undefined)).toBe("");
+  });
+});
+
+describe("carYearOf", () => {
+  it("given a model ending in a year > returns just the year", () =>
+    expect(carYearOf("Toyota Vios 2014")).toBe("2014"));
+  it("given a model whose name contains a number > returns only the trailing year", () =>
+    expect(carYearOf("Mazda 2 2019")).toBe("2019"));
+  it("given no trailing year > returns empty string", () => {
+    expect(carYearOf("Toyota Vios")).toBe("");
+    expect(carYearOf("")).toBe("");
+    expect(carYearOf(null)).toBe("");
+  });
+});
+
 describe("saleTypeBadge", () => {
-  it("given repair > then soft pill with label", () =>
-    expect(saleTypeBadge("repair")).toEqual({ pill: "soft", label: "🔧 Repair" }));
-  it("given parts > then off pill with label", () =>
-    expect(saleTypeBadge("parts")).toEqual({ pill: "off", label: "📦 Parts" }));
+  it("given repair > then soft pill with Service label", () =>
+    expect(saleTypeBadge("repair")).toEqual({ pill: "soft", label: "🔧 Service" }));
+  it("given parts > then off pill with Products label", () =>
+    expect(saleTypeBadge("parts")).toEqual({ pill: "off", label: "📦 Products" }));
   it("given null > then null", () => expect(saleTypeBadge(null)).toBeNull());
+});
+
+describe("shopeeStatusBadge", () => {
+  it("สำเร็จแล้ว > Complete/green", () =>
+    expect(shopeeStatusBadge("สำเร็จแล้ว")).toEqual({ pill: "good", label: "Complete" }));
+  it("buyer-received (mentions refund) > Shipped/blue, not Refund", () =>
+    expect(
+      shopeeStatusBadge(
+        "ผู้ซื้อได้รับสินค้าแล้ว โปรดทราบว่าผู้ซื้อสามารถยื่นคำขอคืนเงิน/คืนสินค้าได้จนถึง 2026-07-03",
+      ),
+    ).toEqual({ pill: "info", label: "Shipped" }));
+  it("กำลังจัดส่ง > Shipping/yellow", () =>
+    expect(shopeeStatusBadge("กำลังจัดส่ง")).toEqual({ pill: "warn", label: "Shipping" }));
+  it("ยกเลิกแล้ว > Cancelled/gray", () =>
+    expect(shopeeStatusBadge("ยกเลิกแล้ว")).toEqual({ pill: "off", label: "Cancelled" }));
+  it("คืนเงินสำเร็จ > Refund/red", () =>
+    expect(shopeeStatusBadge("การคืนเงิน/คืนสินค้าสำเร็จ")).toEqual({
+      pill: "bad",
+      label: "Refund",
+    }));
+});
+
+describe("airplusStatusBadge (Refund=gray, Cancelled=red — opposite of Shopee)", () => {
+  it("done > Done/green", () =>
+    expect(airplusStatusBadge("done")).toEqual({ pill: "good", label: "Done" }));
+  it("shipping > Shipping/yellow", () =>
+    expect(airplusStatusBadge("shipping")).toEqual({ pill: "warn", label: "Shipping" }));
+  it("refund > Refund/gray", () =>
+    expect(airplusStatusBadge("refund")).toEqual({ pill: "off", label: "Refund" }));
+  it("cancelled > Cancelled/red", () =>
+    expect(airplusStatusBadge("cancelled")).toEqual({ pill: "bad", label: "Cancelled" }));
 });

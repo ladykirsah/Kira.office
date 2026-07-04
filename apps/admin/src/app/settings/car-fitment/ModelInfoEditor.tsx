@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { updateCarModel, type CarModelNode, type OringEntry } from "@/lib/api";
-import { inputS } from "@/lib/inputStyles";
 import { useToast } from "../../ToastProvider";
 
 const BASIC_SIZES = ['3/8"', '1/2"', '5/8"'];
@@ -45,15 +44,16 @@ export function ModelInfoEditor({
   onCancel?: () => void;
 }) {
   const toast = useToast();
-  const [generationCode, setGen] = useState(model.generationCode ?? "");
-  const [yearFrom, setYearFrom] = useState(model.yearFrom?.toString() ?? "");
-  const [yearTo, setYearTo] = useState(model.yearTo?.toString() ?? "");
-  const [refrigerant, setRefrigerant] = useState(model.refrigerant ?? "");
+  // Preserved (no longer edited in this form): keep the model's existing values so save doesn't wipe them.
+  const generationCode = model.generationCode ?? "";
+  const yearFrom = model.yearFrom?.toString() ?? "";
+  const yearTo = model.yearTo?.toString() ?? "";
+  const refrigerant = model.refrigerant ?? "";
+  const coolantLiters = model.coolantLiters ?? "";
   const [basicQty, setBasicQty] = useState<Record<string, string>>(() => seedBasic(model));
   const [specials, setSpecials] = useState<{ size: string; qty: string }[]>(() =>
     seedSpecials(model),
   );
-  const [coolantLiters, setCoolant] = useState(model.coolantLiters ?? "");
   const [notes, setNotes] = useState(model.notes ?? "");
   const [saving, setSaving] = useState(false);
 
@@ -68,12 +68,12 @@ export function ModelInfoEditor({
     const oringUsage: OringEntry[] = [];
     for (const size of BASIC_SIZES) {
       const qty = parseInt(basicQty[size] ?? "", 10);
-      if (Number.isFinite(qty)) oringUsage.push({ size, qty });
+      if (Number.isFinite(qty) && qty > 0) oringUsage.push({ size, qty });
     }
     for (const sp of specials) {
       const size = sp.size.trim();
       const qty = parseInt(sp.qty, 10);
-      if (size && Number.isFinite(qty)) oringUsage.push({ size, qty });
+      if (size && Number.isFinite(qty) && qty > 0) oringUsage.push({ size, qty });
     }
     setSaving(true);
     try {
@@ -97,57 +97,6 @@ export function ModelInfoEditor({
 
   return (
     <div className="md-minfo">
-      <div className="md-minfo-grid">
-        <label>
-          <Label>Generation / chassis</Label>
-          <input
-            value={generationCode}
-            onChange={(e) => setGen(e.target.value)}
-            placeholder="e.g. NCP150"
-            style={{ ...inputS, width: "100%" }}
-          />
-        </label>
-        <label>
-          <Label>Years</Label>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              value={yearFrom}
-              onChange={(e) => setYearFrom(e.target.value)}
-              placeholder="from"
-              inputMode="numeric"
-              style={{ ...inputS, width: "min(72px, 100%)" }}
-            />
-            <span className="muted">–</span>
-            <input
-              value={yearTo}
-              onChange={(e) => setYearTo(e.target.value)}
-              placeholder="to"
-              inputMode="numeric"
-              style={{ ...inputS, width: "min(72px, 100%)" }}
-            />
-          </span>
-        </label>
-        <label>
-          <Label>Refrigerant</Label>
-          <input
-            value={refrigerant}
-            onChange={(e) => setRefrigerant(e.target.value)}
-            placeholder="e.g. R134a"
-            style={{ ...inputS, width: "100%" }}
-          />
-        </label>
-        <label>
-          <Label>Coolant (liters)</Label>
-          <input
-            value={coolantLiters}
-            onChange={(e) => setCoolant(e.target.value)}
-            placeholder="e.g. 0.45"
-            inputMode="decimal"
-            style={{ ...inputS, width: "100%" }}
-          />
-        </label>
-      </div>
-
       <div className="md-oring">
         <Label>O-ring usage — how many of each size this model uses</Label>
         <div className="md-oring-grid">
@@ -224,11 +173,11 @@ export function ModelInfoEditor({
       </label>
 
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button type="button" className="btn-primary" onClick={save} disabled={saving}>
+        <button type="button" className="btn-primary btn-sm" onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save notes"}
         </button>
         {onCancel && (
-          <button type="button" onClick={onCancel} disabled={saving}>
+          <button type="button" className="btn-sm" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
         )}

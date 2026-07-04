@@ -58,7 +58,12 @@ body {
 
 body {
   font-family:
-    "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    "IBM Plex Sans Thai",
+    "Noto Sans Thai",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 16px;
@@ -70,7 +75,8 @@ h1 {
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  margin: 0 0 4px;
+  /* Page headline → content gap, app-wide. */
+  margin: 0 0 40px;
 }
 h2 {
   font-size: 18px;
@@ -97,11 +103,11 @@ input,
 select,
 textarea {
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14px;
 }
 button {
-  min-height: 44px;
-  padding: 10px 16px;
+  min-height: 40px;
+  padding: 8px 16px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -125,7 +131,7 @@ button:disabled {
 }
 input,
 select {
-  min-height: 44px;
+  min-height: 40px;
 }
 input,
 select,
@@ -181,13 +187,20 @@ input[type="number"]::-webkit-inner-spin-button {
   background: var(--primary-soft);
   border-color: var(--primary-soft);
   color: var(--primary);
-  min-height: 36px;
-  padding: 7px 14px;
+  min-height: 32px;
+  padding: 6px 14px;
   font-size: 14px;
 }
 .btn-soft:hover:not(:disabled) {
   background: var(--primary-soft);
   border-color: var(--primary);
+}
+
+/* Smaller button size — composes with any colour (on its own, or e.g. `btn-danger btn-sm`). */
+.btn-sm {
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 14px;
 }
 
 /* Tables */
@@ -197,7 +210,7 @@ table {
 }
 th {
   text-align: left;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   padding: 12px;
@@ -219,7 +232,7 @@ tbody tr:hover {
 .products-table .freeze-col {
   position: sticky;
   left: 0;
-  background: var(--bg);
+  background: var(--surface);
   z-index: 1;
 }
 /* Divider only when the table overflows (Product column pinned at its min width). */
@@ -314,9 +327,15 @@ tbody tr:hover {
 .pill {
   display: inline-block;
   padding: 2px 10px;
-  border-radius: 999px;
+  line-height: 1.35;
+  /* Single-line pills round fully into a stadium; AutoPill adds .boxed when a tag wraps to 2+
+     lines, dropping it to an 8px rounded box (a huge radius looks wrong on a tall multi-line box). */
+  border-radius: 360px;
   font-size: 12px;
   font-weight: 600;
+}
+.pill.boxed {
+  border-radius: 8px;
 }
 .pill.on {
   background: color-mix(in srgb, var(--ok) 16%, transparent);
@@ -341,6 +360,15 @@ tbody tr:hover {
 .pill.soft {
   background: var(--primary-soft);
   color: var(--primary);
+}
+/* Info = blue (e.g. a Shopee order delivered but not yet confirmed). */
+.pill.info {
+  background: color-mix(in srgb, #2563eb 14%, transparent);
+  color: #1d4ed8;
+}
+html[data-theme="dark"] .pill.info {
+  background: color-mix(in srgb, #60a5fa 22%, transparent);
+  color: #93c5fd;
 }
 /* Pause = caution yellow. Soft pale-yellow tint like the other pills, but built from a
    true-yellow hue (#facc15) so the tint reads yellow instead of the tan that --warn gives.
@@ -537,6 +565,7 @@ html[data-theme="dark"] .pill.pause {
 /* Pricing table — aligned, evenly padded, tabular numbers */
 .ptbl {
   width: 100%;
+  min-width: 500px;
   border-collapse: collapse;
   table-layout: fixed;
   font-variant-numeric: tabular-nums;
@@ -546,14 +575,14 @@ html[data-theme="dark"] .pill.pause {
   font-weight: 500;
   color: var(--text-muted);
   text-align: right;
-  padding: 14px;
+  padding: 12px 8px;
 }
 .ptbl th:first-child {
   text-align: left;
   border-left: 3px solid transparent;
 }
 .ptbl td {
-  padding: 14px;
+  padding: 12px 8px;
   border-top: 1px solid var(--border);
   vertical-align: middle;
   text-align: right;
@@ -622,7 +651,8 @@ html[data-theme="dark"] .pill.pause {
   grid-template-columns: 220px 1fr;
   gap: 14px;
   margin-top: 16px;
-  max-width: 760px;
+  /* Each pane fits its own content instead of stretching to the taller column. */
+  align-items: start;
 }
 .md-pane {
   background: var(--surface);
@@ -710,7 +740,7 @@ html[data-theme="dark"] .pill.pause {
 }
 /* Inline per-model service-note editor (the customer-service cheat sheet) */
 .md-minfo {
-  padding: 6px 12px 12px;
+  padding: 12px;
   background: transparent;
 }
 /* Read-only view: a scannable label → value table */
@@ -752,27 +782,36 @@ html[data-theme="dark"] .pill.pause {
 }
 .md-oring-grid {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* One row per size — aligned columns: size | amount | remove */
-.md-oring-cell {
-  display: grid;
-  grid-template-columns: 100px 64px 28px;
-  gap: 10px;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: start;
+  row-gap: 12px;
 }
-.md-oring-sz,
+/* One group per size, laid out horizontally; separated by a divider with a wide gap each side. */
+.md-oring-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 22px;
+}
+.md-oring-cell:not(:first-child) {
+  border-left: 1px solid var(--border);
+  padding-left: 22px;
+}
+.md-oring-sz {
+  font-size: 13px;
+  color: var(--text);
+}
 .md-oring-szin {
-  width: 100%;
+  width: 72px;
   min-width: 0;
   font-size: 13px;
   color: var(--text);
 }
 .md-oring-amt {
-  width: 100%;
+  width: 56px;
   text-align: center;
+  min-height: 0;
+  padding: 8px 10px;
 }
 @media (max-width: 560px) {
   .md {
@@ -1133,13 +1172,69 @@ a.card:hover {
   }
 }
 
-/* The Invoice bill is a wide table — when its column would drop below 500px, stack it under the
-   builder (the Items section) instead of cramming it into the side slot. Driven by the POS <main>
-   container width (= 528px builder + 20px gap + 500px bill = 1048px), so it's accurate regardless
-   of the sidebar/viewport. The narrow Receipt keeps the 900px rule above. */
-@container (max-width: 1047px) {
-  .pos-grid.pos-grid--bill-wide {
-    grid-template-columns: 1fr !important;
+/* POS step anchors clear the sticky topbar (56px) + frozen timeline (~50px) when the whole
+   page scrolls — i.e. on narrow screens where the freeze layout below is disabled. */
+.pos-step-anchor {
+  scroll-margin-top: 114px;
+}
+
+/* The 3 step groups stack with a 24px gap — larger than the 12px headline↔card gap inside a group,
+   so each step reads as a discrete unit (proximity grouping). */
+.pos-groups-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* One step = its headline + its card, grouped as a single unit. The 12px gap between the headline
+   and card is empty group space (not covered by either child), so clicking it in the preview
+   selects the group (#pos-group-n) itself rather than a child. */
+.pos-step-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Top-level POS sections — header · saved-drafts panel · grid — share the app-wide 40px
+   headline→content gap instead of sitting flush against each other. */
+.pos-page {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* POS "freeze the page, scroll only the groups" layout — wide screens only.
+   The page is locked to the viewport; the Setup/Info/Items groups get the only scrollbar.
+   Below 901px this is off, so the page scrolls normally and the sticky timeline/bill freeze. */
+@media (min-width: 901px) {
+  .pos-page {
+    /* viewport − 56px topbar − 48px content padding (24 top + 24 bottom) */
+    height: calc(100vh - 104px);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .pos-page > .pos-grid {
+    flex: 1;
+    min-height: 0;
+  }
+  .pos-col-left {
+    min-height: 0;
+  }
+  .pos-groups-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    /* keep the cards clear of the scrollbar */
+    padding-right: 2px;
+  }
+  .pos-col-right {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* Inside the groups scroller, a jumped-to heading sits just below the scroller's top. */
+  .pos-step-anchor {
+    scroll-margin-top: 8px;
   }
 }
 

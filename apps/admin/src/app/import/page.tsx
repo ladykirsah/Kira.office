@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { importProductsCsv, type ImportResult } from "@/lib/api";
+import { PageHeader } from "../PageHeader";
+import { BackLink } from "../BackLink";
 
-const PLACEHOLDER = "product_code,name,description\nSKU-001,ครีมบำรุงผิว,หลอด 50ml\n";
+const PLACEHOLDER = "product_ref,name,description\nAC-CMP-VIOS14,ครีมบำรุงผิว,หลอด 50ml\n";
 
 export default function ImportPage() {
   const [csv, setCsv] = useState(PLACEHOLDER);
@@ -17,7 +19,7 @@ export default function ImportPage() {
     setResult(null);
     try {
       const out = await importProductsCsv(csv, {
-        product_code: "product_code",
+        product_ref: "product_ref",
         name: "name",
         description: "description",
       });
@@ -32,11 +34,17 @@ export default function ImportPage() {
 
   return (
     <main>
-      <h1>Import products (CSV)</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Paste a CSV with a header row. Columns <code>product_code</code> and <code>name</code> are
-        required; <code>description</code> is optional. Re-importing is safe (idempotent on code).
-      </p>
+      <PageHeader
+        title="Import products (CSV)"
+        subtitle={
+          <>
+            Paste a CSV with a header row. Columns <code>product_ref</code> (Product ID) and{" "}
+            <code>name</code> are required; <code>description</code> is optional. Re-importing is
+            safe (idempotent on the Product ID).
+          </>
+        }
+        below={<BackLink href="/products">Products</BackLink>}
+      />
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
@@ -66,9 +74,6 @@ export default function ImportPage() {
           )}
         </div>
       )}
-      <p>
-        <a href="/products">← Products</a>
-      </p>
     </main>
   );
 }

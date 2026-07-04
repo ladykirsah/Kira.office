@@ -1,6 +1,6 @@
 # Schema — As Built
 
-The actual D1 (SQLite) schema, derived from the applied migrations `0000`–`0016` in
+The actual D1 (SQLite) schema, derived from the applied migrations `0000`–`0018` in
 [`packages/db/migrations/`](../packages/db/migrations/) and mirrored in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts) (Drizzle, the shape source of truth).
 
@@ -22,7 +22,7 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
 ### Catalog & attributes
 | Table | Key columns |
 | --- | --- |
-| `products` | `id`, `product_code` (uq), `name`, `description`, `type_id`, `brand_id`, `usage_id`, `tax_profile_id`, `status` (`draft`), `image_key`, `shopee_listed`, `shopee_item_id`, `category`, `weight_grams`, `product_ref`, `created_at`, `updated_at` |
+| `products` | `id`, `name`, `description`, `type_id`, `brand_id`, `usage_id`, `tax_profile_id`, `status` (`draft`), `image_key`, `shopee_listed`, `shopee_item_id`, `category`, `weight_grams`, `product_ref` (**uq — the Product ID, sole identifier + barcode source**), `default_terms_pattern_id`, `created_at`, `updated_at` |
 | `product_variants` | `id`, `product_id`→products, `sku`, `variant_name`, `barcode_primary`, `status` (`active`), `created_at` |
 | `product_images` | `id`, `product_id`→products, `image_key` (R2), `sort_order`, `is_cover`, `created_at` |
 | `brands` | `id`, `name` (uq nocase), `sort_order`, `created_at` — seeded (DENSO, Mitsubishi, Sanden, Valeo, Mahle) |
@@ -100,6 +100,7 @@ See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 | `0015_sale_vehicle` | `license_plate`, `vehicle`, `notes` on onsite sales. |
 | `0016_audit_logs` | Append-only `audit_logs` table + indexes. |
 | `0017_gated_phase_prep` | Shopee mapping + T&C tables; variant option columns; `products.default_terms_pattern_id`. |
+| `0018_remove_product_code` | Product ID (`product_ref`) becomes the sole identifier: backfill from `product_code`, add unique index `products_product_ref_unique`, then **drop `product_code`** and its unique index. |
 
 ## Migration workflow (do this exactly)
 

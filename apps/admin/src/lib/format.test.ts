@@ -31,8 +31,9 @@ describe("satang display helpers", () => {
     expect(formatBahtTrim(10000000)).toBe("฿100,000");
   });
 
-  it("formatBahtTrim keeps two decimals (with commas) when there are satang", () => {
-    expect(formatBahtTrim(289050)).toBe("฿2,890.50");
+  it("formatBahtTrim shows minimal decimals — trailing zeros dropped", () => {
+    expect(formatBahtTrim(289050)).toBe("฿2,890.5");
+    expect(formatBahtTrim(15050)).toBe("฿150.5");
     expect(formatBahtTrim(5)).toBe("฿0.05");
     expect(formatBahtTrim(1234567)).toBe("฿12,345.67");
   });

@@ -9,7 +9,6 @@ import worker, {
   deleteGalleryImage,
   ean13CheckDigit,
   entityFromPath,
-  generateInternalBarcode,
   getProductDetail,
   setVariantPricing,
   setVariantBarcode,
@@ -17,6 +16,9 @@ import worker, {
   listAttributes,
   addAttribute,
   resolveAttribute,
+  addService,
+  listServices,
+  updateService,
   setProductFitments,
   listCarFitment,
   addCarModel,
@@ -24,6 +26,9 @@ import worker, {
   updateProduct,
   importProducts,
   importShopeeOrders,
+  parseMoneyToSatang,
+  parseOrderDateMs,
+  parseFeePct,
   lineGrossProfitSatang,
   lookupBarcode,
   refundSaleToDb,
@@ -33,7 +38,9 @@ import worker, {
   resolveActor,
   requireRole,
   salesToCsv,
-  storeProductImage,
+  draftHeaderTotals,
+  searchCustomers,
+  normalizePlate,
   validateSyncLine,
   writeAuditLog,
   type Env,
@@ -65,6 +72,7 @@ function makeDb(canned: {
   barcode?: unknown | null;
   productDetail?: unknown | null;
   variantRow?: unknown | null;
+  productRef?: { productRef: string | null } | null;
   pricingRow?: unknown | null;
   images?: unknown[];
   brands?: unknown[];
@@ -72,9 +80,12 @@ function makeDb(canned: {
   usages?: unknown[];
   carBrands?: unknown[];
   carModels?: unknown[];
+  services?: unknown[];
+  serviceByName?: { id: string } | null;
   fitments?: unknown[];
   attrOption?: unknown | null;
   stock?: unknown[];
+  movements?: unknown[];
   stockOnHand?: number;
   saleHeader?: unknown | null;
   saleLines?: unknown[];
@@ -117,8 +128,11 @@ function makeDb(canned: {
         if (sql.includes("FROM usage_categories")) return { results: (canned.usages ?? []) as T[] };
         if (sql.includes("FROM car_brands")) return { results: (canned.carBrands ?? []) as T[] };
         if (sql.includes("FROM car_models")) return { results: (canned.carModels ?? []) as T[] };
+        if (sql.includes("FROM services")) return { results: (canned.services ?? []) as T[] };
         if (sql.includes("LEFT JOIN stock_ledger_entries"))
           return { results: (canned.stock ?? []) as T[] };
+        if (sql.includes("movement_type AS movementType"))
+          return { results: (canned.movements ?? []) as T[] };
         if (sql.includes("FROM product_variants v JOIN products"))
           return { results: (canned.barcodes ?? []) as T[] };
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
@@ -140,6 +154,10 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("SELECT product_ref AS productRef"))
+          return (canned.productRef ?? null) as T | null;
+        if (sql.includes("SELECT id FROM products WHERE product_ref"))
+          return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("product_ref =") || sql.includes("shopee_item_id ="))
           return (canned.identifierMatch ?? null) as T | null;
         if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
@@ -151,9 +169,9 @@ function makeDb(canned: {
           return (canned.financeSales ?? null) as T | null;
         if (sql.includes("FROM onsite_sales WHERE id"))
           return (canned.saleHeader ?? null) as T | null;
-        if (sql.includes("FROM products WHERE product_code"))
-          return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("FROM products p")) return (canned.productDetail ?? null) as T | null;
+        if (sql.includes("FROM services WHERE name"))
+          return (canned.serviceByName ?? null) as T | null;
         if (sql.includes("COLLATE NOCASE")) return (canned.attrOption ?? null) as T | null;
         if (sql.includes("FROM product_variants WHERE product_id"))
           return (canned.variantRow ?? null) as T | null;
@@ -192,6 +210,149 @@ function makeDb(canned: {
   return { db, env: { DB: db } as unknown as Env, batched, runs };
 }
 
+describe("services (bilingual name_en)", () => {
+  it("listServices > selects name_en AS nameEn and returns the rows", async () => {
+    const { db } = makeDb({
+      services: [
+        { id: "sv1", name: "ตรวจเช็คระบบแอร์", nameEn: "A/C system check", basePriceSatang: 30000 },
+      ],
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    const rows = await listServices(db);
+    // The SQL mock doesn't execute aliasing, so assert the SELECT itself maps name_en → nameEn.
+    expect(prepare.mock.calls[0]?.[0]).toContain("name_en AS nameEn");
+    expect(rows).toEqual([
+      { id: "sv1", name: "ตรวจเช็คระบบแอร์", nameEn: "A/C system check", basePriceSatang: 30000 },
+    ]);
+  });
+
+  it("addService > inserts the English name and returns it (both trimmed)", async () => {
+    const { db, runs } = makeDb({}); // no existing service → insert path
+    const result = await addService(db, "  Brake check  ", "  Brake inspection  ", 35000);
+    expect(result).toMatchObject({
+      name: "Brake check",
+      nameEn: "Brake inspection",
+      basePriceSatang: 35000,
+    });
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO services"));
+    expect(insert?.sql).toContain("name_en");
+    expect(insert?.binds).toContain("Brake inspection");
+  });
+
+  it("addService > existing name updates name_en instead of inserting", async () => {
+    const { db, runs } = makeDb({ serviceByName: { id: "sv-existing" } });
+    const result = await addService(db, "Brake check", "Brake inspection", 35000);
+    expect(result.id).toBe("sv-existing");
+    expect(result.nameEn).toBe("Brake inspection");
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name_en"));
+    expect(update?.binds).toEqual(["Brake inspection", 35000, "sv-existing"]);
+    expect(runs.some((r) => r.sql.includes("INSERT INTO services"))).toBe(false);
+  });
+
+  it("updateService > persists the English name (trimmed)", async () => {
+    const { db, runs } = makeDb({});
+    await updateService(db, "sv1", {
+      name: "  Wash  ",
+      nameEn: "  Coil cleaning  ",
+      basePriceSatang: 120000,
+    });
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name ="));
+    expect(update?.sql).toContain("name_en");
+    expect(update?.binds).toEqual(["Wash", "Coil cleaning", 120000, "sv1"]);
+  });
+
+  it("POST /services > round-trips nameEn from the request body", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Brake check",
+          nameEn: "Brake inspection",
+          basePriceSatang: 35000,
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({
+      name: "Brake check",
+      nameEn: "Brake inspection",
+      basePriceSatang: 35000,
+    });
+  });
+
+  it("POST /services > rejects a missing name with 400", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services", {
+        method: "POST",
+        body: JSON.stringify({ nameEn: "orphan", basePriceSatang: 100 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("PATCH /services/:id > persists the updated English name", async () => {
+    const { env, runs } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services/sv1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Wash", nameEn: "Coil cleaning", basePriceSatang: 120000 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name ="));
+    expect(update?.binds).toEqual(["Wash", "Coil cleaning", 120000, "sv1"]);
+  });
+
+  it("POST /services > rejects a zero or absent price with 400", async () => {
+    const { env } = makeDb({});
+    for (const body of [{ name: "Free check", basePriceSatang: 0 }, { name: "No price" }]) {
+      const res = await worker.fetch!(
+        new Request("https://x/services", { method: "POST", body: JSON.stringify(body) }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("PATCH /services/:id > rejects a zero price with 400", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/services/sv1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Wash", basePriceSatang: 0 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("searchCustomers", () => {
+  it("given a query > also matches the car model / vehicle, not only plate/phone/name", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await searchCustomers(db, "vigo");
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    // A shopper searching a car model ("vigo") must match the vehicle it belongs to.
+    expect(sql).toContain("s.vehicle LIKE ?");
+    expect(sql).toContain("c.car_model LIKE ?");
+    // Still matches the original fields too.
+    expect(sql).toContain("s.license_plate LIKE ?");
+    expect(sql).toContain("c.phone LIKE ?");
+    expect(sql).toContain("c.customer_name LIKE ?");
+  });
+});
+
 describe("writeAuditLog", () => {
   it("inserts an append-only row for a mutation", async () => {
     const { db, runs } = makeDb({});
@@ -204,6 +365,108 @@ describe("writeAuditLog", () => {
     expect(row).toBeDefined();
     expect(row?.binds[1]).toBe("owner@example.com");
     expect(row?.binds[2]).toBe("POST /sync");
+  });
+});
+
+describe("parseMoneyToSatang", () => {
+  it("parses plain and grouped amounts to satang", () => {
+    expect(parseMoneyToSatang("890")).toBe(89000);
+    expect(parseMoneyToSatang("1,234.50")).toBe(123450);
+    expect(parseMoneyToSatang("฿ 89.00")).toBe(8900);
+  });
+  it("returns 0 for blank or unparseable input", () => {
+    expect(parseMoneyToSatang(undefined)).toBe(0);
+    expect(parseMoneyToSatang("")).toBe(0);
+    expect(parseMoneyToSatang("n/a")).toBe(0);
+  });
+});
+
+describe("parseOrderDateMs", () => {
+  it("parses an ISO date to epoch ms", () => {
+    expect(parseOrderDateMs("2026-06-14")).toBe(Date.parse("2026-06-14"));
+  });
+  it("returns null for blank or unparseable input", () => {
+    expect(parseOrderDateMs(undefined)).toBeNull();
+    expect(parseOrderDateMs("")).toBeNull();
+    expect(parseOrderDateMs("not a date")).toBeNull();
+  });
+});
+
+describe("parseFeePct", () => {
+  it("parses a percent string to basis points", () => {
+    expect(parseFeePct("3.21%")).toBe(321);
+    expect(parseFeePct("7.24")).toBe(724);
+    expect(parseFeePct("10%")).toBe(1000);
+  });
+  it("returns 0 for blank or unparseable input", () => {
+    expect(parseFeePct(undefined)).toBe(0);
+    expect(parseFeePct("")).toBe(0);
+    expect(parseFeePct("n/a")).toBe(0);
+  });
+});
+
+describe("importShopeeOrders (enriched)", () => {
+  it("captures username, sales, fee %, ship date; sets Total = Sales − fees", async () => {
+    const { db, batched } = makeDb({ existingOrders: [] });
+    const csv =
+      "oid,user,sales,fee,feepct,shipdate,orderdate\n" +
+      "2406ABC,shopper99,1450.00,105.00,7.24,2026-06-20,2026-06-14\n";
+    const out = await importShopeeOrders(db, csv, {
+      external_order_id: "oid",
+      buyer_username: "user",
+      sales_total: "sales",
+      order_fee: "fee",
+      fee_pct: "feepct",
+      ship_date: "shipdate",
+      order_date: "orderdate",
+    });
+    expect(out.imported).toBe(1);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO sales_orders"),
+    );
+    // Total (grand_total) = net payout = Sales − fees = 145000 − 10500
+    expect(insert?.boundArgs?.[5]).toBe(134500);
+    expect(insert?.boundArgs?.[6]).toBe(10500);
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+    // appended enriched binds: buyer_username, sales_satang, fee_bp, ship_time_ms
+    expect(insert?.boundArgs?.[10]).toBe("shopper99");
+    expect(insert?.boundArgs?.[11]).toBe(145000);
+    expect(insert?.boundArgs?.[12]).toBe(724);
+    expect(insert?.boundArgs?.[13]).toBe(Date.parse("2026-06-20"));
+  });
+
+  it("captures total, fee, and order date from mapped columns", async () => {
+    const { db, batched } = makeDb({ existingOrders: [] });
+    const csv = "oid,total,fee,date\n2406ABC,890.00,62.00,2026-06-14\n";
+    const out = await importShopeeOrders(db, csv, {
+      external_order_id: "oid",
+      order_total: "total",
+      order_fee: "fee",
+      order_date: "date",
+    });
+    expect(out.imported).toBe(1);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO sales_orders"),
+    );
+    // binds: (id, channel, external_order_id, order_status, payment_status, grand_total, fee_total, order_created_at, …)
+    expect(insert?.boundArgs?.[5]).toBe(89000);
+    expect(insert?.boundArgs?.[6]).toBe(6200);
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+  });
+
+  it("still imports a minimal export (ids only) when the money columns are absent", async () => {
+    const { db, batched } = makeDb({ existingOrders: [] });
+    const csv = "external_order_id\n2406XYZ\n";
+    const out = await importShopeeOrders(db, csv, {
+      external_order_id: "external_order_id",
+      order_total: "total", // column absent → dropped, no throw
+    });
+    expect(out.imported).toBe(1);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO sales_orders"),
+    );
+    expect(insert?.boundArgs?.[5]).toBe(0);
+    expect(insert?.boundArgs?.[7]).toBeNull();
   });
 });
 
@@ -285,7 +548,7 @@ describe("api worker routes", () => {
     const row = {
       id: "p1",
       variantId: "v1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
       status: "active",
       brandName: "DENSO",
@@ -302,7 +565,7 @@ describe("api worker routes", () => {
   });
 
   it("GET /products/identifier-check > finds a product (any status) using the id", async () => {
-    const match = { id: "p9", name: "Old part", productCode: "OLD-1", status: "archived" };
+    const match = { id: "p9", name: "Old part", productRef: "OLD-1", status: "archived" };
     const { env } = makeDb({ identifierMatch: match });
     const res = await worker.fetch!(
       new Request("https://x/products/identifier-check?kind=ref&value=DI-1"),
@@ -337,13 +600,212 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({ sales: [sale] });
   });
 
+  it("GET /sales > lists only finalized bills (drafts & quotations are fenced out)", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/sales"), env, ctx);
+    const salesSql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("FROM onsite_sales s"));
+    expect(salesSql).toContain("stage = 'bill'");
+  });
+
+  it("GET /finance/summary > revenue and profit count only finalized bills", async () => {
+    const { db, env } = makeDb({
+      financeSales: { salesCount: 0, revenueSatang: 0, vatSatang: 0 },
+      financeProfit: { grossProfitSatang: 0 },
+      financeRefunds: { refundCount: 0, refundedSatang: 0 },
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/finance/summary"), env, ctx);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.find((s) => s.includes("FROM onsite_sales WHERE sale_status"))).toContain(
+      "stage = 'bill'",
+    );
+    expect(sqls.find((s) => s.includes("FROM onsite_sale_lines l JOIN"))).toContain(
+      "stage = 'bill'",
+    );
+  });
+
+  it("POST /onsite/drafts > saves a draft with its lines and never touches stock", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "d1",
+          stage: "draft",
+          saleType: "repair",
+          licensePlate: "1กก1234",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => s.includes("INTO onsite_sales"))).toBe(true);
+    expect(sqls.some((s) => s.includes("INTO onsite_sale_lines"))).toBe(true);
+    // a draft is a no-money document — nothing may hit the stock ledger
+    expect(sqls.some((s) => s.includes("stock_ledger_entries"))).toBe(false);
+  });
+
+  it("GET /onsite/drafts > lists only open drafts and quotations", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/onsite/drafts"), env, ctx);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("FROM onsite_sales") && s.includes("stage IN"));
+    expect(sql).toContain("stage IN ('draft', 'quotation')");
+  });
+
+  it("DELETE /onsite/drafts/:id > removes a draft but is fenced from bills", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts/d1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => s.includes("DELETE FROM onsite_sale_lines"))).toBe(true);
+    expect(sqls.find((s) => s.includes("DELETE FROM onsite_sales"))).toContain(
+      "stage IN ('draft', 'quotation')",
+    );
+  });
+
+  it("GET /onsite/sales/:id > returns the bill header with its lines (for reprint)", async () => {
+    const { env } = makeDb({
+      saleHeader: { id: "s1", saleNumber: "DAS202607-04001", grandTotalSatang: 80000 },
+      saleLines: [
+        { lineType: "service", description: "Regas", quantity: 1, unitPriceSatang: 80000 },
+      ],
+    });
+    const res = await worker.fetch!(new Request("https://x/onsite/sales/s1"), env, ctx);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { sale: { saleNumber: string; lines: unknown[] } };
+    expect(body.sale.saleNumber).toBe("DAS202607-04001");
+    expect(body.sale.lines).toHaveLength(1);
+  });
+
+  it("GET /onsite/sales/:id > 404 when the bill is missing", async () => {
+    const { env } = makeDb({ saleHeader: null });
+    const res = await worker.fetch!(new Request("https://x/onsite/sales/nope"), env, ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("PUT /customers/by-plate > upserts by plate and never blanks an existing name/phone", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/customers/by-plate", {
+        method: "PUT",
+        body: JSON.stringify({ licensePlate: "1กก1234", phone: "0810000000" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("INSERT INTO customers"));
+    expect(sql).toContain("ON CONFLICT(license_plate)");
+    expect(sql).toContain("COALESCE(excluded.customer_name, customers.customer_name)");
+    expect(sql).toContain("COALESCE(excluded.phone, customers.phone)");
+  });
+
+  it("PUT /customers/by-plate > 400 without a plate", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/customers/by-plate", { method: "PUT", body: JSON.stringify({}) }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /customers > lists cars (from bills) joined to the directory for name/phone", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(new Request("https://x/customers?q=nav"), env, ctx);
+    expect(res.status).toBe(200);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("LEFT JOIN customers"));
+    expect(sql).toContain("GROUP BY s.license_plate");
+    expect(sql).toContain("s.stage = 'bill'");
+  });
+
+  it("GET /customers/:plate > returns info + bill history + open quotations", async () => {
+    const { env } = makeDb({
+      sales: [
+        {
+          id: "s1",
+          saleNumber: "DAS202607-04001",
+          stage: "bill",
+          createdAt: 2,
+          grandTotalSatang: 80000,
+          vehicle: "Nissan Navara",
+        },
+        {
+          id: "s2",
+          saleNumber: "QT202607-04001",
+          stage: "quotation",
+          createdAt: 3,
+          grandTotalSatang: 50000,
+          vehicle: "Nissan Navara",
+        },
+      ],
+      saleLines: [
+        {
+          onsiteSaleId: "s1",
+          description: "Regas",
+          lineType: "service",
+          quantity: 1,
+          unitPriceSatang: 80000,
+        },
+      ],
+    });
+    const res = await worker.fetch!(
+      new Request("https://x/customers/5%E0%B8%88%E0%B8%887890"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { history: unknown[]; quotations: unknown[] };
+    expect(body.history).toHaveLength(1);
+    expect(body.quotations).toHaveLength(1);
+  });
+
   it("GET /stock > reads on-hand per variant from D1", async () => {
     const stock = [
-      { variantId: "v1", sku: "S1", productName: "Cream", productCode: "C1", onHand: 20 },
+      { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },
     ];
     const { env } = makeDb({ stock });
     const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
     expect(await res.json()).toEqual({ stock });
+  });
+
+  it("GET /stock/movements > returns recent ledger movements from D1", async () => {
+    const movements = [
+      {
+        id: "m1",
+        variantId: "v1",
+        sku: "S1",
+        productName: "Cream",
+        movementType: "onsite_sale",
+        quantityDelta: -2,
+        quantityAfter: 18,
+        createdAt: 1720000000000,
+      },
+    ];
+    const { env } = makeDb({ movements });
+    const res = await worker.fetch!(new Request("https://x/stock/movements"), env, ctx);
+    expect(await res.json()).toEqual({ movements });
   });
 
   it("GET /finance/summary > aggregates sales, profit and refunds", async () => {
@@ -381,7 +843,7 @@ describe("api worker routes", () => {
 
   it("GET /barcodes > lists variants with barcodes", async () => {
     const barcodes = [
-      { variantId: "v1", productId: "p1", productCode: "C1", productName: "Cream", barcode: "885" },
+      { variantId: "v1", productId: "p1", productRef: "C1", productName: "Cream", barcode: "885" },
     ];
     const { env } = makeDb({ barcodes });
     const res = await worker.fetch!(new Request("https://x/barcodes"), env, ctx);
@@ -485,7 +947,7 @@ describe("api worker routes", () => {
       barcode: "885",
       variantId: "v1",
       productId: "p1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
     };
     const { env } = makeDb({ barcode: hit });
@@ -623,6 +1085,41 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     ]);
     expect(out).toEqual({ applied: 1, duplicates: 0, conflicts: [], validationErrors: [] });
     expect(batched.length).toBe(3); // onsite_sales + line + ledger
+  });
+
+  it("persists the device-minted sale_number on the onsite_sales insert", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    await applySyncToDb(db, [
+      {
+        clientUuid: "u-sn",
+        saleNumber: "DAS202607-01001",
+        lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 10000 }],
+      },
+    ]);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO onsite_sales"),
+    );
+    expect(insert?.boundArgs?.[2]).toBe("DAS202607-01001"); // (id, client_uuid, sale_number, …)
+  });
+
+  it("binds null sale_number when the device did not mint one", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    await applySyncToDb(db, [
+      {
+        clientUuid: "u-nosn",
+        lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 10000 }],
+      },
+    ]);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO onsite_sales"),
+    );
+    expect(insert?.boundArgs?.[2]).toBeNull();
   });
 
   it("records a repair service line with no variant and no stock movement", async () => {
@@ -798,6 +1295,20 @@ describe("refundSaleToDb", () => {
     expect(batched.length).toBe(3); // 1 restock ledger + update sale + finance record
   });
 
+  it("writes the restock as a refund_return movement (schema enum, not 'refund')", async () => {
+    const { db, batched } = makeDb({
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleLines: [{ productVariantId: "v1", quantity: 2 }],
+      stockOnHand: 18,
+    });
+    await refundSaleToDb(db, "s1");
+    const ledger = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT INTO stock_ledger_entries"),
+    );
+    // boundArgs order: (id, variant_id, movement_type, delta, after, source_type, source_id, at)
+    expect(ledger?.boundArgs?.[2]).toBe("refund_return");
+  });
+
   it("rejects an unknown sale", async () => {
     const { db } = makeDb({ saleHeader: null });
     expect((await refundSaleToDb(db, "nope")).applied).toBe(false);
@@ -852,9 +1363,9 @@ describe("importProducts (CSV catalog import)", () => {
     const { db, batched } = makeDb({});
     const out = await importProducts(
       db,
-      "product_code,name,description\nC1,Cream,Nice\nC2,,Oops\n",
+      "product_ref,name,description\nC1,Cream,Nice\nC2,,Oops\n",
       {
-        product_code: "product_code",
+        product_ref: "product_ref",
         name: "name",
         description: "description",
       },
@@ -902,10 +1413,35 @@ describe("lineGrossProfitSatang", () => {
   });
 });
 
+describe("draftHeaderTotals", () => {
+  it("sums lines: grand = subtotal − discount, tax tracked separately", () => {
+    expect(
+      draftHeaderTotals([
+        { quantity: 2, unitPriceSatang: 15000, discountSatang: 1000, taxSatang: 900 },
+        { quantity: 1, unitPriceSatang: 30000, taxSatang: 1962 },
+      ]),
+    ).toEqual({
+      subtotalSatang: 60000,
+      discountTotalSatang: 1000,
+      taxTotalSatang: 2862,
+      grandTotalSatang: 59000,
+    });
+  });
+
+  it("given no lines > all zero", () => {
+    expect(draftHeaderTotals([])).toEqual({
+      subtotalSatang: 0,
+      discountTotalSatang: 0,
+      taxTotalSatang: 0,
+      grandTotalSatang: 0,
+    });
+  });
+});
+
 describe("createProduct", () => {
   it("creates a product + default variant", async () => {
     const { db, batched } = makeDb({ existingProduct: null });
-    const out = await createProduct(db, { productCode: "P1", name: "Cream" });
+    const out = await createProduct(db, { productRef: "P1", name: "Cream" });
     expect(out.created).toBe(true);
     expect(out.variantId).not.toBeNull();
     expect(batched.length).toBe(2); // product + variant
@@ -913,21 +1449,29 @@ describe("createProduct", () => {
 
   it("also inserts a barcode row when a barcode is given", async () => {
     const { db, batched } = makeDb({ existingProduct: null });
-    const out = await createProduct(db, { productCode: "P2", name: "Serum", barcode: "8850001" });
+    const out = await createProduct(db, { productRef: "P2", name: "Serum", barcode: "8850001" });
     expect(out.created).toBe(true);
     expect(batched.length).toBe(3); // product + variant + barcode
   });
 
   it("is idempotent: returns the existing product without inserting", async () => {
     const { db, batched } = makeDb({ existingProduct: { id: "existing-1" } });
-    const out = await createProduct(db, { productCode: "P1", name: "Cream" });
+    const out = await createProduct(db, { productRef: "P1", name: "Cream" });
     expect(out).toEqual({ productId: "existing-1", variantId: null, created: false });
     expect(batched.length).toBe(0);
   });
 
   it("rejects a missing required field", async () => {
     const { db } = makeDb({});
-    await expect(createProduct(db, { productCode: "", name: "X" })).rejects.toThrow(/required/);
+    await expect(createProduct(db, { productRef: "", name: "X" })).rejects.toThrow(/required/);
+  });
+});
+
+describe("normalizePlate", () => {
+  it("trims and collapses internal whitespace to a single space", () => {
+    expect(normalizePlate("  1กก  1234 ")).toBe("1กก 1234");
+    expect(normalizePlate("1กก1234")).toBe("1กก1234");
+    expect(normalizePlate("")).toBe("");
   });
 });
 
@@ -974,7 +1518,7 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
   it("returns product + default variant + pricing", async () => {
     const product = {
       id: "p1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
       description: "d",
       status: "active",
@@ -1265,25 +1809,34 @@ describe("barcodes", () => {
     expect(ean13CheckDigit("978014300723")).toBe("4");
   });
 
-  it("generateInternalBarcode is a self-consistent 13-digit 200-prefixed code", () => {
-    const bc = generateInternalBarcode();
-    expect(bc).toHaveLength(13);
-    expect(bc.startsWith("200")).toBe(true);
-    expect(ean13CheckDigit(bc.slice(0, 12))).toBe(bc[12]);
-  });
-
-  it("addBarcodeToProduct generates + sets primary when none exists", async () => {
-    const { db, batched } = makeDb({ variantRow: { id: "v1", barcodePrimary: null } });
+  it("addBarcodeToProduct derives the barcode from the product's Product ID when none is given", async () => {
+    const { db, batched } = makeDb({
+      variantRow: { id: "v1", barcodePrimary: null },
+      productRef: { productRef: "AC-CMP-VIOS14" },
+    });
     const out = await addBarcodeToProduct(db, "p1");
     expect(out.generated).toBe(true);
+    expect(out.barcodeValue).toBe("AC-CMP-VIOS14");
     expect(out.variantId).toBe("v1");
     expect(batched.length).toBe(2); // insert barcode + set primary
   });
 
-  it("addBarcodeToProduct adds a provided code without overwriting the primary", async () => {
+  it("addBarcodeToProduct makes no barcode when the product has no Product ID and none is given", async () => {
+    const { db, batched } = makeDb({
+      variantRow: { id: "v1", barcodePrimary: null },
+      productRef: { productRef: null },
+    });
+    const out = await addBarcodeToProduct(db, "p1");
+    expect(out.generated).toBe(false);
+    expect(out.barcodeValue).toBe("");
+    expect(batched.length).toBe(0);
+  });
+
+  it("addBarcodeToProduct keeps a provided/scanned code without overwriting the primary", async () => {
     const { db, batched } = makeDb({ variantRow: { id: "v1", barcodePrimary: "111" } });
     const out = await addBarcodeToProduct(db, "p1", "8850000000000");
     expect(out.generated).toBe(false);
+    expect(out.barcodeValue).toBe("8850000000000");
     expect(batched.length).toBe(1);
   });
 });
@@ -1294,7 +1847,7 @@ describe("lookupBarcode", () => {
       barcode: "885",
       variantId: "v1",
       productId: "p1",
-      productCode: "C1",
+      productRef: "C1",
       name: "Cream",
     };
     const { db } = makeDb({ barcode: hit });
@@ -1304,45 +1857,6 @@ describe("lookupBarcode", () => {
   it("returns null for an unknown barcode", async () => {
     const { db } = makeDb({ barcode: null });
     expect(await lookupBarcode(db, "nope")).toBeNull();
-  });
-});
-
-describe("storeProductImage", () => {
-  function fakeBucket() {
-    const puts: { key: string }[] = [];
-    const bucket = { put: async (key: string) => void puts.push({ key }) } as unknown as R2Bucket;
-    return { bucket, puts };
-  }
-
-  it("stores a png in R2 and records the key on the product", async () => {
-    const { db } = makeDb({});
-    const { bucket, puts } = fakeBucket();
-    const out = await storeProductImage(
-      db,
-      bucket,
-      "p1",
-      new Uint8Array([1, 2, 3]).buffer,
-      "image/png",
-    );
-    expect(out.key).toMatch(/^products\/p1\/.*\.png$/);
-    expect(out.url).toBe(`/img/${out.key}`);
-    expect(puts.length).toBe(1);
-  });
-
-  it("rejects an unsupported content type", async () => {
-    const { db } = makeDb({});
-    const { bucket } = fakeBucket();
-    await expect(
-      storeProductImage(db, bucket, "p1", new Uint8Array([1]).buffer, "image/gif"),
-    ).rejects.toThrow(/unsupported/);
-  });
-
-  it("rejects an oversized image", async () => {
-    const { db } = makeDb({});
-    const { bucket } = fakeBucket();
-    await expect(
-      storeProductImage(db, bucket, "p1", new ArrayBuffer(5 * 1024 * 1024 + 1), "image/png"),
-    ).rejects.toThrow(/too large/);
   });
 });
 

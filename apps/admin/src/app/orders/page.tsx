@@ -8,9 +8,33 @@ import {
   type OrderRow,
 } from "@/lib/api";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
-import { formatUpdatedAt } from "@/lib/format";
+import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
+import { tableText } from "@/lib/tableText";
+import { xlsxToImportCsv } from "@l-shopee/core";
+import { AutoPill } from "../AutoPill";
+import { PageHeader } from "../PageHeader";
+import { TableFrame } from "../TableFrame";
 
-const PLACEHOLDER = "external_order_id,order_status,payment_status\n2406ABCDEF,paid,paid\n";
+/** A timestamp cell in the shared "date (body2) over time (subtitle)" pattern; — when absent. */
+function dateTimeCell(ms: number | null) {
+  if (!ms)
+    return (
+      <td style={{ whiteSpace: "nowrap", ...tableText.body2 }}>
+        <span className="muted">—</span>
+      </td>
+    );
+  const [date, time] = formatUpdatedAt(ms).split(" · ");
+  return (
+    <td style={{ whiteSpace: "nowrap" }}>
+      <div style={tableText.body2}>{date}</div>
+      <div style={tableText.subtitle}>{time}</div>
+    </td>
+  );
+}
+
+const PLACEHOLDER =
+  "external_order_id,order_status,payment_status,order_fee,order_date,buyer_username,sales_total,fee_pct,ship_date\n" +
+  "2406ABCDEF,paid,paid,105.00,2026-06-14,shopper99,1450.00,7.24,2026-06-16\n";
 
 export default function OrdersPage() {
   const [csv, setCsv] = useState(PLACEHOLDER);
@@ -32,6 +56,25 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load a chosen file into the CSV box: a Shopee .xlsx is parsed + normalized in-browser (all its
+  // cells are text, so no heavy library); a .csv is read as-is. The user still reviews then Imports.
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked
+    if (!file) return;
+    setResult(null);
+    setMsg(`Reading ${file.name}…`);
+    try {
+      const text = /\.xlsx$/i.test(file.name)
+        ? await xlsxToImportCsv(new Uint8Array(await file.arrayBuffer()))
+        : await file.text();
+      setCsv(text);
+      setMsg("");
+    } catch (err) {
+      setMsg(`Could not read ${file.name}: ${(err as Error).message}`);
+    }
+  }
+
   async function run() {
     setBusy(true);
     setMsg("Importing…");
@@ -41,6 +84,13 @@ export default function OrdersPage() {
         external_order_id: "external_order_id",
         order_status: "order_status",
         payment_status: "payment_status",
+        order_total: "order_total",
+        order_fee: "order_fee",
+        order_date: "order_date",
+        buyer_username: "buyer_username",
+        sales_total: "sales_total",
+        fee_pct: "fee_pct",
+        ship_date: "ship_date",
       });
       setResult(out);
       setMsg("");
@@ -54,11 +104,24 @@ export default function OrdersPage() {
 
   return (
     <main>
-      <h1>Shopee orders (CSV import)</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Paste a Seller Centre order export (header row required). Required column:{" "}
-        <code>external_order_id</code>. Re-importing is safe — duplicates are skipped.
-      </p>
+      <PageHeader
+        title="Shopee orders (import)"
+        subtitle={
+          <>
+            Upload a Seller Centre order export (<code>.xlsx</code>) — it&apos;s parsed in your
+            browser into the columns below (Total = Sales − fees). Or paste a <code>.csv</code>{" "}
+            directly. Required column: <code>external_order_id</code>. Re-importing is safe —
+            duplicates are skipped.
+          </>
+        }
+      />
+      <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+        <label className="btn-soft btn-sm" style={{ cursor: "pointer" }}>
+          Upload Shopee export…
+          <input type="file" accept=".xlsx,.csv" onChange={onFile} style={{ display: "none" }} />
+        </label>
+        <small className="muted">.xlsx or .csv — or paste below</small>
+      </div>
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
@@ -85,34 +148,43 @@ export default function OrdersPage() {
           <div className="empty-icon">🧾</div>No orders imported yet.
         </div>
       ) : (
-        <div className="card" style={{ overflowX: "auto" }}>
+        <TableFrame>
           <table>
             <thead>
               <tr>
                 <th>Order</th>
                 <th>Channel</th>
+                <th style={{ textAlign: "right" }}>Total</th>
                 <th>Status</th>
                 <th>Payment</th>
+                <th>Order date</th>
                 <th>Imported</th>
               </tr>
             </thead>
             <tbody>
               {orders.map((o) => (
                 <tr key={o.id}>
-                  <td>{o.externalOrderId}</td>
-                  <td>
+                  <td style={tableText.body2}>{o.externalOrderId}</td>
+                  <td style={tableText.body2}>
                     <span className="pill soft">{o.channel}</span>
                   </td>
-                  <td>
+                  <td style={{ textAlign: "right", ...tableText.body2 }}>
+                    {o.grandTotalSatang ? (
+                      formatBahtTrim(o.grandTotalSatang)
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td style={tableText.body2}>
                     {o.orderStatus ? (
-                      <span className={`pill ${orderStatusPill(o.orderStatus)}`}>
+                      <AutoPill className={`pill ${orderStatusPill(o.orderStatus)}`}>
                         {o.orderStatus}
-                      </span>
+                      </AutoPill>
                     ) : (
                       "—"
                     )}
                   </td>
-                  <td>
+                  <td style={tableText.body2}>
                     {o.paymentStatus ? (
                       <span className={`pill ${paymentPill(o.paymentStatus)}`}>
                         {o.paymentStatus}
@@ -121,12 +193,13 @@ export default function OrdersPage() {
                       "—"
                     )}
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{formatUpdatedAt(o.importedAt)}</td>
+                  {dateTimeCell(o.orderCreatedAt)}
+                  {dateTimeCell(o.importedAt)}
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </TableFrame>
       )}
     </main>
   );
