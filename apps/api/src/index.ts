@@ -1486,7 +1486,9 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
   const salesRows = await db
     .prepare(
       `SELECT id, sale_number AS saleNumber, stage, created_at AS createdAt,
-              grand_total_satang AS grandTotalSatang, notes, vehicle
+              subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
+              tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
+              notes, vehicle
        FROM onsite_sales
        WHERE license_plate = ? AND stage IN ('bill', 'quotation')
        ORDER BY created_at DESC LIMIT 200`,
@@ -1500,7 +1502,7 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
     const lines = await db
       .prepare(
         `SELECT onsite_sale_id AS onsiteSaleId, description, line_type AS lineType,
-                quantity, unit_price_satang AS unitPriceSatang
+                quantity, unit_price_satang AS unitPriceSatang, discount_satang AS discountSatang
          FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
       )
       .bind(...ids)

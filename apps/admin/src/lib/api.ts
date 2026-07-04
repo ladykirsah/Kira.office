@@ -258,6 +258,7 @@ export interface CustomerSaleLine {
   lineType: string;
   quantity: number;
   unitPriceSatang: number;
+  discountSatang: number;
 }
 
 export interface CustomerSale {
@@ -265,6 +266,9 @@ export interface CustomerSale {
   saleNumber: string | null;
   stage: string;
   createdAt: number;
+  subtotalSatang: number;
+  discountTotalSatang: number;
+  taxTotalSatang: number;
   grandTotalSatang: number;
   notes: string | null;
   vehicle: string | null;

@@ -1,17 +1,15 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "../PageHeader";
 import {
   searchCustomers,
   getCustomerDetail,
   saveCustomer,
-  getOnsiteSale,
   type CustomerListItem,
   type CustomerDetail,
+  type CustomerSale,
   type CustomerSaleLine,
-  type FullBill,
-  type FullBillLine,
 } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
@@ -20,74 +18,96 @@ import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
 
 const frame = { border: "1px solid var(--border)", borderRadius: 8, padding: 18 } as const;
+const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
 
-/** "Regas, Filter drier ×2" — a one-line items summary for a bill/quotation row. */
-function itemsSummary(lines: CustomerSaleLine[]): string {
-  if (!lines.length) return "—";
-  return lines
-    .map((l) => `${l.description ?? "item"}${l.quantity > 1 ? ` ×${l.quantity}` : ""}`)
-    .join(", ");
-}
-
-const right = { textAlign: "right" } as const;
-const lineTotal = (l: FullBillLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
-
-/** The full-track detail of one bill: every line, per-line price/total, the discount, total + note. */
-function BillDetailPanel({ bill }: { bill: FullBill | null }) {
-  if (!bill) {
-    return (
-      <p className="muted" style={{ padding: 14, margin: 0 }}>
-        Loading…
-      </p>
-    );
-  }
+/** One bill/quotation as a self-contained receipt card: full items + prices, discount, note, reprint. */
+function BillCard({ sale }: { sale: CustomerSale }) {
+  const hasBreakdown = sale.discountTotalSatang > 0 || sale.taxTotalSatang > 0;
   return (
-    <div style={{ padding: 14 }}>
-      <div style={{ overflowX: "auto" }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th style={right}>Qty</th>
-              <th style={right}>Unit</th>
-              <th style={right}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bill.lines.map((l, i) => (
-              <tr key={i}>
-                <td>{l.description || (l.lineType === "service" ? "Service" : "Item")}</td>
-                <td style={right}>{l.quantity}</td>
-                <td style={right}>{formatBaht(l.unitPriceSatang)}</td>
-                <td style={right}>{formatBaht(lineTotal(l))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: "14px 16px",
+      }}
+    >
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          alignItems: "flex-end",
-          marginTop: 10,
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+          marginBottom: 10,
         }}
       >
-        <div style={tableText.subtitle}>Subtotal {formatBaht(bill.subtotalSatang)}</div>
-        {bill.discountTotalSatang > 0 && (
-          <div style={tableText.subtitle}>Discount −{formatBaht(bill.discountTotalSatang)}</div>
-        )}
-        {bill.taxTotalSatang > 0 && (
-          <div style={tableText.subtitle}>VAT {formatBaht(bill.taxTotalSatang)}</div>
-        )}
+        <div>
+          <div style={tableText.body2}>
+            {new Date(sale.createdAt).toLocaleDateString("th-TH")} ·{" "}
+            {new Date(sale.createdAt).toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+          <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
+            {sale.saleNumber ?? "—"}
+          </div>
+        </div>
         <div style={{ ...tableText.body1, fontWeight: 700 }}>
-          Total {formatBaht(bill.grandTotalSatang)}
+          {formatBaht(sale.grandTotalSatang)}
         </div>
       </div>
-      {bill.notes && <div style={{ marginTop: 8, ...tableText.subtitle }}>Note: {bill.notes}</div>}
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <a className="btn-primary" href={`/pos?reprint=${encodeURIComponent(bill.id)}`}>
+
+      <div
+        style={{
+          borderTop: "1px solid var(--border)",
+          paddingTop: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}
+      >
+        {sale.lines.length === 0 ? (
+          <span className="muted">No items.</span>
+        ) : (
+          sale.lines.map((l, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+              <span>
+                {l.description || (l.lineType === "service" ? "Service" : "Item")}
+                {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
+              </span>
+              <span style={{ fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" }}>
+                {formatBaht(lineTotal(l))}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {hasBreakdown && (
+        <div
+          style={{
+            marginTop: 8,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            alignItems: "flex-end",
+          }}
+        >
+          <div style={tableText.subtitle}>Subtotal {formatBaht(sale.subtotalSatang)}</div>
+          {sale.discountTotalSatang > 0 && (
+            <div style={tableText.subtitle}>Discount −{formatBaht(sale.discountTotalSatang)}</div>
+          )}
+          {sale.taxTotalSatang > 0 && (
+            <div style={tableText.subtitle}>VAT {formatBaht(sale.taxTotalSatang)}</div>
+          )}
+        </div>
+      )}
+
+      {sale.notes && <div style={{ marginTop: 8, ...tableText.subtitle }}>Note — {sale.notes}</div>}
+
+      <div style={{ marginTop: 12 }}>
+        <a className="btn-soft" href={`/pos?reprint=${encodeURIComponent(sale.id)}`}>
           🖨 Preview &amp; reprint
         </a>
       </div>
@@ -104,8 +124,6 @@ export default function CustomersPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
-  const [openBill, setOpenBill] = useState<string | null>(null);
-  const [billDetail, setBillDetail] = useState<FullBill | null>(null);
 
   useEffect(() => {
     if (selected !== null) return; // detail view is showing; re-fetch when we return to the list
@@ -123,7 +141,6 @@ export default function CustomersPage() {
   async function openCar(plate: string) {
     setSelected(plate);
     setDetail(null);
-    setOpenBill(null);
     try {
       const d = await getCustomerDetail(plate);
       setDetail(d);
@@ -131,20 +148,6 @@ export default function CustomersPage() {
       setPhone(d.customer?.phone ?? "");
     } catch {
       toast("Couldn't load this car.", "error");
-    }
-  }
-
-  async function toggleBill(id: string) {
-    if (openBill === id) {
-      setOpenBill(null);
-      return;
-    }
-    setOpenBill(id);
-    setBillDetail(null);
-    try {
-      setBillDetail(await getOnsiteSale(id));
-    } catch {
-      toast("Couldn't load the bill.", "error");
     }
   }
 
@@ -179,7 +182,7 @@ export default function CustomersPage() {
           }
         />
 
-        <div style={{ ...frame, marginBottom: 20 }}>
+        <div style={{ ...frame, marginBottom: 24 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span style={tableText.subtitle}>Customer name</span>
@@ -212,40 +215,17 @@ export default function CustomersPage() {
         </div>
 
         {detail && detail.quotations.length > 0 && (
-          <div style={{ ...frame, marginBottom: 20 }}>
+          <div style={{ marginBottom: 24 }}>
             <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Open quotations</h2>
-            <div style={{ overflowX: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Quotation</th>
-                    <th>Date</th>
-                    <th>Items</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.quotations.map((s) => (
-                    <tr key={s.id}>
-                      <td
-                        style={{ fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" }}
-                      >
-                        {s.saleNumber ?? "—"}
-                      </td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        {new Date(s.createdAt).toLocaleDateString("th-TH")}
-                      </td>
-                      <td>{itemsSummary(s.lines)}</td>
-                      <td>{formatBaht(s.grandTotalSatang)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {detail.quotations.map((s) => (
+                <BillCard key={s.id} sale={s} />
+              ))}
             </div>
           </div>
         )}
 
-        <div style={frame}>
+        <div>
           <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Purchase &amp; repair history</h2>
           {!detail ? (
             <p className="muted">Loading…</p>
@@ -254,59 +234,10 @@ export default function CustomersPage() {
               <div className="empty-icon">🧾</div>No bills yet for this car.
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Bill</th>
-                    <th>Items</th>
-                    <th>Note</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.history.map((s) => {
-                    const open = openBill === s.id;
-                    return (
-                      <Fragment key={s.id}>
-                        <tr style={{ cursor: "pointer" }} onClick={() => toggleBill(s.id)}>
-                          <td style={{ whiteSpace: "nowrap" }}>
-                            <div style={tableText.body2}>
-                              {new Date(s.createdAt).toLocaleDateString("th-TH")}
-                            </div>
-                            <div style={tableText.subtitle}>
-                              {new Date(s.createdAt).toLocaleTimeString("th-TH", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </div>
-                          </td>
-                          <td
-                            style={{
-                              fontFamily: "var(--font-mono, monospace)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {open ? "▾ " : "▸ "}
-                            {s.saleNumber ?? "—"}
-                          </td>
-                          <td>{itemsSummary(s.lines)}</td>
-                          <td style={tableText.subtitle}>{s.notes || "—"}</td>
-                          <td>{formatBaht(s.grandTotalSatang)}</td>
-                        </tr>
-                        {open && (
-                          <tr>
-                            <td colSpan={5} style={{ padding: 0, background: "var(--bg)" }}>
-                              <BillDetailPanel bill={billDetail} />
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {detail.history.map((s) => (
+                <BillCard key={s.id} sale={s} />
+              ))}
             </div>
           )}
         </div>
