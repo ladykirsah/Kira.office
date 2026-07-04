@@ -10,6 +10,7 @@ import {
 import { orderStatusPill, paymentPill } from "@/lib/badges";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
+import { xlsxToImportCsv } from "@l-shopee/core";
 import { AutoPill } from "../AutoPill";
 import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
@@ -55,6 +56,25 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load a chosen file into the CSV box: a Shopee .xlsx is parsed + normalized in-browser (all its
+  // cells are text, so no heavy library); a .csv is read as-is. The user still reviews then Imports.
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked
+    if (!file) return;
+    setResult(null);
+    setMsg(`Reading ${file.name}…`);
+    try {
+      const text = /\.xlsx$/i.test(file.name)
+        ? await xlsxToImportCsv(new Uint8Array(await file.arrayBuffer()))
+        : await file.text();
+      setCsv(text);
+      setMsg("");
+    } catch (err) {
+      setMsg(`Could not read ${file.name}: ${(err as Error).message}`);
+    }
+  }
+
   async function run() {
     setBusy(true);
     setMsg("Importing…");
@@ -85,19 +105,23 @@ export default function OrdersPage() {
   return (
     <main>
       <PageHeader
-        title="Shopee orders (CSV import)"
+        title="Shopee orders (import)"
         subtitle={
           <>
-            Paste a Seller Centre order export (header row required). Required column:{" "}
-            <code>external_order_id</code>. Optional: <code>order_status</code>,{" "}
-            <code>payment_status</code>, <code>order_fee</code>, <code>order_date</code>,{" "}
-            <code>buyer_username</code>, <code>sales_total</code>, <code>fee_pct</code>,{" "}
-            <code>ship_date</code> — each captured only when the column is present. When{" "}
-            <code>sales_total</code> is given, Total is stored as the net payout (Sales − fees).
-            Re-importing is safe — duplicates are skipped.
+            Upload a Seller Centre order export (<code>.xlsx</code>) — it&apos;s parsed in your
+            browser into the columns below (Total = Sales − fees). Or paste a <code>.csv</code>{" "}
+            directly. Required column: <code>external_order_id</code>. Re-importing is safe —
+            duplicates are skipped.
           </>
         }
       />
+      <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+        <label className="btn-soft btn-sm" style={{ cursor: "pointer" }}>
+          Upload Shopee export…
+          <input type="file" accept=".xlsx,.csv" onChange={onFile} style={{ display: "none" }} />
+        </label>
+        <small className="muted">.xlsx or .csv — or paste below</small>
+      </div>
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
