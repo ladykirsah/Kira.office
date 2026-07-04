@@ -1180,12 +1180,12 @@ a.card:hover {
   gap: 12px;
 }
 
-/* Top-level POS sections — header · saved-drafts panel · grid — share one consistent gap
-   instead of sitting flush against each other. */
+/* Top-level POS sections — header · saved-drafts panel · grid — share the app-wide 40px
+   headline→content gap instead of sitting flush against each other. */
 .pos-page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 40px;
 }
 
 /* POS "freeze the page, scroll only the groups" layout — wide screens only.
