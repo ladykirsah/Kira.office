@@ -28,6 +28,7 @@ import worker, {
   importShopeeOrders,
   parseMoneyToSatang,
   parseOrderDateMs,
+  parseFeePct,
   lineGrossProfitSatang,
   lookupBarcode,
   refundSaleToDb,
@@ -391,7 +392,49 @@ describe("parseOrderDateMs", () => {
   });
 });
 
+describe("parseFeePct", () => {
+  it("parses a percent string to basis points", () => {
+    expect(parseFeePct("3.21%")).toBe(321);
+    expect(parseFeePct("7.24")).toBe(724);
+    expect(parseFeePct("10%")).toBe(1000);
+  });
+  it("returns 0 for blank or unparseable input", () => {
+    expect(parseFeePct(undefined)).toBe(0);
+    expect(parseFeePct("")).toBe(0);
+    expect(parseFeePct("n/a")).toBe(0);
+  });
+});
+
 describe("importShopeeOrders (enriched)", () => {
+  it("captures username, sales, fee %, ship date; sets Total = Sales − fees", async () => {
+    const { db, batched } = makeDb({ existingOrders: [] });
+    const csv =
+      "oid,user,sales,fee,feepct,shipdate,orderdate\n" +
+      "2406ABC,shopper99,1450.00,105.00,7.24,2026-06-20,2026-06-14\n";
+    const out = await importShopeeOrders(db, csv, {
+      external_order_id: "oid",
+      buyer_username: "user",
+      sales_total: "sales",
+      order_fee: "fee",
+      fee_pct: "feepct",
+      ship_date: "shipdate",
+      order_date: "orderdate",
+    });
+    expect(out.imported).toBe(1);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO sales_orders"),
+    );
+    // Total (grand_total) = net payout = Sales − fees = 145000 − 10500
+    expect(insert?.boundArgs?.[5]).toBe(134500);
+    expect(insert?.boundArgs?.[6]).toBe(10500);
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+    // appended enriched binds: buyer_username, sales_satang, fee_bp, ship_time_ms
+    expect(insert?.boundArgs?.[10]).toBe("shopper99");
+    expect(insert?.boundArgs?.[11]).toBe(145000);
+    expect(insert?.boundArgs?.[12]).toBe(724);
+    expect(insert?.boundArgs?.[13]).toBe(Date.parse("2026-06-20"));
+  });
+
   it("captures total, fee, and order date from mapped columns", async () => {
     const { db, batched } = makeDb({ existingOrders: [] });
     const csv = "oid,total,fee,date\n2406ABC,890.00,62.00,2026-06-14\n";

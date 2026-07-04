@@ -639,10 +639,19 @@ export function parseOrderDateMs(s: string | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
+/** Parse a fee-rate string like "3.21%" to basis points (321); 0 if blank/unparseable. */
+export function parseFeePct(s: string | undefined): number {
+  if (!s) return 0;
+  const n = Number(String(s).replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
 /**
  * Import Shopee orders from a Seller Centre CSV export (the bridge before the live v2 API). Required
  * field: `external_order_id`; optional: order_status, payment_status, order_total, order_fee,
- * order_date (only captured when the CSV actually has that column). Deduped by (channel,
+ * order_date, plus the enriched order-level columns buyer_username, sales_total (→ Sales; Total is
+ * then computed as Sales − fees = the seller's net payout), fee_pct (→ basis points) and ship_date
+ * (only captured when the CSV actually has that column). Deduped by (channel,
  * external_order_id) via core.dedupeOrders + an INSERT OR IGNORE on the unique index, so re-importing
  * the same export never creates duplicates.
  */
@@ -660,15 +669,26 @@ export async function importShopeeOrders(
     if (field === "external_order_id" || header.includes(col)) effectiveMapping[field] = col;
   }
   const { records, errors } = mapRows(rows, effectiveMapping, ["external_order_id"]);
-  const incoming = records.map((r) => ({
-    channel: "shopee" as const,
-    externalOrderId: r["external_order_id"] ?? "",
-    orderStatus: r["order_status"] ?? null,
-    paymentStatus: r["payment_status"] ?? null,
-    grandTotalSatang: parseMoneyToSatang(r["order_total"]),
-    feeTotalSatang: parseMoneyToSatang(r["order_fee"]),
-    orderCreatedAt: parseOrderDateMs(r["order_date"]),
-  }));
+  const incoming = records.map((r) => {
+    const feeTotalSatang = parseMoneyToSatang(r["order_fee"]);
+    // Sales = what the buyer paid for the product; null when the column isn't mapped.
+    const salesSatang = r["sales_total"] != null ? parseMoneyToSatang(r["sales_total"]) : null;
+    return {
+      channel: "shopee" as const,
+      externalOrderId: r["external_order_id"] ?? "",
+      orderStatus: r["order_status"] ?? null,
+      paymentStatus: r["payment_status"] ?? null,
+      // Total = seller net payout = Sales − fees when Sales is present; else the mapped order_total.
+      grandTotalSatang:
+        salesSatang != null ? salesSatang - feeTotalSatang : parseMoneyToSatang(r["order_total"]),
+      feeTotalSatang,
+      orderCreatedAt: parseOrderDateMs(r["order_date"]),
+      buyerUsername: r["buyer_username"] ?? null,
+      salesSatang,
+      feeBp: r["fee_pct"] != null ? parseFeePct(r["fee_pct"]) : null,
+      shipTimeMs: parseOrderDateMs(r["ship_date"]),
+    };
+  });
 
   let existingKeys: string[] = [];
   const ids = incoming.map((o) => o.externalOrderId);
@@ -690,8 +710,8 @@ export async function importShopeeOrders(
     db
       .prepare(
         `INSERT OR IGNORE INTO sales_orders
-         (id, channel, external_order_id, order_status, payment_status, grand_total_satang, fee_total_satang, order_created_at, imported_at, import_source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, channel, external_order_id, order_status, payment_status, grand_total_satang, fee_total_satang, order_created_at, imported_at, import_source, buyer_username, sales_satang, fee_bp, ship_time_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         crypto.randomUUID(),
@@ -704,6 +724,10 @@ export async function importShopeeOrders(
         o.orderCreatedAt,
         now,
         "csv",
+        o.buyerUsername,
+        o.salesSatang,
+        o.feeBp,
+        o.shipTimeMs,
       ),
   );
   if (statements.length > 0) await db.batch(statements);
