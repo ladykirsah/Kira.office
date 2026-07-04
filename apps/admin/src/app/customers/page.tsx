@@ -60,26 +60,15 @@ function BillRow({ sale }: { sale: CustomerSale }) {
           }}
         >
           {sale.discountTotalSatang > 0 && (
-            <>
-              <div style={{ ...rowBetween, ...tableText.subtitle }}>
-                <span>Subtotal</span>
-                <span style={mono}>{formatBaht(sale.subtotalSatang)}</span>
-              </div>
-              <div style={{ ...rowBetween, ...tableText.subtitle }}>
-                <span>Discount</span>
-                <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
-              </div>
-            </>
+            <div style={{ ...rowBetween, ...tableText.subtitle }}>
+              <span>Discount</span>
+              <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
+            </div>
           )}
           <div style={{ ...rowBetween, fontWeight: 500 }}>
             <span>Total</span>
             <span style={mono}>{formatBaht(sale.grandTotalSatang)}</span>
           </div>
-          {sale.taxTotalSatang > 0 && (
-            <div style={{ ...tableText.subtitle, ...right }}>
-              incl. VAT {formatBaht(sale.taxTotalSatang)}
-            </div>
-          )}
           {sale.notes && (
             <div style={{ ...tableText.subtitle, marginTop: 2 }}>Note — {sale.notes}</div>
           )}
