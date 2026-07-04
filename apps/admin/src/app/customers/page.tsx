@@ -17,7 +17,12 @@ import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
 
-const frame = { border: "1px solid var(--border)", borderRadius: 8, padding: 18 } as const;
+const frame = {
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: 18,
+  background: "var(--surface)",
+} as const;
 const rowBetween = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
 const num = { whiteSpace: "nowrap" } as const;
 const right = { textAlign: "right" } as const;
@@ -75,9 +80,15 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         </div>
       </td>
       <td style={{ ...right, whiteSpace: "nowrap", verticalAlign: "top" }}>
-        <a className="btn-soft" href={`/pos?reprint=${encodeURIComponent(sale.id)}`}>
+        <button
+          type="button"
+          className="btn-sm"
+          onClick={() => {
+            window.location.href = `/pos?reprint=${encodeURIComponent(sale.id)}`;
+          }}
+        >
           🖨 Reprint
-        </a>
+        </button>
       </td>
     </tr>
   );
@@ -164,14 +175,17 @@ export default function CustomersPage() {
   if (selected) {
     return (
       <main>
+        <button
+          type="button"
+          className="btn-soft"
+          onClick={() => setSelected(null)}
+          style={{ marginBottom: 16 }}
+        >
+          ← All customers
+        </button>
         <PageHeader
           title={selected}
           subtitle={detail?.vehicle || detail?.customer?.carModel || "On-site customer"}
-          action={
-            <button type="button" className="btn-soft" onClick={() => setSelected(null)}>
-              ← All customers
-            </button>
-          }
         />
 
         <div style={{ ...frame, marginBottom: 24 }}>
