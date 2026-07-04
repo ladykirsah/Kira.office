@@ -23,7 +23,7 @@ import {
 } from "@/lib/api";
 import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
 import JsBarcode from "jsbarcode";
-import { formatBaht } from "@/lib/format";
+import { formatBaht, formatBahtTrim } from "@/lib/format";
 import { productDisplayName } from "@/lib/productLabel";
 import { nextSalesId, latestSalesIdForDay } from "@/lib/salesId";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
@@ -1028,7 +1028,6 @@ export default function PosPage() {
   const [draftId, setDraftId] = useState(() => crypto.randomUUID());
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<OpenDraft[]>([]);
-  const [draftsOpen, setDraftsOpen] = useState(false);
   const [lastQuoteId, setLastQuoteId] = useState<string | null>(null);
   // Reprint mode: reopen a finalized bill read-only to reprint it. NEVER checkoutable (no double
   // sale) — its original number + vehicle print, and only "Create PDF" is offered.
@@ -1131,6 +1130,15 @@ export default function PosPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
+
+  // Server-parked drafts/quotations feed the always-visible panel — load them on mount.
+  // Skip in reprint mode: a finalized bill loaded read-only isn't building a cart.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("reprint")) return;
+    listDrafts()
+      .then(setDrafts)
+      .catch(() => {});
+  }, []);
 
   // Auto-save the in-progress draft locally so switching pages / refreshing doesn't lose the cart.
   // A draft is NOT a sale (no revenue) — it's cleared on checkout, when the order goes to the ledger.
@@ -1535,6 +1543,7 @@ export default function PosPage() {
     try {
       await saveDraft(buildDraftInput("draft"));
       setActiveDraftId(draftId);
+      await reloadDrafts();
       toast("Draft saved — reopen it any time.", "success");
     } catch {
       toast("Couldn't save the draft (offline?).", "error");
@@ -1551,6 +1560,7 @@ export default function PosPage() {
       await saveDraft(buildDraftInput("quotation", qtNo));
       setLastQuoteId(qtNo);
       setActiveDraftId(draftId);
+      await reloadDrafts();
       toast(`Quotation ${qtNo} saved ✓`, "success");
     } catch {
       toast("Couldn't save the quotation (offline?).", "error");
@@ -1559,12 +1569,11 @@ export default function PosPage() {
     }
   }
 
-  async function openDraftsTray() {
+  async function reloadDrafts() {
     try {
       setDrafts(await listDrafts());
-      setDraftsOpen(true);
     } catch {
-      toast("Couldn't load saved drafts.", "error");
+      /* keep the current panel contents if the refresh fails */
     }
   }
 
@@ -1579,7 +1588,6 @@ export default function PosPage() {
     setCarYear("");
     setDraftId(d.id);
     setActiveDraftId(d.id);
-    setDraftsOpen(false);
     toast("Draft reopened.", "success");
   }
 
@@ -1600,14 +1608,77 @@ export default function PosPage() {
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
       >
         <h1 style={{ margin: 0 }}>Point of Sale</h1>
-        <button type="button" className="btn-soft" onClick={openDraftsTray}>
-          📋 Open drafts{activeDraftId ? " · editing 1" : ""}
-        </button>
       </div>
       {pending > 0 && (
         <p style={{ color: "var(--warn)" }} className="bill-no-print">
           ⏳ {pending} sale(s) queued offline — will sync when online.
         </p>
+      )}
+
+      {/* Saved drafts & quotations: always visible when any are parked, so staff (and the next
+          staff member on shift) can spot and resume a held cart without hunting for a button. */}
+      {drafts.length > 0 && (
+        <div
+          className="bill-no-print"
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            background: "var(--surface)",
+            padding: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>🗂 Saved drafts &amp; quotations</span>
+            <span className="pill off">{drafts.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {drafts.map((d) => {
+              const active = activeDraftId === d.id;
+              return (
+                <div
+                  key={d.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <span className={`pill ${d.stage === "quotation" ? "soft" : "off"}`}>
+                    {d.stage === "quotation" ? (d.saleNumber ?? "Quotation") : "Draft"}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14 }}>{d.vehicle || d.licensePlate || "Walk-in"}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
+                      {formatBahtTrim(d.grandTotalSatang)} · {d.lines.length} item(s)
+                      {active ? " · editing now" : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    onClick={() => reopenDraft(d)}
+                  >
+                    Reopen
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-soft btn-sm"
+                    onClick={() => discardDraft(d)}
+                    aria-label="Delete draft"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div
@@ -2214,89 +2285,6 @@ export default function PosPage() {
           </div>
         </div>
       </div>
-
-      {draftsOpen && (
-        <div
-          className="bill-no-print"
-          onClick={() => setDraftsOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              padding: 18,
-              width: "min(560px, 92vw)",
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12,
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: 18 }}>Saved drafts &amp; quotations</h2>
-              <button type="button" className="btn-soft" onClick={() => setDraftsOpen(false)}>
-                Close
-              </button>
-            </div>
-            {drafts.length === 0 ? (
-              <p className="muted">No parked drafts. Save one from a cart to reopen it here.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {drafts.map((d) => (
-                  <div
-                    key={d.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      padding: "10px 12px",
-                    }}
-                  >
-                    <span className={`pill ${d.stage === "quotation" ? "soft" : "off"}`}>
-                      {d.stage === "quotation" ? (d.saleNumber ?? "Quotation") : "Draft"}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14 }}>{d.vehicle || d.licensePlate || "Walk-in"}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-                        {formatBaht(d.grandTotalSatang)} · {d.lines.length} item(s)
-                      </div>
-                    </div>
-                    <button type="button" className="btn-primary" onClick={() => reopenDraft(d)}>
-                      Reopen
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-soft"
-                      onClick={() => discardDraft(d)}
-                      aria-label="Delete draft"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </main>
   );
 }
