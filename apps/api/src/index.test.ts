@@ -1046,14 +1046,30 @@ describe("api worker routes", () => {
     ).toBe(400);
   });
 
-  it("listPayments > selects the latest payments with camelCase aliases", async () => {
+  it("listPayments > selects the latest UNCLEARED payments with camelCase aliases", async () => {
     const { db } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
     await listPayments(db);
     const sql = prepare.mock.calls[0]?.[0] as string;
     expect(sql).toContain("method_label AS methodLabel");
     expect(sql).toContain("amount_satang AS amountSatang");
+    expect(sql).toContain("cleared_at IS NULL"); // Recent = not-yet-reconciled only
     expect(sql).toContain("ORDER BY created_at DESC");
+  });
+
+  it("POST /payments/clear > marks all uncleared payments reconciled (never deletes)", async () => {
+    const { db, runs } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/payments/clear", { method: "POST" }),
+      { DB: db } as unknown as Env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const update = runs.find((r) => r.sql.includes("UPDATE payments SET cleared_at"));
+    expect(update).toBeDefined();
+    expect(update?.sql).toContain("WHERE cleared_at IS NULL");
+    // no DELETE — the audit trail must survive a clear
+    expect(runs.some((r) => /DELETE\s+FROM\s+payments/i.test(r.sql))).toBe(false);
   });
 
   it("GET /img/:key > serves an object from R2", async () => {

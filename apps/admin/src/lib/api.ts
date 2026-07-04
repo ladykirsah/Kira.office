@@ -692,6 +692,13 @@ export async function recordPayment(input: {
   return ((await res.json()) as { payment: PaymentRow }).payment;
 }
 
+/** Owner reconciliation — mark all listed (uncleared) payments cleared. Records are kept, not deleted. */
+export async function clearPayments(): Promise<{ cleared: number }> {
+  const res = await apiFetch(`/payments/clear`, { method: "POST" });
+  if (!res.ok) throw new Error(`Clear failed (HTTP ${res.status})`);
+  return (await res.json()) as { cleared: number };
+}
+
 /** Upload the shop logo or contact-QR image (jpeg/png/webp, ≤5MB). Returns the stored R2 key. */
 export async function uploadShopImage(
   slot: "logo" | "qr",

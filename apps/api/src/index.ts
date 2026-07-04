@@ -903,17 +903,28 @@ export interface PaymentRow {
   approvedAt: number | null;
 }
 
-/** Latest payment approvals (the Payment page's trail; owner reconciles these against the bank). */
+/** Latest UNCLEARED payment approvals — the Payment page's working list of items awaiting the
+ *  owner's reconciliation. Cleared (reconciled) rows stay in the table but drop out of this view. */
 export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
   const rows = await db
     .prepare(
       `SELECT id, method_label AS methodLabel, promptpay_id AS promptpayId,
               amount_satang AS amountSatang, status, created_at AS createdAt,
               approved_at AS approvedAt
-       FROM payments ORDER BY created_at DESC LIMIT 100`,
+       FROM payments WHERE cleared_at IS NULL ORDER BY created_at DESC LIMIT 100`,
     )
     .all<PaymentRow>();
   return rows.results ?? [];
+}
+
+/** Owner reconciliation: mark every uncleared payment as cleared (never deletes — the record is the
+ *  anti-cheat trail). Returns how many were cleared. */
+export async function clearPayments(db: D1Database): Promise<{ cleared: number }> {
+  const res = await db
+    .prepare(`UPDATE payments SET cleared_at = ? WHERE cleared_at IS NULL`)
+    .bind(Date.now())
+    .run();
+  return { cleared: res.meta?.changes ?? 0 };
 }
 
 /** Keep products.image_key pointing at the first gallery image (the cover), or null if none. */
@@ -2417,6 +2428,9 @@ const worker = {
     // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).
     if (url.pathname === "/payments" && request.method === "GET") {
       return json({ payments: await listPayments(env.DB) });
+    }
+    if (url.pathname === "/payments/clear" && request.method === "POST") {
+      return json(await clearPayments(env.DB));
     }
     if (url.pathname === "/payments" && request.method === "POST") {
       const body = await readJson<{

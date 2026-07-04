@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchShopInfo, fetchPayments, recordPayment, type PaymentRow } from "@/lib/api";
+import {
+  fetchShopInfo,
+  fetchPayments,
+  recordPayment,
+  clearPayments,
+  type PaymentRow,
+} from "@/lib/api";
 import { parsePaymentMethods, defaultPaymentMethod, type PaymentMethod } from "@l-shopee/core";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
 import { inputL } from "@/lib/inputStyles";
 import { PromptPayQr } from "../pos/PromptPayQr";
+import { ConfirmButton } from "../ConfirmButton";
 import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
 import { useToast } from "../ToastProvider";
@@ -85,6 +92,19 @@ export default function PaymentPage() {
       setQr(null);
       setAmount("");
       setPayments(await fetchPayments()); // keep the (hidden) list fresh
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clear() {
+    setBusy(true);
+    try {
+      const { cleared } = await clearPayments();
+      toast(`Cleared ${cleared} payment(s) — records kept for reconciliation`, "success");
+      setPayments(await fetchPayments());
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -227,6 +247,18 @@ export default function PaymentPage() {
                 </div>
               ) : (
                 <div style={{ marginTop: 12 }}>
+                  {/* Owner reconciliation: after checking the batch against the bank, Clear marks them
+                      reconciled (kept in the DB) so the working list resets. */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                    <ConfirmButton
+                      className="btn-soft btn-sm"
+                      confirmLabel={`Clear all ${payments.length}?`}
+                      onConfirm={clear}
+                      disabled={busy}
+                    >
+                      Clear
+                    </ConfirmButton>
+                  </div>
                   <TableFrame>
                     <table>
                       <thead>
