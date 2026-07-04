@@ -14,6 +14,7 @@ import {
   listDrafts,
   deleteDraft,
   getOnsiteSale,
+  saveCustomer,
   EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
@@ -22,6 +23,8 @@ import {
   type OpenDraft,
 } from "@/lib/api";
 import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
+import { buildCheckoutCustomerUpsert } from "@/lib/checkout";
+import { THAI_PROVINCES } from "@/lib/provinces";
 import JsBarcode from "jsbarcode";
 import { formatBaht, formatBahtTrim } from "@/lib/format";
 import { productDisplayName } from "@/lib/productLabel";
@@ -547,6 +550,7 @@ const LAST_SALE_ID_KEY = "pos:lastSaleId:v1";
 interface PosDraft {
   lines: SaleLine[];
   plate: string;
+  province: string;
   mileage: string;
   note: string;
   billDate: string;
@@ -1020,6 +1024,7 @@ export default function PosPage() {
   const [carModelId, setCarModelId] = useState("");
   const [carYear, setCarYear] = useState("");
   const [plate, setPlate] = useState("");
+  const [province, setProvince] = useState(""); // plate's province — persisted to the customer on checkout
   const [mileage, setMileage] = useState("");
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
@@ -1153,6 +1158,7 @@ export default function PosPage() {
         const d = JSON.parse(raw) as Partial<PosDraft>;
         if (Array.isArray(d.lines) && d.lines.length) setLines(d.lines);
         if (typeof d.plate === "string") setPlate(d.plate);
+        if (typeof d.province === "string") setProvince(d.province);
         if (typeof d.mileage === "string") setMileage(d.mileage);
         if (typeof d.note === "string") setNote(d.note);
         if (typeof d.billDate === "string") setBillDate(d.billDate);
@@ -1177,6 +1183,7 @@ export default function PosPage() {
       const empty =
         lines.length === 0 &&
         !plate.trim() &&
+        !province.trim() &&
         !mileage.trim() &&
         !note.trim() &&
         !carBrandId &&
@@ -1188,6 +1195,7 @@ export default function PosPage() {
         const draft: PosDraft = {
           lines,
           plate,
+          province,
           mileage,
           note,
           billDate,
@@ -1201,7 +1209,7 @@ export default function PosPage() {
     } catch {
       // ignore storage errors (private mode / quota)
     }
-  }, [lines, plate, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
+  }, [lines, plate, province, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
 
   // Reprint: ?reprint=<id> loads that finalized bill read-only so it can be re-printed. The original
   // number + vehicle print; the actions collapse to Create PDF only (no checkout → no double sale).
@@ -1492,6 +1500,10 @@ export default function PosPage() {
       const saleNo = nextSalesId(lastSaleId, Date.now());
       const ok = await saveSale(saleNo);
       if (!ok) return;
+      // Persist the plate's province onto the plate-keyed customer (COALESCE-safe upsert). Best-effort:
+      // the sale already succeeded, so a customer-save hiccup must not fail the checkout.
+      const customer = buildCheckoutCustomerUpsert({ plate, province });
+      if (customer) await saveCustomer(customer).catch(() => {});
       printBill(); // prints saleNo — the counter hasn't advanced yet
       localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
       setLastSaleId(saleNo);
@@ -1504,6 +1516,7 @@ export default function PosPage() {
       toast("Sale saved ✓", "success");
       setLines([]);
       setPlate("");
+      setProvince("");
       setMileage("");
       setNote("");
       setCarBrandId("");
@@ -1885,6 +1898,22 @@ export default function PosPage() {
                       />
                       <span className="muted">km</span>
                     </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <div style={fieldLabel}>Province</div>
+                    <input
+                      value={province}
+                      onChange={(e) => setProvince(e.target.value)}
+                      placeholder="จังหวัด (บนป้ายทะเบียน)"
+                      list="thai-provinces"
+                      aria-label="Plate province"
+                      style={{ width: "100%" }}
+                    />
+                    <datalist id="thai-provinces">
+                      {THAI_PROVINCES.map((p) => (
+                        <option key={p} value={p} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
               </div>
