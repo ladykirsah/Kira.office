@@ -16,6 +16,7 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
     section: "Sell",
     links: [
       ["/pos", "🛒", "Point of Sale"],
+      ["/payment", "💸", "Payment"],
       ["/customers", "👥", "Customers"],
     ],
   },

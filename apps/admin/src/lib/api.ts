@@ -621,7 +621,7 @@ export interface ShopInfo {
   qrHeadlineEn: string;
   qrSubtitle: string; // contact-QR subtitle
   qrSubtitleEn: string;
-  promptpayId: string; // PromptPay target (phone / national ID / e-wallet); "" = no payment QR
+  paymentMethods: string; // JSON array of PromptPay methods (core parsePaymentMethods); "" = none
   logoKey: string | null; // R2 key, served at /img/<key>
   qrKey: string | null;
 }
@@ -640,7 +640,7 @@ export const EMPTY_SHOP_INFO: ShopInfo = {
   qrHeadlineEn: "",
   qrSubtitle: "",
   qrSubtitleEn: "",
-  promptpayId: "",
+  paymentMethods: "",
   logoKey: null,
   qrKey: null,
 };
@@ -659,6 +659,37 @@ export async function saveShopInfo(info: ShopInfoText): Promise<void> {
     body: JSON.stringify(info),
   });
   if (!res.ok) throw new Error(`Save failed (HTTP ${res.status})`);
+}
+
+/** One recorded payment approval (Payment page). Owner reconciles these against the bank account. */
+export interface PaymentRow {
+  id: string;
+  methodLabel: string;
+  promptpayId: string;
+  amountSatang: number;
+  status: string;
+  createdAt: number;
+  approvedAt: number | null;
+}
+
+export async function fetchPayments(): Promise<PaymentRow[]> {
+  const res = await apiFetch(`/payments`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load payments (HTTP ${res.status})`);
+  return ((await res.json()) as { payments: PaymentRow[] }).payments;
+}
+
+export async function recordPayment(input: {
+  methodLabel: string;
+  promptpayId: string;
+  amountSatang: number;
+}): Promise<PaymentRow> {
+  const res = await apiFetch(`/payments`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Record payment failed (HTTP ${res.status})`);
+  return ((await res.json()) as { payment: PaymentRow }).payment;
 }
 
 /** Upload the shop logo or contact-QR image (jpeg/png/webp, ≤5MB). Returns the stored R2 key. */

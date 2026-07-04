@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchShopInfo, saveShopInfo, uploadShopImage, imageUrl, type ShopInfo } from "@/lib/api";
+import { parsePaymentMethods, serializePaymentMethods, type PaymentMethod } from "@l-shopee/core";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import { PageHeader } from "../../PageHeader";
@@ -54,7 +55,7 @@ const TEXT_KEYS = [
   "qrHeadlineEn",
   "qrSubtitle",
   "qrSubtitleEn",
-  "promptpayId",
+  "paymentMethods",
 ] as const;
 
 /** View-mode bilingual block — mirrors editPair's layout exactly (field label, then the Thai value
@@ -127,6 +128,9 @@ export default function ShopInfoPage() {
   const [saved, setSaved] = useState<ShopInfo | null>(null); // last server state (for Cancel)
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  // In-progress payment-method rows. Kept separately from info.paymentMethods because the tolerant
+  // parser DROPS incomplete rows — a freshly-added blank row must survive re-renders while typing.
+  const [payDraft, setPayDraft] = useState<PaymentMethod[] | null>(null);
 
   useEffect(() => {
     fetchShopInfo()
@@ -162,6 +166,7 @@ export default function ShopInfoPage() {
       setInfo((s) => (s ? { ...s, ...text } : s));
       setSaved((s) => (s ? { ...s, ...text } : s));
       setEditing(false);
+      setPayDraft(null);
       toast("Shop info saved", "success");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -173,6 +178,7 @@ export default function ShopInfoPage() {
   function cancel() {
     setInfo(saved); // discard unsaved text edits (uploaded images persist immediately)
     setEditing(false);
+    setPayDraft(null);
   }
 
   async function upload(slot: "logo" | "qr", file: File | undefined) {
@@ -358,18 +364,91 @@ export default function ShopInfoPage() {
             </div>
 
             <div>
-              <div style={sectionHead}>Payment — PromptPay</div>
-              <div style={editLabel}>PromptPay ID</div>
-              <input
-                value={info.promptpayId ?? ""}
-                onChange={(e) => set({ promptpayId: e.target.value })}
-                placeholder="เบอร์มือถือ 08x-xxx-xxxx / เลขประจำตัวผู้เสียภาษี 13 หลัก"
-                style={inputL}
-              />
-              <div style={{ ...subLabel, marginTop: 6 }}>
-                When set, cash bills print a scan-to-pay QR with the bill total. Leave blank for no
-                payment QR.
-              </div>
+              <div style={sectionHead}>Payment — PromptPay accounts</div>
+              {(() => {
+                const methods = payDraft ?? parsePaymentMethods(info.paymentMethods);
+                const write = (next: PaymentMethod[]) => {
+                  setPayDraft(next);
+                  set({ paymentMethods: serializePaymentMethods(next) });
+                };
+                return (
+                  <>
+                    {methods.map((pm) => (
+                      <div
+                        key={pm.id}
+                        style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}
+                      >
+                        <input
+                          value={pm.label}
+                          onChange={(e) =>
+                            write(
+                              methods.map((x) =>
+                                x.id === pm.id ? { ...x, label: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          placeholder="ชื่อบัญชี (ร้าน / แม่ / พ่อ)"
+                          aria-label="Method label"
+                          style={{ ...inputL, flex: "0 1 180px" }}
+                        />
+                        <input
+                          value={pm.promptpayId}
+                          onChange={(e) =>
+                            write(
+                              methods.map((x) =>
+                                x.id === pm.id ? { ...x, promptpayId: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          placeholder="เบอร์มือถือ / เลข 13 หลัก"
+                          aria-label="PromptPay ID"
+                          style={{ ...inputL, flex: 1, minWidth: 0 }}
+                        />
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 12,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="pm-default"
+                            checked={!!pm.isDefault}
+                            onChange={() =>
+                              write(methods.map((x) => ({ ...x, isDefault: x.id === pm.id })))
+                            }
+                          />
+                          Default
+                        </label>
+                        <button
+                          type="button"
+                          className="btn-sm"
+                          aria-label={`Remove ${pm.label}`}
+                          onClick={() => write(methods.filter((x) => x.id !== pm.id))}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn-soft btn-sm"
+                      onClick={() =>
+                        write([...methods, { id: crypto.randomUUID(), label: "", promptpayId: "" }])
+                      }
+                    >
+                      ➕ Add account
+                    </button>
+                    <div style={{ ...subLabel, marginTop: 8 }}>
+                      Accounts offered on the Payment page; the default is preselected. A row needs
+                      both a name and a PromptPay ID to be saved.
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </>
         ) : (
@@ -417,11 +496,24 @@ export default function ShopInfoPage() {
             </div>
 
             <div>
-              <div style={sectionHead}>Payment — PromptPay</div>
-              <div style={editLabel}>PromptPay ID</div>
-              <div style={info.promptpayId ? valueStyle : valueMuted}>
-                {info.promptpayId || "— (no payment QR on bills)"}
-              </div>
+              <div style={sectionHead}>Payment — PromptPay accounts</div>
+              {(() => {
+                const methods = parsePaymentMethods(info.paymentMethods);
+                if (methods.length === 0) {
+                  return <div style={valueMuted}>— (no accounts; the Payment page is empty)</div>;
+                }
+                return methods.map((pm) => (
+                  <div
+                    key={pm.id}
+                    style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}
+                  >
+                    <span style={valueStyle}>{pm.label}</span>
+                    <span className="muted">·</span>
+                    <span style={valueStyle}>{pm.promptpayId}</span>
+                    {pm.isDefault && <span className="pill good">Default</span>}
+                  </div>
+                ));
+              })()}
             </div>
           </>
         )}

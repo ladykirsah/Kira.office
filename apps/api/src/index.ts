@@ -872,7 +872,9 @@ export const SHOP_TEXT_FIELDS = [
   "qrHeadlineEn",
   "qrSubtitle",
   "qrSubtitleEn",
-  "promptpayId", // PromptPay target (phone / national ID / e-wallet) — payment QR on the bill
+  // JSON array of PromptPay methods ({id,label,promptpayId,isDefault}) — the Payment page dropdown.
+  // Parsed/normalized by @l-shopee/core paymentMethods; stored verbatim as one KV string.
+  "paymentMethods",
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
@@ -889,6 +891,29 @@ export async function storeShopImage(
   await bucket.put(key, bytes, { httpMetadata: { contentType: contentType! } });
   await kv.put(slot === "logo" ? "shop:logoKey" : "shop:qrKey", key);
   return { key, url: `/img/${key}` };
+}
+
+export interface PaymentRow {
+  id: string;
+  methodLabel: string;
+  promptpayId: string;
+  amountSatang: number;
+  status: string;
+  createdAt: number;
+  approvedAt: number | null;
+}
+
+/** Latest payment approvals (the Payment page's trail; owner reconciles these against the bank). */
+export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
+  const rows = await db
+    .prepare(
+      `SELECT id, method_label AS methodLabel, promptpay_id AS promptpayId,
+              amount_satang AS amountSatang, status, created_at AS createdAt,
+              approved_at AS approvedAt
+       FROM payments ORDER BY created_at DESC LIMIT 100`,
+    )
+    .all<PaymentRow>();
+  return rows.results ?? [];
 }
 
 /** Keep products.image_key pointing at the first gallery image (the cover), or null if none. */
@@ -2387,6 +2412,51 @@ const worker = {
     const customerGet = url.pathname.match(/^\/customers\/([^/]+)$/);
     if (customerGet && request.method === "GET") {
       return json(await getCustomerDetail(env.DB, decodeURIComponent(customerGet[1]!)));
+    }
+
+    // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).
+    if (url.pathname === "/payments" && request.method === "GET") {
+      return json({ payments: await listPayments(env.DB) });
+    }
+    if (url.pathname === "/payments" && request.method === "POST") {
+      const body = await readJson<{
+        methodLabel?: string;
+        promptpayId?: string;
+        amountSatang?: number;
+      }>(request);
+      const label = body?.methodLabel?.trim();
+      const account = body?.promptpayId?.trim();
+      if (!label || !account || !Number.isInteger(body?.amountSatang) || body!.amountSatang! <= 0) {
+        return json(
+          { error: "methodLabel, promptpayId and a positive integer amountSatang are required" },
+          400,
+        );
+      }
+      const now = Date.now();
+      const payment = {
+        id: crypto.randomUUID(),
+        methodLabel: label,
+        promptpayId: account,
+        amountSatang: body!.amountSatang!,
+        status: "approved",
+        createdAt: now,
+        approvedAt: now,
+      };
+      await env.DB.prepare(
+        `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status, created_at, approved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          payment.id,
+          payment.methodLabel,
+          payment.promptpayId,
+          payment.amountSatang,
+          payment.status,
+          payment.createdAt,
+          payment.approvedAt,
+        )
+        .run();
+      return json({ payment }, 201);
     }
 
     if (url.pathname === "/stock" && request.method === "GET") {
