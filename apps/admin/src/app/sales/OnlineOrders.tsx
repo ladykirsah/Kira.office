@@ -67,7 +67,9 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
                   </div>
                   {o.feeBp ? <div style={tableText.subtitle}>{feePct(o.feeBp)}</div> : null}
                 </td>
-                {/* Profit = Total − Kira cost; null until order line SKUs are matched to products */}
+                {/* Profit = Total − Kira cost; null until order line SKUs are matched to products.
+                    When populated, render like the Fees cell: profit THB (body2) + margin %
+                    (subtitle). */}
                 <td>
                   {o.profitSatang != null ? (
                     formatBahtTrim(o.profitSatang)
