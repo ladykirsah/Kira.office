@@ -81,3 +81,17 @@ export function shopeeStatusBadge(raw: string | null): { pill: PillClass; label:
   if (s.includes("จัดส่ง") || s.includes("รอ")) return { pill: "warn", label: "Shipping" };
   return { pill: "off", label: s || "—" };
 }
+
+/**
+ * Map an AirPlus order status to a short label + colour. NOTE the colours differ from Shopee:
+ * Done=green · Shipping=yellow · Refund=gray · Cancelled=red.
+ */
+export function airplusStatusBadge(raw: string | null): { pill: PillClass; label: string } {
+  const s = (raw ?? "").toLowerCase();
+  if (s.includes("cancel") || s.includes("ยกเลิก")) return { pill: "bad", label: "Cancelled" };
+  if (s.includes("refund") || s.includes("คืน")) return { pill: "off", label: "Refund" };
+  if (s.includes("shipping") || s.includes("จัดส่ง")) return { pill: "warn", label: "Shipping" };
+  if (s.includes("done") || s.includes("arrived") || s.includes("สำเร็จ"))
+    return { pill: "good", label: "Done" };
+  return { pill: "off", label: s || "—" };
+}

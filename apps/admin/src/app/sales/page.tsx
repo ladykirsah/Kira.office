@@ -16,10 +16,11 @@ import {
   type ChannelSales,
 } from "@/lib/salesSummary";
 import { onsiteSalesToCsv, onlineOrdersToCsv } from "@/lib/salesCsv";
-import { shopeeStatusBadge } from "@/lib/badges";
+import { shopeeStatusBadge, airplusStatusBadge } from "@/lib/badges";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { OnlineOrders } from "./OnlineOrders";
+import { AirPlusOrders } from "./AirPlusOrders";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
   { key: "today", label: "Today" },
@@ -150,11 +151,30 @@ export default function SalesPage() {
   const shopeeHasProfit = shopeeView.some((o) => o.profitSatang != null);
   const shopeeViewProfit = shopeeView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
 
+  // AirPlus tab (own single-seller site: no commission, Sales = payout, real profit).
+  const airplusInRange = (orders ?? []).filter(
+    (o) => o.channel === "airplus" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
+  );
+  const airplusRangeSales = airplusInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
+  const airplusStatuses = Array.from(
+    new Set(airplusInRange.map((o) => airplusStatusBadge(o.orderStatus).label)),
+  ).sort();
+  const airplusView = ordersView(airplusInRange, { search, status: "" }).filter(
+    (o) => statusFilter === "" || airplusStatusBadge(o.orderStatus).label === statusFilter,
+  );
+  const airplusSales = airplusView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
+  const airplusProfit = airplusView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
+
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
     { key: "onsite", label: "Onsite", count: s.salesCount, revenueSatang: s.revenueSatang },
     { key: "shopee", label: "Shopee", count: shopeeInRange.length, revenueSatang: shopeeTotal },
-    { key: "airplus", label: "AirPlus", count: 0, revenueSatang: 0 },
+    {
+      key: "airplus",
+      label: "AirPlus",
+      count: airplusInRange.length,
+      revenueSatang: airplusRangeSales,
+    },
   ];
   const channelTotal = totalChannelSales(channelRows);
 
@@ -306,7 +326,7 @@ export default function SalesPage() {
         <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />
         <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
         <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
-        <TabBtn id="airplus" label="AirPlus (0)" />
+        <TabBtn id="airplus" label={`AirPlus (${airplusInRange.length})`} />
       </div>
 
       {sales === null ? (
@@ -399,16 +419,17 @@ export default function SalesPage() {
           {tab === "airplus" && (
             <>
               <div style={cardsRow}>
-                <Card label="Revenue" value={formatBahtTrim(0)} />
-                <Card label="Orders" value="0" />
+                <Card label="Revenue" value={formatBahtTrim(airplusSales)} />
+                <Card label="Orders" value={String(airplusView.length)} />
+                <Card label="Profit" value={formatBahtTrim(airplusProfit)} />
               </div>
-              {csvLink(() => download(onlineOrdersToCsv([]), "airplus-orders.csv"))}
+              {csvLink(() => download(onlineOrdersToCsv(airplusView), "airplus-orders.csv"))}
               <div style={frameStyle}>
-                {toolbar({ searchPlaceholder: "Search order / status / amount…", statuses: [] })}
-                <div className="empty">
-                  <div className="empty-icon">☁️</div>AirPlus orders will appear here once its
-                  channel is connected.
-                </div>
+                {toolbar({
+                  searchPlaceholder: "Search order / status / amount…",
+                  statuses: airplusStatuses,
+                })}
+                <AirPlusOrders orders={airplusView} />
               </div>
             </>
           )}

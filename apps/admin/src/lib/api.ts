@@ -585,6 +585,8 @@ export interface OrderRow {
   // Profit = Total − Kira cost of the ordered items. Null until the order's line SKUs are matched to
   // Kira products (Shopee listing SKU must be set to the Kira product code first).
   profitSatang?: number | null;
+  carrier?: string | null; // shipping carrier (AirPlus)
+  trackingNo?: string | null; // parcel tracking number (AirPlus)
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {

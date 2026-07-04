@@ -8,6 +8,7 @@ import {
   carYearOf,
   saleTypeBadge,
   shopeeStatusBadge,
+  airplusStatusBadge,
 } from "./badges";
 
 describe("saleStatusPill", () => {
@@ -93,4 +94,15 @@ describe("shopeeStatusBadge", () => {
       pill: "bad",
       label: "Refund",
     }));
+});
+
+describe("airplusStatusBadge (Refund=gray, Cancelled=red — opposite of Shopee)", () => {
+  it("done > Done/green", () =>
+    expect(airplusStatusBadge("done")).toEqual({ pill: "good", label: "Done" }));
+  it("shipping > Shipping/yellow", () =>
+    expect(airplusStatusBadge("shipping")).toEqual({ pill: "warn", label: "Shipping" }));
+  it("refund > Refund/gray", () =>
+    expect(airplusStatusBadge("refund")).toEqual({ pill: "off", label: "Refund" }));
+  it("cancelled > Cancelled/red", () =>
+    expect(airplusStatusBadge("cancelled")).toEqual({ pill: "bad", label: "Cancelled" }));
 });
