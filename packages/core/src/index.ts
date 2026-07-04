@@ -16,3 +16,4 @@ export * from "./productTerms";
 export * from "./barcode";
 export * from "./xlsx";
 export * from "./promptpay";
+export * from "./paymentMethods";

@@ -26,6 +26,7 @@ import worker, {
   updateProduct,
   importProducts,
   importShopeeOrders,
+  listPayments,
   parseMoneyToSatang,
   parseOrderDateMs,
   parseFeePct,
@@ -971,7 +972,7 @@ describe("api worker routes", () => {
     expect(saved).toBe("T {{x}}");
   });
 
-  it("shop-info round-trips promptpayId (PromptPay QR on the bill needs it)", async () => {
+  it("shop-info round-trips paymentMethods (the Payment page dropdown needs it)", async () => {
     const store = new Map<string, string>();
     const env = {
       KV: {
@@ -979,18 +980,96 @@ describe("api worker routes", () => {
         put: async (k: string, v: string) => void store.set(k, v),
       },
     } as unknown as Env;
+    const methods = JSON.stringify([
+      { id: "a", label: "ร้าน", promptpayId: "0812345678", isDefault: true },
+      { id: "b", label: "แม่", promptpayId: "1234567890123" },
+    ]);
     await worker.fetch!(
       new Request("https://x/shop-info", {
         method: "PUT",
-        body: JSON.stringify({ name: "ร้าน", promptpayId: "081-234-5678" }),
+        body: JSON.stringify({ name: "ร้าน", paymentMethods: methods }),
       }),
       env,
       ctx,
     );
-    expect(store.get("shop:promptpayId")).toBe("081-234-5678");
+    expect(store.get("shop:paymentMethods")).toBe(methods);
     const res = await worker.fetch!(new Request("https://x/shop-info"), env, ctx);
     const body = (await res.json()) as Record<string, string | null>;
-    expect(body.promptpayId).toBe("081-234-5678");
+    expect(body.paymentMethods).toBe(methods);
+  });
+
+  it("POST /payments > records an approved payment (label, account, amount, timestamps)", async () => {
+    const { db, runs } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          methodLabel: "แม่",
+          promptpayId: "0812345678",
+          amountSatang: 145000,
+        }),
+      }),
+      { DB: db } as unknown as Env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { payment: { id: string; status: string } };
+    expect(body.payment.status).toBe("approved");
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO payments"));
+    expect(insert?.binds).toContain("แม่");
+    expect(insert?.binds).toContain("0812345678");
+    expect(insert?.binds).toContain(145000);
+    expect(insert?.binds).toContain("approved");
+  });
+
+  it("POST /payments > 400 on a missing method, bad amount, or malformed body", async () => {
+    const bad = async (body: string) =>
+      (
+        await worker.fetch!(
+          new Request("https://x/payments", { method: "POST", body }),
+          {} as Env,
+          ctx,
+        )
+      ).status;
+    expect(await bad("not json{")).toBe(400);
+    expect(
+      await bad(JSON.stringify({ methodLabel: "แม่", promptpayId: "08", amountSatang: 0 })),
+    ).toBe(400);
+    expect(
+      await bad(JSON.stringify({ methodLabel: "", promptpayId: "08", amountSatang: 100 })),
+    ).toBe(400);
+    expect(
+      await bad(JSON.stringify({ methodLabel: "แม่", promptpayId: "", amountSatang: 100 })),
+    ).toBe(400);
+    expect(
+      await bad(JSON.stringify({ methodLabel: "แม่", promptpayId: "08", amountSatang: 10.5 })),
+    ).toBe(400);
+  });
+
+  it("listPayments > selects the latest UNCLEARED payments with camelCase aliases", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await listPayments(db);
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("method_label AS methodLabel");
+    expect(sql).toContain("amount_satang AS amountSatang");
+    expect(sql).toContain("cleared_at IS NULL"); // Recent = not-yet-reconciled only
+    expect(sql).toContain("ORDER BY created_at DESC");
+  });
+
+  it("POST /payments/clear > marks all uncleared payments reconciled (never deletes)", async () => {
+    const { db, runs } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/payments/clear", { method: "POST" }),
+      { DB: db } as unknown as Env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const update = runs.find((r) => r.sql.includes("UPDATE payments SET cleared_at"));
+    expect(update).toBeDefined();
+    expect(update?.sql).toContain("WHERE cleared_at IS NULL");
+    // no DELETE — the audit trail must survive a clear
+    expect(runs.some((r) => /DELETE\s+FROM\s+payments/i.test(r.sql))).toBe(false);
   });
 
   it("GET /img/:key > serves an object from R2", async () => {
