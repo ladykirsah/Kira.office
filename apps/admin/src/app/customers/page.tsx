@@ -26,14 +26,14 @@ const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.di
 /** One bill/quotation as a fully-shown table row: date · bill · all items+prices+total+note · reprint. */
 function BillRow({ sale }: { sale: CustomerSale }) {
   return (
-    <tr style={{ verticalAlign: "top" }}>
-      <td style={{ whiteSpace: "nowrap" }}>
+    <tr>
+      <td style={{ whiteSpace: "nowrap", verticalAlign: "top" }}>
         <div style={tableText.body2}>{new Date(sale.createdAt).toLocaleDateString("th-TH")}</div>
         <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
           {sale.saleNumber ?? "—"}
         </div>
       </td>
-      <td>
+      <td style={{ verticalAlign: "top" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {sale.lines.length === 0 ? (
             <span className="muted">No items.</span>
@@ -74,7 +74,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
           )}
         </div>
       </td>
-      <td style={{ ...right, whiteSpace: "nowrap" }}>
+      <td style={{ ...right, whiteSpace: "nowrap", verticalAlign: "top" }}>
         <a className="btn-soft" href={`/pos?reprint=${encodeURIComponent(sale.id)}`}>
           🖨 Reprint
         </a>
