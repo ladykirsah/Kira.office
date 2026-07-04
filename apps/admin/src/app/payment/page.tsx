@@ -107,8 +107,8 @@ export default function PaymentPage() {
             >
               {methods.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.position ? `${m.position} · ` : ""}
-                  {m.label} — {m.promptpayId}
+                  {/* Show the Position only (fall back to the account name if a row has no position). */}
+                  {m.position || m.label}
                   {m.isDefault ? " (default)" : ""}
                 </option>
               ))}
