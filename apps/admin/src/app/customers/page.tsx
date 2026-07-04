@@ -26,6 +26,18 @@ const frame = {
 const rowBetween = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
 const num = { whiteSpace: "nowrap" } as const;
 const right = { textAlign: "right" } as const;
+/** Text-style button (no fill/border) — used for the header back link. */
+const backLink = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  minHeight: 0,
+  width: "fit-content",
+  color: "var(--primary)",
+  fontSize: 14,
+  fontWeight: 500,
+  cursor: "pointer",
+} as const;
 const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
 
 /** One bill/quotation as a fully-shown table row: date · bill · all items+prices+total+note · reprint. */
@@ -126,6 +138,7 @@ export default function CustomersPage() {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [province, setProvince] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -149,6 +162,7 @@ export default function CustomersPage() {
       setDetail(d);
       setName(d.customer?.customerName ?? "");
       setPhone(d.customer?.phone ?? "");
+      setProvince(d.customer?.plateProvince ?? "");
     } catch {
       toast("Couldn't load this car.", "error");
     }
@@ -162,6 +176,7 @@ export default function CustomersPage() {
         licensePlate: selected,
         customerName: name.trim() || null,
         phone: phone.trim() || null,
+        plateProvince: province.trim() || null,
       });
       toast("Saved ✓", "success");
     } catch {
@@ -173,23 +188,33 @@ export default function CustomersPage() {
 
   // ── Detail view: one car ──
   if (selected) {
+    const carLabel = detail?.vehicle || detail?.customer?.carModel || "";
+    const prov = province.trim();
+    // Headline: full plate (number + province) · vehicle — e.g. "6ฉฉ2345 สุรินทร์ · Honda Jazz 2014".
+    const headline = [selected + (prov ? ` ${prov}` : ""), carLabel].filter(Boolean).join(" · ");
     return (
       <main>
-        <button
-          type="button"
-          className="btn-soft"
-          onClick={() => setSelected(null)}
-          style={{ marginBottom: 16 }}
-        >
-          ← All customers
-        </button>
         <PageHeader
-          title={selected}
-          subtitle={detail?.vehicle || detail?.customer?.carModel || "On-site customer"}
+          title={headline}
+          subtitle="On-site customer"
+          below={
+            <button type="button" onClick={() => setSelected(null)} style={backLink}>
+              ← All customers
+            </button>
+          }
         />
 
         <div style={{ ...frame, marginBottom: 24 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={tableText.subtitle}>Plate province</span>
+              <input
+                value={province}
+                onChange={(e) => setProvince(e.target.value)}
+                placeholder="—"
+                style={{ ...inputS, width: 160 }}
+              />
+            </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span style={tableText.subtitle}>Customer name</span>
               <input
