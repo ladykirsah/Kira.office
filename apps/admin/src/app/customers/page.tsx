@@ -138,6 +138,8 @@ export default function CustomersPage() {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [saved, setSaved] = useState<{ name: string; phone: string }>({ name: "", phone: "" });
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -159,22 +161,44 @@ export default function CustomersPage() {
     try {
       const d = await getCustomerDetail(plate);
       setDetail(d);
-      setName(d.customer?.customerName ?? "");
-      setPhone(d.customer?.phone ?? "");
+      const nm = d.customer?.customerName ?? "";
+      const ph = d.customer?.phone ?? "";
+      setName(nm);
+      setPhone(ph);
+      setSaved({ name: nm, phone: ph });
+      setEditing(false);
     } catch {
       toast("Couldn't load this car.", "error");
     }
+  }
+
+  function startEdit() {
+    setName(saved.name);
+    setPhone(saved.phone);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setName(saved.name);
+    setPhone(saved.phone);
+    setEditing(false);
   }
 
   async function saveInfo() {
     if (!selected) return;
     setSaving(true);
     try {
+      const nm = name.trim();
+      const ph = phone.trim();
       await saveCustomer({
         licensePlate: selected,
-        customerName: name.trim() || null,
-        phone: phone.trim() || null,
+        customerName: nm || null,
+        phone: ph || null,
       });
+      setSaved({ name: nm, phone: ph });
+      setName(nm);
+      setPhone(ph);
+      setEditing(false);
       toast("Saved ✓", "success");
     } catch {
       toast("Couldn't save.", "error");
@@ -202,35 +226,59 @@ export default function CustomersPage() {
         />
 
         <div style={{ ...frame, marginBottom: 24 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={tableText.subtitle}>Customer name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="—"
-                style={{ ...inputS, width: 220 }}
-              />
-            </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={tableText.subtitle}>Phone</span>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="—"
-                style={{ ...inputS, width: 180 }}
-              />
-            </label>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={saveInfo}
-              disabled={saving}
-              style={inputS}
-            >
-              Save
-            </button>
-          </div>
+          {editing ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={tableText.subtitle}>Customer name</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="—"
+                  style={{ ...inputS, width: 220 }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={tableText.subtitle}>Phone</span>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="—"
+                  style={{ ...inputS, width: 180 }}
+                />
+              </label>
+              <button type="button" onClick={cancelEdit} disabled={saving} style={inputS}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={saveInfo}
+                disabled={saving}
+                style={inputS}
+              >
+                Save
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={tableText.subtitle}>Customer name</span>
+                <span style={tableText.body2}>{saved.name || "—"}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={tableText.subtitle}>Phone</span>
+                <span style={tableText.body2}>{saved.phone || "—"}</span>
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={startEdit}
+                style={{ ...inputS, marginLeft: "auto" }}
+              >
+                Edit
+              </button>
+            </div>
+          )}
         </div>
 
         {detail && detail.quotations.length > 0 && (
