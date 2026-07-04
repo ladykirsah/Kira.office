@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiBase, fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
-import { formatBaht } from "@/lib/format";
+import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import {
   rangeFor,
@@ -226,7 +226,7 @@ export default function SalesPage() {
           {tab === "summary" && (
             <>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Total revenue" value={formatBaht(channelTotal.revenueSatang)} />
+                <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
                 <Card label="Total sales" value={String(channelTotal.count)} />
               </div>
               <div
@@ -250,13 +250,13 @@ export default function SalesPage() {
                       <tr key={r.key}>
                         <td>{r.label}</td>
                         <td style={right}>{r.count}</td>
-                        <td style={right}>{formatBaht(r.revenueSatang)}</td>
+                        <td style={right}>{formatBahtTrim(r.revenueSatang)}</td>
                       </tr>
                     ))}
                     <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
                       <td>Total</td>
                       <td style={right}>{channelTotal.count}</td>
-                      <td style={right}>{formatBaht(channelTotal.revenueSatang)}</td>
+                      <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -268,9 +268,9 @@ export default function SalesPage() {
             <>
               {/* Shortcut info — reflects the filtered view */}
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Revenue" value={formatBaht(onsiteSumm.revenueSatang)} />
+                <Card label="Revenue" value={formatBahtTrim(onsiteSumm.revenueSatang)} />
                 <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
-                <Card label="Profit" value={formatBaht(onsiteSumm.grossProfitSatang)} />
+                <Card label="Profit" value={formatBahtTrim(onsiteSumm.grossProfitSatang)} />
                 <Card label="Growth rate" value={growthLabel} />
               </div>
 
@@ -368,9 +368,9 @@ export default function SalesPage() {
           {tab === "shopee" && (
             <>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Revenue" value={formatBaht(shopeeTotal)} />
+                <Card label="Revenue" value={formatBahtTrim(shopeeTotal)} />
                 <Card label="Orders" value={String(shopeeInRange.length)} />
-                <Card label="Fees" value={formatBaht(shopeeFees)} />
+                <Card label="Fees" value={formatBahtTrim(shopeeFees)} />
               </div>
               <OnlineOrders orders={shopeeInRange} />
             </>
@@ -379,7 +379,7 @@ export default function SalesPage() {
           {tab === "airplus" && (
             <>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                <Card label="Revenue" value={formatBaht(0)} />
+                <Card label="Revenue" value={formatBahtTrim(0)} />
                 <Card label="Orders" value="0" />
               </div>
               <div className="empty">

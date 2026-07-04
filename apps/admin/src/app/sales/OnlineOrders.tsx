@@ -1,7 +1,7 @@
 "use client";
 
 import { type OrderRow } from "@/lib/api";
-import { formatBaht, formatUpdatedAt } from "@/lib/format";
+import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
 
 const right = { textAlign: "right" } as const;
@@ -40,9 +40,13 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
                   <span className="muted">—</span>
                 )}
               </td>
-              <td style={right}>{formatBaht(o.grandTotalSatang)}</td>
+              <td style={right}>{formatBahtTrim(o.grandTotalSatang)}</td>
               <td style={right}>
-                {o.feeTotalSatang ? formatBaht(o.feeTotalSatang) : <span className="muted">—</span>}
+                {o.feeTotalSatang ? (
+                  formatBahtTrim(o.feeTotalSatang)
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </td>
               <td>
                 {o.orderStatus ? (

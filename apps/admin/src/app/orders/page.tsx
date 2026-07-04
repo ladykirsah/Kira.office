@@ -8,7 +8,7 @@ import {
   type OrderRow,
 } from "@/lib/api";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
-import { formatBaht, formatUpdatedAt } from "@/lib/format";
+import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { PageHeader } from "../PageHeader";
 
 const PLACEHOLDER =
@@ -120,7 +120,7 @@ export default function OrdersPage() {
                   </td>
                   <td style={{ textAlign: "right" }}>
                     {o.grandTotalSatang ? (
-                      formatBaht(o.grandTotalSatang)
+                      formatBahtTrim(o.grandTotalSatang)
                     ) : (
                       <span className="muted">—</span>
                     )}

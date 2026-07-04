@@ -1,4 +1,4 @@
-import { formatBaht } from "@/lib/format";
+import { formatBahtTrim } from "@/lib/format";
 import { PageHeader } from "../PageHeader";
 
 const card = {
@@ -24,7 +24,7 @@ export default function AffiliatePage() {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "16px 0" }}>
         <div style={card}>
           <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Commission income</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{formatBaht(0)}</div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{formatBahtTrim(0)}</div>
         </div>
       </div>
 
