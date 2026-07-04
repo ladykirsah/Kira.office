@@ -29,14 +29,10 @@ function BillRow({ sale }: { sale: CustomerSale }) {
     <tr style={{ verticalAlign: "top" }}>
       <td style={{ whiteSpace: "nowrap" }}>
         <div style={tableText.body2}>{new Date(sale.createdAt).toLocaleDateString("th-TH")}</div>
-        <div style={tableText.subtitle}>
-          {new Date(sale.createdAt).toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+        <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
+          {sale.saleNumber ?? "—"}
         </div>
       </td>
-      <td style={{ ...mono, fontSize: 13 }}>{sale.saleNumber ?? "—"}</td>
       <td>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {sale.lines.length === 0 ? (
@@ -107,7 +103,6 @@ function BillTable({ sales }: { sales: CustomerSale[] }) {
           <thead>
             <tr>
               <th>Date</th>
-              <th>Bill</th>
               <th>Items</th>
               <th style={right}>Action</th>
             </tr>
