@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { fetchShopInfo, saveShopInfo, uploadShopImage, imageUrl, type ShopInfo } from "@/lib/api";
-import { parsePaymentMethods, serializePaymentMethods, type PaymentMethod } from "@l-shopee/core";
+import {
+  defaultPaymentMethod,
+  parsePaymentMethods,
+  serializePaymentMethods,
+  type PaymentMethod,
+} from "@l-shopee/core";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import { PageHeader } from "../../PageHeader";
@@ -371,12 +376,15 @@ export default function ShopInfoPage() {
                   setPayDraft(next);
                   set({ paymentMethods: serializePaymentMethods(next) });
                 };
+                // Show the switch as it will SAVE: when nothing is flagged yet, the first row is
+                // the effective default (serialize normalizes to exactly one).
+                const effectiveDefaultId = defaultPaymentMethod(methods)?.id;
                 return (
                   <>
                     {methods.map((pm) => (
                       <div
                         key={pm.id}
-                        style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}
+                        style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}
                       >
                         <input
                           value={pm.label}
@@ -389,7 +397,7 @@ export default function ShopInfoPage() {
                           }
                           placeholder="ชื่อบัญชี (ร้าน / แม่ / พ่อ)"
                           aria-label="Method label"
-                          style={{ ...inputL, flex: "0 1 180px" }}
+                          style={{ ...inputL, flex: 1, minWidth: 0 }}
                         />
                         <input
                           value={pm.promptpayId}
@@ -408,28 +416,34 @@ export default function ShopInfoPage() {
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 4,
+                            gap: 8,
                             fontSize: 12,
                             whiteSpace: "nowrap",
                           }}
                         >
-                          <input
-                            type="radio"
-                            name="pm-default"
-                            checked={!!pm.isDefault}
-                            onChange={() =>
-                              write(methods.map((x) => ({ ...x, isDefault: x.id === pm.id })))
-                            }
-                          />
+                          <span className="switch">
+                            <input
+                              type="checkbox"
+                              checked={pm.id === effectiveDefaultId}
+                              aria-label={`Default: ${pm.label}`}
+                              onChange={(e) => {
+                                // Exactly one default: switching ON moves it here; switching the
+                                // current default OFF is a no-op (another row's switch moves it).
+                                if (!e.target.checked) return;
+                                write(methods.map((x) => ({ ...x, isDefault: x.id === pm.id })));
+                              }}
+                            />
+                            <span className="slider" />
+                          </span>
                           Default
                         </label>
                         <button
                           type="button"
-                          className="btn-sm"
+                          className="btn-danger btn-sm"
                           aria-label={`Remove ${pm.label}`}
                           onClick={() => write(methods.filter((x) => x.id !== pm.id))}
                         >
-                          ✕
+                          🗑️
                         </button>
                       </div>
                     ))}
