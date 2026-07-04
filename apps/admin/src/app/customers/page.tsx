@@ -39,7 +39,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
             <span className="muted">No items.</span>
           ) : (
             sale.lines.map((l, i) => (
-              <div key={i} style={rowBetween}>
+              <div key={i} style={{ ...rowBetween, ...tableText.body2 }}>
                 <span>
                   {l.description || (l.lineType === "service" ? "Service" : "Item")}
                   {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
@@ -65,7 +65,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
               <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
             </div>
           )}
-          <div style={{ ...rowBetween, fontWeight: 500 }}>
+          <div style={{ ...rowBetween, ...tableText.body2, fontWeight: 500 }}>
             <span>Total</span>
             <span style={mono}>{formatBaht(sale.grandTotalSatang)}</span>
           </div>
