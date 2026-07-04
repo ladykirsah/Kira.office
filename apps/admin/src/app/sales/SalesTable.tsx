@@ -19,14 +19,14 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ tableLayout: "fixed", minWidth: 900 }}>
-        {/* Job holds the tag + bill id; the other five share the rest evenly. */}
+        {/* Job (tag + bill id) needs a bit more room; the other five share the rest evenly. */}
         <colgroup>
-          <col style={{ width: "38%" }} />
-          <col style={{ width: "12.4%" }} />
-          <col style={{ width: "12.4%" }} />
-          <col style={{ width: "12.4%" }} />
-          <col style={{ width: "12.4%" }} />
-          <col style={{ width: "12.4%" }} />
+          <col style={{ width: "30%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
         </colgroup>
         <thead>
           <tr>
