@@ -644,10 +644,21 @@ export function parseMoneyToSatang(s: string | undefined): number {
   return Number.isFinite(n) ? Math.round(n * 100) : 0;
 }
 
-/** Parse an order-date string to epoch ms (Date.parse-tolerant); null if blank/unparseable. */
+/**
+ * Parse an order-date string to epoch ms; null if blank/unparseable. Shopee export timestamps
+ * ("2026-06-23 13:49", "2026-06-14") are Asia/Bangkok wall-clock with NO offset — a naive
+ * Date.parse would interpret them in the runtime's local zone (UTC on Workers → stored 7h off),
+ * so naive strings are anchored to +07:00 explicitly. Strings carrying an offset/Z are untouched.
+ */
 export function parseOrderDateMs(s: string | undefined): number | null {
   if (!s) return null;
-  const t = Date.parse(s.trim());
+  let str = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    str = `${str}T00:00:00+07:00`; // date-only → Bangkok midnight
+  } else if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(str)) {
+    str = `${str.replace(" ", "T")}+07:00`; // naive datetime → Bangkok wall-clock
+  }
+  const t = Date.parse(str);
   return Number.isFinite(t) ? t : null;
 }
 
