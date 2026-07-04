@@ -366,6 +366,24 @@ describe("writeAuditLog", () => {
     expect(row?.binds[1]).toBe("owner@example.com");
     expect(row?.binds[2]).toBe("POST /sync");
   });
+
+  it("swallows a D1 failure (mutation must still complete) but logs it", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failingDb = {
+      prepare: () => ({
+        bind: () => ({
+          run: () => Promise.reject(new Error("D1 down")),
+        }),
+      }),
+    } as unknown as D1Database;
+    // Deliberate: an audit-write failure must never fail the underlying mutation…
+    await expect(
+      writeAuditLog(failingDb, { actorEmail: "o@x.com", method: "POST", path: "/sync" }),
+    ).resolves.toBeUndefined();
+    // …but it must be visible in the Workers log, not silently dropped.
+    expect(errSpy).toHaveBeenCalledWith("audit_log write failed:", expect.any(Error));
+    errSpy.mockRestore();
+  });
 });
 
 describe("parseMoneyToSatang", () => {
