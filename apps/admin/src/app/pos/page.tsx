@@ -24,6 +24,7 @@ import {
 import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
 import JsBarcode from "jsbarcode";
 import { formatBaht } from "@/lib/format";
+import { productDisplayName } from "@/lib/productLabel";
 import { nextSalesId, latestSalesIdForDay } from "@/lib/salesId";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import {
@@ -1265,7 +1266,9 @@ export default function PosPage() {
     .join(" ");
 
   function addProductLine(p: ProductRow, barcodeValue?: string) {
-    const tags = [p.brandName, p.usageName, p.typeName].filter((t): t is string => !!t);
+    // The item name carries its brand inline ("Compressor · Denso"); no brand → just the name.
+    // Brand moves out of the detail chips so it isn't shown twice.
+    const tags = [p.usageName, p.typeName].filter((t): t is string => !!t);
     const barcode = barcodeValue ?? codeToBarcode.get(p.productRef);
     const b2c = p.offlinePriceSatang || 0;
     const b2b = p.b2bPriceSatang || b2c; // fall back to retail when no wholesale price is set
@@ -1279,7 +1282,7 @@ export default function PosPage() {
         {
           uid: crypto.randomUUID(),
           kind: "part",
-          name: p.name,
+          name: productDisplayName(p.name, p.brandName),
           productVariantId: p.variantId,
           barcodeValue: barcode,
           productRef: p.productRef,
