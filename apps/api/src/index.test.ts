@@ -366,6 +366,24 @@ describe("writeAuditLog", () => {
     expect(row?.binds[1]).toBe("owner@example.com");
     expect(row?.binds[2]).toBe("POST /sync");
   });
+
+  it("swallows a D1 failure (mutation must still complete) but logs it", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failingDb = {
+      prepare: () => ({
+        bind: () => ({
+          run: () => Promise.reject(new Error("D1 down")),
+        }),
+      }),
+    } as unknown as D1Database;
+    // Deliberate: an audit-write failure must never fail the underlying mutation…
+    await expect(
+      writeAuditLog(failingDb, { actorEmail: "o@x.com", method: "POST", path: "/sync" }),
+    ).resolves.toBeUndefined();
+    // …but it must be visible in the Workers log, not silently dropped.
+    expect(errSpy).toHaveBeenCalledWith("audit_log write failed:", expect.any(Error));
+    errSpy.mockRestore();
+  });
 });
 
 describe("parseMoneyToSatang", () => {
@@ -382,8 +400,19 @@ describe("parseMoneyToSatang", () => {
 });
 
 describe("parseOrderDateMs", () => {
-  it("parses an ISO date to epoch ms", () => {
-    expect(parseOrderDateMs("2026-06-14")).toBe(Date.parse("2026-06-14"));
+  // Shopee export timestamps are Bangkok wall-clock with no offset. They must parse to the same
+  // instant regardless of the runtime's timezone (Workers run UTC; naive Date.parse would be 7h off).
+  it("anchors a naive Shopee datetime to Asia/Bangkok (+07:00)", () => {
+    expect(parseOrderDateMs("2026-06-23 13:49")).toBe(Date.parse("2026-06-23T13:49:00+07:00"));
+  });
+  it("anchors a date-only string to Bangkok midnight", () => {
+    expect(parseOrderDateMs("2026-06-14")).toBe(Date.parse("2026-06-14T00:00:00+07:00"));
+  });
+  it("respects an explicit offset/Z when the string carries one", () => {
+    expect(parseOrderDateMs("2026-06-23T13:49:00Z")).toBe(Date.parse("2026-06-23T13:49:00Z"));
+    expect(parseOrderDateMs("2026-06-23T13:49:00+02:00")).toBe(
+      Date.parse("2026-06-23T13:49:00+02:00"),
+    );
   });
   it("returns null for blank or unparseable input", () => {
     expect(parseOrderDateMs(undefined)).toBeNull();
@@ -427,12 +456,12 @@ describe("importShopeeOrders (enriched)", () => {
     // Total (grand_total) = net payout = Sales − fees = 145000 − 10500
     expect(insert?.boundArgs?.[5]).toBe(134500);
     expect(insert?.boundArgs?.[6]).toBe(10500);
-    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14T00:00:00+07:00"));
     // appended enriched binds: buyer_username, sales_satang, fee_bp, ship_time_ms
     expect(insert?.boundArgs?.[10]).toBe("shopper99");
     expect(insert?.boundArgs?.[11]).toBe(145000);
     expect(insert?.boundArgs?.[12]).toBe(724);
-    expect(insert?.boundArgs?.[13]).toBe(Date.parse("2026-06-20"));
+    expect(insert?.boundArgs?.[13]).toBe(Date.parse("2026-06-20T00:00:00+07:00"));
   });
 
   it("captures total, fee, and order date from mapped columns", async () => {
@@ -451,7 +480,7 @@ describe("importShopeeOrders (enriched)", () => {
     // binds: (id, channel, external_order_id, order_status, payment_status, grand_total, fee_total, order_created_at, …)
     expect(insert?.boundArgs?.[5]).toBe(89000);
     expect(insert?.boundArgs?.[6]).toBe(6200);
-    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14"));
+    expect(insert?.boundArgs?.[7]).toBe(Date.parse("2026-06-14T00:00:00+07:00"));
   });
 
   it("still imports a minimal export (ids only) when the money columns are absent", async () => {
@@ -467,6 +496,10 @@ describe("importShopeeOrders (enriched)", () => {
     );
     expect(insert?.boundArgs?.[5]).toBe(0);
     expect(insert?.boundArgs?.[7]).toBeNull();
+    // sales_satang / fee_bp are NOT NULL DEFAULT 0 (migration 0029) — binding NULL fails on real D1
+    // and rolls back the whole batch, so a mapping without those columns must bind 0, not null.
+    expect(insert?.boundArgs?.[11]).toBe(0); // sales_satang
+    expect(insert?.boundArgs?.[12]).toBe(0); // fee_bp
   });
 });
 
@@ -542,6 +575,43 @@ describe("api worker routes", () => {
   it("unknown route > 404", async () => {
     const res = await worker.fetch!(new Request("https://x/nope"), {} as Env, ctx);
     expect(res.status).toBe(404);
+  });
+
+  it("unexpected errors become a 500 with CORS + JSON, not an unhandled rejection", async () => {
+    // {} as Env has no DB; a DB-backed route throws inside — the boundary must catch it.
+    const res = await worker.fetch!(new Request("https://x/customers?q=x"), {} as Env, ctx);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(((await res.json()) as { error?: string }).error).toBeTruthy();
+  });
+
+  it("malformed JSON bodies on money/stock routes return 400, not 500", async () => {
+    for (const [method, path] of [
+      ["POST", "/stock/adjust"],
+      ["POST", "/sync"],
+      ["POST", "/pricing/preview"],
+      ["PUT", "/terms/template"],
+      ["PUT", "/products/p1/pricing"],
+      ["POST", "/import/shopee-orders"],
+      ["POST", "/import/products"],
+      ["POST", "/products"],
+    ] as const) {
+      const res = await worker.fetch!(
+        new Request(`https://x${path}`, { method, body: "not json{" }),
+        {} as Env,
+        ctx,
+      );
+      expect(res.status, `${method} ${path}`).toBe(400);
+    }
+  });
+
+  it("pricing preview rejects a body without numeric price/quantity (no NaN result)", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/pricing/preview", { method: "POST", body: JSON.stringify({}) }),
+      {} as Env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
   });
 
   it("GET /products > reads from D1 (incl. part-detail names)", async () => {
@@ -899,6 +969,28 @@ describe("api worker routes", () => {
     );
     expect(await res.json()).toEqual({ ok: true });
     expect(saved).toBe("T {{x}}");
+  });
+
+  it("shop-info round-trips promptpayId (PromptPay QR on the bill needs it)", async () => {
+    const store = new Map<string, string>();
+    const env = {
+      KV: {
+        get: async (k: string) => store.get(k) ?? null,
+        put: async (k: string, v: string) => void store.set(k, v),
+      },
+    } as unknown as Env;
+    await worker.fetch!(
+      new Request("https://x/shop-info", {
+        method: "PUT",
+        body: JSON.stringify({ name: "ร้าน", promptpayId: "081-234-5678" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(store.get("shop:promptpayId")).toBe("081-234-5678");
+    const res = await worker.fetch!(new Request("https://x/shop-info"), env, ctx);
+    const body = (await res.json()) as Record<string, string | null>;
+    expect(body.promptpayId).toBe("081-234-5678");
   });
 
   it("GET /img/:key > serves an object from R2", async () => {
@@ -1396,6 +1488,45 @@ describe("validateSyncLine", () => {
     expect(validateSyncLine({ productVariantId: "v1", quantity: 0, unitPriceSatang: 100 })).toMatch(
       /positive integer/,
     );
+  });
+
+  it("rejects a discount greater than the line subtotal (would make the total negative)", () => {
+    expect(
+      validateSyncLine({
+        productVariantId: "v1",
+        quantity: 1,
+        unitPriceSatang: 10000,
+        discountSatang: 15000,
+      }),
+    ).toMatch(/discount/i);
+  });
+
+  it("rejects a negative discount", () => {
+    expect(
+      validateSyncLine({
+        productVariantId: "v1",
+        quantity: 1,
+        unitPriceSatang: 10000,
+        discountSatang: -1,
+      }),
+    ).toMatch(/discount/i);
+  });
+
+  it("rejects a negative unit price", () => {
+    expect(validateSyncLine({ productVariantId: "v1", quantity: 1, unitPriceSatang: -1 })).toMatch(
+      /price/i,
+    );
+  });
+
+  it("accepts a discount within the line subtotal", () => {
+    expect(
+      validateSyncLine({
+        productVariantId: "v1",
+        quantity: 2,
+        unitPriceSatang: 10000,
+        discountSatang: 5000,
+      }),
+    ).toBeNull();
   });
 });
 

@@ -54,6 +54,7 @@ const TEXT_KEYS = [
   "qrHeadlineEn",
   "qrSubtitle",
   "qrSubtitleEn",
+  "promptpayId",
 ] as const;
 
 /** View-mode bilingual block — mirrors editPair's layout exactly (field label, then the Thai value
@@ -344,7 +345,7 @@ export default function ShopInfoPage() {
               })}
             </div>
 
-            <div>
+            <div style={sectionWrap}>
               <div style={sectionHead}>Contact QR caption</div>
               {editPair("Headline", "qrHeadline", "qrHeadlineEn", {
                 thPlaceholder: SHOP_DEFAULTS.qrHeadline,
@@ -354,6 +355,21 @@ export default function ShopInfoPage() {
                 thPlaceholder: SHOP_DEFAULTS.qrSubtitle,
                 enPlaceholder: "e.g. Scan to chat / book a slot",
               })}
+            </div>
+
+            <div>
+              <div style={sectionHead}>Payment — PromptPay</div>
+              <div style={editLabel}>PromptPay ID</div>
+              <input
+                value={info.promptpayId ?? ""}
+                onChange={(e) => set({ promptpayId: e.target.value })}
+                placeholder="เบอร์มือถือ 08x-xxx-xxxx / เลขประจำตัวผู้เสียภาษี 13 หลัก"
+                style={inputL}
+              />
+              <div style={{ ...subLabel, marginTop: 6 }}>
+                When set, cash bills print a scan-to-pay QR with the bill total. Leave blank for no
+                payment QR.
+              </div>
             </div>
           </>
         ) : (
@@ -384,7 +400,7 @@ export default function ShopInfoPage() {
               />
             </div>
 
-            <div>
+            <div style={sectionWrap}>
               <div style={sectionHead}>Contact QR caption</div>
               <ViewPair
                 label="Headline"
@@ -398,6 +414,14 @@ export default function ShopInfoPage() {
                 en={info.qrSubtitleEn}
                 thDefault={SHOP_DEFAULTS.qrSubtitle}
               />
+            </div>
+
+            <div>
+              <div style={sectionHead}>Payment — PromptPay</div>
+              <div style={editLabel}>PromptPay ID</div>
+              <div style={info.promptpayId ? valueStyle : valueMuted}>
+                {info.promptpayId || "— (no payment QR on bills)"}
+              </div>
             </div>
           </>
         )}

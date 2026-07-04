@@ -621,6 +621,7 @@ export interface ShopInfo {
   qrHeadlineEn: string;
   qrSubtitle: string; // contact-QR subtitle
   qrSubtitleEn: string;
+  promptpayId: string; // PromptPay target (phone / national ID / e-wallet); "" = no payment QR
   logoKey: string | null; // R2 key, served at /img/<key>
   qrKey: string | null;
 }
@@ -639,6 +640,7 @@ export const EMPTY_SHOP_INFO: ShopInfo = {
   qrHeadlineEn: "",
   qrSubtitle: "",
   qrSubtitleEn: "",
+  promptpayId: "",
   logoKey: null,
   qrKey: null,
 };

@@ -14,6 +14,7 @@ import {
   listDrafts,
   deleteDraft,
   getOnsiteSale,
+  saveCustomer,
   EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
@@ -22,6 +23,8 @@ import {
   type OpenDraft,
 } from "@/lib/api";
 import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
+import { buildCheckoutCustomerUpsert } from "@/lib/checkout";
+import { THAI_PROVINCES } from "@/lib/provinces";
 import JsBarcode from "jsbarcode";
 import { formatBaht, formatBahtTrim } from "@/lib/format";
 import { productDisplayName } from "@/lib/productLabel";
@@ -36,6 +39,7 @@ import {
 } from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
 import { ServiceSelect } from "./ServiceSelect";
+import { PromptPayQr } from "./PromptPayQr";
 import {
   flushOutbox,
   formatSyncFailureMessage,
@@ -547,6 +551,7 @@ const LAST_SALE_ID_KEY = "pos:lastSaleId:v1";
 interface PosDraft {
   lines: SaleLine[];
   plate: string;
+  province: string;
   mileage: string;
   note: string;
   billDate: string;
@@ -661,6 +666,7 @@ function BillDoc({
         grandQuote: "Estimate",
         note: "Note",
         thanks: "*** Thank you ***",
+        scanPay: "Scan to pay — PromptPay",
       }
     : {
         saleId: "เลขที่บิล",
@@ -679,7 +685,12 @@ function BillDoc({
         grandQuote: "รวมโดยประมาณ",
         note: "หมายเหตุ",
         thanks: "*** ขอบคุณที่ใช้บริการ ***",
+        scanPay: "สแกนจ่ายผ่านพร้อมเพย์",
       };
+
+  // Scan-to-pay QR on cash bills, only when the shop set a PromptPay ID (Shop info → Payment).
+  const promptpayId = (shop.promptpayId ?? "").trim();
+  const showPromptPay = !isQuote && !!promptpayId && totalSatang > 0;
 
   // Contact QR: the uploaded image when set, otherwise the sample placeholder.
   const qrNode = (size: number) =>
@@ -793,6 +804,15 @@ function BillDoc({
               {t.note}: {note}
             </div>
           </>
+        )}
+        {showPromptPay && (
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <div style={{ display: "inline-block" }}>
+              <PromptPayQr promptpayId={promptpayId} amountSatang={totalSatang} size={110} />
+            </div>
+            <div style={{ fontWeight: 600, marginTop: 2 }}>{t.scanPay}</div>
+            <div style={{ fontSize: 11, color: muted }}>฿{amt(totalSatang)}</div>
+          </div>
         )}
         {isQuote ? (
           <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -973,6 +993,31 @@ function BillDoc({
           </div>
           {totalsBlock}
         </div>
+      ) : showPromptPay ? (
+        // Cash-bill footer with PromptPay: scan-to-pay QR on the left, total on the right — mirrors
+        // the quotation footer's layout so both docs read the same way.
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 18,
+            padding: "12px 18px",
+            borderTop: "2px solid #18181b",
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <PromptPayQr promptpayId={promptpayId} amountSatang={totalSatang} size={64} />
+            <div>
+              <div style={{ fontWeight: 600 }}>{t.scanPay}</div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                ฿{amt(totalSatang)}
+              </div>
+            </div>
+          </div>
+          {totalsBlock}
+        </div>
       ) : (
         <div
           style={{
@@ -1020,6 +1065,7 @@ export default function PosPage() {
   const [carModelId, setCarModelId] = useState("");
   const [carYear, setCarYear] = useState("");
   const [plate, setPlate] = useState("");
+  const [province, setProvince] = useState(""); // plate's province — persisted to the customer on checkout
   const [mileage, setMileage] = useState("");
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
@@ -1114,11 +1160,14 @@ export default function PosPage() {
   useEffect(() => {
     let cancelled = false;
     async function flush() {
-      const r = await flushOutbox(store, async (sale) => (await syncSale(sale)).ok);
+      const r = await flushOutbox(store, (sale) => syncSale(sale));
       if (cancelled) return;
       if (r.synced) toast(`Synced ${r.synced} queued sale(s)`, "success");
-      if (r.failed)
-        toast(`${r.failed} queued sale(s) could not sync — check stock and try again`, "error");
+      if (r.failed) {
+        // Say WHY: a 401, a stock conflict, and a network error need very different responses.
+        const why = r.reasons.join("; ") || "network error — will retry when back online";
+        toast(`${r.failed} queued sale(s) could not sync — ${why}`, "error");
+      }
       setPending((await store.all()).length);
     }
     flush();
@@ -1153,6 +1202,7 @@ export default function PosPage() {
         const d = JSON.parse(raw) as Partial<PosDraft>;
         if (Array.isArray(d.lines) && d.lines.length) setLines(d.lines);
         if (typeof d.plate === "string") setPlate(d.plate);
+        if (typeof d.province === "string") setProvince(d.province);
         if (typeof d.mileage === "string") setMileage(d.mileage);
         if (typeof d.note === "string") setNote(d.note);
         if (typeof d.billDate === "string") setBillDate(d.billDate);
@@ -1177,6 +1227,7 @@ export default function PosPage() {
       const empty =
         lines.length === 0 &&
         !plate.trim() &&
+        !province.trim() &&
         !mileage.trim() &&
         !note.trim() &&
         !carBrandId &&
@@ -1188,6 +1239,7 @@ export default function PosPage() {
         const draft: PosDraft = {
           lines,
           plate,
+          province,
           mileage,
           note,
           billDate,
@@ -1201,7 +1253,7 @@ export default function PosPage() {
     } catch {
       // ignore storage errors (private mode / quota)
     }
-  }, [lines, plate, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
+  }, [lines, plate, province, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
 
   // Reprint: ?reprint=<id> loads that finalized bill read-only so it can be re-printed. The original
   // number + vehicle print; the actions collapse to Create PDF only (no checkout → no double sale).
@@ -1492,6 +1544,10 @@ export default function PosPage() {
       const saleNo = nextSalesId(lastSaleId, Date.now());
       const ok = await saveSale(saleNo);
       if (!ok) return;
+      // Persist the plate's province onto the plate-keyed customer (COALESCE-safe upsert). Best-effort:
+      // the sale already succeeded, so a customer-save hiccup must not fail the checkout.
+      const customer = buildCheckoutCustomerUpsert({ plate, province });
+      if (customer) await saveCustomer(customer).catch(() => {});
       printBill(); // prints saleNo — the counter hasn't advanced yet
       localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
       setLastSaleId(saleNo);
@@ -1504,6 +1560,7 @@ export default function PosPage() {
       toast("Sale saved ✓", "success");
       setLines([]);
       setPlate("");
+      setProvince("");
       setMileage("");
       setNote("");
       setCarBrandId("");
@@ -1885,6 +1942,22 @@ export default function PosPage() {
                       />
                       <span className="muted">km</span>
                     </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <div style={fieldLabel}>Province</div>
+                    <input
+                      value={province}
+                      onChange={(e) => setProvince(e.target.value)}
+                      placeholder="จังหวัด (บนป้ายทะเบียน)"
+                      list="thai-provinces"
+                      aria-label="Plate province"
+                      style={{ width: "100%" }}
+                    />
+                    <datalist id="thai-provinces">
+                      {THAI_PROVINCES.map((p) => (
+                        <option key={p} value={p} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
               </div>

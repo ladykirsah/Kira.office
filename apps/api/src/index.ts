@@ -119,6 +119,10 @@ let responseHeaders: Record<string, string> = {
 const json = (data: unknown, status = 200): Response =>
   Response.json(data, { status, headers: responseHeaders });
 
+/** Parse a JSON request body; null when malformed/empty — routes turn that into a 400, not a 500. */
+const readJson = async <T>(request: Request): Promise<T | null> =>
+  (await request.json().catch(() => null)) as T | null;
+
 function base64urlToBytes(s: string): Uint8Array {
   const b64 = s
     .replace(/-/g, "+")
@@ -293,6 +297,18 @@ export function validateSyncLine(line: SyncLine): string | null {
   const qty = line.quantity;
   if (!Number.isInteger(qty) || qty <= 0) {
     return "quantity must be a positive integer";
+  }
+  if (!Number.isInteger(line.unitPriceSatang) || line.unitPriceSatang < 0) {
+    return "unit price must be a non-negative integer (satang)";
+  }
+  // Bound the client-supplied discount server-side: a discount above the line subtotal would persist
+  // a negative line total and negative finance postings (the client clamps, but the server must too).
+  const discount = line.discountSatang ?? 0;
+  if (!Number.isInteger(discount) || discount < 0) {
+    return "discount must be a non-negative integer (satang)";
+  }
+  if (discount > line.unitPriceSatang * qty) {
+    return "discount must not exceed the line subtotal";
   }
   if (line.lineType === "service" && line.productVariantId) {
     return "service lines must not have a product variant";
@@ -632,10 +648,21 @@ export function parseMoneyToSatang(s: string | undefined): number {
   return Number.isFinite(n) ? Math.round(n * 100) : 0;
 }
 
-/** Parse an order-date string to epoch ms (Date.parse-tolerant); null if blank/unparseable. */
+/**
+ * Parse an order-date string to epoch ms; null if blank/unparseable. Shopee export timestamps
+ * ("2026-06-23 13:49", "2026-06-14") are Asia/Bangkok wall-clock with NO offset — a naive
+ * Date.parse would interpret them in the runtime's local zone (UTC on Workers → stored 7h off),
+ * so naive strings are anchored to +07:00 explicitly. Strings carrying an offset/Z are untouched.
+ */
 export function parseOrderDateMs(s: string | undefined): number | null {
   if (!s) return null;
-  const t = Date.parse(s.trim());
+  let str = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    str = `${str}T00:00:00+07:00`; // date-only → Bangkok midnight
+  } else if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(str)) {
+    str = `${str.replace(" ", "T")}+07:00`; // naive datetime → Bangkok wall-clock
+  }
+  const t = Date.parse(str);
   return Number.isFinite(t) ? t : null;
 }
 
@@ -725,8 +752,8 @@ export async function importShopeeOrders(
         now,
         "csv",
         o.buyerUsername,
-        o.salesSatang,
-        o.feeBp,
+        o.salesSatang ?? 0, // sales_satang / fee_bp are NOT NULL DEFAULT 0 (migration 0029):
+        o.feeBp ?? 0, // binding NULL fails on real D1 and rolls back the whole batch.
         o.shipTimeMs,
       ),
   );
@@ -845,6 +872,7 @@ export const SHOP_TEXT_FIELDS = [
   "qrHeadlineEn",
   "qrSubtitle",
   "qrSubtitleEn",
+  "promptpayId", // PromptPay target (phone / national ID / e-wallet) — payment QR on the bill
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
@@ -2311,7 +2339,11 @@ const worker = {
     }
 
     if (url.pathname === "/pricing/preview" && request.method === "POST") {
-      const line = (await request.json()) as SaleLineInput;
+      const line = await readJson<SaleLineInput>(request);
+      // Validate before computing — a missing price/quantity would silently return NaN profit.
+      if (!line || typeof line.unitPrice !== "number" || typeof line.quantity !== "number") {
+        return json({ error: "unitPrice and quantity are required numbers" }, 400);
+      }
       return json(computeSaleProfit(line));
     }
 
@@ -2369,7 +2401,8 @@ const worker = {
       return getTerms(env);
     }
     if (url.pathname === "/terms/template" && request.method === "PUT") {
-      const body = (await request.json()) as { template?: string };
+      const body = await readJson<{ template?: string }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
       await env.KV.put("terms:template", body.template ?? "");
       return json({ ok: true });
     }
@@ -2415,7 +2448,7 @@ const worker = {
     }
 
     if (url.pathname === "/stock/adjust" && request.method === "POST") {
-      const body = (await request.json()) as Partial<StockAdjustment>;
+      const body = await readJson<Partial<StockAdjustment>>(request);
       if (!body?.productVariantId || typeof body.quantityDelta !== "number") {
         return json({ error: "productVariantId and quantityDelta are required" }, 400);
       }
@@ -2611,14 +2644,16 @@ const worker = {
 
     const productPricing = url.pathname.match(/^\/products\/([^/]+)\/pricing$/);
     if (productPricing && request.method === "PUT") {
-      const body = (await request.json()) as {
+      const body = await readJson<{
         itemCostSatang?: number;
         targetPriceSatang?: number;
         onlinePriceSatang?: number;
         b2bPriceSatang?: number;
         onlineCommissionBp?: number;
         taxOnCost?: boolean;
-      };
+      }>(request);
+      // Reject (don't coalesce) a malformed body — the ?? 0 fallbacks below would zero all pricing.
+      if (!body) return json({ error: "invalid JSON body" }, 400);
       const detail = await getProductDetail(env.DB, productPricing[1]!);
       if (!detail?.variantId) return json({ error: "product or variant not found" }, 404);
       await setVariantPricing(env.DB, detail.variantId, {
@@ -2638,7 +2673,7 @@ const worker = {
       return detail ? json(detail) : json({ error: "not found" }, 404);
     }
     if (productById && request.method === "PATCH") {
-      const body = (await request.json()) as {
+      const body = await readJson<{
         name?: string;
         description?: string;
         status?: string;
@@ -2651,7 +2686,7 @@ const worker = {
         usageName?: string;
         typeName?: string;
         fitments?: Fitment[];
-      };
+      }>(request);
       if (!body?.name || !body?.status) {
         return json({ error: "name and status are required" }, 400);
       }
@@ -2739,7 +2774,7 @@ const worker = {
     }
 
     if (url.pathname === "/products" && request.method === "POST") {
-      const body = (await request.json()) as Partial<CreateProductInput>;
+      const body = await readJson<Partial<CreateProductInput>>(request);
       if (!body?.productRef || !body?.name) {
         return json({ error: "productRef and name are required" }, 400);
       }
@@ -2747,7 +2782,8 @@ const worker = {
     }
 
     if (url.pathname === "/import/products" && request.method === "POST") {
-      const body = (await request.json()) as { csv?: string; mapping?: Record<string, string> };
+      const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
       return json(await importProducts(env.DB, body.csv ?? "", body.mapping ?? {}));
     }
 
@@ -2760,12 +2796,14 @@ const worker = {
     }
 
     if (url.pathname === "/import/shopee-orders" && request.method === "POST") {
-      const body = (await request.json()) as { csv?: string; mapping?: Record<string, string> };
+      const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
       return json(await importShopeeOrders(env.DB, body.csv ?? "", body.mapping ?? {}));
     }
 
     if (url.pathname === "/sync" && request.method === "POST") {
-      const body = (await request.json()) as { sales?: SyncSale[] };
+      const body = await readJson<{ sales?: SyncSale[] }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
       const ledger = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
       return json(await ledger.applySync(body.sales ?? []));
     }
@@ -2785,4 +2823,20 @@ const worker = {
   },
 } satisfies ExportedHandler<Env>;
 
-export default worker;
+/**
+ * Top-level error boundary. Any error that escapes a route (a malformed body, a D1 batch failure, a
+ * Durable Object rejection) is turned into a logged JSON 500 with CORS headers — instead of a bare
+ * 500 with no body and no server-side log line, which leaves a persistent failure undiagnosable.
+ */
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    try {
+      return await worker.fetch(request, env, ctx);
+    } catch (err) {
+      const { pathname } = new URL(request.url);
+      console.error(`[api] ${request.method} ${pathname} failed:`, err);
+      return json({ error: "internal error" }, 500);
+    }
+  },
+  scheduled: worker.scheduled,
+} satisfies ExportedHandler<Env>;

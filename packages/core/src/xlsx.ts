@@ -167,6 +167,17 @@ export function shopeeSheetToImportCsv(rows: string[][]): string {
   if (idx.external_order_id < 0) {
     throw new Error("could not find the Shopee order number column (หมายเลขคำสั่งซื้อ)");
   }
+  // If a money column can't be matched (e.g. Shopee renamed a header), abort loudly instead of
+  // silently treating every value as 0 — that would import wrong (even negative) order totals.
+  const missingMoney = (["sales_total", "commission", "transaction", "service"] as const)
+    .filter((k) => idx[k] < 0)
+    .map((k) => SHOPEE_HEADERS[k]);
+  if (missingMoney.length > 0) {
+    throw new Error(
+      `Shopee export is missing expected money column(s): ${missingMoney.join(", ")} — the file ` +
+        `format may have changed. Import aborted to avoid saving zero values.`,
+    );
+  }
   const cell = (row: string[], i: number): string => (i >= 0 && row[i] != null ? row[i]! : "");
 
   const seen = new Set<string>();

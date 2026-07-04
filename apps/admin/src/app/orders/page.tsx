@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   importShopeeOrdersCsv,
   fetchOrders,
@@ -58,10 +58,12 @@ export default function OrdersPage() {
 
   // Load a chosen file into the CSV box: a Shopee .xlsx is parsed + normalized in-browser (all its
   // cells are text, so no heavy library); a .csv is read as-is. The user still reviews then Imports.
+  const readingFile = useRef(false); // guard: an earlier slow parse must not clobber a newer pick
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // let the same file be re-picked
-    if (!file) return;
+    if (!file || readingFile.current) return;
+    readingFile.current = true;
     setResult(null);
     setMsg(`Reading ${file.name}…`);
     try {
@@ -72,6 +74,8 @@ export default function OrdersPage() {
       setMsg("");
     } catch (err) {
       setMsg(`Could not read ${file.name}: ${(err as Error).message}`);
+    } finally {
+      readingFile.current = false;
     }
   }
 

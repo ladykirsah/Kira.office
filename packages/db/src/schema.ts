@@ -365,6 +365,15 @@ export const salesOrders = sqliteTable(
     importSource: text("import_source", { enum: ["csv", "api"] })
       .notNull()
       .default("csv"),
+    // Shopee order-export enrichment (migration 0029). grand_total = NET payout = sales − fees.
+    buyerUsername: text("buyer_username"),
+    salesSatang: integer("sales_satang").notNull().default(0), // NOT NULL: importers must bind 0, never null
+    feeBp: integer("fee_bp").notNull().default(0), // fee % as basis points (3.21% = 321)
+    shipTimeMs: integer("ship_time_ms", { mode: "timestamp_ms" }),
+    // Fulfillment + profit (migration 0030) — populated for AirPlus; Shopee profit awaits SKU links.
+    carrier: text("carrier"),
+    trackingNo: text("tracking_no"),
+    profitSatang: integer("profit_satang"),
   },
   (t) => [uniqueIndex("order_channel_external_uq").on(t.channel, t.externalOrderId)],
 );
