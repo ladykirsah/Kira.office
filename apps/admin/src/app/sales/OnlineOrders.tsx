@@ -1,8 +1,9 @@
 "use client";
 
 import { type OrderRow } from "@/lib/api";
-import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
+import { formatBahtTrim } from "@/lib/format";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
+import { tableText } from "@/lib/tableText";
 import { TableFrame } from "../TableFrame";
 
 const right = { textAlign: "right" } as const;
@@ -22,24 +23,23 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
         <thead>
           <tr>
             <th>Order ID</th>
-            <th>When</th>
             <th style={right}>Total</th>
             <th style={right}>Fees</th>
+            <th>Date</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {orders.map((o) => (
             <tr key={o.id}>
-              <td style={{ fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" }}>
+              <td
+                style={{
+                  ...tableText.body2,
+                  fontFamily: "var(--font-mono, monospace)",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {o.externalOrderId}
-              </td>
-              <td style={{ whiteSpace: "nowrap" }}>
-                {o.orderCreatedAt ? (
-                  formatUpdatedAt(o.orderCreatedAt)
-                ) : (
-                  <span className="muted">—</span>
-                )}
               </td>
               <td style={right}>{formatBahtTrim(o.grandTotalSatang)}</td>
               <td style={right}>
@@ -48,6 +48,11 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
                 ) : (
                   <span className="muted">—</span>
                 )}
+              </td>
+              <td style={{ whiteSpace: "nowrap" }}>
+                <div style={tableText.body2}>
+                  {new Date(o.orderCreatedAt ?? o.importedAt).toLocaleDateString("th-TH")}
+                </div>
               </td>
               <td>
                 {o.orderStatus ? (
