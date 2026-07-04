@@ -115,101 +115,97 @@ export default function PaymentPage() {
         </div>
       ) : (
         <>
-          {/* ── Section 1 · Payment & QR ── */}
-          <div style={card}>
+          {/* ── Section 1 · Payment & QR — two separate frames, each sizing to its content ── */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+              gap: 20,
+              alignItems: "start", // each frame is only as tall as its own content
+            }}
+          >
+            {/* Frame 1 — enter the payment */}
+            <div style={card}>
+              <div style={fieldLabel}>PAY TO</div>
+              <select
+                value={methodId}
+                onChange={(e) => {
+                  setMethodId(e.target.value);
+                  setQr(null); // a new account invalidates the shown QR
+                }}
+                style={{ ...inputL, width: "100%", marginTop: 6 }}
+                aria-label="Payment method"
+              >
+                {methods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {nameOf(m)}
+                    {m.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ ...fieldLabel, marginTop: 16 }}>AMOUNT (฿)</div>
+              <input
+                value={amount}
+                onChange={(e) => {
+                  setAmount(e.target.value.replace(/[^0-9.]/g, ""));
+                  setQr(null); // a changed amount invalidates the shown QR
+                }}
+                placeholder="0.00"
+                inputMode="decimal"
+                aria-label="Amount (baht)"
+                style={{ ...inputL, width: "100%", marginTop: 6, fontSize: 22, fontWeight: 700 }}
+              />
+
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={createQr}
+                disabled={!method || amountSatang == null}
+                style={{ width: "100%", marginTop: 18 }}
+              >
+                Create QR code
+              </button>
+            </div>
+
+            {/* Frame 2 — the created QR + approve */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-                gap: 24,
+                ...card,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
               }}
             >
-              {/* Column 1 — enter the payment */}
-              <div>
-                <div style={fieldLabel}>PAY TO</div>
-                <select
-                  value={methodId}
-                  onChange={(e) => {
-                    setMethodId(e.target.value);
-                    setQr(null); // a new account invalidates the shown QR
-                  }}
-                  style={{ ...inputL, width: "100%", marginTop: 6 }}
-                  aria-label="Payment method"
-                >
-                  {methods.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {nameOf(m)}
-                      {m.isDefault ? " (default)" : ""}
-                    </option>
-                  ))}
-                </select>
-
-                <div style={{ ...fieldLabel, marginTop: 16 }}>AMOUNT (฿)</div>
-                <input
-                  value={amount}
-                  onChange={(e) => {
-                    setAmount(e.target.value.replace(/[^0-9.]/g, ""));
-                    setQr(null); // a changed amount invalidates the shown QR
-                  }}
-                  placeholder="0.00"
-                  inputMode="decimal"
-                  aria-label="Amount (baht)"
-                  style={{ ...inputL, width: "100%", marginTop: 6, fontSize: 22, fontWeight: 700 }}
-                />
-
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={createQr}
-                  disabled={!method || amountSatang == null}
-                  style={{ width: "100%", marginTop: 18 }}
-                >
-                  Create QR code
-                </button>
-              </div>
-
-              {/* Column 2 — the created QR + approve */}
-              <div
-                style={{
-                  borderLeft: "1px solid var(--border)",
-                  paddingLeft: 24,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textAlign: "center",
-                  minHeight: 300,
-                }}
-              >
-                {qr ? (
-                  <>
-                    <PromptPayQr
-                      promptpayId={qr.method.promptpayId}
-                      amountSatang={qr.amountSatang}
-                      size={200}
-                    />
-                    <div style={{ fontWeight: 700, marginTop: 6, fontSize: 16 }}>
-                      {formatBahtTrim(qr.amountSatang)} → {nameOf(qr.method)}
-                    </div>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      สแกนจ่ายผ่านพร้อมเพย์
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={approve}
-                      disabled={busy}
-                      style={{ width: "100%", marginTop: 18 }}
-                    >
-                      ✓ Approve payment
-                    </button>
-                  </>
-                ) : (
-                  <div className="muted" style={{ fontSize: 13 }}>
-                    Enter the amount and press “Create QR code”.
+              {qr ? (
+                <>
+                  <PromptPayQr
+                    promptpayId={qr.method.promptpayId}
+                    amountSatang={qr.amountSatang}
+                    size={200}
+                  />
+                  <div style={{ fontWeight: 700, marginTop: 6, fontSize: 16 }}>
+                    {formatBahtTrim(qr.amountSatang)} → {nameOf(qr.method)}
                   </div>
-                )}
-              </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    สแกนจ่ายผ่านพร้อมเพย์
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={approve}
+                    disabled={busy}
+                    style={{ width: "100%", marginTop: 18 }}
+                  >
+                    ✓ Approve payment
+                  </button>
+                </>
+              ) : (
+                <div className="muted" style={{ fontSize: 13, padding: "24px 0" }}>
+                  Enter the amount and press “Create QR code”.
+                </div>
+              )}
             </div>
           </div>
 
