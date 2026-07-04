@@ -135,4 +135,10 @@ describe("shopeeSheetToImportCsv", () => {
   it("throws a clear error when the order-number column is missing", () => {
     expect(() => shopeeSheetToImportCsv([["something else"], ["x"]])).toThrow(/order number/i);
   });
+
+  it("throws when an expected money column is missing (avoids silently importing zeros)", () => {
+    // A Shopee header rename would make find() miss the Sales column → every order Sales = 0.
+    const noSales = header.filter((h) => !h.includes("ราคาสินค้าที่ชำระโดยผู้ซื้อ"));
+    expect(() => shopeeSheetToImportCsv([noSales, ["x"]])).toThrow(/money column|ราคาสินค้า/i);
+  });
 });
