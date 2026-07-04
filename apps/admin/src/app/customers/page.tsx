@@ -138,7 +138,6 @@ export default function CustomersPage() {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [province, setProvince] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -162,7 +161,6 @@ export default function CustomersPage() {
       setDetail(d);
       setName(d.customer?.customerName ?? "");
       setPhone(d.customer?.phone ?? "");
-      setProvince(d.customer?.plateProvince ?? "");
     } catch {
       toast("Couldn't load this car.", "error");
     }
@@ -176,7 +174,6 @@ export default function CustomersPage() {
         licensePlate: selected,
         customerName: name.trim() || null,
         phone: phone.trim() || null,
-        plateProvince: province.trim() || null,
       });
       toast("Saved ✓", "success");
     } catch {
@@ -189,7 +186,8 @@ export default function CustomersPage() {
   // ── Detail view: one car ──
   if (selected) {
     const carLabel = detail?.vehicle || detail?.customer?.carModel || "";
-    const prov = province.trim();
+    // Province is captured on the bill/POS flow and stored on the customer — shown read-only here.
+    const prov = detail?.customer?.plateProvince?.trim();
     // Headline: full plate (number + province) · vehicle — e.g. "6ฉฉ2345 สุรินทร์ · Honda Jazz 2014".
     const headline = [selected + (prov ? ` ${prov}` : ""), carLabel].filter(Boolean).join(" · ");
     return (
@@ -205,15 +203,6 @@ export default function CustomersPage() {
 
         <div style={{ ...frame, marginBottom: 24 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={tableText.subtitle}>Plate province</span>
-              <input
-                value={province}
-                onChange={(e) => setProvince(e.target.value)}
-                placeholder="—"
-                style={{ ...inputS, width: 160 }}
-              />
-            </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span style={tableText.subtitle}>Customer name</span>
               <input
