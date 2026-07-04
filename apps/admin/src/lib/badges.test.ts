@@ -5,6 +5,7 @@ import {
   orderStatusPill,
   vehicleLabel,
   stripCarYear,
+  carYearOf,
   saleTypeBadge,
 } from "./badges";
 
@@ -50,6 +51,18 @@ describe("stripCarYear", () => {
     expect(stripCarYear("")).toBe("");
     expect(stripCarYear(null)).toBe("");
     expect(stripCarYear(undefined)).toBe("");
+  });
+});
+
+describe("carYearOf", () => {
+  it("given a model ending in a year > returns just the year", () =>
+    expect(carYearOf("Toyota Vios 2014")).toBe("2014"));
+  it("given a model whose name contains a number > returns only the trailing year", () =>
+    expect(carYearOf("Mazda 2 2019")).toBe("2019"));
+  it("given no trailing year > returns empty string", () => {
+    expect(carYearOf("Toyota Vios")).toBe("");
+    expect(carYearOf("")).toBe("");
+    expect(carYearOf(null)).toBe("");
   });
 });
 

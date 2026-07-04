@@ -44,6 +44,12 @@ export function stripCarYear(vehicle?: string | null): string {
   return (vehicle ?? "").replace(/\s+(?:19|20)\d{2}$/, "").trim();
 }
 
+/** The trailing model year on its own — "Toyota Vios 2014" → "2014"; empty when there is none. */
+export function carYearOf(vehicle?: string | null): string {
+  const m = /\s+((?:19|20)\d{2})$/.exec(vehicle ?? "");
+  return m ? m[1] : "";
+}
+
 /** "Toyota Vios 2014 · 1กก 1234" — drops whichever part is missing; empty when neither is set. */
 export function vehicleLabel(vehicle?: string | null, plate?: string | null): string {
   const v = vehicle?.trim();

@@ -11,6 +11,7 @@ import {
   type CustomerSaleLine,
 } from "@/lib/api";
 import { formatBaht } from "@/lib/format";
+import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
@@ -237,6 +238,7 @@ export default function CustomersPage() {
             <table>
               <thead>
                 <tr>
+                  <th>Car</th>
                   <th>Plate</th>
                   <th>Customer</th>
                   <th>Visits</th>
@@ -244,28 +246,35 @@ export default function CustomersPage() {
                 </tr>
               </thead>
               <tbody>
-                {list.map((c) => (
-                  <tr
-                    key={c.licensePlate}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => openCar(c.licensePlate)}
-                  >
-                    <td>
-                      <div style={tableText.body2}>{c.licensePlate}</div>
-                      {c.vehicle && <div style={tableText.subtitle}>{c.vehicle}</div>}
-                    </td>
-                    <td>
-                      <div style={tableText.body2}>
-                        {c.customerName || <span className="muted">—</span>}
-                      </div>
-                      {c.phone && <div style={tableText.subtitle}>{c.phone}</div>}
-                    </td>
-                    <td>{c.billCount}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(c.lastVisitAt).toLocaleDateString("th-TH")}
-                    </td>
-                  </tr>
-                ))}
+                {list.map((c) => {
+                  const model = stripCarYear(c.vehicle ?? "");
+                  const year = carYearOf(c.vehicle ?? "");
+                  return (
+                    <tr
+                      key={c.licensePlate}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => openCar(c.licensePlate)}
+                    >
+                      <td>
+                        <div style={tableText.body2}>
+                          {model || <span className="muted">—</span>}
+                        </div>
+                        {year && <div style={tableText.subtitle}>{year}</div>}
+                      </td>
+                      <td style={{ ...tableText.body1, whiteSpace: "nowrap" }}>{c.licensePlate}</td>
+                      <td>
+                        <div style={tableText.body2}>
+                          {c.customerName || <span className="muted">—</span>}
+                        </div>
+                        {c.phone && <div style={tableText.subtitle}>{c.phone}</div>}
+                      </td>
+                      <td>{c.billCount}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        {new Date(c.lastVisitAt).toLocaleDateString("th-TH")}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
