@@ -13,6 +13,24 @@ import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 
+/** Trash outline icon (lucide-style), matching the services page's row-delete icon. */
+const TrashIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 6h18" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+
 // Shared with the product detail page's look: uppercase section heads, muted sub-labels, a card.
 // Section title — the dominant text level, clearly above the field labels (14px) below it.
 const sectionHead = {
@@ -439,11 +457,11 @@ export default function ShopInfoPage() {
                         </label>
                         <button
                           type="button"
-                          className="btn-danger btn-sm"
+                          className="icon-btn"
                           aria-label={`Remove ${pm.label}`}
                           onClick={() => write(methods.filter((x) => x.id !== pm.id))}
                         >
-                          🗑️
+                          <TrashIcon />
                         </button>
                       </div>
                     ))}
