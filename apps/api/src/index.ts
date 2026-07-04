@@ -1463,12 +1463,13 @@ export async function searchCustomers(db: D1Database, q: string): Promise<unknow
        FROM onsite_sales s
        LEFT JOIN customers c ON c.license_plate = s.license_plate
        WHERE s.stage = 'bill' AND s.license_plate IS NOT NULL AND s.license_plate <> ''
-         AND (? = '' OR s.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?)
+         AND (? = '' OR s.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
+              OR s.vehicle LIKE ? OR c.car_model LIKE ?)
        GROUP BY s.license_plate
        ORDER BY lastVisitAt DESC
        LIMIT 100`,
     )
-    .bind(q.trim(), term, term, term)
+    .bind(q.trim(), term, term, term, term, term)
     .all();
   return rows.results ?? [];
 }

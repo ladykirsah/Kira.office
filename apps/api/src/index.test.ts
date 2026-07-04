@@ -38,6 +38,7 @@ import worker, {
   requireRole,
   salesToCsv,
   draftHeaderTotals,
+  searchCustomers,
   normalizePlate,
   validateSyncLine,
   writeAuditLog,
@@ -332,6 +333,22 @@ describe("services (bilingual name_en)", () => {
       ctx,
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("searchCustomers", () => {
+  it("given a query > also matches the car model / vehicle, not only plate/phone/name", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await searchCustomers(db, "vigo");
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    // A shopper searching a car model ("vigo") must match the vehicle it belongs to.
+    expect(sql).toContain("s.vehicle LIKE ?");
+    expect(sql).toContain("c.car_model LIKE ?");
+    // Still matches the original fields too.
+    expect(sql).toContain("s.license_plate LIKE ?");
+    expect(sql).toContain("c.phone LIKE ?");
+    expect(sql).toContain("c.customer_name LIKE ?");
   });
 });
 

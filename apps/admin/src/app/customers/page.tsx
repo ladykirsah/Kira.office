@@ -333,13 +333,13 @@ export default function CustomersPage() {
     <main>
       <PageHeader
         title="Customers"
-        subtitle="Find a car by plate or phone to see its full service history."
+        subtitle="Find a car by plate, phone, or model to see its full service history."
       />
       <div style={frame}>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search plate or phone…"
+          placeholder="Search plate, phone, or car…"
           style={{ ...inputS, width: 280, maxWidth: "100%", marginBottom: 12 }}
         />
         {list.length === 0 ? (
