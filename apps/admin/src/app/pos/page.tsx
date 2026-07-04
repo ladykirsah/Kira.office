@@ -1119,11 +1119,14 @@ export default function PosPage() {
   useEffect(() => {
     let cancelled = false;
     async function flush() {
-      const r = await flushOutbox(store, async (sale) => (await syncSale(sale)).ok);
+      const r = await flushOutbox(store, (sale) => syncSale(sale));
       if (cancelled) return;
       if (r.synced) toast(`Synced ${r.synced} queued sale(s)`, "success");
-      if (r.failed)
-        toast(`${r.failed} queued sale(s) could not sync — check stock and try again`, "error");
+      if (r.failed) {
+        // Say WHY: a 401, a stock conflict, and a network error need very different responses.
+        const why = r.reasons.join("; ") || "network error — will retry when back online";
+        toast(`${r.failed} queued sale(s) could not sync — ${why}`, "error");
+      }
       setPending((await store.all()).length);
     }
     flush();

@@ -18,14 +18,14 @@ describe("flushOutbox", () => {
   it("syncs all queued sales and empties the store on success", async () => {
     const store = createMemoryStore([sale("a"), sale("b")]);
     const out = await flushOutbox(store, async () => true);
-    expect(out).toEqual({ synced: 2, failed: 0 });
+    expect(out).toEqual({ synced: 2, failed: 0, reasons: [] });
     expect(await store.all()).toEqual([]);
   });
 
   it("keeps sales that fail to sync for the next flush", async () => {
     const store = createMemoryStore([sale("a"), sale("b")]);
     const out = await flushOutbox(store, async (s) => s.clientUuid === "a");
-    expect(out).toEqual({ synced: 1, failed: 1 });
+    expect(out).toEqual({ synced: 1, failed: 1, reasons: [] });
     const remaining = await store.all();
     expect(remaining.map((s) => s.clientUuid)).toEqual(["b"]);
   });
@@ -35,8 +35,41 @@ describe("flushOutbox", () => {
     const out = await flushOutbox(store, async () => {
       throw new Error("offline");
     });
-    expect(out).toEqual({ synced: 0, failed: 1 });
+    expect(out.synced).toBe(0);
+    expect(out.failed).toBe(1);
     expect((await store.all()).length).toBe(1);
+  });
+
+  it("collects the failure reason from an {ok,message} sync result", async () => {
+    const store = createMemoryStore([sale("a")]);
+    const out = await flushOutbox(store, async () => ({
+      ok: false,
+      message: "Server error (HTTP 401)",
+    }));
+    expect(out.failed).toBe(1);
+    expect(out.reasons).toEqual(["Server error (HTTP 401)"]);
+  });
+
+  it("collects a thrown error's message as the reason", async () => {
+    const store = createMemoryStore([sale("a")]);
+    const out = await flushOutbox(store, async () => {
+      throw new Error("Failed to fetch");
+    });
+    expect(out.reasons).toEqual(["Failed to fetch"]);
+  });
+
+  it("dedupes repeated reasons across sales", async () => {
+    const store = createMemoryStore([sale("a"), sale("b")]);
+    const out = await flushOutbox(store, async () => ({ ok: false, message: "HTTP 500" }));
+    expect(out.failed).toBe(2);
+    expect(out.reasons).toEqual(["HTTP 500"]);
+  });
+
+  it("still removes synced sales when the callback returns {ok:true}", async () => {
+    const store = createMemoryStore([sale("a")]);
+    const out = await flushOutbox(store, async () => ({ ok: true }));
+    expect(out).toEqual({ synced: 1, failed: 0, reasons: [] });
+    expect(await store.all()).toEqual([]);
   });
 });
 
