@@ -146,6 +146,9 @@ export default function SalesPage() {
   );
   const shopeeViewTotal = shopeeView.reduce((sum, o) => sum + o.grandTotalSatang, 0);
   const shopeeViewFees = shopeeView.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
+  // Profit is only known once order lines are matched to Kira costs — "—" until then.
+  const shopeeHasProfit = shopeeView.some((o) => o.profitSatang != null);
+  const shopeeViewProfit = shopeeView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
 
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
@@ -376,6 +379,10 @@ export default function SalesPage() {
               <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(shopeeViewTotal)} />
                 <Card label="Orders" value={String(shopeeView.length)} />
+                <Card
+                  label="Profit"
+                  value={shopeeHasProfit ? formatBahtTrim(shopeeViewProfit) : "—"}
+                />
                 <Card label="Fees" value={formatBahtTrim(shopeeViewFees)} />
               </div>
               {csvLink(() => download(onlineOrdersToCsv(shopeeView), "shopee-orders.csv"))}
