@@ -138,8 +138,14 @@ export default function CustomersPage() {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [saved, setSaved] = useState<{ name: string; phone: string }>({ name: "", phone: "" });
+  const [note, setNote] = useState("");
+  const [saved, setSaved] = useState<{ name: string; phone: string; note: string }>({
+    name: "",
+    phone: "",
+    note: "",
+  });
   const [editing, setEditing] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -163,10 +169,13 @@ export default function CustomersPage() {
       setDetail(d);
       const nm = d.customer?.customerName ?? "";
       const ph = d.customer?.phone ?? "";
+      const nt = d.customer?.notes ?? "";
       setName(nm);
       setPhone(ph);
-      setSaved({ name: nm, phone: ph });
+      setNote(nt);
+      setSaved({ name: nm, phone: ph, note: nt });
       setEditing(false);
+      setShowNotes(false);
     } catch {
       toast("Couldn't load this car.", "error");
     }
@@ -175,12 +184,14 @@ export default function CustomersPage() {
   function startEdit() {
     setName(saved.name);
     setPhone(saved.phone);
+    setNote(saved.note);
     setEditing(true);
   }
 
   function cancelEdit() {
     setName(saved.name);
     setPhone(saved.phone);
+    setNote(saved.note);
     setEditing(false);
   }
 
@@ -190,14 +201,17 @@ export default function CustomersPage() {
     try {
       const nm = name.trim();
       const ph = phone.trim();
+      const nt = note.trim();
       await saveCustomer({
         licensePlate: selected,
         customerName: nm || null,
         phone: ph || null,
+        notes: nt || null,
       });
-      setSaved({ name: nm, phone: ph });
+      setSaved({ name: nm, phone: ph, note: nt });
       setName(nm);
       setPhone(ph);
+      setNote(nt);
       setEditing(false);
       toast("Saved ✓", "success");
     } catch {
@@ -227,57 +241,83 @@ export default function CustomersPage() {
 
         <div style={{ ...frame, marginBottom: 24 }}>
           {editing ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={tableText.subtitle}>Customer name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="—"
+                    style={{ ...inputS, width: 220 }}
+                  />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={tableText.subtitle}>Phone</span>
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="—"
+                    style={{ ...inputS, width: 180 }}
+                  />
+                </label>
+              </div>
               <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>Customer name</span>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="—"
-                  style={{ ...inputS, width: 220 }}
+                <span style={tableText.subtitle}>Notes</span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Notes about this customer…"
+                  rows={3}
+                  style={{ ...inputS, width: "100%", resize: "vertical" }}
                 />
               </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>Phone</span>
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="—"
-                  style={{ ...inputS, width: 180 }}
-                />
-              </label>
-              <button type="button" onClick={cancelEdit} disabled={saving} style={inputS}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={saveInfo}
-                disabled={saving}
-                style={inputS}
-              >
-                Save
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={cancelEdit} disabled={saving} style={inputS}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={saveInfo}
+                  disabled={saving}
+                  style={inputS}
+                >
+                  Save
+                </button>
+              </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>Customer name</span>
-                <span style={tableText.body2}>{saved.name || "—"}</span>
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={tableText.subtitle}>Customer name</span>
+                  <span style={tableText.body2}>{saved.name || "—"}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={tableText.subtitle}>Phone</span>
+                  <span style={tableText.body2}>{saved.phone || "—"}</span>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                  <button type="button" onClick={() => setShowNotes((v) => !v)} style={inputS}>
+                    {showNotes ? "Hide notes" : "Notes"}
+                  </button>
+                  <button type="button" className="btn-primary" onClick={startEdit} style={inputS}>
+                    Edit
+                  </button>
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>Phone</span>
-                <span style={tableText.body2}>{saved.phone || "—"}</span>
-              </div>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={startEdit}
-                style={{ ...inputS, marginLeft: "auto" }}
-              >
-                Edit
-              </button>
-            </div>
+              {showNotes && (
+                <div
+                  style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}
+                >
+                  <div style={tableText.subtitle}>Notes</div>
+                  <div style={{ ...tableText.body2, marginTop: 4, whiteSpace: "pre-wrap" }}>
+                    {saved.note || <span className="muted">No notes yet.</span>}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
