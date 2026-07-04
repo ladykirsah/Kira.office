@@ -238,8 +238,7 @@ export default function CustomersPage() {
               <thead>
                 <tr>
                   <th>Plate</th>
-                  <th>Owner</th>
-                  <th>Phone</th>
+                  <th>Customer</th>
                   <th>Visits</th>
                   <th>Last visit</th>
                 </tr>
@@ -255,8 +254,12 @@ export default function CustomersPage() {
                       <div style={tableText.body2}>{c.licensePlate}</div>
                       {c.vehicle && <div style={tableText.subtitle}>{c.vehicle}</div>}
                     </td>
-                    <td>{c.customerName || <span className="muted">—</span>}</td>
-                    <td>{c.phone || <span className="muted">—</span>}</td>
+                    <td>
+                      <div style={tableText.body2}>
+                        {c.customerName || <span className="muted">—</span>}
+                      </div>
+                      {c.phone && <div style={tableText.subtitle}>{c.phone}</div>}
+                    </td>
                     <td>{c.billCount}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {new Date(c.lastVisitAt).toLocaleDateString("th-TH")}
