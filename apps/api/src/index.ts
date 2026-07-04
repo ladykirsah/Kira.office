@@ -2785,4 +2785,20 @@ const worker = {
   },
 } satisfies ExportedHandler<Env>;
 
-export default worker;
+/**
+ * Top-level error boundary. Any error that escapes a route (a malformed body, a D1 batch failure, a
+ * Durable Object rejection) is turned into a logged JSON 500 with CORS headers — instead of a bare
+ * 500 with no body and no server-side log line, which leaves a persistent failure undiagnosable.
+ */
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    try {
+      return await worker.fetch(request, env, ctx);
+    } catch (err) {
+      const { pathname } = new URL(request.url);
+      console.error(`[api] ${request.method} ${pathname} failed:`, err);
+      return json({ error: "internal error" }, 500);
+    }
+  },
+  scheduled: worker.scheduled,
+} satisfies ExportedHandler<Env>;
