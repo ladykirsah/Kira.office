@@ -79,7 +79,7 @@ export default function PaymentPage() {
         amountSatang: qr.amountSatang,
       });
       toast(
-        `Payment approved — ${formatBahtTrim(qr.amountSatang)} → ${nameOf(qr.method)}`,
+        `Payment approved — ${formatBahtTrim(qr.amountSatang)} → ${qr.method.label}`,
         "success",
       );
       setQr(null);
@@ -180,17 +180,17 @@ export default function PaymentPage() {
             >
               {qr ? (
                 <>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    สแกนจ่ายผ่านพร้อมเพย์
+                  </div>
+                  <div style={{ fontWeight: 700, marginTop: 2, marginBottom: 12, fontSize: 16 }}>
+                    {formatBahtTrim(qr.amountSatang)} → {qr.method.label}
+                  </div>
                   <PromptPayQr
                     promptpayId={qr.method.promptpayId}
                     amountSatang={qr.amountSatang}
                     size={200}
                   />
-                  <div style={{ fontWeight: 700, marginTop: 6, fontSize: 16 }}>
-                    {formatBahtTrim(qr.amountSatang)} → {nameOf(qr.method)}
-                  </div>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    สแกนจ่ายผ่านพร้อมเพย์
-                  </div>
                   <button
                     type="button"
                     className="btn-primary"
