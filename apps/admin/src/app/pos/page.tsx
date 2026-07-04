@@ -13,6 +13,7 @@ import {
   saveDraft,
   listDrafts,
   deleteDraft,
+  getOnsiteSale,
   EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
@@ -1028,6 +1029,11 @@ export default function PosPage() {
   const [drafts, setDrafts] = useState<OpenDraft[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [lastQuoteId, setLastQuoteId] = useState<string | null>(null);
+  // Reprint mode: reopen a finalized bill read-only to reprint it. NEVER checkoutable (no double
+  // sale) — its original number + vehicle print, and only "Create PDF" is offered.
+  const [reprint, setReprint] = useState<{ saleNumber: string | null; vehicle: string } | null>(
+    null,
+  );
 
   // Reference data (loaded once; scanning falls back to the API when offline/missing).
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -1129,6 +1135,9 @@ export default function PosPage() {
   // A draft is NOT a sale (no revenue) — it's cleared on checkout, when the order goes to the ledger.
   const draftReady = useRef(false);
   useEffect(() => {
+    // In reprint mode the cart is a finalized bill loaded read-only — never touch the local draft
+    // (don't restore over it, and leave draftReady false so autosave stays off).
+    if (new URLSearchParams(window.location.search).has("reprint")) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
@@ -1184,6 +1193,40 @@ export default function PosPage() {
       // ignore storage errors (private mode / quota)
     }
   }, [lines, plate, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
+
+  // Reprint: ?reprint=<id> loads that finalized bill read-only so it can be re-printed. The original
+  // number + vehicle print; the actions collapse to Create PDF only (no checkout → no double sale).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("reprint");
+    if (!id) return;
+    (async () => {
+      try {
+        const bill = await getOnsiteSale(id);
+        setLines(
+          bill.lines.map((l) => ({
+            uid: crypto.randomUUID(),
+            kind: l.lineType === "service" ? "service" : "part",
+            name: l.description ?? "",
+            productVariantId: l.productVariantId,
+            quantity: l.quantity,
+            unitPriceSatang: l.unitPriceSatang,
+          })) as SaleLine[],
+        );
+        setPlate(bill.licensePlate ?? "");
+        setNote(bill.notes ?? "");
+        setBillDate(toISODate(new Date(bill.createdAt)));
+        setDocType(bill.stage === "quotation" ? "quotation" : "bill");
+        if (bill.discountTotalSatang > 0) {
+          setDiscountKind("thb");
+          setDiscountValue(String(bill.discountTotalSatang / 100));
+        }
+        setReprint({ saleNumber: bill.saleNumber, vehicle: bill.vehicle ?? "" });
+      } catch {
+        toast("Couldn't load the bill to reprint.", "error");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const subtotalSatang = cartTotalSatang(lines);
   const discountSatang = discountSatangOf(subtotalSatang, discountKind, discountValue);
@@ -2061,8 +2104,10 @@ export default function PosPage() {
               lang={billLang}
               shop={shop}
               dateLabel={billLang === "en" ? englishDate(billDate) : thaiDate(billDate)}
-              saleNumber={nextSalesId(lastSaleId, Date.now())}
-              vehicle={vehicleLabel}
+              saleNumber={
+                reprint ? (reprint.saleNumber ?? "") : nextSalesId(lastSaleId, Date.now())
+              }
+              vehicle={reprint ? reprint.vehicle : vehicleLabel}
               plate={plate.trim()}
               mileage={mileage.trim()}
               lines={lines}
@@ -2082,49 +2127,87 @@ export default function PosPage() {
               rows={2}
               style={{ width: "100%", fontFamily: "inherit", marginBottom: 10 }}
             />
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  className="btn-soft"
-                  onClick={printBill}
-                  disabled={lines.length === 0}
-                  style={{ flex: 1 }}
+            {reprint ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div
+                  style={{
+                    border: "1px solid var(--warn)",
+                    color: "var(--warn)",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                  }}
                 >
-                  Create PDF
-                </button>
-                <button
-                  type="button"
-                  className="btn-soft"
-                  onClick={saveDraftNow}
-                  disabled={busy || lines.length === 0}
-                  style={{ flex: 1 }}
-                >
-                  Save draft
-                </button>
+                  🖨 Reprinting {reprint.saleNumber ?? "this bill"} — printing only, no new sale is
+                  created.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={() => {
+                      window.location.href = "/pos";
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    Exit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={printBill}
+                    disabled={lines.length === 0}
+                    style={{ flex: 1 }}
+                  >
+                    Create PDF
+                  </button>
+                </div>
               </div>
-              {docType === "quotation" ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={saveQuotationNow}
-                  disabled={busy || lines.length === 0}
-                  style={{ width: "100%" }}
-                >
-                  Save quotation
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={checkout}
-                  disabled={busy || lines.length === 0}
-                  style={{ width: "100%" }}
-                >
-                  Save File
-                </button>
-              )}
-            </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={printBill}
+                    disabled={lines.length === 0}
+                    style={{ flex: 1 }}
+                  >
+                    Create PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={saveDraftNow}
+                    disabled={busy || lines.length === 0}
+                    style={{ flex: 1 }}
+                  >
+                    Save draft
+                  </button>
+                </div>
+                {docType === "quotation" ? (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={saveQuotationNow}
+                    disabled={busy || lines.length === 0}
+                    style={{ width: "100%" }}
+                  >
+                    Save quotation
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={checkout}
+                    disabled={busy || lines.length === 0}
+                    style={{ width: "100%" }}
+                  >
+                    Save File
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
