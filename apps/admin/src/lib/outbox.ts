@@ -66,33 +66,44 @@ export interface OutboxStore {
 export interface FlushResult {
   synced: number;
   failed: number;
+  /** Distinct failure reasons (HTTP status, stock conflict, network error) for the user-facing toast. */
+  reasons: string[];
 }
 
 /**
- * Try to sync every queued sale. `sync` returns true on success (sale removed from the queue) or
- * false / throws on failure (sale kept for the next flush). Idempotent: re-flushing already-synced
- * sales is harmless because the server dedupes on clientUuid.
+ * Try to sync every queued sale. `sync` returns true / {ok:true} on success (sale removed from the
+ * queue) or false / {ok:false, message} / throws on failure (sale kept for the next flush). Failure
+ * reasons are collected (deduped) so the UI can say WHY — a 401, a stock conflict, and a network
+ * error are very different problems. Idempotent: re-flushing already-synced sales is harmless
+ * because the server dedupes on clientUuid.
  */
 export async function flushOutbox(
   store: OutboxStore,
-  sync: (sale: QueuedSale) => Promise<boolean>,
+  sync: (sale: QueuedSale) => Promise<boolean | { ok: boolean; message?: string }>,
 ): Promise<FlushResult> {
   const pending = await store.all();
   let synced = 0;
   let failed = 0;
+  const reasons = new Set<string>();
   for (const sale of pending) {
     try {
-      if (await sync(sale)) {
+      const result = await sync(sale);
+      const ok = typeof result === "boolean" ? result : result.ok;
+      if (ok) {
         await store.remove(sale.clientUuid);
         synced += 1;
       } else {
         failed += 1;
+        const message = typeof result === "boolean" ? undefined : result.message;
+        if (message) reasons.add(message);
       }
-    } catch {
+    } catch (err) {
       failed += 1;
+      const message = (err as Error)?.message;
+      if (message) reasons.add(message);
     }
   }
-  return { synced, failed };
+  return { synced, failed, reasons: [...reasons] };
 }
 
 /** In-memory OutboxStore — used as a fallback when IndexedDB is unavailable, and in tests. */
