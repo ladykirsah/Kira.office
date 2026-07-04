@@ -197,11 +197,13 @@ export default function CustomersPage() {
       const nm = name.trim();
       const ph = phone.trim();
       const nt = note.trim();
+      // Send the (possibly empty) strings, not null: the API COALESCEs, so "" clears a field
+      // while an omitted field (e.g. from a POS partial upsert) stays preserved.
       await saveCustomer({
         licensePlate: selected,
-        customerName: nm || null,
-        phone: ph || null,
-        notes: nt || null,
+        customerName: nm,
+        phone: ph,
+        notes: nt,
       });
       setSaved({ name: nm, phone: ph, note: nt });
       setName(nm);
