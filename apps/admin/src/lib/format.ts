@@ -8,12 +8,12 @@ export function formatBaht(satang: number): string {
 }
 
 /**
- * Like formatBaht but grouped with thousands commas (฿2,890) and with the decimals dropped
- * for whole-baht amounts (฿2,890 not ฿2,890.00; ฿2,890.50 keeps the satang).
+ * Like formatBaht but grouped with thousands commas (฿2,890) and with MINIMAL decimals: no ".00"
+ * for whole baht, and trailing zeros dropped otherwise (฿2,890.50 → ฿2,890.5; ฿0.05 stays).
  */
 export function formatBahtTrim(satang: number): string {
   const thb = satang / 100;
-  const fixed = satang % 100 === 0 ? String(Math.trunc(thb)) : thb.toFixed(2);
+  const fixed = satang % 100 === 0 ? String(Math.trunc(thb)) : thb.toFixed(2).replace(/0+$/, "");
   const [intPart, frac] = fixed.split(".");
   const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return `฿${grouped}${frac ? `.${frac}` : ""}`;
