@@ -1610,7 +1610,7 @@ export default function PosPage() {
         <h1 style={{ margin: 0 }}>Point of Sale</h1>
       </div>
       {pending > 0 && (
-        <p style={{ color: "var(--warn)" }} className="bill-no-print">
+        <p style={{ color: "var(--warn)", margin: 0 }} className="bill-no-print">
           ⏳ {pending} sale(s) queued offline — will sync when online.
         </p>
       )}

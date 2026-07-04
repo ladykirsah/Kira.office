@@ -58,7 +58,12 @@ body {
 
 body {
   font-family:
-    "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    "IBM Plex Sans Thai",
+    "Noto Sans Thai",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 16px;
@@ -1173,6 +1178,14 @@ a.card:hover {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Top-level POS sections — header · saved-drafts panel · grid — share one consistent gap
+   instead of sitting flush against each other. */
+.pos-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 /* POS "freeze the page, scroll only the groups" layout — wide screens only.
