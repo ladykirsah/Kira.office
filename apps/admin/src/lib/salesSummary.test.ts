@@ -75,6 +75,14 @@ describe("salesView", () => {
   it("combines search and status", () => {
     expect(salesView([a, b], { search: "honda", status: "completed" })).toEqual([]);
   });
+
+  it("filters by type (Products = parts / Service = repair); empty keeps all", () => {
+    const p = searchable({ saleNumber: "P", saleType: "parts" });
+    const s = searchable({ saleNumber: "S", saleType: "repair" });
+    expect(salesView([p, s], { search: "", status: "", type: "parts" })).toEqual([p]);
+    expect(salesView([p, s], { search: "", status: "", type: "repair" })).toEqual([s]);
+    expect(salesView([p, s], { search: "", status: "", type: "" })).toEqual([p, s]);
+  });
 });
 
 describe("toDateInputValue", () => {

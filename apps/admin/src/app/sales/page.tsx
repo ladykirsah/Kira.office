@@ -55,6 +55,7 @@ export default function SalesPage() {
   const [tab, setTab] = useState<SalesTab>("summary");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
     fetchSales()
@@ -96,7 +97,7 @@ export default function SalesPage() {
   const s = summarize(inRange, range);
 
   // Onsite table/info/CSV view: period → search + status filter/sort. Feeds the cards + table.
-  const onsiteView = salesView(inRange, { search, status: statusFilter });
+  const onsiteView = salesView(inRange, { search, status: statusFilter, type: typeFilter });
   const onsiteSumm = summarize(onsiteView, range);
   const onsiteStatuses = Array.from(new Set(inRange.map((x) => x.saleStatus))).sort();
 
@@ -107,7 +108,7 @@ export default function SalesPage() {
   };
   const prevView = salesView(
     (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
-    { search, status: statusFilter },
+    { search, status: statusFilter, type: typeFilter },
   );
   const onsiteGrowth = growthRatePct(
     onsiteSumm.revenueSatang,
@@ -328,6 +329,19 @@ export default function SalesPage() {
                         {st}
                       </option>
                     ))}
+                  </select>
+                  <select
+                    aria-label="Type"
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    style={{
+                      ...inputS,
+                      color: typeFilter ? "var(--text)" : "var(--text-faint)",
+                    }}
+                  >
+                    <option value="">All types</option>
+                    <option value="parts">Products</option>
+                    <option value="repair">Service</option>
                   </select>
                   <select
                     aria-label="Date range"

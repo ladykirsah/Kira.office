@@ -144,6 +144,7 @@ export interface SaleSearchable {
   licensePlate: string | null;
   grandTotalSatang: number;
   saleStatus: string;
+  saleType?: string | null; // "parts" (Products) | "repair" (Service)
 }
 
 /** True if the query appears in the bill ID, car model, plate, or paid amount (baht). Empty = all. */
@@ -162,11 +163,13 @@ export function matchesSalesSearch(sale: SaleSearchable, query: string): boolean
  */
 export function salesView<T extends SaleSearchable>(
   sales: T[],
-  opts: { search: string; status: string },
+  opts: { search: string; status: string; type?: string },
 ): T[] {
   return sales.filter(
     (s) =>
-      matchesSalesSearch(s, opts.search) && (opts.status === "" || s.saleStatus === opts.status),
+      matchesSalesSearch(s, opts.search) &&
+      (opts.status === "" || s.saleStatus === opts.status) &&
+      (!opts.type || s.saleType === opts.type),
   );
 }
 
