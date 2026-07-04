@@ -725,8 +725,8 @@ export async function importShopeeOrders(
         now,
         "csv",
         o.buyerUsername,
-        o.salesSatang,
-        o.feeBp,
+        o.salesSatang ?? 0, // sales_satang / fee_bp are NOT NULL DEFAULT 0 (migration 0029):
+        o.feeBp ?? 0, // binding NULL fails on real D1 and rolls back the whole batch.
         o.shipTimeMs,
       ),
   );

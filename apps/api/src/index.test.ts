@@ -467,6 +467,10 @@ describe("importShopeeOrders (enriched)", () => {
     );
     expect(insert?.boundArgs?.[5]).toBe(0);
     expect(insert?.boundArgs?.[7]).toBeNull();
+    // sales_satang / fee_bp are NOT NULL DEFAULT 0 (migration 0029) — binding NULL fails on real D1
+    // and rolls back the whole batch, so a mapping without those columns must bind 0, not null.
+    expect(insert?.boundArgs?.[11]).toBe(0); // sales_satang
+    expect(insert?.boundArgs?.[12]).toBe(0); // fee_bp
   });
 });
 
