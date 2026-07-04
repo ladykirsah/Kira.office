@@ -1228,9 +1228,22 @@ a.card:hover {
     /* keep the cards clear of the scrollbar */
     padding-right: 2px;
   }
+  /* The bill column is FROZEN — it never scrolls as a whole; only the left groups scroll.
+     The note + action buttons stay pinned; if a bill document alone is taller than the space,
+     the document (and only it) gets an internal scrollbar via flex-shrink below. */
   .pos-col-right {
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .pos-col-right .bill-print {
+    flex: 0 1 auto; /* natural height; shrinks (→ scrolls) only when the column is too small */
+    min-height: 0;
     overflow-y: auto;
+  }
+  .pos-col-right .bill-no-print {
+    flex: none;
   }
   /* Inside the groups scroller, a jumped-to heading sits just below the scroller's top. */
   .pos-step-anchor {
