@@ -567,6 +567,35 @@ describe("api worker routes", () => {
     expect(((await res.json()) as { error?: string }).error).toBeTruthy();
   });
 
+  it("malformed JSON bodies on money/stock routes return 400, not 500", async () => {
+    for (const [method, path] of [
+      ["POST", "/stock/adjust"],
+      ["POST", "/sync"],
+      ["POST", "/pricing/preview"],
+      ["PUT", "/terms/template"],
+      ["PUT", "/products/p1/pricing"],
+      ["POST", "/import/shopee-orders"],
+      ["POST", "/import/products"],
+      ["POST", "/products"],
+    ] as const) {
+      const res = await worker.fetch!(
+        new Request(`https://x${path}`, { method, body: "not json{" }),
+        {} as Env,
+        ctx,
+      );
+      expect(res.status, `${method} ${path}`).toBe(400);
+    }
+  });
+
+  it("pricing preview rejects a body without numeric price/quantity (no NaN result)", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/pricing/preview", { method: "POST", body: JSON.stringify({}) }),
+      {} as Env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("GET /products > reads from D1 (incl. part-detail names)", async () => {
     const row = {
       id: "p1",
