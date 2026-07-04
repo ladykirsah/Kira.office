@@ -1409,6 +1409,45 @@ describe("validateSyncLine", () => {
       /positive integer/,
     );
   });
+
+  it("rejects a discount greater than the line subtotal (would make the total negative)", () => {
+    expect(
+      validateSyncLine({
+        productVariantId: "v1",
+        quantity: 1,
+        unitPriceSatang: 10000,
+        discountSatang: 15000,
+      }),
+    ).toMatch(/discount/i);
+  });
+
+  it("rejects a negative discount", () => {
+    expect(
+      validateSyncLine({
+        productVariantId: "v1",
+        quantity: 1,
+        unitPriceSatang: 10000,
+        discountSatang: -1,
+      }),
+    ).toMatch(/discount/i);
+  });
+
+  it("rejects a negative unit price", () => {
+    expect(validateSyncLine({ productVariantId: "v1", quantity: 1, unitPriceSatang: -1 })).toMatch(
+      /price/i,
+    );
+  });
+
+  it("accepts a discount within the line subtotal", () => {
+    expect(
+      validateSyncLine({
+        productVariantId: "v1",
+        quantity: 2,
+        unitPriceSatang: 10000,
+        discountSatang: 5000,
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("lineGrossProfitSatang", () => {
