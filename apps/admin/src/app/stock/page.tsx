@@ -13,6 +13,7 @@ import { inputS } from "@/lib/inputStyles";
 import { movementLabel, planAdjustment, type AdjustAction } from "@/lib/stock";
 import { tableText } from "@/lib/tableText";
 import { PageHeader } from "../PageHeader";
+import { TableFrame } from "../TableFrame";
 import { useToast } from "../ToastProvider";
 
 const right = { textAlign: "right" } as const;
@@ -212,7 +213,7 @@ export default function StockMovementsPage() {
           <div className="empty-icon">🧾</div>No stock movements yet.
         </div>
       ) : (
-        <div className="card" style={{ overflowX: "auto" }}>
+        <TableFrame>
           <table>
             <thead>
               <tr>
@@ -256,7 +257,7 @@ export default function StockMovementsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableFrame>
       )}
     </main>
   );

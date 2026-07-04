@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader } from "../PageHeader";
+import { BackLink } from "../BackLink";
+import { TableFrame } from "../TableFrame";
 import {
   searchCustomers,
   getCustomerDetail,
@@ -26,18 +28,6 @@ const frame = {
 const rowBetween = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
 const num = { whiteSpace: "nowrap" } as const;
 const right = { textAlign: "right" } as const;
-/** Text-style button (no fill/border) — used for the header back link. */
-const backLink = {
-  background: "none",
-  border: "none",
-  padding: 0,
-  minHeight: 0,
-  width: "fit-content",
-  color: "var(--primary)",
-  fontSize: 14,
-  fontWeight: 500,
-  cursor: "pointer",
-} as const;
 const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
 
 /** One bill/quotation as a fully-shown table row: date · bill · all items+prices+total+note · reprint. */
@@ -109,24 +99,22 @@ function BillRow({ sale }: { sale: CustomerSale }) {
 /** A framed Date · Bill · Items · Action table of bills/quotations. */
 function BillTable({ sales }: { sales: CustomerSale[] }) {
   return (
-    <div style={frame}>
-      <div style={{ overflowX: "auto" }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Items</th>
-              <th style={right}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.map((s) => (
-              <BillRow key={s.id} sale={s} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <TableFrame>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Items</th>
+            <th style={right}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sales.map((s) => (
+            <BillRow key={s.id} sale={s} />
+          ))}
+        </tbody>
+      </table>
+    </TableFrame>
   );
 }
 
@@ -232,11 +220,7 @@ export default function CustomersPage() {
       <main>
         <PageHeader
           title={headline}
-          below={
-            <button type="button" onClick={() => setSelected(null)} style={backLink}>
-              ← All customers
-            </button>
-          }
+          below={<BackLink onClick={() => setSelected(null)}>All customers</BackLink>}
         />
 
         <div style={{ ...frame, marginBottom: 24 }}>

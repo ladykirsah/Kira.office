@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { inputL, inputS } from "@/lib/inputStyles";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   apiBase,
   getProductDetail,
@@ -17,6 +17,7 @@ import {
   type CarBrandTree,
 } from "@/lib/api";
 import { PageHeader } from "../../../PageHeader";
+import { BackLink } from "../../../BackLink";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { BarcodePreview } from "../../BarcodePreview";
@@ -161,7 +162,6 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
 
 export default function EditProductPage() {
   const id = useParams().id as string;
-  const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -320,7 +320,7 @@ export default function EditProductPage() {
         <h1>Product</h1>
         <p className="muted">Not found.</p>
         <p>
-          <a href="/products">← Products</a>
+          <BackLink href="/products">Products</BackLink>
         </p>
       </main>
     );
@@ -370,21 +370,20 @@ export default function EditProductPage() {
       <PageHeader
         title={p.name}
         subtitle={p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
+        below={editing ? undefined : <BackLink href="/products">Products</BackLink>}
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (editing) {
+            {editing && (
+              <button
+                type="button"
+                onClick={() => {
                   if (detail) hydrate(detail); // discard unsaved edits
                   setEditing(false); // back to view mode (stay on the product)
-                } else {
-                  router.push("/products");
-                }
-              }}
-            >
-              {editing ? "Cancel" : "Back"}
-            </button>
+                }}
+              >
+                Cancel
+              </button>
+            )}
             {editing ? (
               <button type="button" className="btn-primary" onClick={() => save()} disabled={busy}>
                 Save

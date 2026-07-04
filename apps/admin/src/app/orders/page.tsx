@@ -10,6 +10,7 @@ import {
 import { orderStatusPill, paymentPill } from "@/lib/badges";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { PageHeader } from "../PageHeader";
+import { TableFrame } from "../TableFrame";
 
 const PLACEHOLDER =
   "external_order_id,order_status,payment_status,order_total,order_fee,order_date\n" +
@@ -98,7 +99,7 @@ export default function OrdersPage() {
           <div className="empty-icon">🧾</div>No orders imported yet.
         </div>
       ) : (
-        <div className="card" style={{ overflowX: "auto" }}>
+        <TableFrame>
           <table>
             <thead>
               <tr>
@@ -155,7 +156,7 @@ export default function OrdersPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableFrame>
       )}
     </main>
   );

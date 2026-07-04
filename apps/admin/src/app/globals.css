@@ -227,7 +227,7 @@ tbody tr:hover {
 .products-table .freeze-col {
   position: sticky;
   left: 0;
-  background: var(--bg);
+  background: var(--surface);
   z-index: 1;
 }
 /* Divider only when the table overflows (Product column pinned at its min width). */

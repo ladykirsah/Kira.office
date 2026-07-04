@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { importProductsCsv, type ImportResult } from "@/lib/api";
 import { PageHeader } from "../PageHeader";
+import { BackLink } from "../BackLink";
 
 const PLACEHOLDER = "product_ref,name,description\nAC-CMP-VIOS14,ครีมบำรุงผิว,หลอด 50ml\n";
 
@@ -42,6 +43,7 @@ export default function ImportPage() {
             safe (idempotent on the Product ID).
           </>
         }
+        below={<BackLink href="/products">Products</BackLink>}
       />
       <textarea
         value={csv}
@@ -72,9 +74,6 @@ export default function ImportPage() {
           )}
         </div>
       )}
-      <p>
-        <a href="/products">← Products</a>
-      </p>
     </main>
   );
 }

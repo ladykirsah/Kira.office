@@ -33,6 +33,7 @@ const card = {
   borderRadius: 8,
   padding: "14px 18px",
   minWidth: 150,
+  background: "var(--surface)",
 } as const;
 
 const right = { textAlign: "right" } as const;
@@ -235,6 +236,7 @@ export default function SalesPage() {
                   borderRadius: 8,
                   padding: 18,
                   overflowX: "auto",
+                  background: "var(--surface)",
                 }}
               >
                 <table>
@@ -287,7 +289,14 @@ export default function SalesPage() {
               </div>
 
               {/* Table frame: toolbar → (custom dates) → data */}
-              <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 18 }}>
+              <div
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: 18,
+                  background: "var(--surface)",
+                }}
+              >
                 <div
                   style={{
                     display: "flex",

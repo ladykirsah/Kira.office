@@ -3,6 +3,7 @@
 import { type OrderRow } from "@/lib/api";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
+import { TableFrame } from "../TableFrame";
 
 const right = { textAlign: "right" } as const;
 
@@ -16,7 +17,7 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
     );
   }
   return (
-    <div className="card" style={{ overflowX: "auto" }}>
+    <TableFrame>
       <table>
         <thead>
           <tr>
@@ -61,6 +62,6 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TableFrame>
   );
 }
