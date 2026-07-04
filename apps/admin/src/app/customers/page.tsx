@@ -11,7 +11,7 @@ import {
   type CustomerSale,
   type CustomerSaleLine,
 } from "@/lib/api";
-import { formatBaht } from "@/lib/format";
+import { formatBahtTrim } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
@@ -19,7 +19,7 @@ import { useToast } from "../ToastProvider";
 
 const frame = { border: "1px solid var(--border)", borderRadius: 8, padding: 18 } as const;
 const rowBetween = { display: "flex", justifyContent: "space-between", gap: 16 } as const;
-const mono = { fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap" } as const;
+const num = { whiteSpace: "nowrap" } as const;
 const right = { textAlign: "right" } as const;
 const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.discountSatang;
 
@@ -44,7 +44,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
                   {l.description || (l.lineType === "service" ? "Service" : "Item")}
                   {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
                 </span>
-                <span style={mono}>{formatBaht(lineTotal(l))}</span>
+                <span style={num}>{formatBahtTrim(lineTotal(l))}</span>
               </div>
             ))
           )}
@@ -62,12 +62,12 @@ function BillRow({ sale }: { sale: CustomerSale }) {
           {sale.discountTotalSatang > 0 && (
             <div style={{ ...rowBetween, ...tableText.subtitle }}>
               <span>Discount</span>
-              <span style={mono}>−{formatBaht(sale.discountTotalSatang)}</span>
+              <span style={num}>−{formatBahtTrim(sale.discountTotalSatang)}</span>
             </div>
           )}
           <div style={{ ...rowBetween, ...tableText.body2, fontWeight: 500 }}>
             <span>Total</span>
-            <span style={mono}>{formatBaht(sale.grandTotalSatang)}</span>
+            <span style={num}>{formatBahtTrim(sale.grandTotalSatang)}</span>
           </div>
           {sale.notes && (
             <div style={{ ...tableText.subtitle, marginTop: 2 }}>Note — {sale.notes}</div>
