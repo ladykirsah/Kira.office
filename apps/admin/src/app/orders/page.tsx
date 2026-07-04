@@ -9,8 +9,26 @@ import {
 } from "@/lib/api";
 import { orderStatusPill, paymentPill } from "@/lib/badges";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
+import { tableText } from "@/lib/tableText";
 import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
+
+/** A timestamp cell in the shared "date (body2) over time (subtitle)" pattern; — when absent. */
+function dateTimeCell(ms: number | null) {
+  if (!ms)
+    return (
+      <td style={{ whiteSpace: "nowrap", ...tableText.body2 }}>
+        <span className="muted">—</span>
+      </td>
+    );
+  const [date, time] = formatUpdatedAt(ms).split(" · ");
+  return (
+    <td style={{ whiteSpace: "nowrap" }}>
+      <div style={tableText.body2}>{date}</div>
+      <div style={tableText.subtitle}>{time}</div>
+    </td>
+  );
+}
 
 const PLACEHOLDER =
   "external_order_id,order_status,payment_status,order_fee,order_date,buyer_username,sales_total,fee_pct,ship_date\n" +
@@ -121,18 +139,18 @@ export default function OrdersPage() {
             <tbody>
               {orders.map((o) => (
                 <tr key={o.id}>
-                  <td>{o.externalOrderId}</td>
-                  <td>
+                  <td style={tableText.body2}>{o.externalOrderId}</td>
+                  <td style={tableText.body2}>
                     <span className="pill soft">{o.channel}</span>
                   </td>
-                  <td style={{ textAlign: "right" }}>
+                  <td style={{ textAlign: "right", ...tableText.body2 }}>
                     {o.grandTotalSatang ? (
                       formatBahtTrim(o.grandTotalSatang)
                     ) : (
                       <span className="muted">—</span>
                     )}
                   </td>
-                  <td>
+                  <td style={tableText.body2}>
                     {o.orderStatus ? (
                       <span className={`pill ${orderStatusPill(o.orderStatus)}`}>
                         {o.orderStatus}
@@ -141,7 +159,7 @@ export default function OrdersPage() {
                       "—"
                     )}
                   </td>
-                  <td>
+                  <td style={tableText.body2}>
                     {o.paymentStatus ? (
                       <span className={`pill ${paymentPill(o.paymentStatus)}`}>
                         {o.paymentStatus}
@@ -150,14 +168,8 @@ export default function OrdersPage() {
                       "—"
                     )}
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {o.orderCreatedAt ? (
-                      formatUpdatedAt(o.orderCreatedAt)
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{formatUpdatedAt(o.importedAt)}</td>
+                  {dateTimeCell(o.orderCreatedAt)}
+                  {dateTimeCell(o.importedAt)}
                 </tr>
               ))}
             </tbody>
