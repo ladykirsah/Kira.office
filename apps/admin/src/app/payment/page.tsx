@@ -107,6 +107,7 @@ export default function PaymentPage() {
             >
               {methods.map((m) => (
                 <option key={m.id} value={m.id}>
+                  {m.position ? `${m.position} · ` : ""}
                   {m.label} — {m.promptpayId}
                   {m.isDefault ? " (default)" : ""}
                 </option>

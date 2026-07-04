@@ -7,6 +7,7 @@
 
 export interface PaymentMethod {
   id: string;
+  position: string; // the person's role in the shop ("เจ้าของ", "พนักงาน") — shown on the Pay-to dropdown
   label: string; // who gets paid — "ร้าน", "แม่", "พ่อ" …
   promptpayId: string; // phone / national ID / e-wallet (validated by promptpay.ts at QR time)
   isDefault?: boolean;
@@ -31,6 +32,7 @@ export function parsePaymentMethods(json: string | null | undefined): PaymentMet
     if (typeof e.promptpayId !== "string" || !e.promptpayId.trim()) continue;
     out.push({
       id: e.id,
+      position: typeof e.position === "string" ? e.position : "", // optional; older data has none
       label: e.label,
       promptpayId: e.promptpayId,
       ...(e.isDefault === true ? { isDefault: true } : {}),
@@ -50,6 +52,7 @@ export function serializePaymentMethods(methods: PaymentMethod[]): string {
   return JSON.stringify(
     methods.map((m) => ({
       id: m.id,
+      position: m.position ?? "",
       label: m.label,
       promptpayId: m.promptpayId,
       ...(m.id === defaultId ? { isDefault: true } : {}),

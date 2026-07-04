@@ -405,6 +405,19 @@ export default function ShopInfoPage() {
                         style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}
                       >
                         <input
+                          value={pm.position}
+                          onChange={(e) =>
+                            write(
+                              methods.map((x) =>
+                                x.id === pm.id ? { ...x, position: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          placeholder="ตำแหน่ง (เจ้าของ / พนักงาน)"
+                          aria-label="Position"
+                          style={{ ...inputL, flex: 1, minWidth: 0 }}
+                        />
+                        <input
                           value={pm.label}
                           onChange={(e) =>
                             write(
@@ -469,7 +482,10 @@ export default function ShopInfoPage() {
                       type="button"
                       className="btn-soft btn-sm"
                       onClick={() =>
-                        write([...methods, { id: crypto.randomUUID(), label: "", promptpayId: "" }])
+                        write([
+                          ...methods,
+                          { id: crypto.randomUUID(), position: "", label: "", promptpayId: "" },
+                        ])
                       }
                     >
                       ➕ Add account
@@ -539,6 +555,7 @@ export default function ShopInfoPage() {
                     key={pm.id}
                     style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}
                   >
+                    {pm.position && <span className="pill soft">{pm.position}</span>}
                     <span style={valueStyle}>{pm.label}</span>
                     <span className="muted">·</span>
                     <span style={valueStyle}>{pm.promptpayId}</span>
