@@ -294,6 +294,18 @@ export function validateSyncLine(line: SyncLine): string | null {
   if (!Number.isInteger(qty) || qty <= 0) {
     return "quantity must be a positive integer";
   }
+  if (!Number.isInteger(line.unitPriceSatang) || line.unitPriceSatang < 0) {
+    return "unit price must be a non-negative integer (satang)";
+  }
+  // Bound the client-supplied discount server-side: a discount above the line subtotal would persist
+  // a negative line total and negative finance postings (the client clamps, but the server must too).
+  const discount = line.discountSatang ?? 0;
+  if (!Number.isInteger(discount) || discount < 0) {
+    return "discount must be a non-negative integer (satang)";
+  }
+  if (discount > line.unitPriceSatang * qty) {
+    return "discount must not exceed the line subtotal";
+  }
   if (line.lineType === "service" && line.productVariantId) {
     return "service lines must not have a product variant";
   }
