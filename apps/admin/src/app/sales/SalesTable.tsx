@@ -4,7 +4,7 @@ import { type SaleRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { saleStatusPill, saleTypeBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
-import { RefundButton } from "./RefundButton";
+import { SalesActionsMenu } from "./SalesActionsMenu";
 
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
 export function SalesTable({ sales }: { sales: SaleRow[] }) {
@@ -62,7 +62,11 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
                   <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
                 </td>
                 <td>
-                  <RefundButton saleId={s.id} status={s.saleStatus} />
+                  <SalesActionsMenu
+                    saleId={s.id}
+                    saleStatus={s.saleStatus}
+                    licensePlate={s.licensePlate}
+                  />
                 </td>
               </tr>
             );

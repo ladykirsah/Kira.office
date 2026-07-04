@@ -149,6 +149,13 @@ export default function CustomersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, selected]);
 
+  // Deep-link: /customers?plate=… opens that car directly (e.g. a sale's "View" action).
+  useEffect(() => {
+    const plate = new URLSearchParams(window.location.search).get("plate");
+    if (plate) openCar(plate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function openCar(plate: string) {
     setSelected(plate);
     setDetail(null);
