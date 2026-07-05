@@ -459,8 +459,9 @@ export default function CustomersPage() {
                   style={{ ...inputS, width: 160 }}
                 >
                   <option value="">— skip —</option>
-                  {imp.rows[0]!.filter((h) => h.trim() !== "").map((h) => (
-                    <option key={h} value={h}>
+                  {/* key includes the index — a hand-made Excel can repeat a header name */}
+                  {imp.rows[0]!.filter((h) => h.trim() !== "").map((h, i) => (
+                    <option key={`${i}:${h}`} value={h}>
                       {h}
                     </option>
                   ))}
