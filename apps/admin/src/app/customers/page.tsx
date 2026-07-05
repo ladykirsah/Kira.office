@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
 import { TableFrame } from "../TableFrame";
@@ -8,11 +8,20 @@ import {
   searchCustomers,
   getCustomerDetail,
   saveCustomer,
+  importCustomersCsv,
+  type CustomerImportResult,
   type CustomerListItem,
   type CustomerDetail,
   type CustomerSale,
   type CustomerSaleLine,
 } from "@/lib/api";
+import {
+  CUSTOMER_IMPORT_FIELDS,
+  guessCustomerMapping,
+  parseCsv,
+  rowsToCsv,
+  xlsxToRows,
+} from "@l-shopee/core";
 import { formatBahtTrim } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
@@ -135,6 +144,64 @@ export default function CustomersPage() {
   const [editing, setEditing] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // ── Import (legacy customer Excel) ──
+  const [imp, setImp] = useState<{
+    fileName: string;
+    rows: string[][];
+    mapping: Record<string, string>;
+  } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [impResult, setImpResult] = useState<CustomerImportResult | null>(null);
+  const readingFile = useRef(false); // guard: an earlier slow parse must not clobber a newer pick
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked
+    if (!file || readingFile.current) return;
+    readingFile.current = true;
+    try {
+      const rows = /\.xlsx$/i.test(file.name)
+        ? await xlsxToRows(new Uint8Array(await file.arrayBuffer()))
+        : parseCsv(await file.text());
+      if (rows.length < 2) {
+        toast("That file has no data rows.", "error");
+        return;
+      }
+      setImpResult(null);
+      setImp({ fileName: file.name, rows, mapping: guessCustomerMapping(rows[0] ?? []) });
+    } catch (err) {
+      toast(`Couldn't read ${file.name}: ${(err as Error).message}`, "error");
+    } finally {
+      readingFile.current = false;
+    }
+  }
+
+  function setImportField(field: string, header: string) {
+    if (!imp) return;
+    const mapping = { ...imp.mapping };
+    if (header === "") delete mapping[field];
+    else mapping[field] = header;
+    setImp({ ...imp, mapping });
+  }
+
+  async function runImport() {
+    if (!imp || !imp.mapping["license_plate"]) return;
+    setImporting(true);
+    try {
+      const out = await importCustomersCsv(rowsToCsv(imp.rows), imp.mapping);
+      setImpResult(out);
+      toast(
+        `Imported ${out.created + out.updated} customers — ${out.created} new · ${out.updated} updated`,
+        "success",
+      );
+      setList(await searchCustomers(q));
+    } catch {
+      toast("Import failed.", "error");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   useEffect(() => {
     if (selected !== null) return; // detail view is showing; re-fetch when we return to the list
@@ -338,12 +405,134 @@ export default function CustomersPage() {
   }
 
   // ── List view: all cars ──
+  const mappedFields = CUSTOMER_IMPORT_FIELDS.filter((f) => imp?.mapping[f.field]);
+  const headerIndexOf = (field: string) => (imp ? imp.rows[0]!.indexOf(imp.mapping[field]!) : -1);
   return (
     <main>
       <PageHeader
         title="Customers"
         subtitle="Find a car by plate, phone, or model to see its full service history."
+        action={
+          <label className="btn-soft btn-sm" style={{ cursor: "pointer" }}>
+            Import Excel…
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={onImportFile}
+              style={{ display: "none" }}
+            />
+          </label>
+        }
       />
+      {imp && (
+        <div style={{ ...frame, marginBottom: 24 }}>
+          <div style={{ ...rowBetween, alignItems: "baseline" }}>
+            <div>
+              <div style={{ ...tableText.body1, fontWeight: 600 }}>Import {imp.fileName}</div>
+              <div style={{ ...tableText.subtitle, marginTop: 2 }}>
+                {imp.rows.length - 1} data rows — match each field to a column, check the preview,
+                then import. Re-importing is safe: existing cars are updated, empty cells never
+                erase saved info.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setImp(null);
+                setImpResult(null);
+              }}
+              style={inputS}
+            >
+              {impResult ? "Close" : "Cancel"}
+            </button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
+            {CUSTOMER_IMPORT_FIELDS.map((f) => (
+              <label key={f.field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={tableText.subtitle}>
+                  {f.label}
+                  {f.field === "license_plate" && " *"}
+                </span>
+                <select
+                  value={imp.mapping[f.field] ?? ""}
+                  onChange={(e) => setImportField(f.field, e.target.value)}
+                  style={{ ...inputS, width: 160 }}
+                >
+                  <option value="">— skip —</option>
+                  {imp.rows[0]!.filter((h) => h.trim() !== "").map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+          {mappedFields.length > 0 && (
+            <div style={{ overflowX: "auto", marginTop: 14 }}>
+              <table>
+                <thead>
+                  <tr>
+                    {mappedFields.map((f) => (
+                      <th key={f.field}>{f.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {imp.rows.slice(1, 6).map((row, r) => (
+                    <tr key={r}>
+                      {mappedFields.map((f) => (
+                        <td key={f.field} style={tableText.body2}>
+                          {row[headerIndexOf(f.field)] || <span className="muted">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {imp.rows.length > 6 && (
+                <div style={{ ...tableText.subtitle, marginTop: 6 }}>
+                  …and {imp.rows.length - 6} more rows.
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 14 }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={runImport}
+              disabled={importing || !imp.mapping["license_plate"]}
+              style={inputS}
+            >
+              {importing ? "Importing…" : `Import ${imp.rows.length - 1} rows`}
+            </button>
+            {!imp.mapping["license_plate"] && (
+              <span style={tableText.subtitle}>Pick the license-plate column first.</span>
+            )}
+            {impResult && (
+              <span style={tableText.body2}>
+                Received <strong>{impResult.received}</strong> · new{" "}
+                <strong>{impResult.created}</strong> · updated <strong>{impResult.updated}</strong>{" "}
+                · duplicates <strong>{impResult.duplicates}</strong> · skipped{" "}
+                <strong>{impResult.invalid}</strong>
+              </span>
+            )}
+          </div>
+          {impResult && impResult.errors.length > 0 && (
+            <div style={{ ...tableText.subtitle, marginTop: 8 }}>
+              {impResult.errors.slice(0, 5).map((er) => (
+                <div key={er.rowIndex}>
+                  Row {er.rowIndex}: {er.reason}
+                </div>
+              ))}
+              {impResult.errors.length > 5 && (
+                <div>…and {impResult.errors.length - 5} more skipped rows.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div style={frame}>
         <input
           value={q}
@@ -356,7 +545,7 @@ export default function CustomersPage() {
             <div className="empty-icon">👥</div>
             {q
               ? "No matching cars."
-              : "No customers yet — they appear here after their first bill."}
+              : "No customers yet — they appear after their first bill, or import your customer Excel."}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -372,8 +561,11 @@ export default function CustomersPage() {
               </thead>
               <tbody>
                 {list.map((c) => {
-                  const model = stripCarYear(c.vehicle ?? "");
-                  const year = carYearOf(c.vehicle ?? "");
+                  // Billed cars carry the bill's vehicle label; imported ones only the directory's
+                  // car model — show whichever exists.
+                  const car = c.vehicle ?? c.carModel ?? "";
+                  const model = stripCarYear(car);
+                  const year = carYearOf(car);
                   return (
                     <tr
                       key={c.licensePlate}
@@ -395,7 +587,11 @@ export default function CustomersPage() {
                       </td>
                       <td>{c.billCount}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        {new Date(c.lastVisitAt).toLocaleDateString("th-TH")}
+                        {c.lastVisitAt != null ? (
+                          new Date(c.lastVisitAt).toLocaleDateString("th-TH")
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
                       </td>
                     </tr>
                   );

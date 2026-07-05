@@ -2199,9 +2199,7 @@ describe("importCustomers (legacy customer Excel bulk upsert)", () => {
       customer_name: "ชื่อ",
     });
     expect(out).toMatchObject({ received: 3, created: 2, invalid: 1 });
-    expect(out.errors).toEqual([
-      { rowIndex: 2, reason: expect.stringContaining("license_plate") },
-    ]);
+    expect(out.errors).toEqual([{ rowIndex: 2, reason: expect.stringContaining("license_plate") }]);
   });
 
   it("chunks the existing-plate lookup under D1's 100-bound-params limit", async () => {

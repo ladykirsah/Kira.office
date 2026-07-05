@@ -42,12 +42,8 @@ export function guessCustomerMapping(headers: string[]): Record<string, string> 
   const mapping: Record<string, string> = {};
   for (const [field, synonyms] of SYNONYMS) {
     const free = (i: number) => !claimed.has(i) && normalized[i] !== "";
-    const starts = normalized.findIndex(
-      (h, i) => free(i) && synonyms.some((s) => h.startsWith(s)),
-    );
-    const contains = normalized.findIndex(
-      (h, i) => free(i) && synonyms.some((s) => h.includes(s)),
-    );
+    const starts = normalized.findIndex((h, i) => free(i) && synonyms.some((s) => h.startsWith(s)));
+    const contains = normalized.findIndex((h, i) => free(i) && synonyms.some((s) => h.includes(s)));
     const index = starts !== -1 ? starts : contains;
     if (index !== -1) {
       claimed.add(index);
