@@ -177,6 +177,7 @@ export default function CustomersPage() {
   const [importing, setImporting] = useState(false);
   const [impResult, setImpResult] = useState<CustomerImportResult | null>(null);
   const readingFile = useRef(false); // guard: an earlier slow parse must not clobber a newer pick
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -435,18 +436,26 @@ export default function CustomersPage() {
       <PageHeader
         title="Customers"
         subtitle="Find a car by plate, phone, or model to see its full service history."
-        action={
-          <label className="btn-soft btn-sm" style={{ cursor: "pointer" }}>
-            Import Excel…
-            <input
-              type="file"
-              accept=".xlsx,.csv"
-              onChange={onImportFile}
-              style={{ display: "none" }}
-            />
-          </label>
-        }
       />
+      {/* A real <button> (not a label) so it gets the app's button styling; it drives the
+          hidden file input via ref. */}
+      <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+        <button
+          type="button"
+          className="btn-soft btn-sm"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Import
+        </button>
+        <small className="muted">.xlsx or .csv — your customer list file</small>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.csv"
+          onChange={onImportFile}
+          style={{ display: "none" }}
+        />
+      </div>
       {imp && (
         <div style={{ ...frame, marginBottom: 24 }}>
           <div style={{ ...rowBetween, alignItems: "baseline" }}>
