@@ -50,18 +50,15 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         </div>
       </td>
       <td style={{ verticalAlign: "top" }}>
-        {/* Aligned invoice columns: [item][part ID] …gap… [price] — the ID column starts right
-            after the longest item name; prices stay on the far right. The ID column only exists
-            when some line has one — service-only bills keep their clean two-column look. */}
+        {/* Two columns: [item + its part ID inline] · [price]. The ID trails each name in faint
+            mono — the exact part installed (same-brand parts interchange across car models). */}
         {sale.lines.length === 0 ? (
           <span className="muted">No items.</span>
         ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: sale.lines.some((l) => l.productRef)
-                ? "max-content 1fr max-content"
-                : "1fr max-content",
+              gridTemplateColumns: "1fr max-content",
               columnGap: 14,
               rowGap: 4,
               alignItems: "baseline",
@@ -72,14 +69,18 @@ function BillRow({ sale }: { sale: CustomerSale }) {
                 <span style={tableText.body2}>
                   {l.description || (l.lineType === "service" ? "Service" : "Item")}
                   {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
+                  {l.productRef && (
+                    <span
+                      style={{
+                        ...tableText.subtitle,
+                        fontFamily: "var(--font-mono, monospace)",
+                        marginLeft: 8,
+                      }}
+                    >
+                      {l.productRef}
+                    </span>
+                  )}
                 </span>
-                {sale.lines.some((x) => x.productRef) && (
-                  <span
-                    style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}
-                  >
-                    {l.productRef ?? ""}
-                  </span>
-                )}
                 <span style={{ ...tableText.body2, ...num, textAlign: "right" }}>
                   {formatBahtTrim(lineTotal(l))}
                 </span>
