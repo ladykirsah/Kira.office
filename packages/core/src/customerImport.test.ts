@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { CUSTOMER_IMPORT_FIELDS, guessCustomerMapping } from "./customerImport";
+import {
+  CUSTOMER_HISTORY_FIELDS,
+  CUSTOMER_IMPORT_FIELDS,
+  guessCustomerMapping,
+  guessHistoryMapping,
+  looksLikeHistorySheet,
+} from "./customerImport";
 
 describe("guessCustomerMapping", () => {
   it("given typical Thai legacy headers > maps all six fields", () => {
@@ -57,5 +63,40 @@ describe("guessCustomerMapping", () => {
       "notes",
     ]);
     expect(CUSTOMER_IMPORT_FIELDS[0]?.label).toBe("License plate");
+  });
+});
+
+describe("guessHistoryMapping", () => {
+  it("given the history template headers > maps all three fields", () => {
+    expect(guessHistoryMapping(["ทะเบียน", "วันที่", "รายการ"])).toEqual({
+      license_plate: "ทะเบียน",
+      happened_at: "วันที่",
+      description: "รายการ",
+    });
+  });
+
+  it("given English headers > maps case-insensitively", () => {
+    expect(guessHistoryMapping(["Plate", "Date", "Description"])).toEqual({
+      license_plate: "Plate",
+      happened_at: "Date",
+      description: "Description",
+    });
+  });
+
+  it("exports the three history fields with UI labels, plate first", () => {
+    expect(CUSTOMER_HISTORY_FIELDS.map((f) => f.field)).toEqual([
+      "license_plate",
+      "happened_at",
+      "description",
+    ]);
+  });
+});
+
+describe("looksLikeHistorySheet", () => {
+  it("history headers (plate + date + work text) > true", () => {
+    expect(looksLikeHistorySheet(["ทะเบียน", "วันที่", "รายการ"])).toBe(true);
+  });
+  it("directory headers (no date/work columns) > false", () => {
+    expect(looksLikeHistorySheet(["ทะเบียนรถ", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร"])).toBe(false);
   });
 });
