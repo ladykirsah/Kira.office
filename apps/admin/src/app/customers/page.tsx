@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
 import { TableFrame } from "../TableFrame";
@@ -50,21 +50,42 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         </div>
       </td>
       <td style={{ verticalAlign: "top" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {sale.lines.length === 0 ? (
-            <span className="muted">No items.</span>
-          ) : (
-            sale.lines.map((l, i) => (
-              <div key={i} style={{ ...rowBetween, ...tableText.body2 }}>
-                <span>
+        {/* Aligned invoice columns: part ID · item · price. The ID column only exists when some
+            line has one — service-only bills keep their clean two-column look. */}
+        {sale.lines.length === 0 ? (
+          <span className="muted">No items.</span>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: sale.lines.some((l) => l.productRef)
+                ? "max-content 1fr max-content"
+                : "1fr max-content",
+              columnGap: 14,
+              rowGap: 4,
+              alignItems: "baseline",
+            }}
+          >
+            {sale.lines.map((l, i) => (
+              <Fragment key={i}>
+                {sale.lines.some((x) => x.productRef) && (
+                  <span
+                    style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}
+                  >
+                    {l.productRef ?? ""}
+                  </span>
+                )}
+                <span style={tableText.body2}>
                   {l.description || (l.lineType === "service" ? "Service" : "Item")}
                   {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
                 </span>
-                <span style={num}>{formatBahtTrim(lineTotal(l))}</span>
-              </div>
-            ))
-          )}
-        </div>
+                <span style={{ ...tableText.body2, ...num, textAlign: "right" }}>
+                  {formatBahtTrim(lineTotal(l))}
+                </span>
+              </Fragment>
+            ))}
+          </div>
+        )}
         <div
           style={{
             borderTop: "1px solid var(--border)",

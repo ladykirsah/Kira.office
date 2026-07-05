@@ -259,6 +259,8 @@ export interface CustomerSaleLine {
   quantity: number;
   unitPriceSatang: number;
   discountSatang: number;
+  /** The Product ID of the exact part installed (null for service lines / unlinked lines). */
+  productRef?: string | null;
 }
 
 export interface CustomerSale {

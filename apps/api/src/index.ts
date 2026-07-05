@@ -1690,11 +1690,17 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
   const ids = sales.map((s) => s.id);
   const byId = new Map<string, unknown[]>();
   if (ids.length > 0) {
+    // productRef (the Product ID) rides along on product lines: same-brand parts interchange
+    // across car models, so only the ID says WHICH part was actually installed on this car.
     const lines = await db
       .prepare(
-        `SELECT onsite_sale_id AS onsiteSaleId, description, line_type AS lineType,
-                quantity, unit_price_satang AS unitPriceSatang, discount_satang AS discountSatang
-         FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
+        `SELECT l.onsite_sale_id AS onsiteSaleId, l.description, l.line_type AS lineType,
+                l.quantity, l.unit_price_satang AS unitPriceSatang,
+                l.discount_satang AS discountSatang, p.product_ref AS productRef
+         FROM onsite_sale_lines l
+         LEFT JOIN product_variants v ON v.id = l.product_variant_id
+         LEFT JOIN products p ON p.id = v.product_id
+         WHERE l.onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
       )
       .bind(...ids)
       .all<{ onsiteSaleId: string }>();

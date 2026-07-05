@@ -871,6 +871,27 @@ describe("api worker routes", () => {
     expect(body.quotations).toHaveLength(1);
   });
 
+  it("GET /customers/:plate > history lines carry the exact part ID (productRef)", async () => {
+    const { db, env } = makeDb({
+      sales: [{ id: "s1", stage: "bill", createdAt: 2, vehicle: null }],
+      saleLines: [],
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/customers/5%E0%B8%88%E0%B8%887890"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("FROM onsite_sale_lines"));
+    // Same-brand parts interchange across car models (a Denso evaporator for model A fits model
+    // B too) — only the part ID says WHICH one was installed, so history lines must carry it.
+    expect(sql).toContain("LEFT JOIN product_variants");
+    expect(sql).toContain("product_ref AS productRef");
+  });
+
   it("GET /stock > reads on-hand per variant from D1", async () => {
     const stock = [
       { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },
