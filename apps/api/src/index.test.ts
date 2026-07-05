@@ -353,12 +353,23 @@ describe("searchCustomers", () => {
     await searchCustomers(db, "vigo");
     const sql = prepare.mock.calls[0]?.[0] as string;
     // A shopper searching a car model ("vigo") must match the vehicle it belongs to.
-    expect(sql).toContain("s.vehicle LIKE ?");
+    expect(sql).toContain("b.vehicle LIKE ?");
     expect(sql).toContain("c.car_model LIKE ?");
     // Still matches the original fields too.
-    expect(sql).toContain("s.license_plate LIKE ?");
+    expect(sql).toContain("x.license_plate LIKE ?");
     expect(sql).toContain("c.phone LIKE ?");
     expect(sql).toContain("c.customer_name LIKE ?");
+  });
+
+  it("lists directory-only customers (imported, no bills yet) alongside billed plates", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await searchCustomers(db, "");
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    // The list must union the customers directory with billed plates — an imported customer
+    // with no bills yet still appears (billCount 0); deriving from bills alone hides them.
+    expect(sql).toMatch(/FROM\s*\(\s*SELECT license_plate FROM customers\s+UNION/);
+    expect(sql).toContain("COALESCE(b.billCount, 0) AS billCount");
   });
 });
 
@@ -807,7 +818,7 @@ describe("api worker routes", () => {
     expect(res.status).toBe(400);
   });
 
-  it("GET /customers > lists cars (from bills) joined to the directory for name/phone", async () => {
+  it("GET /customers > lists cars from the directory ∪ bills, with bill stats joined", async () => {
     const { db, env } = makeDb({ sales: [] });
     const prepare = vi.spyOn(db, "prepare");
     const res = await worker.fetch!(new Request("https://x/customers?q=nav"), env, ctx);
@@ -815,8 +826,8 @@ describe("api worker routes", () => {
     const sql = prepare.mock.calls
       .map((c) => c[0] as string)
       .find((s) => s.includes("LEFT JOIN customers"));
-    expect(sql).toContain("GROUP BY s.license_plate");
-    expect(sql).toContain("s.stage = 'bill'");
+    expect(sql).toContain("GROUP BY license_plate"); // bill stats grouped in the subquery
+    expect(sql).toContain("stage = 'bill'"); // drafts/quotes never count as visits
   });
 
   it("GET /customers/:plate > returns info + bill history + open quotations", async () => {

@@ -1631,24 +1631,32 @@ export async function upsertCustomerByPlate(
 }
 
 /**
- * The customer/car list — derived from bills (so a car appears as soon as it has one), LEFT JOINed
- * to the directory for the editable name/phone. `q` matches plate, phone, or name (empty = all).
+ * The customer/car list — the UNION of the directory (so an imported customer appears before its
+ * first bill) and billed plates (so a car appears as soon as it has a bill, even with no directory
+ * row). Bill stats come from a grouped LEFT JOIN; directory-only rows get billCount 0 and sort
+ * after recently billed cars. `q` matches plate, phone, name, vehicle, or car model (empty = all).
  */
 export async function searchCustomers(db: D1Database, q: string): Promise<unknown[]> {
   const term = `%${q.trim()}%`;
   const rows = await db
     .prepare(
-      `SELECT s.license_plate AS licensePlate,
-              MAX(s.vehicle) AS vehicle,
+      `SELECT x.license_plate AS licensePlate,
+              b.vehicle AS vehicle,
               c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
-              COUNT(*) AS billCount, MAX(s.created_at) AS lastVisitAt
-       FROM onsite_sales s
-       LEFT JOIN customers c ON c.license_plate = s.license_plate
-       WHERE s.stage = 'bill' AND s.license_plate IS NOT NULL AND s.license_plate <> ''
-         AND (? = '' OR s.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
-              OR s.vehicle LIKE ? OR c.car_model LIKE ?)
-       GROUP BY s.license_plate
-       ORDER BY lastVisitAt DESC
+              COALESCE(b.billCount, 0) AS billCount, b.lastVisitAt AS lastVisitAt
+       FROM (SELECT license_plate FROM customers
+             UNION
+             SELECT license_plate FROM onsite_sales
+             WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> '') x
+       LEFT JOIN customers c ON c.license_plate = x.license_plate
+       LEFT JOIN (SELECT license_plate, MAX(vehicle) AS vehicle, COUNT(*) AS billCount,
+                         MAX(created_at) AS lastVisitAt
+                  FROM onsite_sales
+                  WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
+                  GROUP BY license_plate) b ON b.license_plate = x.license_plate
+       WHERE (? = '' OR x.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
+              OR b.vehicle LIKE ? OR c.car_model LIKE ?)
+       ORDER BY COALESCE(b.lastVisitAt, 0) DESC, x.license_plate
        LIMIT 100`,
     )
     .bind(q.trim(), term, term, term, term, term)
