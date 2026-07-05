@@ -21,3 +21,17 @@ export function workerProxyForwardHeaders(incoming: Headers): Headers {
   if (jwt) out.set(ACCESS_JWT_HEADER, jwt);
   return out;
 }
+
+/**
+ * Headers to forward from the API Worker's response back to the browser. fetch() has already
+ * decompressed the body, so the upstream content-encoding/content-length/transfer-encoding no
+ * longer describe what we send — forwarding them makes the browser try to re-decode plain bytes
+ * and fail every proxied response with net::ERR_CONTENT_DECODING_FAILED.
+ */
+export function workerProxyResponseHeaders(upstream: Headers): Headers {
+  const out = new Headers(upstream);
+  out.delete("content-encoding");
+  out.delete("content-length");
+  out.delete("transfer-encoding");
+  return out;
+}

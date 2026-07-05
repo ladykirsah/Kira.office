@@ -1,5 +1,9 @@
 import { apiBase } from "@/lib/apiFetch";
-import { buildWorkerProxyUrl, workerProxyForwardHeaders } from "@/lib/workerProxy";
+import {
+  buildWorkerProxyUrl,
+  workerProxyForwardHeaders,
+  workerProxyResponseHeaders,
+} from "@/lib/workerProxy";
 
 // Runs in the OpenNext/Cloudflare Workers server function (already at the edge) — NOT Next's edge
 // runtime, which OpenNext can't bundle into a single function. The proxy only does fetch(), so this
@@ -14,7 +18,10 @@ async function proxy(request: Request, path: string[]): Promise<Response> {
   const body =
     request.method !== "GET" && request.method !== "HEAD" ? await request.arrayBuffer() : undefined;
   const res = await fetch(target, { method: request.method, headers, body });
-  return new Response(res.body, { status: res.status, headers: res.headers });
+  return new Response(res.body, {
+    status: res.status,
+    headers: workerProxyResponseHeaders(res.headers),
+  });
 }
 
 type RouteCtx = { params: Promise<{ path: string[] }> };

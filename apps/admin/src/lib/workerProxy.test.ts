@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildWorkerProxyUrl, workerProxyForwardHeaders, ACCESS_JWT_HEADER } from "./workerProxy";
+import {
+  buildWorkerProxyUrl,
+  workerProxyForwardHeaders,
+  workerProxyResponseHeaders,
+  ACCESS_JWT_HEADER,
+} from "./workerProxy";
 
 describe("buildWorkerProxyUrl", () => {
   it("joins path segments onto the API base", () => {
@@ -26,5 +31,25 @@ describe("workerProxyForwardHeaders", () => {
     expect(out.get("content-type")).toBe("application/json");
     expect(out.get(ACCESS_JWT_HEADER)).toBe("jwt-token");
     expect(out.get("host")).toBeNull();
+  });
+});
+
+describe("workerProxyResponseHeaders", () => {
+  it("drops the encoding/length headers fetch() has already consumed, keeps the rest", () => {
+    const upstream = new Headers({
+      "content-type": "application/json",
+      "content-encoding": "gzip",
+      "content-length": "123",
+      "transfer-encoding": "chunked",
+      "access-control-allow-origin": "*",
+    });
+    const out = workerProxyResponseHeaders(upstream);
+    // fetch() decompresses the body; forwarding these makes the browser re-decode plain
+    // bytes (net::ERR_CONTENT_DECODING_FAILED on every proxied API response).
+    expect(out.get("content-encoding")).toBeNull();
+    expect(out.get("content-length")).toBeNull();
+    expect(out.get("transfer-encoding")).toBeNull();
+    expect(out.get("content-type")).toBe("application/json");
+    expect(out.get("access-control-allow-origin")).toBe("*");
   });
 });
