@@ -1,7 +1,11 @@
 import { apiBase } from "@/lib/apiFetch";
 import { buildWorkerProxyUrl, workerProxyForwardHeaders } from "@/lib/workerProxy";
 
-export const runtime = "edge";
+// Runs in the OpenNext/Cloudflare Workers server function (already at the edge) — NOT Next's edge
+// runtime, which OpenNext can't bundle into a single function. The proxy only does fetch(), so this
+// is behaviourally a no-op; it just lets the admin build for Cloudflare. force-dynamic keeps the
+// route from being statically evaluated at build time.
+export const dynamic = "force-dynamic";
 
 async function proxy(request: Request, path: string[]): Promise<Response> {
   const incoming = new URL(request.url);
