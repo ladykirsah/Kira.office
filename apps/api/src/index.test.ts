@@ -24,6 +24,7 @@ import worker, {
   addCarModel,
   updateCarModel,
   updateProduct,
+  importCustomers,
   importProducts,
   importShopeeOrders,
   listPayments,
@@ -103,9 +104,11 @@ function makeDb(canned: {
     isTaxable: number;
   }[];
   userRow?: { id: string; role: "owner" | "manager" | "stock_operator" | "finance_viewer" } | null;
+  existingCustomers?: string[];
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
+  const alls: { sql: string; binds: unknown[] }[] = [];
   const make = (sql: string) => {
     let lastBinds: unknown[] = [];
     const stmt = {
@@ -117,6 +120,11 @@ function makeDb(canned: {
         return stmt;
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
+        alls.push({ sql, binds: lastBinds });
+        if (sql.includes("FROM customers WHERE license_plate IN"))
+          return {
+            results: (canned.existingCustomers ?? []).map((p) => ({ licensePlate: p })) as T[],
+          };
         // listProducts joins product_fitments in a subquery; match its unique alias first so the
         // products-list query routes to canned.products, not the bare product_fitments branch below.
         if (sql.includes("AS offlinePriceSatang"))
@@ -208,7 +216,7 @@ function makeDb(canned: {
       return stmts.map(() => ({}));
     },
   } as unknown as D1Database;
-  return { db, env: { DB: db } as unknown as Env, batched, runs };
+  return { db, env: { DB: db } as unknown as Env, batched, runs, alls };
 }
 
 describe("services (bilingual name_en)", () => {
@@ -2126,5 +2134,87 @@ describe("importShopeeOrders (CSV order bridge)", () => {
     );
     expect(out).toEqual({ received: 3, imported: 1, duplicates: 2, invalid: 0, errors: [] });
     expect(batched.length).toBe(1);
+  });
+});
+
+describe("importCustomers (legacy customer Excel bulk upsert)", () => {
+  const mapping = { license_plate: "ทะเบียน", customer_name: "ชื่อ", phone: "เบอร์" };
+
+  it("upserts new plates normalized, binds null for empty cells, counts created", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importCustomers(
+      db,
+      "ทะเบียน,ชื่อ,เบอร์\nกข  1234,สมชาย,0811112222\nขค 555,,\n",
+      mapping,
+    );
+    expect(out).toMatchObject({ received: 2, created: 2, updated: 0, duplicates: 0, invalid: 0 });
+    const ups = (batched as { sql: string; boundArgs?: unknown[] }[]).filter((s) =>
+      s.sql.includes("ON CONFLICT(license_plate) DO UPDATE"),
+    );
+    expect(ups).toHaveLength(2);
+    // binds: (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+    expect(ups[0]?.boundArgs?.[1]).toBe("กข 1234"); // normalized: double space collapsed
+    expect(ups[0]?.boundArgs?.[2]).toBeNull(); // unmapped province → null, never blanks
+    expect(ups[0]?.boundArgs?.[3]).toBe("สมชาย");
+    expect(ups[0]?.boundArgs?.[4]).toBe("0811112222");
+    expect(ups[1]?.boundArgs?.[3]).toBeNull(); // empty cell → null, never blanks
+  });
+
+  it("counts a plate already in the directory as updated, and still upserts it", async () => {
+    const { db, batched } = makeDb({ existingCustomers: ["กข 1234"] });
+    const out = await importCustomers(db, "ทะเบียน,ชื่อ,เบอร์\nกข 1234,สมชาย,\n", mapping);
+    expect(out).toMatchObject({ received: 1, created: 0, updated: 1 });
+    expect(batched.filter((s) => s.sql.includes("DO UPDATE"))).toHaveLength(1);
+  });
+
+  it("skips an in-file repeat of the same normalized plate (first row wins)", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importCustomers(db, "ทะเบียน,ชื่อ\nกข 1234,สมชาย\nกข  1234,สมหญิง\n", {
+      license_plate: "ทะเบียน",
+      customer_name: "ชื่อ",
+    });
+    expect(out).toMatchObject({ received: 2, created: 1, updated: 0, duplicates: 1 });
+    const ups = (batched as { sql: string; boundArgs?: unknown[] }[]).filter((s) =>
+      s.sql.includes("DO UPDATE"),
+    );
+    expect(ups).toHaveLength(1);
+    expect(ups[0]?.boundArgs?.[3]).toBe("สมชาย");
+  });
+
+  it("reports rows missing a plate with their row number and imports the rest", async () => {
+    const { db } = makeDb({});
+    const out = await importCustomers(db, "ทะเบียน,ชื่อ\nกข 1,A\n,B\nขค 2,C\n", {
+      license_plate: "ทะเบียน",
+      customer_name: "ชื่อ",
+    });
+    expect(out).toMatchObject({ received: 3, created: 2, invalid: 1 });
+    expect(out.errors).toEqual([
+      { rowIndex: 2, reason: expect.stringContaining("license_plate") },
+    ]);
+  });
+
+  it("chunks the existing-plate lookup under D1's 100-bound-params limit", async () => {
+    const { db, alls } = makeDb({});
+    const rows = Array.from({ length: 95 }, (_, i) => `ปข ${i + 1},ชื่อ${i}`).join("\n");
+    await importCustomers(db, "ทะเบียน,ชื่อ\n" + rows + "\n", {
+      license_plate: "ทะเบียน",
+      customer_name: "ชื่อ",
+    });
+    const lookups = alls.filter((s) => s.sql.includes("FROM customers WHERE license_plate IN"));
+    expect(lookups).toHaveLength(2);
+    expect(lookups.every((s) => s.binds.length <= 90)).toBe(true);
+  });
+
+  it("POST /import/customers > 400 when the plate column is not mapped", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/import/customers", {
+        method: "POST",
+        body: JSON.stringify({ csv: "a,b\n1,2\n", mapping: { customer_name: "b" } }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
   });
 });

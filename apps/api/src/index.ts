@@ -767,6 +767,98 @@ export async function importShopeeOrders(
   };
 }
 
+export interface CustomerImportResult {
+  received: number;
+  created: number;
+  updated: number;
+  duplicates: number;
+  invalid: number;
+  errors: RowError[];
+}
+
+/**
+ * Bulk upsert of the shop's legacy customer Excel (parsed to CSV client-side), keyed by normalized
+ * plate. Same ON CONFLICT/COALESCE contract as upsertCustomerByPlate, with empty cells sent as
+ * NULL — so re-importing (or importing a sparser file) can never blank data someone typed into the
+ * directory. An in-file repeat of a plate is skipped (first row wins) and counted as a duplicate.
+ */
+export async function importCustomers(
+  db: D1Database,
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<CustomerImportResult> {
+  const rows = parseCsv(csv);
+  const { records, errors } = mapRows(rows, mapping, ["license_plate"]);
+
+  const seen = new Set<string>();
+  const unique: { plate: string; record: Record<string, string> }[] = [];
+  let duplicates = 0;
+  for (const record of records) {
+    const plate = normalizePlate(record["license_plate"] ?? "");
+    if (seen.has(plate)) {
+      duplicates++;
+      continue;
+    }
+    seen.add(plate);
+    unique.push({ plate, record });
+  }
+
+  // Which plates already exist (to split created/updated)? D1 caps bound params at 100/query, and
+  // a legacy Excel can hold hundreds of rows — chunk the IN lookup.
+  const existing = new Set<string>();
+  const plates = unique.map((u) => u.plate);
+  for (let i = 0; i < plates.length; i += 90) {
+    const chunk = plates.slice(i, i + 90);
+    const found = await db
+      .prepare(
+        `SELECT license_plate AS licensePlate FROM customers WHERE license_plate IN (${chunk.map(() => "?").join(",")})`,
+      )
+      .bind(...chunk)
+      .all<{ licensePlate: string }>();
+    for (const r of found.results ?? []) existing.add(r.licensePlate);
+  }
+
+  const nn = (s: string | undefined) => (s ? s : null); // empty cell → NULL (preserve existing)
+  const now = Date.now();
+  const statements = unique.map(({ plate, record }) =>
+    db
+      .prepare(
+        `INSERT INTO customers
+           (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(license_plate) DO UPDATE SET
+           plate_province = COALESCE(excluded.plate_province, customers.plate_province),
+           customer_name = COALESCE(excluded.customer_name, customers.customer_name),
+           phone = COALESCE(excluded.phone, customers.phone),
+           car_model = COALESCE(excluded.car_model, customers.car_model),
+           notes = COALESCE(excluded.notes, customers.notes),
+           updated_at = excluded.updated_at`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        plate,
+        nn(record["plate_province"]),
+        nn(record["customer_name"]),
+        nn(record["phone"]),
+        nn(record["car_model"]),
+        nn(record["notes"]),
+        now,
+        now,
+      ),
+  );
+  if (statements.length > 0) await db.batch(statements);
+
+  const created = unique.filter((u) => !existing.has(u.plate)).length;
+  return {
+    received: Math.max(0, rows.length - 1),
+    created,
+    updated: unique.length - created,
+    duplicates,
+    invalid: errors.length,
+    errors,
+  };
+}
+
 export interface CreateProductInput {
   /** The Product ID (manufacturer/catalog part no.) — the sole product identifier and barcode source. */
   productRef: string;
@@ -2883,6 +2975,15 @@ const worker = {
       const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
       return json(await importShopeeOrders(env.DB, body.csv ?? "", body.mapping ?? {}));
+    }
+
+    if (url.pathname === "/import/customers" && request.method === "POST") {
+      const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (!body.mapping?.["license_plate"]) {
+        return json({ error: "the license-plate column must be mapped" }, 400);
+      }
+      return json(await importCustomers(env.DB, body.csv ?? "", body.mapping));
     }
 
     if (url.pathname === "/sync" && request.method === "POST") {
