@@ -50,7 +50,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         </div>
       </td>
       <td style={{ verticalAlign: "top" }}>
-        {/* Aligned invoice columns: part ID · item · price. The ID column only exists when some
+        {/* Aligned invoice columns: item · part ID · price. The ID column only exists when some
             line has one — service-only bills keep their clean two-column look. */}
         {sale.lines.length === 0 ? (
           <span className="muted">No items.</span>
@@ -59,7 +59,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
             style={{
               display: "grid",
               gridTemplateColumns: sale.lines.some((l) => l.productRef)
-                ? "max-content 1fr max-content"
+                ? "1fr max-content max-content"
                 : "1fr max-content",
               columnGap: 14,
               rowGap: 4,
@@ -68,6 +68,10 @@ function BillRow({ sale }: { sale: CustomerSale }) {
           >
             {sale.lines.map((l, i) => (
               <Fragment key={i}>
+                <span style={tableText.body2}>
+                  {l.description || (l.lineType === "service" ? "Service" : "Item")}
+                  {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
+                </span>
                 {sale.lines.some((x) => x.productRef) && (
                   <span
                     style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}
@@ -75,10 +79,6 @@ function BillRow({ sale }: { sale: CustomerSale }) {
                     {l.productRef ?? ""}
                   </span>
                 )}
-                <span style={tableText.body2}>
-                  {l.description || (l.lineType === "service" ? "Service" : "Item")}
-                  {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
-                </span>
                 <span style={{ ...tableText.body2, ...num, textAlign: "right" }}>
                   {formatBahtTrim(lineTotal(l))}
                 </span>
