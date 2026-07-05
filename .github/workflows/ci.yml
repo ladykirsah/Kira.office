@@ -20,9 +20,10 @@ jobs:
       - run: npm test
 
   # Auto-deploy the API Worker (kira-office) to prod after checks pass on main.
-  # Gated on the CLOUDFLARE_API_TOKEN repo secret: until it is set, this step skips and CI stays
-  # green. Account id is in wrangler.jsonc, so the token just needs Workers + DNS edit on that
-  # account. The admin (apps/admin) lives on a DIFFERENT Cloudflare account — see deploy-admin.
+  # Requires the CLOUDFLARE_API_TOKEN repo secret (a GoGoCash Workers+DNS-edit token; account id is
+  # in wrangler.jsonc). If it's missing this job FAILS LOUDLY — a green "deploy" that silently
+  # skipped once let merged code sit undeployed for weeks (2026-07). A red deploy on main is the
+  # honest signal that main is not live. The admin (apps/admin) is a DIFFERENT account — see below.
   deploy:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -39,16 +40,16 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::warning::CLOUDFLARE_API_TOKEN secret not set — skipping Worker deploy."
-            exit 0
+            echo "::error::CLOUDFLARE_API_TOKEN is not set — the API Worker was NOT deployed; main is not live. Add a GoGoCash Workers-edit token as the CLOUDFLARE_API_TOKEN repo secret."
+            exit 1
           fi
           npm run deploy -- --env=""
 
   # Auto-deploy the admin (kiraoffice-admin) via OpenNext after checks pass on main.
   # It lives on a SEPARATE Cloudflare account (account id is in apps/admin/wrangler.jsonc), so it
-  # uses its own CF_ADMIN_API_TOKEN secret — until that is set this skips and CI stays green. The
-  # admin only has an assets binding and no custom domain yet, so the token needs Workers edit on
-  # that account. Built with NEXT_PUBLIC_API_BASE unset, so the deployed admin calls the prod API.
+  # uses its own CF_ADMIN_API_TOKEN secret. Missing token FAILS LOUDLY (see the deploy job above for
+  # why we don't silently skip). Token needs Workers edit on that account. Built with
+  # NEXT_PUBLIC_API_BASE unset, so the deployed admin calls the prod API.
   deploy-admin:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -65,7 +66,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_ADMIN_API_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::warning::CF_ADMIN_API_TOKEN secret not set — skipping admin deploy."
-            exit 0
+            echo "::error::CF_ADMIN_API_TOKEN is not set — the admin was NOT deployed. Add a Workers-edit token for the admin's Cloudflare account as the CF_ADMIN_API_TOKEN repo secret."
+            exit 1
           fi
           npm run deploy -w @l-shopee/admin
