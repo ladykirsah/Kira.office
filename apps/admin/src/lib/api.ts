@@ -263,6 +263,12 @@ export interface CustomerSaleLine {
   productRef?: string | null;
 }
 
+export interface CustomerLegacyEntry {
+  id: string;
+  happenedAt: number;
+  description: string;
+}
+
 export interface CustomerSale {
   id: string;
   saleNumber: string | null;
@@ -291,6 +297,7 @@ export interface CustomerDetail {
   vehicle: string | null;
   history: CustomerSale[];
   quotations: CustomerSale[];
+  legacy: CustomerLegacyEntry[];
 }
 
 export async function searchCustomers(q: string): Promise<CustomerListItem[]> {
@@ -377,6 +384,28 @@ export async function importCustomersCsv(
   });
   if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
   return (await res.json()) as CustomerImportResult;
+}
+
+export interface HistoryImportResult {
+  received: number;
+  imported: number;
+  duplicates: number;
+  invalid: number;
+  errors: { rowIndex: number; reason: string }[];
+}
+
+/** Bulk import of transcribed legacy service history (memory, not money). */
+export async function importCustomerHistoryCsv(
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<HistoryImportResult> {
+  const res = await apiFetch(`/import/customer-history`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ csv, mapping }),
+  });
+  if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
+  return (await res.json()) as HistoryImportResult;
 }
 
 /** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */

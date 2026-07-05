@@ -25,6 +25,7 @@ import worker, {
   updateCarModel,
   updateProduct,
   importCustomers,
+  importCustomerHistory,
   importProducts,
   importShopeeOrders,
   listPayments,
@@ -105,6 +106,7 @@ function makeDb(canned: {
   }[];
   userRow?: { id: string; role: "owner" | "manager" | "stock_operator" | "finance_viewer" } | null;
   existingCustomers?: string[];
+  historyEntries?: unknown[];
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -121,6 +123,8 @@ function makeDb(canned: {
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
         alls.push({ sql, binds: lastBinds });
+        if (sql.includes("FROM customer_history_entries"))
+          return { results: (canned.historyEntries ?? []) as T[] };
         if (sql.includes("FROM customers WHERE license_plate IN"))
           return {
             results: (canned.existingCustomers ?? []).map((p) => ({ licensePlate: p })) as T[],
@@ -2246,5 +2250,86 @@ describe("importCustomers (legacy customer Excel bulk upsert)", () => {
       ctx,
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("importCustomerHistory (transcribed legacy service history)", () => {
+  const mapping = { license_plate: "ทะเบียน", happened_at: "วันที่", description: "รายการ" };
+
+  it("inserts entries with parsed Thai dates and auto-creates directory rows — memory, not money", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importCustomerHistory(
+      db,
+      "ทะเบียน,วันที่,รายการ\nกข  1234,31 มีค 68,เปลี่ยนคอม ล้างตู้\nขค 555,9 พค 65,เติมน้ำยา\n",
+      mapping,
+    );
+    expect(out).toMatchObject({ received: 2, imported: 2, duplicates: 0, invalid: 0 });
+    const ins = (batched as { sql: string; boundArgs?: unknown[] }[]).filter((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO customer_history_entries"),
+    );
+    expect(ins).toHaveLength(2);
+    expect(ins[0]?.boundArgs?.[1]).toBe("กข 1234"); // normalized plate
+    expect(ins[0]?.boundArgs?.[2]).toBe(Date.parse("2025-03-31T00:00:00+07:00"));
+    expect(ins[0]?.boundArgs?.[3]).toBe("เปลี่ยนคอม ล้างตู้");
+    // the car must appear on the Customers list → a bare directory row per plate
+    expect(
+      batched.filter((s) => s.sql.includes("ON CONFLICT(license_plate) DO UPDATE")),
+    ).toHaveLength(2);
+    // never touches stock or sales
+    expect(
+      batched.some((s) => s.sql.includes("stock_ledger") || s.sql.includes("onsite_sales")),
+    ).toBe(false);
+  });
+
+  it("reports an unreadable date with its row number and imports the rest", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importCustomerHistory(
+      db,
+      "ทะเบียน,วันที่,รายการ\nกข 1,31 มีค 68,งาน A\nขค 2,ไม่รู้,งาน B\n",
+      mapping,
+    );
+    expect(out).toMatchObject({ received: 2, imported: 1, invalid: 1 });
+    expect(out.errors[0]).toMatchObject({ rowIndex: 2 });
+    expect(batched.filter((s) => s.sql.includes("customer_history_entries"))).toHaveLength(1);
+  });
+
+  it("skips an exact in-file repeat (same normalized plate + date + text) as duplicate", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importCustomerHistory(
+      db,
+      "ทะเบียน,วันที่,รายการ\nกข 1,31 มีค 68,งาน A\nกข  1,31 มีค 68,งาน A\n",
+      mapping,
+    );
+    expect(out).toMatchObject({ received: 2, imported: 1, duplicates: 1 });
+    expect(batched.filter((s) => s.sql.includes("customer_history_entries"))).toHaveLength(1);
+  });
+
+  it("POST /import/customer-history > 400 when a required column is not mapped", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/import/customer-history", {
+        method: "POST",
+        body: JSON.stringify({ csv: "a\n1\n", mapping: { license_plate: "a" } }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /customers/:plate > returns transcribed legacy entries alongside bills", async () => {
+    const { env } = makeDb({
+      sales: [],
+      historyEntries: [{ id: "h1", happenedAt: 111, description: "เปลี่ยนคอม" }],
+    });
+    const res = await worker.fetch!(
+      new Request("https://x/customers/%E0%B8%81%E0%B8%82%201234"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { legacy: { description: string }[] };
+    expect(body.legacy).toHaveLength(1);
+    expect(body.legacy[0]?.description).toBe("เปลี่ยนคอม");
   });
 });

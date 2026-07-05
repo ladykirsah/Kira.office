@@ -12,6 +12,8 @@ export interface RowError {
 
 export interface MapRowsResult {
   records: Record<string, string>[];
+  /** Source row index (1-based among data rows) per record — for errors found after mapping. */
+  recordIndices: number[];
   errors: RowError[];
 }
 
@@ -25,7 +27,7 @@ export function mapRows(
   fieldToHeader: Record<string, string>,
   requiredFields: string[] = [],
 ): MapRowsResult {
-  if (rows.length === 0) return { records: [], errors: [] };
+  if (rows.length === 0) return { records: [], recordIndices: [], errors: [] };
 
   for (const field of requiredFields) {
     if (!Object.prototype.hasOwnProperty.call(fieldToHeader, field)) {
@@ -42,6 +44,7 @@ export function mapRows(
   }
 
   const records: Record<string, string>[] = [];
+  const recordIndices: number[] = [];
   const errors: RowError[] = [];
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] ?? [];
@@ -54,7 +57,8 @@ export function mapRows(
       errors.push({ rowIndex: i, reason: `missing required field: ${missing}` });
     } else {
       records.push(record);
+      recordIndices.push(i);
     }
   }
-  return { records, errors };
+  return { records, recordIndices, errors };
 }
