@@ -305,6 +305,11 @@ function primaryWorksheet(files: Map<string, Uint8Array>): string {
 
 /** Full pipeline: raw .xlsx bytes → normalized Shopee import CSV. */
 export async function xlsxToImportCsv(bytes: Uint8Array): Promise<string> {
+  return shopeeSheetToImportCsv(await xlsxToRows(bytes));
+}
+
+/** Raw .xlsx bytes → the first worksheet as a dense text grid (generic; no Shopee mapping). */
+export async function xlsxToRows(bytes: Uint8Array): Promise<string[][]> {
   const files = await unzip(bytes);
   const dec = new TextDecoder();
   const read = (name: string) => {
@@ -312,6 +317,10 @@ export async function xlsxToImportCsv(bytes: Uint8Array): Promise<string> {
     return d ? dec.decode(d) : "";
   };
   const shared = parseSharedStrings(read("xl/sharedStrings.xml"));
-  const rows = parseSheet(read(primaryWorksheet(files)), shared);
-  return shopeeSheetToImportCsv(rows);
+  return parseSheet(read(primaryWorksheet(files)), shared);
+}
+
+/** Rows → RFC-4180 CSV text (inverse of parseCsv for text grids). */
+export function rowsToCsv(rows: string[][]): string {
+  return rows.map((row) => row.map(escapeCsvField).join(",") + "\n").join("");
 }

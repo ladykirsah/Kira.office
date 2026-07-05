@@ -5,9 +5,12 @@ import {
   parseSharedStrings,
   parseSheet,
   escapeCsvField,
+  rowsToCsv,
   shopeeSheetToImportCsv,
   xlsxToImportCsv,
+  xlsxToRows,
 } from "./xlsx";
+import { parseCsv } from "./orders";
 
 /** Build a minimal STORED (method 0) ZIP — enough structure for unzip()'s central-directory walk. */
 function makeStoredZip(entries: [name: string, content: string][]): Uint8Array {
@@ -269,5 +272,46 @@ describe("xlsxToImportCsv (full pipeline over a crafted archive)", () => {
     expect(csv.trim().split("\n")[1]).toBe(
       "ZIP001,สำเร็จแล้ว,zipbuyer,2026-06-23 13:49,2026-06-23 15:20,900.00,180.00,3.21%",
     );
+  });
+});
+
+describe("xlsxToRows (generic grid extract, non-Shopee sheets)", () => {
+  const cellsXml = (cells: string[], rowN: number) =>
+    cells
+      .map(
+        (v, i) =>
+          `<c r="${String.fromCharCode(65 + i)}${rowN}" t="inlineStr"><is><t>${v}</t></is></c>`,
+      )
+      .join("");
+
+  it("given a crafted archive > returns the raw cell grid unmapped", async () => {
+    const sheet =
+      `<worksheet><sheetData><row r="1">${cellsXml(["ทะเบียนรถ", "ชื่อลูกค้า"], 1)}</row>` +
+      `<row r="2">${cellsXml(["กข 1234", "สมชาย ใจดี"], 2)}</row></sheetData></worksheet>`;
+    const zip = makeStoredZip([["xl/worksheets/sheet1.xml", sheet]]);
+    expect(await xlsxToRows(zip)).toEqual([
+      ["ทะเบียนรถ", "ชื่อลูกค้า"],
+      ["กข 1234", "สมชาย ใจดี"],
+    ]);
+  });
+
+  it("given a non-zip file > throws the clear .xlsx error", async () => {
+    await expect(xlsxToRows(new TextEncoder().encode("definitely not a zip"))).rejects.toThrow(
+      /not a valid \.xlsx/,
+    );
+  });
+});
+
+describe("rowsToCsv", () => {
+  it("given fields with commas, quotes and newlines > round-trips through parseCsv", () => {
+    const rows = [
+      ["plate", "name", "note"],
+      ["กข 1234", 'บริษัท "เย็นดี", จำกัด', "line1\nline2"],
+    ];
+    expect(parseCsv(rowsToCsv(rows))).toEqual(rows);
+  });
+
+  it("given no rows > returns an empty string", () => {
+    expect(rowsToCsv([])).toBe("");
   });
 });

@@ -249,7 +249,7 @@ export interface CustomerListItem {
   phone: string | null;
   carModel: string | null;
   billCount: number;
-  lastVisitAt: number;
+  lastVisitAt: number | null; // null = imported/added to the directory, no bill yet
 }
 
 export interface CustomerSaleLine {
@@ -259,6 +259,8 @@ export interface CustomerSaleLine {
   quantity: number;
   unitPriceSatang: number;
   discountSatang: number;
+  /** The Product ID of the exact part installed (null for service lines / unlinked lines). */
+  productRef?: string | null;
 }
 
 export interface CustomerSale {
@@ -352,6 +354,29 @@ export async function saveCustomer(input: {
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(`Save customer failed (HTTP ${res.status})`);
+}
+
+export interface CustomerImportResult {
+  received: number;
+  created: number;
+  updated: number;
+  duplicates: number;
+  invalid: number;
+  errors: { rowIndex: number; reason: string }[];
+}
+
+/** Bulk upsert of the legacy customer Excel (already parsed to CSV in the browser). */
+export async function importCustomersCsv(
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<CustomerImportResult> {
+  const res = await apiFetch(`/import/customers`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ csv, mapping }),
+  });
+  if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
+  return (await res.json()) as CustomerImportResult;
 }
 
 /** How many o-rings of a given size a model uses (basics 3/8"/1/2"/5/8" + special sizes). */

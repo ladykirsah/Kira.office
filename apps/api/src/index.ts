@@ -767,6 +767,98 @@ export async function importShopeeOrders(
   };
 }
 
+export interface CustomerImportResult {
+  received: number;
+  created: number;
+  updated: number;
+  duplicates: number;
+  invalid: number;
+  errors: RowError[];
+}
+
+/**
+ * Bulk upsert of the shop's legacy customer Excel (parsed to CSV client-side), keyed by normalized
+ * plate. Same ON CONFLICT/COALESCE contract as upsertCustomerByPlate, with empty cells sent as
+ * NULL — so re-importing (or importing a sparser file) can never blank data someone typed into the
+ * directory. An in-file repeat of a plate is skipped (first row wins) and counted as a duplicate.
+ */
+export async function importCustomers(
+  db: D1Database,
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<CustomerImportResult> {
+  const rows = parseCsv(csv);
+  const { records, errors } = mapRows(rows, mapping, ["license_plate"]);
+
+  const seen = new Set<string>();
+  const unique: { plate: string; record: Record<string, string> }[] = [];
+  let duplicates = 0;
+  for (const record of records) {
+    const plate = normalizePlate(record["license_plate"] ?? "");
+    if (seen.has(plate)) {
+      duplicates++;
+      continue;
+    }
+    seen.add(plate);
+    unique.push({ plate, record });
+  }
+
+  // Which plates already exist (to split created/updated)? D1 caps bound params at 100/query, and
+  // a legacy Excel can hold hundreds of rows — chunk the IN lookup.
+  const existing = new Set<string>();
+  const plates = unique.map((u) => u.plate);
+  for (let i = 0; i < plates.length; i += 90) {
+    const chunk = plates.slice(i, i + 90);
+    const found = await db
+      .prepare(
+        `SELECT license_plate AS licensePlate FROM customers WHERE license_plate IN (${chunk.map(() => "?").join(",")})`,
+      )
+      .bind(...chunk)
+      .all<{ licensePlate: string }>();
+    for (const r of found.results ?? []) existing.add(r.licensePlate);
+  }
+
+  const nn = (s: string | undefined) => (s ? s : null); // empty cell → NULL (preserve existing)
+  const now = Date.now();
+  const statements = unique.map(({ plate, record }) =>
+    db
+      .prepare(
+        `INSERT INTO customers
+           (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(license_plate) DO UPDATE SET
+           plate_province = COALESCE(excluded.plate_province, customers.plate_province),
+           customer_name = COALESCE(excluded.customer_name, customers.customer_name),
+           phone = COALESCE(excluded.phone, customers.phone),
+           car_model = COALESCE(excluded.car_model, customers.car_model),
+           notes = COALESCE(excluded.notes, customers.notes),
+           updated_at = excluded.updated_at`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        plate,
+        nn(record["plate_province"]),
+        nn(record["customer_name"]),
+        nn(record["phone"]),
+        nn(record["car_model"]),
+        nn(record["notes"]),
+        now,
+        now,
+      ),
+  );
+  if (statements.length > 0) await db.batch(statements);
+
+  const created = unique.filter((u) => !existing.has(u.plate)).length;
+  return {
+    received: Math.max(0, rows.length - 1),
+    created,
+    updated: unique.length - created,
+    duplicates,
+    invalid: errors.length,
+    errors,
+  };
+}
+
 export interface CreateProductInput {
   /** The Product ID (manufacturer/catalog part no.) — the sole product identifier and barcode source. */
   productRef: string;
@@ -1539,24 +1631,32 @@ export async function upsertCustomerByPlate(
 }
 
 /**
- * The customer/car list — derived from bills (so a car appears as soon as it has one), LEFT JOINed
- * to the directory for the editable name/phone. `q` matches plate, phone, or name (empty = all).
+ * The customer/car list — the UNION of the directory (so an imported customer appears before its
+ * first bill) and billed plates (so a car appears as soon as it has a bill, even with no directory
+ * row). Bill stats come from a grouped LEFT JOIN; directory-only rows get billCount 0 and sort
+ * after recently billed cars. `q` matches plate, phone, name, vehicle, or car model (empty = all).
  */
 export async function searchCustomers(db: D1Database, q: string): Promise<unknown[]> {
   const term = `%${q.trim()}%`;
   const rows = await db
     .prepare(
-      `SELECT s.license_plate AS licensePlate,
-              MAX(s.vehicle) AS vehicle,
+      `SELECT x.license_plate AS licensePlate,
+              b.vehicle AS vehicle,
               c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
-              COUNT(*) AS billCount, MAX(s.created_at) AS lastVisitAt
-       FROM onsite_sales s
-       LEFT JOIN customers c ON c.license_plate = s.license_plate
-       WHERE s.stage = 'bill' AND s.license_plate IS NOT NULL AND s.license_plate <> ''
-         AND (? = '' OR s.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
-              OR s.vehicle LIKE ? OR c.car_model LIKE ?)
-       GROUP BY s.license_plate
-       ORDER BY lastVisitAt DESC
+              COALESCE(b.billCount, 0) AS billCount, b.lastVisitAt AS lastVisitAt
+       FROM (SELECT license_plate FROM customers
+             UNION
+             SELECT license_plate FROM onsite_sales
+             WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> '') x
+       LEFT JOIN customers c ON c.license_plate = x.license_plate
+       LEFT JOIN (SELECT license_plate, MAX(vehicle) AS vehicle, COUNT(*) AS billCount,
+                         MAX(created_at) AS lastVisitAt
+                  FROM onsite_sales
+                  WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
+                  GROUP BY license_plate) b ON b.license_plate = x.license_plate
+       WHERE (? = '' OR x.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
+              OR b.vehicle LIKE ? OR c.car_model LIKE ?)
+       ORDER BY COALESCE(b.lastVisitAt, 0) DESC, x.license_plate
        LIMIT 100`,
     )
     .bind(q.trim(), term, term, term, term, term)
@@ -1590,11 +1690,17 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
   const ids = sales.map((s) => s.id);
   const byId = new Map<string, unknown[]>();
   if (ids.length > 0) {
+    // productRef (the Product ID) rides along on product lines: same-brand parts interchange
+    // across car models, so only the ID says WHICH part was actually installed on this car.
     const lines = await db
       .prepare(
-        `SELECT onsite_sale_id AS onsiteSaleId, description, line_type AS lineType,
-                quantity, unit_price_satang AS unitPriceSatang, discount_satang AS discountSatang
-         FROM onsite_sale_lines WHERE onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
+        `SELECT l.onsite_sale_id AS onsiteSaleId, l.description, l.line_type AS lineType,
+                l.quantity, l.unit_price_satang AS unitPriceSatang,
+                l.discount_satang AS discountSatang, p.product_ref AS productRef
+         FROM onsite_sale_lines l
+         LEFT JOIN product_variants v ON v.id = l.product_variant_id
+         LEFT JOIN products p ON p.id = v.product_id
+         WHERE l.onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
       )
       .bind(...ids)
       .all<{ onsiteSaleId: string }>();
@@ -2883,6 +2989,15 @@ const worker = {
       const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
       return json(await importShopeeOrders(env.DB, body.csv ?? "", body.mapping ?? {}));
+    }
+
+    if (url.pathname === "/import/customers" && request.method === "POST") {
+      const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (!body.mapping?.["license_plate"]) {
+        return json({ error: "the license-plate column must be mapped" }, 400);
+      }
+      return json(await importCustomers(env.DB, body.csv ?? "", body.mapping));
     }
 
     if (url.pathname === "/sync" && request.method === "POST") {
