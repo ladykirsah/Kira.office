@@ -50,8 +50,9 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         </div>
       </td>
       <td style={{ verticalAlign: "top" }}>
-        {/* Aligned invoice columns: item · part ID · price. The ID column only exists when some
-            line has one — service-only bills keep their clean two-column look. */}
+        {/* Aligned invoice columns: [item][part ID] …gap… [price] — the ID column starts right
+            after the longest item name; prices stay on the far right. The ID column only exists
+            when some line has one — service-only bills keep their clean two-column look. */}
         {sale.lines.length === 0 ? (
           <span className="muted">No items.</span>
         ) : (
@@ -59,7 +60,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
             style={{
               display: "grid",
               gridTemplateColumns: sale.lines.some((l) => l.productRef)
-                ? "1fr max-content max-content"
+                ? "max-content 1fr max-content"
                 : "1fr max-content",
               columnGap: 14,
               rowGap: 4,
