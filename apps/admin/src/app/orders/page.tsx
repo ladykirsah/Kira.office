@@ -59,6 +59,7 @@ export default function OrdersPage() {
   // Load a chosen file into the CSV box: a Shopee .xlsx is parsed + normalized in-browser (all its
   // cells are text, so no heavy library); a .csv is read as-is. The user still reviews then Imports.
   const readingFile = useRef(false); // guard: an earlier slow parse must not clobber a newer pick
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // let the same file be re-picked
@@ -120,11 +121,22 @@ export default function OrdersPage() {
         }
       />
       <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
-        <label className="btn-soft btn-sm" style={{ cursor: "pointer" }}>
+        {/* A real <button> (not a label) so it gets the app's button styling (radius/weight/hover). */}
+        <button
+          type="button"
+          className="btn-soft btn-sm"
+          onClick={() => fileInputRef.current?.click()}
+        >
           Upload Shopee export…
-          <input type="file" accept=".xlsx,.csv" onChange={onFile} style={{ display: "none" }} />
-        </label>
+        </button>
         <small className="muted">.xlsx or .csv — or paste below</small>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.csv"
+          onChange={onFile}
+          style={{ display: "none" }}
+        />
       </div>
       <textarea
         value={csv}
