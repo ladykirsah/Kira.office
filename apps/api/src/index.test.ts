@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import worker, {
   addBarcodeToProduct,
   applyAdjustmentToDb,
@@ -24,6 +24,7 @@ import worker, {
   addCarModel,
   updateCarModel,
   updateProduct,
+  confirmPaymentWithSlip,
   importCustomers,
   importCustomerHistory,
   importProducts,
@@ -108,6 +109,8 @@ function makeDb(canned: {
   existingCustomers?: string[];
   historyEntries?: unknown[];
   batchChanges?: number[];
+  paymentById?: unknown | null;
+  slipRefOwner?: { id: string } | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -168,6 +171,9 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("FROM payments WHERE slip_ref"))
+          return (canned.slipRefOwner ?? null) as T | null;
+        if (sql.includes("FROM payments WHERE id")) return (canned.paymentById ?? null) as T | null;
         if (sql.includes("SELECT product_ref AS productRef"))
           return (canned.productRef ?? null) as T | null;
         if (sql.includes("SELECT id FROM products WHERE product_ref"))
@@ -2351,5 +2357,84 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
     const body = (await res.json()) as { legacy: { description: string }[] };
     expect(body.legacy).toHaveLength(1);
     expect(body.legacy[0]?.description).toBe("เปลี่ยนคอม");
+  });
+});
+
+describe("confirmPaymentWithSlip (Payment auto-confirm via slip verification)", () => {
+  const APPROVED = {
+    id: "pay1",
+    amountSatang: 145000,
+    status: "approved",
+    slipRef: null,
+  };
+  const CONFIG = { SLIPOK_API_KEY: "k", SLIPOK_BRANCH_ID: "b" };
+  const QR = "00460006000001010302TH9104ABCD1234EFGH5678IJKL";
+
+  function stubSlipOk(response: unknown, status = 200) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(response), { status })),
+    );
+  }
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 501-style result when SlipOK credentials are not configured", async () => {
+    const { db } = makeDb({ paymentById: APPROVED });
+    const out = await confirmPaymentWithSlip(db, {}, "pay1", QR);
+    expect(out).toMatchObject({ ok: false, code: 501 });
+  });
+
+  it("404s an unknown payment", async () => {
+    const { db } = makeDb({ paymentById: null });
+    const out = await confirmPaymentWithSlip(db, CONFIG, "nope", QR);
+    expect(out).toMatchObject({ ok: false, code: 404 });
+  });
+
+  it("rejects a QR payload that cannot be a slip", async () => {
+    const { db } = makeDb({ paymentById: APPROVED });
+    const out = await confirmPaymentWithSlip(db, CONFIG, "pay1", "hi");
+    expect(out).toMatchObject({ ok: false, code: 400 });
+  });
+
+  it("refuses a payment that is already confirmed", async () => {
+    const { db } = makeDb({ paymentById: { ...APPROVED, status: "confirmed" } });
+    const out = await confirmPaymentWithSlip(db, CONFIG, "pay1", QR);
+    expect(out).toMatchObject({ ok: false, code: 409 });
+  });
+
+  it("ANTI-CHEAT: refuses a slip already used to confirm another payment", async () => {
+    const { db } = makeDb({ paymentById: APPROVED, slipRefOwner: { id: "other-payment" } });
+    stubSlipOk({ success: true, data: { transRef: "TR123", amount: 1450 } });
+    const out = await confirmPaymentWithSlip(db, CONFIG, "pay1", QR);
+    expect(out).toMatchObject({ ok: false, code: 409 });
+    expect(String((out as { error: string }).error)).toMatch(/already/i);
+  });
+
+  it("fails when the provider rejects the slip", async () => {
+    const { db } = makeDb({ paymentById: APPROVED });
+    stubSlipOk({ success: false, message: "Invalid slip" }, 400);
+    const out = await confirmPaymentWithSlip(db, CONFIG, "pay1", QR);
+    expect(out).toMatchObject({ ok: false, code: 422 });
+  });
+
+  it("fails when the slip amount does not match the payment", async () => {
+    const { db } = makeDb({ paymentById: APPROVED });
+    stubSlipOk({ success: true, data: { transRef: "TR123", amount: 999 } }); // ฿999 ≠ ฿1,450
+    const out = await confirmPaymentWithSlip(db, CONFIG, "pay1", QR);
+    expect(out).toMatchObject({ ok: false, code: 422 });
+    expect(String((out as { error: string }).error)).toMatch(/amount/i);
+  });
+
+  it("confirms on a valid matching slip: status → confirmed with the bank reference stored", async () => {
+    const { db, runs } = makeDb({ paymentById: APPROVED });
+    stubSlipOk({ success: true, data: { transRef: "TR123", amount: 1450 } });
+    const out = await confirmPaymentWithSlip(db, CONFIG, "pay1", QR);
+    expect(out).toMatchObject({ ok: true, ref: "TR123" });
+    const upd = runs.find((r) => r.sql.includes("UPDATE payments SET status = 'confirmed'"));
+    expect(upd).toBeDefined();
+    expect(upd?.binds[0]).toBe("TR123");
+    expect(upd?.binds[3]).toBe("pay1");
   });
 });

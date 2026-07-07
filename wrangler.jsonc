@@ -37,7 +37,7 @@
   //   "producers": [{ "binding": "SHOPEE_QUEUE", "queue": "kira-shopee-sync" }],
   //   "consumers": [{ "queue": "kira-shopee-sync", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "kira-shopee-sync-dlq" }]
   // },
-  // Secrets (set via `wrangler secret put`, never vars): ACCESS_TEAM_DOMAIN, ACCESS_AUD
+  // Secrets (set via `wrangler secret put`, never vars): ACCESS_TEAM_DOMAIN, ACCESS_AUD, SLIPOK_API_KEY, SLIPOK_BRANCH_ID
   // Optional var: ALLOWED_CORS_ORIGINS (comma-separated; defaults include localhost:3000 + app.homeseeker.me)
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the deploy token (CLOUDFLARE_API_TOKEN) to have zone
