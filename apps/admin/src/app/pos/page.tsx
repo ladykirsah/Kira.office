@@ -1882,8 +1882,10 @@ export default function PosPage() {
                       ))}
                     </select>
                   </div>
+                  {/* Plate number + province belong together — both are printed on the physical
+                      plate (same number repeats across provinces). Mileage is service info. */}
                   <div style={{ marginTop: 12 }}>
-                    <div style={fieldLabel}>Plate / mileage</div>
+                    <div style={fieldLabel}>Plate</div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input
                         value={plate}
@@ -1892,31 +1894,33 @@ export default function PosPage() {
                         style={{ flex: 1, minWidth: 0 }}
                       />
                       <input
+                        value={province}
+                        onChange={(e) => setProvince(e.target.value)}
+                        placeholder="จังหวัด (บนป้ายทะเบียน)"
+                        list="thai-provinces"
+                        aria-label="Plate province"
+                        style={{ width: 200 }}
+                      />
+                      <datalist id="thai-provinces">
+                        {THAI_PROVINCES.map((p) => (
+                          <option key={p} value={p} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <div style={fieldLabel}>Mileage</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
                         value={mileage}
                         onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
                         placeholder="Mileage"
                         inputMode="numeric"
                         aria-label="Mileage (km)"
-                        style={{ width: 120 }}
+                        style={{ width: 160 }}
                       />
                       <span className="muted">km</span>
                     </div>
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <div style={fieldLabel}>Province</div>
-                    <input
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value)}
-                      placeholder="จังหวัด (บนป้ายทะเบียน)"
-                      list="thai-provinces"
-                      aria-label="Plate province"
-                      style={{ width: "100%" }}
-                    />
-                    <datalist id="thai-provinces">
-                      {THAI_PROVINCES.map((p) => (
-                        <option key={p} value={p} />
-                      ))}
-                    </datalist>
                   </div>
                 </div>
               </div>
