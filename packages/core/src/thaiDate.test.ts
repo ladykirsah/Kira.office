@@ -37,3 +37,19 @@ describe("parseThaiDateMs", () => {
     expect(parseThaiDateMs("31 xxx 68")).toBeNull();
   });
 });
+
+describe("parseThaiDateMs > impossible calendar days", () => {
+  it("rejects days that do not exist in the month (no silent roll-over)", () => {
+    // A transcription typo must become a row error, not a silently shifted date:
+    // Date.parse("2025-04-31T00:00:00+07:00") rolls to May 1 — we must catch it.
+    expect(parseThaiDateMs("31 เมย 68")).toBeNull(); // April has 30 days
+    expect(parseThaiDateMs("29 กพ 68")).toBeNull(); // 2025 is not a leap year
+    expect(parseThaiDateMs("30 กพ 68")).toBeNull();
+    expect(parseThaiDateMs("31/4/68")).toBeNull();
+    expect(parseThaiDateMs("31/11/68")).toBeNull();
+  });
+
+  it("still accepts a real leap day (29 กพ 2567 → 2024-02-29)", () => {
+    expect(parseThaiDateMs("29 กพ 67")).toBe(Date.parse("2024-02-29T00:00:00+07:00"));
+  });
+});

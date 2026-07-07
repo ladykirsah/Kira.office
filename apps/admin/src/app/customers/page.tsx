@@ -525,12 +525,12 @@ export default function CustomersPage() {
           <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Purchase &amp; repair history</h2>
           {!detail ? (
             <p className="muted">Loading…</p>
-          ) : detail.history.length + detail.legacy.length === 0 ? (
+          ) : detail.history.length + (detail.legacy?.length ?? 0) === 0 ? (
             <div className="empty">
               <div className="empty-icon">🧾</div>No bills yet for this car.
             </div>
           ) : (
-            <BillTable sales={detail.history} legacy={detail.legacy} />
+            <BillTable sales={detail.history} legacy={detail.legacy ?? []} />
           )}
         </div>
       </main>
@@ -619,6 +619,27 @@ export default function CustomersPage() {
               <div style={{ ...tableText.body1, fontWeight: 600 }}>
                 Import {imp.fileName}
                 {imp.kind === "history" && " — service history"}
+                {/* auto-detection can misfire (e.g. a customer list with a date column) — let the user flip it */}
+                <button
+                  type="button"
+                  className="btn-sm"
+                  style={{ marginLeft: 10, minHeight: 0, padding: "2px 8px" }}
+                  onClick={() => {
+                    const kind = imp.kind === "history" ? "customers" : "history";
+                    setImpResult(null);
+                    setImpHistoryResult(null);
+                    setImp({
+                      ...imp,
+                      kind,
+                      mapping:
+                        kind === "history"
+                          ? guessHistoryMapping(imp.rows[0] ?? [])
+                          : guessCustomerMapping(imp.rows[0] ?? []),
+                    });
+                  }}
+                >
+                  {imp.kind === "history" ? "Treat as customer list" : "Treat as service history"}
+                </button>
               </div>
               <div style={{ ...tableText.subtitle, marginTop: 2 }}>
                 {imp.rows.length - 1} data rows — match each field to a column, check the preview,

@@ -856,7 +856,7 @@ export async function importCustomers(
     updated: unique.length - created,
     duplicates,
     invalid: errors.length,
-    errors,
+    errors: errors.slice(0, 500), // `invalid` keeps the true count; a garbage file shouldn't emit MBs of JSON
   };
 }
 
@@ -935,15 +935,26 @@ export async function importCustomerHistory(
         .bind(crypto.randomUUID(), plate, null, null, null, null, null, now, now),
     );
   }
-  if (statements.length > 0) await db.batch(statements);
+  // Real D1 reports meta.changes per statement; an INSERT OR IGNORE suppressed by the UNIQUE key
+  // shows 0 — count those as duplicates so a re-import truthfully reports what was written.
+  let written = entries.length;
+  if (statements.length > 0) {
+    const results = await db.batch(statements);
+    written = results
+      .slice(0, entries.length)
+      .reduce(
+        (n, r) => n + ((r as { meta?: { changes?: number } }).meta?.changes === 0 ? 0 : 1),
+        0,
+      );
+  }
 
   errors.sort((a, b) => a.rowIndex - b.rowIndex);
   return {
     received: Math.max(0, rows.length - 1),
-    imported: entries.length,
-    duplicates,
+    imported: written,
+    duplicates: duplicates + (entries.length - written),
     invalid: errors.length,
-    errors,
+    errors: errors.slice(0, 500), // `invalid` keeps the true count; a garbage file shouldn't emit MBs of JSON
   };
 }
 
@@ -1452,6 +1463,12 @@ const BACKUP_TABLES = [
   "stock_ledger_entries",
   "sales_orders",
   "financial_records",
+  // Irreplaceable/anti-cheat data added 2026-07: the customer directory, the payment approval
+  // trail, the audit log, and hand-transcribed legacy service history.
+  "customers",
+  "payments",
+  "audit_logs",
+  "customer_history_entries",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */

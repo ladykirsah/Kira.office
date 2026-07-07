@@ -107,6 +107,7 @@ function makeDb(canned: {
   userRow?: { id: string; role: "owner" | "manager" | "stock_operator" | "finance_viewer" } | null;
   existingCustomers?: string[];
   historyEntries?: unknown[];
+  batchChanges?: number[];
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -216,8 +217,9 @@ function makeDb(canned: {
           );
         }
       }
+      const base = batched.length;
       batched.push(...stmts);
-      return stmts.map(() => ({}));
+      return stmts.map((_, i) => ({ meta: { changes: canned.batchChanges?.[base + i] ?? 1 } }));
     },
   } as unknown as D1Database;
   return { db, env: { DB: db } as unknown as Env, batched, runs, alls };
@@ -1213,7 +1215,13 @@ describe("runDailyBackup", () => {
     const key = await runDailyBackup(env, 0);
     expect(key).toBe("backups/1970-01-01.json");
     expect(puts.length).toBe(1);
-    expect(JSON.parse(puts[0]!.body)).toHaveProperty("tables");
+    const dump = JSON.parse(puts[0]!.body) as { tables: Record<string, unknown[]> };
+    expect(dump).toHaveProperty("tables");
+    // Irreplaceable data must be in the daily dump: the customer directory, the anti-cheat
+    // payment trail, the audit log, and hand-transcribed legacy history.
+    for (const table of ["customers", "payments", "audit_logs", "customer_history_entries"]) {
+      expect(Object.keys(dump.tables)).toContain(table);
+    }
   });
 
   it("uses BACKUPS bucket when bound", async () => {
@@ -2302,6 +2310,18 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
     );
     expect(out).toMatchObject({ received: 2, imported: 1, duplicates: 1 });
     expect(batched.filter((s) => s.sql.includes("customer_history_entries"))).toHaveLength(1);
+  });
+
+  it("re-import counts DB-suppressed rows as duplicates, not imported (INSERT OR IGNORE truth)", async () => {
+    // Real D1 reports meta.changes = 0 when the UNIQUE key suppresses an insert; the counters
+    // must reflect that — the UI promises "records already imported are skipped".
+    const { db } = makeDb({ batchChanges: [1, 0, 1] }); // entry A written, entry B suppressed, upsert
+    const out = await importCustomerHistory(
+      db,
+      "ทะเบียน,วันที่,รายการ\nกข 1,31 มีค 68,งาน A\nกข 1,9 พค 65,งาน B\n",
+      mapping,
+    );
+    expect(out).toMatchObject({ received: 2, imported: 1, duplicates: 1, invalid: 0 });
   });
 
   it("POST /import/customer-history > 400 when a required column is not mapped", async () => {

@@ -30,9 +30,16 @@ function toMs(year: number, month: number, day: number): number | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   const mm = String(month).padStart(2, "0");
   const dd = String(day).padStart(2, "0");
-  // Anchor to Bangkok midnight; Date.parse rejects impossible calendar dates (e.g. Apr 31).
   const t = Date.parse(`${year}-${mm}-${dd}T00:00:00+07:00`);
-  return Number.isFinite(t) ? t : null;
+  if (!Number.isFinite(t)) return null;
+  // Date.parse ROLLS impossible calendar dates over (Apr 31 → May 1) instead of rejecting them —
+  // a transcription typo must become a row error, not a silently shifted date. Round-trip check:
+  // shift by +07:00 so the UTC getters read Bangkok wall-clock, and demand the same y/m/d back.
+  const rt = new Date(t + 7 * 3600 * 1000);
+  if (rt.getUTCFullYear() !== year || rt.getUTCMonth() + 1 !== month || rt.getUTCDate() !== day) {
+    return null;
+  }
+  return t;
 }
 
 export function parseThaiDateMs(s: string): number | null {
