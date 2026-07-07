@@ -4,6 +4,7 @@ import {
   lineTaxSatang,
   partitionByClientUuid,
   parseCsv,
+  parseThaiDateMs,
   mapRows,
   dedupeOrders,
   orderKey,
@@ -855,7 +856,105 @@ export async function importCustomers(
     updated: unique.length - created,
     duplicates,
     invalid: errors.length,
-    errors,
+    errors: errors.slice(0, 500), // `invalid` keeps the true count; a garbage file shouldn't emit MBs of JSON
+  };
+}
+
+export interface HistoryImportResult {
+  received: number;
+  imported: number;
+  duplicates: number;
+  invalid: number;
+  errors: RowError[];
+}
+
+/**
+ * Bulk import of transcribed legacy service history (one row per old paper/Excel bill) — MEMORY,
+ * NOT MONEY: entries only show on the car's timeline; they never touch stock, revenue, or bill
+ * numbering. Idempotent: the (plate, date, text) unique key + INSERT OR IGNORE make re-imports
+ * safe. Each plate also gets a bare directory row so the car appears on the Customers list.
+ */
+export async function importCustomerHistory(
+  db: D1Database,
+  csv: string,
+  mapping: Record<string, string>,
+): Promise<HistoryImportResult> {
+  const rows = parseCsv(csv);
+  const { records, recordIndices, errors } = mapRows(rows, mapping, [
+    "license_plate",
+    "happened_at",
+    "description",
+  ]);
+
+  const seen = new Set<string>();
+  const entries: { plate: string; happenedAt: number; description: string }[] = [];
+  let duplicates = 0;
+  for (let r = 0; r < records.length; r++) {
+    const record = records[r]!;
+    const plate = normalizePlate(record["license_plate"] ?? "");
+    const happenedAt = parseThaiDateMs(record["happened_at"] ?? "");
+    if (happenedAt == null) {
+      errors.push({
+        rowIndex: recordIndices[r]!,
+        reason: `unreadable date: "${record["happened_at"]}"`,
+      });
+      continue;
+    }
+    const description = record["description"] ?? "";
+    const key = `${plate}|${happenedAt}|${description}`;
+    if (seen.has(key)) {
+      duplicates++;
+      continue;
+    }
+    seen.add(key);
+    entries.push({ plate, happenedAt, description });
+  }
+
+  const now = Date.now();
+  const statements = entries.map((e) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO customer_history_entries
+           (id, license_plate, happened_at, description, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), e.plate, e.happenedAt, e.description, now),
+  );
+  // A bare directory row per plate (all-NULL fields; COALESCE keeps anything already saved) so
+  // imported cars show on the Customers list before their first Kira bill.
+  for (const plate of new Set(entries.map((e) => e.plate))) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO customers
+             (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(license_plate) DO UPDATE SET
+             updated_at = customers.updated_at`,
+        )
+        .bind(crypto.randomUUID(), plate, null, null, null, null, null, now, now),
+    );
+  }
+  // Real D1 reports meta.changes per statement; an INSERT OR IGNORE suppressed by the UNIQUE key
+  // shows 0 — count those as duplicates so a re-import truthfully reports what was written.
+  let written = entries.length;
+  if (statements.length > 0) {
+    const results = await db.batch(statements);
+    written = results
+      .slice(0, entries.length)
+      .reduce(
+        (n, r) => n + ((r as { meta?: { changes?: number } }).meta?.changes === 0 ? 0 : 1),
+        0,
+      );
+  }
+
+  errors.sort((a, b) => a.rowIndex - b.rowIndex);
+  return {
+    received: Math.max(0, rows.length - 1),
+    imported: written,
+    duplicates: duplicates + (entries.length - written),
+    invalid: errors.length,
+    errors: errors.slice(0, 500), // `invalid` keeps the true count; a garbage file shouldn't emit MBs of JSON
   };
 }
 
@@ -1364,6 +1463,12 @@ const BACKUP_TABLES = [
   "stock_ledger_entries",
   "sales_orders",
   "financial_records",
+  // Irreplaceable/anti-cheat data added 2026-07: the customer directory, the payment approval
+  // trail, the audit log, and hand-transcribed legacy service history.
+  "customers",
+  "payments",
+  "audit_logs",
+  "customer_history_entries",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
@@ -1711,11 +1816,22 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
     }
   }
   const withLines = sales.map((s) => ({ ...s, lines: byId.get(s.id) ?? [] }));
+  // Transcribed legacy service history (paper/Excel era) — shown on the same timeline, but these
+  // are memory-only rows: no totals, no reprint, never in Sales.
+  const legacy = await db
+    .prepare(
+      `SELECT id, happened_at AS happenedAt, description
+       FROM customer_history_entries WHERE license_plate = ?
+       ORDER BY happened_at DESC LIMIT 500`,
+    )
+    .bind(normalizePlate(plate))
+    .all();
   return {
     customer: customer ?? null,
     vehicle: sales[0]?.vehicle ?? null,
     history: withLines.filter((s) => s.stage === "bill"),
     quotations: withLines.filter((s) => s.stage === "quotation"),
+    legacy: legacy.results ?? [],
   };
 }
 
@@ -2998,6 +3114,16 @@ const worker = {
         return json({ error: "the license-plate column must be mapped" }, 400);
       }
       return json(await importCustomers(env.DB, body.csv ?? "", body.mapping));
+    }
+
+    if (url.pathname === "/import/customer-history" && request.method === "POST") {
+      const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      const missing = ["license_plate", "happened_at", "description"].find(
+        (f) => !body.mapping?.[f],
+      );
+      if (missing) return json({ error: `the ${missing} column must be mapped` }, 400);
+      return json(await importCustomerHistory(env.DB, body.csv ?? "", body.mapping!));
     }
 
     if (url.pathname === "/sync" && request.method === "POST") {

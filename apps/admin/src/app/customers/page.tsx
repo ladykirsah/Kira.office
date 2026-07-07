@@ -9,19 +9,26 @@ import {
   getCustomerDetail,
   saveCustomer,
   importCustomersCsv,
+  importCustomerHistoryCsv,
   type CustomerImportResult,
+  type CustomerLegacyEntry,
   type CustomerListItem,
   type CustomerDetail,
   type CustomerSale,
   type CustomerSaleLine,
+  type HistoryImportResult,
 } from "@/lib/api";
 import {
+  CUSTOMER_HISTORY_FIELDS,
   CUSTOMER_IMPORT_FIELDS,
   guessCustomerMapping,
+  guessHistoryMapping,
+  looksLikeHistorySheet,
   parseCsv,
   rowsToCsv,
   xlsxToRows,
 } from "@l-shopee/core";
+import { THAI_PROVINCES } from "@/lib/provinces";
 import { formatBahtTrim } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
@@ -128,8 +135,44 @@ function BillRow({ sale }: { sale: CustomerSale }) {
   );
 }
 
-/** A framed Date · Bill · Items · Action table of bills/quotations. */
-function BillTable({ sales }: { sales: CustomerSale[] }) {
+/** A transcribed old-book record on the same timeline: real old date + free-text work done. */
+function LegacyRow({ entry }: { entry: CustomerLegacyEntry }) {
+  return (
+    <tr>
+      <td style={{ whiteSpace: "nowrap", verticalAlign: "top" }}>
+        <div style={tableText.body2}>{new Date(entry.happenedAt).toLocaleDateString("th-TH")}</div>
+        <div style={tableText.subtitle}>legacy</div>
+      </td>
+      <td style={{ verticalAlign: "top" }}>
+        <div style={{ ...tableText.body2, whiteSpace: "pre-wrap" }}>{entry.description}</div>
+      </td>
+      <td />
+    </tr>
+  );
+}
+
+/** A framed Date · Items · Action table: Kira bills merged with legacy records, newest first. */
+function BillTable({
+  sales,
+  legacy = [],
+}: {
+  sales: CustomerSale[];
+  legacy?: CustomerLegacyEntry[];
+}) {
+  const rows = [
+    ...sales.map((s) => ({
+      at: s.createdAt,
+      key: `s-${s.id}`,
+      sale: s,
+      entry: null as CustomerLegacyEntry | null,
+    })),
+    ...legacy.map((e) => ({
+      at: e.happenedAt,
+      key: `l-${e.id}`,
+      sale: null as CustomerSale | null,
+      entry: e,
+    })),
+  ].sort((a, b) => b.at - a.at);
   return (
     <TableFrame>
       <table>
@@ -141,9 +184,13 @@ function BillTable({ sales }: { sales: CustomerSale[] }) {
           </tr>
         </thead>
         <tbody>
-          {sales.map((s) => (
-            <BillRow key={s.id} sale={s} />
-          ))}
+          {rows.map((r) =>
+            r.sale ? (
+              <BillRow key={r.key} sale={r.sale} />
+            ) : (
+              <LegacyRow key={r.key} entry={r.entry!} />
+            ),
+          )}
         </tbody>
       </table>
     </TableFrame>
@@ -168,14 +215,16 @@ export default function CustomersPage() {
   const [showNotes, setShowNotes] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ── Import (legacy customer Excel) ──
+  // ── Import (legacy customer Excel / service-history sheet) ──
   const [imp, setImp] = useState<{
     fileName: string;
+    kind: "customers" | "history";
     rows: string[][];
     mapping: Record<string, string>;
   } | null>(null);
   const [importing, setImporting] = useState(false);
   const [impResult, setImpResult] = useState<CustomerImportResult | null>(null);
+  const [impHistoryResult, setImpHistoryResult] = useState<HistoryImportResult | null>(null);
   const readingFile = useRef(false); // guard: an earlier slow parse must not clobber a newer pick
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -193,7 +242,15 @@ export default function CustomersPage() {
         return;
       }
       setImpResult(null);
-      setImp({ fileName: file.name, rows, mapping: guessCustomerMapping(rows[0] ?? []) });
+      setImpHistoryResult(null);
+      // One button, two template tabs: a sheet with date + work columns is the history tab.
+      const history = looksLikeHistorySheet(rows[0] ?? []);
+      setImp({
+        fileName: file.name,
+        kind: history ? "history" : "customers",
+        rows,
+        mapping: history ? guessHistoryMapping(rows[0] ?? []) : guessCustomerMapping(rows[0] ?? []),
+      });
     } catch (err) {
       toast(`Couldn't read ${file.name}: ${(err as Error).message}`, "error");
     } finally {
@@ -209,21 +266,73 @@ export default function CustomersPage() {
     setImp({ ...imp, mapping });
   }
 
+  const historyReady =
+    imp?.kind === "history" &&
+    imp.mapping["license_plate"] != null &&
+    imp.mapping["happened_at"] != null &&
+    imp.mapping["description"] != null;
+  const importReady = imp?.kind === "history" ? historyReady : !!imp?.mapping["license_plate"];
+
   async function runImport() {
-    if (!imp || !imp.mapping["license_plate"]) return;
+    if (!imp || !importReady) return;
     setImporting(true);
     try {
-      const out = await importCustomersCsv(rowsToCsv(imp.rows), imp.mapping);
-      setImpResult(out);
-      toast(
-        `Imported ${out.created + out.updated} customers — ${out.created} new · ${out.updated} updated`,
-        "success",
-      );
+      if (imp.kind === "history") {
+        const out = await importCustomerHistoryCsv(rowsToCsv(imp.rows), imp.mapping);
+        setImpHistoryResult(out);
+        toast(`Imported ${out.imported} history records`, "success");
+      } else {
+        const out = await importCustomersCsv(rowsToCsv(imp.rows), imp.mapping);
+        setImpResult(out);
+        toast(
+          `Imported ${out.created + out.updated} customers — ${out.created} new · ${out.updated} updated`,
+          "success",
+        );
+      }
       setList(await searchCustomers(q));
     } catch {
       toast("Import failed.", "error");
     } finally {
       setImporting(false);
+    }
+  }
+
+  // ── Add customer (single walk-in record; bulk entry belongs in the Sheet + Import) ──
+  const [showAdd, setShowAdd] = useState(false);
+  const [add, setAdd] = useState({
+    plate: "",
+    province: "",
+    name: "",
+    phone: "",
+    carModel: "",
+    notes: "",
+  });
+  const [addSaving, setAddSaving] = useState(false);
+
+  async function saveNewCustomer() {
+    const plate = add.plate.trim();
+    if (!plate) return;
+    setAddSaving(true);
+    try {
+      // Empty fields go as undefined (dropped from JSON): saving a plate that already exists
+      // must never blank data someone typed earlier ("" would clear via the API's contract).
+      const nn = (v: string) => (v.trim() ? v.trim() : undefined);
+      await saveCustomer({
+        licensePlate: plate,
+        plateProvince: nn(add.province),
+        customerName: nn(add.name),
+        phone: nn(add.phone),
+        carModel: nn(add.carModel),
+        notes: nn(add.notes),
+      });
+      toast("Customer saved ✓", "success");
+      setShowAdd(false);
+      setAdd({ plate: "", province: "", name: "", phone: "", carModel: "", notes: "" });
+      openCar(plate);
+    } catch {
+      toast("Couldn't save.", "error");
+    } finally {
+      setAddSaving(false);
     }
   }
 
@@ -416,12 +525,12 @@ export default function CustomersPage() {
           <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Purchase &amp; repair history</h2>
           {!detail ? (
             <p className="muted">Loading…</p>
-          ) : detail.history.length === 0 ? (
+          ) : detail.history.length + (detail.legacy?.length ?? 0) === 0 ? (
             <div className="empty">
               <div className="empty-icon">🧾</div>No bills yet for this car.
             </div>
           ) : (
-            <BillTable sales={detail.history} />
+            <BillTable sales={detail.history} legacy={detail.legacy ?? []} />
           )}
         </div>
       </main>
@@ -429,7 +538,8 @@ export default function CustomersPage() {
   }
 
   // ── List view: all cars ──
-  const mappedFields = CUSTOMER_IMPORT_FIELDS.filter((f) => imp?.mapping[f.field]);
+  const panelFields = imp?.kind === "history" ? CUSTOMER_HISTORY_FIELDS : CUSTOMER_IMPORT_FIELDS;
+  const mappedFields = panelFields.filter((f) => imp?.mapping[f.field]);
   const headerIndexOf = (field: string) => (imp ? imp.rows[0]!.indexOf(imp.mapping[field]!) : -1);
   return (
     <main>
@@ -440,6 +550,9 @@ export default function CustomersPage() {
       {/* A real <button> (not a label) so it gets the app's button styling; it drives the
           hidden file input via ref. */}
       <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+        <button type="button" className="btn-soft btn-sm" onClick={() => setShowAdd((v) => !v)}>
+          Add customer
+        </button>
         <button
           type="button"
           className="btn-soft btn-sm"
@@ -447,7 +560,7 @@ export default function CustomersPage() {
         >
           Import
         </button>
-        <small className="muted">.xlsx or .csv — your customer list file</small>
+        <small className="muted">.xlsx or .csv — customer list or service-history file</small>
         <input
           ref={fileInputRef}
           type="file"
@@ -456,15 +569,84 @@ export default function CustomersPage() {
           style={{ display: "none" }}
         />
       </div>
+      {showAdd && (
+        <div style={{ ...frame, marginBottom: 24 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            {(
+              [
+                ["License plate *", "plate", 160],
+                ["Province", "province", 170],
+                ["Name", "name", 200],
+                ["Phone", "phone", 160],
+                ["Car model", "carModel", 180],
+                ["Notes", "notes", 220],
+              ] as const
+            ).map(([label, field, width]) => (
+              <label key={field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={tableText.subtitle}>{label}</span>
+                <input
+                  value={add[field]}
+                  onChange={(e) => setAdd({ ...add, [field]: e.target.value })}
+                  list={field === "province" ? "add-province-options" : undefined}
+                  style={{ ...inputS, width }}
+                />
+              </label>
+            ))}
+            <datalist id="add-province-options">
+              {THAI_PROVINCES.map((pv) => (
+                <option key={pv} value={pv} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={saveNewCustomer}
+              disabled={addSaving || !add.plate.trim()}
+              style={inputS}
+            >
+              {addSaving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setShowAdd(false)} style={inputS}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {imp && (
         <div style={{ ...frame, marginBottom: 24 }}>
           <div style={{ ...rowBetween, alignItems: "baseline" }}>
             <div>
-              <div style={{ ...tableText.body1, fontWeight: 600 }}>Import {imp.fileName}</div>
+              <div style={{ ...tableText.body1, fontWeight: 600 }}>
+                Import {imp.fileName}
+                {imp.kind === "history" && " — service history"}
+                {/* auto-detection can misfire (e.g. a customer list with a date column) — let the user flip it */}
+                <button
+                  type="button"
+                  className="btn-sm"
+                  style={{ marginLeft: 10, minHeight: 0, padding: "2px 8px" }}
+                  onClick={() => {
+                    const kind = imp.kind === "history" ? "customers" : "history";
+                    setImpResult(null);
+                    setImpHistoryResult(null);
+                    setImp({
+                      ...imp,
+                      kind,
+                      mapping:
+                        kind === "history"
+                          ? guessHistoryMapping(imp.rows[0] ?? [])
+                          : guessCustomerMapping(imp.rows[0] ?? []),
+                    });
+                  }}
+                >
+                  {imp.kind === "history" ? "Treat as customer list" : "Treat as service history"}
+                </button>
+              </div>
               <div style={{ ...tableText.subtitle, marginTop: 2 }}>
                 {imp.rows.length - 1} data rows — match each field to a column, check the preview,
-                then import. Re-importing is safe: existing cars are updated, empty cells never
-                erase saved info.
+                then import. Re-importing is safe:{" "}
+                {imp.kind === "history"
+                  ? "records already imported are skipped; nothing touches stock or sales."
+                  : "existing cars are updated, empty cells never erase saved info."}
               </div>
             </div>
             <button
@@ -472,18 +654,19 @@ export default function CustomersPage() {
               onClick={() => {
                 setImp(null);
                 setImpResult(null);
+                setImpHistoryResult(null);
               }}
               style={inputS}
             >
-              {impResult ? "Close" : "Cancel"}
+              {impResult || impHistoryResult ? "Close" : "Cancel"}
             </button>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
-            {CUSTOMER_IMPORT_FIELDS.map((f) => (
+            {panelFields.map((f) => (
               <label key={f.field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={tableText.subtitle}>
                   {f.label}
-                  {f.field === "license_plate" && " *"}
+                  {(f.field === "license_plate" || imp.kind === "history") && " *"}
                 </span>
                 <select
                   value={imp.mapping[f.field] ?? ""}
@@ -535,13 +718,17 @@ export default function CustomersPage() {
               type="button"
               className="btn-primary"
               onClick={runImport}
-              disabled={importing || !imp.mapping["license_plate"]}
+              disabled={importing || !importReady}
               style={inputS}
             >
               {importing ? "Importing…" : `Import ${imp.rows.length - 1} rows`}
             </button>
-            {!imp.mapping["license_plate"] && (
-              <span style={tableText.subtitle}>Pick the license-plate column first.</span>
+            {!importReady && (
+              <span style={tableText.subtitle}>
+                {imp.kind === "history"
+                  ? "Map plate, date, and work columns first."
+                  : "Pick the license-plate column first."}
+              </span>
             )}
             {impResult && (
               <span style={tableText.body2}>
@@ -551,19 +738,28 @@ export default function CustomersPage() {
                 <strong>{impResult.invalid}</strong>
               </span>
             )}
+            {impHistoryResult && (
+              <span style={tableText.body2}>
+                Received <strong>{impHistoryResult.received}</strong> · imported{" "}
+                <strong>{impHistoryResult.imported}</strong> · duplicates{" "}
+                <strong>{impHistoryResult.duplicates}</strong> · skipped{" "}
+                <strong>{impHistoryResult.invalid}</strong>
+              </span>
+            )}
           </div>
-          {impResult && impResult.errors.length > 0 && (
-            <div style={{ ...tableText.subtitle, marginTop: 8 }}>
-              {impResult.errors.slice(0, 5).map((er) => (
-                <div key={er.rowIndex}>
-                  Row {er.rowIndex}: {er.reason}
-                </div>
-              ))}
-              {impResult.errors.length > 5 && (
-                <div>…and {impResult.errors.length - 5} more skipped rows.</div>
-              )}
-            </div>
-          )}
+          {(() => {
+            const errs = impResult?.errors ?? impHistoryResult?.errors ?? [];
+            return errs.length > 0 ? (
+              <div style={{ ...tableText.subtitle, marginTop: 8 }}>
+                {errs.slice(0, 5).map((er) => (
+                  <div key={er.rowIndex}>
+                    Row {er.rowIndex}: {er.reason}
+                  </div>
+                ))}
+                {errs.length > 5 && <div>…and {errs.length - 5} more skipped rows.</div>}
+              </div>
+            ) : null;
+          })()}
         </div>
       )}
       <div style={frame}>

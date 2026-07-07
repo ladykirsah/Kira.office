@@ -36,11 +36,14 @@ const SYNONYMS: [field: string, synonyms: string[]][] = [
  * at most one field. A header that STARTS WITH a synonym beats one that merely contains it, so the
  * pure "ทะเบียน" column wins the plate over "จังหวัดที่จดทะเบียน" regardless of column order.
  */
-export function guessCustomerMapping(headers: string[]): Record<string, string> {
+function guessMapping(
+  headers: string[],
+  fieldSynonyms: [field: string, synonyms: string[]][],
+): Record<string, string> {
   const normalized = headers.map((h) => (h ?? "").trim().toLowerCase());
   const claimed = new Set<number>();
   const mapping: Record<string, string> = {};
-  for (const [field, synonyms] of SYNONYMS) {
+  for (const [field, synonyms] of fieldSynonyms) {
     const free = (i: number) => !claimed.has(i) && normalized[i] !== "";
     const starts = normalized.findIndex((h, i) => free(i) && synonyms.some((s) => h.startsWith(s)));
     const contains = normalized.findIndex((h, i) => free(i) && synonyms.some((s) => h.includes(s)));
@@ -51,4 +54,34 @@ export function guessCustomerMapping(headers: string[]): Record<string, string> 
     }
   }
   return mapping;
+}
+
+export function guessCustomerMapping(headers: string[]): Record<string, string> {
+  return guessMapping(headers, SYNONYMS);
+}
+
+/** The history-import fields (one row per legacy bill), in display order. */
+export const CUSTOMER_HISTORY_FIELDS: CustomerImportField[] = [
+  { field: "license_plate", label: "License plate" },
+  { field: "happened_at", label: "Date" },
+  { field: "description", label: "Work / items" },
+];
+
+const HISTORY_SYNONYMS: [field: string, synonyms: string[]][] = [
+  ["license_plate", ["ทะเบียน", "plate", "license"]],
+  ["happened_at", ["วันที่", "วัน", "date"]],
+  ["description", ["รายการ", "รายละเอียด", "งาน", "description", "items", "work", "detail"]],
+];
+
+export function guessHistoryMapping(headers: string[]): Record<string, string> {
+  return guessMapping(headers, HISTORY_SYNONYMS);
+}
+
+/**
+ * Shape detection so ONE Import button accepts both template tabs: a sheet whose headers carry a
+ * date and a work-description column is the service-history tab, not the customer directory.
+ */
+export function looksLikeHistorySheet(headers: string[]): boolean {
+  const mapping = guessHistoryMapping(headers);
+  return mapping["happened_at"] != null && mapping["description"] != null;
 }
