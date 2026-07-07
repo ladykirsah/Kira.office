@@ -12,6 +12,11 @@ ACCESS_AUD=""
 # App session/auth signing secret (generate a long random string; unique per environment)
 AUTH_SECRET=""
 
+# SlipOK slip verification (Payment auto-confirm). Leave blank = feature stays manual-approve only.
+# Owner creates the SlipOK account and sets these via `wrangler secret put` in prod — see slipok.com.
+SLIPOK_API_KEY=""
+SLIPOK_BRANCH_ID=""
+
 # Shopee Open Platform (LATER PHASE — leave blank until API access is confirmed).
 # Store the real partner key only in secrets; reference by name, never paste into source or logs.
 SHOPEE_PARTNER_ID=""

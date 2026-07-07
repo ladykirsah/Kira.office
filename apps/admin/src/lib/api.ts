@@ -724,12 +724,38 @@ export interface PaymentRow {
   status: string;
   createdAt: number;
   approvedAt: number | null;
+  slipRef: string | null;
+  confirmedAt: number | null;
 }
 
-export async function fetchPayments(): Promise<PaymentRow[]> {
+export interface PaymentsView {
+  payments: PaymentRow[];
+  /** True when the Worker has SlipOK credentials — enables the Verify-slip action. */
+  slipVerifyEnabled: boolean;
+}
+
+export async function fetchPayments(): Promise<PaymentsView> {
   const res = await apiFetch(`/payments`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load payments (HTTP ${res.status})`);
-  return ((await res.json()) as { payments: PaymentRow[] }).payments;
+  const body = (await res.json()) as { payments: PaymentRow[]; slipVerifyEnabled?: boolean };
+  return { payments: body.payments, slipVerifyEnabled: body.slipVerifyEnabled ?? false };
+}
+
+/** Verify a scanned bank-slip QR against a payment; upgrades approved → confirmed. */
+export async function verifySlipForPayment(
+  paymentId: string,
+  qrData: string,
+): Promise<{ ok: true; ref: string }> {
+  const res = await apiFetch(`/payments/${encodeURIComponent(paymentId)}/verify-slip`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ qrData }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Verify failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { ok: true; ref: string };
 }
 
 export async function recordPayment(input: {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   fetchShopInfo,
   fetchPayments,
+  verifySlipForPayment,
   recordPayment,
   clearPayments,
   type PaymentRow,
@@ -11,7 +12,7 @@ import {
 import { parsePaymentMethods, defaultPaymentMethod, type PaymentMethod } from "@l-shopee/core";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
-import { inputL } from "@/lib/inputStyles";
+import { inputL, inputS } from "@/lib/inputStyles";
 import { PromptPayQr } from "../pos/PromptPayQr";
 import { ConfirmButton } from "../ConfirmButton";
 import { PageHeader } from "../PageHeader";
@@ -46,6 +47,9 @@ export default function PaymentPage() {
   const [amount, setAmount] = useState(""); // THB text input; satang derived below
   const [qr, setQr] = useState<{ method: PaymentMethod; amountSatang: number } | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [slipVerifyEnabled, setSlipVerifyEnabled] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null); // row with the slip input open
+  const [slipQr, setSlipQr] = useState("");
   const [showRecent, setShowRecent] = useState(false); // Section 2 is internal — hidden by default
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,9 +63,18 @@ export default function PaymentPage() {
       })
       .catch((e) => setError((e as Error).message));
     fetchPayments()
-      .then(setPayments)
+      .then((v) => {
+        setPayments(v.payments);
+        setSlipVerifyEnabled(v.slipVerifyEnabled);
+      })
       .catch((e) => setError((e as Error).message));
   }, []);
+
+  async function refreshPayments() {
+    const v = await fetchPayments();
+    setPayments(v.payments);
+    setSlipVerifyEnabled(v.slipVerifyEnabled);
+  }
 
   const method = methods.find((m) => m.id === methodId) ?? null;
   const amountSatang = useMemo(() => {
@@ -91,7 +104,7 @@ export default function PaymentPage() {
       );
       setQr(null);
       setAmount("");
-      setPayments(await fetchPayments()); // keep the (hidden) list fresh
+      await refreshPayments(); // keep the (hidden) list fresh
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -104,7 +117,24 @@ export default function PaymentPage() {
     try {
       const { cleared } = await clearPayments();
       toast(`Cleared ${cleared} payment(s) — records kept for reconciliation`, "success");
-      setPayments(await fetchPayments());
+      await refreshPayments();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifySlip(paymentId: string) {
+    const qrData = slipQr.trim();
+    if (!qrData) return;
+    setBusy(true);
+    try {
+      const out = await verifySlipForPayment(paymentId, qrData);
+      toast(`Slip verified ✓ ${out.ref}`, "success");
+      setVerifyingId(null);
+      setSlipQr("");
+      await refreshPayments();
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -267,6 +297,7 @@ export default function PaymentPage() {
                           <th>Account</th>
                           <th style={{ textAlign: "right" }}>Amount</th>
                           <th>Status</th>
+                          {slipVerifyEnabled && <th style={{ textAlign: "right" }}>Action</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -286,12 +317,81 @@ export default function PaymentPage() {
                                 {formatBahtTrim(p.amountSatang)}
                               </td>
                               <td>
+                                {/* With slip verification ON, "approved" means awaiting-slip (warn);
+                                    OFF keeps today's world where approved is the final good state. */}
                                 <span
-                                  className={`pill ${p.status === "approved" || p.status === "confirmed" ? "good" : p.status === "void" ? "bad" : "warn"}`}
+                                  className={`pill ${
+                                    p.status === "confirmed"
+                                      ? "good"
+                                      : p.status === "void"
+                                        ? "bad"
+                                        : p.status === "approved"
+                                          ? slipVerifyEnabled
+                                            ? "warn"
+                                            : "good"
+                                          : "warn"
+                                  }`}
                                 >
                                   {p.status}
                                 </span>
+                                {p.slipRef && (
+                                  <div
+                                    style={{
+                                      ...tableText.subtitle,
+                                      fontFamily: "var(--font-mono, monospace)",
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    {p.slipRef}
+                                  </div>
+                                )}
                               </td>
+                              {slipVerifyEnabled && (
+                                <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                  {p.status === "approved" &&
+                                    (verifyingId === p.id ? (
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          gap: 6,
+                                          alignItems: "center",
+                                        }}
+                                      >
+                                        <input
+                                          autoFocus
+                                          value={slipQr}
+                                          onChange={(e) => setSlipQr(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") verifySlip(p.id);
+                                            if (e.key === "Escape") setVerifyingId(null);
+                                          }}
+                                          placeholder="Scan slip QR…"
+                                          style={{ ...inputS, width: 180 }}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="btn-primary btn-sm"
+                                          disabled={busy || !slipQr.trim()}
+                                          onClick={() => verifySlip(p.id)}
+                                        >
+                                          Confirm
+                                        </button>
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="btn-sm"
+                                        disabled={busy}
+                                        onClick={() => {
+                                          setVerifyingId(p.id);
+                                          setSlipQr("");
+                                        }}
+                                      >
+                                        Verify slip
+                                      </button>
+                                    ))}
+                                </td>
+                              )}
                             </tr>
                           );
                         })}

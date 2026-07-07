@@ -25,6 +25,9 @@ export interface Env {
   /** Set both to enable Cloudflare Access JWT enforcement (defense-in-depth). Unset = open. */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  /** SlipOK slip-verification credentials — set both to enable Payment auto-confirm. */
+  SLIPOK_API_KEY?: string;
+  SLIPOK_BRANCH_ID?: string;
   /** Comma-separated browser origins allowed to call this API with credentials (admin UI). */
   ALLOWED_CORS_ORIGINS?: string;
 }
@@ -1092,6 +1095,8 @@ export interface PaymentRow {
   status: string;
   createdAt: number;
   approvedAt: number | null;
+  slipRef: string | null;
+  confirmedAt: number | null;
 }
 
 /** Latest UNCLEARED payment approvals — the Payment page's working list of items awaiting the
@@ -1101,7 +1106,7 @@ export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
     .prepare(
       `SELECT id, method_label AS methodLabel, promptpay_id AS promptpayId,
               amount_satang AS amountSatang, status, created_at AS createdAt,
-              approved_at AS approvedAt
+              approved_at AS approvedAt, slip_ref AS slipRef, confirmed_at AS confirmedAt
        FROM payments WHERE cleared_at IS NULL ORDER BY created_at DESC LIMIT 100`,
     )
     .all<PaymentRow>();
@@ -1116,6 +1121,118 @@ export async function clearPayments(db: D1Database): Promise<{ cleared: number }
     .bind(Date.now())
     .run();
   return { cleared: res.meta?.changes ?? 0 };
+}
+
+export type SlipConfirmResult =
+  | { ok: true; ref: string }
+  | { ok: false; code: 400 | 404 | 409 | 422 | 501 | 502; error: string };
+
+/** Both SlipOK credentials present? (Unset = the feature stays manual-approve only.) */
+export function slipVerificationConfigured(
+  env: Pick<Env, "SLIPOK_API_KEY" | "SLIPOK_BRANCH_ID">,
+): boolean {
+  return Boolean(env.SLIPOK_API_KEY && env.SLIPOK_BRANCH_ID);
+}
+
+/** Sanity check for a scanned slip mini-QR payload (bank slips carry a machine-readable QR). */
+function looksLikeSlipQr(data: string): boolean {
+  const t = data.trim();
+  return t.length >= 20 && t.length <= 1000 && !/\s/.test(t);
+}
+
+/**
+ * SlipOK adapter — the ONLY place that knows the provider's wire format, so a provider change (or
+ * an endpoint fix) touches one function. ASSUMPTION (unverified against the live API — the owner
+ * hasn't created the SlipOK account yet): POST api.slipok.com/api/line/apikey/{branchId} with
+ * x-authorization header, body {data, amount(THB)}; response {success, data:{transRef, amount}}.
+ */
+async function verifySlipWithSlipOk(
+  env: Pick<Env, "SLIPOK_API_KEY" | "SLIPOK_BRANCH_ID">,
+  qrData: string,
+  expectedAmountSatang: number,
+): Promise<
+  { ok: true; ref: string; note: string } | { ok: false; code: 422 | 502; error: string }
+> {
+  let res: Response;
+  try {
+    res = await fetch(`https://api.slipok.com/api/line/apikey/${env.SLIPOK_BRANCH_ID}`, {
+      method: "POST",
+      headers: { "x-authorization": env.SLIPOK_API_KEY!, "content-type": "application/json" },
+      body: JSON.stringify({ data: qrData, amount: expectedAmountSatang / 100 }),
+    });
+  } catch {
+    return { ok: false, code: 502, error: "slip verification service unreachable" };
+  }
+  const body = (await res.json().catch(() => null)) as {
+    success?: boolean;
+    message?: string;
+    data?: { transRef?: string; amount?: number };
+  } | null;
+  if (!body?.success || !body.data?.transRef) {
+    return { ok: false, code: 422, error: body?.message ?? "slip rejected by verifier" };
+  }
+  // Trust but verify: if the provider echoes the slip amount, it must match the payment.
+  if (
+    typeof body.data.amount === "number" &&
+    Math.round(body.data.amount * 100) !== expectedAmountSatang
+  ) {
+    return {
+      ok: false,
+      code: 422,
+      error: `slip amount ฿${body.data.amount} does not match the payment amount`,
+    };
+  }
+  return { ok: true, ref: body.data.transRef, note: JSON.stringify({ amount: body.data.amount }) };
+}
+
+/**
+ * Payment auto-confirm: verify a bank-transfer slip QR and upgrade approved → confirmed with the
+ * bank's transaction reference stored. ANTI-CHEAT: one slip confirms exactly one payment — a
+ * reused slip is refused here AND by the partial unique index on payments.slip_ref.
+ */
+export async function confirmPaymentWithSlip(
+  db: D1Database,
+  env: Pick<Env, "SLIPOK_API_KEY" | "SLIPOK_BRANCH_ID">,
+  paymentId: string,
+  qrData: string,
+): Promise<SlipConfirmResult> {
+  if (!slipVerificationConfigured(env)) {
+    return { ok: false, code: 501, error: "slip verification is not configured" };
+  }
+  const payment = await db
+    .prepare(
+      `SELECT id, amount_satang AS amountSatang, status, slip_ref AS slipRef
+       FROM payments WHERE id = ?`,
+    )
+    .bind(paymentId)
+    .first<{ id: string; amountSatang: number; status: string; slipRef: string | null }>();
+  if (!payment) return { ok: false, code: 404, error: "payment not found" };
+  if (payment.status === "confirmed") {
+    return { ok: false, code: 409, error: "payment is already confirmed" };
+  }
+  if (!looksLikeSlipQr(qrData)) {
+    return { ok: false, code: 400, error: "that does not look like a slip QR" };
+  }
+
+  const verified = await verifySlipWithSlipOk(env, qrData, payment.amountSatang);
+  if (!verified.ok) return verified;
+
+  const owner = await db
+    .prepare(`SELECT id FROM payments WHERE slip_ref = ?`)
+    .bind(verified.ref)
+    .first<{ id: string }>();
+  if (owner && owner.id !== payment.id) {
+    return { ok: false, code: 409, error: "this slip was already used to confirm another payment" };
+  }
+
+  await db
+    .prepare(
+      `UPDATE payments SET status = 'confirmed', slip_ref = ?, confirmed_at = ?, verify_note = ?
+       WHERE id = ?`,
+    )
+    .bind(verified.ref, Date.now(), verified.note, payment.id)
+    .run();
+  return { ok: true, ref: verified.ref };
 }
 
 /** Keep products.image_key pointing at the first gallery image (the cover), or null if none. */
@@ -2649,7 +2766,26 @@ const worker = {
 
     // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).
     if (url.pathname === "/payments" && request.method === "GET") {
-      return json({ payments: await listPayments(env.DB) });
+      return json({
+        payments: await listPayments(env.DB),
+        slipVerifyEnabled: slipVerificationConfigured(env),
+      });
+    }
+
+    {
+      const verify = url.pathname.match(/^\/payments\/([^/]+)\/verify-slip$/);
+      if (verify && request.method === "POST") {
+        const body = await readJson<{ qrData?: string }>(request);
+        if (!body) return json({ error: "invalid JSON body" }, 400);
+        const out = await confirmPaymentWithSlip(
+          env.DB,
+          env,
+          decodeURIComponent(verify[1]!),
+          body.qrData ?? "",
+        );
+        if (!out.ok) return json({ error: out.error }, out.code);
+        return json(out);
+      }
     }
     if (url.pathname === "/payments/clear" && request.method === "POST") {
       return json(await clearPayments(env.DB));
