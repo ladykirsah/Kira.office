@@ -257,24 +257,41 @@ function richRole(group: string, field: string): RichRole | null {
   return null;
 }
 
-/** One legacy line item folded to text: "รายการ (brand · code) — note" (blank parts drop out). */
-function formatRichLineItem(item: string, brand: string, code: string, note: string): string {
-  let s = item;
-  const extras = [brand, code].filter(Boolean).join(" · ");
-  if (extras) s += ` (${extras})`;
-  if (note) s += ` — ${note}`;
-  return s;
+/** One structured legacy line item, rendered like a Kira bill line: "name · brand" + product ID. */
+export interface RichLine {
+  /** รายการ · แบรนด์สินค้า (the brand tucks onto the item name, as on a Kira bill line). */
+  description: string;
+  /** รหัสสินค้า — the product ID, shown in faint mono; null when the row left it blank. */
+  productRef: string | null;
+}
+
+/** One transcribed visit = a bill: a date, its line items, and one bill note. */
+export interface RichVisit {
+  licensePlate: string;
+  date: string;
+  /** ประวัติ · หมายเหตุ — the visit's bill note, shown once at the bottom (like a Kira bill's note). */
+  note: string;
+  lines: RichLine[];
+}
+
+export interface RichParse {
+  customers: string[][];
+  visits: RichVisit[];
+  /** Spreadsheet row (1-based) of each visit's date, so import errors point at the row the user typed. */
+  visitSourceRows: number[];
+  errors: CombinedRowError[];
 }
 
 /**
- * Parse the grouped bill-style transcription form into the two import shapes. One block per car
- * (blank ทะเบียน = same car); within a block a visit date owns every line-item beneath it (blank
- * วันที่ = same visit), and the items fold into ONE history entry so the timeline shows a visit
- * the way a Kira bill does. Car brand/รุ่น/ปี combine into the model; multiple phones join.
+ * Parse the grouped bill-style transcription form. One block per car (blank ทะเบียน = same car);
+ * within a block a visit DATE owns every line-item beneath it (blank วันที่ = same visit). Each
+ * line becomes a structured {name · brand, productRef}; the visit's ประวัติ·หมายเหตุ is its bill
+ * note — so the timeline can render a transcribed visit exactly like a real Kira bill. Car
+ * brand/รุ่น/ปี combine into the model; multiple phones join.
  */
-export function parseRichSheet(rows: string[][]): CombinedSplit {
+export function parseRichSheet(rows: string[][]): RichParse {
   const head = findRichHeader(rows);
-  if (!head) return { customers: [], history: [], historySourceRows: [], errors: [] };
+  if (!head) return { customers: [], visits: [], visitSourceRows: [], errors: [] };
 
   const groupRaw = rows[head.groupRow] ?? [];
   const fieldRaw = rows[head.fieldRow] ?? [];
@@ -321,7 +338,8 @@ export function parseRichSheet(rows: string[][]): CombinedSplit {
   interface Visit {
     plate: string;
     date: string;
-    items: string[];
+    note: string;
+    lines: RichLine[];
     sourceRow: number;
   }
   const order: string[] = [];
@@ -387,21 +405,21 @@ export function parseRichSheet(rows: string[][]): CombinedSplit {
       visits.set(key, {
         plate: currentPlate,
         date: currentDate,
-        items: [],
+        note: "",
+        lines: [],
         sourceRow: currentDateRow,
       });
       visitOrder.push(key);
     }
-    visits
-      .get(key)!
-      .items.push(
-        formatRichLineItem(
-          item,
-          cell(row, "prod_brand"),
-          cell(row, "prod_code"),
-          cell(row, "hist_note"),
-        ),
-      );
+    const visit = visits.get(key)!;
+    const brand = cell(row, "prod_brand");
+    visit.lines.push({
+      description: [item, brand].filter(Boolean).join(" · "),
+      productRef: cell(row, "prod_code") || null,
+    });
+    // ประวัติ·หมายเหตุ is the visit's bill note — take the first non-empty one in the block.
+    const histNote = cell(row, "hist_note");
+    if (histNote && !visit.note) visit.note = histNote;
   }
 
   const customers: string[][] = [
@@ -418,12 +436,12 @@ export function parseRichSheet(rows: string[][]): CombinedSplit {
       ];
     }),
   ];
-  const history: string[][] = [["ทะเบียน", "วันที่", "รายการ"]];
-  const historySourceRows: number[] = [];
+  const visitsOut: RichVisit[] = [];
+  const visitSourceRows: number[] = [];
   for (const key of visitOrder) {
     const v = visits.get(key)!;
-    history.push([v.plate, v.date, v.items.join("\n")]);
-    historySourceRows.push(v.sourceRow);
+    visitsOut.push({ licensePlate: v.plate, date: v.date, note: v.note, lines: v.lines });
+    visitSourceRows.push(v.sourceRow);
   }
-  return { customers, history, historySourceRows, errors };
+  return { customers, visits: visitsOut, visitSourceRows, errors };
 }

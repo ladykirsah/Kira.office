@@ -263,10 +263,15 @@ export interface CustomerSaleLine {
   productRef?: string | null;
 }
 
+export interface LegacyLine {
+  description: string;
+  productRef: string | null;
+}
 export interface CustomerLegacyEntry {
   id: string;
   happenedAt: number;
-  description: string;
+  note: string | null;
+  lines: LegacyLine[];
 }
 
 export interface CustomerSale {
@@ -403,6 +408,28 @@ export async function importCustomerHistoryCsv(
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ csv, mapping }),
+  });
+  if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
+  return (await res.json()) as HistoryImportResult;
+}
+
+export interface VisitLineInput {
+  description: string;
+  productRef: string | null;
+}
+export interface VisitInput {
+  licensePlate: string;
+  happenedAt: string;
+  note?: string;
+  lines: VisitLineInput[];
+}
+
+/** Structured bill-style legacy import (the grouped transcription form). */
+export async function importCustomerVisits(visits: VisitInput[]): Promise<HistoryImportResult> {
+  const res = await apiFetch(`/import/customer-history`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ visits }),
   });
   if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
   return (await res.json()) as HistoryImportResult;

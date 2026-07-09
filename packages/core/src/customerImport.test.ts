@@ -257,19 +257,31 @@ describe("parseRichSheet (owner's grouped bill-style transcription form)", () =>
     ]);
   });
 
-  it("groups line items under their visit date; product brand·code and note fold into the item text", () => {
+  it("emits structured visits: name · brand as the line, product ID as productRef, bill note per visit", () => {
     const out = parseRichSheet(SHEET);
-    expect(out.history).toEqual([
-      ["ทะเบียน", "วันที่", "รายการ"],
-      [
-        "1กก 1234",
-        "1/12/2025",
-        "ตู้แอร์ (DENSO · TG1234-45678D) — ไม่ได้เปลี่ยนดรายเออร์\nวาล์วบล็อค\nโอริง",
-      ],
-      ["1กก 1234", "11/12/2025", "น้ำมันเครื่อง 10W-30 (Shell)\nกรองน้ำมันเครื่อง"],
+    expect(out.visits).toEqual([
+      {
+        licensePlate: "1กก 1234",
+        date: "1/12/2025",
+        note: "ไม่ได้เปลี่ยนดรายเออร์", // ประวัติ · หมายเหตุ = the visit's bill note (shown once, at the bottom)
+        lines: [
+          { description: "ตู้แอร์ · DENSO", productRef: "TG1234-45678D" },
+          { description: "วาล์วบล็อค", productRef: null },
+          { description: "โอริง", productRef: null },
+        ],
+      },
+      {
+        licensePlate: "1กก 1234",
+        date: "11/12/2025",
+        note: "",
+        lines: [
+          { description: "น้ำมันเครื่อง 10W-30 · Shell", productRef: null },
+          { description: "กรองน้ำมันเครื่อง", productRef: null },
+        ],
+      },
     ]);
     // each visit maps back to the spreadsheet row where its DATE was written (1-based)
-    expect(out.historySourceRows).toEqual([5, 8]);
+    expect(out.visitSourceRows).toEqual([5, 8]);
     expect(out.errors).toEqual([]);
   });
 
@@ -295,7 +307,7 @@ describe("parseRichSheet (owner's grouped bill-style transcription form)", () =>
     ];
     const out = parseRichSheet(rows);
     expect(out.errors).toEqual([{ rowIndex: 3, reason: expect.stringContaining("วันที่") }]);
-    expect(out.history).toHaveLength(1); // header only
+    expect(out.visits).toHaveLength(0);
     expect(out.customers).toHaveLength(2); // still creates the car
   });
 });
@@ -378,9 +390,13 @@ describe("parseRichSheet — robustness to a stray blank column in a group", () 
     ];
     const out = parseRichSheet([groupRow, fieldRow, data]);
     expect(out.errors).toEqual([]);
-    expect(out.history).toEqual([
-      ["ทะเบียน", "วันที่", "รายการ"],
-      ["1กก 1234", "1/1/2025", "ตู้แอร์"],
+    expect(out.visits).toEqual([
+      {
+        licensePlate: "1กก 1234",
+        date: "1/1/2025",
+        note: "",
+        lines: [{ description: "ตู้แอร์", productRef: null }],
+      },
     ]);
   });
 });

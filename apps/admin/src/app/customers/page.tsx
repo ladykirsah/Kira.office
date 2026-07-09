@@ -10,6 +10,7 @@ import {
   saveCustomer,
   importCustomersCsv,
   importCustomerHistoryCsv,
+  importCustomerVisits,
   type CustomerImportResult,
   type CustomerLegacyEntry,
   type CustomerListItem,
@@ -154,16 +155,52 @@ function BillRow({ sale }: { sale: CustomerSale }) {
   );
 }
 
-/** A transcribed old-book record on the same timeline: real old date + free-text work done. */
+/** A transcribed old-book visit, rendered like a Kira bill: date + "No bill ID", line items with
+    their product ID in faint mono, and a bill note — but no total/reprint (it was never a Kira bill). */
 function LegacyRow({ entry }: { entry: CustomerLegacyEntry }) {
   return (
     <tr>
       <td style={{ whiteSpace: "nowrap", verticalAlign: "top" }}>
         <div style={tableText.body2}>{new Date(entry.happenedAt).toLocaleDateString("th-TH")}</div>
-        <div style={tableText.subtitle}>legacy</div>
+        <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
+          No bill ID
+        </div>
       </td>
       <td style={{ verticalAlign: "top" }}>
-        <div style={{ ...tableText.body2, whiteSpace: "pre-wrap" }}>{entry.description}</div>
+        {entry.lines.length === 0 ? (
+          <span className="muted">No items.</span>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {entry.lines.map((l, i) => (
+              <div key={i} style={tableText.body2}>
+                {l.description || "—"}
+                {l.productRef && (
+                  <span
+                    style={{
+                      ...tableText.subtitle,
+                      fontFamily: "var(--font-mono, monospace)",
+                      marginLeft: 8,
+                    }}
+                  >
+                    {l.productRef}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {entry.note && (
+          <div
+            style={{
+              borderTop: "1px solid var(--border)",
+              marginTop: 6,
+              paddingTop: 6,
+              ...tableText.subtitle,
+            }}
+          >
+            Note — {entry.note}
+          </div>
+        )}
       </td>
       <td />
     </tr>
@@ -320,8 +357,35 @@ export default function CustomersPage() {
     if (!imp || !importReady) return;
     setImporting(true);
     try {
-      if (imp.kind === "combined" || imp.kind === "rich") {
-        const split = imp.kind === "rich" ? parseRichSheet(imp.rows) : splitCombinedSheet(imp.rows);
+      if (imp.kind === "rich") {
+        const split = parseRichSheet(imp.rows);
+        const cust =
+          split.customers.length > 1
+            ? await importCustomersCsv(rowsToCsv(split.customers), CUST_TEMPLATE_MAPPING)
+            : null;
+        const hist =
+          split.visits.length > 0
+            ? await importCustomerVisits(
+                split.visits.map((v) => ({
+                  licensePlate: v.licensePlate,
+                  happenedAt: v.date, // core keeps the raw sheet date as `date`; the API calls it happenedAt
+                  note: v.note,
+                  lines: v.lines,
+                })),
+              )
+            : null;
+        // server visit errors carry the 1-based visit index → map to the true spreadsheet row.
+        const histErrors = (hist?.errors ?? []).map((e) => ({
+          rowIndex: split.visitSourceRows[e.rowIndex - 1] ?? e.rowIndex,
+          reason: e.reason,
+        }));
+        setImpCombined({ cust, hist, errors: [...split.errors, ...histErrors] });
+        toast(
+          `Imported ${(cust?.created ?? 0) + (cust?.updated ?? 0)} customers · ${hist?.imported ?? 0} visits`,
+          "success",
+        );
+      } else if (imp.kind === "combined") {
+        const split = splitCombinedSheet(imp.rows);
         const cust =
           split.customers.length > 1
             ? await importCustomersCsv(rowsToCsv(split.customers), CUST_TEMPLATE_MAPPING)
@@ -330,7 +394,6 @@ export default function CustomersPage() {
           split.history.length > 1
             ? await importCustomerHistoryCsv(rowsToCsv(split.history), HIST_TEMPLATE_MAPPING)
             : null;
-        // server errors refer to the GENERATED history csv — translate to the sheet's row numbers
         const histErrors = (hist?.errors ?? []).map((e) => ({
           rowIndex: split.historySourceRows[e.rowIndex - 1] ?? e.rowIndex,
           reason: e.reason,
@@ -648,17 +711,25 @@ export default function CustomersPage() {
           </div>
           {(imp.kind === "combined" || imp.kind === "rich") &&
             (() => {
-              const split =
-                imp.kind === "rich" ? parseRichSheet(imp.rows) : splitCombinedSheet(imp.rows);
-              const unit = imp.kind === "rich" ? "visits" : "history lines";
+              const cars =
+                imp.kind === "rich"
+                  ? parseRichSheet(imp.rows).customers.length - 1
+                  : splitCombinedSheet(imp.rows).customers.length - 1;
+              const [count, unit] =
+                imp.kind === "rich"
+                  ? [parseRichSheet(imp.rows).visits.length, "visits"]
+                  : [splitCombinedSheet(imp.rows).history.length - 1, "history lines"];
+              const errCount =
+                imp.kind === "rich"
+                  ? parseRichSheet(imp.rows).errors.length
+                  : splitCombinedSheet(imp.rows).errors.length;
               return (
                 <div style={{ ...tableText.body2, marginTop: 14 }}>
-                  Found <strong>{split.customers.length - 1}</strong> cars ·{" "}
-                  <strong>{split.history.length - 1}</strong> {unit}
-                  {split.errors.length > 0 && (
+                  Found <strong>{cars}</strong> cars · <strong>{count}</strong> {unit}
+                  {errCount > 0 && (
                     <span style={{ color: "var(--danger)" }}>
                       {" "}
-                      · {split.errors.length} problem row(s) — they will be skipped
+                      · {errCount} problem row(s) — they will be skipped
                     </span>
                   )}
                 </div>
