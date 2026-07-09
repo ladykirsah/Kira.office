@@ -1515,8 +1515,7 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     ]);
     expect(out.applied).toBe(1);
     const line = batched.find((s) => /INSERT INTO onsite_sale_lines/.test(s.sql)) as
-      | { sql: string; boundArgs: unknown[] }
-      | undefined;
+      { sql: string; boundArgs: unknown[] } | undefined;
     // bind order: …, tax_satang(8), gross_profit(10)
     expect(line?.boundArgs[8]).toBe(700);
     expect(line?.boundArgs[10]).toBe(4000);

@@ -1227,8 +1227,7 @@ export async function clearPayments(db: D1Database): Promise<{ cleared: number }
 }
 
 export type SlipConfirmResult =
-  | { ok: true; ref: string }
-  | { ok: false; code: 400 | 404 | 409 | 422 | 501 | 502; error: string };
+  { ok: true; ref: string } | { ok: false; code: 400 | 404 | 409 | 422 | 501 | 502; error: string };
 
 /** Both SlipOK credentials present? (Unset = the feature stays manual-approve only.) */
 export function slipVerificationConfigured(
@@ -1750,8 +1749,7 @@ export interface DraftInput {
 }
 
 export type SaveDraftResult =
-  | { ok: true; draftId: string; totals: DraftTotals }
-  | { ok: false; error: string };
+  { ok: true; draftId: string; totals: DraftTotals } | { ok: false; error: string };
 
 /** Persist a draft/quotation and REPLACE its lines. No stock, no ledger — pure cart storage. */
 export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<SaveDraftResult> {
