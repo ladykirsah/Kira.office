@@ -1968,20 +1968,29 @@ export async function searchCustomers(db: D1Database, q: string): Promise<unknow
       `SELECT x.license_plate AS licensePlate,
               b.vehicle AS vehicle,
               c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
-              COALESCE(b.billCount, 0) AS billCount, b.lastVisitAt AS lastVisitAt
+              -- "Visits" = Kira bills + transcribed legacy visits; last visit = the most recent
+              -- of either (NULLIF→null when a car has neither yet, so the UI shows "—").
+              COALESCE(b.billCount, 0) + COALESCE(h.legacyCount, 0) AS billCount,
+              NULLIF(MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)), 0) AS lastVisitAt
        FROM (SELECT license_plate FROM customers
              UNION
              SELECT license_plate FROM onsite_sales
-             WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> '') x
+             WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
+             UNION
+             SELECT license_plate FROM customer_history_entries
+             WHERE license_plate IS NOT NULL AND license_plate <> '') x
        LEFT JOIN customers c ON c.license_plate = x.license_plate
        LEFT JOIN (SELECT license_plate, MAX(vehicle) AS vehicle, COUNT(*) AS billCount,
                          MAX(created_at) AS lastVisitAt
                   FROM onsite_sales
                   WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
                   GROUP BY license_plate) b ON b.license_plate = x.license_plate
+       LEFT JOIN (SELECT license_plate, COUNT(*) AS legacyCount, MAX(happened_at) AS lastLegacyAt
+                  FROM customer_history_entries
+                  GROUP BY license_plate) h ON h.license_plate = x.license_plate
        WHERE (? = '' OR x.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
               OR b.vehicle LIKE ? OR c.car_model LIKE ?)
-       ORDER BY COALESCE(b.lastVisitAt, 0) DESC, x.license_plate
+       ORDER BY MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)) DESC, x.license_plate
        LIMIT 100`,
     )
     .bind(q.trim(), term, term, term, term, term)
