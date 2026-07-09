@@ -23,7 +23,9 @@ import {
   CUSTOMER_IMPORT_FIELDS,
   guessCustomerMapping,
   guessHistoryMapping,
+  looksLikeCombinedSheet,
   looksLikeHistorySheet,
+  splitCombinedSheet,
   parseCsv,
   rowsToCsv,
   xlsxToRows,
@@ -34,6 +36,22 @@ import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
+
+// The combined transcription sheet's fixed template headers (one block per car; splitCombinedSheet
+// generates exactly these two shapes, so the mappings are constants, not user-picked).
+const CUST_TEMPLATE_MAPPING = {
+  license_plate: "ทะเบียน",
+  plate_province: "จังหวัด",
+  customer_name: "ชื่อลูกค้า",
+  phone: "เบอร์โทร",
+  car_model: "รุ่นรถ",
+  notes: "หมายเหตุ",
+};
+const HIST_TEMPLATE_MAPPING = {
+  license_plate: "ทะเบียน",
+  happened_at: "วันที่",
+  description: "รายการ",
+};
 
 const frame = {
   border: "1px solid var(--border)",
@@ -218,13 +236,18 @@ export default function CustomersPage() {
   // ── Import (legacy customer Excel / service-history sheet) ──
   const [imp, setImp] = useState<{
     fileName: string;
-    kind: "customers" | "history";
+    kind: "customers" | "history" | "combined";
     rows: string[][];
     mapping: Record<string, string>;
   } | null>(null);
   const [importing, setImporting] = useState(false);
   const [impResult, setImpResult] = useState<CustomerImportResult | null>(null);
   const [impHistoryResult, setImpHistoryResult] = useState<HistoryImportResult | null>(null);
+  const [impCombined, setImpCombined] = useState<{
+    cust: CustomerImportResult | null;
+    hist: HistoryImportResult | null;
+    errors: { rowIndex: number; reason: string }[];
+  } | null>(null);
   const readingFile = useRef(false); // guard: an earlier slow parse must not clobber a newer pick
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -243,13 +266,25 @@ export default function CustomersPage() {
       }
       setImpResult(null);
       setImpHistoryResult(null);
-      // One button, two template tabs: a sheet with date + work columns is the history tab.
-      const history = looksLikeHistorySheet(rows[0] ?? []);
+      setImpCombined(null);
+      // One button, three shapes — check combined FIRST (its header also looks like a history
+      // sheet): customer-info + date/work columns together = the one-block-per-car sheet.
+      const header = rows[0] ?? [];
+      const kind = looksLikeCombinedSheet(header)
+        ? "combined"
+        : looksLikeHistorySheet(header)
+          ? "history"
+          : "customers";
       setImp({
         fileName: file.name,
-        kind: history ? "history" : "customers",
+        kind,
         rows,
-        mapping: history ? guessHistoryMapping(rows[0] ?? []) : guessCustomerMapping(rows[0] ?? []),
+        mapping:
+          kind === "history"
+            ? guessHistoryMapping(header)
+            : kind === "customers"
+              ? guessCustomerMapping(header)
+              : {},
       });
     } catch (err) {
       toast(`Couldn't read ${file.name}: ${(err as Error).message}`, "error");
@@ -271,13 +306,38 @@ export default function CustomersPage() {
     imp.mapping["license_plate"] != null &&
     imp.mapping["happened_at"] != null &&
     imp.mapping["description"] != null;
-  const importReady = imp?.kind === "history" ? historyReady : !!imp?.mapping["license_plate"];
+  const importReady =
+    imp?.kind === "combined"
+      ? true
+      : imp?.kind === "history"
+        ? historyReady
+        : !!imp?.mapping["license_plate"];
 
   async function runImport() {
     if (!imp || !importReady) return;
     setImporting(true);
     try {
-      if (imp.kind === "history") {
+      if (imp.kind === "combined") {
+        const split = splitCombinedSheet(imp.rows);
+        const cust =
+          split.customers.length > 1
+            ? await importCustomersCsv(rowsToCsv(split.customers), CUST_TEMPLATE_MAPPING)
+            : null;
+        const hist =
+          split.history.length > 1
+            ? await importCustomerHistoryCsv(rowsToCsv(split.history), HIST_TEMPLATE_MAPPING)
+            : null;
+        // server errors refer to the GENERATED history csv — translate to the sheet's row numbers
+        const histErrors = (hist?.errors ?? []).map((e) => ({
+          rowIndex: split.historySourceRows[e.rowIndex - 1] ?? e.rowIndex,
+          reason: e.reason,
+        }));
+        setImpCombined({ cust, hist, errors: [...split.errors, ...histErrors] });
+        toast(
+          `Imported ${(cust?.created ?? 0) + (cust?.updated ?? 0)} customers · ${hist?.imported ?? 0} history records`,
+          "success",
+        );
+      } else if (imp.kind === "history") {
         const out = await importCustomerHistoryCsv(rowsToCsv(imp.rows), imp.mapping);
         setImpHistoryResult(out);
         toast(`Imported ${out.imported} history records`, "success");
@@ -619,34 +679,39 @@ export default function CustomersPage() {
               <div style={{ ...tableText.body1, fontWeight: 600 }}>
                 Import {imp.fileName}
                 {imp.kind === "history" && " — service history"}
+                {imp.kind === "combined" && " — customers + history (one block per car)"}
                 {/* auto-detection can misfire (e.g. a customer list with a date column) — let the user flip it */}
-                <button
-                  type="button"
-                  className="btn-sm"
-                  style={{ marginLeft: 10, minHeight: 0, padding: "2px 8px" }}
-                  onClick={() => {
-                    const kind = imp.kind === "history" ? "customers" : "history";
-                    setImpResult(null);
-                    setImpHistoryResult(null);
-                    setImp({
-                      ...imp,
-                      kind,
-                      mapping:
-                        kind === "history"
-                          ? guessHistoryMapping(imp.rows[0] ?? [])
-                          : guessCustomerMapping(imp.rows[0] ?? []),
-                    });
-                  }}
-                >
-                  {imp.kind === "history" ? "Treat as customer list" : "Treat as service history"}
-                </button>
+                {imp.kind !== "combined" && (
+                  <button
+                    type="button"
+                    className="btn-sm"
+                    style={{ marginLeft: 10, minHeight: 0, padding: "2px 8px" }}
+                    onClick={() => {
+                      const kind = imp.kind === "history" ? "customers" : "history";
+                      setImpResult(null);
+                      setImpHistoryResult(null);
+                      setImp({
+                        ...imp,
+                        kind,
+                        mapping:
+                          kind === "history"
+                            ? guessHistoryMapping(imp.rows[0] ?? [])
+                            : guessCustomerMapping(imp.rows[0] ?? []),
+                      });
+                    }}
+                  >
+                    {imp.kind === "history" ? "Treat as customer list" : "Treat as service history"}
+                  </button>
+                )}
               </div>
               <div style={{ ...tableText.subtitle, marginTop: 2 }}>
                 {imp.rows.length - 1} data rows — match each field to a column, check the preview,
                 then import. Re-importing is safe:{" "}
-                {imp.kind === "history"
-                  ? "records already imported are skipped; nothing touches stock or sales."
-                  : "existing cars are updated, empty cells never erase saved info."}
+                {imp.kind === "combined"
+                  ? "cars and their history import together; re-importing is safe on both."
+                  : imp.kind === "history"
+                    ? "records already imported are skipped; nothing touches stock or sales."
+                    : "existing cars are updated, empty cells never erase saved info."}
               </div>
             </div>
             <button
@@ -655,34 +720,52 @@ export default function CustomersPage() {
                 setImp(null);
                 setImpResult(null);
                 setImpHistoryResult(null);
+                setImpCombined(null);
               }}
               style={inputS}
             >
-              {impResult || impHistoryResult ? "Close" : "Cancel"}
+              {impResult || impHistoryResult || impCombined ? "Close" : "Cancel"}
             </button>
           </div>
+          {imp.kind === "combined" &&
+            (() => {
+              const split = splitCombinedSheet(imp.rows);
+              return (
+                <div style={{ ...tableText.body2, marginTop: 14 }}>
+                  Found <strong>{split.customers.length - 1}</strong> cars ·{" "}
+                  <strong>{split.history.length - 1}</strong> history lines
+                  {split.errors.length > 0 && (
+                    <span style={{ color: "var(--danger)" }}>
+                      {" "}
+                      · {split.errors.length} problem row(s) — they will be skipped
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
-            {panelFields.map((f) => (
-              <label key={f.field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>
-                  {f.label}
-                  {(f.field === "license_plate" || imp.kind === "history") && " *"}
-                </span>
-                <select
-                  value={imp.mapping[f.field] ?? ""}
-                  onChange={(e) => setImportField(f.field, e.target.value)}
-                  style={{ ...inputS, width: 160 }}
-                >
-                  <option value="">— skip —</option>
-                  {/* key includes the index — a hand-made Excel can repeat a header name */}
-                  {imp.rows[0]!.filter((h) => h.trim() !== "").map((h, i) => (
-                    <option key={`${i}:${h}`} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+            {imp.kind !== "combined" &&
+              panelFields.map((f) => (
+                <label key={f.field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={tableText.subtitle}>
+                    {f.label}
+                    {(f.field === "license_plate" || imp.kind === "history") && " *"}
+                  </span>
+                  <select
+                    value={imp.mapping[f.field] ?? ""}
+                    onChange={(e) => setImportField(f.field, e.target.value)}
+                    style={{ ...inputS, width: 160 }}
+                  >
+                    <option value="">— skip —</option>
+                    {/* key includes the index — a hand-made Excel can repeat a header name */}
+                    {imp.rows[0]!.filter((h) => h.trim() !== "").map((h, i) => (
+                      <option key={`${i}:${h}`} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
           </div>
           {mappedFields.length > 0 && (
             <div style={{ overflowX: "auto", marginTop: 14 }}>
@@ -746,9 +829,18 @@ export default function CustomersPage() {
                 <strong>{impHistoryResult.invalid}</strong>
               </span>
             )}
+            {impCombined && (
+              <span style={tableText.body2}>
+                Cars: <strong>{impCombined.cust?.created ?? 0}</strong> new ·{" "}
+                <strong>{impCombined.cust?.updated ?? 0}</strong> updated — History:{" "}
+                <strong>{impCombined.hist?.imported ?? 0}</strong> imported ·{" "}
+                <strong>{impCombined.hist?.duplicates ?? 0}</strong> duplicates ·{" "}
+                <strong>{impCombined.errors.length}</strong> skipped
+              </span>
+            )}
           </div>
           {(() => {
-            const errs = impResult?.errors ?? impHistoryResult?.errors ?? [];
+            const errs = impResult?.errors ?? impHistoryResult?.errors ?? impCombined?.errors ?? [];
             return errs.length > 0 ? (
               <div style={{ ...tableText.subtitle, marginTop: 8 }}>
                 {errs.slice(0, 5).map((er) => (
