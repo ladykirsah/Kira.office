@@ -4,7 +4,9 @@ import {
   CUSTOMER_IMPORT_FIELDS,
   guessCustomerMapping,
   guessHistoryMapping,
+  looksLikeCombinedSheet,
   looksLikeHistorySheet,
+  splitCombinedSheet,
 } from "./customerImport";
 
 describe("guessCustomerMapping", () => {
@@ -98,5 +100,97 @@ describe("looksLikeHistorySheet", () => {
   });
   it("directory headers (no date/work columns) > false", () => {
     expect(looksLikeHistorySheet(["ทะเบียนรถ", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร"])).toBe(false);
+  });
+});
+
+describe("splitCombinedSheet (one sheet, one block per customer)", () => {
+  const HEADER = [
+    "ทะเบียน",
+    "จังหวัด",
+    "ชื่อลูกค้า",
+    "เบอร์โทร",
+    "รุ่นรถ",
+    "หมายเหตุ",
+    "วันที่",
+    "รายการ",
+  ];
+
+  it("splits customer blocks into a customers sheet and a history sheet (blank plate = same car)", () => {
+    const rows = [
+      HEADER,
+      [
+        "1กข 1234",
+        "สุรินทร์",
+        "สมชาย",
+        "0812345678",
+        "Vigo 2015",
+        "",
+        "31 มีค 68",
+        "คอม508 ตู้432",
+      ],
+      ["", "", "", "", "", "", "10 เมย 68", "เบิกชนวนกันร้อน"],
+      ["", "", "", "", "", "", "8 สค 68", "โอริงใหญ่"],
+      ["2ขค 555", "", "สมหญิง", "", "Jazz 2014", "", "", ""],
+    ];
+    const out = splitCombinedSheet(rows);
+    expect(out.customers).toEqual([
+      ["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร", "รุ่นรถ", "หมายเหตุ"],
+      ["1กข 1234", "สุรินทร์", "สมชาย", "0812345678", "Vigo 2015", ""],
+      ["2ขค 555", "", "สมหญิง", "", "Jazz 2014", ""],
+    ]);
+    expect(out.history).toEqual([
+      ["ทะเบียน", "วันที่", "รายการ"],
+      ["1กข 1234", "31 มีค 68", "คอม508 ตู้432"],
+      ["1กข 1234", "10 เมย 68", "เบิกชนวนกันร้อน"],
+      ["1กข 1234", "8 สค 68", "โอริงใหญ่"],
+    ]);
+    // server errors on generated history rows must map back to the SHEET's row numbers
+    expect(out.historySourceRows).toEqual([1, 2, 3]);
+    expect(out.errors).toEqual([]);
+  });
+
+  it("merges customer info scattered across a block (first non-empty value wins per field)", () => {
+    const rows = [
+      HEADER,
+      ["1กข 1234", "", "สมชาย", "", "", "", "31 มีค 68", "งาน A"],
+      ["", "สุรินทร์", "", "0812345678", "", "", "", ""], // remembered details later
+    ];
+    const out = splitCombinedSheet(rows);
+    expect(out.customers[1]).toEqual(["1กข 1234", "สุรินทร์", "สมชาย", "0812345678", "", ""]);
+  });
+
+  it("reports a history line with no car above it, and a date without items", () => {
+    const rows = [
+      HEADER,
+      ["", "", "", "", "", "", "31 มีค 68", "งานลอย ไม่มีทะเบียน"],
+      ["1กข 1234", "", "", "", "", "", "9 พค 65", ""],
+    ];
+    const out = splitCombinedSheet(rows);
+    expect(out.errors).toEqual([
+      { rowIndex: 1, reason: expect.stringContaining("ทะเบียน") },
+      { rowIndex: 2, reason: expect.stringContaining("รายการ") },
+    ]);
+    expect(out.history).toHaveLength(1); // header only
+  });
+});
+
+describe("looksLikeCombinedSheet", () => {
+  it("true when the header carries BOTH customer info and history columns", () => {
+    expect(
+      looksLikeCombinedSheet([
+        "ทะเบียน",
+        "จังหวัด",
+        "ชื่อลูกค้า",
+        "เบอร์โทร",
+        "รุ่นรถ",
+        "หมายเหตุ",
+        "วันที่",
+        "รายการ",
+      ]),
+    ).toBe(true);
+  });
+  it("false for the plain history sheet and the plain customers sheet", () => {
+    expect(looksLikeCombinedSheet(["ทะเบียน", "วันที่", "รายการ"])).toBe(false);
+    expect(looksLikeCombinedSheet(["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร"])).toBe(false);
   });
 });
