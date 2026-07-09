@@ -961,6 +961,109 @@ export async function importCustomerHistory(
   };
 }
 
+export interface VisitLineInput {
+  description: string;
+  productRef: string | null;
+}
+export interface VisitInput {
+  licensePlate: string;
+  happenedAt: string; // raw Thai date string
+  note?: string;
+  lines: VisitLineInput[];
+}
+
+/**
+ * Structured bill-style legacy import (the grouped transcription form). Each visit stores its line
+ * items (lines_json) and bill note so the timeline renders it like a real Kira bill; `description`
+ * keeps a canonical text rendering for the dedup UNIQUE key + search. MEMORY, NOT MONEY — no stock,
+ * no revenue. Idempotent via (plate, happened_at, description). Date errors carry the 1-based visit
+ * index so the UI can map them back to the spreadsheet row.
+ */
+export async function importCustomerVisits(
+  db: D1Database,
+  visits: VisitInput[],
+): Promise<HistoryImportResult> {
+  const seen = new Set<string>();
+  const entries: {
+    plate: string;
+    happenedAt: number;
+    description: string;
+    note: string | null;
+    linesJson: string;
+  }[] = [];
+  const errors: RowError[] = [];
+  let duplicates = 0;
+  for (let v = 0; v < visits.length; v++) {
+    const visit = visits[v]!;
+    const plate = normalizePlate(visit.licensePlate ?? "");
+    const happenedAt = parseThaiDateMs(visit.happenedAt ?? "");
+    if (happenedAt == null) {
+      errors.push({ rowIndex: v + 1, reason: `unreadable date: "${visit.happenedAt}"` });
+      continue;
+    }
+    const lines = (visit.lines ?? []).map((l) => ({
+      description: l.description ?? "",
+      productRef: l.productRef ?? null,
+    }));
+    const description = lines.map((l) => l.description).join("\n"); // canonical for dedup + search
+    const key = `${plate}|${happenedAt}|${description}`;
+    if (seen.has(key)) {
+      duplicates++;
+      continue;
+    }
+    seen.add(key);
+    entries.push({
+      plate,
+      happenedAt,
+      description,
+      note: visit.note?.trim() ? visit.note.trim() : null,
+      linesJson: JSON.stringify(lines),
+    });
+  }
+
+  const now = Date.now();
+  const statements = entries.map((e) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO customer_history_entries
+           (id, license_plate, happened_at, description, note, lines_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), e.plate, e.happenedAt, e.description, e.note, e.linesJson, now),
+  );
+  for (const plate of new Set(entries.map((e) => e.plate))) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO customers
+             (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(license_plate) DO UPDATE SET
+             updated_at = customers.updated_at`,
+        )
+        .bind(crypto.randomUUID(), plate, null, null, null, null, null, now, now),
+    );
+  }
+  let written = entries.length;
+  if (statements.length > 0) {
+    const results = await db.batch(statements);
+    written = results
+      .slice(0, entries.length)
+      .reduce(
+        (n, r) => n + ((r as { meta?: { changes?: number } }).meta?.changes === 0 ? 0 : 1),
+        0,
+      );
+  }
+  errors.sort((a, b) => a.rowIndex - b.rowIndex);
+  return {
+    received: visits.length,
+    imported: written,
+    duplicates: duplicates + (entries.length - written),
+    invalid: errors.length,
+    errors: errors.slice(0, 500),
+  };
+}
+
 export interface CreateProductInput {
   /** The Product ID (manufacturer/catalog part no.) — the sole product identifier and barcode source. */
   productRef: string;
@@ -1935,20 +2038,39 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
   const withLines = sales.map((s) => ({ ...s, lines: byId.get(s.id) ?? [] }));
   // Transcribed legacy service history (paper/Excel era) — shown on the same timeline, but these
   // are memory-only rows: no totals, no reprint, never in Sales.
-  const legacy = await db
+  const legacyRows = await db
     .prepare(
-      `SELECT id, happened_at AS happenedAt, description
+      `SELECT id, happened_at AS happenedAt, description, note, lines_json AS linesJson
        FROM customer_history_entries WHERE license_plate = ?
        ORDER BY happened_at DESC LIMIT 500`,
     )
     .bind(normalizePlate(plate))
-    .all();
+    .all<{
+      id: string;
+      happenedAt: number;
+      description: string;
+      note: string | null;
+      linesJson: string | null;
+    }>();
+  // Return structured line items so the timeline renders a transcribed visit like a Kira bill.
+  // Old text-only entries (no lines_json) fall back to splitting `description` by newline.
+  const legacy = (legacyRows.results ?? []).map((e) => {
+    let lines: { description: string; productRef: string | null }[];
+    try {
+      lines = e.linesJson
+        ? (JSON.parse(e.linesJson) as { description: string; productRef: string | null }[])
+        : (e.description ?? "").split("\n").map((d) => ({ description: d, productRef: null }));
+    } catch {
+      lines = (e.description ?? "").split("\n").map((d) => ({ description: d, productRef: null }));
+    }
+    return { id: e.id, happenedAt: e.happenedAt, note: e.note ?? null, lines };
+  });
   return {
     customer: customer ?? null,
     vehicle: sales[0]?.vehicle ?? null,
     history: withLines.filter((s) => s.stage === "bill"),
     quotations: withLines.filter((s) => s.stage === "quotation"),
-    legacy: legacy.results ?? [],
+    legacy,
   };
 }
 
@@ -3253,8 +3375,16 @@ const worker = {
     }
 
     if (url.pathname === "/import/customer-history" && request.method === "POST") {
-      const body = await readJson<{ csv?: string; mapping?: Record<string, string> }>(request);
+      const body = await readJson<{
+        csv?: string;
+        mapping?: Record<string, string>;
+        visits?: VisitInput[];
+      }>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
+      // Structured bill-style visits (the grouped form) vs the older flat CSV path.
+      if (Array.isArray(body.visits)) {
+        return json(await importCustomerVisits(env.DB, body.visits));
+      }
       const missing = ["license_plate", "happened_at", "description"].find(
         (f) => !body.mapping?.[f],
       );

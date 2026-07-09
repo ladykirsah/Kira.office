@@ -27,6 +27,7 @@ import worker, {
   confirmPaymentWithSlip,
   importCustomers,
   importCustomerHistory,
+  importCustomerVisits,
   importProducts,
   importShopeeOrders,
   listPayments,
@@ -2343,10 +2344,21 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("GET /customers/:plate > returns transcribed legacy entries alongside bills", async () => {
+  it("GET /customers/:plate > returns structured legacy entries (lines + bill note) alongside bills", async () => {
     const { env } = makeDb({
       sales: [],
-      historyEntries: [{ id: "h1", happenedAt: 111, description: "เปลี่ยนคอม" }],
+      historyEntries: [
+        {
+          id: "h1",
+          happenedAt: 111,
+          description: "ตู้แอร์ · DENSO\nโอริง",
+          note: "3-month warranty",
+          linesJson: JSON.stringify([
+            { description: "ตู้แอร์ · DENSO", productRef: "TG-1" },
+            { description: "โอริง", productRef: null },
+          ]),
+        },
+      ],
     });
     const res = await worker.fetch!(
       new Request("https://x/customers/%E0%B8%81%E0%B8%82%201234"),
@@ -2354,9 +2366,115 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
       ctx,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { legacy: { description: string }[] };
+    const body = (await res.json()) as {
+      legacy: {
+        note: string | null;
+        lines: { description: string; productRef: string | null }[];
+      }[];
+    };
     expect(body.legacy).toHaveLength(1);
-    expect(body.legacy[0]?.description).toBe("เปลี่ยนคอม");
+    expect(body.legacy[0]?.note).toBe("3-month warranty");
+    expect(body.legacy[0]?.lines).toEqual([
+      { description: "ตู้แอร์ · DENSO", productRef: "TG-1" },
+      { description: "โอริง", productRef: null },
+    ]);
+  });
+
+  it("GET /customers/:plate > OLD text-only legacy entry falls back to newline-split lines", async () => {
+    const { env } = makeDb({
+      sales: [],
+      historyEntries: [
+        { id: "h2", happenedAt: 99, description: "งาน A\nงาน B", note: null, linesJson: null },
+      ],
+    });
+    const res = await worker.fetch!(
+      new Request("https://x/customers/%E0%B8%81%E0%B8%82%201234"),
+      env,
+      ctx,
+    );
+    const body = (await res.json()) as {
+      legacy: { lines: { description: string; productRef: string | null }[] }[];
+    };
+    expect(body.legacy[0]?.lines).toEqual([
+      { description: "งาน A", productRef: null },
+      { description: "งาน B", productRef: null },
+    ]);
+  });
+});
+
+describe("importCustomerVisits (structured bill-style legacy import)", () => {
+  it("stores lines_json + bill note + canonical description; parses the Thai date; auto-creates the car", async () => {
+    const { db, batched } = makeDb({});
+    const out = await importCustomerVisits(db, [
+      {
+        licensePlate: "กข  1234",
+        happenedAt: "31 มีค 68",
+        note: "3-month",
+        lines: [
+          { description: "ตู้แอร์ · DENSO", productRef: "TG-1" },
+          { description: "โอริง", productRef: null },
+        ],
+      },
+    ]);
+    expect(out).toMatchObject({ received: 1, imported: 1, duplicates: 0, invalid: 0 });
+    const ins = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO customer_history_entries"),
+    );
+    // binds: (id, plate, happened_at, description, note, lines_json, created_at)
+    expect(ins?.boundArgs?.[1]).toBe("กข 1234"); // normalized plate
+    expect(ins?.boundArgs?.[2]).toBe(Date.parse("2025-03-31T00:00:00+07:00"));
+    expect(ins?.boundArgs?.[3]).toBe("ตู้แอร์ · DENSO\nโอริง"); // canonical text for dedup/search
+    expect(ins?.boundArgs?.[4]).toBe("3-month");
+    expect(JSON.parse(String(ins?.boundArgs?.[5]))).toEqual([
+      { description: "ตู้แอร์ · DENSO", productRef: "TG-1" },
+      { description: "โอริง", productRef: null },
+    ]);
+    expect(
+      batched.filter((s) => s.sql.includes("ON CONFLICT(license_plate) DO UPDATE")),
+    ).toHaveLength(1);
+    expect(
+      batched.some((s) => s.sql.includes("stock_ledger") || s.sql.includes("onsite_sales")),
+    ).toBe(false); // memory, not money
+  });
+
+  it("reports a visit with an unreadable date by its 1-based visit index", async () => {
+    const { db } = makeDb({});
+    const out = await importCustomerVisits(db, [
+      {
+        licensePlate: "กข 1",
+        happenedAt: "31 มีค 68",
+        lines: [{ description: "A", productRef: null }],
+      },
+      {
+        licensePlate: "กข 1",
+        happenedAt: "ไม่รู้",
+        lines: [{ description: "B", productRef: null }],
+      },
+    ]);
+    expect(out).toMatchObject({ received: 2, imported: 1, invalid: 1 });
+    expect(out.errors[0]).toMatchObject({ rowIndex: 2 });
+  });
+
+  it("POST /import/customer-history with {visits} routes to the structured importer", async () => {
+    const { env } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/import/customer-history", {
+        method: "POST",
+        body: JSON.stringify({
+          visits: [
+            {
+              licensePlate: "กข 1",
+              happenedAt: "31 มีค 68",
+              lines: [{ description: "A", productRef: null }],
+            },
+          ],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ imported: 1 });
   });
 });
 
