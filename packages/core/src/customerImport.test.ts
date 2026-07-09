@@ -325,3 +325,62 @@ describe("looksLikeRichSheet", () => {
     expect(looksLikeRichSheet([["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร"]])).toBe(false);
   });
 });
+
+describe("parseRichSheet — robustness to a stray blank column in a group", () => {
+  it("a blank field column before รายการ is ignored, not read as the item", () => {
+    const groupRow = [
+      "ทะเบียน",
+      "",
+      "รถยนต์",
+      "",
+      "",
+      "ลูกค้า",
+      "",
+      "",
+      "ประวัติ",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ];
+    const fieldRow = [
+      "ตัวอักษรและตัวเลข",
+      "จังหวัด",
+      "แบรนด์",
+      "รุ่น",
+      "ปี",
+      "ชื่อ",
+      "เบอร์โทรศัพท์",
+      "หมายเหตุ",
+      "วันที่ (D/M/Y)",
+      "",
+      "รายการ",
+      "แบรนด์สินค้า",
+      "รหัสสินค้า",
+      "หมายเหตุ", // blank col before รายการ
+    ];
+    const data = [
+      "1กก 1234",
+      "",
+      "Toyota",
+      "Vigo",
+      "",
+      "",
+      "",
+      "",
+      "1/1/2025",
+      "",
+      "ตู้แอร์",
+      "",
+      "",
+      "",
+    ];
+    const out = parseRichSheet([groupRow, fieldRow, data]);
+    expect(out.errors).toEqual([]);
+    expect(out.history).toEqual([
+      ["ทะเบียน", "วันที่", "รายการ"],
+      ["1กก 1234", "1/1/2025", "ตู้แอร์"],
+    ]);
+  });
+});

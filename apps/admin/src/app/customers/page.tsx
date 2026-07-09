@@ -32,7 +32,6 @@ import {
   rowsToCsv,
   xlsxToRows,
 } from "@l-shopee/core";
-import { THAI_PROVINCES } from "@/lib/provinces";
 import { formatBahtTrim } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
@@ -361,45 +360,6 @@ export default function CustomersPage() {
     }
   }
 
-  // ── Add customer (single walk-in record; bulk entry belongs in the Sheet + Import) ──
-  const [showAdd, setShowAdd] = useState(false);
-  const [add, setAdd] = useState({
-    plate: "",
-    province: "",
-    name: "",
-    phone: "",
-    carModel: "",
-    notes: "",
-  });
-  const [addSaving, setAddSaving] = useState(false);
-
-  async function saveNewCustomer() {
-    const plate = add.plate.trim();
-    if (!plate) return;
-    setAddSaving(true);
-    try {
-      // Empty fields go as undefined (dropped from JSON): saving a plate that already exists
-      // must never blank data someone typed earlier ("" would clear via the API's contract).
-      const nn = (v: string) => (v.trim() ? v.trim() : undefined);
-      await saveCustomer({
-        licensePlate: plate,
-        plateProvince: nn(add.province),
-        customerName: nn(add.name),
-        phone: nn(add.phone),
-        carModel: nn(add.carModel),
-        notes: nn(add.notes),
-      });
-      toast("Customer saved ✓", "success");
-      setShowAdd(false);
-      setAdd({ plate: "", province: "", name: "", phone: "", carModel: "", notes: "" });
-      openCar(plate);
-    } catch {
-      toast("Couldn't save.", "error");
-    } finally {
-      setAddSaving(false);
-    }
-  }
-
   useEffect(() => {
     if (selected !== null) return; // detail view is showing; re-fetch when we return to the list
     const t = setTimeout(async () => {
@@ -614,9 +574,6 @@ export default function CustomersPage() {
       {/* A real <button> (not a label) so it gets the app's button styling; it drives the
           hidden file input via ref. */}
       <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
-        <button type="button" className="btn-soft btn-sm" onClick={() => setShowAdd((v) => !v)}>
-          Add customer
-        </button>
         <button
           type="button"
           className="btn-soft btn-sm"
@@ -633,49 +590,6 @@ export default function CustomersPage() {
           style={{ display: "none" }}
         />
       </div>
-      {showAdd && (
-        <div style={{ ...frame, marginBottom: 24 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-            {(
-              [
-                ["License plate *", "plate", 160],
-                ["Province", "province", 170],
-                ["Name", "name", 200],
-                ["Phone", "phone", 160],
-                ["Car model", "carModel", 180],
-                ["Notes", "notes", 220],
-              ] as const
-            ).map(([label, field, width]) => (
-              <label key={field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>{label}</span>
-                <input
-                  value={add[field]}
-                  onChange={(e) => setAdd({ ...add, [field]: e.target.value })}
-                  list={field === "province" ? "add-province-options" : undefined}
-                  style={{ ...inputS, width }}
-                />
-              </label>
-            ))}
-            <datalist id="add-province-options">
-              {THAI_PROVINCES.map((pv) => (
-                <option key={pv} value={pv} />
-              ))}
-            </datalist>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={saveNewCustomer}
-              disabled={addSaving || !add.plate.trim()}
-              style={inputS}
-            >
-              {addSaving ? "Saving…" : "Save"}
-            </button>
-            <button type="button" onClick={() => setShowAdd(false)} style={inputS}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
       {imp && (
         <div style={{ ...frame, marginBottom: 24 }}>
           <div style={{ ...rowBetween, alignItems: "baseline" }}>

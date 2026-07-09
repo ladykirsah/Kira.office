@@ -220,27 +220,39 @@ export function looksLikeRichSheet(rows: string[][]): boolean {
   return findRichHeader(rows) != null;
 }
 
-/** Classify a column by its (forward-filled group, field) — group context disambiguates หมายเหตุ. */
+/**
+ * Classify a column by its (forward-filled group, field). Group context disambiguates the field
+ * name หมายเหตุ, which appears in both the customer and history groups. EVERY role matches an
+ * explicit field keyword — an unrecognised or blank column maps to null (ignored), never silently
+ * claiming a role, so a stray empty column inside a group can't steal the รายการ / plate / etc.
+ */
 function richRole(group: string, field: string): RichRole | null {
   const g = group;
   const f = field;
-  if (g.includes("ทะเบียน")) return f.includes("จังหวัด") ? "province" : "plate";
+  if (g.includes("ทะเบียน")) {
+    if (f.includes("จังหวัด")) return "province";
+    if (f.includes("ตัวอักษร") || f.includes("ทะเบียน") || f.includes("เลข")) return "plate";
+    return null;
+  }
   if (g.includes("รถยนต์")) {
     if (f.includes("รุ่น")) return "car_model_name";
     if (f.includes("ปี")) return "car_year";
-    return "car_brand";
+    if (f.includes("แบรนด์") || f.includes("ยี่ห้อ")) return "car_brand";
+    return null;
   }
   if (g.includes("ลูกค้า")) {
     if (f.includes("ชื่อ")) return "cust_name";
     if (f.includes("เบอร์") || f.includes("โทร")) return "phone";
-    return "cust_note";
+    if (f.includes("หมายเหตุ")) return "cust_note";
+    return null;
   }
   if (g.includes("ประวัติ")) {
     if (f.includes("วัน")) return "date";
     if (f.includes("แบรนด์")) return "prod_brand";
     if (f.includes("รหัส")) return "prod_code";
+    if (f.includes("รายการ") || f.includes("รายละเอียด") || f.includes("งาน")) return "item";
     if (f.includes("หมายเหตุ")) return "hist_note";
-    return "item";
+    return null;
   }
   return null;
 }
