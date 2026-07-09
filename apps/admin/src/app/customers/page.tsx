@@ -49,6 +49,10 @@ const CUST_TEMPLATE_MAPPING = {
   car_model: "รุ่นรถ",
   notes: "หมายเหตุ",
 };
+// The owner's transcription Google Sheet (fill it → download → Import). Set 2026-07-09.
+const TRANSCRIPTION_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1lAfLz8B6Y6pFtH9gbRT7YzTy_cj3dZB5bp32kWmDz6A/edit";
+
 const HIST_TEMPLATE_MAPPING = {
   license_plate: "ทะเบียน",
   happened_at: "วันที่",
@@ -637,6 +641,15 @@ export default function CustomersPage() {
       {/* A real <button> (not a label) so it gets the app's button styling; it drives the
           hidden file input via ref. */}
       <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+        {/* Fill the transcription sheet, then download it and Import (a button, not a plain
+            <a>, so it gets the app's button styling). */}
+        <button
+          type="button"
+          className="btn-soft btn-sm"
+          onClick={() => window.open(TRANSCRIPTION_SHEET_URL, "_blank", "noopener,noreferrer")}
+        >
+          Open Google Sheet ↗
+        </button>
         <button
           type="button"
           className="btn-soft btn-sm"
