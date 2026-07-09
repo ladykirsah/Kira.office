@@ -380,9 +380,19 @@ describe("searchCustomers", () => {
     await searchCustomers(db, "");
     const sql = prepare.mock.calls[0]?.[0] as string;
     // The list must union the customers directory with billed plates — an imported customer
-    // with no bills yet still appears (billCount 0); deriving from bills alone hides them.
+    // with no bills yet still appears; deriving from bills alone hides them.
     expect(sql).toMatch(/FROM\s*\(\s*SELECT license_plate FROM customers\s+UNION/);
-    expect(sql).toContain("COALESCE(b.billCount, 0) AS billCount");
+  });
+
+  it("counts transcribed legacy visits in the Visits total and last-visit date", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await searchCustomers(db, "");
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    // A car with only imported history must show its visit count + last date, not 0/—.
+    expect(sql).toContain("FROM customer_history_entries");
+    expect(sql).toContain("COALESCE(b.billCount, 0) + COALESCE(h.legacyCount, 0)");
+    expect(sql).toContain("h.lastLegacyAt");
   });
 });
 
