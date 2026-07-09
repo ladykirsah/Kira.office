@@ -5,8 +5,5 @@
   "description": "Cloudflare D1 schema + migrations via Drizzle (drizzle-orm added in Phase 1 — see README.md)",
   "dependencies": {
     "drizzle-orm": "^0.45.2"
-  },
-  "devDependencies": {
-    "drizzle-kit": "^0.31.10"
   }
 }
