@@ -25,6 +25,8 @@ import {
   guessHistoryMapping,
   looksLikeCombinedSheet,
   looksLikeHistorySheet,
+  looksLikeRichSheet,
+  parseRichSheet,
   splitCombinedSheet,
   parseCsv,
   rowsToCsv,
@@ -236,7 +238,7 @@ export default function CustomersPage() {
   // ── Import (legacy customer Excel / service-history sheet) ──
   const [imp, setImp] = useState<{
     fileName: string;
-    kind: "customers" | "history" | "combined";
+    kind: "customers" | "history" | "combined" | "rich";
     rows: string[][];
     mapping: Record<string, string>;
   } | null>(null);
@@ -267,14 +269,16 @@ export default function CustomersPage() {
       setImpResult(null);
       setImpHistoryResult(null);
       setImpCombined(null);
-      // One button, three shapes — check combined FIRST (its header also looks like a history
-      // sheet): customer-info + date/work columns together = the one-block-per-car sheet.
+      // One button, several shapes. Check the rich grouped form FIRST (its data is behind a
+      // title/group preamble, so rows[0] is not a header); then combined, then the simple tabs.
       const header = rows[0] ?? [];
-      const kind = looksLikeCombinedSheet(header)
-        ? "combined"
-        : looksLikeHistorySheet(header)
-          ? "history"
-          : "customers";
+      const kind = looksLikeRichSheet(rows)
+        ? "rich"
+        : looksLikeCombinedSheet(header)
+          ? "combined"
+          : looksLikeHistorySheet(header)
+            ? "history"
+            : "customers";
       setImp({
         fileName: file.name,
         kind,
@@ -307,7 +311,7 @@ export default function CustomersPage() {
     imp.mapping["happened_at"] != null &&
     imp.mapping["description"] != null;
   const importReady =
-    imp?.kind === "combined"
+    imp?.kind === "combined" || imp?.kind === "rich"
       ? true
       : imp?.kind === "history"
         ? historyReady
@@ -317,8 +321,8 @@ export default function CustomersPage() {
     if (!imp || !importReady) return;
     setImporting(true);
     try {
-      if (imp.kind === "combined") {
-        const split = splitCombinedSheet(imp.rows);
+      if (imp.kind === "combined" || imp.kind === "rich") {
+        const split = imp.kind === "rich" ? parseRichSheet(imp.rows) : splitCombinedSheet(imp.rows);
         const cust =
           split.customers.length > 1
             ? await importCustomersCsv(rowsToCsv(split.customers), CUST_TEMPLATE_MAPPING)
@@ -680,8 +684,9 @@ export default function CustomersPage() {
                 Import {imp.fileName}
                 {imp.kind === "history" && " — service history"}
                 {imp.kind === "combined" && " — customers + history (one block per car)"}
+                {imp.kind === "rich" && " — customer form (info + visit history)"}
                 {/* auto-detection can misfire (e.g. a customer list with a date column) — let the user flip it */}
-                {imp.kind !== "combined" && (
+                {imp.kind !== "combined" && imp.kind !== "rich" && (
                   <button
                     type="button"
                     className="btn-sm"
@@ -707,8 +712,8 @@ export default function CustomersPage() {
               <div style={{ ...tableText.subtitle, marginTop: 2 }}>
                 {imp.rows.length - 1} data rows — match each field to a column, check the preview,
                 then import. Re-importing is safe:{" "}
-                {imp.kind === "combined"
-                  ? "cars and their history import together; re-importing is safe on both."
+                {imp.kind === "combined" || imp.kind === "rich"
+                  ? "cars and their visit history import together; re-importing is safe on both."
                   : imp.kind === "history"
                     ? "records already imported are skipped; nothing touches stock or sales."
                     : "existing cars are updated, empty cells never erase saved info."}
@@ -727,13 +732,15 @@ export default function CustomersPage() {
               {impResult || impHistoryResult || impCombined ? "Close" : "Cancel"}
             </button>
           </div>
-          {imp.kind === "combined" &&
+          {(imp.kind === "combined" || imp.kind === "rich") &&
             (() => {
-              const split = splitCombinedSheet(imp.rows);
+              const split =
+                imp.kind === "rich" ? parseRichSheet(imp.rows) : splitCombinedSheet(imp.rows);
+              const unit = imp.kind === "rich" ? "visits" : "history lines";
               return (
                 <div style={{ ...tableText.body2, marginTop: 14 }}>
                   Found <strong>{split.customers.length - 1}</strong> cars ·{" "}
-                  <strong>{split.history.length - 1}</strong> history lines
+                  <strong>{split.history.length - 1}</strong> {unit}
                   {split.errors.length > 0 && (
                     <span style={{ color: "var(--danger)" }}>
                       {" "}
@@ -745,6 +752,7 @@ export default function CustomersPage() {
             })()}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
             {imp.kind !== "combined" &&
+              imp.kind !== "rich" &&
               panelFields.map((f) => (
                 <label key={f.field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <span style={tableText.subtitle}>

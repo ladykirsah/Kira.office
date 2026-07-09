@@ -6,6 +6,8 @@ import {
   guessHistoryMapping,
   looksLikeCombinedSheet,
   looksLikeHistorySheet,
+  looksLikeRichSheet,
+  parseRichSheet,
   splitCombinedSheet,
 } from "./customerImport";
 
@@ -192,5 +194,134 @@ describe("looksLikeCombinedSheet", () => {
   it("false for the plain history sheet and the plain customers sheet", () => {
     expect(looksLikeCombinedSheet(["ทะเบียน", "วันที่", "รายการ"])).toBe(false);
     expect(looksLikeCombinedSheet(["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร"])).toBe(false);
+  });
+});
+
+describe("parseRichSheet (owner's grouped bill-style transcription form)", () => {
+  // The real form: title row, spacer, GROUP header (ทะเบียน/รถยนต์/ลูกค้า/ประวัติ), FIELD header,
+  // then blocks — one visit date with many line items under it (blank date = same visit).
+  const SHEET: string[][] = [
+    ["Import Customers", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["ทะเบียน", "", "รถยนต์", "", "", "ลูกค้า", "", "", "ประวัติ", "", "", "", ""],
+    [
+      "ตัวอักษรและตัวเลข",
+      "จังหวัด",
+      "แบรนด์",
+      "รุ่น",
+      "ปี",
+      "ชื่อ",
+      "เบอร์โทรศัพท์",
+      "หมายเหตุ",
+      "วันที่ (D/M/Y)",
+      "รายการ",
+      "แบรนด์สินค้า",
+      "รหัสสินค้า",
+      "หมายเหตุ",
+    ],
+    [
+      "1กก 1234",
+      "กรุงเทพ",
+      "Toyota",
+      "Vigo",
+      "2004",
+      "สมชาย",
+      "0123456789",
+      "คุยง่ายจ่ายหนัก",
+      "1/12/2025",
+      "ตู้แอร์",
+      "DENSO",
+      "TG1234-45678D",
+      "ไม่ได้เปลี่ยนดรายเออร์",
+    ],
+    ["", "", "", "", "", "", "0987654321", "", "", "วาล์วบล็อค", "", "", ""],
+    ["", "", "", "", "", "", "", "", "", "โอริง", "", "", ""],
+    ["", "", "", "", "", "", "", "", "11/12/2025", "น้ำมันเครื่อง 10W-30", "Shell", "", ""],
+    ["", "", "", "", "", "", "", "", "", "กรองน้ำมันเครื่อง", "", "", ""],
+    ["2ขค 555", "ขอนแก่น", "Honda", "Jazz", "", "", "", "", "", "", "", "", ""],
+  ];
+
+  it("builds one customer per car: brand+model+year → car model, all phones joined", () => {
+    const out = parseRichSheet(SHEET);
+    expect(out.customers).toEqual([
+      ["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร", "รุ่นรถ", "หมายเหตุ"],
+      [
+        "1กก 1234",
+        "กรุงเทพ",
+        "สมชาย",
+        "0123456789, 0987654321",
+        "Toyota Vigo 2004",
+        "คุยง่ายจ่ายหนัก",
+      ],
+      ["2ขค 555", "ขอนแก่น", "", "", "Honda Jazz", ""],
+    ]);
+  });
+
+  it("groups line items under their visit date; product brand·code and note fold into the item text", () => {
+    const out = parseRichSheet(SHEET);
+    expect(out.history).toEqual([
+      ["ทะเบียน", "วันที่", "รายการ"],
+      [
+        "1กก 1234",
+        "1/12/2025",
+        "ตู้แอร์ (DENSO · TG1234-45678D) — ไม่ได้เปลี่ยนดรายเออร์\nวาล์วบล็อค\nโอริง",
+      ],
+      ["1กก 1234", "11/12/2025", "น้ำมันเครื่อง 10W-30 (Shell)\nกรองน้ำมันเครื่อง"],
+    ]);
+    // each visit maps back to the spreadsheet row where its DATE was written (1-based)
+    expect(out.historySourceRows).toEqual([5, 8]);
+    expect(out.errors).toEqual([]);
+  });
+
+  it("reports an item line whose visit has no date, pointing at the spreadsheet row", () => {
+    const rows: string[][] = [
+      ["ทะเบียน", "", "รถยนต์", "", "", "ลูกค้า", "", "", "ประวัติ", "", "", "", ""],
+      [
+        "ตัวอักษรและตัวเลข",
+        "จังหวัด",
+        "แบรนด์",
+        "รุ่น",
+        "ปี",
+        "ชื่อ",
+        "เบอร์โทรศัพท์",
+        "หมายเหตุ",
+        "วันที่ (D/M/Y)",
+        "รายการ",
+        "แบรนด์สินค้า",
+        "รหัสสินค้า",
+        "หมายเหตุ",
+      ],
+      ["1กก 1234", "", "Toyota", "Vigo", "", "", "", "", "", "ตู้แอร์ (ไม่มีวันที่)", "", "", ""],
+    ];
+    const out = parseRichSheet(rows);
+    expect(out.errors).toEqual([{ rowIndex: 3, reason: expect.stringContaining("วันที่") }]);
+    expect(out.history).toHaveLength(1); // header only
+    expect(out.customers).toHaveLength(2); // still creates the car
+  });
+});
+
+describe("looksLikeRichSheet", () => {
+  const groupRow = ["ทะเบียน", "", "รถยนต์", "", "", "ลูกค้า", "", "", "ประวัติ", "", "", "", ""];
+  const fieldRow = [
+    "ตัวอักษรและตัวเลข",
+    "จังหวัด",
+    "แบรนด์",
+    "รุ่น",
+    "ปี",
+    "ชื่อ",
+    "เบอร์โทรศัพท์",
+    "หมายเหตุ",
+    "วันที่ (D/M/Y)",
+    "รายการ",
+    "แบรนด์สินค้า",
+    "รหัสสินค้า",
+    "หมายเหตุ",
+  ];
+  it("true for the grouped form even behind a title + spacer preamble", () => {
+    expect(looksLikeRichSheet([["Import Customers"], [""], groupRow, fieldRow])).toBe(true);
+  });
+  it("false for the simple single-row templates", () => {
+    expect(looksLikeRichSheet([["ทะเบียน", "วันที่", "รายการ"]])).toBe(false);
+    expect(looksLikeRichSheet([["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร"]])).toBe(false);
   });
 });

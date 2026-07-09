@@ -183,3 +183,235 @@ export function splitCombinedSheet(rows: string[][]): CombinedSplit {
   ];
   return { customers, history, historySourceRows, errors };
 }
+
+// ── Rich grouped transcription form ──────────────────────────────────────────────────────────
+// The owner's real form: a two-row header — a colour GROUP row (ทะเบียน · รถยนต์ · ลูกค้า · ประวัติ)
+// over a FIELD row — behind an optional title/spacer preamble, then one visit date with many
+// line-items beneath it. Read by GROUP because a field name (หมายเหตุ) repeats across groups.
+
+type RichRole =
+  | "plate"
+  | "province"
+  | "car_brand"
+  | "car_model_name"
+  | "car_year"
+  | "cust_name"
+  | "phone"
+  | "cust_note"
+  | "date"
+  | "item"
+  | "prod_brand"
+  | "prod_code"
+  | "hist_note";
+
+/** Locate the (group row, field row) of the grouped form — the group row carries both ทะเบียน + ประวัติ. */
+function findRichHeader(rows: string[][]): { groupRow: number; fieldRow: number } | null {
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] ?? [];
+    const has = (label: string) => r.some((c) => (c ?? "").trim() === label);
+    if (has("ทะเบียน") && has("ประวัติ") && i + 1 < rows.length) {
+      return { groupRow: i, fieldRow: i + 1 };
+    }
+  }
+  return null;
+}
+
+export function looksLikeRichSheet(rows: string[][]): boolean {
+  return findRichHeader(rows) != null;
+}
+
+/** Classify a column by its (forward-filled group, field) — group context disambiguates หมายเหตุ. */
+function richRole(group: string, field: string): RichRole | null {
+  const g = group;
+  const f = field;
+  if (g.includes("ทะเบียน")) return f.includes("จังหวัด") ? "province" : "plate";
+  if (g.includes("รถยนต์")) {
+    if (f.includes("รุ่น")) return "car_model_name";
+    if (f.includes("ปี")) return "car_year";
+    return "car_brand";
+  }
+  if (g.includes("ลูกค้า")) {
+    if (f.includes("ชื่อ")) return "cust_name";
+    if (f.includes("เบอร์") || f.includes("โทร")) return "phone";
+    return "cust_note";
+  }
+  if (g.includes("ประวัติ")) {
+    if (f.includes("วัน")) return "date";
+    if (f.includes("แบรนด์")) return "prod_brand";
+    if (f.includes("รหัส")) return "prod_code";
+    if (f.includes("หมายเหตุ")) return "hist_note";
+    return "item";
+  }
+  return null;
+}
+
+/** One legacy line item folded to text: "รายการ (brand · code) — note" (blank parts drop out). */
+function formatRichLineItem(item: string, brand: string, code: string, note: string): string {
+  let s = item;
+  const extras = [brand, code].filter(Boolean).join(" · ");
+  if (extras) s += ` (${extras})`;
+  if (note) s += ` — ${note}`;
+  return s;
+}
+
+/**
+ * Parse the grouped bill-style transcription form into the two import shapes. One block per car
+ * (blank ทะเบียน = same car); within a block a visit date owns every line-item beneath it (blank
+ * วันที่ = same visit), and the items fold into ONE history entry so the timeline shows a visit
+ * the way a Kira bill does. Car brand/รุ่น/ปี combine into the model; multiple phones join.
+ */
+export function parseRichSheet(rows: string[][]): CombinedSplit {
+  const head = findRichHeader(rows);
+  if (!head) return { customers: [], history: [], historySourceRows: [], errors: [] };
+
+  const groupRaw = rows[head.groupRow] ?? [];
+  const fieldRaw = rows[head.fieldRow] ?? [];
+  const width = Math.max(groupRaw.length, fieldRaw.length);
+  // Forward-fill the group label across its columns (only the first column of a merged group
+  // carries the label in CSV).
+  const roleOf: (RichRole | null)[] = [];
+  let group = "";
+  for (let c = 0; c < width; c++) {
+    const gcell = (groupRaw[c] ?? "").trim();
+    if (gcell) group = gcell;
+    roleOf[c] = richRole(group, (fieldRaw[c] ?? "").trim());
+  }
+  const colFor = (role: RichRole) => roleOf.findIndex((r) => r === role);
+  const cols = {
+    plate: colFor("plate"),
+    province: colFor("province"),
+    car_brand: colFor("car_brand"),
+    car_model_name: colFor("car_model_name"),
+    car_year: colFor("car_year"),
+    cust_name: colFor("cust_name"),
+    phone: colFor("phone"),
+    cust_note: colFor("cust_note"),
+    date: colFor("date"),
+    item: colFor("item"),
+    prod_brand: colFor("prod_brand"),
+    prod_code: colFor("prod_code"),
+    hist_note: colFor("hist_note"),
+  } as Record<RichRole, number>;
+  const cell = (row: string[], role: RichRole) => {
+    const c = cols[role];
+    return c >= 0 ? (row[c] ?? "").trim() : "";
+  };
+
+  interface Cust {
+    province: string;
+    name: string;
+    phones: string[];
+    note: string;
+    brand: string;
+    model: string;
+    year: string;
+  }
+  interface Visit {
+    plate: string;
+    date: string;
+    items: string[];
+    sourceRow: number;
+  }
+  const order: string[] = [];
+  const custs = new Map<string, Cust>();
+  const visitOrder: string[] = [];
+  const visits = new Map<string, Visit>();
+  const errors: RowError[] = [];
+  let currentPlate = "";
+  let currentDate = "";
+  let currentDateRow = 0;
+
+  for (let i = head.fieldRow + 1; i < rows.length; i++) {
+    const row = rows[i] ?? [];
+    const sheetRow = i + 1; // spreadsheet row numbers are 1-based and include every preamble row
+    const plate = cell(row, "plate");
+    if (plate) {
+      currentPlate = plate;
+      currentDate = "";
+      currentDateRow = 0;
+      if (!custs.has(plate)) {
+        custs.set(plate, {
+          province: "",
+          name: "",
+          phones: [],
+          note: "",
+          brand: "",
+          model: "",
+          year: "",
+        });
+        order.push(plate);
+      }
+    }
+    if (currentPlate) {
+      const c = custs.get(currentPlate)!;
+      const first = (cur: string, v: string) => (cur === "" ? v : cur);
+      c.province = first(c.province, cell(row, "province"));
+      c.name = first(c.name, cell(row, "cust_name"));
+      c.note = first(c.note, cell(row, "cust_note"));
+      c.brand = first(c.brand, cell(row, "car_brand"));
+      c.model = first(c.model, cell(row, "car_model_name"));
+      c.year = first(c.year, cell(row, "car_year"));
+      const phone = cell(row, "phone");
+      if (phone && !c.phones.includes(phone)) c.phones.push(phone);
+    }
+
+    const date = cell(row, "date");
+    if (date) {
+      currentDate = date;
+      currentDateRow = sheetRow;
+    }
+    const item = cell(row, "item");
+    if (!item) continue;
+    if (!currentPlate) {
+      errors.push({ rowIndex: sheetRow, reason: "ไม่มีทะเบียน — no car above this row yet" });
+      continue;
+    }
+    if (!currentDate) {
+      errors.push({ rowIndex: sheetRow, reason: "ไม่มีวันที่ — this รายการ has no date above it" });
+      continue;
+    }
+    const key = `${currentPlate} ${currentDate}`;
+    if (!visits.has(key)) {
+      visits.set(key, {
+        plate: currentPlate,
+        date: currentDate,
+        items: [],
+        sourceRow: currentDateRow,
+      });
+      visitOrder.push(key);
+    }
+    visits
+      .get(key)!
+      .items.push(
+        formatRichLineItem(
+          item,
+          cell(row, "prod_brand"),
+          cell(row, "prod_code"),
+          cell(row, "hist_note"),
+        ),
+      );
+  }
+
+  const customers: string[][] = [
+    ["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร", "รุ่นรถ", "หมายเหตุ"],
+    ...order.map((p) => {
+      const c = custs.get(p)!;
+      return [
+        p,
+        c.province,
+        c.name,
+        c.phones.join(", "),
+        [c.brand, c.model, c.year].filter(Boolean).join(" "),
+        c.note,
+      ];
+    }),
+  ];
+  const history: string[][] = [["ทะเบียน", "วันที่", "รายการ"]];
+  const historySourceRows: number[] = [];
+  for (const key of visitOrder) {
+    const v = visits.get(key)!;
+    history.push([v.plate, v.date, v.items.join("\n")]);
+    historySourceRows.push(v.sourceRow);
+  }
+  return { customers, history, historySourceRows, errors };
+}
