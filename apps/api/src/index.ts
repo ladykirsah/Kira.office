@@ -9,6 +9,9 @@ import {
   dedupeOrders,
   orderKey,
   resolveProductBarcode,
+  slipVerificationConfigured,
+  looksLikeSlipQr,
+  verifySlipWithSlipOk,
   type RowError,
   type SaleLineInput,
 } from "@l-shopee/core";
@@ -251,6 +254,16 @@ export function entityFromPath(pathname: string): {
   if (sale) return { entityType: "sale", entityId: sale[1] ?? null };
   const service = pathname.match(/^\/services\/([^/]+)/);
   if (service) return { entityType: "service", entityId: service[1] ?? null };
+  const order = pathname.match(/^\/orders\/([^/]+)/);
+  if (order) return { entityType: "order", entityId: order[1] ?? null };
+  const banner = pathname.match(/^\/banners\/([^/]+)/);
+  if (banner) return { entityType: "banner", entityId: banner[1] ?? null };
+  const coupon = pathname.match(/^\/coupons\/([^/]+)/);
+  if (coupon) return { entityType: "coupon", entityId: coupon[1] ?? null };
+  const campaign = pathname.match(/^\/campaigns\/([^/]+)/);
+  if (campaign) return { entityType: "campaign", entityId: campaign[1] ?? null };
+  const affiliate = pathname.match(/^\/affiliate-items\/([^/]+)/);
+  if (affiliate) return { entityType: "affiliate_item", entityId: affiliate[1] ?? null };
   return { entityType: null, entityId: null };
 }
 
@@ -569,6 +582,83 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
   return { applied, duplicates: duplicates.length, conflicts, validationErrors };
 }
 
+export interface OnlineSaleLine {
+  productVariantId: string;
+  quantity: number;
+}
+
+export interface OnlineSaleApplyResult {
+  applied: boolean;
+  duplicate: boolean;
+  conflicts: SyncConflict[];
+}
+
+/**
+ * Apply an AirPlus (online) order's stock deduction as ledger deltas — the online twin of
+ * applySyncToDb. Idempotent on the order id (source_id): replaying a checkout retry is a no-op.
+ * All-or-nothing: if ANY line lacks stock the whole order conflicts and nothing is written
+ * (mirrors the storefront checkout's fail-closed oversell promise).
+ */
+export async function applyOnlineSaleToDb(
+  db: D1Database,
+  orderId: string,
+  lines: OnlineSaleLine[],
+): Promise<OnlineSaleApplyResult> {
+  if (lines.length === 0) return { applied: false, duplicate: false, conflicts: [] };
+
+  const already = await db
+    .prepare(
+      `SELECT id FROM stock_ledger_entries WHERE source_type = 'sales_order' AND source_id = ? LIMIT 1`,
+    )
+    .bind(orderId)
+    .first<{ id: string }>();
+  if (already) return { applied: false, duplicate: true, conflicts: [] };
+
+  const variantIds = [...new Set(lines.map((l) => l.productVariantId))];
+  const available: Record<string, number> = {};
+  for (const id of variantIds) available[id] = 0;
+  const availRows = await db
+    .prepare(
+      `SELECT product_variant_id AS variantId, COALESCE(SUM(quantity_delta), 0) AS available
+       FROM stock_ledger_entries WHERE product_variant_id IN (${variantIds.map(() => "?").join(",")})
+       GROUP BY product_variant_id`,
+    )
+    .bind(...variantIds)
+    .all<{ variantId: string; available: number }>();
+  for (const row of availRows.results ?? []) available[row.variantId] = Number(row.available);
+
+  const conflicts: SyncConflict[] = [];
+  const sim = { ...available };
+  for (const line of lines) {
+    const current = sim[line.productVariantId] ?? 0;
+    if (current - line.quantity < 0) {
+      conflicts.push({
+        productVariantId: line.productVariantId,
+        requested: line.quantity,
+        available: current,
+      });
+    } else {
+      sim[line.productVariantId] = current - line.quantity;
+    }
+  }
+  if (conflicts.length > 0) return { applied: false, duplicate: false, conflicts };
+
+  const now = Date.now();
+  const statements = lines.map((line) => {
+    const after = (available[line.productVariantId] ?? 0) - line.quantity;
+    available[line.productVariantId] = after;
+    return db
+      .prepare(
+        `INSERT INTO stock_ledger_entries
+         (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type, source_id, created_at)
+         VALUES (?, ?, 'online_sale', ?, ?, 'sales_order', ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), line.productVariantId, -line.quantity, after, orderId, now);
+  });
+  await db.batch(statements);
+  return { applied: true, duplicate: false, conflicts: [] };
+}
+
 /**
  * Stock-ledger Durable Object: the single serialized writer for stock-affecting operations. One
  * instance per shop means concurrent /sync batches (and future online-order applies) are processed
@@ -577,6 +667,11 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
 export class StockLedger extends DurableObject<Env> {
   async applySync(sales: SyncSale[]): Promise<SyncResult> {
     return applySyncToDb(this.env.DB, sales);
+  }
+
+  /** AirPlus storefront checkout calls this via a cross-Worker DO binding (script_name). */
+  async applyOnlineSale(orderId: string, lines: OnlineSaleLine[]): Promise<OnlineSaleApplyResult> {
+    return applyOnlineSaleToDb(this.env.DB, orderId, lines);
   }
 
   async applyAdjustment(adj: StockAdjustment): Promise<AdjustmentResult> {
@@ -1229,63 +1324,8 @@ export async function clearPayments(db: D1Database): Promise<{ cleared: number }
 export type SlipConfirmResult =
   { ok: true; ref: string } | { ok: false; code: 400 | 404 | 409 | 422 | 501 | 502; error: string };
 
-/** Both SlipOK credentials present? (Unset = the feature stays manual-approve only.) */
-export function slipVerificationConfigured(
-  env: Pick<Env, "SLIPOK_API_KEY" | "SLIPOK_BRANCH_ID">,
-): boolean {
-  return Boolean(env.SLIPOK_API_KEY && env.SLIPOK_BRANCH_ID);
-}
-
-/** Sanity check for a scanned slip mini-QR payload (bank slips carry a machine-readable QR). */
-function looksLikeSlipQr(data: string): boolean {
-  const t = data.trim();
-  return t.length >= 20 && t.length <= 1000 && !/\s/.test(t);
-}
-
-/**
- * SlipOK adapter — the ONLY place that knows the provider's wire format, so a provider change (or
- * an endpoint fix) touches one function. ASSUMPTION (unverified against the live API — the owner
- * hasn't created the SlipOK account yet): POST api.slipok.com/api/line/apikey/{branchId} with
- * x-authorization header, body {data, amount(THB)}; response {success, data:{transRef, amount}}.
- */
-async function verifySlipWithSlipOk(
-  env: Pick<Env, "SLIPOK_API_KEY" | "SLIPOK_BRANCH_ID">,
-  qrData: string,
-  expectedAmountSatang: number,
-): Promise<
-  { ok: true; ref: string; note: string } | { ok: false; code: 422 | 502; error: string }
-> {
-  let res: Response;
-  try {
-    res = await fetch(`https://api.slipok.com/api/line/apikey/${env.SLIPOK_BRANCH_ID}`, {
-      method: "POST",
-      headers: { "x-authorization": env.SLIPOK_API_KEY!, "content-type": "application/json" },
-      body: JSON.stringify({ data: qrData, amount: expectedAmountSatang / 100 }),
-    });
-  } catch {
-    return { ok: false, code: 502, error: "slip verification service unreachable" };
-  }
-  const body = (await res.json().catch(() => null)) as {
-    success?: boolean;
-    message?: string;
-    data?: { transRef?: string; amount?: number };
-  } | null;
-  if (!body?.success || !body.data?.transRef) {
-    return { ok: false, code: 422, error: body?.message ?? "slip rejected by verifier" };
-  }
-  // Trust but verify: if the provider echoes the slip amount, it must match the payment.
-  if (
-    typeof body.data.amount === "number" &&
-    Math.round(body.data.amount * 100) !== expectedAmountSatang
-  ) {
-    return {
-      ok: false,
-      code: 422,
-      error: `slip amount ฿${body.data.amount} does not match the payment amount`,
-    };
-  }
-  return { ok: true, ref: body.data.transRef, note: JSON.stringify({ amount: body.data.amount }) };
-}
+// slipVerificationConfigured, looksLikeSlipQr, verifySlipWithSlipOk moved to
+// @l-shopee/core (packages/core/src/payments.ts) — shared with apps/storefront's checkout.
 
 /**
  * Payment auto-confirm: verify a bank-transfer slip QR and upgrade approved → confirmed with the
@@ -1719,6 +1759,83 @@ async function listOrders(env: Env): Promise<Response> {
      FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });
+}
+
+/** A sales_orders row in the same camelCase shape listOrders returns. */
+export interface OrderRow {
+  id: string;
+  channel: string;
+  externalOrderId: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  grandTotalSatang: number;
+  feeTotalSatang: number;
+  orderCreatedAt: number | null;
+  importedAt: number;
+  buyerUsername: string | null;
+  salesSatang: number;
+  feeBp: number;
+  shipTimeMs: number | null;
+  carrier: string | null;
+  trackingNo: string | null;
+  profitSatang: number | null;
+}
+
+/** Fulfillment fields the admin may edit. A key that is present with an empty string clears (NULL). */
+export interface OrderPatch {
+  orderStatus?: string | null;
+  paymentStatus?: string | null;
+  carrier?: string | null;
+  trackingNo?: string | null;
+}
+
+/**
+ * Fulfillment edit for an AirPlus storefront order: statuses, carrier and tracking number. Only
+ * channel='airplus' rows are editable — Shopee rows are import-only snapshots of the marketplace.
+ * The FIRST time a tracking number is set the row's ship_time_ms is stamped (that's the operational
+ * meaning of "it shipped"); later tracking corrections keep the original ship time.
+ */
+export async function updateOrder(
+  db: D1Database,
+  id: string,
+  patch: OrderPatch,
+): Promise<OrderRow | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
+              payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
+              fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+              imported_at AS importedAt, buyer_username AS buyerUsername,
+              sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
+              carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(id)
+    .first<OrderRow>();
+  if (!row) return null;
+
+  const norm = (v: string | null | undefined): string | null => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s || null;
+  };
+  const next: OrderRow = { ...row };
+  if ("orderStatus" in patch) next.orderStatus = norm(patch.orderStatus);
+  if ("paymentStatus" in patch) next.paymentStatus = norm(patch.paymentStatus);
+  if ("carrier" in patch) next.carrier = norm(patch.carrier);
+  if ("trackingNo" in patch) next.trackingNo = norm(patch.trackingNo);
+  if ("trackingNo" in patch && next.trackingNo && row.shipTimeMs == null) {
+    next.shipTimeMs = Date.now();
+  }
+
+  await db
+    .prepare(
+      `UPDATE sales_orders SET order_status = ?, payment_status = ?, carrier = ?, tracking_no = ?,
+              ship_time_ms = ?
+       WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(next.orderStatus, next.paymentStatus, next.carrier, next.trackingNo, next.shipTimeMs, id)
+    .run();
+  return next;
 }
 
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
@@ -2784,6 +2901,580 @@ export async function setVariantPricing(
         Date.now(),
       ),
   ]);
+}
+
+// ── AirPlus storefront marketing admin: banners / coupons / campaigns / affiliate ───────────────
+// CRUD consumed by the Kira admin UI. The storefront reads the same tables read-only through its
+// own D1 binding (apps/storefront/src/lib/db.ts) — schedule/status filtering happens there; the
+// admin lists ALL rows. Money stays integer satang; banner + affiliate images live in R2 under the
+// public namespaces banners/ and affiliate/ (admitted by the /img allowlist below).
+
+/** Coerce an optional epoch-ms field to a clean number or NULL (never a string into D1). */
+const numOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+export interface BannerAdminRow {
+  id: string;
+  slot: string;
+  imageKey: string | null;
+  linkUrl: string | null;
+  sortOrder: number;
+  startsAt: number | null;
+  endsAt: number | null;
+  status: string;
+  createdAt: number;
+}
+
+/** Every banner (both slots, active or not) for the admin list — hero first, then by sort order. */
+export async function listBannersAdmin(db: D1Database): Promise<BannerAdminRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, slot, image_key AS imageKey, link_url AS linkUrl, sort_order AS sortOrder,
+              starts_at AS startsAt, ends_at AS endsAt, status, created_at AS createdAt
+       FROM banners ORDER BY slot, sort_order, created_at`,
+    )
+    .all<BannerAdminRow>();
+  return results ?? [];
+}
+
+export interface BannerCreate {
+  slot: "hero" | "promo";
+  linkUrl?: string | null;
+  sortOrder?: number;
+  startsAt?: number | null;
+  endsAt?: number | null;
+}
+
+/** Create a banner (image is uploaded separately via POST /banners/:id/image). Returns the id. */
+export async function createBanner(db: D1Database, input: BannerCreate): Promise<string> {
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO banners (id, slot, link_url, sort_order, starts_at, ends_at, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+    )
+    .bind(
+      id,
+      input.slot,
+      input.linkUrl?.trim() || null,
+      Math.round(Number(input.sortOrder) || 0),
+      numOrNull(input.startsAt),
+      numOrNull(input.endsAt),
+      Date.now(),
+    )
+    .run();
+  return id;
+}
+
+export interface BannerPatch {
+  slot?: "hero" | "promo";
+  linkUrl?: string | null;
+  sortOrder?: number;
+  startsAt?: number | null;
+  endsAt?: number | null;
+  status?: "active" | "disabled";
+}
+
+/** Update only the provided banner fields — an absent key leaves that column untouched. */
+export async function updateBanner(db: D1Database, id: string, patch: BannerPatch): Promise<void> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  const set = (column: string, value: unknown) => {
+    sets.push(`${column} = ?`);
+    binds.push(value);
+  };
+  if (patch.slot !== undefined) set("slot", patch.slot);
+  if (patch.linkUrl !== undefined) set("link_url", patch.linkUrl?.trim() || null);
+  if (patch.sortOrder !== undefined) set("sort_order", Math.round(Number(patch.sortOrder) || 0));
+  if (patch.startsAt !== undefined) set("starts_at", numOrNull(patch.startsAt));
+  if (patch.endsAt !== undefined) set("ends_at", numOrNull(patch.endsAt));
+  if (patch.status !== undefined) set("status", patch.status);
+  if (sets.length === 0) return;
+  await db
+    .prepare(`UPDATE banners SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds, id)
+    .run();
+}
+
+/**
+ * Replace the stored image of a banners/affiliate_items row: upload the new object, repoint the
+ * row, THEN delete the replaced R2 object — never delete before the row points away, so a crash
+ * mid-way leaves a working (old) image, at worst an orphaned new object. Throws "… not found" for
+ * an unknown row (the route maps that to 404) and validation errors for a bad upload (→ 400).
+ */
+async function replaceRowImage(
+  bucket: R2Bucket,
+  db: D1Database,
+  table: "banners" | "affiliate_items",
+  keyPrefix: "banners" | "affiliate",
+  id: string,
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<UploadImageResult> {
+  const ext = validateImage(bytes, contentType);
+  const row = await db
+    .prepare(`SELECT id, image_key AS imageKey FROM ${table} WHERE id = ?`)
+    .bind(id)
+    .first<{ id: string; imageKey: string | null }>();
+  if (!row) throw new Error(`${table === "banners" ? "banner" : "affiliate item"} not found`);
+  const key = `${keyPrefix}/${id}-${crypto.randomUUID()}.${ext}`;
+  await bucket.put(key, bytes, { httpMetadata: { contentType: contentType! } });
+  await db.prepare(`UPDATE ${table} SET image_key = ? WHERE id = ?`).bind(key, id).run();
+  if (row.imageKey && row.imageKey !== key) await bucket.delete(row.imageKey);
+  return { key, url: `/img/${key}` };
+}
+
+/** Store (or replace) a banner's image under banners/<id>-<uuid>.<ext>. */
+export async function storeBannerImage(
+  bucket: R2Bucket,
+  db: D1Database,
+  bannerId: string,
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<UploadImageResult> {
+  return replaceRowImage(bucket, db, "banners", "banners", bannerId, bytes, contentType);
+}
+
+/** Store (or replace) an affiliate item's image under affiliate/<id>-<uuid>.<ext>. */
+export async function storeAffiliateItemImage(
+  bucket: R2Bucket,
+  db: D1Database,
+  itemId: string,
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<UploadImageResult> {
+  return replaceRowImage(bucket, db, "affiliate_items", "affiliate", itemId, bytes, contentType);
+}
+
+/** Delete a banner row and its R2 image (if it has one). */
+export async function deleteBanner(db: D1Database, bucket: R2Bucket, id: string): Promise<void> {
+  const row = await db
+    .prepare("SELECT image_key AS imageKey FROM banners WHERE id = ?")
+    .bind(id)
+    .first<{ imageKey: string | null }>();
+  await db.prepare("DELETE FROM banners WHERE id = ?").bind(id).run();
+  if (row?.imageKey) await bucket.delete(row.imageKey);
+}
+
+export interface CouponAdminRow {
+  id: string;
+  code: string;
+  type: string;
+  value: number;
+  minSubtotalSatang: number;
+  startsAt: number | null;
+  endsAt: number | null;
+  maxUses: number | null;
+  maxUsesPerCustomer: number;
+  status: string;
+  createdAt: number;
+  redemptions: number;
+}
+
+/** Every coupon with its lifetime redemption count, newest first. */
+export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT c.id, c.code, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
+              c.starts_at AS startsAt, c.ends_at AS endsAt, c.max_uses AS maxUses,
+              c.max_uses_per_customer AS maxUsesPerCustomer, c.status, c.created_at AS createdAt,
+              (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions
+       FROM coupons c ORDER BY c.created_at DESC`,
+    )
+    .all<CouponAdminRow>();
+  return results ?? [];
+}
+
+export interface CouponCreate {
+  code: string; // route trims + uppercases before calling
+  type: "fixed" | "percent";
+  value: number; // satang (fixed) or basis points (percent) — matches the coupons CHECK
+  minSubtotalSatang?: number;
+  startsAt?: number | null;
+  endsAt?: number | null;
+  maxUses?: number | null;
+  maxUsesPerCustomer?: number;
+}
+
+/** Insert a coupon; refuses a duplicate code (codes are the customer-facing identity). */
+export async function createCoupon(
+  db: D1Database,
+  input: CouponCreate,
+): Promise<{ id: string } | { duplicate: true }> {
+  const dup = await db
+    .prepare("SELECT id FROM coupons WHERE code = ?")
+    .bind(input.code)
+    .first<{ id: string }>();
+  if (dup) return { duplicate: true };
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO coupons (id, code, type, value, min_subtotal_satang, starts_at, ends_at,
+                            max_uses, max_uses_per_customer, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+    )
+    .bind(
+      id,
+      input.code,
+      input.type,
+      input.value,
+      Math.max(0, Math.round(Number(input.minSubtotalSatang) || 0)),
+      numOrNull(input.startsAt),
+      numOrNull(input.endsAt),
+      numOrNull(input.maxUses),
+      Math.max(1, Math.round(Number(input.maxUsesPerCustomer) || 1)),
+      Date.now(),
+    )
+    .run();
+  return { id };
+}
+
+export interface CouponPatch {
+  code?: string; // route trims + uppercases + dedupes before calling
+  type?: "fixed" | "percent";
+  value?: number;
+  minSubtotalSatang?: number;
+  startsAt?: number | null;
+  endsAt?: number | null;
+  maxUses?: number | null;
+  maxUsesPerCustomer?: number;
+  status?: "active" | "disabled";
+}
+
+/** Update only the provided coupon fields — an absent key leaves that column untouched. */
+export async function updateCoupon(db: D1Database, id: string, patch: CouponPatch): Promise<void> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  const set = (column: string, value: unknown) => {
+    sets.push(`${column} = ?`);
+    binds.push(value);
+  };
+  if (patch.code !== undefined) set("code", patch.code);
+  if (patch.type !== undefined) set("type", patch.type);
+  if (patch.value !== undefined) set("value", patch.value);
+  if (patch.minSubtotalSatang !== undefined)
+    set("min_subtotal_satang", Math.max(0, Math.round(Number(patch.minSubtotalSatang) || 0)));
+  if (patch.startsAt !== undefined) set("starts_at", numOrNull(patch.startsAt));
+  if (patch.endsAt !== undefined) set("ends_at", numOrNull(patch.endsAt));
+  if (patch.maxUses !== undefined) set("max_uses", numOrNull(patch.maxUses));
+  if (patch.maxUsesPerCustomer !== undefined)
+    set("max_uses_per_customer", Math.max(1, Math.round(Number(patch.maxUsesPerCustomer) || 1)));
+  if (patch.status !== undefined) set("status", patch.status);
+  if (sets.length === 0) return;
+  await db
+    .prepare(`UPDATE coupons SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds, id)
+    .run();
+}
+
+/**
+ * Delete a coupon ONLY when it has never been redeemed — redeemed coupons are financial history
+ * (coupon_redemptions FK-references them) and must be disabled instead.
+ */
+export async function deleteCoupon(
+  db: D1Database,
+  id: string,
+): Promise<{ deleted: boolean; redemptions: number }> {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS n FROM coupon_redemptions WHERE coupon_id = ?")
+    .bind(id)
+    .first<{ n: number }>();
+  const redemptions = Number(row?.n ?? 0);
+  if (redemptions > 0) return { deleted: false, redemptions };
+  await db.prepare("DELETE FROM coupons WHERE id = ?").bind(id).run();
+  return { deleted: true, redemptions: 0 };
+}
+
+export interface CampaignPriceAdminRow {
+  id: string;
+  productVariantId: string;
+  productName: string;
+  productRef: string | null;
+  /** Latest pricing_profiles online_price_satang — what the campaign price is discounting from. */
+  basePriceSatang: number;
+  campaignPriceSatang: number;
+  stockCap: number | null;
+  soldCount: number;
+}
+
+export interface CampaignAdminRow {
+  id: string;
+  name: string;
+  startsAt: number;
+  endsAt: number;
+  status: string;
+  createdAt: number;
+  prices: CampaignPriceAdminRow[];
+}
+
+/** Every campaign (newest first) with its priced products nested, for the admin editor. */
+export async function listCampaignsAdmin(db: D1Database): Promise<CampaignAdminRow[]> {
+  const [campaigns, prices] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, name, starts_at AS startsAt, ends_at AS endsAt, status, created_at AS createdAt
+         FROM campaigns ORDER BY created_at DESC`,
+      )
+      .all<Omit<CampaignAdminRow, "prices">>(),
+    db
+      .prepare(
+        `SELECT cp.id, cp.campaign_id AS campaignId, cp.product_variant_id AS productVariantId,
+                p.name AS productName, p.product_ref AS productRef,
+                COALESCE(pp.online_price_satang, 0) AS basePriceSatang,
+                cp.campaign_price_satang AS campaignPriceSatang, cp.stock_cap AS stockCap,
+                cp.sold_count AS soldCount
+         FROM campaign_prices cp
+         JOIN product_variants v ON v.id = cp.product_variant_id
+         JOIN products p ON p.id = v.product_id
+         LEFT JOIN pricing_profiles pp ON pp.id =
+           (SELECT id FROM pricing_profiles WHERE product_variant_id = v.id
+            ORDER BY active_from DESC LIMIT 1)
+         ORDER BY cp.created_at`,
+      )
+      .all<CampaignPriceAdminRow & { campaignId: string }>(),
+  ]);
+  const byCampaign = new Map<string, CampaignPriceAdminRow[]>();
+  for (const { campaignId, ...price } of prices.results ?? []) {
+    const list = byCampaign.get(campaignId);
+    if (list) list.push(price);
+    else byCampaign.set(campaignId, [price]);
+  }
+  return (campaigns.results ?? []).map((c) => ({ ...c, prices: byCampaign.get(c.id) ?? [] }));
+}
+
+/** Create a campaign shell (prices are attached via POST /campaigns/:id/prices). Returns the id. */
+export async function createCampaign(
+  db: D1Database,
+  name: string,
+  startsAt: number,
+  endsAt: number,
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO campaigns (id, name, starts_at, ends_at, status, created_at)
+       VALUES (?, ?, ?, ?, 'active', ?)`,
+    )
+    .bind(id, name.trim(), startsAt, endsAt, Date.now())
+    .run();
+  return id;
+}
+
+export interface CampaignPatch {
+  name?: string;
+  startsAt?: number;
+  endsAt?: number;
+  status?: "active" | "disabled";
+}
+
+/** Update only the provided campaign fields — an absent key leaves that column untouched. */
+export async function updateCampaign(
+  db: D1Database,
+  id: string,
+  patch: CampaignPatch,
+): Promise<void> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  const set = (column: string, value: unknown) => {
+    sets.push(`${column} = ?`);
+    binds.push(value);
+  };
+  if (patch.name !== undefined) set("name", patch.name.trim());
+  if (patch.startsAt !== undefined) set("starts_at", patch.startsAt);
+  if (patch.endsAt !== undefined) set("ends_at", patch.endsAt);
+  if (patch.status !== undefined) set("status", patch.status);
+  if (sets.length === 0) return;
+  await db
+    .prepare(`UPDATE campaigns SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds, id)
+    .run();
+}
+
+/** Delete a campaign and all of its campaign_prices rows (they only exist for the campaign). */
+export async function deleteCampaign(db: D1Database, id: string): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM campaign_prices WHERE campaign_id = ?").bind(id),
+    db.prepare("DELETE FROM campaigns WHERE id = ?").bind(id),
+  ]);
+}
+
+/** Attach a variant to a campaign at a flash price. One row per variant per campaign. */
+export async function addCampaignPrice(
+  db: D1Database,
+  campaignId: string,
+  input: { productVariantId: string; campaignPriceSatang: number; stockCap?: number | null },
+): Promise<{ id: string } | { error: "variant_not_found" | "duplicate" }> {
+  const variant = await db
+    .prepare("SELECT id FROM product_variants WHERE id = ?")
+    .bind(input.productVariantId)
+    .first<{ id: string }>();
+  if (!variant) return { error: "variant_not_found" };
+  const dup = await db
+    .prepare("SELECT id FROM campaign_prices WHERE campaign_id = ? AND product_variant_id = ?")
+    .bind(campaignId, input.productVariantId)
+    .first<{ id: string }>();
+  if (dup) return { error: "duplicate" };
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO campaign_prices (id, campaign_id, product_variant_id, campaign_price_satang,
+                                    stock_cap, sold_count, created_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?)`,
+    )
+    .bind(
+      id,
+      campaignId,
+      input.productVariantId,
+      input.campaignPriceSatang,
+      numOrNull(input.stockCap),
+      Date.now(),
+    )
+    .run();
+  return { id };
+}
+
+export interface VariantSearchRow {
+  variantId: string;
+  productId: string;
+  name: string;
+  productRef: string | null;
+  onlinePriceSatang: number;
+}
+
+/** Product picker for the campaign editor: active products by name/part-number, latest online price. */
+export async function searchVariants(db: D1Database, q: string): Promise<VariantSearchRow[]> {
+  const term = q.trim();
+  if (!term) return [];
+  const like = `%${term}%`;
+  const { results } = await db
+    .prepare(
+      `SELECT v.id AS variantId, p.id AS productId, p.name, p.product_ref AS productRef,
+              COALESCE(pp.online_price_satang, 0) AS onlinePriceSatang
+       FROM products p
+       JOIN product_variants v ON v.product_id = p.id
+       LEFT JOIN pricing_profiles pp ON pp.id =
+         (SELECT id FROM pricing_profiles WHERE product_variant_id = v.id
+          ORDER BY active_from DESC LIMIT 1)
+       WHERE p.status = 'active' AND (p.name LIKE ? OR p.product_ref LIKE ?)
+       ORDER BY p.name LIMIT 20`,
+    )
+    .bind(like, like)
+    .all<VariantSearchRow>();
+  return results ?? [];
+}
+
+export const AFFILIATE_SOURCES = ["shopee", "lazada", "other"] as const;
+export type AffiliateSource = (typeof AFFILIATE_SOURCES)[number];
+
+export interface AffiliateItemAdminRow {
+  id: string;
+  title: string;
+  imageKey: string | null;
+  priceText: string | null;
+  source: string;
+  targetUrl: string;
+  sortOrder: number;
+  status: string;
+  createdAt: number;
+  clicks: number;
+}
+
+/** Every affiliate card with its lifetime click count, in storefront display order. */
+export async function listAffiliateItemsAdmin(db: D1Database): Promise<AffiliateItemAdminRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.title, a.image_key AS imageKey, a.price_text AS priceText, a.source,
+              a.target_url AS targetUrl, a.sort_order AS sortOrder, a.status,
+              a.created_at AS createdAt,
+              (SELECT COUNT(*) FROM affiliate_clicks k WHERE k.item_id = a.id) AS clicks
+       FROM affiliate_items a ORDER BY a.sort_order, a.created_at DESC`,
+    )
+    .all<AffiliateItemAdminRow>();
+  return results ?? [];
+}
+
+export interface AffiliateItemCreate {
+  title: string;
+  targetUrl: string; // route enforces https://
+  priceText?: string | null;
+  source?: AffiliateSource;
+  sortOrder?: number;
+}
+
+/** Create an affiliate card (image uploaded separately). Returns the id. */
+export async function createAffiliateItem(
+  db: D1Database,
+  input: AffiliateItemCreate,
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO affiliate_items (id, title, price_text, source, target_url, sort_order, status,
+                                    created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+    )
+    .bind(
+      id,
+      input.title.trim(),
+      input.priceText?.trim() || null,
+      input.source ?? "other",
+      input.targetUrl.trim(),
+      Math.round(Number(input.sortOrder) || 0),
+      Date.now(),
+    )
+    .run();
+  return id;
+}
+
+export interface AffiliateItemPatch {
+  title?: string;
+  targetUrl?: string; // route enforces https://
+  priceText?: string | null;
+  source?: AffiliateSource;
+  sortOrder?: number;
+  status?: "active" | "disabled";
+}
+
+/** Update only the provided affiliate-card fields — an absent key leaves that column untouched. */
+export async function updateAffiliateItem(
+  db: D1Database,
+  id: string,
+  patch: AffiliateItemPatch,
+): Promise<void> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  const set = (column: string, value: unknown) => {
+    sets.push(`${column} = ?`);
+    binds.push(value);
+  };
+  if (patch.title !== undefined) set("title", patch.title.trim());
+  if (patch.targetUrl !== undefined) set("target_url", patch.targetUrl.trim());
+  if (patch.priceText !== undefined) set("price_text", patch.priceText?.trim() || null);
+  if (patch.source !== undefined) set("source", patch.source);
+  if (patch.sortOrder !== undefined) set("sort_order", Math.round(Number(patch.sortOrder) || 0));
+  if (patch.status !== undefined) set("status", patch.status);
+  if (sets.length === 0) return;
+  await db
+    .prepare(`UPDATE affiliate_items SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds, id)
+    .run();
+}
+
+/** Delete an affiliate card: clicks first (FK), then the row, then its R2 image (if any). */
+export async function deleteAffiliateItem(
+  db: D1Database,
+  bucket: R2Bucket,
+  id: string,
+): Promise<void> {
+  const row = await db
+    .prepare("SELECT image_key AS imageKey FROM affiliate_items WHERE id = ?")
+    .bind(id)
+    .first<{ imageKey: string | null }>();
+  await db.batch([
+    db.prepare("DELETE FROM affiliate_clicks WHERE item_id = ?").bind(id),
+    db.prepare("DELETE FROM affiliate_items WHERE id = ?").bind(id),
+  ]);
+  if (row?.imageKey) await bucket.delete(row.imageKey);
 }
 
 /**

@@ -1,8 +1,12 @@
 # Schema — As Built
 
-The actual D1 (SQLite) schema, derived from the applied migrations `0000`–`0018` in
+The actual D1 (SQLite) schema, derived from the applied migrations in
 [`packages/db/migrations/`](../packages/db/migrations/) and mirrored in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts) (Drizzle, the shape source of truth).
+This doc details the base back-office schema (migrations `0000`–`0018`) plus the AirPlus storefront
+additions (migrations `0036`–`0047`, in their own section below). The interim back-office migrations
+`0019`–`0035` have since altered the base tables (some added, some dropped) and are **not yet
+reflected in the base-tables section**.
 
 This complements — and where they differ, supersedes — the original plan in
 [DATA_MODEL.md](DATA_MODEL.md). The Worker runs **raw `db.prepare(...)` SQL**, not the Drizzle query
@@ -17,7 +21,7 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
   rollout (e.g. migration `0010` added `oring_usage` and intentionally **left `oring_size` in place,
   now unused**).
 
-## Tables (24)
+## Base tables (24, migrations `0000`–`0018`)
 
 ### Catalog & attributes
 | Table | Key columns |
@@ -78,6 +82,31 @@ Shopee mapping tables (`shop_connections`, `shopee_listings`, `shopee_listing_mo
 `product_variants` has nullable `option_1_*` / `option_2_*` columns for a future multi-variant editor.
 See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 
+## Storefront tables (AirPlus, migrations `0036`–`0047`)
+
+The customer-facing storefront (`apps/storefront`, a separate Cloudflare Worker binding the same D1
+database) added these tables. All are additive and are mirrored in `schema.ts`.
+
+| Table | Key columns |
+| --- | --- |
+| `sales_order_lines` | `id`, `sales_order_id`→sales_orders, `product_variant_id`→variants, `quantity`, `unit_price_satang`, `unit_cost_satang` (cost snapshot at sale time), `line_total_satang`, `created_at` — real line items for storefront-checkout orders (CSV-imported Shopee orders stay header-only). |
+| `storefront_customers` | `id`, `phone` (uq), `name`, `email`, `created_at`, `updated_at`; `0041` adds account fields — `phone_verified_at`, `pdpa_consent_at`, `last_login_at`, `line_user_id`/`facebook_id` (partial-unique), `password_hash`, `status` (`active`). Phone-keyed guest-checkout customers, **distinct from the plate-keyed `customers` table**. |
+| `addresses` | `id`, `storefront_customer_id`→storefront_customers, `recipient_name`, `phone`, `address_line1`, `subdistrict`, `district`, `province`, `postal_code`, `is_default`, `created_at`. |
+| `storefront_sessions` | `id`, `token_hash` (uq — SHA-256 of the raw cookie token), `customer_id`→storefront_customers, `created_at`, `expires_at`, `last_seen_at`, `revoked_at` — DB-backed, revocable sessions. |
+| `auth_otp_codes` | `id`, `phone`, `code_hash`, `salt`, `purpose` (`login`), `expires_at`, `attempts`, `consumed_at`, `created_at` — 6-digit, 5-min-TTL, single-use phone-OTP codes (hash only). |
+| `auth_throttle` | `key` (pk), `count`, `window_started_at` — fixed-window request counters (`otp:phone:*`, `otp:ip:*`, `coupon:ip:*`), single-statement upsert. |
+| `coupons` | `id`, `code` (uq), `type` (`fixed`/`percent`), `value`, `min_subtotal_satang`, `starts_at`/`ends_at`, `max_uses`, `max_uses_per_customer`, `status` (`active`/`disabled`), `created_at` — member-only codes. |
+| `coupon_redemptions` | `id`, `coupon_id`→coupons, `customer_id`→storefront_customers, `sales_order_id`→sales_orders, `amount_discounted_satang`, `created_at`. **Uq `(coupon_id, sales_order_id)`.** |
+| `campaigns` | `id`, `name`, `starts_at`, `ends_at`, `status` (`active`/`disabled`), `created_at` — flash-sale windows. |
+| `campaign_prices` | `id`, `campaign_id`→campaigns, `product_variant_id`→variants, `campaign_price_satang`, `stock_cap`, `sold_count`, `created_at`. **Uq `(campaign_id, product_variant_id)`.** Price resolved in code (`resolveEffectivePrice`), no cron. |
+| `banners` | `id`, `slot` (`hero`/`promo`), `image_key` (R2 `banners/`), `link_url`, `sort_order`, `starts_at`/`ends_at`, `status`, `created_at` — home-page banners, admin-managed. |
+| `affiliate_items` | `id`, `title`, `image_key`, `price_text` (freeform display, never used in math), `source` (`shopee`/`lazada`/`other`), `target_url`, `sort_order`, `status`, `created_at` — mechanic-tools affiliate cards. |
+| `affiliate_clicks` | `id`, `item_id`→affiliate_items, `created_at` — per-item click tracking (correlated with `channel = 'affiliate'` finance rows). |
+
+Column additions to existing tables: `0039` adds `sales_orders.storefront_customer_id` +
+`shipping_address_id` (both nullable — only storefront-checkout orders set them); `0040` adds
+`payments.sales_order_id` (nullable — links a payment approval to its storefront order).
+
 ## Migration history
 
 | File | Adds |
@@ -101,6 +130,19 @@ See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 | `0016_audit_logs` | Append-only `audit_logs` table + indexes. |
 | `0017_gated_phase_prep` | Shopee mapping + T&C tables; variant option columns; `products.default_terms_pattern_id`. |
 | `0018_remove_product_code` | Product ID (`product_ref`) becomes the sole identifier: backfill from `product_code`, add unique index `products_product_ref_unique`, then **drop `product_code`** and its unique index. |
+| `0019`–`0035` | Interim back-office migrations (service naming, dead-table drops, channel/movement CHECK constraints, on-site staging, customers, Shopee order/fulfillment fields, payments + slip, customer history) — **not individually detailed in this doc**. |
+| `0036_sales_order_lines` | `sales_order_lines` (real line items for storefront-checkout orders). |
+| `0037_storefront_customers` | `storefront_customers` (phone-keyed guest-checkout customers; distinct from plate-keyed `customers`). |
+| `0038_addresses` | `addresses` (shipping addresses for storefront customers). |
+| `0039_sales_orders_customer_address` | `sales_orders.storefront_customer_id` + `shipping_address_id` (nullable). |
+| `0040_payments_order_link` | `payments.sales_order_id` (nullable — links a payment to its storefront order). |
+| `0041_customer_accounts` | Storefront customers become accounts: phone-verify, PDPA consent, login bookkeeping, provider slots (LINE/Facebook/email), `status`. |
+| `0042_storefront_sessions` | `storefront_sessions` (DB-backed, revocable sessions; stores the token hash only). |
+| `0043_auth_otp` | `auth_otp_codes` + `auth_throttle` (phone-OTP login codes + fixed-window throttling). |
+| `0044_coupons` | `coupons` + `coupon_redemptions` (member-only codes). |
+| `0045_campaigns` | `campaigns` + `campaign_prices` (flash-sale windows; price resolved in code). |
+| `0046_banners` | `banners` (home-page hero/promo banners). |
+| `0047_affiliate_items` | `affiliate_items` + `affiliate_clicks` (mechanic-tools affiliate). |
 
 ## Migration workflow (do this exactly)
 

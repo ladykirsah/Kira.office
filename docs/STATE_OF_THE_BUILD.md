@@ -9,8 +9,8 @@
 > **this file and the code win** — older docs (`DATA_MODEL.md`, parts of `ARCHITECTURE.md`/`README`)
 > describe the original plan and lag the implementation.
 
-**Snapshot:** 2026-06-27 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
-**Tests:** 260+ passing · **Migrations:** 0000–0016 applied to prod **and** staging D1.
+**Snapshot:** 2026-07-11 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
+**Tests:** 573 passing · **Migrations:** 0000–0047 (0036–0047 add the **AirPlus storefront** schema — see §3).
 
 ---
 
@@ -27,6 +27,8 @@ scannable. Money is stored as **integer satang** everywhere (1 THB = 100 satang)
 apps/api      Cloudflare Worker (api.homeseeker.me). RAW SQL over D1. StockLedger Durable Object.
               R2 (images) + KV. Daily backup cron. Optional Cloudflare Access JWT gate.
 apps/admin    Next.js 15 (App Router) + React 19 on OpenNext. Calls the Worker from the browser.
+apps/storefront  AirPlus customer store (Next.js 15 on OpenNext, its own Worker). Shares api's D1 + KV;
+              cross-binds StockLedger DO. Guest checkout + phone-OTP member accounts.
 packages/core Pure-TS domain logic (pricing, cost, tax, stock, sync, orders, imports, finance). No I/O.
 packages/db   D1 schema (Drizzle `schema.ts`, the shape source of truth) + hand-written SQL migrations.
 docs/         This handoff set + the original planning docs.
@@ -62,7 +64,19 @@ o-ring usage) are the most developed surfaces — spec in
 
 **Core (packages/core):** pricing/profit, commission/fee math, tax, cost methods, stock helpers,
 CSV parse/map, order dedupe, finance — all unit-tested. This is the money-critical, framework-free
-layer; change it test-first.
+layer; change it test-first. Now also consumed by `apps/storefront` (coupons, campaigns, payments).
+
+**Storefront (apps/storefront — built; staging preview live):** the customer-facing **AirPlus**
+car-parts store — its own Cloudflare Worker (Next.js 15 / OpenNext) that shares the back office's D1 +
+KV and cross-binds the `StockLedger` DO. Catalog + fitment search, a bottom-sheet product filter, four
+`ctx`-marked browse contexts on `/products` (🛒 Products / 🗂️ Categories / 🚗 Car Fitment / 🏷️ On Sale),
+image-first PDP, client cart → **guest checkout** (PromptPay QR / transfer / COD + slip upload), order
+tracking by phone+order-no, and **phone-OTP member accounts** (order history, saved addresses). Money
+never trusts the client (server re-prices), stock deducts through the shared DO. Migrations `0036`–`0047`
+add its schema. Deployed to a durable phone-viewable **staging** preview at
+`airplus-storefront-staging.bettergogocash.workers.dev`; member login runs in dev-echo mode there (fixed
+OTP `123456`, no SMS) until an SMS provider (ThaiBulkSMS/Twilio) + Turnstile keys are configured. Full
+app README + deploy runbook: [apps/storefront/README.md](../apps/storefront/README.md).
 
 **Newest arc — on-site sales + bilingual shop branding (2026-06; migrations `0013`–`0015`):**
 **Services** catalogue (`/settings/services`, table + API). **POS rebuild** (`/pos`): selling type

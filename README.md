@@ -50,6 +50,7 @@ KV) — see [docs/CLOUDFLARE_ARCHITECTURE.md](docs/CLOUDFLARE_ARCHITECTURE.md).
 apps/
   admin/      # Next.js admin + offline-first POS (PWA) — Workers via OpenNext  (built)
   api/        # Cloudflare Worker: API, /sync, ledger DO, image serving           (live)
+  storefront/ # AirPlus — customer storefront (guest checkout, PromptPay/COD)    (built)
 packages/
   core/       # Pure-TS business logic: pricing, profit, tax, cost, stock (TDD)
   db/         # D1 schema (Drizzle) + hand-written SQL migrations
@@ -65,8 +66,8 @@ npm run typecheck
 npm run lint
 ```
 
-App initialization steps live in [apps/admin/README.md](apps/admin/README.md) and
-[apps/api/README.md](apps/api/README.md).
+App initialization steps live in [apps/admin/README.md](apps/admin/README.md),
+[apps/api/README.md](apps/api/README.md), and [apps/storefront/README.md](apps/storefront/README.md).
 
 ## Documentation Map
 

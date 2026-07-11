@@ -3,6 +3,7 @@ import worker, {
   addBarcodeToProduct,
   applyAdjustmentToDb,
   applySyncToDb,
+  applyOnlineSaleToDb,
   archiveProduct,
   buildCorsHeaders,
   createProduct,
@@ -112,6 +113,7 @@ function makeDb(canned: {
   batchChanges?: number[];
   paymentById?: unknown | null;
   slipRefOwner?: { id: string } | null;
+  onlineSaleLedgerRow?: { id: string } | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -172,6 +174,8 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("FROM stock_ledger_entries WHERE source_type"))
+          return (canned.onlineSaleLedgerRow ?? null) as T | null;
         if (sql.includes("FROM payments WHERE slip_ref"))
           return (canned.slipRefOwner ?? null) as T | null;
         if (sql.includes("FROM payments WHERE id")) return (canned.paymentById ?? null) as T | null;
@@ -2563,5 +2567,69 @@ describe("confirmPaymentWithSlip (Payment auto-confirm via slip verification)", 
     expect(upd).toBeDefined();
     expect(upd?.binds[0]).toBe("TR123");
     expect(upd?.binds[3]).toBe("pay1");
+  });
+});
+
+describe("applyOnlineSaleToDb (AirPlus order stock deduction)", () => {
+  const LINES = [
+    { productVariantId: "var-1", quantity: 2 },
+    { productVariantId: "var-2", quantity: 1 },
+  ];
+
+  it("given no lines > applies nothing", async () => {
+    const { db, batched } = makeDb({});
+    const out = await applyOnlineSaleToDb(db, "order-1", []);
+    expect(out).toEqual({ applied: false, duplicate: false, conflicts: [] });
+    expect(batched.length).toBe(0);
+  });
+
+  it("IDEMPOTENT: given the order already has ledger rows > no-op duplicate, nothing written", async () => {
+    const { db, batched } = makeDb({ onlineSaleLedgerRow: { id: "led-x" } });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out).toEqual({ applied: false, duplicate: true, conflicts: [] });
+    expect(batched.length).toBe(0);
+  });
+
+  it("FAIL-CLOSED: given any line short on stock > whole order conflicts, nothing written", async () => {
+    const { db, batched } = makeDb({
+      available: [
+        { variantId: "var-1", available: 5 },
+        { variantId: "var-2", available: 0 }, // second line short
+      ],
+    });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out.applied).toBe(false);
+    expect(out.conflicts).toEqual([{ productVariantId: "var-2", requested: 1, available: 0 }]);
+    expect(batched.length).toBe(0);
+  });
+
+  it("given enough stock > writes one online_sale ledger delta per line with running quantity_after", async () => {
+    const { db, batched } = makeDb({
+      available: [
+        { variantId: "var-1", available: 5 },
+        { variantId: "var-2", available: 3 },
+      ],
+    });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out).toEqual({ applied: true, duplicate: false, conflicts: [] });
+    expect(batched.length).toBe(2);
+    const inserts = batched as unknown as { sql: string; boundArgs: unknown[] }[];
+    expect(inserts[0]!.sql).toContain("INSERT INTO stock_ledger_entries");
+    expect(inserts[0]!.sql).toContain("'online_sale'");
+    expect(inserts[0]!.sql).toContain("'sales_order'");
+    // (id, variant, delta, after, orderId, createdAt)
+    expect(inserts[0]!.boundArgs[1]).toBe("var-1");
+    expect(inserts[0]!.boundArgs[2]).toBe(-2);
+    expect(inserts[0]!.boundArgs[3]).toBe(3); // 5 - 2
+    expect(inserts[0]!.boundArgs[4]).toBe("order-1");
+    expect(inserts[1]!.boundArgs[1]).toBe("var-2");
+    expect(inserts[1]!.boundArgs[2]).toBe(-1);
+    expect(inserts[1]!.boundArgs[3]).toBe(2); // 3 - 1
+  });
+
+  it("given a variant missing from the ledger entirely > treats available as 0 and conflicts", async () => {
+    const { db } = makeDb({ available: [{ variantId: "var-1", available: 5 }] });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out.conflicts).toEqual([{ productVariantId: "var-2", requested: 1, available: 0 }]);
   });
 });

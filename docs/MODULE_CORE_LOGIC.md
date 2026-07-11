@@ -2,7 +2,8 @@
 
 The money- and stock-critical engine. **Pure TypeScript, no I/O, no Cloudflare or React deps** — it
 operates on plain inputs and returns plain results, so every rule is unit-testable without a DB,
-browser, or Shopee. `apps/api` and `apps/admin` import it; it imports nothing of theirs. **Change it
+browser, or Shopee. `apps/api`, `apps/admin`, and `apps/storefront` import it; it imports nothing of
+theirs. **Change it
 test-first** (red→green) per [AGENTS.md](../AGENTS.md).
 
 Authoritative formula reference: [PRICING_AND_FINANCE.md](PRICING_AND_FINANCE.md). All amounts here

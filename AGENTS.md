@@ -19,6 +19,7 @@ Backend runs on the **Cloudflare developer platform** — full design in
 - Monorepo via **npm workspaces**; **Node 22** (Wrangler requires ≥22; `.nvmrc` + CI pin it). No pnpm.
 - `apps/admin` — Next.js + TypeScript admin UI and offline-first POS, deployed to **Workers** via the **OpenNext** adapter (PWA).
 - `apps/api` — **Cloudflare Worker** for the API, offline-sync endpoint, Shopee adapter, and queue consumers.
+- `apps/storefront` — **AirPlus** customer-facing car-parts storefront (Next.js + TypeScript via **OpenNext**); its own **Cloudflare Worker**, separate from admin/api but on the **same account** (GoGoCash), binding the same D1 + KV and the cross-Worker `StockLedger` Durable Object.
 - `packages/db` — **D1** schema + migrations via **Drizzle** (`drizzle-kit` → `wrangler d1 migrations apply`).
 - `packages/core` — pure-TypeScript pricing, inventory, tax, cost, and terms logic (no I/O, no Cloudflare deps).
 - `docs` — requirements and implementation notes.
