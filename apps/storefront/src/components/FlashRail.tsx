@@ -5,9 +5,9 @@ import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
 /**
- * A single flash-deal tile for the horizontal rail: image + discount badge + name + flash price
- * with strikethrough, and a scarcity bar (sold vs the campaign's stock cap) when a cap is set.
- * Pure display → server component. Links to the PDP.
+ * A single flash-deal card ("Design B" horizontal/landscape: square image + discount badge on the
+ * left, name + flash price with strikethrough + scarcity bar on the right). The scarcity bar shows
+ * sold vs the campaign's stock cap when a cap is set. Pure display → server component. Links to the PDP.
  */
 function FlashCard({ item }: { item: CatalogItem }) {
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
@@ -62,7 +62,7 @@ function FlashCard({ item }: { item: CatalogItem }) {
   );
 }
 
-/** Horizontal, swipeable rail of live flash deals (owner-approved "Design 3"). */
+/** Vertical stack of horizontal (landscape) flash-deal cards. */
 export function FlashRail({ items }: { items: CatalogItem[] }) {
   if (items.length === 0) return null;
   return (

@@ -117,17 +117,21 @@ export default async function ProductsPage(props: {
         </h1>
       </div>
 
+      {/* Every filter chip uses `replace`: narrowing this list is an in-page action, so it overwrites
+          the current history entry rather than stacking one. The back arrow then returns to the
+          previous PAGE (home/category) — not a prior filter state the shopper didn't navigate to. */}
       {isSaleView ? null : isBrandView ? ( // On-Sale is a flat deals list — no cross-axis shortcut
         // By Brand: narrow this car brand by part category (only categories it actually has).
         brandTypes.length > 0 && (
           <div className="chip-row" style={{ marginBottom: 12 }}>
-            <Link href={brandTypeChipHref()} className={type ? "chip" : "chip on"}>
+            <Link href={brandTypeChipHref()} replace className={type ? "chip" : "chip on"}>
               ทั้งหมด
             </Link>
             {brandTypes.map((t) => (
               <Link
                 key={t.id}
                 href={brandTypeChipHref(t.id)}
+                replace
                 className={t.id === type ? "chip on" : "chip"}
               >
                 {t.name}
@@ -139,13 +143,14 @@ export default async function ProductsPage(props: {
         // Categories: narrow this category by car brand (only brands present in it).
         catCarBrands.length > 0 && (
           <div className="chip-row" style={{ marginBottom: 12 }}>
-            <Link href={catCarChipHref()} className={carBrand ? "chip" : "chip on"}>
+            <Link href={catCarChipHref()} replace className={carBrand ? "chip" : "chip on"}>
               ทั้งหมด
             </Link>
             {catCarBrands.map((cb) => (
               <Link
                 key={cb}
                 href={catCarChipHref(cb)}
+                replace
                 className={cb === carBrand ? "chip on" : "chip"}
               >
                 {cb}
@@ -156,13 +161,14 @@ export default async function ProductsPage(props: {
       ) : (
         // Products / search: pick a part category.
         <div className="chip-row" style={{ marginBottom: 12 }}>
-          <Link href={catChipHref()} className={type ? "chip" : "chip on"}>
+          <Link href={catChipHref()} replace className={type ? "chip" : "chip on"}>
             ทั้งหมด
           </Link>
           {types.map((t) => (
             <Link
               key={t.id}
               href={catChipHref(t.id)}
+              replace
               className={t.id === type ? "chip on" : "chip"}
             >
               {t.name}
@@ -202,7 +208,7 @@ export default async function ProductsPage(props: {
           <p className="muted" style={{ margin: "0 0 16px" }}>
             ลองค้นหาด้วยรุ่นรถ เช่น Vigo, D-Max หรือเลขอะไหล่
           </p>
-          <Link href="/products" className="btn">
+          <Link href="/products" replace className="btn">
             ดูสินค้าทั้งหมด
           </Link>
         </div>

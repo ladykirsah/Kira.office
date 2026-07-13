@@ -57,13 +57,13 @@ export function Countdown({
   const p = parts(endsAt - now);
 
   if (variant === "boxes") {
-    // HH:MM:SS only — days are folded into the hours so nothing is lost when the "วัน" chip is gone.
-    const totalHours = p.days * 24 + p.hours;
-    const aria = `เหลือเวลา ${totalHours} ชั่วโมง ${p.minutes} นาที ${p.seconds} วินาที`;
+    // HH:MM:SS only — no "N วัน" chip. On a long/permanent campaign the hours box shows the sub-day
+    // remainder (0–23), keeping the flash-hero timer a clean daily-style countdown (owner choice).
+    const aria = `เหลือเวลา ${p.hours} ชั่วโมง ${p.minutes} นาที ${p.seconds} วินาที`;
     return (
       <span className="cd-boxes" role="timer" aria-label={aria} suppressHydrationWarning>
         <span className="cd-box" aria-hidden="true" suppressHydrationWarning>
-          {pad(totalHours)}
+          {pad(p.hours)}
         </span>
         <span className="cd-sep" aria-hidden="true">
           :

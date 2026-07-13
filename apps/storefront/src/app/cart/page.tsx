@@ -4,47 +4,53 @@ import Link from "next/link";
 import { useState } from "react";
 import { cartTotalSatang, removeLine, setQty, useCart } from "@/lib/cart";
 import { BrandTag } from "@/components/BrandTag";
+import { ReadyToShip } from "@/components/ReadyToShip";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
 /**
- * Cart — client-only (localStorage cart), one card of line rows + a sticky total bar.
+ * Cart — client-only (localStorage cart), one card per line item + a sticky total bar.
  * Prices here are display-only; the checkout API re-prices everything server-side.
  */
 
-const clamp2: React.CSSProperties = {
-  display: "-webkit-box",
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: "vertical",
+/** One-line product name (compact cart card). */
+const nameStyle: React.CSSProperties = {
+  fontSize: 13.5,
+  fontWeight: 700,
+  color: "var(--gray-dark)",
+  whiteSpace: "nowrap",
   overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
-/** 72px product thumb; local-dev image keys often 404 → graceful Thai placeholder, never broken. */
+/** Square product thumb that fills the card's inner height, with the card's padding as an even gap
+ *  around it (like the flash card). Local-dev image keys often 404 → graceful ✦ placeholder. */
 function Thumb({ imageKey, alt }: { imageKey: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
+  const style: React.CSSProperties = { width: 88, height: 88, flexShrink: 0 };
   if (!imageKey || failed) {
     return (
-      <div className="frame" style={{ width: 72, height: 72, flexShrink: 0 }}>
-        <span aria-hidden="true" style={{ fontSize: 44, lineHeight: 1, color: "var(--brand)" }}>
+      <div className="frame" style={style}>
+        <span aria-hidden="true" style={{ fontSize: 40, lineHeight: 1, color: "var(--brand)" }}>
           ✦
         </span>
       </div>
     );
   }
   return (
-    <div className="frame" style={{ width: 72, height: 72, flexShrink: 0 }}>
+    <div className="frame" style={style}>
       <img src={imgUrl(imageKey)} alt={alt} onError={() => setFailed(true)} />
     </div>
   );
 }
 
 const stepBtnStyle: React.CSSProperties = {
-  width: 34,
-  height: 34,
+  width: 28,
+  height: 28,
   border: "none",
   background: "transparent",
   borderRadius: 999,
-  fontSize: 18,
+  fontSize: 16,
   lineHeight: 1,
   color: "var(--text)",
 };
@@ -69,25 +75,30 @@ export default function CartPage() {
 
   return (
     <div className="has-sticky-bar">
-      <div className="card">
-        {lines.map((l, i) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {lines.map((l) => (
           <div
             key={l.variantId}
-            style={{
-              display: "flex",
-              gap: 12,
-              padding: 14,
-              alignItems: "flex-start",
-              borderTop: i > 0 ? "1px solid var(--border)" : "none",
-            }}
+            className="card"
+            style={{ display: "flex", alignItems: "stretch", gap: 11, padding: 10 }}
           >
             <Thumb imageKey={l.imageKey} alt={l.name} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--gray-dark)", ...clamp2 }}>
-                {l.name}
-              </div>
-              <div style={{ margin: "4px 0 10px", minHeight: 17 }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              <div style={nameStyle}>{l.name}</div>
+              {/* product detail (brand) + status (ready-to-ship) — the shared default info pills:
+                  GRAY = detail via BrandTag, GREEN = status via ReadyToShip. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                 {l.brandName && <BrandTag name={l.brandName} />}
+                <ReadyToShip />
               </div>
               <div
                 style={{
@@ -117,7 +128,7 @@ export default function CartPage() {
                       −
                     </button>
                     <span
-                      style={{ minWidth: 26, textAlign: "center", fontSize: 14, fontWeight: 600 }}
+                      style={{ minWidth: 20, textAlign: "center", fontSize: 12, fontWeight: 600 }}
                     >
                       {l.qty}
                     </span>

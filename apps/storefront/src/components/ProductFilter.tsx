@@ -75,7 +75,10 @@ export function ProductFilter({ fitments, types, brands, current }: FilterProps)
     if (typeId) p.set("type", typeId);
     if (brandId) p.set("brand", brandId);
     const qs = p.toString();
-    router.push(qs ? `/products?${qs}` : "/products");
+    // Re-filtering the page we're already on — REPLACE (not push) so each filter change overwrites
+    // the current history entry instead of stacking a new one. The back arrow then returns to the
+    // previous PAGE (home/category), never a prior filter state the shopper didn't navigate to.
+    router.replace(qs ? `/products?${qs}` : "/products");
     setOpen(false);
   }
 

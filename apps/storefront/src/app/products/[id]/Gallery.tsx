@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { imgUrl } from "@/lib/img";
 
 interface GalleryProps {
@@ -9,70 +9,121 @@ interface GalleryProps {
   name: string;
 }
 
+/** Hard cap on gallery images (owner-facing rule): a product shows at most 10 photos. */
+const MAX_IMAGES = 10;
+/** Placeholder slides shown ONLY while a product has no real photos, so the multi-image carousel +
+ *  page counter is previewable now. Real uploaded images (2–10) replace these automatically. */
+const MOCK_EMPTY_SLIDES = 4;
+
 /**
- * Zara-style image-first gallery: full-width square main frame + thumb strip.
- * Local dev R2 keys often 404 — every <img> falls back to a Thai placeholder on error.
+ * Swipe carousel (Lovito/Shopee pattern): full-width square slides with scroll-snap, a "current/total"
+ * page badge bottom-right, and dot navigation — up to 10 images. Local dev R2 keys often 404, so
+ * every <img> falls back to the Thai ✦ placeholder on error.
  */
 export function Gallery({ images, coverKey, name }: GalleryProps) {
-  const keys = images.length > 0 ? images.map((i) => i.imageKey) : coverKey ? [coverKey] : [];
-  const [selectedIdx, setSelectedIdx] = useState(0);
+  const realKeys = (
+    images.length > 0 ? images.map((i) => i.imageKey) : coverKey ? [coverKey] : []
+  ).slice(0, MAX_IMAGES);
+  const slides: (string | null)[] =
+    realKeys.length > 0 ? realKeys : Array<null>(MOCK_EMPTY_SLIDES).fill(null);
+
+  const [idx, setIdx] = useState(0);
   const [failed, setFailed] = useState<Record<string, boolean>>({});
+  const trackRef = useRef<HTMLDivElement>(null);
 
-  const mainFrameStyle: React.CSSProperties = {
-    aspectRatio: "1 / 1",
-    width: "100%",
-    borderRadius: "var(--radius)",
+  const onScroll = () => {
+    const el = trackRef.current;
+    if (el) setIdx(Math.round(el.scrollLeft / el.clientWidth));
   };
-
-  if (keys.length === 0) {
-    return (
-      <div className="frame" style={mainFrameStyle}>
-        <span style={{ color: "var(--brand)", fontSize: 44, lineHeight: 1 }}>✦</span>
-      </div>
-    );
-  }
-
-  const selected = keys[Math.min(selectedIdx, keys.length - 1)];
-  const markFailed = (key: string) => setFailed((prev) => ({ ...prev, [key]: true }));
+  const goTo = (i: number) => {
+    const el = trackRef.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  };
 
   return (
     <div>
-      <div className="frame" style={mainFrameStyle}>
-        {failed[selected] ? (
-          <span style={{ color: "var(--brand)", fontSize: 44, lineHeight: 1 }}>✦</span>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imgUrl(selected)} alt={name} onError={() => markFailed(selected)} />
+      <div style={{ position: "relative", borderRadius: "var(--radius)", overflow: "hidden" }}>
+        <div
+          ref={trackRef}
+          onScroll={onScroll}
+          className="pdp-gallery-track"
+          style={{
+            display: "flex",
+            overflowX: "auto",
+            scrollSnapType: "x mandatory",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+          }}
+        >
+          {slides.map((key, i) => (
+            <div
+              key={i}
+              className="frame"
+              style={{
+                flex: "0 0 100%",
+                aspectRatio: "1 / 1",
+                scrollSnapAlign: "start",
+                borderRadius: 0,
+              }}
+            >
+              {key && !failed[key] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imgUrl(key)}
+                  alt={name}
+                  onError={() => setFailed((prev) => ({ ...prev, [key]: true }))}
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  style={{ color: "var(--brand)", fontSize: 44, lineHeight: 1 }}
+                >
+                  ✦
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {slides.length > 1 && (
+          <div
+            style={{
+              position: "absolute",
+              right: 10,
+              bottom: 10,
+              background: "rgba(40, 36, 30, 0.55)",
+              color: "var(--white)",
+              fontSize: 12,
+              fontWeight: 700,
+              padding: "2px 10px",
+              borderRadius: 999,
+            }}
+          >
+            {idx + 1}/{slides.length}
+          </div>
         )}
       </div>
 
-      {keys.length > 1 && (
-        <div
-          style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", padding: "2px 0" }}
-        >
-          {keys.map((key, i) => (
+      {slides.length > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
+          {slides.map((_, i) => (
             <button
-              key={key}
+              key={i}
               type="button"
-              onClick={() => setSelectedIdx(i)}
-              aria-label={`ดูรูปที่ ${i + 1}`}
-              aria-current={i === selectedIdx}
-              className="frame"
+              aria-label={`ไปรูปที่ ${i + 1}`}
+              aria-current={i === idx}
+              onClick={() => goTo(i)}
               style={{
-                width: 64,
-                height: 64,
-                flex: "0 0 auto",
+                width: i === idx ? 18 : 7,
+                height: 7,
+                borderRadius: 999,
+                border: "none",
                 padding: 0,
-                border: i === selectedIdx ? "2px solid var(--accent)" : "2px solid var(--border)",
+                background: i === idx ? "var(--brand)" : "var(--gray-lite)",
+                cursor: "pointer",
+                transition: "width 0.2s ease",
               }}
-            >
-              {failed[key] ? (
-                <span style={{ color: "var(--brand)", fontSize: 24, lineHeight: 1 }}>✦</span>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imgUrl(key)} alt="" onError={() => markFailed(key)} />
-              )}
-            </button>
+            />
           ))}
         </div>
       )}

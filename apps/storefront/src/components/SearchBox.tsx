@@ -1,23 +1,28 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 /**
- * Search-first entry point (reference #2 "Audio" kit): one large rounded input with a magnifier.
- * Submits to /products?q=… — client-side push when JS is up, plain form GET as the fallback.
+ * Home search entry — a tappable bar that OPENS the dedicated /search page (recent searches, search
+ * by car, suggested products), the Shopee pattern the owner asked for. Styled to look like the input
+ * it replaces (magnifier + placeholder text); the real typing happens on /search. A plain link, so it
+ * works without JS and never flashes the on-screen keyboard the way a focus-then-redirect input would.
  */
-export function SearchBox({ initialQ, autoFocus }: { initialQ?: string; autoFocus?: boolean }) {
-  const router = useRouter();
+export function SearchBox() {
   return (
-    <form
-      action="/products"
-      method="get"
+    <Link
+      href="/search"
       role="search"
-      style={{ position: "relative" }}
-      onSubmit={(e) => {
-        e.preventDefault();
-        const q = String(new FormData(e.currentTarget).get("q") ?? "").trim();
-        router.push(q ? `/products?q=${encodeURIComponent(q)}` : "/products");
+      aria-label="ค้นหาสินค้า"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        minHeight: 46,
+        padding: "0 16px",
+        borderRadius: 999,
+        background: "var(--white)",
+        boxShadow: "0 1px 4px rgba(55, 54, 54, 0.14)",
+        color: "var(--gray-mid)",
+        textDecoration: "none",
       }}
     >
       <svg
@@ -29,35 +34,23 @@ export function SearchBox({ initialQ, autoFocus }: { initialQ?: string; autoFocu
         strokeWidth="2"
         strokeLinecap="round"
         aria-hidden="true"
-        style={{
-          position: "absolute",
-          left: 16,
-          top: "50%",
-          transform: "translateY(-50%)",
-          color: "var(--text-faint)",
-          pointerEvents: "none",
-        }}
+        style={{ flex: "0 0 auto" }}
       >
         <circle cx="11" cy="11" r="7" />
         <line x1="21" y1="21" x2="16.5" y2="16.5" />
       </svg>
-      <input
-        className="input"
-        type="search"
-        name="q"
-        defaultValue={initialQ ?? ""}
-        placeholder="ค้นหาด้วยรุ่นรถ หรือชื่ออะไหล่ เช่น ตู้แอร์ Vigo"
-        aria-label="ค้นหาสินค้า"
-        autoFocus={autoFocus}
-        enterKeyHint="search"
+      <span
         style={{
-          minHeight: 46,
-          paddingLeft: 46,
-          borderRadius: 999,
-          border: "none",
-          boxShadow: "0 1px 4px rgba(55, 54, 54, 0.14)",
+          flex: 1,
+          minWidth: 0,
+          fontSize: 14,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
-      />
-    </form>
+      >
+        ค้นหาด้วยรุ่นรถ หรือชื่ออะไหล่ เช่น ตู้แอร์ Vigo
+      </span>
+    </Link>
   );
 }

@@ -3,10 +3,15 @@ import { notFound } from "next/navigation";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import { getDb, getProduct, listCatalog } from "@/lib/db";
 import { baht } from "@/lib/format";
+import { BrandTag } from "@/components/BrandTag";
 import { Countdown } from "@/components/Countdown";
+import { DiscountTag } from "@/components/DiscountTag";
+import { Pill } from "@/components/Pill";
 import { ProductCard } from "@/components/ProductCard";
+import { ReadyToShip } from "@/components/ReadyToShip";
 import { RecentlyViewed, RecordView } from "@/components/RecentlyViewed";
 import { AddToCartBar } from "./AddToCartBar";
+import { CollapsibleSection } from "./CollapsibleSection";
 import { Gallery } from "./Gallery";
 
 // Live catalog data from D1 — must render per-request on the Worker, never prerender at build
@@ -24,17 +29,15 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   return { title: detail ? `${detail.name} — AirPlus` : "ไม่พบสินค้า — AirPlus" };
 }
 
-function fitmentLabel(f: {
-  carBrand: string | null;
-  carModel: string | null;
-  yearFrom: number | null;
-  yearTo: number | null;
-}): string {
-  const car = [f.carBrand, f.carModel].filter(Boolean).join(" ");
-  if (f.yearFrom != null && f.yearTo != null) return `${car} (${f.yearFrom}–${f.yearTo})`;
-  if (f.yearFrom != null) return `${car} (${f.yearFrom} ขึ้นไป)`;
-  if (f.yearTo != null) return `${car} (ถึงปี ${f.yearTo})`;
-  return car;
+/** Fitment split into two columns: "Toyota · Hilux Vigo" (brand · model) and the bare year range. */
+function fitmentName(f: { carBrand: string | null; carModel: string | null }): string {
+  return [f.carBrand, f.carModel].filter(Boolean).join(" · ");
+}
+function fitmentYear(f: { yearFrom: number | null; yearTo: number | null }): string {
+  if (f.yearFrom != null && f.yearTo != null) return `${f.yearFrom}–${f.yearTo}`;
+  if (f.yearFrom != null) return `${f.yearFrom} ขึ้นไป`;
+  if (f.yearTo != null) return `ถึงปี ${f.yearTo}`;
+  return "";
 }
 
 export default async function ProductPage(props: PageProps) {
@@ -43,7 +46,6 @@ export default async function ProductPage(props: PageProps) {
   const detail = await getProduct(db, id);
   if (!detail) notFound();
 
-  const metaLine = [detail.typeName, detail.brandName].filter(Boolean).join(" · ");
   const inStock = detail.onHand > 0;
   // Same core resolver as checkout — the price shown here can never disagree with re-pricing.
   const eff = resolveEffectivePrice(detail.priceSatang, detail.campaign, Date.now());
@@ -64,181 +66,244 @@ export default async function ProductPage(props: PageProps) {
     <div className="has-sticky-bar">
       {/* mobile-first single column; ≥720px two-column gallery|info (same page widened) */}
       <style>{`
-        .pdp-grid { display: grid; gap: 20px; }
+        .pdp-grid { display: grid; gap: 0; }
+        @media (max-width: 719px) {
+          /* cancel .wrap's 16px top padding so the white gallery block fills up to the orange header */
+          .pdp-grid { margin-top: -16px; }
+        }
         @media (min-width: 720px) {
           .pdp-grid { grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
         }
       `}</style>
 
       <div className="pdp-grid">
-        <Gallery images={detail.images} coverKey={detail.imageKey} name={detail.name} />
+        <div className="pdp-gallery-cell">
+          <Gallery images={detail.images} coverKey={detail.imageKey} name={detail.name} />
+        </div>
 
         <div>
-          {metaLine && (
-            <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
-              {metaLine}
-            </div>
-          )}
-          <h1 className="t-h1" style={{ margin: "0 0 8px", color: "var(--gray-dark)" }}>
-            {detail.name}
-          </h1>
-          <div className="t-small" style={{ color: "var(--gray-mid)" }}>
-            รหัสอะไหล่: {detail.productRef}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 10,
-              flexWrap: "wrap",
-              margin: "18px 0 10px",
-            }}
-          >
-            <span className="t-price-l">{baht(eff.priceSatang)}</span>
-            {eff.onSale && eff.compareAtSatang !== null && (
-              <>
-                <span className="t-price-strike">{baht(eff.compareAtSatang)}</span>
-                <span
-                  style={{
-                    background: "var(--brand-deep)",
-                    color: "var(--white)",
-                    fontSize: 12,
-                    fontWeight: 800,
-                    padding: "4px 10px",
-                    borderRadius: 999,
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  ลด{" "}
-                  {Math.round(
-                    ((eff.compareAtSatang - eff.priceSatang) / eff.compareAtSatang) * 100,
-                  )}
-                  %
-                </span>
-              </>
-            )}
-            {detail.priceIncludesVat && (
-              <span style={{ fontSize: 12, color: "var(--gray-mid)" }}>ราคารวม VAT 7% แล้ว</span>
-            )}
-          </div>
-
-          {eff.onSale && eff.endsAt !== null && (
-            <div
-              style={{
-                background: "var(--brand)",
-                color: "var(--white)",
-                fontSize: 13,
-                fontWeight: 800,
-                padding: "8px 12px",
-                borderRadius: 999,
-                margin: "0 0 12px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              ⚡ แฟลชเซล — <Countdown endsAt={eff.endsAt} />
-            </div>
-          )}
-
-          <span className={inStock ? "pill good" : "pill bad"} style={{ fontSize: 12 }}>
-            {inStock ? "พร้อมส่ง" : "สินค้าหมด"}
-          </span>
-
-          {detail.fitments.length > 0 && (
-            <section className="section">
-              <div className="section-head">
-                <div className="t-overline" style={{ color: "var(--brand-deep)" }}>
-                  🔧 Fitment
-                </div>
-                <h2 className="t-h2">
-                  <span style={{ color: "var(--brand)" }}>ใส่ได้กับ</span>รถ
-                </h2>
-              </div>
+          {/* Design A — Shopee-style section blocks: white blocks separated by a thick gray band,
+              full-bleed on mobile. รุ่นรถที่ใช้ได้ + คำอธิบาย collapse; the spec block stays open. */}
+          <div className="pdp-blocks">
+            {/* 1st block (white): pills · title · price · flash */}
+            <div className="pdp-block">
+              {/* category + brand (gray) + ready-to-ship (green) pills grouped in one row */}
               <div
                 style={{
-                  padding: "4px 16px",
-                  background: "var(--white)",
-                  border: "1px solid var(--gray-lite)",
-                  borderRadius: "var(--radius)",
-                  boxShadow: "var(--shadow)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  flexWrap: "wrap",
+                  marginBottom: 10,
                 }}
               >
-                {detail.fitments.map((f, i) => (
-                  <div
-                    key={i}
+                {/* gray = product details (category via shared Pill, brand via BrandTag); green = status */}
+                {detail.typeName && (
+                  <Pill color="var(--gray-mid)" background="rgba(115, 115, 115, 0.12)">
+                    {detail.typeName}
+                  </Pill>
+                )}
+                {detail.brandName && <BrandTag name={detail.brandName} />}
+                {inStock && <ReadyToShip />}
+              </div>
+              {/* Semibold (not the token's 800) — long product names read lighter on the PDP. */}
+              <h1
+                className="t-h1"
+                style={{ margin: "0 0 8px", color: "var(--gray-dark)", fontWeight: 600 }}
+              >
+                {detail.name}
+              </h1>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  margin: "18px 0 10px",
+                }}
+              >
+                <span className="t-price-l">{baht(eff.priceSatang)}</span>
+                <DiscountTag priceSatang={eff.priceSatang} compareAtSatang={eff.compareAtSatang} />
+              </div>
+
+              {/* Flash-sale countdown — below the price. */}
+              {eff.onSale && eff.endsAt !== null && (
+                <div
+                  style={{
+                    background: "var(--brand)",
+                    color: "var(--white)",
+                    fontSize: 13,
+                    fontWeight: 800,
+                    padding: "8px 12px",
+                    borderRadius: 999,
+                    margin: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  ⚡ แฟลชเซล — <Countdown endsAt={eff.endsAt} />
+                </div>
+              )}
+            </div>
+
+            <div className="pdp-band" />
+
+            {/* Details block — headline kept exactly (📋 รายละเอียด · Details) + current spec rows */}
+            <div className="pdp-block">
+              <div style={{ marginBottom: 16 }}>
+                <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
+                  📋 รายละเอียด · Details
+                </div>
+                <h2 className="t-h2" style={{ margin: 0, color: "var(--gray-dark)" }}>
+                  รายละเอียดสินค้า
+                </h2>
+              </div>
+
+              {/* spec rows (icon · label · value) */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {(
+                  [
+                    { ic: "🗂️", label: "หมวดหมู่", value: detail.typeName },
+                    { ic: "🏷️", label: "แบรนด์", value: detail.brandName },
+                    {
+                      ic: "⚖️",
+                      label: "น้ำหนัก",
+                      value:
+                        detail.weightGrams > 0
+                          ? `${(detail.weightGrams / 1000).toFixed(1)} กก.`
+                          : null,
+                    },
+                    { ic: "#️⃣", label: "รหัสสินค้า", value: detail.productRef },
+                  ] as { ic: string; label: string; value: string | null }[]
+                )
+                  .filter((s) => s.value)
+                  .map((s, i) => (
+                    <div
+                      key={s.label}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "9px 2px",
+                        borderTop: i > 0 ? "1px solid var(--hover)" : "none",
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 30,
+                          height: 30,
+                          flex: "0 0 auto",
+                          borderRadius: 9,
+                          background: "rgba(235, 80, 49, 0.1)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 15,
+                        }}
+                      >
+                        {s.ic}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 13.5, color: "var(--gray-mid)" }}>
+                        {s.label}
+                      </span>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--gray-dark)" }}>
+                        {s.value}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* รุ่นรถที่ใช้ได้ — collapsible block (Fitment) */}
+            {detail.fitments.length > 0 && (
+              <>
+                <div className="pdp-band" />
+                <CollapsibleSection titleTh="รุ่นรถที่ใช้ได้" titleEn="Fitment">
+                  {detail.fitments.map((f, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 0",
+                        borderTop: i > 0 ? "1px solid var(--hover)" : "none",
+                      }}
+                    >
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        aria-hidden="true"
+                        style={{ flexShrink: 0, color: "var(--brand)" }}
+                      >
+                        <path
+                          d="M5 12.5 10 17.5 19 7"
+                          stroke="currentColor"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span
+                        style={{
+                          flex: 1,
+                          fontSize: 14,
+                          color: "var(--gray-dark)",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {fitmentName(f)}
+                      </span>
+                      <span
+                        style={{ fontSize: 13, color: "var(--gray-mid)", whiteSpace: "nowrap" }}
+                      >
+                        {fitmentYear(f)}
+                      </span>
+                    </div>
+                  ))}
+                </CollapsibleSection>
+              </>
+            )}
+
+            {/* คำอธิบาย — collapsible block (Description) */}
+            {detail.description && (
+              <>
+                <div className="pdp-band" />
+                <CollapsibleSection titleTh="คำอธิบาย" titleEn="Description">
+                  <p
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "12px 0",
-                      borderTop: i > 0 ? "1px solid var(--gray-lite)" : "none",
-                      fontSize: 15,
+                      whiteSpace: "pre-line",
                       color: "var(--gray-dark)",
-                      fontWeight: 500,
+                      fontSize: 15,
+                      lineHeight: 1.7,
+                      margin: 0,
                     }}
                   >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      aria-hidden="true"
-                      style={{ flexShrink: 0, color: "var(--brand)" }}
-                    >
-                      <path
-                        d="M5 12.5 10 17.5 19 7"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span>{fitmentLabel(f)}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+                    {detail.description}
+                  </p>
+                </CollapsibleSection>
+              </>
+            )}
 
-          {detail.description && (
-            <section className="section">
-              <div className="section-head">
-                <div className="t-overline" style={{ color: "var(--brand-deep)" }}>
-                  📋 Details
-                </div>
-                <h2 className="t-h2">รายละเอียดสินค้า</h2>
-              </div>
-              <p
-                style={{
-                  whiteSpace: "pre-line",
-                  color: "var(--gray-dark)",
-                  fontSize: 15,
-                  lineHeight: 1.7,
-                  margin: 0,
-                }}
-              >
-                {detail.description}
-              </p>
-            </section>
-          )}
-
-          {detail.weightGrams > 0 && (
-            <div style={{ fontSize: 12, color: "var(--gray-mid)", marginTop: 16 }}>
-              น้ำหนักจัดส่ง ~{(detail.weightGrams / 1000).toFixed(1)} กก.
-            </div>
-          )}
+            <div className="pdp-band" />
+          </div>
         </div>
       </div>
 
       {related.length > 0 && (
         <section className="section">
-          <div className="section-head">
-            <div className="t-overline" style={{ color: "var(--brand-deep)" }}>
+          <div style={{ marginBottom: 16 }}>
+            <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
               🔥 สินค้าใกล้เคียง · Related
             </div>
-            <h2 className="t-h2">สินค้าใกล้เคียง</h2>
+            <h2 className="t-h2" style={{ margin: 0, color: "var(--gray-dark)" }}>
+              สินค้าใกล้เคียง
+            </h2>
           </div>
           <div className="product-grid">
             {related.map((item) => (
@@ -257,6 +322,7 @@ export default async function ProductPage(props: PageProps) {
           imageKey: detail.imageKey,
           productRef: detail.productRef,
           variantId: detail.variantId,
+          typeName: detail.typeName,
         }}
       />
 

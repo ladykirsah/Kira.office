@@ -17,6 +17,9 @@ export interface RecentItem {
   imageKey: string | null;
   productRef: string;
   variantId: string;
+  /** Part-type name — added later; older stored entries omit it. Used by /search to re-rank
+   *  suggestions toward the types a returning visitor has shown interest in. */
+  typeName?: string | null;
 }
 
 const KEY = "airplus.recent.v1";
@@ -38,6 +41,11 @@ function readList(): RecentItem[] {
   } catch {
     return [];
   }
+}
+
+/** Read the recently-viewed list (most-recent first); [] when empty/blocked. Shared with /search. */
+export function readRecentItems(): RecentItem[] {
+  return readList();
 }
 
 /** Invisible PDP beacon: prepend this product (dedupe by productId, cap 12). Renders nothing. */
@@ -68,11 +76,15 @@ export function RecentlyViewed({ currentProductId }: { currentProductId?: string
 
   return (
     <section className="section">
-      <div className="section-head">
-        <div className="t-overline" style={{ color: "var(--brand-deep)" }}>
+      {/* Stacked section head — eyebrow above title, left-aligned — matching every other home
+          section (Best Sellers, etc.). NOT the old flex `.section-head` that split them apart. */}
+      <div style={{ marginBottom: 14 }}>
+        <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
           🕘 ดูล่าสุด · Recently Viewed
         </div>
-        <h2 className="t-h2">ดูล่าสุด</h2>
+        <h2 className="t-h2" style={{ color: "var(--gray-dark)", margin: 0 }}>
+          ดูล่าสุด
+        </h2>
       </div>
       <div
         style={{

@@ -3,6 +3,7 @@ import { Prompt } from "next/font/google";
 import { SiteHeader } from "./SiteHeader";
 import { CartHeader } from "./CartHeader";
 import { InnerHeader } from "./InnerHeader";
+import { SearchLandingBar } from "./search/SearchLandingBar";
 import { SiteFooter } from "./SiteFooter";
 import "./globals.css";
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteHeader />
         <CartHeader />
         <InnerHeader />
+        <SearchLandingBar />
 
         <main className="wrap" style={{ minHeight: "70vh", paddingTop: 16, paddingBottom: 16 }}>
           {children}

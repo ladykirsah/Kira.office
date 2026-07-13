@@ -9,7 +9,7 @@
 > **this file and the code win** — older docs (`DATA_MODEL.md`, parts of `ARCHITECTURE.md`/`README`)
 > describe the original plan and lag the implementation.
 
-**Snapshot:** 2026-07-11 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
+**Snapshot:** 2026-07-13 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
 **Tests:** 573 passing · **Migrations:** 0000–0047 (0036–0047 add the **AirPlus storefront** schema — see §3).
 
 ---
@@ -74,8 +74,15 @@ image-first PDP, client cart → **guest checkout** (PromptPay QR / transfer / C
 tracking by phone+order-no, and **phone-OTP member accounts** (order history, saved addresses). Money
 never trusts the client (server re-prices), stock deducts through the shared DO. Migrations `0036`–`0047`
 add its schema. Deployed to a durable phone-viewable **staging** preview at
-`airplus-storefront-staging.bettergogocash.workers.dev`; member login runs in dev-echo mode there (fixed
-OTP `123456`, no SMS) until an SMS provider (ThaiBulkSMS/Twilio) + Turnstile keys are configured. Full
+`airplus-storefront-staging.bettergogocash.workers.dev` (latest deploy 2026-07-13, Worker Version ID
+`79c5b2e3-3250-459e-ba21-318c6b29e05d`, cut from the uncommitted working branch — **staging is ahead of
+git**); member login runs in dev-echo mode there (fixed OTP `123456`, no SMS) until an SMS provider
+(ThaiBulkSMS/Twilio) + Turnstile keys are configured. The demo flash campaign is **permanently seeded in
+the staging D1** (`seed-camp-1`, window `2025-01-01`→`2028-01-01`) — this is DATA, not schema — so the
+Flash Sale hero, the สินค้าลดราคา home collection, and the PDP discount always render as a mock. The
+customer-facing UI has since had a coral-CI polish pass (Shopee-style PDP section blocks, a shared
+gray-detail / green-status info-pill + outline discount-tag system, a tinted sticky add-to-cart bar, and
+`router.replace` in-page filtering so the header back arrow returns to the previous page). Full
 app README + deploy runbook: [apps/storefront/README.md](../apps/storefront/README.md).
 
 **Newest arc — on-site sales + bilingual shop branding (2026-06; migrations `0013`–`0015`):**

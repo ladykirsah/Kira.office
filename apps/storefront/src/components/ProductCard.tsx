@@ -6,6 +6,8 @@ import { resolveEffectivePrice } from "@l-shopee/core";
 import type { CatalogItem } from "@/lib/db";
 import { addToCart } from "@/lib/cart";
 import { BrandTag } from "@/components/BrandTag";
+import { DiscountTag } from "@/components/DiscountTag";
+import { ReadyToShip } from "@/components/ReadyToShip";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
@@ -23,10 +25,6 @@ import { imgUrl } from "@/lib/img";
 export function ProductCard({ item }: { item: CatalogItem }) {
   const [justAdded, setJustAdded] = useState(false);
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
-  const savePct =
-    eff.onSale && eff.compareAtSatang && eff.compareAtSatang > eff.priceSatang
-      ? Math.round(((eff.compareAtSatang - eff.priceSatang) / eff.compareAtSatang) * 100)
-      : 0;
 
   function handleAdd() {
     addToCart(
@@ -136,22 +134,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
           {/* brand tag + ready-to-ship status share one row */}
           <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
             {item.brandName && <BrandTag name={item.brandName} />}
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                color: "var(--ship)",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }}
-              />
-              พร้อมส่ง
-            </div>
+            <ReadyToShip />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span
@@ -165,21 +148,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
             >
               {baht(eff.priceSatang)}
             </span>
-            {savePct > 0 && (
-              <span
-                style={{
-                  color: "var(--brand-deep)",
-                  border: "1px solid var(--brand-deep)",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "0 3px",
-                  borderRadius: 3,
-                  lineHeight: "15px",
-                }}
-              >
-                -{savePct}%
-              </span>
-            )}
+            <DiscountTag priceSatang={eff.priceSatang} compareAtSatang={eff.compareAtSatang} />
           </div>
         </div>
       </Link>
