@@ -4,7 +4,7 @@ export type { IconName };
 
 export interface IconProps {
   name: IconName;
-  /** rendered box size in px (default 24); the line stays 1.8px regardless via non-scaling-stroke */
+  /** rendered box size in px (default 24); the line stays 1.5px regardless via non-scaling-stroke */
   size?: number;
   /** accessible name — when set the icon is exposed as an image; otherwise it is aria-hidden */
   title?: string;

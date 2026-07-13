@@ -408,14 +408,6 @@ export function AddressBook() {
           </label>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={!formValid || busy}
-              style={{ flex: 1 }}
-            >
-              {busy ? "กำลังบันทึก…" : "บันทึกที่อยู่"}
-            </button>
-            <button
               type="button"
               className="btn"
               disabled={busy}
@@ -425,6 +417,14 @@ export function AddressBook() {
               }}
             >
               ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!formValid || busy}
+              style={{ flex: 1 }}
+            >
+              {busy ? "กำลังบันทึก…" : "บันทึกที่อยู่"}
             </button>
           </div>
         </form>

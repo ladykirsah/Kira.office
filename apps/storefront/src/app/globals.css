@@ -237,6 +237,14 @@ textarea {
 .section {
   margin: 28px 0;
 }
+/* main.wrap already adds 16px top padding, so the FIRST section on a page must not stack its own
+   top margin on top — otherwise the headline floats too far below the header, inconsistently page
+   to page. Zero it for a uniform ~16px header→headline gap everywhere. Excludes the home shortcut
+   bar (.qa-section keeps its -8px straddle); any inline top margin (e.g. the centered
+   /checkout/done card) still wins over this. */
+.wrap .section:first-child:not(.qa-section) {
+  margin-top: 0;
+}
 /* Home page: one uniform gap between every section (replaces per-section margins, which collapse
  * unevenly and were overridden ad hoc). Sections inside keep their horizontal margins (e.g. the
  * full-bleed flash block) but take their vertical rhythm solely from this gap. */
@@ -1534,6 +1542,125 @@ textarea {
 .acct-chev {
   flex: 0 0 auto;
   color: var(--text-faint);
+}
+/* PDPA consent receipt on /account — a soft confirmation that the member accepted the policy at
+   sign-up, with the policy + terms linked inline. Green (--ok) = agreed, matching the check glyph. */
+.acct-consent {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 13px 16px;
+  background: var(--white);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(55, 54, 54, 0.08);
+}
+.acct-consent .ic {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.acct-consent p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--gray-mid);
+}
+.acct-consent a {
+  color: var(--brand);
+  font-weight: 600;
+  text-decoration: none;
+}
+.acct-consent a:hover {
+  text-decoration: underline;
+}
+
+/* Coupon wallet (/coupons) — flat cards (owner-picked base). money=coral, ship=green encode the
+   coupon kind; the whole set shares the store's card surface. See components/CouponCard.tsx. */
+.coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.coupon-card {
+  background: var(--white);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(55, 54, 54, 0.1);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.coupon-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.coupon-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.coupon-pill.money {
+  background: var(--accent-soft);
+  color: var(--brand);
+}
+.coupon-pill.ship {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.coupon-expiry {
+  font-size: 11px;
+  color: var(--gray-mid);
+}
+.coupon-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--gray-dark);
+}
+.coupon-cond {
+  font-size: 13px;
+  color: var(--gray-mid);
+}
+.coupon-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.coupon-code {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-dark);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  letter-spacing: 0.5px;
+}
+.coupon-use {
+  font-size: 13px;
+  padding: 7px 18px;
+  min-width: 104px;
+}
+/* "✓ เก็บแล้ว" — an already-collected coupon on the catalog page (green = done, matches the check). */
+.coupon-collected {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ok);
+  padding: 7px 12px;
+  white-space: nowrap;
 }
 
 /* ---- full Categories page (/categories): best-seller-style rows — cover + Thai + English +

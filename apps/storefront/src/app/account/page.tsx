@@ -68,14 +68,19 @@ export default async function AccountPage() {
   const db = await getDb();
   const info = await db
     .prepare(
-      `SELECT c.created_at AS createdAt,
+      `SELECT c.created_at AS createdAt, c.pdpa_consent_at AS pdpaConsentAt,
         (SELECT COUNT(*) FROM sales_orders o
          WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orders,
         (SELECT COUNT(*) FROM addresses a WHERE a.storefront_customer_id = c.id) AS addresses
        FROM storefront_customers c WHERE c.id = ?`,
     )
     .bind(customer.id)
-    .first<{ createdAt: number; orders: number; addresses: number }>();
+    .first<{
+      createdAt: number;
+      pdpaConsentAt: number | null;
+      orders: number;
+      addresses: number;
+    }>();
 
   const firstName = customer.name ? customer.name.trim().split(/\s+/)[0] : "";
 
@@ -106,7 +111,7 @@ export default async function AccountPage() {
           label="ที่อยู่จัดส่ง"
           count={info?.addresses ?? 0}
         />
-        <Tile href="/coupons" name="coupon" label="คูปอง" />
+        <Tile href="/account/coupons" name="coupon" label="คูปองของฉัน" />
         <Tile href={LINE_OA_URL} name="chat" label="ช่วยเหลือ" external />
       </div>
 
@@ -118,6 +123,19 @@ export default async function AccountPage() {
           <span className="l">การจัดส่ง &amp; ชำระเงิน</span>
           <Icon name="chevron" size={18} className="acct-chev" />
         </Link>
+      </div>
+
+      {/* PDPA consent receipt — every member accepted at sign-up, so we confirm it (with the date)
+          and keep the policy + terms one tap away. */}
+      <div className="acct-consent">
+        <span className="ic" aria-hidden="true">
+          <Icon name="check" size={18} />
+        </span>
+        <p>
+          คุณได้ยอมรับ <Link href="/privacy">นโยบายความเป็นส่วนตัว (PDPA)</Link> และ{" "}
+          <Link href="/terms">ข้อกำหนดการใช้งาน</Link> แล้ว
+          {info?.pdpaConsentAt ? ` เมื่อวันที่ ${formatDate(info.pdpaConsentAt)}` : ""}
+        </p>
       </div>
 
       <div style={{ marginTop: 24, textAlign: "center" }}>

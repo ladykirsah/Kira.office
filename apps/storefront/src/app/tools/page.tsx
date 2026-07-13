@@ -14,7 +14,7 @@ export default async function ToolsPage() {
   const items = await listAffiliateItems(db, 50);
   return (
     <div>
-      <section className="section" style={{ margin: "8px 0 16px" }}>
+      <section className="section" style={{ marginBottom: 16 }}>
         <div className="t-overline" style={{ color: "var(--brand-deep)" }}>
           🔧 เครื่องมือช่าง · Tools
         </div>

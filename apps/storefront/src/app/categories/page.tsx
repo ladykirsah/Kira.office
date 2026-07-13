@@ -20,7 +20,7 @@ export default async function CategoriesPage() {
   const types = await listProductTypes(db);
 
   return (
-    <div className="section" style={{ marginTop: 4 }}>
+    <div className="section">
       <div style={{ marginBottom: 20 }}>
         <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
           🗂️ หมวดหมู่ · Categories

@@ -9,10 +9,10 @@ that stands in for the live Shopee API. Math lives in [MODULE_CORE_LOGIC.md](MOD
 | File | Role |
 | --- | --- |
 | `apps/admin/src/app/sales/page.tsx` + `SalesTable.tsx` | On-site sales list, gross profit, refund action. |
-| `apps/admin/src/app/orders/page.tsx` | Imported marketplace orders. |
+| `apps/admin/src/app/orders/page.tsx` | Orders list; **Save** edits `order_status`/`payment_status`/`carrier`/`tracking_no` via `PATCH /orders/:id` (AirPlus-channel only). |
 | `apps/admin/src/app/finance/page.tsx` | Finance summary (revenue, VAT, gross profit, refunds). |
 | `apps/admin/src/app/import/page.tsx` | CSV import UI — product catalog + Shopee orders, with column mapping. |
-| `apps/api/src/index.ts` | `/sales`, `/sales/:id/refund`, `/sales/export.csv`, `/orders`, `/finance/summary`, `/import/products`, `/import/shopee-orders`. |
+| `apps/api/src/index.ts` | `/sales`, `/sales/:id/refund`, `/sales/export.csv`, `/orders`, `PATCH /orders/:id`, `/finance/summary`, `/import/products`, `/import/shopee-orders`. |
 
 ## Sales & finance
 
@@ -25,6 +25,12 @@ that stands in for the live Shopee API. Math lives in [MODULE_CORE_LOGIC.md](MOD
   stored in `financial_records` (revenue / tax / fee / cost / profit, inputs **and** outputs).
 - `/finance/summary` → `{salesCount, revenueSatang, vatSatang, grossProfitSatang, refundCount,
   refundedSatang}`. `/sales/export.csv` is the accountant export.
+- **Order fulfilment** (`PATCH /orders/:id`, AirPlus-channel only) wires the previously-unrouted
+  `updateOrder()` — the admin **Save** used to 404. It edits `order_status`/`payment_status`/`carrier`/
+  `tracking_no` and stamps `ship_time_ms` on the first tracking number (no schema change — existing
+  free-text columns). Two-axis lifecycle: `order_status` (fulfilment) `new → preparing (เตรียมจัดส่ง) →
+  shipping → done` + cancel/refund; `payment_status` (money) `awaiting → paid` + COD; the admin status
+  dropdown is trimmed to fulfilment-only.
 
 ## Import (the Shopee bridge)
 

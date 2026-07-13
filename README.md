@@ -21,7 +21,7 @@ from one workspace.
   services + **shop-info (view/edit, bilingual)** settings, a full **on-site POS** (parts/repair,
   scan/code/search, B2C/B2B pricing, ฿/% discount) with a **printable bill** (Cash bill vs Quotation,
   Invoice vs Receipt, **Thai/English switch**, contact-QR), stock, sales, finance, import, terms.
-- `packages/core` — pure domain logic, test-first. **238 tests** across `core` + `api`.
+- `packages/core` — pure domain logic, test-first. **632 tests** across `core`, `api`, and the AirPlus `storefront`.
   `packages/db` — Drizzle schema + 16 SQL migrations (`0000`–`0015`); see
   [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md). (Shop settings live in **KV**, not D1.)
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
@@ -50,7 +50,7 @@ KV) — see [docs/CLOUDFLARE_ARCHITECTURE.md](docs/CLOUDFLARE_ARCHITECTURE.md).
 apps/
   admin/      # Next.js admin + offline-first POS (PWA) — Workers via OpenNext  (built)
   api/        # Cloudflare Worker: API, /sync, ledger DO, image serving           (live)
-  storefront/ # AirPlus — customer storefront (guest checkout, PromptPay/COD)    (built)
+  storefront/ # AirPlus — customer storefront (guest checkout + phone-OTP member accounts, PromptPay/COD, coupons)  (built)
 packages/
   core/       # Pure-TS business logic: pricing, profit, tax, cost, stock (TDD)
   db/         # D1 schema (Drizzle) + hand-written SQL migrations

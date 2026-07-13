@@ -5,7 +5,7 @@
 //
 // Balance model (owner asked for "perfect and balanced" size + line weight):
 //  - line weight: ONE value (ICON_STROKE), rendered as a flat, size-independent px via
-//    `vector-effect: non-scaling-stroke` — a 1.8px line looks identical whether the icon is 13px
+//    `vector-effect: non-scaling-stroke` — a 1.5px line looks identical whether the icon is 13px
 //    (product ribbon) or 32px (order-confirmation badge).
 //  - optical size: each raw glyph fills the 24×24 box differently, so `scale`/`cx`/`cy` contain-fit
 //    each one into the same optical box (a wide truck shrinks, a short coupon grows). Scales are
@@ -42,7 +42,7 @@ export interface Glyph {
 }
 
 /** The one line weight for the whole set; rendered flat via non-scaling-stroke. */
-export const ICON_STROKE = 1.8;
+export const ICON_STROKE = 1.5;
 
 export const ICONS: Record<IconName, Glyph> = {
   back: {

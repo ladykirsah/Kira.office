@@ -1,7 +1,7 @@
 # On-site Overhaul — customer-service history, drafts & quotations
 
 Branch: `claude/priceless-pascal-cca732` · PR [#4](https://github.com/ladykirsah/Kira.office/pull/4)
-Status: **Phase 1 shipped** · **Phase 2 in progress** · 392 tests green
+Status: **Phase 1 shipped** · **Phase 2 in progress** · 632 tests green
 
 ## Why
 

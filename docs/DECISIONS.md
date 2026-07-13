@@ -3,7 +3,7 @@
 This is the single source of truth for project decisions confirmed by the owner.
 All other docs must stay consistent with this file. Update by editing here first.
 
-_Last confirmed: 2026-06-22._
+_Last confirmed: 2026-07-13._
 
 ## Business
 
@@ -40,6 +40,14 @@ _Last confirmed: 2026-06-22._
 | Discounts / overrides | Staff may apply discount; **price override is owner-only**. _Assumption._ |
 | Receipt printing | Optional, off for MVP. _Assumption._ |
 
+## Order fulfilment (AirPlus storefront)
+
+| Topic | Decision |
+| --- | --- |
+| Two-axis order lifecycle | Orders track **two independent axes**. Fulfilment `order_status`: `new` → `preparing` (เตรียมจัดส่ง) → `shipping` → `done`, plus **cancel** / **refund** branches. Money `payment_status`: `awaiting` → `paid`, plus **COD**. The admin status dropdown exposes **fulfilment states only**. |
+| Schema impact | **No schema change** — reuses the existing free-text status columns. |
+| Scope | Applies to **AirPlus-channel** orders only. |
+
 ## Shopee integration
 
 | Topic | Decision |
@@ -64,7 +72,7 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 | Async / scheduled | **Queues** (+ dead-letter queue) and **Cron Triggers** for Shopee sync, import, stock push, polling |
 | Cache / config | **Workers KV** |
 | Secrets | **Secrets Store / Worker secrets**; local dev via `.dev.vars` (never committed) |
-| Auth | **Cloudflare Access (Zero Trust)** in front + app-level RBAC (4 roles) |
+| Auth | **Admin/back-office:** Cloudflare Access (Zero Trust) in front + app-level RBAC (4 roles). **Storefront customers:** phone-OTP login/register with a PDPA-consent gate on new-member signup. |
 | Edge security | WAF, Rate Limiting, Turnstile, managed TLS, DNS |
 | Monorepo | **npm workspaces**; **Node 22** (Wrangler requires ≥22; pinned via `.nvmrc` + CI), no pnpm |
 | Core logic package | `packages/core` — pure TypeScript, framework-free, **TDD-first** |

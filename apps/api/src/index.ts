@@ -4053,6 +4053,17 @@ const worker = {
       return listOrders(env);
     }
 
+    // Fulfillment editor: the admin Sales → AirPlus tab PATCHes status / payment / carrier /
+    // tracking here. Only channel='airplus' rows are editable (updateOrder enforces that and
+    // returns null → 404 for Shopee/absent orders); auth + audit are handled by the wrapper above.
+    const orderById = url.pathname.match(/^\/orders\/([^/]+)$/);
+    if (orderById && request.method === "PATCH") {
+      const body = await readJson<OrderPatch>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      const order = await updateOrder(env.DB, orderById[1]!, body);
+      return order ? json({ order }) : json({ error: "not found" }, 404);
+    }
+
     if (url.pathname === "/finance/summary" && request.method === "GET") {
       return financeSummary(env);
     }

@@ -12,11 +12,13 @@ import { TableFrame } from "../TableFrame";
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
 
-// The storefront's order-status vocabulary (Thai — these are the stored values the badge maps).
+// FULFILMENT vocabulary only (Thai stored values). Money lives on payment_status (below), so the
+// two axes never contradict each other: ใหม่ → เตรียมจัดส่ง (paid, packing) → กำลังจัดส่ง → สำเร็จ,
+// plus the ยกเลิก / คืนเงิน branches. รอชำระเงิน/ชำระแล้ว deliberately are NOT here — set those on the
+// payment dropdown.
 const ORDER_STATUSES = [
   "ใหม่",
-  "รอชำระเงิน",
-  "ชำระแล้ว",
+  "เตรียมจัดส่ง",
   "กำลังจัดส่ง",
   "สำเร็จ",
   "ยกเลิก",

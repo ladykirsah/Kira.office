@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cartCount, useCart } from "@/lib/cart";
 import { productShareTitle, shareOrCopy } from "@/lib/share";
@@ -72,12 +72,32 @@ export function InnerHeader() {
   if (startLen.current === null && typeof window !== "undefined") {
     startLen.current = window.history.length;
   }
+  // A robust "have we navigated in-app this tab-session?" flag. The mount-pinned refs above are
+  // fragile: a hard refresh or a cold deep-link REMOUNTS this header and resets them, so an in-app
+  // page looks like the session entry and the arrow wrongly goes HOME. sessionStorage survives
+  // remounts/refreshes and is empty only on a genuinely fresh tab, so once set it reliably means
+  // router.back() lands on a real in-app page. The refs stay as a fallback when storage is blocked.
+  useEffect(() => {
+    if (pathname !== entryPath.current) {
+      try {
+        sessionStorage.setItem("ap:navigated", "1");
+      } catch {
+        /* storage unavailable — the ref fallback in goBack still covers the common case */
+      }
+    }
+  }, [pathname]);
   const goBack = () => {
+    let navigated = false;
+    try {
+      navigated = sessionStorage.getItem("ap:navigated") === "1";
+    } catch {
+      /* storage unavailable */
+    }
     const grew =
       typeof window !== "undefined" &&
       startLen.current !== null &&
       history.length > startLen.current;
-    if (grew || pathname !== entryPath.current) router.back();
+    if (navigated || grew || pathname !== entryPath.current) router.back();
     else router.push("/");
   };
 

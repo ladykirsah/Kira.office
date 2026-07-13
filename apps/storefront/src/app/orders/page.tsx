@@ -51,6 +51,9 @@ function buildSteps(o: LookupResult): Step[] {
   const shipped = Boolean(o.carrier || o.trackingNo || o.shipTimeMs);
   const statusLower = (o.orderStatus ?? "").toLowerCase();
   const completed = statusLower.includes("สำเร็จ") || statusLower.includes("done");
+  const preparing = statusLower.includes("เตรียม"); // paid & packing — not yet handed to a carrier
+  const refunded = statusLower.includes("คืน");
+  const cancelled = statusLower.includes("ยกเลิก") || refunded;
 
   const shipDetail = shipped
     ? [
@@ -75,10 +78,21 @@ function buildSteps(o: LookupResult): Step[] {
         : { title: "ชำระเงิน", detail: paymentStatus || "ชำระแล้ว", state: "done" },
     shipped
       ? { title: "จัดส่ง", detail: shipDetail, state: "done" }
-      : { title: "จัดส่ง", detail: "รอจัดส่ง", state: "pending" },
-    completed
-      ? { title: "สำเร็จ", detail: "ได้รับสินค้าเรียบร้อย", state: "done" }
-      : { title: "สำเร็จ", detail: null, state: "pending" },
+      : cancelled
+        ? { title: "จัดส่ง", detail: null, state: "pending" }
+        : preparing
+          ? { title: "จัดส่ง", detail: "กำลังเตรียมจัดส่ง", state: "current" }
+          : { title: "จัดส่ง", detail: "รอจัดส่ง", state: "pending" },
+    cancelled
+      ? {
+          title: refunded ? "คืนเงินแล้ว" : "ยกเลิกคำสั่งซื้อ",
+          detail: o.orderStatus ?? null,
+          state: "done",
+          dotColor: "var(--danger)",
+        }
+      : completed
+        ? { title: "สำเร็จ", detail: "ได้รับสินค้าเรียบร้อย", state: "done" }
+        : { title: "สำเร็จ", detail: null, state: "pending" },
   ];
 }
 
@@ -161,6 +175,14 @@ function OrdersContent() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [copied, setCopied] = useState(false);
+  // Keep the submit disabled until both fields are adequately filled — an order ref plus a full
+  // 9–10 digit phone — so an incomplete form can't fire a guaranteed-to-fail lookup.
+  const canSubmit = refInput.trim().length > 0 && normalizePhone(phoneInput).length >= 9;
+  // Reached via a deep link (the account "ดูสถานะ" button, or a shared ?ref=&phone= URL)? Then the
+  // shopper already knows the order — drop the lookup form so the page is purely about that order,
+  // with an escape link to track a different one.
+  const cameViaLink = Boolean(initialRef && initialPhone);
+  const showForm = !(cameViaLink && (loading || result));
 
   const lookup = useCallback(async (refRaw: string, phoneRaw: string) => {
     const ref = refRaw.trim().toUpperCase();
@@ -212,49 +234,63 @@ function OrdersContent() {
         <h1 className="t-h1" style={{ margin: "0 0 4px", color: "var(--gray-dark)" }}>
           ติดตาม<span style={{ color: "var(--brand)" }}>คำสั่งซื้อ</span>
         </h1>
-        <p className="muted" style={{ margin: 0 }}>
-          ใช้เบอร์โทรและเลขที่คำสั่งซื้อ — ไม่ต้องสมัครสมาชิก ไม่ต้องเก็บลิงก์
-        </p>
+        {showForm && (
+          <p className="muted" style={{ margin: 0 }}>
+            ใช้เบอร์โทรและเลขที่คำสั่งซื้อ — ไม่ต้องสมัครสมาชิก ไม่ต้องเก็บลิงก์
+          </p>
+        )}
       </div>
 
-      <form
-        className="card"
-        style={{ padding: 20 }}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void lookup(refInput, phoneInput);
-        }}
-      >
-        <div className="field">
-          <label htmlFor="order-ref">เลขที่คำสั่งซื้อ</label>
-          <input
-            id="order-ref"
-            className="input"
-            placeholder="AP-XXXXXXXX"
-            autoComplete="off"
-            autoCapitalize="characters"
-            style={{ textTransform: "uppercase" }}
-            value={refInput}
-            onChange={(e) => setRefInput(e.target.value.toUpperCase())}
-          />
+      {showForm && (
+        <form
+          className="card"
+          style={{ padding: 20 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void lookup(refInput, phoneInput);
+          }}
+        >
+          <div className="field">
+            <label htmlFor="order-ref">เลขที่คำสั่งซื้อ</label>
+            <input
+              id="order-ref"
+              className="input"
+              placeholder="AP-XXXXXXXX"
+              autoComplete="off"
+              autoCapitalize="characters"
+              style={{ textTransform: "uppercase" }}
+              value={refInput}
+              onChange={(e) => setRefInput(e.target.value.toUpperCase())}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="order-phone">เบอร์โทรศัพท์</label>
+            <input
+              id="order-phone"
+              className="input"
+              type="tel"
+              inputMode="tel"
+              placeholder="08XXXXXXXX"
+              autoComplete="tel"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn btn-primary btn-block"
+            disabled={loading || !canSubmit}
+          >
+            {loading ? "กำลังค้นหา…" : "ติดตามคำสั่งซื้อ"}
+          </button>
+        </form>
+      )}
+
+      {cameViaLink && loading && !result && (
+        <div className="card" style={{ padding: 20, textAlign: "center" }}>
+          <span className="muted">กำลังโหลดคำสั่งซื้อ…</span>
         </div>
-        <div className="field">
-          <label htmlFor="order-phone">เบอร์โทรศัพท์</label>
-          <input
-            id="order-phone"
-            className="input"
-            type="tel"
-            inputMode="tel"
-            placeholder="08XXXXXXXX"
-            autoComplete="tel"
-            value={phoneInput}
-            onChange={(e) => setPhoneInput(e.target.value)}
-          />
-        </div>
-        <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-          {loading ? "กำลังค้นหา…" : "ติดตามคำสั่งซื้อ"}
-        </button>
-      </form>
+      )}
 
       {error && (
         <div
@@ -329,7 +365,7 @@ function OrdersContent() {
             {steps.map((step, i) => (
               <TimelineStep key={step.title} step={step} last={i === steps.length - 1} />
             ))}
-            {result.paymentStatus === "รอชำระเงิน" && (
+            {result.paymentStatus?.trim() === "รอชำระเงิน" && (
               <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                 <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
                   โอนแล้ว? แนบสลิปเพื่อยืนยันการชำระเงิน

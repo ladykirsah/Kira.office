@@ -10,11 +10,15 @@ cross-binds the `StockLedger` Durable Object from the `kira-office` Worker via `
 It must deploy on the **same Cloudflare account as `apps/api`** (GoGoCash) — bindings don't cross
 accounts.
 
-## What it does (MVP)
+## What it does
 
+- Home v2 landing: shortcut bar, collections, a timed flash sale, best-sellers, shop-by-brand,
+  categories, promo banners, and recently-viewed — plus a dedicated search landing at `/search`
+  (recent-search chips, car-logo tiles, case-driven suggestions).
 - Catalog browse + search (matches product name, part number, brand, and **car fitment** — "Vigo"
   finds everything that fits a Vigo), part-type chips, no dropdown cascades.
-- Image-first product page with fitment list and per-product VAT-inclusive price display.
+- Image-first product page with fitment list and per-product VAT-inclusive price display, a header
+  Share action and collapsible section blocks.
 - Client-side cart (localStorage) → **guest checkout**: phone + name only, flat address form,
   3 payment methods (PromptPay QR / bank transfer / COD) described plainly BEFORE commit.
 - `POST /api/checkout`: server-side re-pricing (client prices never trusted), fail-closed stock
@@ -25,8 +29,21 @@ accounts.
   (jsQR) and only the payload is submitted. With `SLIPOK_API_KEY` + `SLIPOK_BRANCH_ID` secrets set
   on THIS Worker it auto-verifies and marks the order paid (one-slip-one-payment enforced); unset,
   it holds the payload on the payment row for manual review.
-- Order tracking by **phone + order number** (`/orders`, `GET /api/orders/lookup`) — no account,
-  no saved links; wrong phone and unknown ref return identical 404s.
+- Order tracking by **phone + order number** (`/orders`, `GET /api/orders/lookup`) — guest lookup
+  needs no account; the submit is gated until a ref and full phone are entered, and a deep-link
+  entry hides the form and shows only that order. (Logged-in members also see their orders under
+  `/account/orders`.) Wrong phone and unknown ref still return identical 404s.
+- Phone-OTP member login (`/login`, login|register mode tabs; new members get a PDPA consent panel;
+  6-box OTP with resend countdown). `POST /api/auth/otp/send` enforces a registration gate (login →
+  already-registered only; register → new number only); `POST /api/auth/otp/verify` enforces the
+  consent invariant. Backed by `storefront_sessions` + throttle, a Turnstile seam, and
+  `OTP_DEV_ECHO` on staging.
+- Account area: `/account` hub with a PDPA consent-receipt card, `/account/orders`,
+  `/account/addresses`, and a `/account/coupons` wallet.
+- Coupons (mock, no backend yet): a `/coupons` catalog to collect and a `/account/coupons` wallet to
+  copy codes; persisted in localStorage (`lib/coupons.ts`) until a real backend ships.
+- Agent-discovery + legal routes: `/llms.txt`, `/sitemap.md`, `/skills.md`, `/rss.xml`,
+  `/sitemap.xml`, plus draft `/privacy` and `/terms` pages.
 
 ## Local dev
 

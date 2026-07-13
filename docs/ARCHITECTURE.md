@@ -38,7 +38,11 @@ Shopee. `apps/*` and `packages/db` depend on `core`, never the reverse.
   refresh, product/order import, stock/listing sync, push/poll.
 - **Storefront (customer-facing)** — the AirPlus storefront (`apps/storefront`): guest checkout,
   phone-OTP customer accounts, coupons/campaigns, banners, and affiliate items. Shares the back
-  office's D1; new domain logic (coupons, campaigns, payments) lives in `core`, its tables in `db`.
+  office's D1; domain logic that has shipped to the back office lives in `core` with its tables in
+  `db`, but storefront-only features still ship client-side first — coupons are currently a
+  localStorage mock (`apps/storefront/src/lib/coupons.ts`, `/coupons` catalog + `/account/coupons`
+  wallet) with no backend or `db` tables yet, and will move into `core`/`db` when a real coupon
+  backend ships (campaigns and payments similarly are planned but not yet persisted).
 
 ## Offline-First POS Design
 

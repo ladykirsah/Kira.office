@@ -37,7 +37,7 @@ interface OrderLineRow {
 
 function statusPill(o: OrderRow): { cls: "good" | "warn" | "bad" | "soft"; label: string } {
   const s = o.orderStatus ?? "";
-  if (s.includes("ยกเลิก")) return { cls: "bad", label: s };
+  if (s.includes("ยกเลิก") || s.includes("คืน")) return { cls: "bad", label: s };
   if (s.includes("สำเร็จ")) return { cls: "good", label: s };
   if (o.carrier || o.trackingNo || s.includes("จัดส่ง")) {
     const detail = [o.carrier, o.trackingNo].filter(Boolean).join(" · ");

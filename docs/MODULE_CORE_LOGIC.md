@@ -76,4 +76,5 @@ vars)` — the substitution engine behind the (not-yet-built) per-product genera
 
 Each file has a sibling `*.test.ts` (Vitest, node env). Critical paths (money, tax, cost, stock,
 sync) must cover happy path **plus** failure/edge values (zero, negative, infeasible margin,
-oversell, duplicate uuid). These run in the repo-wide `npm test` (186 tests total with `apps/api`).
+oversell, duplicate uuid). These run in the repo-wide `npm test` (632 tests total across `apps/api`
+and `apps/storefront`).

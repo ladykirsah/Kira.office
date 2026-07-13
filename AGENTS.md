@@ -79,7 +79,7 @@ Before reporting implementation work as done:
 Run the gate before claiming work done (see also `.cursor/rules/project.mdc` for the same, for Cursor):
 
 ```bash
-npm run format && npm run lint && npm run typecheck && npm test   # 238 vitest tests
+npm run format && npm run lint && npm run typecheck && npm test   # 632 vitest tests
 rm -rf apps/admin/.next-verify apps/admin/.next/types && \
   NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
 ```

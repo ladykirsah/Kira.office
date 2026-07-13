@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AvailableCoupons } from "./AvailableCoupons";
 
 export const metadata: Metadata = { title: "คูปองส่วนลด — AirPlus" };
+export const dynamic = "force-dynamic";
 
-/** Placeholder coupons page — the member-coupon feature isn't built yet, but the home shortcut links
- *  here so it never dead-ends. Replace with the real coupon wallet when that feature ships. */
+/** Coupon CATALOG (home shortcut → here): every available coupon, each with a "เก็บ" action that
+ *  saves it to the shopper's wallet (/account/coupons). See lib/coupons.ts + AvailableCoupons.tsx. */
 export default function CouponsPage() {
   return (
     <div>
-      <section className="section" style={{ margin: "8px 0 16px" }}>
+      <section className="section" style={{ marginBottom: 16 }}>
         <div className="t-overline" style={{ color: "var(--brand-deep)" }}>
           🎟️ คูปอง · Coupons
         </div>
@@ -16,26 +17,10 @@ export default function CouponsPage() {
           คูปองส่วนลด
         </h1>
         <p className="muted" style={{ margin: 0 }}>
-          เร็ว ๆ นี้ — เรากำลังเตรียมคูปองส่วนลดสำหรับลูกค้า กลับมาดูใหม่เร็ว ๆ นี้
+          เก็บคูปองที่ต้องการ แล้วใช้ตอนชำระเงิน · ดูคูปองที่เก็บไว้ได้ในหน้า “คูปองของฉัน”
         </p>
       </section>
-
-      <section className="section">
-        <div
-          className="card"
-          style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}
-        >
-          <div className="t-h4" style={{ color: "var(--gray-dark)" }}>
-            ระหว่างนี้เลือกซื้ออะไหล่ได้เลย
-          </div>
-          <p className="muted" style={{ margin: 0 }}>
-            ตู้แอร์ คอมเพรสเซอร์ แผงร้อน และอะไหล่ระบบแอร์ ราคาช่าง ส่งไวทั่วไทย
-          </p>
-          <Link className="btn" href="/products" style={{ alignSelf: "flex-start" }}>
-            เลือกซื้อสินค้า
-          </Link>
-        </div>
-      </section>
+      <AvailableCoupons />
     </div>
   );
 }

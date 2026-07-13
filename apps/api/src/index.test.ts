@@ -114,6 +114,7 @@ function makeDb(canned: {
   paymentById?: unknown | null;
   slipRefOwner?: { id: string } | null;
   onlineSaleLedgerRow?: { id: string } | null;
+  orderById?: unknown | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -205,6 +206,8 @@ function makeDb(canned: {
           return { imageKey: "products/p1/gallery.png" } as T;
         if (sql.includes("FROM barcodes")) return (canned.barcode ?? null) as T | null;
         if (sql.includes("FROM users WHERE email")) return (canned.userRow ?? null) as T | null;
+        if (sql.includes("FROM sales_orders WHERE id = ? AND channel = 'airplus'"))
+          return (canned.orderById ?? null) as T | null;
         return null;
       },
       async run() {
@@ -576,6 +579,76 @@ describe("buildCorsHeaders", () => {
     const h = buildCorsHeaders(req);
     expect(h["access-control-allow-origin"]).toBe("*");
     expect(h["access-control-allow-credentials"]).toBeUndefined();
+  });
+});
+
+describe("PATCH /orders/:id (AirPlus fulfillment editor)", () => {
+  const baseOrder = {
+    id: "o1",
+    channel: "airplus",
+    externalOrderId: "AP-1",
+    orderStatus: "ใหม่",
+    paymentStatus: "รอชำระเงิน",
+    grandTotalSatang: 119000,
+    feeTotalSatang: 0,
+    orderCreatedAt: 1720000000000,
+    importedAt: 1720000000000,
+    buyerUsername: "L",
+    salesSatang: 119000,
+    feeBp: 0,
+    shipTimeMs: null,
+    carrier: null,
+    trackingNo: null,
+    profitSatang: 0,
+  };
+
+  it("updates an order's fulfilment status and returns the updated row", async () => {
+    const { env, runs } = makeDb({ orderById: baseOrder });
+    const res = await worker.fetch!(
+      new Request("https://x/orders/o1", {
+        method: "PATCH",
+        body: JSON.stringify({ orderStatus: "เตรียมจัดส่ง" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { order: { orderStatus: string } };
+    expect(data.order.orderStatus).toBe("เตรียมจัดส่ง");
+    expect(runs.some((r) => r.sql.includes("UPDATE sales_orders SET order_status"))).toBe(true);
+  });
+
+  it("stamps ship_time_ms the first time a tracking number is set", async () => {
+    const { env } = makeDb({ orderById: baseOrder });
+    const res = await worker.fetch!(
+      new Request("https://x/orders/o1", {
+        method: "PATCH",
+        body: JSON.stringify({
+          orderStatus: "กำลังจัดส่ง",
+          carrier: "Flash Express",
+          trackingNo: "TH123",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { order: { trackingNo: string; shipTimeMs: number | null } };
+    expect(data.order.trackingNo).toBe("TH123");
+    expect(typeof data.order.shipTimeMs).toBe("number");
+  });
+
+  it("404s for a non-existent or non-AirPlus order", async () => {
+    const { env } = makeDb({ orderById: null });
+    const res = await worker.fetch!(
+      new Request("https://x/orders/nope", {
+        method: "PATCH",
+        body: JSON.stringify({ orderStatus: "สำเร็จ" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(404);
   });
 });
 
