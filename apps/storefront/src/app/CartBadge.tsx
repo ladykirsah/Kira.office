@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { cartCount, useCart } from "@/lib/cart";
+import { Icon } from "@/components/Icon";
 
 /** Header cart link with a live line-count badge (updates on any cart change, incl. other tabs). */
 export function CartBadge() {
@@ -10,21 +11,7 @@ export function CartBadge() {
   return (
     <Link href="/cart" aria-label={`ตะกร้าสินค้า (${count} ชิ้น)`} className="hdr-tap">
       <span style={{ position: "relative", display: "inline-flex" }}>
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="9" cy="21" r="1.4" />
-          <circle cx="20" cy="21" r="1.4" />
-          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-        </svg>
+        <Icon name="cart" size={24} />
         {count > 0 && (
           <span
             style={{

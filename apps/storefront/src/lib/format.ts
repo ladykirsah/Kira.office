@@ -23,3 +23,9 @@ export function formatDateTime(ms: number): string {
 export function normalizePhone(input: string): string {
   return input.replace(/\D/g, "");
 }
+
+/** A countdown as "m:ss" (e.g. 65 → "1:05"). Floors fractions; clamps negatives to "0:00". */
+export function mmss(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

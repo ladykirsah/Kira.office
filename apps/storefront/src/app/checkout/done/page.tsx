@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PromptPayQr } from "@/components/PromptPayQr";
 import { SlipUpload } from "@/components/SlipUpload";
+import { Icon } from "@/components/Icon";
 import type { CheckoutSuccess } from "@/lib/checkoutApi";
 import { baht } from "@/lib/format";
 
@@ -78,15 +79,7 @@ export default function CheckoutDonePage() {
             justifyContent: "center",
           }}
         >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M5 12.5 10 17.5 19 7"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <Icon name="check" size={32} />
         </div>
         <h1 className="t-h1" style={{ margin: "12px 0 8px", color: "var(--gray-dark)" }}>
           สั่งซื้อ<span style={{ color: "var(--brand)" }}>สำเร็จ!</span>

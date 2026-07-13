@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Icon } from "@/components/Icon";
 
 /**
- * Header auth affordance: logged-out → outline person icon → /login; logged-in → filled person
- * icon + green presence dot → /account. Probes GET /api/auth/me on mount (session cookie is
- * httpOnly — a client component cannot read it directly).
+ * Header auth affordance: logged-out → profile icon → /login; logged-in → the same profile icon
+ * plus a green presence dot → /account (the dot, not a filled glyph, is what signals "signed in",
+ * so both states share the one thin-line profile icon). Probes GET /api/auth/me on mount (session
+ * cookie is httpOnly — a client component cannot read it directly).
  */
 export function AccountNav() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -29,15 +31,7 @@ export function AccountNav() {
   if (!loggedIn) {
     return (
       <Link href="/login" aria-label="เข้าสู่ระบบ" className="hdr-tap">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.6" stroke="currentColor" strokeWidth="1.6" />
-          <path
-            d="M4.5 19.5c1.4-3.2 4.2-4.8 7.5-4.8s6.1 1.6 7.5 4.8"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-          />
-        </svg>
+        <Icon name="profile" size={22} />
       </Link>
     );
   }
@@ -45,10 +39,7 @@ export function AccountNav() {
   return (
     <Link href="/account" aria-label="บัญชีของฉัน" className="hdr-tap">
       <span style={{ position: "relative", display: "inline-flex" }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="12" cy="8" r="4.2" />
-          <path d="M4 20.2c1.5-3.6 4.6-5.4 8-5.4s6.5 1.8 8 5.4c.1.4-.2.8-.6.8H4.6c-.4 0-.7-.4-.6-.8Z" />
-        </svg>
+        <Icon name="profile" size={22} />
         <span
           aria-hidden="true"
           style={{

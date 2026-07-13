@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cartCount, useCart } from "@/lib/cart";
 import { productShareTitle, shareOrCopy } from "@/lib/share";
+import { Icon } from "@/components/Icon";
 
 /**
  * Shared inner-page header (owner-approved "Design 1"): a brand-orange sticky nav — back arrow
@@ -22,6 +23,7 @@ const TITLES: Record<string, string> = {
   "/tools": "เครื่องมือช่าง",
   "/info": "การจัดส่ง & ชำระเงิน",
   "/privacy": "นโยบายความเป็นส่วนตัว",
+  "/terms": "ข้อกำหนดการใช้งาน",
   "/login": "เข้าสู่ระบบ",
   "/coupons": "คูปอง",
   "/account": "บัญชีของฉัน",
@@ -124,19 +126,7 @@ export function InnerHeader() {
             className="hdr-tap"
             style={iconBtn(-8)}
           >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+            <Icon name="back" size={24} />
           </button>
 
           <div
@@ -156,20 +146,7 @@ export function InnerHeader() {
           </div>
 
           <Link href="/search" aria-label="ค้นหาสินค้า" className="hdr-tap" style={iconBtn(0)}>
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4-4" />
-            </svg>
+            <Icon name="search" size={22} />
           </Link>
 
           {isProductPage && (
@@ -180,22 +157,7 @@ export function InnerHeader() {
               className="hdr-tap"
               style={iconBtn(0)}
             >
-              <svg
-                width="21"
-                height="21"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
-              </svg>
+              <Icon name="share" size={21} />
             </button>
           )}
 
@@ -205,21 +167,7 @@ export function InnerHeader() {
             className="hdr-tap"
             style={iconBtn(0)}
           >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="9" cy="21" r="1.4" />
-              <circle cx="20" cy="21" r="1.4" />
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-            </svg>
+            <Icon name="cart" size={24} />
             {count > 0 && (
               <span
                 style={{
@@ -249,17 +197,7 @@ export function InnerHeader() {
 
       {toast && (
         <div className="ap-toast" role="status" aria-live="polite">
-          {toast.ok && (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M20 6 9 17l-5-5"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          {toast.ok && <Icon name="check" size={15} />}
           {toast.msg}
         </div>
       )}

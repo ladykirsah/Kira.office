@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { cartTotalSatang, removeLine, setQty, useCart } from "@/lib/cart";
 import { BrandTag } from "@/components/BrandTag";
+import { Icon } from "@/components/Icon";
 import { ReadyToShip } from "@/components/ReadyToShip";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
@@ -157,14 +158,7 @@ export default function CartPage() {
                       justifyContent: "center",
                     }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path
-                        d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m3 0-1 13a2 2 0 0 1-2 1.8H9A2 2 0 0 1 7 20L6 7"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <Icon name="trash" size={18} />
                   </button>
                 </div>
               </div>

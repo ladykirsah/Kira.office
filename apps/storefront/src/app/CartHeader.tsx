@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { cartCount, useCart } from "@/lib/cart";
+import { Icon } from "@/components/Icon";
 
 /**
  * Cart-only header (owner-approved "Design 1"): a brand-orange sticky app bar that REPLACES the
@@ -49,19 +50,7 @@ export function CartHeader() {
             cursor: "pointer",
           }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <Icon name="back" size={24} />
         </button>
         <div
           style={{

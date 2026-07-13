@@ -8,6 +8,7 @@ import { addToCart } from "@/lib/cart";
 import { BrandTag } from "@/components/BrandTag";
 import { DiscountTag } from "@/components/DiscountTag";
 import { ReadyToShip } from "@/components/ReadyToShip";
+import { Icon } from "@/components/Icon";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
@@ -96,22 +97,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
               gap: 4,
             }}
           >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="1" y="5" width="14" height="11" rx="1" />
-              <path d="M15 8h4l4 4v4h-8" />
-              <circle cx="6" cy="18.5" r="2" />
-              <circle cx="18" cy="18.5" r="2" />
-            </svg>
+            <Icon name="truck" size={13} />
             ส่งฟรี
           </span>
         </div>

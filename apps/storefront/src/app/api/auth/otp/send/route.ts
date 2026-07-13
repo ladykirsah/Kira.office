@@ -17,11 +17,15 @@ import { sendOtpSms } from "@/lib/sms";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 /**
- * POST /api/auth/otp/send { phone, turnstileToken? }
+ * POST /api/auth/otp/send { phone, mode?: "login" | "register", turnstileToken? }
  * Turnstile (when configured) is the primary anti-SMS-pumping gate; the D1 fixed-window
- * throttles (per phone AND per IP) are the backstop. Response is identical whether the phone
- * has an account or not. Each send invalidates the phone's previous unconsumed codes, so at
- * most ONE code is ever guessable.
+ * throttles (per phone AND per IP) are the backstop. Each send invalidates the phone's previous
+ * unconsumed codes, so at most ONE code is ever guessable.
+ *
+ * REGISTRATION GATE (owner UX decision 2026-07-13): the login tab only sends to REGISTERED numbers,
+ * the register tab only to NEW ones — an unregistered number can't reach the OTP step in login mode.
+ * This deliberately REVEALS registration status (trades the old anti-enumeration property for a
+ * clearer login-vs-register split); probing is still rate-limited by the throttles + Turnstile.
  */
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -29,6 +33,7 @@ export async function POST(req: Request): Promise<Response> {
     if (guarded) return guarded;
     const body = (await req.json().catch(() => ({}))) as {
       phone?: string;
+      mode?: "login" | "register";
       turnstileToken?: string;
     };
     const phone = normalizePhone(body.phone ?? "");
@@ -53,6 +58,24 @@ export async function POST(req: Request): Promise<Response> {
 
     if (!(await verifyTurnstile(env, body.turnstileToken, ip)))
       return Response.json({ error: "การยืนยันความปลอดภัยไม่ผ่าน กรุณาลองใหม่" }, { status: 403 });
+
+    // Registration gate — see the top-of-file note. Placed AFTER the throttle so any probing is
+    // rate-limited. Rejected modes never generate a code or send an SMS.
+    const mode = body.mode === "register" ? "register" : "login";
+    const registered = await db
+      .prepare(`SELECT 1 FROM storefront_customers WHERE phone = ? LIMIT 1`)
+      .bind(phone)
+      .first();
+    if (mode === "login" && !registered)
+      return Response.json(
+        { notRegistered: true, error: "เบอร์นี้ยังไม่ได้สมัครสมาชิก กรุณากดสมัครสมาชิก" },
+        { status: 404 },
+      );
+    if (mode === "register" && registered)
+      return Response.json(
+        { alreadyRegistered: true, error: "เบอร์นี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ" },
+        { status: 409 },
+      );
 
     // Fixed code so the owner can walk the login flow with a predictable OTP (it is also echoed to
     // the UI). Gated on OTP_DEV_ECHO — set on STAGING (no SMS provider yet) but NEVER in production,

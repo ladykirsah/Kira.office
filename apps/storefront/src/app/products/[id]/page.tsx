@@ -10,6 +10,7 @@ import { Pill } from "@/components/Pill";
 import { ProductCard } from "@/components/ProductCard";
 import { ReadyToShip } from "@/components/ReadyToShip";
 import { RecentlyViewed, RecordView } from "@/components/RecentlyViewed";
+import { Icon } from "@/components/Icon";
 import { AddToCartBar } from "./AddToCartBar";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { Gallery } from "./Gallery";
@@ -233,22 +234,11 @@ export default async function ProductPage(props: PageProps) {
                         borderTop: i > 0 ? "1px solid var(--hover)" : "none",
                       }}
                     >
-                      <svg
-                        width="17"
-                        height="17"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        aria-hidden="true"
+                      <Icon
+                        name="check"
+                        size={17}
                         style={{ flexShrink: 0, color: "var(--brand)" }}
-                      >
-                        <path
-                          d="M5 12.5 10 17.5 19 7"
-                          stroke="currentColor"
-                          strokeWidth="2.4"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      />
                       <span
                         style={{
                           flex: 1,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Icon } from "@/components/Icon";
 
 /**
  * A PDP "Design A" section block whose body can be shown/hidden. Renders as a white `.pdp-block`
@@ -49,18 +50,16 @@ export function CollapsibleSection({
             {titleEn}
           </span>
         </span>
-        <span
-          aria-hidden="true"
+        <Icon
+          name="chevron"
+          size={18}
           style={{
+            flex: "0 0 auto",
             color: open ? "var(--brand)" : "var(--gray-mid)",
-            fontSize: 18,
-            lineHeight: 1,
             transform: open ? "rotate(90deg)" : "none",
             transition: "transform 0.2s ease",
           }}
-        >
-          ›
-        </span>
+        />
       </button>
       {open && <div style={{ paddingTop: 11 }}>{children}</div>}
     </div>

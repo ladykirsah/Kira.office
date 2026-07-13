@@ -15,10 +15,10 @@ function LoginContent() {
   return (
     <div style={{ maxWidth: 420, margin: "24px auto 0" }}>
       <div className="card" style={{ padding: 24 }}>
-        <h1 className="t-h3" style={{ margin: "0 0 4px" }}>
+        <h1 className="t-h1" style={{ margin: "0 0 6px", color: "var(--gray-dark)" }}>
           เข้าสู่ระบบ / สมัครสมาชิก
         </h1>
-        <p className="muted" style={{ margin: "0 0 16px" }}>
+        <p style={{ margin: "0 0 18px", fontSize: 15, lineHeight: 1.5, color: "var(--gray-mid)" }}>
           ใช้เบอร์โทรศัพท์รับรหัส OTP — ไม่ต้องตั้งรหัสผ่าน
         </p>
         <OtpLogin onLoggedIn={() => router.push(target)} />

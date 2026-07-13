@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Icon } from "@/components/Icon";
 
 /**
  * Product filter (owner-approved "Design 1"): a "ตัวกรอง" button that opens a bottom sheet with the
@@ -85,19 +86,7 @@ export function ProductFilter({ fitments, types, brands, current }: FilterProps)
   return (
     <>
       <button type="button" className="filter-btn" onClick={openSheet}>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          aria-hidden="true"
-        >
-          <line x1="4" y1="7" x2="20" y2="7" />
-          <line x1="4" y1="17" x2="20" y2="17" />
-          <circle cx="15" cy="7" r="2.4" fill="var(--white)" />
-          <circle cx="9" cy="17" r="2.4" fill="var(--white)" />
-        </svg>
+        <Icon name="filter" size={17} />
         ตัวกรอง
         {activeCount > 0 && <span className="fbadge">{activeCount}</span>}
       </button>

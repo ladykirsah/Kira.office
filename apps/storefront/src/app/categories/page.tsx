@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb, listProductTypes } from "@/lib/db";
 import { PART_TYPE_EN } from "@/lib/labels";
+import { Icon } from "@/components/Icon";
 
 export const metadata: Metadata = { title: "หมวดหมู่สินค้า · AirPlus" };
 
@@ -55,18 +56,7 @@ export default async function CategoriesPage() {
                 <div className="catlist-count">{t.productCount} รายการ</div>
               </div>
               <span className="catlist-chev" aria-hidden="true">
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
+                <Icon name="chevron" size={22} />
               </span>
             </Link>
           ))}

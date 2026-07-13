@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { pushRecentSearch } from "@/lib/recentSearches";
+import { Icon } from "@/components/Icon";
 
 /**
  * The /search page's own sticky orange header (its search bar replaces the generic InnerHeader on
@@ -63,19 +64,7 @@ export function SearchLandingBar() {
             cursor: "pointer",
           }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <Icon name="back" size={24} />
         </button>
 
         <form
@@ -96,19 +85,7 @@ export function SearchLandingBar() {
             autoFocus
           />
           <button type="submit" className="search-go" aria-label="ค้นหา">
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.5" y2="16.5" />
-            </svg>
+            <Icon name="search" size={19} />
           </button>
         </form>
       </div>

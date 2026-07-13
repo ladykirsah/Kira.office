@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpLogin } from "@/components/OtpLogin";
 import type { AddressRow } from "@/app/api/account/addresses/route";
 import { cartTotalSatang, clearCart, useCart } from "@/lib/cart";
+import { Icon } from "@/components/Icon";
 import {
   type CheckoutPaymentMethod,
   type CheckoutRequest,
@@ -414,15 +415,7 @@ export default function CheckoutPage() {
               aria-hidden="true"
               style={{ color: "var(--ok)", display: "inline-flex", flexShrink: 0 }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M5 12.5 10 17.5 19 7"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <Icon name="check" size={18} />
             </span>
             <span style={{ fontSize: 14, fontWeight: 600, minWidth: 0, flex: 1 }}>
               สวัสดี คุณ{me.name !== "" ? me.name : me.phone}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addToCart } from "@/lib/cart";
 import { baht } from "@/lib/format";
 import { LINE_OA_URL } from "@/lib/links";
+import { Icon } from "@/components/Icon";
 
 interface AddToCartBarProps {
   variantId: string;
@@ -85,56 +86,9 @@ export function AddToCartBar({
     cursor: "pointer",
   };
 
-  const helpIcon = (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.5 8.5 0 1 1 17 0Z" />
-      <circle cx="11" cy="11" r="2.3" />
-      <path d="m12.8 12.8 1.7 1.7" />
-    </svg>
-  );
+  const helpIcon = <Icon name="chat" size={22} />;
 
-  const cartIcon = justAdded ? (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 12.5 10 17.5 19 7" />
-    </svg>
-  ) : (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="9" cy="20" r="1.3" />
-      <circle cx="17.5" cy="20" r="1.3" />
-      <path d="M3 4h2l2.2 11a1.5 1.5 0 0 0 1.5 1.2h8a1.5 1.5 0 0 0 1.5-1.2l1.3-6.5" />
-      <path d="M14 6.5h5.5M16.75 3.75v5.5" />
-    </svg>
-  );
+  const cartIcon = justAdded ? <Icon name="check" size={22} /> : <Icon name="cart" size={22} />;
 
   const helpAction = (
     <a

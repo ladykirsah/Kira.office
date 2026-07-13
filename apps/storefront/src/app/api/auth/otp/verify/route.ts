@@ -65,7 +65,11 @@ export async function POST(req: Request): Promise<Response> {
       .bind(phone)
       .first<{ id: string; name: string; pdpaConsentAt: number | null }>();
 
-    if (!existing && body.pdpaConsent !== true)
+    // Require PDPA consent before login for ANY account without a consent timestamp — a brand-new
+    // phone OR a legacy/seed account whose pdpa_consent_at is still NULL. Only accounts that already
+    // have consent on record log in without being asked again. Guarantees: no session is ever issued
+    // for an account that has never consented.
+    if ((!existing || existing.pdpaConsentAt === null) && body.pdpaConsent !== true)
       return Response.json(
         { requiresConsent: true, error: "กรุณายอมรับนโยบายความเป็นส่วนตัวเพื่อสร้างบัญชี" },
         { status: 400 },

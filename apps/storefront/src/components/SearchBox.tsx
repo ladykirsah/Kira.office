@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Icon } from "@/components/Icon";
 
 /**
  * Home search entry — a tappable bar that OPENS the dedicated /search page (recent searches, search
@@ -25,20 +26,7 @@ export function SearchBox() {
         textDecoration: "none",
       }}
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        aria-hidden="true"
-        style={{ flex: "0 0 auto" }}
-      >
-        <circle cx="11" cy="11" r="7" />
-        <line x1="21" y1="21" x2="16.5" y2="16.5" />
-      </svg>
+      <Icon name="search" size={20} style={{ flex: "0 0 auto" }} />
       <span
         style={{
           flex: 1,

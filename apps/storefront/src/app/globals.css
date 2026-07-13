@@ -320,6 +320,145 @@ textarea {
 .qa-ic svg :is(path, rect, circle, line) {
   vector-effect: non-scaling-stroke;
 }
+
+/* ---- OTP code-validity countdown (components/OtpLogin.tsx), shown above ยืนยัน ---- */
+.otp-ttl {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--gray-mid);
+}
+.otp-ttl strong {
+  color: var(--brand-deep);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.otp-ttl[data-expired] {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ---- 6-box OTP entry (components/OtpLogin.tsx): two groups of three, gap in the middle ---- */
+.otp-boxes {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+.otp-group {
+  display: flex;
+  gap: 8px;
+}
+.otp-box {
+  width: 44px;
+  height: 52px;
+  padding: 0;
+  text-align: center;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gray-dark);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.otp-box:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+@media (max-width: 359px) {
+  .otp-box {
+    width: 40px;
+    height: 48px;
+  }
+  .otp-boxes {
+    gap: 12px;
+  }
+}
+
+/* ---- login/register mode tabs + new-member welcome/consent panel (OtpLogin) ---- */
+.otp-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--paper);
+  border-radius: var(--radius-sm);
+}
+.otp-tabs button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-mid);
+  padding: 9px 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.otp-tabs button.on {
+  background: var(--white);
+  color: var(--brand);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.otp-welcome {
+  border: 1px solid var(--accent-soft);
+  background: #fff8f6;
+  border-radius: 12px;
+  padding: 13px 14px;
+}
+.otp-welcome-t {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--brand-deep);
+  margin-bottom: 10px;
+}
+.otp-consent {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--gray-dark);
+  cursor: pointer;
+}
+.otp-consent input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  accent-color: var(--brand);
+}
+.otp-consent a {
+  color: var(--brand);
+  text-decoration: underline;
+  font-weight: 600;
+}
+.otp-box[data-error] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.otp-box[data-error]:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(200, 30, 30, 0.12);
+}
+
+/* ---- shared thin-line icon set (components/Icon.tsx) ---- */
+/* One constant line: `non-scaling-stroke` renders the 1.8px stroke identically at every icon size
+   (13px product ribbon → 32px order badge) and cancels the thickening from each glyph's optical
+   `<g transform>` scale. currentColor supplies the colour per surface. */
+.ap-icon {
+  flex: none;
+  vertical-align: middle;
+}
+.ap-icon :is(path, rect, circle, line, polyline, polygon) {
+  vector-effect: non-scaling-stroke;
+}
 .qa-lb {
   font-size: 11px;
   font-weight: 400;
@@ -840,7 +979,7 @@ textarea {
 }
 
 .field label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -1273,6 +1412,128 @@ textarea {
   font-size: 10px;
   font-weight: 400;
   color: var(--gray-mid);
+}
+
+/* ===== /account (Design 3: greeting + member card + icon tiles) ===== */
+.acct-greet h1 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--gray-dark);
+}
+.acct-greet p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--gray-mid);
+}
+.acct-member {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(55, 54, 54, 0.08);
+}
+.acct-member .p {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--gray-dark);
+}
+.acct-member .b {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--brand-deep);
+  background: rgba(235, 80, 49, 0.12);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.acct-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.acct-tile {
+  position: relative;
+  min-width: 0;
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 14px 15px;
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(55, 54, 54, 0.08);
+  text-decoration: none;
+  color: var(--gray-dark);
+}
+.acct-tile-ic,
+.acct-row .ic {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: rgba(235, 80, 49, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand);
+}
+.acct-row .ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+.acct-tile-l {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--gray-dark);
+}
+.acct-tile-c {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.acct-list {
+  margin-top: 14px;
+}
+.acct-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--white);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(55, 54, 54, 0.08);
+  text-decoration: none;
+  color: var(--gray-dark);
+}
+.acct-row .l {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.acct-chev {
+  flex: 0 0 auto;
+  color: var(--text-faint);
 }
 
 /* ---- full Categories page (/categories): best-seller-style rows — cover + Thai + English +

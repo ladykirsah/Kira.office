@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { resolveEffectivePrice } from "@l-shopee/core";
+import { Icon } from "@/components/Icon";
 import {
   activeBanners,
   bestSellers,
@@ -378,14 +379,7 @@ const iconProps = {
   strokeLinejoin: "round",
 } as const;
 
-const truckIcon = (
-  <svg {...iconProps}>
-    <rect x="1" y="5" width="14" height="11" rx="1" />
-    <path d="M15 8h4l4 4v4h-8" />
-    <circle cx="6" cy="18.5" r="2" />
-    <circle cx="18" cy="18.5" r="2" />
-  </svg>
-);
+const truckIcon = <Icon name="truck" size={22} />;
 
 const payIcon = (
   <svg {...iconProps}>

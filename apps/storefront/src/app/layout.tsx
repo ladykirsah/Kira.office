@@ -7,16 +7,20 @@ import { SearchLandingBar } from "./search/SearchLandingBar";
 import { SiteFooter } from "./SiteFooter";
 import "./globals.css";
 
-// Prompt is loaded ONLY as the cross-platform fallback for the CI's system-first stack (see
-// --font-body in globals.css). Apple devices render SF Pro + Thonburi — identical to the locked
-// CI preview; Android / Windows fall to this Prompt webfont ahead of their OS Thai defaults.
-// Exposed as a CSS variable (not applied as a class) so the system fonts win when present.
+// Prompt is a genuine LAST-RESORT fallback for the CI's system-first stack (see --font-body in
+// globals.css): every real platform has a Thai system font (Thonburi / Leelawadee / Noto) that is
+// ordered BEFORE Prompt, so Prompt is essentially never rendered. `preload: false` therefore keeps
+// its ~24 weight/style/subset files OFF the critical path — otherwise next/font preloads them on
+// every page (network flood + a swap reflow = the "messy for a while" flash). With preload off they
+// only fetch (via @font-face) on the rare device that truly lacks a Thai font. Exposed as a CSS
+// variable so the system fonts still win when present.
 const prompt = Prompt({
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600", "700", "800", "900"],
   style: ["normal", "italic"],
   variable: "--font-prompt",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
