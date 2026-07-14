@@ -112,7 +112,7 @@ export default async function AccountPage() {
           count={info?.addresses ?? 0}
         />
         <Tile href="/account/coupons" name="coupon" label="คูปองของฉัน" />
-        <Tile href={LINE_OA_URL} name="chat" label="ช่วยเหลือ" />
+        <Tile href={LINE_OA_URL} name="chat" label="ช่วยเหลือ" external />
       </div>
 
       <div className="acct-list">

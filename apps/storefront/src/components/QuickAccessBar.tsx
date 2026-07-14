@@ -30,12 +30,12 @@ export function QuickAccessBar() {
         </span>
         <span className="qa-lb">เครื่องมือช่าง</span>
       </Link>
-      <Link className="qa-item" href={LINE_OA_URL}>
+      <a className="qa-item" href={LINE_OA_URL} target="_blank" rel="noopener">
         <span className="qa-ic">
           <Icon name="chat" size={24} />
         </span>
         <span className="qa-lb">ช่วยหาอะไหล่</span>
-      </Link>
+      </a>
     </nav>
   );
 }

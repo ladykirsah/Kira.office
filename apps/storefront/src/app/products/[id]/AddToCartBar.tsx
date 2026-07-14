@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { addToCart } from "@/lib/cart";
 import { baht } from "@/lib/format";
@@ -92,10 +91,16 @@ export function AddToCartBar({
   const cartIcon = justAdded ? <Icon name="check" size={22} /> : <Icon name="cart" size={22} />;
 
   const helpAction = (
-    <Link href={LINE_OA_URL} style={iconBtn} aria-label="ช่วยหาอะไหล่ทาง LINE">
+    <a
+      href={LINE_OA_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={iconBtn}
+      aria-label="ช่วยหาอะไหล่ทาง LINE"
+    >
       {helpIcon}
       <span>ช่วยหาอะไหล่</span>
-    </Link>
+    </a>
   );
 
   if (onHand <= 0) {

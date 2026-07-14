@@ -1,10 +1,9 @@
 /**
  * Storefront contact links.
  *
- * All "ช่วยหาอะไหล่ / ช่วยเหลือ / เพิ่มเพื่อน LINE" actions route to the in-app `/line` page, which shows
- * the owner-provided LINE OA add-friend QR (public/line-oa-qr.png). This is an INTERNAL path, so link
- * to it with next/link (not a new-tab external `<a>`).
- * TODO(owner input): once the LINE add-friend DEEP LINK (`https://lin.ee/<code>` or `@<basic-id>`) is
- * provided, add a "เปิด LINE" button on /line so mobile shoppers add the OA in one tap.
+ * LINE Official Account add-friend deep link (decoded from the owner's OA QR — basic id @811gvdun).
+ * Every "ช่วยหาอะไหล่ / ช่วยเหลือ / เพิ่มเพื่อน LINE" tap opens this directly: on a phone it launches the
+ * LINE app straight to the add-friend screen; on desktop it opens LINE's add-friend web page. It is an
+ * EXTERNAL url, so link to it with a plain `<a target="_blank" rel="noopener">` (not next/link).
  */
-export const LINE_OA_URL = "/line";
+export const LINE_OA_URL = "https://lin.ee/tltIFtI";

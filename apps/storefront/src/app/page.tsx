@@ -229,8 +229,10 @@ export default async function Home() {
         >
           <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Link
+            <a
               href={LINE_OA_URL}
+              target="_blank"
+              rel="noopener"
               className="btn"
               style={{
                 background: "#06C755",
@@ -241,7 +243,7 @@ export default async function Home() {
               }}
             >
               เพิ่มเพื่อน LINE
-            </Link>
+            </a>
             {facebookUrl && (
               <a
                 href={facebookUrl}
