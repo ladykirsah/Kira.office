@@ -9,7 +9,7 @@
 > **this file and the code win** — older docs (`DATA_MODEL.md`, parts of `ARCHITECTURE.md`/`README`)
 > describe the original plan and lag the implementation.
 
-**Snapshot:** 2026-07-13 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
+**Snapshot:** 2026-07-14 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
 **Tests:** 632 passing · **Migrations:** 0000–0047 (0036–0047 add the **AirPlus storefront** schema — see §3).
 
 ---
@@ -90,12 +90,14 @@ register → new-only) and `POST /api/auth/otp/verify` enforces the consent inva
 (`/account/orders`, `/account/addresses`, a PDPA consent-receipt card, and a mock **`/account/coupons`**
 wallet — localStorage via `lib/coupons.ts`, no backend yet — paired with a `/coupons` collect catalog).
 Agent-discovery route handlers (`/llms.txt`, `/sitemap.md`, `/skills.md`, `/rss.xml`, `/sitemap.xml`) and
-`/privacy` + `/terms` legal drafts are live. Money
+`/privacy` + `/terms` legal drafts are live. Every LINE help action (home shortcut, PDP sticky bar,
+account "ช่วยเหลือ" tile, home follow strip) opens the shop's **LINE OA add-friend link directly**
+(`lin.ee/tltIFtI` → `@811gvdun`, in `lib/links.ts`). Money
 never trusts the client (server re-prices), stock deducts through the shared DO. Migrations `0036`–`0047`
 add its schema. Deployed to a durable phone-viewable **staging** preview at
-`airplus-storefront-staging.bettergogocash.workers.dev` (latest deploy 2026-07-13, Worker Version ID
-`79c5b2e3-3250-459e-ba21-318c6b29e05d`, cut from the uncommitted working branch — **staging is ahead of
-git**); member login runs in dev-echo mode there (fixed OTP `123456`, no SMS) until an SMS provider
+`airplus-storefront-staging.bettergogocash.workers.dev` (latest deploy 2026-07-14, Worker Version ID
+`96368b71-b46b-44ba-8f3b-5cb92877e616`, in sync with git — the working branch is pushed through
+`eb6420f`); member login runs in dev-echo mode there (fixed OTP `123456`, no SMS) until an SMS provider
 (ThaiBulkSMS/Twilio) + Turnstile keys are configured. The demo flash campaign is **permanently seeded in
 the staging D1** (`seed-camp-1`, window `2025-01-01`→`2028-01-01`) — this is DATA, not schema — so the
 Flash Sale hero, the สินค้าลดราคา home collection, and the PDP discount always render as a mock. The

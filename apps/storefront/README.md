@@ -40,6 +40,10 @@ accounts.
   `OTP_DEV_ECHO` on staging.
 - Account area: `/account` hub with a PDPA consent-receipt card, `/account/orders`,
   `/account/addresses`, and a `/account/coupons` wallet.
+- **LINE help**: every "ช่วยหาอะไหล่ / ช่วยเหลือ / เพิ่มเพื่อน LINE" action (home shortcut, PDP
+  sticky bar, account tile, home follow strip) opens the shop's LINE OA add-friend link directly
+  (`LINE_OA_URL = https://lin.ee/tltIFtI` → `@811gvdun`, in `src/lib/links.ts`) — the LINE app on
+  mobile, the add-friend web page on desktop.
 - Coupons (mock, no backend yet): a `/coupons` catalog to collect and a `/account/coupons` wallet to
   copy codes; persisted in localStorage (`lib/coupons.ts`) until a real backend ships.
 - Agent-discovery + legal routes: `/llms.txt`, `/sitemap.md`, `/skills.md`, `/rss.xml`,
@@ -87,8 +91,6 @@ open `/login`, enter any number (e.g. `0123456789`), and use the on-screen code 
 ## Pending owner inputs
 
 - Den Air Service business bank-account details (transfer method shows a placeholder until then).
-- LINE OA link for the "ช่วยหาอะไหล่" help button on the product page (`LINE_OA_URL` in
-  `src/lib/links.ts` is a placeholder until then).
 - PromptPay ID in Shop settings (admin) — checkout reads the default method from KV.
 - SlipOK account + secrets for auto-confirmation.
 - SMS provider account (ThaiBulkSMS, or Twilio as fallback) + Cloudflare Turnstile keys — required
