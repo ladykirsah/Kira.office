@@ -13,6 +13,7 @@ import {
   type CatalogItem,
 } from "@/lib/db";
 import { AffiliateShelf } from "@/components/AffiliateShelf";
+import { LINE_OA_URL } from "@/lib/links";
 import { PART_TYPE_EN, CAR_BRAND_TH, CAR_BRAND_LOGO } from "@/lib/labels";
 import { BestSellerList } from "@/components/BestSellerList";
 import { CategoryRow } from "@/components/CategoryRow";
@@ -59,7 +60,6 @@ export default async function Home() {
     .filter((e): e is number => e !== null);
   const flashEndsAt = flashEnds.length > 0 ? Math.min(...flashEnds) : null;
 
-  const lineUrl = process.env.NEXT_PUBLIC_LINE_OA_URL;
   const facebookUrl = process.env.NEXT_PUBLIC_FACEBOOK_URL;
 
   return (
@@ -222,50 +222,45 @@ export default async function Home() {
         </div>
       </section>
 
-      {(lineUrl || facebookUrl) && (
-        <section className="section">
-          <div
-            className="card"
-            style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
-          >
-            <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {lineUrl && (
-                <a
-                  href={lineUrl}
-                  target="_blank"
-                  rel="noopener"
-                  className="btn"
-                  style={{
-                    background: "#06C755",
-                    borderColor: "#06C755",
-                    color: "var(--white)",
-                    flex: "1 1 200px",
-                  }}
-                >
-                  เพิ่มเพื่อน LINE
-                </a>
-              )}
-              {facebookUrl && (
-                <a
-                  href={facebookUrl}
-                  target="_blank"
-                  rel="noopener"
-                  className="btn"
-                  style={{
-                    background: "#1877F2",
-                    borderColor: "#1877F2",
-                    color: "var(--white)",
-                    flex: "1 1 200px",
-                  }}
-                >
-                  ติดตามบน Facebook
-                </a>
-              )}
-            </div>
+      <section className="section">
+        <div
+          className="card"
+          style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
+        >
+          <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link
+              href={LINE_OA_URL}
+              className="btn"
+              style={{
+                background: "#06C755",
+                borderColor: "#06C755",
+                color: "var(--white)",
+                flex: "1 1 200px",
+                textAlign: "center",
+              }}
+            >
+              เพิ่มเพื่อน LINE
+            </Link>
+            {facebookUrl && (
+              <a
+                href={facebookUrl}
+                target="_blank"
+                rel="noopener"
+                className="btn"
+                style={{
+                  background: "#1877F2",
+                  borderColor: "#1877F2",
+                  color: "var(--white)",
+                  flex: "1 1 200px",
+                }}
+              >
+                ติดตามบน Facebook
+              </a>
+            )}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       <RecentlyViewed />
     </div>

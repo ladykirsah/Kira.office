@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { LINE_OA_URL } from "@/lib/links";
 
 /**
  * Home quick-access shortcut toolbar (owner-approved "Design 2"): one white framed strip with inset
@@ -9,9 +10,6 @@ import { Icon } from "@/components/Icon";
  * scale; the "ช่วยหาอะไหล่" cell opens LINE OA when configured, otherwise falls back to /info.
  */
 export function QuickAccessBar() {
-  const lineUrl = process.env.NEXT_PUBLIC_LINE_OA_URL;
-  const helpHref = lineUrl || "/info";
-  const helpExternal = Boolean(lineUrl);
   return (
     <nav className="qa-bar" aria-label="ทางลัด">
       <Link className="qa-item" href="/coupons">
@@ -32,16 +30,12 @@ export function QuickAccessBar() {
         </span>
         <span className="qa-lb">เครื่องมือช่าง</span>
       </Link>
-      <a
-        className="qa-item"
-        href={helpHref}
-        {...(helpExternal ? { target: "_blank", rel: "noopener" } : {})}
-      >
+      <Link className="qa-item" href={LINE_OA_URL}>
         <span className="qa-ic">
           <Icon name="chat" size={24} />
         </span>
         <span className="qa-lb">ช่วยหาอะไหล่</span>
-      </a>
+      </Link>
     </nav>
   );
 }
