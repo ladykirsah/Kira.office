@@ -22,7 +22,7 @@ from one workspace.
   scan/code/search, B2C/B2B pricing, ฿/% discount) with a **printable bill** (Cash bill vs Quotation,
   Invoice vs Receipt, **Thai/English switch**, contact-QR), stock, sales, finance, import, terms.
 - `packages/core` — pure domain logic, test-first. **238 tests** across `core` + `api`.
-  `packages/db` — Drizzle schema + 16 SQL migrations (`0000`–`0015`); see
+  `packages/db` — hand-written SQL migrations (the schema's only source of truth); see
   [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md). (Shop settings live in **KV**, not D1.)
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
   sellers; the back office runs fully without it (CSV bridge meanwhile).
@@ -52,7 +52,7 @@ apps/
   api/        # Cloudflare Worker: API, /sync, ledger DO, image serving           (live)
 packages/
   core/       # Pure-TS business logic: pricing, profit, tax, cost, stock (TDD)
-  db/         # D1 schema (Drizzle) + hand-written SQL migrations
+  db/         # D1 schema: hand-written SQL migrations (no TypeScript; nothing imports it)
 docs/         # Handoff set + requirements, architecture, data model, decisions
 ```
 

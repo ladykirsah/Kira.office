@@ -1,12 +1,17 @@
 # Schema — As Built
 
-The actual D1 (SQLite) schema, derived from the applied migrations `0000`–`0018` in
-[`packages/db/migrations/`](../packages/db/migrations/) and mirrored in
-[`packages/db/src/schema.ts`](../packages/db/src/schema.ts) (Drizzle, the shape source of truth).
+The actual D1 (SQLite) schema, derived from the applied migrations `0000`–`0035` in
+[`packages/db/migrations/`](../packages/db/migrations/) — **the SQL files are the only source of
+truth**. (A `packages/db/src/schema.ts` Drizzle draft used to be cited here; it was never compiled,
+never imported, had drifted from the applied DDL, and has been removed.)
+
+> **Migrations `0022`–`0026` dropped tables and columns.** The table listings below reflect those
+> drops. The *Migration history* section at the bottom is only itemised through `0018` and is stale
+> for `0019`–`0035` — trust the listings and the migration files, not that table.
 
 This complements — and where they differ, supersedes — the original plan in
-[DATA_MODEL.md](DATA_MODEL.md). The Worker runs **raw `db.prepare(...)` SQL**, not the Drizzle query
-builder, so `schema.ts` is for shape/typing, not runtime queries.
+[DATA_MODEL.md](DATA_MODEL.md). The Worker runs **raw `db.prepare(...)` SQL** against D1; there is no
+ORM and no generated types in the query path.
 
 ## Conventions
 
@@ -17,7 +22,7 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
   rollout (e.g. migration `0010` added `oring_usage` and intentionally **left `oring_size` in place,
   now unused**).
 
-## Tables (24)
+## Tables
 
 ### Catalog & attributes
 | Table | Key columns |
@@ -48,15 +53,32 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
 | Table | Key columns |
 | --- | --- |
 | `pricing_profiles` | `id`, `product_variant_id`→variants, `item_cost_satang`, `inbound_shipping_satang`, `packaging_satang`, `other_allocated_satang`, `target_price_satang`, `online_price_satang`, `b2b_price_satang`, `online_commission_bp`, `tax_on_cost`, `active_from`, `active_to` |
-| `commission_profiles` | `id`, `name`, `channel` (`shopee`), `commission_rate_bp`, `transaction_fee_rate_bp`, `service_fee_rate_bp`, `fixed_fee_satang`, `fee_base` (`buyer_price`) |
-| `cost_layers` | `id`, `product_variant_id`→variants, `location_id`, `received_qty`, `remaining_qty`, `unit_cost_satang`, `received_at` (supports moving-average + FIFO) |
-| `financial_records` | `id`, `source_type`, `source_id`, `record_type`, `channel`, `amount_satang`, `tax_satang`, `fee_satang`, `cost_satang`, `profit_satang`, `occurred_at`, `notes` — stores both inputs and outputs so history is immutable |
+| `financial_records` | `id`, `source_type`, `source_id`, `record_type`, `channel` (CHECK: `onsite`\|`shopee`\|`airplus`\|`affiliate`), `amount_satang`, `tax_satang`, `fee_satang`, `cost_satang`, `profit_satang`, `occurred_at`, `notes` — stores both inputs and outputs so history is immutable |
+
+**Dropped, do not design against:** `commission_profiles` (dropped `0022`) and `cost_layers`
+(dropped `0024` — FIFO layering was never wired; the POS passes `unitCost` from the client).
 
 ### Inventory
 | Table | Key columns |
 | --- | --- |
-| `stock_ledger_entries` | `id`, `product_variant_id`→variants, `location_id`, `movement_type`, `quantity_delta`, `quantity_after`, `source_type`, `source_id`, `reason`, `user_id`, `created_at`. **On-hand = `SUM(quantity_delta)`.** |
-| `inventory_snapshots` | `id`, `product_variant_id`+`location_id` (uq), `stock_on_hand`, `reserved_stock`, `available_stock`, `shopee_published_stock`, `reorder_threshold`, `updated_at` |
+| `stock_ledger_entries` | `id`, `product_variant_id`→variants, `movement_type`, `quantity_delta`, `quantity_after`, `source_type`, `source_id`, `reason`, `user_id`→users, `created_at`. **On-hand = `SUM(quantity_delta)`.** |
+
+`stock_ledger_entries` is the **only** inventory table. Notes for anyone designing holds / scanning:
+
+- **No `location_id`** — dropped in `0024` (no `locations` table ever existed; the shop is
+  single-location). On-hand is derived per variant only.
+- **No reserved / available / reorder storage exists.** `inventory_snapshots` (which held
+  `reserved_stock`, `available_stock`, `reorder_threshold`) was **dropped in `0024`** — it was never
+  populated. There is nothing in D1 today that can express "on hold" or "available vs on-hand";
+  that is net-new schema.
+- `quantity_after` is an audit snapshot written at insert time. **Never read it for math** — it is
+  wrong the moment two writes race (and they can; see
+  [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md)). On-hand is always `SUM(quantity_delta)`.
+- `movement_type` is **CHECK-constrained** (`0026`) to exactly: `opening_balance`,
+  `purchase_receipt`, `manual_adjustment`, `receive`, `write_off`, `correction`, `onsite_sale`,
+  `online_sale`, `refund_return`, `damaged_lost`, `transfer`, `reconciliation`. A new hold-style
+  movement type **requires a migration to rebuild the table with an extended CHECK** — SQLite cannot
+  `ALTER` a CHECK. Inserting an unlisted value fails at the DB.
 
 ### Sales
 | Table | Key columns |
@@ -71,10 +93,13 @@ builder, so `schema.ts` is for shape/typing, not runtime queries.
 | `shop_settings` | `id`, `base_currency` (THB), `timezone` (Asia/Bangkok), `cost_method` (`moving_average`), `default_vat_rate_bp` (700), `vat_registered` (1), `updated_at` |
 | `users` | `id`, `name`, `email` (uq), `role`, `status` (`active`), `created_at` — **no user-management UI / auth wiring yet** |
 | `audit_logs` | `id`, `actor_email`, `user_id`→users (nullable), `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `created_at` — append-only mutation audit |
-| `sync_jobs` | `id`, `provider`, `job_type`, `entity_type`, `entity_id`, `status` (`pending`), `attempts`, `last_error`, `next_retry_at`, `created_at` — for the (gated) Shopee queue |
 
-Shopee mapping tables (`shop_connections`, `shopee_listings`, `shopee_listing_models`) and
-`terms_patterns`/`product_terms` are **created by migration `0017`** (empty until Phase 5 / T&C UI).
+**Dropped, do not design against:** `sync_jobs` (dropped `0024` — the Shopee retry queue was never
+used) and `shopee_listings` / `shopee_listing_models` (dropped `0023`).
+
+`shop_connections` and `terms_patterns`/`product_terms` are **created by migration `0017`** (empty
+until Phase 5 / T&C UI). The sibling `shopee_listings` / `shopee_listing_models` tables `0017` also
+created were **dropped again in `0023`**.
 `product_variants` has nullable `option_1_*` / `option_2_*` columns for a future multi-variant editor.
 See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 
@@ -109,6 +134,11 @@ See [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
 2. Apply to **both** D1 databases — prod `2e88a362-ffd7-4255-b178-e511d475f687` and staging
    `85f22f44-063d-424e-91ef-39e1fa1fef24` (`kira-office-staging`) — via the Cloudflare D1 MCP
    `d1_database_query` or `wrangler d1 migrations apply`.
-3. Mirror the change in `schema.ts` (keep typing accurate; attribute tables use the
-   `attributeTable()` helper).
+3. Update the table listings above so this doc stays as-built (there is no `schema.ts` to mirror any
+   more — the migration *is* the schema).
 4. Add/adjust tests in `apps/api/src/index.test.ts` for any new behavior, then deploy.
+
+**SQLite gotcha:** you cannot `ALTER` a `CHECK` constraint. Changing an enum vocabulary (e.g. adding
+a hold movement type to `stock_ledger_entries.movement_type`) means rebuilding the table —
+`CREATE … _new` with the new CHECK, copy rows explicitly, `DROP`, `RENAME`, recreate indexes. See
+`0025` and `0026` for the exact pattern.

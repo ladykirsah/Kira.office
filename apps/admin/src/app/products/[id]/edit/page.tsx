@@ -281,13 +281,13 @@ export default function EditProductPage() {
           onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
           taxOnCost: pricing.taxOnCost,
         });
-        // Stock is ledger-based: setting a new on-hand records an adjustment for the difference.
+        // Stock is ledger-based: setting a new on-hand records an adjustment for the difference —
+        // computed by the server against a fresh read, since `detail.onHand` is from page load.
         const target = Math.round(parseFloat(stockQty) || 0);
-        const current = detail?.onHand ?? 0;
-        if (detail && target !== current) {
+        if (detail && target !== (detail.onHand ?? 0)) {
           const res = await adjustStock({
             productVariantId: detail.variantId,
-            quantityDelta: target - current,
+            countedOnHand: target,
             movementType: "manual_adjustment",
             reason: "edited from product page",
           });

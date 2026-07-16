@@ -1,12 +1,16 @@
 # Data Model Draft
 
-> ⚠️ **This is the original plan and now lags the implementation.** For the schema as actually built
-> (migrations `0000`–`0012`, table by table), see **[SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)**. This
-> file is kept for the design rationale and the parts not yet built (variants, terms, Shopee mapping,
-> audit_logs).
+> ⚠️ **This is the original plan and lags the implementation badly.** For the schema as actually
+> built (migrations `0000`–`0035`, table by table), see **[SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)**,
+> which **supersedes this file wherever they differ**. Kept for design rationale only.
+>
+> Several entities below were **built differently, dropped, or never built at all** — notably
+> `inventory_snapshots` and `cost_layers` (dropped `0024`), `commission_profiles` (dropped `0022`),
+> Shopee listing mapping (dropped `0023`), and `sales_order_lines` (never created). Sections carry
+> inline warnings. **Verify against the migrations before designing against anything here.**
 
 Initial schema plan for **Cloudflare D1** (SQLite). Field names can change during implementation;
-the **Drizzle** schema in `packages/db/src/schema.ts` is the source of truth once code exists.
+the applied DDL in `packages/db/migrations/*.sql` is the source of truth.
 Reflects [DECISIONS.md](DECISIONS.md): per-product VAT, four cost methods, offline-first sales,
 online-only marketplace fees.
 
@@ -16,9 +20,8 @@ online-only marketplace fees.
   convert back at the read boundary. (`packages/core` computes in THB decimals; persistence is satang.)
 - **Rates → `INTEGER` basis points** (7% → `700`) or text; never binary floats.
 - **Enums → `TEXT`** with a fixed value set (e.g. `cost_method`, `channel`, `sync_status`,
-  `movement_type`). Drizzle's `{ enum }` gives compile-time type-narrowing only; `drizzle-kit` does
-  **not** emit SQLite `CHECK` constraints from it — add `CHECK`s in the migration if DB-level
-  enforcement is wanted.
+  `movement_type`), enforced with an explicit SQLite `CHECK` constraint in the migration (see
+  `0025_channel_check_constraints.sql`, `0026_movement_type_check.sql`).
 - **Timestamps → `INTEGER` epoch milliseconds (UTC)**, rendered in **Asia/Bangkok** at the edges.
 - IDs are app-generated (UUID/ULID) `TEXT` primary keys.
 
@@ -83,24 +86,35 @@ online-only marketplace fees.
 - id, product_variant_id, currency (`THB`), item_cost, inbound_shipping_cost, packaging_cost,
   other_allocated_cost, commission_profile_id, target_selling_price, active_from, active_to
 
-### commission_profiles  _(online channels only)_
+### commission_profiles  _(online channels only)_ — **dropped in `0022`**
 - id, name, channel (`shopee`), commission_rate_bp, transaction_fee_rate_bp, service_fee_rate_bp,
   fixed_fee_satang, fee_base (`buyer_price` | `ex_tax`), notes
 
-### cost_layers  _(supports moving_average + fifo)_
+### cost_layers  _(supports moving_average + fifo)_ — **dropped in `0024`, never wired**
+FIFO/moving-average layering was never implemented: the POS passes `unitCost` from the client, and
+`packages/core/src/cost.ts` is not imported by any production code.
 - id, product_variant_id, location_id, received_qty, remaining_qty, unit_cost, received_at,
   source_type, source_id
 
 ## Inventory
 
-### inventory_locations
+> ⚠️ **Only `stock_ledger_entries` was built, and without `location_id`.** The rest of this section
+> is an unbuilt plan. See [SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md) for the real shape.
+
+### inventory_locations — **never built**
+There is no locations table; the shop is single-location. `location_id` was dropped from the ledger
+in migration `0024`. Do not model multi-location.
 - id, name, type, status
 
-### stock_ledger_entries
-- id, product_variant_id, location_id, movement_type, quantity_delta, quantity_after,
-  source_type, source_id, reason, user_id, created_at
+### stock_ledger_entries — **built** (without `location_id`)
+As built: id, product_variant_id, movement_type (**CHECK-constrained**, see `0026`), quantity_delta,
+quantity_after, source_type, source_id, reason, user_id, created_at. On-hand = `SUM(quantity_delta)`;
+never read `quantity_after` for math.
 
-### inventory_snapshots
+### inventory_snapshots — **dropped in `0024`, never populated**
+This table is the reason people think reserved/available stock already exists. **It does not.**
+There is no `reserved_stock`, no `available_stock`, no `reorder_threshold` anywhere in D1 today.
+Holds and available-vs-on-hand are **net-new schema**.
 - id, product_variant_id, location_id, stock_on_hand, reserved_stock, available_stock,
   shopee_published_stock, reorder_threshold, updated_at
 
@@ -125,15 +139,40 @@ online-only marketplace fees.
 
 ## Sales And Finance
 
-### sales_orders  _(online / imported)_
+### sales_orders  _(online / imported)_ — **built, but not as specced below**
+
+> ⚠️ **As built** (`0000`, rebuilt with a channel CHECK in `0025`, extended by `0029`/`0030`):
+> id, channel (**CHECK: `shopee` | `airplus`**), external_order_id, order_status, payment_status,
+> subtotal_satang, discount_total_satang, tax_total_satang, fee_total_satang, grand_total_satang,
+> order_created_at, imported_at, import_source, buyer_username, sales_satang, fee_bp, ship_time_ms,
+> carrier, tracking_no, profit_satang. Unique on `(channel, external_order_id)`.
+>
+> **`customer_reference`, `shipping_total` and `currency` were never built** — do not assume them.
+> Shipping is not modelled on the order at all; `currency` is implied THB shop-wide
+> (`shop_settings.base_currency`).
+
+Original plan (kept for rationale only):
 - id, channel, external_order_id, customer_reference, order_status, payment_status, currency,
   subtotal, discount_total, tax_total, fee_total, shipping_total, grand_total, order_created_at,
   imported_at, import_source (`api` | `csv`)
 
-### sales_order_lines
+### sales_order_lines — ⚠️ **does not exist**
+
+There is **no `sales_order_lines` table** in D1 and no migration creating one. Imported online orders
+are **header-only**: totals live on `sales_orders`, with no per-line rows. Anything needing online
+line detail is net-new schema.
+
+Original plan (unbuilt):
 - id, sales_order_id, product_variant_id, external_item_id, external_model_id, quantity,
   unit_price, discount_amount, tax_amount, fee_amount (marketplace), unit_cost (snapshot),
-  cost_method_used, gross_profit
+  ~~cost_method_used~~, gross_profit
+
+> **Do not copy `cost_method_used` if you do build this.** The existing
+> `onsite_sale_lines.cost_method_used` column is **dead**: nothing in the codebase ever writes or
+> reads it, and the cost-method engine that would populate it (`packages/core/src/cost.ts` —
+> `resolveUnitCost`, `fifoConsume`, `movingAverageUnitCost`) is **not imported by any production
+> code**. The POS sends `unitCost` from the client instead. Replicating the column would spread a
+> dead field, not preserve a behaviour.
 
 ### onsite_sales  _(offline-first)_
 - id, client_uuid (unique, client-generated), device_id, sync_status (`local`|`queued`|`synced`),
@@ -159,8 +198,9 @@ online-only marketplace fees.
 - `sales_orders.channel + external_order_id` unique (no duplicate online import).
 - `onsite_sales.client_uuid` unique (idempotent offline sync — never double-count a sale).
 - `barcodes.barcode_value` unique unless multi-pack/shared barcode is explicitly approved.
-- Stock is derived from `stock_ledger_entries` (deltas), reconciled against `inventory_snapshots`
-  with audit logs. Concurrent on-site/online movements **add**, never overwrite.
+- Stock is derived from `stock_ledger_entries` (deltas) with audit logs. Concurrent on-site/online
+  movements **add**, never overwrite. (The planned reconciliation against `inventory_snapshots`
+  never happened — that table was dropped in `0024`.)
 - Financial calculations store **both inputs and outputs** (cost/tax/fee/profit snapshots) so
   historical records do not change when fee/tax/cost rules change later.
 - `products.tax_profile_id` drives per-product VAT inclusive/exclusive behavior.

@@ -18,7 +18,7 @@ Copy `wrangler.jsonc.example` → `wrangler.jsonc` and fill in the resource ids 
 
 ## Responsibilities
 
-- Persist via `@l-shopee/db` (D1 + Drizzle); apply `@l-shopee/core` for pricing/profit/tax/cost.
+- Persist with raw `db.prepare(...)` SQL against D1 (no ORM); apply `@l-shopee/core` for pricing/profit/tax/cost.
 - **`/sync` endpoint** for the offline POS: idempotent upsert on `onsite_sales.client_uuid`,
   routing stock mutations through the **`STOCK_LEDGER` Durable Object** (single writer, serialized).
 - **Shopee boundary**: CSV adapter now (order import / stock export); v2 API adapter later (OAuth,

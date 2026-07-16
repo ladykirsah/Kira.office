@@ -1008,6 +1008,64 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({ variantId: "v1", quantityAfter: 25, applied: true });
   });
 
+  // The ledger CHECK (migration 0026) rejects any type outside its vocabulary. Reaching D1 with a
+  // bad type costs a round-trip and surfaces as an opaque 500; the endpoint answers 400 itself.
+  it("POST /stock/adjust > given a movementType outside the ledger vocabulary > 400", async () => {
+    const env = {
+      STOCK_LEDGER: {
+        idFromName: (_n: string) => ({}),
+        get: (_id: unknown) => ({
+          applyAdjustment: async () => {
+            throw new Error("D1: CHECK constraint failed: movement_type");
+          },
+        }),
+      },
+    } as unknown as Env;
+    const res = await worker.fetch!(
+      new Request("https://x/stock/adjust", {
+        method: "POST",
+        body: JSON.stringify({
+          productVariantId: "v1",
+          quantityDelta: 5,
+          movementType: "hold_out",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/movementType/);
+  });
+
+  it("POST /stock/adjust > accepts every manual movement type the admin sends", async () => {
+    const seen: string[] = [];
+    const env = {
+      STOCK_LEDGER: {
+        idFromName: (_n: string) => ({}),
+        get: (_id: unknown) => ({
+          applyAdjustment: async (a: { movementType: string }) => {
+            seen.push(a.movementType);
+            return { variantId: "v1", quantityAfter: 1, applied: true };
+          },
+        }),
+      },
+    } as unknown as Env;
+    // opening_balance is what Add-product sends for a new product's starting stock.
+    const types = ["receive", "write_off", "correction", "manual_adjustment", "opening_balance"];
+    for (const movementType of types) {
+      const res = await worker.fetch!(
+        new Request("https://x/stock/adjust", {
+          method: "POST",
+          body: JSON.stringify({ productVariantId: "v1", quantityDelta: 1, movementType }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+    }
+    expect(seen).toEqual(types);
+  });
+
   it("GET /terms/template > returns the stored template from KV", async () => {
     const env = { KV: { get: async () => "hello {{name}}" } } as unknown as Env;
     const res = await worker.fetch!(new Request("https://x/terms/template"), env, ctx);
@@ -1548,6 +1606,23 @@ describe("refundSaleToDb", () => {
     expect(ledger?.boundArgs?.[2]).toBe("refund_return");
   });
 
+  it("given two lines of the same variant > threads a running on-hand across the batch", async () => {
+    const { db, batched } = makeDb({
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleLines: [
+        { productVariantId: "v1", quantity: 2 },
+        { productVariantId: "v1", quantity: 3 },
+      ],
+      stockOnHand: 5,
+    });
+    await refundSaleToDb(db, "s1");
+    const ledger = (batched as { sql: string; boundArgs?: unknown[] }[]).filter((s) =>
+      s.sql.includes("INSERT INTO stock_ledger_entries"),
+    );
+    // boundArgs order: (id, variant_id, movement_type, delta, after, source_type, source_id, at)
+    expect(ledger.map((s) => s.boundArgs?.[4])).toEqual([7, 10]);
+  });
+
   it("rejects an unknown sale", async () => {
     const { db } = makeDb({ saleHeader: null });
     expect((await refundSaleToDb(db, "nope")).applied).toBe(false);
@@ -1591,6 +1666,58 @@ describe("applyAdjustmentToDb (manual stock movements)", () => {
     const out = await applyAdjustmentToDb(db, {
       productVariantId: "v1",
       quantityDelta: 0,
+      movementType: "correction",
+    });
+    expect(out.applied).toBe(false);
+  });
+
+  it("given a counted on-hand > derives the delta from its own read of the ledger", async () => {
+    const { db, runs } = makeDb({ stockOnHand: 8 });
+    const out = await applyAdjustmentToDb(db, {
+      productVariantId: "v1",
+      countedOnHand: 10,
+      movementType: "correction",
+    });
+    expect(out).toEqual({ variantId: "v1", quantityAfter: 10, applied: true });
+    // bind order: (id, variant_id, movement_type, delta, after, source_type, reason, at)
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO stock_ledger_entries"));
+    expect(insert?.binds[3]).toBe(2);
+  });
+
+  // The lost update this whole change exists to kill: a stocktake must land on the counted number
+  // no matter what moved since the page was drawn.
+  it("given stock moved after the page loaded > the count still lands, not a stale delta", async () => {
+    // Page drew on-hand 8; a sale took it to 6 before save. Counting 10 must write +4 → 10,
+    // never the client's stale 10-8=+2 → 8.
+    const { db, runs } = makeDb({ stockOnHand: 6 });
+    const out = await applyAdjustmentToDb(db, {
+      productVariantId: "v1",
+      countedOnHand: 10,
+      movementType: "correction",
+    });
+    expect(out.quantityAfter).toBe(10);
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO stock_ledger_entries"));
+    expect(insert?.binds[3]).toBe(4);
+  });
+
+  it("given a count that matches on-hand > writes nothing and says so", async () => {
+    const { db, runs } = makeDb({ stockOnHand: 8 });
+    const out = await applyAdjustmentToDb(db, {
+      productVariantId: "v1",
+      countedOnHand: 8,
+      movementType: "correction",
+    });
+    expect(out.applied).toBe(false);
+    expect(out.quantityAfter).toBe(8);
+    expect(out.reason).toMatch(/no change/i);
+    expect(runs.find((r) => r.sql.includes("INSERT INTO stock_ledger_entries"))).toBeUndefined();
+  });
+
+  it("rejects a counted on-hand below zero", async () => {
+    const { db } = makeDb({ stockOnHand: 8 });
+    const out = await applyAdjustmentToDb(db, {
+      productVariantId: "v1",
+      countedOnHand: -1,
       movementType: "correction",
     });
     expect(out.applied).toBe(false);

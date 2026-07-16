@@ -37,23 +37,23 @@ export function movementLabel(type: string): string {
 
 export type AdjustAction = "receive" | "write_off" | "correction";
 
-export interface AdjustPlan {
-  movementType: string;
-  quantityDelta: number;
-}
+/**
+ * A relative movement (receive / write-off) carries a signed delta; a stocktake (correction)
+ * carries the counted absolute instead, and the server derives the delta from its own read.
+ */
+export type AdjustPlan =
+  { movementType: string; quantityDelta: number } | { movementType: string; countedOnHand: number };
 
 /**
  * Turn a user action into a ledger movement. For receive/write_off, `amount` is a quantity (its
  * magnitude is used, so a stray minus never flips the direction). For correction, `amount` is the
- * counted on-hand target and the delta is the difference from `currentOnHand` (a stocktake).
+ * counted on-hand and is sent as-is: the delta is the server's to compute, against a read taken in
+ * the write path. Computing it here against a page-load on-hand silently writes the wrong stock
+ * whenever anything moved in between — and reads back as a legitimate correction in the ledger.
  */
-export function planAdjustment(
-  action: AdjustAction,
-  amount: number,
-  currentOnHand: number,
-): AdjustPlan {
+export function planAdjustment(action: AdjustAction, amount: number): AdjustPlan {
   if (action === "receive") return { movementType: "receive", quantityDelta: Math.abs(amount) };
   if (action === "write_off")
     return { movementType: "write_off", quantityDelta: -Math.abs(amount) };
-  return { movementType: "correction", quantityDelta: amount - currentOnHand };
+  return { movementType: "correction", countedOnHand: amount };
 }

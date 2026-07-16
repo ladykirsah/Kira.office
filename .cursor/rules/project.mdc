@@ -19,7 +19,7 @@ owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudf
 - `apps/api` — Cloudflare Worker (`api.homeseeker.me`), **raw SQL over D1**, `StockLedger` Durable
   Object, R2 (`IMAGES`) + KV. Main file: `apps/api/src/index.ts`. Config: root `wrangler.jsonc`.
 - `apps/admin` — Next.js 15 / React 19 on OpenNext. Calls the Worker from the browser.
-- `packages/core` — pure-TS money/stock/sync logic (no I/O). `packages/db` — D1 SQL migrations + Drizzle `schema.ts`.
+- `packages/core` — pure-TS money/sync logic (no I/O). `packages/db` — D1 SQL migrations only (no TS; nothing imports it).
 
 ## Must-not-break conventions
 - **Money is integer satang** in D1 (1 THB = 100 satang); convert at the persistence boundary
@@ -27,8 +27,8 @@ owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudf
 - **TDD for money/stock/sync logic** — write the failing test first; show red→green. These are critical-path.
 - Stock mutations go through the **`StockLedger` Durable Object** (single writer); `/sync` is **idempotent
   on `clientUuid`** and must never lose or double-count a sale or stock movement.
-- Schema lives in **two synced places**: `packages/db/migrations/*.sql` (applied DDL) and
-  `packages/db/src/schema.ts` (Drizzle shapes). Keep migrations additive/nullable for safe rollout.
+- Schema lives in **one place**: `packages/db/migrations/*.sql` (the applied DDL). There is no
+  `schema.ts`. Keep migrations additive/nullable for safe rollout.
 - Shop settings (incl. the bilingual shop info) live in **KV**, not D1 — no migration needed to add fields.
 
 ## The gate (run before claiming done)

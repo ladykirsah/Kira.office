@@ -1400,9 +1400,28 @@ export async function deleteGalleryImage(
   await syncCoverImage(db, productId);
 }
 
+/**
+ * Movement types /stock/adjust accepts. A subset of the ledger CHECK vocabulary (migration 0026):
+ * the manual movements the admin actually writes. Sale/refund types are excluded on purpose — those
+ * are written by the sync and refund paths, and must not be forgeable through the manual endpoint.
+ */
+export const MANUAL_MOVEMENT_TYPES = [
+  "receive",
+  "write_off",
+  "correction",
+  "manual_adjustment",
+  "opening_balance",
+] as const;
+
 export interface StockAdjustment {
   productVariantId: string;
-  quantityDelta: number;
+  /** A genuinely relative movement (receive / write-off): the signed change to apply. */
+  quantityDelta?: number;
+  /**
+   * A stocktake: the counted absolute on-hand. The server derives the delta from its own read of
+   * the ledger, so a count is never applied against a number the client read minutes ago.
+   */
+  countedOnHand?: number;
   movementType: string;
   reason?: string;
 }
@@ -1415,15 +1434,30 @@ export interface AdjustmentResult {
 }
 
 /**
- * Apply a manual stock movement (receive / correction / write-off) as a ledger delta. Rejects a zero
- * delta or one that would drive stock negative. Runs through the StockLedger Durable Object so manual
- * adjustments and sales serialize against the same single writer.
+ * Apply a manual stock movement as a ledger delta. Two shapes: `quantityDelta` for a genuinely
+ * relative movement (receive / write-off), or `countedOnHand` for a stocktake — where the caller
+ * sends the counted number and the delta is derived here, from a read taken in this same write
+ * path. A count must never be turned into a delta against a client-side number: stock moves in the
+ * background (sales, refunds, holds), and a stale delta silently writes the wrong on-hand while
+ * looking exactly like a legitimate correction in the ledger.
+ * Rejects a no-op or a movement that would drive stock negative. Runs through the StockLedger
+ * Durable Object so manual adjustments and sales serialize against the same single writer.
  */
 export async function applyAdjustmentToDb(
   db: D1Database,
   adj: StockAdjustment,
 ): Promise<AdjustmentResult> {
-  if (!Number.isInteger(adj.quantityDelta) || adj.quantityDelta === 0) {
+  const isCount = adj.countedOnHand !== undefined;
+  if (isCount) {
+    if (!Number.isInteger(adj.countedOnHand) || adj.countedOnHand! < 0) {
+      return {
+        variantId: adj.productVariantId,
+        quantityAfter: 0,
+        applied: false,
+        reason: "countedOnHand must be a non-negative integer",
+      };
+    }
+  } else if (!Number.isInteger(adj.quantityDelta) || adj.quantityDelta === 0) {
     return {
       variantId: adj.productVariantId,
       quantityAfter: 0,
@@ -1438,7 +1472,16 @@ export async function applyAdjustmentToDb(
     .bind(adj.productVariantId)
     .first<{ onHand: number }>();
   const current = Number(row?.onHand ?? 0);
-  const after = current + adj.quantityDelta;
+  const delta = isCount ? adj.countedOnHand! - current : adj.quantityDelta!;
+  if (delta === 0) {
+    return {
+      variantId: adj.productVariantId,
+      quantityAfter: current,
+      applied: false,
+      reason: `no change (on hand ${current})`,
+    };
+  }
+  const after = current + delta;
   if (after < 0) {
     return {
       variantId: adj.productVariantId,
@@ -1455,7 +1498,7 @@ export async function applyAdjustmentToDb(
       crypto.randomUUID(),
       adj.productVariantId,
       adj.movementType,
-      adj.quantityDelta,
+      delta,
       after,
       "manual",
       adj.reason ?? null,
@@ -1499,14 +1542,22 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
 
   const now = Date.now();
   const statements: D1PreparedStatement[] = [];
+  // On-hand is read once per variant, then threaded as a running total: two lines of the same
+  // variant must stack (7, 10), not each restock off the same pre-batch read (7, 8).
+  const onHand: Record<string, number> = {};
   for (const line of lines) {
-    const row = await db
-      .prepare(
-        "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
-      )
-      .bind(line.productVariantId)
-      .first<{ onHand: number }>();
-    const after = Number(row?.onHand ?? 0) + line.quantity;
+    const vid = line.productVariantId!;
+    if (!(vid in onHand)) {
+      const row = await db
+        .prepare(
+          "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+        )
+        .bind(vid)
+        .first<{ onHand: number }>();
+      onHand[vid] = Number(row?.onHand ?? 0);
+    }
+    const after = onHand[vid]! + line.quantity;
+    onHand[vid] = after;
     statements.push(
       db
         .prepare(
@@ -1514,7 +1565,7 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
         )
         .bind(
           crypto.randomUUID(),
-          line.productVariantId,
+          vid,
           "refund_return",
           line.quantity,
           after,
@@ -3020,15 +3071,32 @@ const worker = {
 
     if (url.pathname === "/stock/adjust" && request.method === "POST") {
       const body = await readJson<Partial<StockAdjustment>>(request);
-      if (!body?.productVariantId || typeof body.quantityDelta !== "number") {
-        return json({ error: "productVariantId and quantityDelta are required" }, 400);
+      // Either a relative delta (receive/write-off) or a counted absolute (stocktake), not both.
+      const hasDelta = typeof body?.quantityDelta === "number";
+      const hasCount = typeof body?.countedOnHand === "number";
+      if (!body?.productVariantId || hasDelta === hasCount) {
+        return json(
+          {
+            error: "productVariantId and exactly one of quantityDelta / countedOnHand are required",
+          },
+          400,
+        );
+      }
+      const movementType = body.movementType ?? "correction";
+      if (!(MANUAL_MOVEMENT_TYPES as readonly string[]).includes(movementType)) {
+        return json(
+          { error: `movementType must be one of: ${MANUAL_MOVEMENT_TYPES.join(", ")}` },
+          400,
+        );
       }
       const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
       return json(
         await stub.applyAdjustment({
           productVariantId: body.productVariantId,
-          quantityDelta: body.quantityDelta,
-          movementType: body.movementType ?? "correction",
+          ...(hasCount
+            ? { countedOnHand: body.countedOnHand }
+            : { quantityDelta: body.quantityDelta }),
+          movementType,
           reason: body.reason,
         }),
       );

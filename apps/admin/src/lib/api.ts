@@ -858,12 +858,17 @@ export async function fetchStockMovements(): Promise<StockMovementRow[]> {
   return data.movements;
 }
 
-export async function adjustStock(input: {
-  productVariantId: string;
-  quantityDelta: number;
-  movementType: string;
-  reason?: string;
-}): Promise<{ applied: boolean; quantityAfter: number; reason?: string }> {
+/**
+ * Send exactly one of `quantityDelta` (a relative receive/write-off) or `countedOnHand` (a
+ * stocktake, whose delta the server derives from its own read of the ledger).
+ */
+export async function adjustStock(
+  input: {
+    productVariantId: string;
+    movementType: string;
+    reason?: string;
+  } & ({ quantityDelta: number } | { countedOnHand: number }),
+): Promise<{ applied: boolean; quantityAfter: number; reason?: string }> {
   const res = await apiFetch(`/stock/adjust`, {
     method: "POST",
     headers: { "content-type": "application/json" },

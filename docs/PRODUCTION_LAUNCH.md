@@ -59,8 +59,8 @@ inheritable), and a second Workers Builds project (or a non-production branch bu
 ### Data
 - **D1 backups:** D1 **Time Travel** gives 30-day point-in-time restore automatically; additionally
   schedule a **daily `wrangler d1 export`** (Cron-triggered or CI) to R2 for off-platform backup.
-- **Migrations:** all schema changes via Drizzle (`drizzle-kit generate`) → `wrangler d1 migrations
-  apply` on staging, then production. Never hand-edit production tables.
+- **Migrations:** all schema changes as a new numbered SQL file in `packages/db/migrations/` →
+  `wrangler d1 migrations apply` on staging, then production. Never hand-edit production tables.
 - **Money integrity:** stored as integer satang; finance rows store inputs+outputs so historical
   records never shift. Verified reconciliation (`salesExTax + tax === buyerPrice`).
 
