@@ -959,3 +959,385 @@ export async function importProductsCsv(
   if (!res.ok) throw new Error(`Import failed (HTTP ${res.status})`);
   return (await res.json()) as ImportResult;
 }
+
+// ── AirPlus order fulfillment ────────────────────────────────────────────────────────────────────
+
+/** Patch an AirPlus order's fulfillment fields; returns the updated row. */
+export async function updateAirPlusOrder(
+  id: string,
+  fields: {
+    orderStatus?: string;
+    paymentStatus?: string;
+    carrier?: string;
+    trackingNo?: string;
+  },
+): Promise<OrderRow> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update order failed (HTTP ${res.status})`);
+  }
+  return ((await res.json()) as { order: OrderRow }).order;
+}
+
+// ── Storefront banners (hero carousel + promo strip) ─────────────────────────────────────────────
+
+export interface BannerRow {
+  id: string;
+  slot: "hero" | "promo";
+  imageKey: string | null;
+  linkUrl: string | null;
+  sortOrder: number;
+  startsAt: number | null; // epoch ms; null = always
+  endsAt: number | null;
+  status: "active" | "disabled";
+  createdAt: number;
+}
+
+export async function fetchBanners(): Promise<BannerRow[]> {
+  const res = await apiFetch(`/banners`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load banners (HTTP ${res.status})`);
+  return ((await res.json()) as { banners: BannerRow[] }).banners;
+}
+
+export async function addBanner(input: {
+  slot: "hero" | "promo";
+  linkUrl?: string;
+  sortOrder?: number;
+  startsAt?: number | null;
+  endsAt?: number | null;
+}): Promise<{ id: string }> {
+  const res = await apiFetch(`/banners`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add banner failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { id: string };
+}
+
+export async function updateBanner(
+  id: string,
+  fields: Partial<{
+    slot: "hero" | "promo";
+    linkUrl: string | null;
+    sortOrder: number;
+    startsAt: number | null;
+    endsAt: number | null;
+    status: "active" | "disabled";
+  }>,
+): Promise<void> {
+  const res = await apiFetch(`/banners/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update banner failed (HTTP ${res.status})`);
+  }
+}
+
+/** Upload a banner image (raw file body, like uploadShopImage). Returns the stored R2 key. */
+export async function uploadBannerImage(
+  id: string,
+  file: File,
+): Promise<{ key: string; url: string }> {
+  const res = await apiFetch(`/banners/${encodeURIComponent(id)}/image`, {
+    method: "POST",
+    headers: { "content-type": file.type },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { key: string; url: string };
+}
+
+export async function deleteBanner(id: string): Promise<void> {
+  const res = await apiFetch(`/banners/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete banner failed (HTTP ${res.status})`);
+}
+
+// ── Coupons ──────────────────────────────────────────────────────────────────────────────────────
+
+export interface CouponRow {
+  id: string;
+  code: string;
+  type: "fixed" | "percent";
+  value: number; // fixed → satang off; percent → basis points (1000 = 10%)
+  minSubtotalSatang: number;
+  startsAt: number | null;
+  endsAt: number | null;
+  maxUses: number | null;
+  maxUsesPerCustomer: number;
+  status: "active" | "disabled";
+  createdAt: number;
+}
+
+export type CouponWithUsage = CouponRow & { redemptions: number };
+
+export async function fetchCoupons(): Promise<CouponWithUsage[]> {
+  const res = await apiFetch(`/coupons`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load coupons (HTTP ${res.status})`);
+  return ((await res.json()) as { coupons: CouponWithUsage[] }).coupons;
+}
+
+export async function addCoupon(input: {
+  code: string;
+  type: "fixed" | "percent";
+  value: number;
+  minSubtotalSatang?: number;
+  startsAt?: number | null;
+  endsAt?: number | null;
+  maxUses?: number | null;
+  maxUsesPerCustomer?: number;
+}): Promise<{ id: string }> {
+  const res = await apiFetch(`/coupons`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add coupon failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { id: string };
+}
+
+export async function updateCoupon(
+  id: string,
+  fields: Partial<{
+    code: string;
+    type: "fixed" | "percent";
+    value: number;
+    minSubtotalSatang: number;
+    startsAt: number | null;
+    endsAt: number | null;
+    maxUses: number | null;
+    maxUsesPerCustomer: number;
+    status: "active" | "disabled";
+  }>,
+): Promise<void> {
+  const res = await apiFetch(`/coupons/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update coupon failed (HTTP ${res.status})`);
+  }
+}
+
+/** Delete a coupon. The API answers 409 once a coupon has redemptions — disable instead. */
+export async function deleteCoupon(id: string): Promise<void> {
+  const res = await apiFetch(`/coupons/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (res.status === 409) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`${err.error ?? "Coupon has been redeemed"} — disable it instead of deleting.`);
+  }
+  if (!res.ok) throw new Error(`Delete coupon failed (HTTP ${res.status})`);
+}
+
+// ── Flash-sale campaigns ─────────────────────────────────────────────────────────────────────────
+
+export interface CampaignPriceRow {
+  id: string;
+  productVariantId: string;
+  productName: string;
+  productRef: string;
+  basePriceSatang: number;
+  campaignPriceSatang: number;
+  stockCap: number | null;
+  soldCount: number;
+}
+
+export interface CampaignRow {
+  id: string;
+  name: string;
+  startsAt: number;
+  endsAt: number;
+  status: "active" | "disabled";
+  createdAt: number;
+  prices: CampaignPriceRow[];
+}
+
+export async function fetchCampaigns(): Promise<CampaignRow[]> {
+  const res = await apiFetch(`/campaigns`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load campaigns (HTTP ${res.status})`);
+  return ((await res.json()) as { campaigns: CampaignRow[] }).campaigns;
+}
+
+export async function addCampaign(input: {
+  name: string;
+  startsAt: number;
+  endsAt: number;
+}): Promise<{ id: string }> {
+  const res = await apiFetch(`/campaigns`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add campaign failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { id: string };
+}
+
+export async function updateCampaign(
+  id: string,
+  fields: Partial<{
+    name: string;
+    startsAt: number;
+    endsAt: number;
+    status: "active" | "disabled";
+  }>,
+): Promise<void> {
+  const res = await apiFetch(`/campaigns/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update campaign failed (HTTP ${res.status})`);
+  }
+}
+
+export async function deleteCampaign(id: string): Promise<void> {
+  const res = await apiFetch(`/campaigns/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete campaign failed (HTTP ${res.status})`);
+}
+
+export async function addCampaignPrice(
+  campaignId: string,
+  input: { productVariantId: string; campaignPriceSatang: number; stockCap?: number },
+): Promise<{ id: string }> {
+  const res = await apiFetch(`/campaigns/${encodeURIComponent(campaignId)}/prices`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add campaign price failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { id: string };
+}
+
+export async function deleteCampaignPrice(campaignId: string, priceId: string): Promise<void> {
+  const res = await apiFetch(
+    `/campaigns/${encodeURIComponent(campaignId)}/prices/${encodeURIComponent(priceId)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error(`Remove campaign price failed (HTTP ${res.status})`);
+}
+
+export interface VariantSearchResult {
+  variantId: string;
+  productId: string;
+  name: string;
+  productRef: string;
+  onlinePriceSatang: number;
+}
+
+/** Search sellable variants by name/ref — feeds the campaign "Add product" picker. */
+export async function searchVariants(q: string): Promise<VariantSearchResult[]> {
+  const res = await apiFetch(`/variant-search?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Search failed (HTTP ${res.status})`);
+  return ((await res.json()) as { variants: VariantSearchResult[] }).variants;
+}
+
+// ── Affiliate tool cards ─────────────────────────────────────────────────────────────────────────
+
+export interface AffiliateItemRow {
+  id: string;
+  title: string;
+  imageKey: string | null;
+  priceText: string | null; // display-only, never math
+  source: "shopee" | "lazada" | "other";
+  targetUrl: string;
+  sortOrder: number;
+  status: "active" | "disabled";
+  createdAt: number;
+}
+
+export type AffiliateItemWithStats = AffiliateItemRow & { clicks: number };
+
+export async function fetchAffiliateItems(): Promise<AffiliateItemWithStats[]> {
+  const res = await apiFetch(`/affiliate-items`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load affiliate items (HTTP ${res.status})`);
+  return ((await res.json()) as { items: AffiliateItemWithStats[] }).items;
+}
+
+export async function addAffiliateItem(input: {
+  title: string;
+  targetUrl: string;
+  priceText?: string;
+  source?: "shopee" | "lazada" | "other";
+  sortOrder?: number;
+}): Promise<{ id: string }> {
+  const res = await apiFetch(`/affiliate-items`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Add item failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { id: string };
+}
+
+export async function updateAffiliateItem(
+  id: string,
+  fields: Partial<{
+    title: string;
+    targetUrl: string;
+    priceText: string | null;
+    source: "shopee" | "lazada" | "other";
+    sortOrder: number;
+    status: "active" | "disabled";
+  }>,
+): Promise<void> {
+  const res = await apiFetch(`/affiliate-items/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Update item failed (HTTP ${res.status})`);
+  }
+}
+
+export async function uploadAffiliateItemImage(
+  id: string,
+  file: File,
+): Promise<{ key: string; url: string }> {
+  const res = await apiFetch(`/affiliate-items/${encodeURIComponent(id)}/image`, {
+    method: "POST",
+    headers: { "content-type": file.type },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { key: string; url: string };
+}
+
+export async function deleteAffiliateItem(id: string): Promise<void> {
+  const res = await apiFetch(`/affiliate-items/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete item failed (HTTP ${res.status})`);
+}

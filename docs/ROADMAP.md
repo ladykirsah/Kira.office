@@ -4,8 +4,10 @@ Strategy: build the **local-first** back office (catalog, barcode, inventory, pr
 finance) before any live Shopee writes, then connect Shopee as a gated phase. See
 [DECISIONS.md](DECISIONS.md).
 
-> **Where we actually are (2026-06-24):** Phases 0–1 done; Phases 2 & 4 (catalog + pricing/finance)
-> largely built in the admin app; Phase 3 (POS/inventory) partial; Phase 5 (Shopee) still gated.
+> **Where we actually are (2026-07-13):** Phases 0–1 done; Phases 2 & 4 (catalog + pricing/finance)
+> largely built in the admin app; Phase 3 (POS/inventory) partial; Phase 5 (Shopee) still gated. The
+> **AirPlus customer storefront** (`apps/storefront`) has since shipped to staging and order
+> fulfilment now has a working admin flow (see the storefront section below).
 > The authoritative as-built status + next steps is [STATE_OF_THE_BUILD.md](STATE_OF_THE_BUILD.md).
 
 ## Phase 0 — Requirement Lock ✅ (done)
@@ -22,7 +24,7 @@ finance) before any live Shopee writes, then connect Shopee as a gated phase. Se
 
 - Monorepo scaffold (npm workspaces) ✅
 - `packages/core` — full domain logic, test-first (100+ tests) ✅
-- `apps/api` Cloudflare Worker live (`/health`, `/pricing/preview`, `/products`, `/sync`) ✅
+- `apps/api` Cloudflare Worker live (`/health`, `/pricing/preview`, `/products`, `/sync`, `PATCH /orders/:id`) ✅
 - `packages/db` D1 schema via hand-written SQL migrations ✅
 - Stock-ledger **Durable Object** + idempotent `/sync` ✅
 - Bindings provisioned: D1 + KV ✅ · custom domain `api.homeseeker.me` ✅ · CI + auto-deploy ✅
@@ -60,6 +62,23 @@ Error monitoring; backups (private R2 `BACKUPS` binding prepared); access-contro
 export/import; sync retry dashboard; deployment automation; PWA/offline reliability testing.
 
 **Gated-phase prep index:** [NEXT_PHASE_PREP.md](NEXT_PHASE_PREP.md).
+
+## AirPlus Customer Storefront ✅ (shipped, on staging)
+
+Parallel to the back-office phases: `apps/storefront` (Next 15 + OpenNext/Cloudflare) — a
+customer-facing store. Home v2 (search landing, shortcut bar, collections, timed flash sale,
+best-sellers, shop-by-brand, categories, banners, recently-viewed); PDP with share + collapsible
+sections; compact cart; phone-OTP auth (`/login`, PDPA consent, 6-box OTP + resend) via the
+`/api/auth/otp/send` + `/api/auth/otp/verify` storefront route handlers; account hub (`/account`,
+`/account/orders`, `/account/addresses`, `/account/coupons` wallet, consent-receipt card);
+agent-discovery routes (`/llms.txt`, `/sitemap.md`, `/skills.md`, `/rss.xml`, `/sitemap.xml`); and
+`/privacy` + `/terms` drafts. Coupons are a localStorage mock pending a real coupon backend.
+
+**Order fulfilment (owner decision):** a two-axis lifecycle stored in existing free-text columns (no
+schema change) — `order_status` (fulfilment): new → preparing (เตรียมจัดส่ง) → shipping → done, plus
+cancel/refund branches; `payment_status` (money): awaiting → paid, plus COD. The admin status
+dropdown is trimmed to fulfilment-only. `PATCH /orders/:id` (AirPlus-channel only) auto-stamps
+`ship_time_ms` on the first tracking number.
 
 ## Suggested First Development Slice
 

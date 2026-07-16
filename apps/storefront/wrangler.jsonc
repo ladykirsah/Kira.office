@@ -1,0 +1,61 @@
+{
+  // Deploy config for the AirPlus storefront (its own Worker, separate from apps/api and the
+  // admin). IMPORTANT: lives on the SAME Cloudflare account as apps/api (GoGoCash) — that is what
+  // makes the direct D1 binding and the cross-Worker Durable Object binding below work (bindings
+  // do not cross accounts; the admin's cross-account proxy 1003 failure is the cautionary tale).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "airplus-storefront",
+  "account_id": "187ab61ed9dbc6e616cb23e6b95aa8f1",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  // Same D1 database as apps/api (a D1 db can be bound by multiple Workers).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kira-office",
+      "database_id": "2e88a362-ffd7-4255-b178-e511d475f687"
+    }
+  ],
+  // Same KV as apps/api — read-only use here (shop:paymentMethods → PromptPay target for checkout).
+  "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
+  // Cross-Worker binding to the StockLedger DO deployed by the kira-office Worker (apps/api).
+  // No `migrations` block here — DO class migrations are owned by apps/api's wrangler.jsonc.
+  // NOTE: works only after apps/api has deployed the class; in local `next dev` this binding is
+  // not resolvable (external script) — stock deduction code must treat it as optional locally.
+  "durable_objects": {
+    "bindings": [
+      { "name": "STOCK_LEDGER", "class_name": "StockLedger", "script_name": "kira-office" }
+    ]
+  },
+  "env": {
+    "staging": {
+      "name": "airplus-storefront-staging",
+      // Staging has no SMS provider yet, so OTP delivery runs in dev-echo mode: the code is the
+      // fixed "123456" and is returned to the UI (owner can walk the login flow on their phone).
+      // ONLY here — the default/production config above has no OTP_DEV_ECHO, so prod keeps random
+      // codes + a real SMS provider. Remove this once THAIBULKSMS_* secrets are set on staging.
+      "vars": { "OTP_DEV_ECHO": "1" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "kira-office-staging",
+          "database_id": "85f22f44-063d-424e-91ef-39e1fa1fef24"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "c876509fba5c40608e1c0f1abf5d4502" }],
+      // script_name is NOT inherited per environment — must be repeated with the staging Worker name.
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "STOCK_LEDGER",
+            "class_name": "StockLedger",
+            "script_name": "kira-office-staging"
+          }
+        ]
+      }
+    }
+  }
+}

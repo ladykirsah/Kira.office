@@ -9,8 +9,8 @@
 > **this file and the code win** — older docs (`DATA_MODEL.md`, parts of `ARCHITECTURE.md`/`README`)
 > describe the original plan and lag the implementation.
 
-**Snapshot:** 2026-06-27 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
-**Tests:** 260+ passing · **Migrations:** 0000–0016 applied to prod **and** staging D1.
+**Snapshot:** 2026-07-14 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
+**Tests:** 632 passing · **Migrations:** 0000–0047 (0036–0047 add the **AirPlus storefront** schema — see §3).
 
 ---
 
@@ -27,6 +27,8 @@ scannable. Money is stored as **integer satang** everywhere (1 THB = 100 satang)
 apps/api      Cloudflare Worker (api.homeseeker.me). RAW SQL over D1. StockLedger Durable Object.
               R2 (images) + KV. Daily backup cron. Optional Cloudflare Access JWT gate.
 apps/admin    Next.js 15 (App Router) + React 19 on OpenNext. Calls the Worker from the browser.
+apps/storefront  AirPlus customer store (Next.js 15 on OpenNext, its own Worker). Shares api's D1 + KV;
+              cross-binds StockLedger DO. Guest checkout + phone-OTP member accounts.
 packages/core Pure-TS domain logic (pricing, cost, tax, stock, sync, orders, imports, finance). No I/O.
 packages/db   D1 schema: hand-written SQL migrations (the source of truth). No TypeScript.
 docs/         This handoff set + the original planning docs.
@@ -59,11 +61,51 @@ Full navigable index: [docs/README.md](README.md). Intended platform design:
 `/settings/car-fitment`. The **product editor** (view + edit modes, image gallery, pricing, part
 attributes, "Fits these cars") and **car-fitment settings** (brand → model/era → service notes,
 o-ring usage) are the most developed surfaces — spec in
-[MODULE_PRODUCT_EDITOR.md](MODULE_PRODUCT_EDITOR.md).
+[MODULE_PRODUCT_EDITOR.md](MODULE_PRODUCT_EDITOR.md). **Order fulfilment** is now wired: the admin
+**Sales → AirPlus** tab edits `order_status` / `payment_status` / `carrier` / `tracking_no` (Save →
+**`PATCH /orders/:id`**, AirPlus-channel only, which auto-stamps `ship_time_ms` on the first tracking
+number) — this routes the previously-unrouted `updateOrder()` and fixes the admin Save 404 (the
+customer `/orders` page stays read-only tracking). **Owner decision — a two-axis
+lifecycle, no schema change** (existing free-text columns): `order_status` (fulfilment)
+`new → preparing (เตรียมจัดส่ง) → shipping → done`, plus **cancel** / **refund** branches; `payment_status`
+(money) `awaiting → paid`, plus **COD**. The admin status dropdown is trimmed to fulfilment-only.
 
 **Core (packages/core):** pricing/profit, commission/fee math, tax, cost methods, stock helpers,
 CSV parse/map, order dedupe, finance — all unit-tested. This is the money-critical, framework-free
-layer; change it test-first.
+layer; change it test-first. Now also consumed by `apps/storefront` (coupons, campaigns, payments).
+
+**Storefront (apps/storefront — built; staging preview live):** the customer-facing **AirPlus**
+car-parts store — its own Cloudflare Worker (Next.js 15 / OpenNext) that shares the back office's D1 +
+KV and cross-binds the `StockLedger` DO. **Home v2** landing (shortcut bar, collections, a timed
+flash-sale hero, best-sellers, shop-by-brand, categories, promo banners, recently-viewed) plus a
+dedicated **`/search`** landing (recent-search chips, car-logo tiles, case-driven suggestions). Catalog
++ fitment search, a bottom-sheet product filter, four `ctx`-marked browse contexts on `/products`
+(🛒 Products / 🗂️ Categories / 🚗 Car Fitment / 🏷️ On Sale), an image-first **PDP** with a header **Share**
+action + collapsible section blocks, a **compact cart** → **guest checkout** (PromptPay QR / transfer /
+COD + slip upload), and order tracking by phone+order-no (submit-gated until ref + full phone; a
+deep-link entry hides the form and shows only that order). **Phone-OTP member accounts** via **`/login`**
+(login | register mode tabs; new members get a PDPA consent panel; a 6-box OTP with a resend
+countdown) — `POST /api/auth/otp/send` enforces a registration gate (login → registered-only,
+register → new-only) and `POST /api/auth/otp/verify` enforces the consent invariant; backed by
+`storefront_sessions` + throttle, a Turnstile seam, and `OTP_DEV_ECHO` on staging. An **`/account`** hub
+(`/account/orders`, `/account/addresses`, a PDPA consent-receipt card, and a mock **`/account/coupons`**
+wallet — localStorage via `lib/coupons.ts`, no backend yet — paired with a `/coupons` collect catalog).
+Agent-discovery route handlers (`/llms.txt`, `/sitemap.md`, `/skills.md`, `/rss.xml`, `/sitemap.xml`) and
+`/privacy` + `/terms` legal drafts are live. Every LINE help action (home shortcut, PDP sticky bar,
+account "ช่วยเหลือ" tile, home follow strip) opens the shop's **LINE OA add-friend link directly**
+(`lin.ee/tltIFtI` → `@811gvdun`, in `lib/links.ts`). Money
+never trusts the client (server re-prices), stock deducts through the shared DO. Migrations `0036`–`0047`
+add its schema. Deployed to a durable phone-viewable **staging** preview at
+`airplus-storefront-staging.bettergogocash.workers.dev` (latest deploy 2026-07-14, Worker Version ID
+`96368b71-b46b-44ba-8f3b-5cb92877e616`, in sync with git — the working branch is pushed through
+`eb6420f`); member login runs in dev-echo mode there (fixed OTP `123456`, no SMS) until an SMS provider
+(ThaiBulkSMS/Twilio) + Turnstile keys are configured. The demo flash campaign is **permanently seeded in
+the staging D1** (`seed-camp-1`, window `2025-01-01`→`2028-01-01`) — this is DATA, not schema — so the
+Flash Sale hero, the สินค้าลดราคา home collection, and the PDP discount always render as a mock. The
+customer-facing UI has since had a coral-CI polish pass (Shopee-style PDP section blocks, a shared
+gray-detail / green-status info-pill + outline discount-tag system, a tinted sticky add-to-cart bar, and
+`router.replace` in-page filtering so the header back arrow returns to the previous page). Full
+app README + deploy runbook: [apps/storefront/README.md](../apps/storefront/README.md).
 
 **Newest arc — on-site sales + bilingual shop branding (2026-06; migrations `0013`–`0015`):**
 **Services** catalogue (`/settings/services`, table + API). **POS rebuild** (`/pos`): selling type
@@ -146,7 +188,7 @@ npm install
 npm run format        # prettier --write
 npm run lint          # prettier --check
 npm run typecheck     # tsc: packages/core + apps/api
-npm test              # vitest (238 tests) — node env
+npm test              # vitest (632 tests) — node env
 NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck+build
 ```
 

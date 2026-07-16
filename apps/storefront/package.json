@@ -1,0 +1,27 @@
+{
+  "name": "@l-shopee/storefront",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AirPlus — customer-facing car-parts storefront on Cloudflare Workers via OpenNext",
+  "scripts": {
+    "dev": "next dev --port 3002",
+    "build": "next build",
+    "build:check": "NEXT_DIST_DIR=.next-verify next build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+  },
+  "dependencies": {
+    "@l-shopee/core": "*",
+    "jsqr": "^1.4.0",
+    "next": "^15.5.0",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5",
+    "@opennextjs/cloudflare": "^1.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

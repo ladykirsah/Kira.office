@@ -13,8 +13,9 @@ isolated boundary module (CSV adapter now, API adapter later).
 
 ```
 apps/
-  admin/    # Next.js admin UI + offline-first POS (PWA) — Workers via OpenNext
-  api/      # Cloudflare Worker: API, /sync endpoint, Shopee adapter, queue consumers, ledger DO
+  admin/       # Next.js admin UI + offline-first POS (PWA) — Workers via OpenNext
+  api/         # Cloudflare Worker: API, /sync endpoint, Shopee adapter, queue consumers, ledger DO
+  storefront/  # Next.js 15 customer storefront (AirPlus) — own Worker; shares api's D1 + KV + StockLedger DO
 packages/
   core/     # Pure-TS domain logic: pricing, profit, tax, cost methods, stock ledger, terms
   db/       # D1 schema + migrations via Drizzle
@@ -35,6 +36,13 @@ Shopee. `apps/*` and `packages/db` depend on `core`, never the reverse.
 - **Sales** — on-site (offline-first) sales, Shopee order import, refunds, cancellations, exports.
 - **Shopee Integration (boundary)** — CSV adapter (now) and v2 API adapter (later): auth, token
   refresh, product/order import, stock/listing sync, push/poll.
+- **Storefront (customer-facing)** — the AirPlus storefront (`apps/storefront`): guest checkout,
+  phone-OTP customer accounts, coupons/campaigns, banners, and affiliate items. Shares the back
+  office's D1; domain logic that has shipped to the back office lives in `core` with its tables in
+  `db`, but storefront-only features still ship client-side first — coupons are currently a
+  localStorage mock (`apps/storefront/src/lib/coupons.ts`, `/coupons` catalog + `/account/coupons`
+  wallet) with no backend or `db` tables yet, and will move into `core`/`db` when a real coupon
+  backend ships (campaigns and payments similarly are planned but not yet persisted).
 
 ## Offline-First POS Design
 
@@ -93,6 +101,11 @@ flowchart TD
 - Least-privilege staff roles; owner-only for the sensitive actions in REQUIREMENTS A5.
 - Append-only audit logs.
 - Store the minimum necessary customer data from Shopee orders.
+- Storefront customer login is **phone-OTP** (primary): SMS-provider credentials (ThaiBulkSMS /
+  Twilio) and Cloudflare Turnstile keys live in the managed secret store, never in source control.
+  PDPA consent is captured when the account is created (the OTP verify step); OTP dev-echo (fixed
+  code, no SMS) is confined to the storefront's `env.staging` config, so production issues random
+  codes via a real SMS provider.
 
 ## Environments
 

@@ -28,6 +28,8 @@ A reliable back-office system that is the seller's source of truth for:
 - **Owner/admin:** products, pricing, Shopee linkage, financial reports, sensitive overrides.
 - **Staff/operator:** scans barcodes, adjusts stock, creates on-site sales, uploads photos.
 - **Accountant/bookkeeper** (optional, later): reviews and exports sales/financial records.
+- **Customer/member (storefront):** browses and orders via the AirPlus storefront; registers/logs
+  in by phone OTP with PDPA consent.
 
 ## Confirmed Scope
 
@@ -41,6 +43,10 @@ See [DECISIONS.md](DECISIONS.md) for the authoritative list. In short:
 - Pricing: cost, **per-product VAT (7%, inclusive/exclusive)**, Shopee commission, profit.
 - Sales + finance records for Shopee online and on-site sales.
 
+**Recently shipped:** AirPlus customer storefront (browse, PDP, cart, checkout, phone-OTP member
+auth with PDPA consent, `/account` hub + orders/addresses/coupons wallet). See
+[DECISIONS.md](DECISIONS.md) and [STATE_OF_THE_BUILD.md](STATE_OF_THE_BUILD.md).
+
 ## Key Assumptions
 
 - "The number linked to my e-commerce account" = local stock quantity linked to Shopee
@@ -53,11 +59,13 @@ See [DECISIONS.md](DECISIONS.md) for the authoritative list. In short:
 
 ## Out Of Scope Until Confirmed
 
-- Customer-facing storefront.
 - Warehouse management beyond basic locations and a stock ledger.
 - Full accounting system (we export for an accountant instead).
 - Automatic legal compliance review of terms and conditions.
-- Live Shopee order fulfillment beyond order import and stock sync.
+- Live Shopee order fulfillment (Shopee remains import + stock sync only; AirPlus-channel order
+  fulfilment with a two-axis `order_status`/`payment_status` lifecycle is now in scope —
+  `order_status`: new → preparing (เตรียมจัดส่ง) → shipping → done, + cancel/refund;
+  `payment_status`: awaiting → paid, + COD).
 
 ## Success Criteria
 
