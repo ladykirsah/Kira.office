@@ -1712,7 +1712,12 @@ async function financeSummary(env: Env): Promise<Response> {
   });
 }
 
-const BACKUP_TABLES = [
+/**
+ * Every table the daily dump covers. A migration that adds a table must add it here too — the
+ * drift test in index.test.ts replays the migrations and fails on anything missing, so the only
+ * way out is that test's exclusion allowlist (transient OTP/throttle/session rows), with a reason.
+ */
+export const BACKUP_TABLES = [
   "products",
   "product_variants",
   "barcodes",
@@ -1728,6 +1733,36 @@ const BACKUP_TABLES = [
   "payments",
   "audit_logs",
   "customer_history_entries",
+  // Hand-curated reference data the editor writes: shop settings, per-variant tax, back-office
+  // users, gallery keys, the managed dropdown lists, the car-fitment taxonomy, the labour price
+  // list, and the gated Shopee/T&C tables. Tiny to dump; re-typing any of it is days of work.
+  "shop_settings",
+  "tax_profiles",
+  "users",
+  "product_images",
+  "brands",
+  "product_types",
+  "usage_categories",
+  "car_brands",
+  "car_models",
+  "product_fitments",
+  "services",
+  "shop_connections",
+  "terms_patterns",
+  "product_terms",
+  // AirPlus storefront (migrations 0036-0049): order lines, the accounts + address book behind
+  // them, the merchandising the admin edits, and the money-adjacent trails (coupon redemptions,
+  // return/claim requests).
+  "sales_order_lines",
+  "storefront_customers",
+  "addresses",
+  "coupons",
+  "coupon_redemptions",
+  "campaigns",
+  "campaign_prices",
+  "banners",
+  "affiliate_items",
+  "affiliate_clicks",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
@@ -1735,7 +1770,7 @@ export function backupR2Bucket(env: Env): R2Bucket {
   return env.BACKUPS ?? env.IMAGES;
 }
 
-/** Daily logical backup: dump key tables to a dated JSON object in R2. Returns the object key. */
+/** Daily logical backup: dump BACKUP_TABLES to a dated JSON object in R2. Returns the object key. */
 export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
   const dump: Record<string, unknown[]> = {};
   for (const table of BACKUP_TABLES) {
@@ -2913,6 +2948,18 @@ export async function setVariantPricing(
 const numOrNull = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
+// Guards mirroring these tables' CHECK constraints, so a bad value is a 400 from the route rather
+// than a D1 constraint failure surfacing as a 500. The CRUD functions below trust what they're given.
+const isBannerSlot = (v: unknown): v is "hero" | "promo" => v === "hero" || v === "promo";
+const isEnabledStatus = (v: unknown): v is "active" | "disabled" =>
+  v === "active" || v === "disabled";
+const isCouponType = (v: unknown): v is "fixed" | "percent" => v === "fixed" || v === "percent";
+/** Satang, or basis points — both CHECK (… > 0), and both integers. Never a float, never a string. */
+const isPositiveInt = (v: unknown): v is number => Number.isInteger(v) && (v as number) > 0;
+/** Affiliate cards are outbound links the storefront renders — https only, never javascript:/http:. */
+const isHttpsUrl = (v: unknown): v is string =>
+  typeof v === "string" && /^https:\/\/\S+$/i.test(v.trim());
+
 export interface BannerAdminRow {
   id: string;
   slot: string;
@@ -3331,6 +3378,18 @@ export async function addCampaignPrice(
     )
     .run();
   return { id };
+}
+
+/** Detach one product from a campaign. Scoped by campaign id so a stray price id can't cross over. */
+export async function deleteCampaignPrice(
+  db: D1Database,
+  campaignId: string,
+  priceId: string,
+): Promise<void> {
+  await db
+    .prepare("DELETE FROM campaign_prices WHERE id = ? AND campaign_id = ?")
+    .bind(priceId, campaignId)
+    .run();
 }
 
 export interface VariantSearchRow {
@@ -4062,6 +4121,231 @@ const worker = {
       if (!body) return json({ error: "invalid JSON body" }, 400);
       const order = await updateOrder(env.DB, orderById[1]!, body);
       return order ? json({ order }) : json({ error: "not found" }, 404);
+    }
+
+    // ── AirPlus merchandising admin: banners / coupons / campaigns / affiliate cards ────────────
+    // The four Marketing pages in the admin UI drive these; the CRUD itself lives in the functions
+    // above, which document that they trust the route to have normalized their input. So the routes
+    // own it: trim + uppercase coupon codes (the UNIQUE, customer-facing identity), enforce https://
+    // on affiliate targets, and reject anything a CHECK would refuse. Auth + audit are handled by
+    // the wrapper above (entityFromPath already names these entities).
+
+    if (url.pathname === "/banners" && request.method === "GET") {
+      return json({ banners: await listBannersAdmin(env.DB) });
+    }
+    if (url.pathname === "/banners" && request.method === "POST") {
+      const body = await readJson<Partial<BannerCreate>>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (!isBannerSlot(body.slot)) return json({ error: "slot must be hero or promo" }, 400);
+      return json({ id: await createBanner(env.DB, body as BannerCreate) }, 201);
+    }
+    const bannerImage = url.pathname.match(/^\/banners\/([^/]+)\/image$/);
+    if (bannerImage && request.method === "POST") {
+      const bytes = await request.arrayBuffer();
+      try {
+        const out = await storeBannerImage(
+          env.IMAGES,
+          env.DB,
+          decodeURIComponent(bannerImage[1]!),
+          bytes,
+          request.headers.get("content-type"),
+        );
+        return json(out, 201);
+      } catch (err) {
+        // storeBannerImage throws "banner not found" for an unknown row, validation errors otherwise.
+        const message = (err as Error).message;
+        return json({ error: message }, message.endsWith("not found") ? 404 : 400);
+      }
+    }
+    const bannerById = url.pathname.match(/^\/banners\/([^/]+)$/);
+    if (bannerById && request.method === "PATCH") {
+      const body = await readJson<BannerPatch>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (body.slot !== undefined && !isBannerSlot(body.slot)) {
+        return json({ error: "slot must be hero or promo" }, 400);
+      }
+      if (body.status !== undefined && !isEnabledStatus(body.status)) {
+        return json({ error: "status must be active or disabled" }, 400);
+      }
+      await updateBanner(env.DB, decodeURIComponent(bannerById[1]!), body);
+      return json({ ok: true });
+    }
+    if (bannerById && request.method === "DELETE") {
+      await deleteBanner(env.DB, env.IMAGES, decodeURIComponent(bannerById[1]!));
+      return json({ ok: true });
+    }
+
+    if (url.pathname === "/coupons" && request.method === "GET") {
+      return json({ coupons: await listCouponsAdmin(env.DB) });
+    }
+    if (url.pathname === "/coupons" && request.method === "POST") {
+      const body = await readJson<Partial<CouponCreate>>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      const code = body.code?.trim().toUpperCase();
+      if (!code) return json({ error: "code is required" }, 400);
+      if (!isCouponType(body.type)) return json({ error: "type must be fixed or percent" }, 400);
+      if (!isPositiveInt(body.value)) {
+        return json({ error: "value must be a positive integer (satang, or basis points)" }, 400);
+      }
+      const created = await createCoupon(env.DB, { ...(body as CouponCreate), code });
+      if ("duplicate" in created) return json({ error: `coupon code ${code} already exists` }, 409);
+      return json(created, 201);
+    }
+    const couponById = url.pathname.match(/^\/coupons\/([^/]+)$/);
+    if (couponById && request.method === "PATCH") {
+      const id = decodeURIComponent(couponById[1]!);
+      const body = await readJson<CouponPatch>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (body.type !== undefined && !isCouponType(body.type)) {
+        return json({ error: "type must be fixed or percent" }, 400);
+      }
+      if (body.value !== undefined && !isPositiveInt(body.value)) {
+        return json({ error: "value must be a positive integer (satang, or basis points)" }, 400);
+      }
+      if (body.status !== undefined && !isEnabledStatus(body.status)) {
+        return json({ error: "status must be active or disabled" }, 400);
+      }
+      const patch: CouponPatch = { ...body };
+      if (patch.code !== undefined) {
+        const code = patch.code.trim().toUpperCase();
+        if (!code) return json({ error: "code is required" }, 400);
+        // The column is UNIQUE: a clash must answer 409, not blow up as a D1 constraint 500.
+        const clash = await env.DB.prepare("SELECT id FROM coupons WHERE code = ? AND id <> ?")
+          .bind(code, id)
+          .first<{ id: string }>();
+        if (clash) return json({ error: `coupon code ${code} already exists` }, 409);
+        patch.code = code;
+      }
+      await updateCoupon(env.DB, id, patch);
+      return json({ ok: true });
+    }
+    if (couponById && request.method === "DELETE") {
+      const out = await deleteCoupon(env.DB, decodeURIComponent(couponById[1]!));
+      // Redeemed coupons are financial history — the admin client turns this 409 into "disable it".
+      if (!out.deleted) return json({ error: `coupon has ${out.redemptions} redemption(s)` }, 409);
+      return json({ ok: true });
+    }
+
+    if (url.pathname === "/campaigns" && request.method === "GET") {
+      return json({ campaigns: await listCampaignsAdmin(env.DB) });
+    }
+    if (url.pathname === "/campaigns" && request.method === "POST") {
+      const body = await readJson<{ name?: string; startsAt?: number; endsAt?: number }>(request);
+      if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
+      if (!Number.isFinite(body.startsAt) || !Number.isFinite(body.endsAt)) {
+        return json({ error: "startsAt and endsAt are required epoch-ms numbers" }, 400);
+      }
+      if (body.endsAt! <= body.startsAt!) {
+        return json({ error: "endsAt must be after startsAt" }, 400);
+      }
+      const id = await createCampaign(env.DB, body.name, body.startsAt!, body.endsAt!);
+      return json({ id }, 201);
+    }
+    // Both price routes come BEFORE /campaigns/:id so a price path can never be read as a campaign
+    // id (the $-anchored patterns already prevent it; the ordering keeps that non-accidental).
+    const campaignPriceById = url.pathname.match(/^\/campaigns\/([^/]+)\/prices\/([^/]+)$/);
+    if (campaignPriceById && request.method === "DELETE") {
+      await deleteCampaignPrice(
+        env.DB,
+        decodeURIComponent(campaignPriceById[1]!),
+        decodeURIComponent(campaignPriceById[2]!),
+      );
+      return json({ ok: true });
+    }
+    const campaignPriceAdd = url.pathname.match(/^\/campaigns\/([^/]+)\/prices$/);
+    if (campaignPriceAdd && request.method === "POST") {
+      const body = await readJson<{
+        productVariantId?: string;
+        campaignPriceSatang?: number;
+        stockCap?: number | null;
+      }>(request);
+      if (!body?.productVariantId) return json({ error: "productVariantId is required" }, 400);
+      if (!isPositiveInt(body.campaignPriceSatang)) {
+        return json({ error: "campaignPriceSatang must be a positive integer" }, 400);
+      }
+      const added = await addCampaignPrice(env.DB, decodeURIComponent(campaignPriceAdd[1]!), {
+        productVariantId: body.productVariantId,
+        campaignPriceSatang: body.campaignPriceSatang,
+        stockCap: body.stockCap ?? null,
+      });
+      if ("error" in added) {
+        return added.error === "variant_not_found"
+          ? json({ error: "product variant not found" }, 404)
+          : json({ error: "this product is already in the campaign" }, 409);
+      }
+      return json(added, 201);
+    }
+    const campaignById = url.pathname.match(/^\/campaigns\/([^/]+)$/);
+    if (campaignById && request.method === "PATCH") {
+      const body = await readJson<CampaignPatch>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (body.status !== undefined && !isEnabledStatus(body.status)) {
+        return json({ error: "status must be active or disabled" }, 400);
+      }
+      await updateCampaign(env.DB, decodeURIComponent(campaignById[1]!), body);
+      return json({ ok: true });
+    }
+    if (campaignById && request.method === "DELETE") {
+      await deleteCampaign(env.DB, decodeURIComponent(campaignById[1]!));
+      return json({ ok: true });
+    }
+
+    // Product picker behind the campaign editor's "Add product" box.
+    if (url.pathname === "/variant-search" && request.method === "GET") {
+      return json({ variants: await searchVariants(env.DB, url.searchParams.get("q") ?? "") });
+    }
+
+    if (url.pathname === "/affiliate-items" && request.method === "GET") {
+      return json({ items: await listAffiliateItemsAdmin(env.DB) });
+    }
+    if (url.pathname === "/affiliate-items" && request.method === "POST") {
+      const body = await readJson<Partial<AffiliateItemCreate>>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (!body.title?.trim()) return json({ error: "title is required" }, 400);
+      if (!isHttpsUrl(body.targetUrl)) {
+        return json({ error: "targetUrl must be an https:// link" }, 400);
+      }
+      if (body.source !== undefined && !AFFILIATE_SOURCES.includes(body.source)) {
+        return json({ error: `source must be one of ${AFFILIATE_SOURCES.join(", ")}` }, 400);
+      }
+      return json({ id: await createAffiliateItem(env.DB, body as AffiliateItemCreate) }, 201);
+    }
+    const affiliateImage = url.pathname.match(/^\/affiliate-items\/([^/]+)\/image$/);
+    if (affiliateImage && request.method === "POST") {
+      const bytes = await request.arrayBuffer();
+      try {
+        const out = await storeAffiliateItemImage(
+          env.IMAGES,
+          env.DB,
+          decodeURIComponent(affiliateImage[1]!),
+          bytes,
+          request.headers.get("content-type"),
+        );
+        return json(out, 201);
+      } catch (err) {
+        const message = (err as Error).message;
+        return json({ error: message }, message.endsWith("not found") ? 404 : 400);
+      }
+    }
+    const affiliateById = url.pathname.match(/^\/affiliate-items\/([^/]+)$/);
+    if (affiliateById && request.method === "PATCH") {
+      const body = await readJson<AffiliateItemPatch>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      if (body.targetUrl !== undefined && !isHttpsUrl(body.targetUrl)) {
+        return json({ error: "targetUrl must be an https:// link" }, 400);
+      }
+      if (body.source !== undefined && !AFFILIATE_SOURCES.includes(body.source)) {
+        return json({ error: `source must be one of ${AFFILIATE_SOURCES.join(", ")}` }, 400);
+      }
+      if (body.status !== undefined && !isEnabledStatus(body.status)) {
+        return json({ error: "status must be active or disabled" }, 400);
+      }
+      await updateAffiliateItem(env.DB, decodeURIComponent(affiliateById[1]!), body);
+      return json({ ok: true });
+    }
+    if (affiliateById && request.method === "DELETE") {
+      await deleteAffiliateItem(env.DB, env.IMAGES, decodeURIComponent(affiliateById[1]!));
+      return json({ ok: true });
     }
 
     if (url.pathname === "/finance/summary" && request.method === "GET") {
