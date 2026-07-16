@@ -15,7 +15,22 @@ export const PART_TYPE_EN: Record<string, string> = {
   คอยล์ร้อน: "Condenser",
   มอเตอร์พัดลม: "Fan motor",
   ไดเออร์: "Receiver drier",
+  กล่องไม่สวย: "Open box",
 };
+
+/**
+ * The "กล่องไม่สวย" category — first-hand parts, as good as new from the manufacturer, whose BOX is
+ * scuffed, so they sell cheaper. It is a real product_types row (owner's call: these are listed as
+ * their own products) and therefore lists on /categories like any other category.
+ *
+ * It is merchandising rather than a part type, though, so the home category strip deliberately hides
+ * it — that strip answers "which part do you need?" and an offer type does not belong in that
+ * question. Home surfaces it as its own product collection instead (owner, 2026-07-15).
+ *
+ * Matched by id, not name: ids are stable across the local and staging databases (both seeded by us),
+ * whereas the Thai name is display copy the owner may reword.
+ */
+export const OPEN_BOX_TYPE_ID = "seed-type-uglybox";
 
 /** product_fitments.car_brand (English) → Thai label. */
 export const CAR_BRAND_TH: Record<string, string> = {

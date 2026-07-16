@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { displayNameError } from "@l-shopee/core";
 import { normalizePhone, mmss } from "@/lib/format";
 import { spreadOtp, backspaceOtp, otpCode, emptyOtp, OTP_LEN } from "@/lib/otpInput";
 import { OTP_TTL_MS } from "@/lib/authCore";
@@ -70,7 +71,11 @@ export function OtpLogin({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [step, setStep] = useState<"phone" | "code" | "name">("phone");
+  /** the just-authenticated customer, held while the optional name step runs */
+  const [verified, setVerified] = useState<OtpLoginCustomer | null>(null);
+  const [nameInput, setNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [phone, setPhone] = useState("");
   const [digits, setDigits] = useState<string[]>(emptyOtp);
   const code = otpCode(digits);
@@ -264,6 +269,16 @@ export function OtpLogin({
         }
         return;
       }
+      // Name step (owner, 2026-07-16): ask AFTER the code succeeds, never before. By this point the
+      // account exists and the customer is in — so the question costs them nothing to skip, and the
+      // friction lands after they have committed rather than in front of the registration form.
+      // name === "" is the "never captured" sentinel, so this also catches accounts that predate
+      // this step; they get asked once at their next login and can still skip.
+      if (!data.customer.name) {
+        setVerified(data.customer);
+        setStep("name");
+        return;
+      }
       onLoggedIn?.(data.customer);
       router.refresh();
     } catch {
@@ -316,9 +331,92 @@ export function OtpLogin({
     </div>
   );
 
+  /** Save the name, or skip it — either way the customer is already logged in and goes on. */
+  async function finishName(save: boolean) {
+    const customer = verified;
+    if (!customer) return;
+    if (!save) {
+      onLoggedIn?.(customer);
+      router.refresh();
+      return;
+    }
+    const problem = displayNameError(nameInput);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setSavingName(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/account/profile", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: nameInput }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { name?: string; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "บันทึกชื่อไม่สำเร็จ กรุณาลองใหม่");
+        return;
+      }
+      onLoggedIn?.({ ...customer, name: data.name ?? nameInput });
+      router.refresh();
+    } catch {
+      // Never trap someone in the login flow over an optional field — they ARE logged in.
+      setError("บันทึกชื่อไม่สำเร็จ — คุณเข้าสู่ระบบแล้ว เพิ่มชื่อภายหลังได้ที่หน้าบัญชี");
+    } finally {
+      setSavingName(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
-      {step === "phone" ? (
+      {step === "name" ? (
+        <form
+          style={{ display: "flex", flexDirection: "column", gap }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void finishName(true);
+          }}
+        >
+          <div>
+            <h2 className="t-h2" style={{ margin: "0 0 4px", color: "var(--gray-dark)" }}>
+              ยินดีต้อนรับ 👋
+            </h2>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+              เราจะเรียกคุณว่าอะไรดี? ใส่ไว้เพื่อให้ร้านติดต่อคุณได้ถูกคน
+            </p>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="acct-name">ชื่อ-นามสกุล</label>
+            <input
+              id="acct-name"
+              className="input"
+              autoComplete="name"
+              placeholder="เช่น สมชาย ใจดี"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+            />
+          </div>
+          {error && (
+            <div role="alert" style={{ color: "var(--danger)", fontSize: 13, fontWeight: 600 }}>
+              {error}
+            </div>
+          )}
+          <button type="submit" className="btn btn-primary btn-block" disabled={savingName}>
+            {savingName ? "กำลังบันทึก…" : "บันทึกชื่อ"}
+          </button>
+          {/* Skippable by the owner's call — and safe, because the account already exists. Anyone
+              who skips is asked again at checkout, and can add it any time from the account page. */}
+          <button
+            type="button"
+            className="btn btn-block btn-text btn-default"
+            onClick={() => void finishName(false)}
+            disabled={savingName}
+          >
+            ข้ามไปก่อน
+          </button>
+        </form>
+      ) : step === "phone" ? (
         <form
           style={{ display: "flex", flexDirection: "column", gap }}
           onSubmit={(e) => {

@@ -1,4 +1,9 @@
-import { looksLikeSlipQr, slipVerificationConfigured, verifySlipWithSlipOk } from "@l-shopee/core";
+import {
+  isCodOrder,
+  looksLikeSlipQr,
+  slipVerificationConfigured,
+  verifySlipWithSlipOk,
+} from "@l-shopee/core";
 import { getDb, getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 
@@ -39,13 +44,14 @@ export async function POST(req: Request): Promise<Response> {
     const db = await getDb();
     const order = await db
       .prepare(
-        `SELECT o.id AS id, o.grand_total_satang AS grand, c.phone AS phone
+        `SELECT o.id AS id, o.grand_total_satang AS grand, o.payment_status AS paymentStatus,
+                c.phone AS phone
          FROM sales_orders o
          JOIN storefront_customers c ON c.id = o.storefront_customer_id
          WHERE o.channel = 'airplus' AND o.external_order_id = ?`,
       )
       .bind(ref)
-      .first<{ id: string; grand: number; phone: string }>();
+      .first<{ id: string; grand: number; paymentStatus: string | null; phone: string }>();
     // Identical response for wrong-ref and wrong-phone — never reveal someone else's order.
     if (!order || normalizePhone(order.phone) !== phone)
       return Response.json({ error: NOT_FOUND }, { status: 404 });
@@ -57,10 +63,22 @@ export async function POST(req: Request): Promise<Response> {
       )
       .bind(order.id)
       .first<{ id: string; status: string; amountSatang: number }>();
-    if (!payment)
+
+    // COD is refused EXPLICITLY, by the same core rule the order page hides the button with — a COD
+    // buyer owes nothing until the courier collects, so there is no transfer to prove.
+    // This previously read "no payments row → tell them it's COD", which is an inference, not a
+    // fact: a prepaid order missing its row would have been told it was COD and locked out of ever
+    // attaching a slip. Now the two signals are weighed together and the message only claims COD
+    // when it IS COD.
+    if (isCodOrder({ paymentStatus: order.paymentStatus, hasPaymentRecord: Boolean(payment) }))
       return Response.json(
         { error: "คำสั่งซื้อนี้เป็นเก็บเงินปลายทาง ไม่ต้องแนบสลิป" },
         { status: 400 },
+      );
+    if (!payment)
+      return Response.json(
+        { error: "คำสั่งซื้อนี้ยังไม่มีรายการชำระเงิน กรุณาติดต่อร้านทาง LINE" },
+        { status: 409 },
       );
     if (payment.status === "confirmed")
       return Response.json({ error: "คำสั่งซื้อนี้ยืนยันการชำระเงินแล้ว" }, { status: 409 });

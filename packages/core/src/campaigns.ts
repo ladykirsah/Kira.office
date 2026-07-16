@@ -4,6 +4,13 @@
  * time-based — a campaign "ends" simply by its price no longer applying (no cron).
  */
 
+/**
+ * Which storefront surface a discount belongs to. DISPLAY GROUPING ONLY — the resolver below prices
+ * both kinds identically. `flash` = แฟลชเซล, the urgent countdown rail; `promo` = โปรโมชัน, an ongoing
+ * discount feeding the "สินค้าลดราคา" collection (which excludes flash so the two never duplicate).
+ */
+export type CampaignKind = "flash" | "promo";
+
 export interface CampaignPriceInfo {
   campaignPriceSatang: number;
   startsAt: number;
@@ -13,6 +20,8 @@ export interface CampaignPriceInfo {
   /** null = uncapped */
   stockCap: number | null;
   soldCount: number;
+  /** display grouping only — never affects the price (see CampaignKind) */
+  kind: CampaignKind;
 }
 
 export interface EffectivePrice {

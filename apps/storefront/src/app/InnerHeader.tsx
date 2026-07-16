@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cartCount, useCart } from "@/lib/cart";
 import { productShareTitle, shareOrCopy } from "@/lib/share";
 import { Icon } from "@/components/Icon";
@@ -37,6 +37,20 @@ function titleFor(pathname: string): string {
   if (pathname.startsWith("/products/")) return "รายละเอียดสินค้า";
   if (pathname.startsWith("/orders/")) return "รายละเอียดคำสั่งซื้อ";
   return "AirPlus";
+}
+
+/**
+ * /orders serves two different pages behind one route: the lookup FORM (you are tracking something
+ * down) and a loaded order (you are reading its details). `?ref=` is what tells them apart — it is
+ * present on every deep link from "ดูสถานะ" and on shared order links.
+ *
+ * useSearchParams lives in this leaf, not in InnerHeader itself, so the Suspense boundary it needs
+ * wraps ONLY the title. The fallback is the static title, so statically-rendered routes keep a fully
+ * correct header in their prerendered HTML — no boundary in the layout, no flash of a blank title.
+ */
+function OrdersTitle({ fallback }: { fallback: string }): React.ReactElement {
+  const params = useSearchParams();
+  return <>{params.get("ref") ? "รายละเอียดคำสั่งซื้อ" : fallback}</>;
 }
 
 const iconBtn = (marginLeft = 0): React.CSSProperties => ({
@@ -162,7 +176,13 @@ export function InnerHeader() {
               paddingLeft: 2,
             }}
           >
-            {titleFor(pathname)}
+            {pathname === "/orders" ? (
+              <Suspense fallback={titleFor(pathname)}>
+                <OrdersTitle fallback={titleFor(pathname)} />
+              </Suspense>
+            ) : (
+              titleFor(pathname)
+            )}
           </div>
 
           <Link href="/search" aria-label="ค้นหาสินค้า" className="hdr-tap" style={iconBtn(0)}>

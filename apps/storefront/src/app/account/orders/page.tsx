@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { orderStatusBadge, type OrderBadgeTone } from "@l-shopee/core";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { baht, formatDateTime } from "@/lib/format";
@@ -35,15 +36,22 @@ interface OrderLineRow {
   currentPriceSatang: number;
 }
 
-function statusPill(o: OrderRow): { cls: "good" | "warn" | "bad" | "soft"; label: string } {
-  const s = o.orderStatus ?? "";
-  if (s.includes("ยกเลิก") || s.includes("คืน")) return { cls: "bad", label: s };
-  if (s.includes("สำเร็จ")) return { cls: "good", label: s };
-  if (o.carrier || o.trackingNo || s.includes("จัดส่ง")) {
-    const detail = [o.carrier, o.trackingNo].filter(Boolean).join(" · ");
-    return { cls: "warn", label: detail || s || "กำลังจัดส่ง" };
-  }
-  return { cls: "soft", label: "รอดำเนินการ" };
+/**
+ * The badge rules live in @l-shopee/core (orderStatusBadge) because they hinge on Thai statuses
+ * being substrings of each other — "เตรียมจัดส่ง" contains "จัดส่ง" — which this page previously got
+ * wrong, collapsing "still in the shop" and "on the truck" into one identical amber pill. They are
+ * tested there; do not re-derive them here.
+ *
+ * The carrier + tracking number are deliberately NOT in the badge any more: a badge says what STATE
+ * an order is in, and "Flash Express · TH1234567890" is a payload, not a state. Tracking still shows
+ * on the order-detail page's จัดส่ง step, one tap away via ดูสถานะ.
+ */
+function statusPill(o: OrderRow): { cls: OrderBadgeTone; label: string } {
+  const badge = orderStatusBadge({
+    orderStatus: o.orderStatus,
+    hasTracking: Boolean(o.carrier || o.trackingNo),
+  });
+  return { cls: badge.tone, label: badge.label };
 }
 
 export default async function AccountOrdersPage() {

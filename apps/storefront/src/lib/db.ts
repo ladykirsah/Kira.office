@@ -41,7 +41,7 @@ export async function getDb(): Promise<D1Database> {
 
 /* ---- catalog ---- */
 
-import type { CampaignPriceInfo } from "@l-shopee/core";
+import type { CampaignKind, CampaignPriceInfo } from "@l-shopee/core";
 
 export interface CatalogItem {
   productId: string;
@@ -68,6 +68,7 @@ interface CatalogRow extends Omit<CatalogItem, "campaign"> {
   cpStatus: string | null;
   cpStockCap: number | null;
   cpSoldCount: number | null;
+  cpKind: string | null;
 }
 
 /** Binds ONE `?` (now, epoch ms) for the campaign-candidate subselect — callers bind now first. */
@@ -81,7 +82,7 @@ const CATALOG_SELECT = `
             ORDER BY f.sort_order LIMIT 1) AS fitmentShort,
          cp.campaign_price_satang AS cpPriceSatang, cg.starts_at AS cpStartsAt,
          cg.ends_at AS cpEndsAt, cg.status AS cpStatus, cp.stock_cap AS cpStockCap,
-         cp.sold_count AS cpSoldCount
+         cp.sold_count AS cpSoldCount, cg.kind AS cpKind
   FROM products p
   JOIN product_variants v ON v.product_id = p.id
   LEFT JOIN pricing_profiles pp ON pp.id =
@@ -104,7 +105,16 @@ const CATALOG_SELECT = `
 const CATALOG_NOW_BINDS = 2;
 
 function toCatalogItem(row: CatalogRow): CatalogItem {
-  const { cpPriceSatang, cpStartsAt, cpEndsAt, cpStatus, cpStockCap, cpSoldCount, ...item } = row;
+  const {
+    cpPriceSatang,
+    cpStartsAt,
+    cpEndsAt,
+    cpStatus,
+    cpStockCap,
+    cpSoldCount,
+    cpKind,
+    ...item
+  } = row;
   const campaign: CampaignPriceInfo | null =
     cpPriceSatang !== null && cpStartsAt !== null && cpEndsAt !== null
       ? {
@@ -114,6 +124,7 @@ function toCatalogItem(row: CatalogRow): CatalogItem {
           status: cpStatus === "active" ? "active" : "disabled",
           stockCap: cpStockCap,
           soldCount: cpSoldCount ?? 0,
+          kind: cpKind === "promo" ? "promo" : "flash",
         }
       : null;
   return { ...item, campaign };
@@ -131,6 +142,8 @@ export async function listCatalog(
     carModel?: string;
     year?: number;
     onSaleOnly?: boolean;
+    /** restrict to items whose EFFECTIVE campaign is of this kind (see campaignKind cond below) */
+    campaignKind?: CampaignKind;
     limit?: number;
   } = {},
 ): Promise<CatalogItem[]> {
@@ -171,6 +184,14 @@ export async function listCatalog(
     conds.push(`EXISTS (SELECT 1 FROM product_fitments f WHERE ${f.join(" AND ")})`);
   }
   if (opts.onSaleOnly) conds.push(`cp.id IS NOT NULL`);
+  // Keeps the home flash rail and the "สินค้าลดราคา" collection disjoint. Filters on the joined
+  // campaign — the ONE whose price the customer actually pays (the subselect above picks the
+  // cheapest live campaign per variant). So a variant in both a flash and a promo campaign belongs
+  // to whichever is winning its price, and can never be listed on both surfaces at once.
+  if (opts.campaignKind) {
+    conds.push(`cg.kind = ?`);
+    binds.push(opts.campaignKind);
+  }
   const where = conds.length ? ` AND ${conds.join(" AND ")}` : "";
   const limit = Math.min(opts.limit ?? 48, 100);
   const rows = await db
@@ -520,7 +541,7 @@ export async function getCheckoutPricing(
                         WHERE product_variant_id = v.id), 0) AS onHand,
               cp.id AS campaignPriceId, cp.campaign_price_satang AS cpPriceSatang,
               cg.starts_at AS cpStartsAt, cg.ends_at AS cpEndsAt, cg.status AS cpStatus,
-              cp.stock_cap AS cpStockCap, cp.sold_count AS cpSoldCount
+              cp.stock_cap AS cpStockCap, cp.sold_count AS cpSoldCount, cg.kind AS cpKind
        FROM product_variants v
        JOIN products p ON p.id = v.product_id AND p.status = 'active'
        LEFT JOIN pricing_profiles pp ON pp.id =
@@ -549,6 +570,7 @@ export async function getCheckoutPricing(
       cpStatus: string | null;
       cpStockCap: number | null;
       cpSoldCount: number | null;
+      cpKind: string | null;
     }>();
   const out = new Map<string, CheckoutPricingRow>();
   for (const r of rows.results ?? []) {
@@ -568,6 +590,7 @@ export async function getCheckoutPricing(
               status: r.cpStatus === "active" ? "active" : "disabled",
               stockCap: r.cpStockCap,
               soldCount: r.cpSoldCount ?? 0,
+              kind: r.cpKind === "promo" ? "promo" : "flash",
             }
           : null,
     });

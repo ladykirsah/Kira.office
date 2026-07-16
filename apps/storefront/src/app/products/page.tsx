@@ -41,7 +41,9 @@ export default async function ProductsPage(props: {
   const db = await getDb();
   const isCategoryView = ctx === "cat" && Boolean(type);
   const isBrandView = ctx === "brand" && Boolean(carBrand);
-  const isSaleView = ctx === "sale"; // on-sale deals; the ctx marker also drives the onSaleOnly filter
+  // ctx=sale is reached only from the home "สินค้าลดราคา" collection, so it lists exactly what that
+  // collection does: ongoing promo discounts, never flash deals (those live in the home rail alone).
+  const isSaleView = ctx === "sale";
   const [types, brands, fitments, items, catCarBrands, brandTypes] = await Promise.all([
     listProductTypes(db),
     listBrands(db),
@@ -54,6 +56,7 @@ export default async function ProductsPage(props: {
       carModel,
       year: year ? Number(year) : undefined,
       onSaleOnly: isSaleView,
+      campaignKind: isSaleView ? "promo" : undefined,
       limit: 48,
     }),
     isCategoryView && type ? carBrandsForType(db, type) : Promise.resolve<string[]>([]),

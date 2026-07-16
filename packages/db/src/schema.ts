@@ -377,8 +377,37 @@ export const salesOrders = sqliteTable(
     // AirPlus storefront checkout (migration 0039) — null for CSV-imported Shopee orders.
     storefrontCustomerId: text("storefront_customer_id").references(() => storefrontCustomers.id),
     shippingAddressId: text("shipping_address_id").references(() => addresses.id),
+    /** When the order reached 'สำเร็จ' (migration 0049) — the anchor for the 7-day return window.
+     *  Distinct from shipTimeMs, which is when the parcel LEFT the shop. Null on pre-0049 rows. */
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
   },
   (t) => [uniqueIndex("order_channel_external_uq").on(t.channel, t.externalOrderId)],
+);
+
+/**
+ * คืนสินค้า / เคลม requests (migration 0049). One row per customer request; the shop's mechanic
+ * approves or rejects. Deliberately holds NO money column — a request never moves stock or funds by
+ * itself, so refunds stay in sales_orders/payments where they can be audited.
+ */
+export const orderReturns = sqliteTable(
+  "order_returns",
+  {
+    id: id(),
+    salesOrderId: text("sales_order_id")
+      .notNull()
+      .references(() => salesOrders.id),
+    kind: text("kind", { enum: ["return", "claim"] }).notNull(),
+    reason: text("reason").notNull(),
+    note: text("note"),
+    status: text("status", { enum: ["รอตรวจสอบ", "อนุมัติ", "ปฏิเสธ", "เสร็จสิ้น"] })
+      .notNull()
+      .default("รอตรวจสอบ"),
+    /** The shop's answer, shown to the customer verbatim so a rejection is never silent. */
+    decisionNote: text("decision_note"),
+    decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("idx_order_returns_order").on(t.salesOrderId, t.status)],
 );
 
 export const salesOrderLines = sqliteTable(
@@ -577,7 +606,7 @@ export const couponRedemptions = sqliteTable(
   ],
 );
 
-/** Flash-sale campaigns (migration 0045): timed price windows, resolved in code (no cron). */
+/** Discount campaigns (migration 0045): timed price windows, resolved in code (no cron). */
 export const campaigns = sqliteTable("campaigns", {
   id: id(),
   name: text("name").notNull(),
@@ -586,6 +615,11 @@ export const campaigns = sqliteTable("campaigns", {
   status: text("status", { enum: ["active", "disabled"] })
     .notNull()
     .default("active"),
+  /** which storefront surface shows it (migration 0048) — display grouping only, never the price:
+   *  flash = the home countdown rail, promo = the "สินค้าลดราคา" collection. */
+  kind: text("kind", { enum: ["flash", "promo"] })
+    .notNull()
+    .default("flash"),
   createdAt: createdAt(),
 });
 

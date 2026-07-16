@@ -123,10 +123,13 @@ export function SlipUpload({
           e.target.value = "";
         }}
       />
+      {/* The CI's coral-outline button, not a hand-rolled one. This used to be `.btn` (whose base is
+          a DARK charcoal fill) with only the border+text recoloured to coral — leaving coral text on
+          a near-black pill, which is both off-CI and poor contrast. btn-outline btn-primary is the
+          same intent done by the system, and it brings the hover state the override silently lost. */}
       <button
         type="button"
-        className="btn btn-block"
-        style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        className="btn btn-block btn-outline btn-primary"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
       >

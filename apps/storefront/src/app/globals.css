@@ -1022,6 +1022,54 @@ textarea {
   color: var(--accent);
 }
 
+/* In transit. Emerald is ALREADY this CI's shipping colour (the free-ship ribbon and the พร้อมส่ง
+   dot), and this reuses the exact pair components/ReadyToShip.tsx uses rather than inventing a
+   sixth tone — so "อยู่ระหว่างการจัดส่ง" reads as shipping on sight, and stays distinct from the
+   amber "เตรียมจัดส่ง" it used to be indistinguishable from. */
+.pill.ship {
+  background: rgba(5, 150, 105, 0.12);
+  color: var(--ship);
+}
+
+/* ---- order timeline (owner-designed 2026-07-16) ----------------------------------------------
+   One coral hue for the whole journey — faded = done, solid = where you are now, grey = not yet.
+   Hue alone is a weak signal at 12px on a phone (and invisible to a colour-blind customer), so the
+   CURRENT step also carries a halo and a bolder title: two independent cues, not one. The connector
+   line is coloured per segment, which turns the column into a progress bar you can read at a glance
+   without parsing a single word. */
+.tl-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.tl-dot.done {
+  background: rgba(235, 80, 49, 0.45);
+}
+.tl-dot.current {
+  background: var(--brand);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.tl-dot.future {
+  background: var(--border);
+}
+.tl-dot.bad {
+  background: var(--danger);
+}
+.tl-line {
+  width: 2px;
+  flex: 1;
+  min-height: 20px;
+}
+/* Travelled segments read coral; the road ahead stays grey. */
+.tl-line.done {
+  background: rgba(235, 80, 49, 0.35);
+}
+.tl-line.future {
+  background: var(--border);
+}
+
 /* ---- sticky bottom action bar (cart / PDP / checkout) ---- */
 .sticky-bar {
   position: fixed;

@@ -13,8 +13,7 @@ import {
   type CatalogItem,
 } from "@/lib/db";
 import { AffiliateShelf } from "@/components/AffiliateShelf";
-import { LINE_OA_URL } from "@/lib/links";
-import { PART_TYPE_EN, CAR_BRAND_TH, CAR_BRAND_LOGO } from "@/lib/labels";
+import { PART_TYPE_EN, CAR_BRAND_TH, CAR_BRAND_LOGO, OPEN_BOX_TYPE_ID } from "@/lib/labels";
 import { BestSellerList } from "@/components/BestSellerList";
 import { CategoryRow } from "@/components/CategoryRow";
 import { CollectionRow } from "@/components/CollectionRow";
@@ -31,30 +30,68 @@ import { imgUrl } from "@/lib/img";
 export const dynamic = "force-dynamic";
 
 /**
- * Home v2 (reference #1 section order): hero carousel → search + type chips → car-brand tiles →
- * flash sale → best sellers → new arrivals → promo strip → mechanic tools (affiliate) →
- * trust strip → follow strip → recently viewed. Every data section hides itself when empty.
+ * Home section order (owner-approved 2026-07-15). The shortcut bar and the orange search header are
+ * pinned above and are not part of this sequence:
+ *
+ *   hero → headline → car brands → part categories → flash sale → best sellers → สินค้าลดราคา →
+ *   promo strip → กล่องไม่สวย → trust → product grid → mechanic tools → follow → recently viewed
+ *
+ * Every data section hides itself when empty, so the order must still read well with sections dark.
+ * Four rules hold it together — keep them in mind before moving anything:
+ *
+ *  1. CAR before PART TYPE. A/C parts are compatibility-gated: the buyer thinks "my Vigo" before
+ *     "คอยล์เย็น", and a part that does not fit is a return. The two rails stay adjacent as one
+ *     two-door navigation block.
+ *  2. No two coral blocks touch. flash is a full coral panel and each CollectionRow leads with a
+ *     coral title panel, so สินค้าลดราคา and กล่องไม่สวย are held apart by the white best-seller
+ *     list and the promo photo. Reordering these without checking colour re-creates a coral slab.
+ *  3. TRUST sits directly above the product grid — the only add-to-cart surface — not at the foot of
+ *     the page where it used to be (~4,600px, i.e. never read).
+ *  4. The affiliate shelf is the LAST section that renders. Its clicks leave for Shopee/Lazada and
+ *     earn commission instead of the shop's own margin, so nothing of the shop's own sits below it.
+ *
+ * The three discount surfaces are deliberately disjoint, so nothing is advertised twice: flash sale
+ * = campaigns of kind 'flash' (countdown), สินค้าลดราคา = kind 'promo' (ongoing), and กล่องไม่สวย =
+ * a product category priced low outright, no campaign at all.
  */
 export default async function Home() {
   const db = await getDb();
   const now = Date.now();
-  const [heroBanners, types, brands, flashRaw, best, latest, promoBanners, tools] =
-    await Promise.all([
-      activeBanners(db, "hero"),
-      listProductTypes(db),
-      carBrandTiles(db),
-      listCatalog(db, { onSaleOnly: true, limit: 8 }),
-      bestSellers(db, { limit: 5 }),
-      listCatalog(db, { limit: 8 }),
-      activeBanners(db, "promo"),
-      listAffiliateItems(db, 8),
-    ]);
+  const [
+    heroBanners,
+    types,
+    brands,
+    flashRaw,
+    saleRaw,
+    openBox,
+    best,
+    latest,
+    promoBanners,
+    tools,
+  ] = await Promise.all([
+    activeBanners(db, "hero"),
+    listProductTypes(db),
+    carBrandTiles(db),
+    listCatalog(db, { onSaleOnly: true, campaignKind: "flash", limit: 8 }),
+    listCatalog(db, { onSaleOnly: true, campaignKind: "promo", limit: 8 }),
+    listCatalog(db, { typeId: OPEN_BOX_TYPE_ID, limit: 8 }),
+    bestSellers(db, { limit: 5 }),
+    listCatalog(db, { limit: 8 }),
+    activeBanners(db, "promo"),
+    listAffiliateItems(db, 8),
+  ]);
 
-  // onSaleOnly returns campaign candidates; keep only ones the core resolver actually discounts
-  // (same rule as checkout), and count down to the SOONEST ending one.
-  const flash = flashRaw.filter(
-    (i: CatalogItem) => resolveEffectivePrice(i.priceSatang, i.campaign, now).onSale,
-  );
+  // "กล่องไม่สวย" is a category, but an offer-type one — it gets its own collection below and is kept
+  // out of the category strip, which is for part types only (see OPEN_BOX_TYPE_ID).
+  const partTypes = types.filter((t) => t.id !== OPEN_BOX_TYPE_ID);
+
+  // The two discount surfaces are queried separately by campaign kind so they never show the same
+  // product: `flash` = the urgent countdown rail, `sale` = the ongoing "สินค้าลดราคา" collection.
+  // Both lists arrive as campaign CANDIDATES — keep only the ones the core resolver actually
+  // discounts (the same rule checkout re-prices with), then count down to the SOONEST-ending flash.
+  const onSale = (i: CatalogItem) => resolveEffectivePrice(i.priceSatang, i.campaign, now).onSale;
+  const flash = flashRaw.filter(onSale);
+  const sale = saleRaw.filter(onSale);
   const flashEnds = flash
     .map((i) => resolveEffectivePrice(i.priceSatang, i.campaign, now).endsAt)
     .filter((e): e is number => e !== null);
@@ -86,24 +123,8 @@ export default async function Home() {
         </p>
       </section>
 
-      {types.length > 0 && (
-        <section className="section">
-          <SectionHead
-            eyebrow="🗂️ หมวดหมู่ · Categories"
-            title="เลือกตามหมวดหมู่"
-            link={{ href: "/categories", label: "ดูทั้งหมด →" }}
-          />
-          <CategoryRow
-            items={types.map((t) => ({
-              href: `/products?type=${encodeURIComponent(t.id)}&ctx=cat`,
-              name: t.name,
-              nameEn: PART_TYPE_EN[t.name],
-              subtitle: `${t.productCount} รายการ`,
-            }))}
-          />
-        </section>
-      )}
-
+      {/* Car BEFORE part type: an A/C parts buyer thinks "my Vigo" before "คอยล์เย็น", and a part that
+          does not fit is a return. The two rails stay glued together as one two-door navigation block. */}
       {brands.length > 0 && (
         <section className="section">
           <SectionHead
@@ -122,6 +143,24 @@ export default async function Home() {
                 image: CAR_BRAND_LOGO[b.brand], // make logo (Toyota/Honda/Isuzu…), ✦ fallback if unmapped
               };
             })}
+          />
+        </section>
+      )}
+
+      {partTypes.length > 0 && (
+        <section className="section">
+          <SectionHead
+            eyebrow="🗂️ หมวดหมู่ · Categories"
+            title="เลือกตามหมวดหมู่"
+            link={{ href: "/categories", label: "ดูทั้งหมด →" }}
+          />
+          <CategoryRow
+            items={partTypes.map((t) => ({
+              href: `/products?type=${encodeURIComponent(t.id)}&ctx=cat`,
+              name: t.name,
+              nameEn: PART_TYPE_EN[t.name],
+              subtitle: `${t.productCount} รายการ`,
+            }))}
           />
         </section>
       )}
@@ -158,10 +197,10 @@ export default async function Home() {
         </section>
       )}
 
-      {flash.length > 0 && (
+      {sale.length > 0 && (
         <section className="section">
           <CollectionRow
-            items={flash}
+            items={sale}
             icon="🏷️"
             title="สินค้าลดราคา"
             subtitle="ดีลราคาพิเศษ"
@@ -170,21 +209,9 @@ export default async function Home() {
         </section>
       )}
 
-      {latest.length > 0 && (
-        <section className="section">
-          <SectionHead
-            eyebrow="✨ ใหม่ · New Arrivals"
-            title="สินค้ามาใหม่"
-            link={{ href: "/products", label: "ดูทั้งหมด →" }}
-          />
-          <div className="product-grid">
-            {latest.map((item) => (
-              <ProductCard key={item.variantId} item={item} />
-            ))}
-          </div>
-        </section>
-      )}
-
+      {/* The promo strip leads INTO the open-box shelf it advertises (it used to sit five sections
+          below it). Its photo also separates two coral CollectionRows — สินค้าลดราคา above,
+          กล่องไม่สวย below — which would otherwise stack into one coral slab. */}
       {promoBanners.length > 0 && (
         <section className="section">
           {promoBanners.map((b) => (
@@ -193,17 +220,22 @@ export default async function Home() {
         </section>
       )}
 
-      {tools.length > 0 && (
+      {openBox.length > 0 && (
         <section className="section">
-          <SectionHead
-            eyebrow="🔧 ช่างแอร์คัดให้ · Mechanic Picks"
-            title="เครื่องมือช่างแนะนำ"
-            link={{ href: "/tools", label: "ดูทั้งหมด →" }}
+          <CollectionRow
+            items={openBox}
+            icon="📦"
+            title="กล่องไม่สวย"
+            subtitle="ของใหม่มือหนึ่ง กล่องมีตำหนิ ราคาถูกกว่า"
+            seeAllHref={`/products?type=${encodeURIComponent(OPEN_BOX_TYPE_ID)}&ctx=cat`}
           />
-          <AffiliateShelf items={tools} />
         </section>
       )}
 
+      {/* Trust sits directly ABOVE the product grid, not at the foot of the page. ของแท้ 100% /
+          ร้านจริง มีหน้าร้าน / เก็บเงินปลายทาง are this shop's strongest answers to a stranger who
+          arrived from a LINE link, so they are read last before the only add-to-cart surface — and
+          unlike every data section, this one has no empty guard, so it always anchors the page. */}
       <section className="section">
         {/* .product-grid = 2 cols mobile / 4 cols ≥720px — the exact trust-strip layout */}
         <div className="product-grid">
@@ -222,29 +254,41 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="section">
-        <div
-          className="card"
-          style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
-        >
-          <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a
-              href={LINE_OA_URL}
-              target="_blank"
-              rel="noopener"
-              className="btn"
-              style={{
-                background: "#06C755",
-                borderColor: "#06C755",
-                color: "var(--white)",
-                flex: "1 1 200px",
-                textAlign: "center",
-              }}
-            >
-              เพิ่มเพื่อน LINE
-            </a>
-            {facebookUrl && (
+      {latest.length > 0 && (
+        <section className="section">
+          <SectionHead
+            eyebrow="✨ ใหม่ · New Arrivals"
+            title="สินค้ามาใหม่"
+            link={{ href: "/products", label: "ดูทั้งหมด →" }}
+          />
+          <div className="product-grid">
+            {latest.map((item) => (
+              <ProductCard key={item.variantId} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tools.length > 0 && (
+        <section className="section">
+          <SectionHead
+            eyebrow="🔧 ช่างแอร์คัดให้ · Mechanic Picks"
+            title="เครื่องมือช่างแนะนำ"
+            link={{ href: "/tools", label: "ดูทั้งหมด →" }}
+          />
+          <AffiliateShelf items={tools} />
+        </section>
+      )}
+
+      {/* LINE lives on the ช่วยหาอะไหล่ shortcut (top of page), so no add-friend button here. */}
+      {facebookUrl && (
+        <section className="section">
+          <div
+            className="card"
+            style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <a
                 href={facebookUrl}
                 target="_blank"
@@ -259,10 +303,10 @@ export default async function Home() {
               >
                 ติดตามบน Facebook
               </a>
-            )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <RecentlyViewed />
     </div>

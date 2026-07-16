@@ -10,6 +10,7 @@ const LIVE: CampaignPriceInfo = {
   status: "active",
   stockCap: null,
   soldCount: 0,
+  kind: "flash",
 };
 
 describe("resolveEffectivePrice", () => {
