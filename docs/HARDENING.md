@@ -10,7 +10,8 @@ Cloudflare dashboard/config on the **GoGoCash** account.
 - **Observability** — `observability.enabled` is on in `wrangler.jsonc`; logs/metrics in the dashboard
   (Workers & Pages → kira-office → Observability).
 - **Idempotency / integrity** — D1 unique indexes on `onsite_sales.client_uuid` and
-  `(sales_orders.channel, external_order_id)`; stock writes serialized through the StockLedger DO.
+  `(sales_orders.channel, external_order_id)`. **Stock writes are NOT serialized** — the StockLedger
+  DO is a stateless RPC hop over D1, so its oversell check races (see CLOUDFLARE_ARCHITECTURE.md).
 
 ## [OWNER] Cloudflare config (no code)
 

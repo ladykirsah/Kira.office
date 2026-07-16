@@ -21,8 +21,8 @@ from one workspace.
   services + **shop-info (view/edit, bilingual)** settings, a full **on-site POS** (parts/repair,
   scan/code/search, B2C/B2B pricing, ฿/% discount) with a **printable bill** (Cash bill vs Quotation,
   Invoice vs Receipt, **Thai/English switch**, contact-QR), stock, sales, finance, import, terms.
-- `packages/core` — pure domain logic, test-first. **632 tests** across `core`, `api`, and the AirPlus `storefront`.
-  `packages/db` — Drizzle schema + 16 SQL migrations (`0000`–`0015`); see
+- `packages/core` — pure domain logic, test-first. Tests span `core`, `api`, `admin`, and the AirPlus `storefront`; run `npm test` for the current count.
+  `packages/db` — hand-written SQL migrations (the schema's only source of truth); see
   [docs/SCHEMA_AS_BUILT.md](docs/SCHEMA_AS_BUILT.md). (Shop settings live in **KV**, not D1.)
 - **Shopee live API is a gated later phase** — Thailand grants Open API access mainly to managed
   sellers; the back office runs fully without it (CSV bridge meanwhile).
@@ -53,7 +53,7 @@ apps/
   storefront/ # AirPlus — customer storefront (guest checkout + phone-OTP member accounts, PromptPay/COD, coupons)  (built)
 packages/
   core/       # Pure-TS business logic: pricing, profit, tax, cost, stock (TDD)
-  db/         # D1 schema (Drizzle) + hand-written SQL migrations
+  db/         # D1 schema: hand-written SQL migrations (no TypeScript; nothing imports it)
 docs/         # Handoff set + requirements, architecture, data model, decisions
 ```
 

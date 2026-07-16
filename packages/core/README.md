@@ -30,11 +30,11 @@ npm run typecheck
 - `resolveUnitCost({ method, layers?, manualCost?, qty? })` — `moving_average | latest | manual | fifo`.
 - `movingAverageUnitCost`, `latestUnitCost`, `fifoConsume(layers, qty)`, `receiveStock(layers, layer)`.
 
-### Stock (`stock.ts`)
-- `availableFromLedger(entries[])` — stock = Σ deltas.
-- `applyMovement(current, delta, { allowNegative? })` — single movement; blocks negative unless overridden.
-- `applyMovements(available, movements[], opts)` → `{ available, entries }` — a whole sale's lines;
-  single-writer logic for the stock-ledger Durable Object.
+### Stock — not in core
+There is no stock module here. `stock.ts` (ledger helpers + a `StockState` reservation trio) was
+deleted: nothing imported it, and `/sync` + `/stock/adjust` have always done their own stock math in
+raw SQL in `apps/api/src/index.ts`. That inline SQL is the only implementation. The invariant it
+must honour: on-hand = `SUM(quantity_delta)` over `stock_ledger_entries` — never a stored total.
 
 ### Terms (`terms.ts`)
 - `renderTerms(template, vars)` — fill `{{placeholder}}`s (Thai templates).

@@ -82,7 +82,7 @@ shapes never leak into it.
 
 ## Data: D1 + Drizzle
 
-- **D1** is the system of record. Bind it as `DB`; manage schema with **Drizzle** + `drizzle-kit`
+- **D1** is the system of record. Bind it as `DB`; manage schema with hand-written SQL migrations
   (generates SQL migrations) applied via `wrangler d1 migrations apply`. Optionally set a D1
   **jurisdiction** to keep data in-region.
 - **Money is stored as `INTEGER` minor units (satang)** — never floats. THB has 2 decimals, so
@@ -102,23 +102,49 @@ with a `compatibility_date` ≥ `2024-09-23` the plain `nodejs_compat` flag alre
 equivalent behavior). Then money can use Postgres `NUMERIC` and the satang convention is optional. Choose D1 for simplicity/cost; switch to
 Hyperdrive+Postgres only when a real limit is hit.
 
-## Strong consistency: Durable Objects for the stock ledger
+## The stock ledger: why a DO was chosen, and what it actually does today
 
 Stock correctness is the heart of the system: on-site (possibly offline) sales and online (Shopee)
 sales both decrement the same stock, and an offline sale may sync minutes later. Cloudflare
 recommends **Durable Objects** exactly for this ("operations must be serialized … inventory
-management").
+management"). That is the *intent* behind `StockLedger`. **It is not what the code does yet** — read
+the next block before designing anything that depends on serialization.
 
-- One Durable Object per **coordination atom**. MVP: one **ledger DO per shop** serializes all
-  stock mutations (simple and correct). Scale later to **one DO per `product_variant`** (+location)
-  for throughput.
-- The DO is the single writer for stock: it appends **ledger deltas** (never overwrites a count),
-  recomputes available stock, blocks negative stock unless an owner override is recorded, and
-  writes through to D1.
-- **Idempotent offline apply:** each sale carries a `client_uuid`. The DO (and the D1 UNIQUE
-  constraint) make replaying a queued offline sale a no-op, so a sale is never double-counted.
-- **Conflict surfacing:** if applying a synced sale would oversell (because online stock already
-  dropped), the DO flags it for review instead of silently overwriting.
+### As built (`class StockLedger` in `apps/api/src/index.ts`)
+
+`StockLedger extends DurableObject<Env>` is a **stateless RPC facade**: three methods
+(`applySync`, `applyAdjustment`, `refundSale`) that each delegate straight to a module-level function
+(`applySyncToDb` / `applyAdjustmentToDb` / `refundSaleToDb`) operating on `this.env.DB` (D1).
+
+- **It holds no Durable Object state.** No `ctx.storage`, no `blockConcurrencyWhile`. Every read and
+  write is D1. The DO is a routing hop, not a lock.
+- **All traffic resolves to one instance** — every call site uses
+  `env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"))` (not one DO per shop, not per
+  variant). It is one named instance for the whole Worker.
+- **⚠️ There is NO mutual-exclusion guarantee today.** A DO only withholds concurrent events while it
+  awaits *DO storage*. Every await here is D1 I/O, so concurrent events **interleave**. The oversell
+  check is a read-then-write (`SELECT COALESCE(SUM(quantity_delta), 0)` → `INSERT`) with an await in
+  the gap, so it is **TOCTOU-vulnerable**: two concurrent `-1` adjustments against on-hand `1` both
+  read `1`, both pass the `after < 0` check, and both insert — stock lands at `-1`.
+- **Ledger deltas are real.** Stock is only ever appended as signed `quantity_delta` rows; on-hand is
+  always derived as `SUM(quantity_delta)`. That part of the design holds. (`quantity_after` is
+  written but is a snapshot for audit — never read back for math.)
+- **Idempotent offline apply is real, but D1 does the work.** Each sale carries a `client_uuid`;
+  `applySyncToDb` pre-filters already-applied uuids and the **UNIQUE index on
+  `onsite_sales.client_uuid` is the actual backstop** against double-counting. This does not depend
+  on the DO.
+- **Conflict surfacing is real** for the `/sync` path: a line that would oversell is skipped and
+  returned in `conflicts[]` rather than aborting the batch — but it is computed inline in
+  `applySyncToDb`, not by a serialized writer, so it races the same way.
+- **There is no "owner override" in the API path.** Nothing in `/sync` or `/stock/adjust` accepts a
+  flag to permit negative stock.
+
+### If you need real serialization (holds, reservations, available-vs-on-hand)
+
+Do not assume the current DO gives it. Options, cheapest first: move the check and the write into a
+single D1 statement so the DB arbitrates (e.g. `INSERT … SELECT … WHERE (SELECT SUM(...)) >= ?`), or
+give the DO actual authority by holding stock state in `ctx.storage` and gating with
+`blockConcurrencyWhile`. Either is a real change with a migration and tests — not a doc tweak.
 
 ## Offline-first POS flow
 
@@ -128,7 +154,7 @@ flowchart TD
   B --> C["Complete sale offline (client_uuid)"]
   C --> D["Outbox queue (local)"]
   D -->|online| E["POST /sync to apps/api"]
-  E --> F["Ledger Durable Object (serialized, idempotent on client_uuid)"]
+  E --> F["StockLedger DO — RPC hop; idempotent on client_uuid via D1 UNIQUE (not serialized)"]
   F --> G["D1: ledger delta + sale + financial record"]
   F -->|oversell/extern change| H["Flag conflict for review"]
 ```
@@ -268,7 +294,7 @@ for error tracking. Monitor queue backlog and DLQ depth.
 | Binding | Product | Purpose |
 | --- | --- | --- |
 | `DB` | D1 | System of record (Drizzle) |
-| `STOCK_LEDGER` | Durable Object | Serialized stock mutations + idempotent sale apply |
+| `STOCK_LEDGER` | Durable Object | Stock mutations + sale apply. **Stateless RPC hop over D1 — not a serialized writer** (see above) |
 | `R2` | R2 | Image originals |
 | `IMAGES` | Cloudflare Images | Image transforms |
 | `KV` | Workers KV | Catalog snapshot, config, flags |

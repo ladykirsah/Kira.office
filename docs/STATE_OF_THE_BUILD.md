@@ -30,7 +30,7 @@ apps/admin    Next.js 15 (App Router) + React 19 on OpenNext. Calls the Worker f
 apps/storefront  AirPlus customer store (Next.js 15 on OpenNext, its own Worker). Shares api's D1 + KV;
               cross-binds StockLedger DO. Guest checkout + phone-OTP member accounts.
 packages/core Pure-TS domain logic (pricing, cost, tax, stock, sync, orders, imports, finance). No I/O.
-packages/db   D1 schema (Drizzle `schema.ts`, the shape source of truth) + hand-written SQL migrations.
+packages/db   D1 schema: hand-written SQL migrations (the source of truth). No TypeScript.
 docs/         This handoff set + the original planning docs.
 ```
 
@@ -49,8 +49,9 @@ Full navigable index: [docs/README.md](README.md). Intended platform design:
 - Full REST surface — products CRUD, image gallery, pricing, stock adjust, barcodes, attributes,
   car-fitment tree, sales/refunds, finance summary, CSV imports, idempotent `/sync`, image serving.
   Every endpoint and its request/response shape: **[API_REFERENCE.md](API_REFERENCE.md)**.
-- Offline-sale `/sync` is idempotent on `client_uuid`, applies stock as ledger deltas through the
-  Durable Object (single writer, blocks oversell, surfaces conflicts).
+- Offline-sale `/sync` is idempotent on `client_uuid` (enforced by a D1 UNIQUE index), applies stock
+  as ledger deltas through the Durable Object, and surfaces oversell as conflicts. **The DO is a
+  stateless RPC hop, not a serialized writer** — the oversell check races (CLOUDFLARE_ARCHITECTURE.md).
 - Cloudflare Access JWT verification is **implemented but inactive**: it only enforces when
   `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` are set. Today they are unset → **the API is open**. (See §5.)
 
@@ -145,10 +146,10 @@ settings pages. Migrations `0009`–`0012` back these.
   `product_code` column** (applied to local D1; **[OWNER]** applies to prod + staging at deploy —
   fails loudly if duplicate Product IDs exist; rollback = re-add the column or restore the daily
   backup).
-- Schema lives in **two places that must stay in sync**: the SQL files in
-  `packages/db/migrations/` (the applied DDL) and `packages/db/src/schema.ts` (Drizzle shapes).
-  The Worker does **not** use the Drizzle query builder at runtime — it runs raw `db.prepare(...)`
-  SQL. Full table list + the migration workflow: **[SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)**.
+- Schema lives in **one place**: the SQL files in `packages/db/migrations/` (the applied DDL).
+  There is no `schema.ts` — the Drizzle draft was never compiled or imported and was deleted. The
+  Worker runs raw `db.prepare(...)` SQL against D1 and imports no ORM. Full table list + the
+  migration workflow: **[SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)**.
 
 ## 5. What is NOT done / next steps ◻️
 
@@ -201,7 +202,8 @@ tell the owner to `npm run deploy` — the change is not live until they do.
 
 **Migrations workflow (important):** write a new numbered SQL file in `packages/db/migrations/`,
 apply it to **BOTH** prod (`2e88a362-…`) and staging (`85f22f44-…`) D1 (via the Cloudflare D1 MCP
-`d1_database_query` or `wrangler d1 migrations apply`), and **mirror the shape in `schema.ts`**.
+`d1_database_query` or `wrangler d1 migrations apply`), and **update
+[SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)** so the as-built table listing stays honest.
 Keep changes additive/nullable when an older Worker may still be live during rollout (see the
 `oring_size` vs `oring_usage` note in migration 0010).
 
@@ -210,8 +212,6 @@ Keep changes additive/nullable when an older Worker may still be live during rol
 - A `<button>` with no `type` defaults to `type="submit"`; inside a form, a `setState` in its
   `onClick` can morph it into the form's submit button and submit on click. Always set
   `type="button"` on non-submit buttons. (This caused the "Edit auto-saves" bug — commit `6f8f9f4`.)
-- `schema.ts` defines the attribute tables (`brands`, `product_types`, `usage_categories`,
-  `car_brands`) via an `attributeTable()` helper, not literal `sqliteTable("…")` — grep accordingly.
 - The demo product `prod-demo` is used for live UI verification. It may carry throwaway sample
   images; real products are unaffected.
 - Re-running the multi-agent code review: the workflow script is saved under the session's

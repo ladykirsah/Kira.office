@@ -97,7 +97,7 @@ car_brand, car_model}`.
 | Method | Path | Client fn | Notes |
 | --- | --- | --- | --- |
 | `GET` | `/stock` | `fetchStock()` | Per-variant on-hand (derived from `stock_ledger_entries`). |
-| `POST` | `/stock/adjust` | `adjustStock()` | Body `{productVariantId, quantityDelta, movementType, reason?}` → `{applied, quantityAfter, reason?}`. Goes through the `StockLedger` DO; blocks oversell. |
+| `POST` | `/stock/adjust` | `adjustStock()` | Body `{productVariantId, quantityDelta, movementType, reason?}` → `{applied, quantityAfter, reason?}`. Goes through the `StockLedger` DO. Rejects a delta that would drive stock negative — but the check **races under concurrency** (see the Durable Object section). |
 | `GET` | `/barcodes` | `fetchBarcodes()` | All variants + their primary barcode. |
 
 ## Sales & finance
@@ -128,7 +128,12 @@ car_brand, car_model}`.
 
 ## Durable Object
 
-`StockLedger` (`class StockLedger extends DurableObject<Env>`, bound `STOCK_LEDGER`) is the single
-writer for stock. `/sync`, `/stock/adjust`, and refunds route their ledger writes through it so
-concurrent on-site/online movements serialize; D1's unique index on `onsite_sales.client_uuid` is the
-double-count backstop. It is invoked internally by the Worker, not exposed as an HTTP route.
+`StockLedger` (`class StockLedger extends DurableObject<Env>`, bound `STOCK_LEDGER`) is a
+**stateless RPC facade** over D1 — three methods that delegate to `applySyncToDb` /
+`applyAdjustmentToDb` / `refundSaleToDb`. `/sync`, `/stock/adjust`, and refunds route their ledger
+writes through it. It is invoked internally by the Worker, not exposed as an HTTP route.
+
+> ⚠️ **It does not serialize anything.** It holds no DO storage and uses no `blockConcurrencyWhile`,
+> so concurrent calls interleave across their D1 awaits and the oversell check races. D1's unique
+> index on `onsite_sales.client_uuid` is the *real* double-count backstop. See
+> [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md) before relying on serialization.

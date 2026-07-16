@@ -25,7 +25,7 @@ finance) before any live Shopee writes, then connect Shopee as a gated phase. Se
 - Monorepo scaffold (npm workspaces) ✅
 - `packages/core` — full domain logic, test-first (100+ tests) ✅
 - `apps/api` Cloudflare Worker live (`/health`, `/pricing/preview`, `/products`, `/sync`, `PATCH /orders/:id`) ✅
-- `packages/db` Drizzle schema → D1 migration applied (16 tables) ✅
+- `packages/db` D1 schema via hand-written SQL migrations ✅
 - Stock-ledger **Durable Object** + idempotent `/sync` ✅
 - Bindings provisioned: D1 + KV ✅ · custom domain `api.homeseeker.me` ✅ · CI + auto-deploy ✅
 - _Remaining:_ **Cloudflare Access** secrets + staff RBAC wiring (stubs in `apps/api/src/auth.ts`);

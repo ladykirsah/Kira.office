@@ -146,7 +146,7 @@ export default function NewProductPage() {
         await adjustStock({
           productVariantId: vid,
           quantityDelta: stock,
-          movementType: "initial_stock",
+          movementType: "opening_balance",
           reason: "created from Add product",
         });
       }

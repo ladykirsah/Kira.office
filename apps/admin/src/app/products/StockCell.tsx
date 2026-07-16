@@ -75,9 +75,11 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
     }
     setBusy(true);
     try {
+      // Send the typed number, not `target - current`: `current` is from the last table load and
+      // may be stale, which would land the edit on the wrong on-hand.
       const res = await adjustStock({
         productVariantId: variantId,
-        quantityDelta: target - current,
+        countedOnHand: target,
         movementType: "manual_adjustment",
         reason: "edited from products table",
       });

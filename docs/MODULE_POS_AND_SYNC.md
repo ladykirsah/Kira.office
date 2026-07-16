@@ -24,7 +24,7 @@ flowchart TD
   Sale --> Q["Outbox (IndexedDB, or memory fallback)"]
   Q -->|online| Flush["flushOutbox(store, sync)"]
   Flush --> Sync["POST /sync"]
-  Sync --> DO["StockLedger Durable Object (single writer)"]
+  Sync --> DO["StockLedger Durable Object (stateless RPC hop — not serialized)"]
   DO --> D1["D1: onsite_sales + lines + stock_ledger_entries (one batch)"]
   DO -->|oversell| Conflict["conflict surfaced, not silently resolved"]
 ```
@@ -36,9 +36,10 @@ flowchart TD
   `onsite_sales.client_uuid` is the backstop** — re-flushing an already-synced sale is harmless.
 - `flushOutbox` removes a sale from the queue **only on success**; failures/throws keep it for the
   next flush. So a flaky network retries safely.
-- Stock applies as **ledger deltas** through the `StockLedger` Durable Object (single writer, so
-  concurrent on-site + online syncs serialize). Oversell is **blocked and returned as a
-  `conflict`**, never silently resolved or written as negative stock.
+- Stock applies as **ledger deltas** through the `StockLedger` Durable Object. Oversell is checked
+  and returned as a `conflict` rather than silently resolved. **⚠️ The DO does not serialize** — it
+  is a stateless RPC hop over D1, so that check races under concurrency and stock *can* land
+  negative. See [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md).
 - The sale + its lines + the ledger entries are written in **one D1 batch** so a sale can't half-land.
 
 ## Status & next steps

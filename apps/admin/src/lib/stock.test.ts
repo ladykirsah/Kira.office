@@ -44,31 +44,33 @@ describe("movementLabel", () => {
 
 describe("planAdjustment", () => {
   it("given receive > returns a positive delta tagged 'receive'", () => {
-    expect(planAdjustment("receive", 5, 8)).toEqual({ movementType: "receive", quantityDelta: 5 });
+    expect(planAdjustment("receive", 5)).toEqual({ movementType: "receive", quantityDelta: 5 });
   });
 
   it("given receive with a negative amount > uses the magnitude (never removes stock)", () => {
-    expect(planAdjustment("receive", -5, 8)).toEqual({
+    expect(planAdjustment("receive", -5)).toEqual({
       movementType: "receive",
       quantityDelta: 5,
     });
   });
 
   it("given write_off > returns a negative delta tagged 'write_off'", () => {
-    expect(planAdjustment("write_off", 3, 8)).toEqual({
+    expect(planAdjustment("write_off", 3)).toEqual({
       movementType: "write_off",
       quantityDelta: -3,
     });
   });
 
-  it("given correction > returns the delta from current to the counted target", () => {
-    expect(planAdjustment("correction", 10, 8)).toEqual({
+  // A stocktake sends the counted number and lets the server derive the delta from a fresh read.
+  // Subtracting a page-load on-hand here is the lost update this shape exists to prevent.
+  it("given correction > sends the counted on-hand, never a client-computed delta", () => {
+    expect(planAdjustment("correction", 10)).toEqual({
       movementType: "correction",
-      quantityDelta: 2,
+      countedOnHand: 10,
     });
-    expect(planAdjustment("correction", 5, 8)).toEqual({
+    expect(planAdjustment("correction", 5)).toEqual({
       movementType: "correction",
-      quantityDelta: -3,
+      countedOnHand: 5,
     });
   });
 });

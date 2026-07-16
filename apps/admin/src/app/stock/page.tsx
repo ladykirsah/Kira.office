@@ -55,17 +55,14 @@ export default function StockMovementsPage() {
       toast("Pick a product and enter a number", "error");
       return;
     }
-    const plan = planAdjustment(adjAction, amount, variant.onHand);
-    if (plan.quantityDelta === 0) {
-      toast("No change — on-hand already matches", "info");
-      return;
-    }
+    // A correction sends the counted number; the server decides the delta (and whether it's a
+    // no-op) against a fresh read, so the on-hand drawn at page load never decides anything.
+    const plan = planAdjustment(adjAction, amount);
     setAdjBusy(true);
     try {
       const res = await adjustStock({
         productVariantId: variant.variantId,
-        quantityDelta: plan.quantityDelta,
-        movementType: plan.movementType,
+        ...plan,
         reason: adjNote.trim() || undefined,
       });
       if (res.applied) {
