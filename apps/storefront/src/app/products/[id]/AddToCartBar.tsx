@@ -23,9 +23,11 @@ interface AddToCartBarProps {
 }
 
 /**
- * Sticky action bar (Lovito/Shopee pattern): two icon actions — "ช่วยหาอะไหล่" (help find parts →
- * LINE OA) and add-to-cart — beside a full-width "ซื้อเลยตอนนี้" (buy now: add then go to checkout).
- * Quantity is fixed at 1 here and adjusted in the cart. Prices are display-only; checkout re-prices.
+ * Sticky action bar (Lovito/Shopee pattern): a blue trust rail (genuine parts + free LINE consult)
+ * over three controls — a quiet "หาอะไหล่" ghost (help find parts → LINE OA), a solid-blue
+ * add-to-cart (secondary CTA), and the red "ซื้อเลยตอนนี้" primary (buy now: add then checkout).
+ * Blue is the highlight color; red stays the money action. Quantity is fixed at 1 here and adjusted
+ * in the cart. Prices are display-only; checkout re-prices.
  */
 export function AddToCartBar({
   variantId,
@@ -63,9 +65,9 @@ export function AddToCartBar({
     router.push("/checkout");
   };
 
-  // "Design 2" tinted chips: the two secondary actions get a soft coral-tint fill + rounded corners
-  // so they read as real buttons (not floating icons) next to the filled "ซื้อเลยตอนนี้" pill.
-  const iconBtn: React.CSSProperties = {
+  // Shared icon-chip layout for the two side actions. `whiteSpace: nowrap` keeps the labels on one
+  // line — "ช่วยหาอะไหล่" used to wrap to two lines in the 56px chip and knock the icon out of line.
+  const chipBase: React.CSSProperties = {
     flex: "0 0 auto",
     display: "flex",
     flexDirection: "column",
@@ -73,39 +75,71 @@ export function AddToCartBar({
     justifyContent: "center",
     gap: 3,
     width: 56,
-    minHeight: 44,
+    minHeight: 46,
     padding: "0 2px",
     border: "none",
-    background: "rgba(235, 80, 49, 0.1)",
     borderRadius: 12,
-    color: "var(--brand)",
     fontSize: 10,
-    fontWeight: 600,
-    lineHeight: 1.1,
+    fontWeight: 700,
+    lineHeight: 1.05,
+    whiteSpace: "nowrap",
     textDecoration: "none",
     cursor: "pointer",
   };
+  // Help = quiet ghost (the blue trust rail above already surfaces the free LINE consult);
+  // add-to-cart = solid blue secondary CTA; buy-now stays the red primary. Blue = the highlight color.
+  const helpChip: React.CSSProperties = {
+    ...chipBase,
+    background: "var(--paper)",
+    color: "var(--gray-mid)",
+  };
+  const cartChip: React.CSSProperties = {
+    ...chipBase,
+    background: "var(--brand-blue)",
+    color: "var(--white)",
+  };
 
-  const helpIcon = <Icon name="chat" size={22} />;
-
-  const cartIcon = justAdded ? <Icon name="check" size={22} /> : <Icon name="cart" size={22} />;
+  // Blue trust/confidence rail above the buttons: genuine-parts + free technician consult (LINE).
+  const rail = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        marginBottom: 10,
+        padding: "6px 10px",
+        borderRadius: 10,
+        fontSize: 11,
+        fontWeight: 700,
+        color: "var(--brand-blue)",
+        background: "rgba(1, 90, 191, 0.08)",
+      }}
+    >
+      <Icon name="check" size={14} />
+      <span>อะไหล่แท้ 100% · ปรึกษาช่างฟรีทาง LINE</span>
+    </div>
+  );
 
   const helpAction = (
     <a
       href={LINE_OA_URL}
       target="_blank"
       rel="noopener noreferrer"
-      style={iconBtn}
+      style={helpChip}
       aria-label="ช่วยหาอะไหล่ทาง LINE"
     >
-      {helpIcon}
-      <span>ช่วยหาอะไหล่</span>
+      <Icon name="chat" size={22} />
+      <span>หาอะไหล่</span>
     </a>
   );
+
+  const cartIcon = justAdded ? <Icon name="check" size={22} /> : <Icon name="cart" size={22} />;
 
   if (onHand <= 0) {
     return (
       <div className="sticky-bar">
+        {rail}
         <div className="sticky-bar-inner" style={{ gap: 8, alignItems: "stretch" }}>
           {helpAction}
           <button type="button" className="btn btn-primary" style={{ flex: 1 }} disabled>
@@ -118,9 +152,10 @@ export function AddToCartBar({
 
   return (
     <div className="sticky-bar">
+      {rail}
       <div className="sticky-bar-inner" style={{ gap: 8, alignItems: "stretch" }}>
         {helpAction}
-        <button type="button" style={iconBtn} onClick={handleAdd} aria-label="หยิบใส่ตะกร้า">
+        <button type="button" style={cartChip} onClick={handleAdd} aria-label="หยิบใส่ตะกร้า">
           {cartIcon}
           <span>{justAdded ? "เพิ่มแล้ว" : "ใส่ตะกร้า"}</span>
         </button>

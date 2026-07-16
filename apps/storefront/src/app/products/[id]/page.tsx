@@ -198,7 +198,7 @@ export default async function ProductPage(props: PageProps) {
                           height: 30,
                           flex: "0 0 auto",
                           borderRadius: 9,
-                          background: "rgba(235, 80, 49, 0.1)",
+                          background: "rgba(1, 90, 191, 0.1)" /* faded blue info frame */,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -237,7 +237,7 @@ export default async function ProductPage(props: PageProps) {
                       <Icon
                         name="check"
                         size={17}
-                        style={{ flexShrink: 0, color: "var(--brand)" }}
+                        style={{ flexShrink: 0, color: "var(--brand-blue)" }}
                       />
                       <span
                         style={{

@@ -49,7 +49,7 @@ export function AccountNav() {
             width: 9,
             height: 9,
             borderRadius: "50%",
-            background: "var(--ok)",
+            background: "var(--brand-blue)",
             border: "2px solid var(--surface)",
           }}
         />

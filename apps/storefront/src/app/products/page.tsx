@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductFilter } from "@/components/ProductFilter";
+import { OPEN_BOX_TYPE_ID } from "@/lib/labels";
 
 // Live catalog data from D1 — must render per-request on the Worker, never prerender at build
 // time (the build environment has no real database).
@@ -64,6 +65,13 @@ export default async function ProductsPage(props: {
       ? productTypesForCarBrand(db, carBrand)
       : Promise.resolve<{ id: string; name: string }[]>([]),
   ]);
+
+  // "กล่องไม่สวย" (open box) is an offer-type category surfaced ONLY through its own home collection —
+  // keep it out of the /products category pickers (chips + filter) so it can't be browsed as a normal
+  // category here. Direct links from that home collection still work: the catalog query honours the
+  // URL `type`, and the headline still resolves its name from the full `types` list below.
+  const pickableTypes = types.filter((t) => t.id !== OPEN_BOX_TYPE_ID);
+  const pickableBrandTypes = brandTypes.filter((t) => t.id !== OPEN_BOX_TYPE_ID);
 
   // One href builder: start from the current params, apply overrides (undefined = drop that key).
   const hrefWith = (over: Partial<Record<string, string | undefined>>) => {
@@ -125,12 +133,12 @@ export default async function ProductsPage(props: {
           previous PAGE (home/category) — not a prior filter state the shopper didn't navigate to. */}
       {isSaleView ? null : isBrandView ? ( // On-Sale is a flat deals list — no cross-axis shortcut
         // By Brand: narrow this car brand by part category (only categories it actually has).
-        brandTypes.length > 0 && (
+        pickableBrandTypes.length > 0 && (
           <div className="chip-row" style={{ marginBottom: 12 }}>
             <Link href={brandTypeChipHref()} replace className={type ? "chip" : "chip on"}>
               ทั้งหมด
             </Link>
-            {brandTypes.map((t) => (
+            {pickableBrandTypes.map((t) => (
               <Link
                 key={t.id}
                 href={brandTypeChipHref(t.id)}
@@ -167,7 +175,7 @@ export default async function ProductsPage(props: {
           <Link href={catChipHref()} replace className={type ? "chip" : "chip on"}>
             ทั้งหมด
           </Link>
-          {types.map((t) => (
+          {pickableTypes.map((t) => (
             <Link
               key={t.id}
               href={catChipHref(t.id)}
@@ -183,7 +191,7 @@ export default async function ProductsPage(props: {
       <div style={{ marginBottom: 12 }}>
         <ProductFilter
           fitments={fitments}
-          types={types}
+          types={pickableTypes}
           brands={brands}
           current={{ q, carBrand, carModel, year, type, brand, ctx }}
         />

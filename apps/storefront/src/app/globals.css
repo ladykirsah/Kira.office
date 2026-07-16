@@ -1,7 +1,10 @@
-/* AirPlus storefront design tokens — LOCKED v2 (July 2026).
+/* AirPlus storefront design tokens — LOCKED v3 red DENSO CI (July 2026).
  *
- * Direction: 03 Confident Retail (marketplace-refined, warm accent on cool neutrals).
- * Palette source: owner's Shopee CI, disciplined into 7 tokens + 3 computed hover backgrounds.
+ * Direction: DENSO-representative red identity (bright red primary + dark red depth on a
+ * black/white/gray cinematic frame). Replaces the earlier coral (#eb5031) which read too close
+ * to the owner's own Shopee shop (#ee4d2d). Owner-approved 8-color palette (see the homepage
+ * palette artifact): แดงสด #e10000 · แดงเข้ม #960101 · ดำ #000 · ขาว #fff · เทา #ebebeb/#bbbbbb/#737373
+ * · น้ำเงิน #015abf (highlight only — "blue is for some highlight").
  * Type + button system: see the component preview artifact used to lock this.
  *
  * IMPORTANT: existing pages consume semantic tokens (--accent, --text, --border, etc.).
@@ -11,19 +14,20 @@
  */
 
 :root {
-  /* ---- Locked 7-color CI (see component preview artifact) ---- */
-  --brand: #eb5031; /* Primary orange — CTAs, wordmark, accents */
-  --brand-deep: #c62100; /* Secondary deep red — depth, hover text, sale badge, price */
-  --gray-dark: #373636; /* Default button, ink text, footer bg */
+  /* ---- Locked red DENSO CI (see homepage palette artifact) ---- */
+  --brand: #e10000; /* Primary bright red — header, CTAs, wordmark, sale badge, accents */
+  --brand-deep: #960101; /* Dark red — price, depth, hover text, links, deep accents */
+  --brand-blue: #015abf; /* Blue HIGHLIGHT only — genuine/แท้ trust + Car-Fitment overline */
+  --gray-dark: #1a1a1a; /* Near-black — ink text, default button, footer bg */
   --gray-mid: #737373; /* Muted body text, disabled text */
-  --gray-lite: #d0cfcf; /* Borders, subtle dividers, disabled bg */
-  --paper: #f4f4f4; /* Body paper background */
+  --gray-lite: #bbbbbb; /* Borders, subtle dividers, disabled bg */
+  --paper: #ebebeb; /* Body paper background */
   --white: #ffffff; /* Cards, button text on colored buttons */
 
   /* ---- Computed hover backgrounds (fade-to-lighter pattern, per spec) ---- */
-  --brand-hover-bg: #f1846f; /* 70% of brand mixed with white */
-  --brand-deep-hover-bg: #dd7a66; /* 60% of brand-deep mixed with white */
-  --gray-dark-hover-bg: #878686; /* 60% of gray-dark mixed with white */
+  --brand-hover-bg: #ea4d4d; /* 70% of brand mixed with white */
+  --brand-deep-hover-bg: #c06767; /* 60% of brand-deep mixed with white */
+  --gray-dark-hover-bg: #767676; /* 60% of gray-dark mixed with white */
 
   /* ---- Legacy semantic tokens remapped to the new palette (BACKWARD COMPAT).
    *      Existing page code uses --accent, --text, --border, --surface, etc. — those
@@ -37,7 +41,7 @@
   --text-faint: #a5a5a5; /* Decorative only — never real information */
   --accent: var(--brand);
   --accent-hover: var(--brand-deep);
-  --accent-soft: #ffe8e0; /* Soft brand tint for pills / badges */
+  --accent-soft: #fbe0e0; /* Soft brand tint for pills / badges */
 
   /* Status colors (kept from prior for stock/error pills) */
   --ok: #1a7f37;
@@ -45,19 +49,19 @@
   --warn: #9a6700;
   --warn-soft: #fcf3dd;
   --ship: #059669; /* Emerald — free-ship ribbon + "พร้อมส่ง" ready-to-ship dot on product cards */
-  --flash-soft: #ffd9cd; /* flash-sale scarcity-bar track (soft brand tint) */
+  --flash-soft: #f9caca; /* flash-sale scarcity-bar track (soft brand tint) */
   --silver: #9aa0a6; /* best-seller rank 2 medal */
   --bronze: #c17a3f; /* best-seller rank 3 medal */
   --shopee: #ee4d2d; /* partner platform brand — badge/CTA only (affiliate shelf) */
   --lazada: #0f146d; /* partner platform brand — badge/CTA only (affiliate shelf) */
   --danger: var(--brand-deep);
-  --danger-soft: #ffe8e0;
+  --danger-soft: #fbe0e0;
 
   /* ---- Layout / chrome ---- */
   --radius: 16px;
   --radius-sm: 10px;
-  --shadow: 0 1px 3px rgba(55, 54, 54, 0.06);
-  --shadow-md: 0 4px 12px rgba(198, 33, 0, 0.14);
+  --shadow: 0 1px 3px rgba(26, 26, 26, 0.06);
+  --shadow-md: 0 4px 12px rgba(150, 1, 1, 0.14);
   --maxw: 1080px;
   --footer-bg: var(--gray-dark);
   --footer-text: var(--gray-lite);
@@ -195,14 +199,14 @@ textarea {
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
-  color: var(--brand-deep);
+  color: var(--brand); /* bright red — the selling / promotion price */
 }
 .t-price-m {
   font-size: 18px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.015em;
-  color: var(--brand-deep);
+  color: var(--brand); /* bright red — the selling / promotion price */
 }
 .t-price-strike {
   font-size: 12px;
@@ -650,7 +654,7 @@ textarea {
   background: transparent;
 }
 .btn-outline.btn-primary:hover:not(:disabled):not(.is-disabled) {
-  background: rgba(235, 80, 49, 0.08);
+  background: rgba(225, 0, 0, 0.08);
   color: var(--brand-deep);
   border-color: var(--brand-deep);
 }
@@ -660,7 +664,7 @@ textarea {
   background: transparent;
 }
 .btn-outline.btn-secondary:hover:not(:disabled):not(.is-disabled) {
-  background: rgba(198, 33, 0, 0.08);
+  background: rgba(150, 1, 1, 0.08);
   color: var(--brand-deep);
 }
 .btn-outline.btn-default {
@@ -688,6 +692,9 @@ textarea {
 }
 .btn-text.btn-default {
   color: var(--gray-dark);
+}
+.btn-text.btn-info {
+  color: var(--brand-blue); /* blue text link for secondary/utility actions (e.g. เปลี่ยนเบอร์) */
 }
 .btn-text:hover:not(:disabled):not(.is-disabled) {
   background: transparent;
@@ -761,7 +768,7 @@ textarea {
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--brand);
+  background: var(--brand-blue); /* count badge = blue (matches cart/filter count highlights) */
   color: var(--white);
   font-size: 11px;
   font-weight: 800;
@@ -1045,7 +1052,7 @@ textarea {
   margin-top: 5px;
 }
 .tl-dot.done {
-  background: rgba(235, 80, 49, 0.45);
+  background: rgba(225, 0, 0, 0.45);
 }
 .tl-dot.current {
   background: var(--brand);
@@ -1062,9 +1069,9 @@ textarea {
   flex: 1;
   min-height: 20px;
 }
-/* Travelled segments read coral; the road ahead stays grey. */
+/* Travelled segments read red; the road ahead stays grey. */
 .tl-line.done {
-  background: rgba(235, 80, 49, 0.35);
+  background: rgba(225, 0, 0, 0.35);
 }
 .tl-line.future {
   background: var(--border);
@@ -1273,7 +1280,7 @@ textarea {
   flex-wrap: wrap;
 }
 .compact-card .ci-price {
-  color: var(--brand-deep);
+  color: var(--brand);
   font-size: 15px;
   font-weight: 800;
 }
@@ -1334,7 +1341,7 @@ textarea {
 .cat-sub {
   font-size: 10.5px;
   font-weight: 600;
-  color: var(--brand-deep);
+  color: var(--brand-blue); /* item-count = blue info highlight (matches other count tags) */
   margin-top: 2px;
 }
 
@@ -1483,31 +1490,95 @@ textarea {
   font-size: 13px;
   color: var(--gray-mid);
 }
-.acct-member {
+/* Member profile card — owner-picked "Design B, no picture" (2026-07-16).
+   The NAME is the card: it is the thing the customer came to check and, until now, the thing they
+   could never fix. Phone sits under it as the quieter supporting fact, and ONE แก้ไข opens both.
+   สมาชิกตั้งแต่ was dropped — the greeting directly above already says it. */
+.acct-profile {
   margin-top: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  padding: 16px;
   background: var(--white);
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(55, 54, 54, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.acct-member .p {
-  font-size: 16px;
+/* min-width:0 so a long Thai name ellipsises instead of shoving แก้ไข off the card. */
+.acct-profile-id {
+  flex: 1;
+  min-width: 0;
+}
+.acct-profile-name {
+  font-size: 18px;
   font-weight: 800;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   color: var(--gray-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.acct-member .b {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--brand-deep);
-  background: rgba(235, 80, 49, 0.12);
-  border-radius: 999px;
-  padding: 4px 10px;
+/* An invitation, not a blank — a nameless account is the case this card exists to resolve. */
+.acct-profile-empty {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.acct-profile-phone {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Inside the edit panel: the phone is shown but changed through its own OTP flow. */
+.acct-profile-phonerow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.acct-profile-phonerow > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.acct-profile-k {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.acct-profile-v {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-dark);
+  font-variant-numeric: tabular-nums;
+}
+.acct-profile-ok {
+  flex: 0 0 100%;
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* Fixed-width key column so the values line up into a readable column on a narrow phone. */
+.acct-profile-k {
+  flex: 0 0 84px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+/* min-width:0 so a long name ellipsises instead of shoving the action button off-screen. */
+.acct-profile-v {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct-profile-ok {
+  padding: 8px 0 10px;
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 600;
 }
 .acct-tiles {
   display: grid;
@@ -1535,7 +1606,7 @@ textarea {
   height: 40px;
   flex: 0 0 auto;
   border-radius: 12px;
-  background: rgba(235, 80, 49, 0.1);
+  background: rgba(225, 0, 0, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1853,7 +1924,7 @@ textarea {
   position: absolute;
   top: 5px;
   right: 5px;
-  background: var(--brand-deep);
+  background: var(--brand-blue);
   color: var(--white);
   font-size: 10px;
   font-weight: 800;
@@ -1884,7 +1955,7 @@ textarea {
   flex-wrap: wrap;
 }
 .fl-price {
-  color: var(--brand-deep);
+  color: var(--brand);
   font-size: 17px;
   font-weight: 800;
 }
@@ -1993,8 +2064,8 @@ textarea {
 }
 .bs-sales {
   display: inline-block;
-  background: var(--accent-soft);
-  color: var(--brand);
+  background: rgba(1, 90, 191, 0.1); /* blue-theme social-proof tag (info highlight) */
+  color: var(--brand-blue);
   font-size: 11.5px;
   font-weight: 600;
   padding: 4px 10px;

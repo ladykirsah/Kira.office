@@ -1,5 +1,6 @@
 import { getSession, guardMutation } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { collapseToSingleDefault } from "@/lib/addresses";
 
 export interface AddressRow {
   id: string;
@@ -30,16 +31,20 @@ export async function GET(): Promise<Response> {
       )
       .bind(customer.id)
       .all<Omit<AddressRow, "isDefault"> & { isDefault: number }>();
-    return Response.json({
-      addresses: (rows.results ?? []).map((a) => ({ ...a, isDefault: Boolean(a.isDefault) })),
-    });
+    // Rows come back default-first, newest-first. Legacy/seed data can carry more than one
+    // is_default=1, so collapse to a single default (the latest wins) — the UI then never shows two
+    // "ค่าเริ่มต้น" badges and checkout resolves one deterministic default.
+    const addresses = collapseToSingleDefault(
+      (rows.results ?? []).map((a) => ({ ...a, isDefault: Boolean(a.isDefault) })),
+    );
+    return Response.json({ addresses });
   } catch (err) {
     console.error("GET /api/account/addresses failed", err);
     return Response.json({ error: "เกิดข้อผิดพลาดในระบบ" }, { status: 500 });
   }
 }
 
-/** POST /api/account/addresses — add an address (becomes default when it is the first). */
+/** POST /api/account/addresses — add an address; the newest becomes the default (only one at a time). */
 export async function POST(req: Request): Promise<Response> {
   try {
     const guarded = guardMutation(req);
@@ -63,11 +68,9 @@ export async function POST(req: Request): Promise<Response> {
     const db = await getDb();
     const now = Date.now();
     const id = crypto.randomUUID();
-    const hasAny = await db
-      .prepare(`SELECT id FROM addresses WHERE storefront_customer_id = ? LIMIT 1`)
-      .bind(customer.id)
-      .first<{ id: string }>();
-    const makeDefault = b.isDefault === true || !hasAny;
+    // The newest address becomes the default — there is only ever one default (the clear-others UPDATE
+    // below enforces that). A caller can opt out by explicitly sending isDefault:false.
+    const makeDefault = b.isDefault !== false;
     const statements = [
       db
         .prepare(

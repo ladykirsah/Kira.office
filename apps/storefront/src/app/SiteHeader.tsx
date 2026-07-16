@@ -7,7 +7,7 @@ import { CartBadge } from "./CartBadge";
 import { SearchBox } from "@/components/SearchBox";
 
 /**
- * Global storefront header: brand-orange band, row 1 = wordmark + cart + profile, row 2 = the
+ * Global storefront header: brand-red band, row 1 = wordmark + cart + profile, row 2 = the
  * persistent search bar. Shown ONLY on the home page — the cart uses CartHeader and every other
  * route uses InnerHeader (back + title). usePathname resolves during SSR → no flash.
  */
@@ -51,7 +51,7 @@ export function SiteHeader() {
             Air
             <span
               style={{
-                color: "var(--white)",
+                color: "var(--gray-dark)" /* black "+" pop on the red band (red+black CI) */,
                 fontSize: "1.25em",
                 fontWeight: 900,
                 display: "inline-block",

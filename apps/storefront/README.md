@@ -12,6 +12,12 @@ accounts.
 
 ## What it does
 
+- **Visual identity — red DENSO CI** (the shop is a DENSO representative): bright red `#e10000`
+  (header / CTAs / sale) + dark red `#960101` (price / links) on a black / white / gray scale, with
+  blue `#015abf` reserved as an info / trust highlight only (counts, badges, "แท้ / genuine", the
+  LINE-consult rail). Replaced the earlier coral `#eb5031`, which read too close to the owner's own
+  Shopee shop (`#ee4d2d`). All tokens live in `src/app/globals.css`; section headlines use one locked
+  pattern (dark-red overline + charcoal title). Banner PNGs are the one asset still to be re-exported.
 - Home v2 landing: shortcut bar, collections, a timed flash sale, best-sellers, shop-by-brand,
   categories, promo banners, and recently-viewed — plus a dedicated search landing at `/search`
   (recent-search chips, car-logo tiles, case-driven suggestions).
@@ -19,8 +25,10 @@ accounts.
   finds everything that fits a Vigo), part-type chips, no dropdown cascades.
 - Image-first product page with fitment list and per-product VAT-inclusive price display, a header
   Share action and collapsible section blocks.
-- Client-side cart (localStorage) → **guest checkout**: phone + name only, flat address form,
-  3 payment methods (PromptPay QR / bank transfer / COD) described plainly BEFORE commit.
+- Client-side cart (localStorage) → **guest checkout**: phone + name only, an address form with
+  **Thai postcode autofill** (type a 5-digit zip → จังหวัด/อำเภอ fill in, a ตำบล dropdown for that
+  zip; picking a ตำบล refines the อำเภอ for zips that span several), 3 payment methods (PromptPay
+  QR / bank transfer / COD) described plainly BEFORE commit.
 - `POST /api/checkout`: server-side re-pricing (client prices never trusted), fail-closed stock
   check, idempotent on a client ref (retry ≠ duplicate order), real profit recorded per order,
   atomic D1 batch, then stock deduction through the shared `StockLedger` DO (idempotent per order,
@@ -38,8 +46,10 @@ accounts.
   already-registered only; register → new number only); `POST /api/auth/otp/verify` enforces the
   consent invariant. Backed by `storefront_sessions` + throttle, a Turnstile seam, and
   `OTP_DEV_ECHO` on staging.
-- Account area: `/account` hub with a PDPA consent-receipt card, `/account/orders`,
-  `/account/addresses`, and a `/account/coupons` wallet.
+- Account area: `/account` hub with a PDPA consent-receipt card, `/account/orders`, a
+  `/account/addresses` book (add / **edit** / delete, exactly one default kept on the newest address,
+  the same **Thai postcode autofill** as checkout), and a `/account/coupons` wallet. Both address
+  forms share `lib/thaiGeo.ts` + `public/thai-postcodes.json` (earthchie dataset, MIT).
 - **LINE help**: every "ช่วยหาอะไหล่ / ช่วยเหลือ / เพิ่มเพื่อน LINE" action (home shortcut, PDP
   sticky bar, account tile, home follow strip) opens the shop's LINE OA add-friend link directly
   (`LINE_OA_URL = https://lin.ee/tltIFtI` → `@811gvdun`, in `src/lib/links.ts`) — the LINE app on

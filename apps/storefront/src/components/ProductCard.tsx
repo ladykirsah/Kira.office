@@ -125,8 +125,8 @@ export function ProductCard({ item }: { item: CatalogItem }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span
               style={{
-                // On sale → deep-red "deal" price; full price → black.
-                color: eff.onSale ? "var(--brand-deep)" : "var(--gray-dark)",
+                // On sale → bright-red "deal"/promotion price; full price → black.
+                color: eff.onSale ? "var(--brand)" : "var(--gray-dark)",
                 fontSize: 18,
                 fontWeight: 800,
                 letterSpacing: "-0.01em",

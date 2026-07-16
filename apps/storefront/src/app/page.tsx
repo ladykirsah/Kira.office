@@ -360,6 +360,8 @@ function SectionHead({
   title: string;
   link?: { href: string; label: string };
 }) {
+  // LOCKED headline pattern — one style for every home section head: dark-red overline (--brand-deep)
+  // + charcoal title + dark-red "ดูทั้งหมด →". Blue stays reserved for trust highlights, not labels.
   return (
     <div style={{ marginBottom: 14 }}>
       <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>

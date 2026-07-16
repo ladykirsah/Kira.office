@@ -6,6 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpLogin } from "@/components/OtpLogin";
 import type { AddressRow } from "@/app/api/account/addresses/route";
 import { cartTotalSatang, clearCart, useCart } from "@/lib/cart";
+import { ALL_COUPONS, readCollectedCodes, type Coupon } from "@/lib/coupons";
+import { imgUrl } from "@/lib/img";
 import { Icon } from "@/components/Icon";
 import {
   type CheckoutPaymentMethod,
@@ -14,6 +16,7 @@ import {
   type CouponCheckResponse,
 } from "@/lib/checkoutApi";
 import { baht } from "@/lib/format";
+import { loadPostcodes, resolvePostcode, type PostcodeEntry } from "@/lib/thaiGeo";
 
 /**
  * Checkout v2 — ONE page, all sections visible at once (the anti-inw.me statement: no hidden
@@ -112,8 +115,7 @@ const PAYMENT_OPTIONS: { id: CheckoutPaymentMethod; title: string; detail: strin
   {
     id: "transfer",
     title: "โอนผ่านบัญชีธนาคาร",
-    detail:
-      "บัญชีร้านค้านิติบุคคล Den Air Service — รายละเอียดบัญชีจะแสดงหลังยืนยัน (ไม่ใช่บัญชีส่วนตัว)",
+    detail: "โอนแล้วแนบสลิป รอร้านตรวจสอบและยืนยันการชำระเงิน",
   },
   {
     id: "cod",
@@ -128,6 +130,22 @@ function generateRef(): string {
   const buf = new Uint8Array(8);
   crypto.getRandomValues(buf);
   return `AP-${Array.from(buf, (b) => chars[b % chars.length]).join("")}`;
+}
+
+/** Small square line thumbnail for the order summary — the shared ✦ frame, image when it has one. */
+function LineThumb({ imageKey, name }: { imageKey: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div className="frame" style={{ width: 40, height: 40, flexShrink: 0 }}>
+      {imageKey && !failed ? (
+        <img src={imgUrl(imageKey)} alt={name} onError={() => setFailed(true)} />
+      ) : (
+        <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1, color: "var(--brand)" }}>
+          ✦
+        </span>
+      )}
+    </div>
+  );
 }
 
 function SectionTitle({ n, children }: { n: number; children: React.ReactNode }) {
@@ -169,6 +187,16 @@ const linkButtonStyle: React.CSSProperties = {
   textDecoration: "underline",
 };
 
+/** One money row in the order summary: label left, value right, both baseline-aligned. */
+const coSumLine: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "baseline",
+  gap: 12,
+  fontSize: 14,
+  marginBottom: 8,
+};
+
 /** The slice of /api/auth/me the checkout page needs. undefined = still loading. */
 interface Me {
   id: string;
@@ -199,6 +227,9 @@ export default function CheckoutPage() {
   const [district, setDistrict] = useState("");
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [addrTambons, setAddrTambons] = useState<PostcodeEntry[]>([]);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressSaveError, setAddressSaveError] = useState<string | null>(null);
 
   // ③ payment + coupon + submit
   const [payment, setPayment] = useState<CheckoutPaymentMethod>("promptpay");
@@ -207,6 +238,14 @@ export default function CheckoutPage() {
   const [couponChecking, setCouponChecking] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [coupon, setCoupon] = useState<{ code: string; discountSatang: number } | null>(null);
+  // Which coupon a check is running for: the code (from the collected list) or null (the code box).
+  // Lets exactly one row spin while every button disables — one coupon at a time, no double-apply.
+  const [applyingCode, setApplyingCode] = useState<string | null>(null);
+  // The shopper's collected coupons (client wallet). Read once on mount — localStorage is browser-only.
+  const [collectedCodes, setCollectedCodes] = useState<string[]>([]);
+  useEffect(() => {
+    setCollectedCodes(readCollectedCodes());
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -275,10 +314,23 @@ export default function CheckoutPage() {
   const discount = coupon ? Math.min(coupon.discountSatang, subtotal) : 0;
   const total = subtotal - discount;
 
-  async function applyCoupon() {
-    const code = couponInput.trim();
+  // Collected codes → their catalog display info, newest-collected first. Unknown codes (collected
+  // then removed from the catalog) are dropped rather than shown as a bare code.
+  const collectedCoupons: Coupon[] = collectedCodes
+    .map((code) => ALL_COUPONS.find((c) => c.code === code))
+    .filter((c): c is Coupon => c !== undefined);
+
+  /**
+   * Validate + apply a coupon, from EITHER entry point: a tapped collected coupon (rawCode given)
+   * or the typed code box (rawCode omitted). Both funnel through the same server check, so the two
+   * ways can never disagree on whether a code is valid. Applying replaces any current coupon —
+   * that is how "one coupon at a time" is enforced without extra logic.
+   */
+  async function applyCoupon(rawCode?: string) {
+    const code = (rawCode ?? couponInput).trim().toUpperCase();
     if (!code || couponChecking) return;
     setCouponChecking(true);
+    setApplyingCode(rawCode ? code : null);
     setCouponError(null);
     try {
       const res = await fetch("/api/coupons/check", {
@@ -297,6 +349,7 @@ export default function CheckoutPage() {
       setCouponError("เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     }
     setCouponChecking(false);
+    setApplyingCode(null);
   }
 
   const needName = me != null && me.name === "";
@@ -313,10 +366,79 @@ export default function CheckoutPage() {
     district.trim() !== "" &&
     province !== "" &&
     /^\d{5}$/.test(postalCode);
-  const addressOk =
-    me != null && (usingNewAddress ? newAddressOk : addresses.some((a) => a.id === addressChoice));
+  // A new address must be SAVED before the order can go through: saving it selects it, so at
+  // place-order time a "new" (still-unsaved) address is never the choice. This is what gives the
+  // form a real action instead of silently persisting at submit — the owner's "need save button".
+  const addressOk = me != null && !usingNewAddress && addresses.some((a) => a.id === addressChoice);
 
   const valid = lines.length > 0 && me != null && nameOk && addressOk;
+
+  // Thai postcode autofill (same behaviour as the address book): a 5-digit zip fills จังหวัด + อำเภอ
+  // (editable) and loads the ตำบล dropdown for that area; picking a ตำบล refines อำเภอ/จังหวัด.
+  const addrMultiAmphoe = new Set(addrTambons.map((t) => t.amphoe)).size > 1;
+  const addrTambonIdx = addrTambons.findIndex(
+    (t) => t.tambon === subdistrict && t.amphoe === district,
+  );
+  async function applyPostcode(zip: string) {
+    const map = await loadPostcodes();
+    const res = resolvePostcode(map, zip);
+    setAddrTambons(res ? res.tambons : []);
+    if (res) {
+      setProvince(res.province);
+      setDistrict(res.amphoe);
+      setSubdistrict("");
+    }
+  }
+
+  /**
+   * Save the just-entered new address to the book, then SELECT it — so it collapses into a chosen
+   * saved address and the place-order bar lights up. Routes through the same POST the address book
+   * uses (validation + first-address-becomes-default live there), so nothing is duplicated. On
+   * success the form is cleared, because the address it held now lives in the list above it.
+   */
+  async function saveNewAddress() {
+    if (!me || !newAddressOk || savingAddress) return;
+    setSavingAddress(true);
+    setAddressSaveError(null);
+    try {
+      const res = await fetch("/api/account/addresses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientName: sameRecipient ? accountName : recipientName.trim(),
+          phone: sameRecipient ? me.phone : recipientPhone.trim(),
+          addressLine1: addressLine1.trim(),
+          subdistrict: subdistrict.trim(),
+          district: district.trim(),
+          province,
+          postalCode,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (!res.ok || !data.id) {
+        setAddressSaveError(data.error ?? "บันทึกที่อยู่ไม่สำเร็จ กรุณาลองใหม่");
+        return;
+      }
+      // Re-read the book so the new row shows with its real default flag, then select it.
+      const listRes = await fetch("/api/account/addresses");
+      const listData = (await listRes.json().catch(() => ({}))) as { addresses?: AddressRow[] };
+      setAddresses(listData.addresses ?? []);
+      setAddressChoice(data.id);
+      setAddressLine1("");
+      setSubdistrict("");
+      setDistrict("");
+      setProvince("");
+      setPostalCode("");
+      setAddrTambons([]);
+      setRecipientName("");
+      setRecipientPhone("");
+      setSameRecipient(true);
+    } catch {
+      setAddressSaveError("เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่");
+    } finally {
+      setSavingAddress(false);
+    }
+  }
 
   async function submit() {
     if (!valid || submitting || !me) return;
@@ -464,6 +586,7 @@ export default function CheckoutPage() {
                     className="card"
                     style={{
                       display: "flex",
+                      alignItems: "center",
                       gap: 10,
                       padding: 14,
                       cursor: "pointer",
@@ -476,7 +599,7 @@ export default function CheckoutPage() {
                       name="addressChoice"
                       checked={on}
                       onChange={() => setAddressChoice(a.id)}
-                      style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--accent)" }}
+                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: "var(--accent)" }}
                     />
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>
@@ -497,6 +620,7 @@ export default function CheckoutPage() {
                 className="card"
                 style={{
                   display: "flex",
+                  alignItems: "center",
                   gap: 10,
                   padding: 14,
                   cursor: "pointer",
@@ -509,7 +633,7 @@ export default function CheckoutPage() {
                   name="addressChoice"
                   checked={usingNewAddress}
                   onChange={() => setAddressChoice("new")}
-                  style={{ width: 18, height: 18, accentColor: "var(--accent)" }}
+                  style={{ width: 18, height: 18, flexShrink: 0, accentColor: "var(--accent)" }}
                 />
                 <span style={{ fontSize: 14, fontWeight: 700 }}>ใช้ที่อยู่ใหม่</span>
               </label>
@@ -573,27 +697,31 @@ export default function CheckoutPage() {
                   style={{ resize: "vertical" }}
                 />
               </div>
+              {/* Location, zip-first: postcode fills จังหวัด/อำเภอ and offers this area's ตำบล. */}
+              <div className="field">
+                <label htmlFor="co-postal">รหัสไปรษณีย์</label>
+                <input
+                  id="co-postal"
+                  className="input"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  autoComplete="postal-code"
+                  value={postalCode}
+                  onChange={(e) => {
+                    const zip = e.target.value.replace(/\D/g, "").slice(0, 5);
+                    setPostalCode(zip);
+                    if (/^\d{5}$/.test(zip)) void applyPostcode(zip);
+                    else setAddrTambons([]);
+                  }}
+                />
+                <span
+                  style={{ display: "block", fontSize: 12, color: "var(--muted)", marginTop: 4 }}
+                >
+                  กรอกรหัสไปรษณีย์ ระบบจะเติมจังหวัด/อำเภอ และให้เลือกตำบลของพื้นที่นั้น
+                </span>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 12 }}>
-                <div className="field">
-                  <label htmlFor="co-subdistrict">ตำบล/แขวง</label>
-                  <input
-                    id="co-subdistrict"
-                    className="input"
-                    type="text"
-                    value={subdistrict}
-                    onChange={(e) => setSubdistrict(e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="co-district">อำเภอ/เขต</label>
-                  <input
-                    id="co-district"
-                    className="input"
-                    type="text"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                  />
-                </div>
                 <div className="field">
                   <label htmlFor="co-province">จังหวัด</label>
                   <select
@@ -611,19 +739,74 @@ export default function CheckoutPage() {
                   </select>
                 </div>
                 <div className="field">
-                  <label htmlFor="co-postal">รหัสไปรษณีย์</label>
+                  <label htmlFor="co-district">อำเภอ/เขต</label>
                   <input
-                    id="co-postal"
+                    id="co-district"
                     className="input"
                     type="text"
-                    inputMode="numeric"
-                    maxLength={5}
-                    autoComplete="postal-code"
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
                   />
                 </div>
               </div>
+              <div className="field">
+                <label htmlFor="co-subdistrict">ตำบล/แขวง</label>
+                {addrTambons.length > 0 ? (
+                  <select
+                    id="co-subdistrict"
+                    className="input"
+                    value={addrTambonIdx >= 0 ? String(addrTambonIdx) : ""}
+                    onChange={(e) => {
+                      const t = addrTambons[Number(e.target.value)];
+                      if (t) {
+                        setSubdistrict(t.tambon);
+                        setDistrict(t.amphoe);
+                        setProvince(t.province);
+                      }
+                    }}
+                  >
+                    <option value="">เลือกตำบล/แขวง</option>
+                    {addrTambons.map((t, i) => (
+                      <option key={i} value={i}>
+                        {t.tambon}
+                        {addrMultiAmphoe ? ` · ${t.amphoe}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="co-subdistrict"
+                    className="input"
+                    type="text"
+                    value={subdistrict}
+                    onChange={(e) => setSubdistrict(e.target.value)}
+                  />
+                )}
+              </div>
+              {addressSaveError && (
+                <div
+                  role="alert"
+                  style={{
+                    color: "var(--danger)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    marginBottom: 10,
+                  }}
+                >
+                  {addressSaveError}
+                </div>
+              )}
+              {/* The form's own action. Without it the only button was the far-away place-order bar,
+                  and the address saved invisibly at submit — so the form looked like it did nothing. */}
+              <button
+                type="button"
+                className="btn btn-primary btn-block"
+                style={{ marginBottom: 14 }}
+                disabled={!newAddressOk || savingAddress}
+                onClick={() => void saveNewAddress()}
+              >
+                {savingAddress ? "กำลังบันทึก…" : "บันทึกและใช้ที่อยู่นี้"}
+              </button>
             </div>
           )}
         </>
@@ -639,6 +822,7 @@ export default function CheckoutPage() {
               className="card"
               style={{
                 display: "flex",
+                alignItems: "center",
                 gap: 10,
                 padding: 14,
                 cursor: "pointer",
@@ -652,7 +836,7 @@ export default function CheckoutPage() {
                 value={opt.id}
                 checked={on}
                 onChange={() => setPayment(opt.id)}
-                style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--accent)" }}
+                style={{ width: 18, height: 18, flexShrink: 0, accentColor: "var(--accent)" }}
               />
               <span style={{ minWidth: 0 }}>
                 <span className="t-h4" style={{ display: "block" }}>
@@ -671,143 +855,242 @@ export default function CheckoutPage() {
         <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 10 }}>
           สรุปคำสั่งซื้อ
         </div>
+        {/* Design C: each item = thumbnail + name (wraps to 2 lines so the fitment is readable,
+            not hard-truncated) + line price. */}
         {lines.map((l) => (
           <div
             key={l.variantId}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              fontSize: 14,
-              marginBottom: 6,
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}
           >
+            <LineThumb imageKey={l.imageKey} name={l.name} />
             <span
               style={{
+                flex: 1,
                 minWidth: 0,
+                fontSize: 14,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
                 overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
               }}
             >
-              {l.name} × {l.qty}
+              {l.name} <span className="muted">× {l.qty}</span>
             </span>
-            <span style={{ flexShrink: 0 }}>{baht(l.priceSatang * l.qty)}</span>
+            <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700 }}>
+              {baht(l.priceSatang * l.qty)}
+            </span>
           </div>
         ))}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: 14,
-            marginBottom: 6,
-          }}
-        >
-          <span className="muted">ค่าจัดส่ง</span>
-          <span style={{ color: "var(--ok)", fontWeight: 600 }}>ฟรี (ช่วงเปิดร้าน)</span>
-        </div>
 
-        {/* coupon — collapsible so the summary stays clean for the no-coupon majority */}
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 4 }}>
-          {coupon ? (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 14,
-                marginBottom: 6,
-              }}
-            >
-              <span style={{ color: "var(--ok)", fontWeight: 600, minWidth: 0 }}>
-                คูปอง {coupon.code} −{baht(discount)}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setCoupon(null);
-                  setCouponError(null);
-                }}
-                style={{ ...linkButtonStyle, color: "var(--danger)", flexShrink: 0 }}
-              >
-                ลบ
-              </button>
-            </div>
-          ) : couponOpen ? (
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="รหัสคูปอง"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void applyCoupon();
-                    }
-                  }}
-                  style={{ flex: 1, minWidth: 0 }}
-                  aria-label="รหัสคูปอง"
-                />
+        {/* Money lines — one fact per row, each stated ONCE (the old card printed the coupon twice
+            and free shipping twice). Muted labels, values right-aligned so the eye scans one column. */}
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, marginTop: 2 }}>
+          <div style={coSumLine}>
+            <span className="muted">ยอดรวมสินค้า</span>
+            <span>{baht(subtotal)}</span>
+          </div>
+          <div style={coSumLine}>
+            <span className="muted">ค่าจัดส่ง</span>
+            <span style={{ color: "var(--ok)", fontWeight: 600 }}>ฟรี</span>
+          </div>
+          {coupon && (
+            <div style={coSumLine}>
+              <span className="muted" style={{ minWidth: 0, display: "flex", gap: 6 }}>
+                ส่วนลดคูปอง
+                <b style={{ color: "var(--gray-dark)" }}>{coupon.code}</b>
                 <button
                   type="button"
-                  className="btn"
-                  onClick={() => void applyCoupon()}
-                  disabled={couponChecking || couponInput.trim() === ""}
-                  style={{ flexShrink: 0 }}
+                  aria-label="ลบคูปอง"
+                  onClick={() => {
+                    setCoupon(null);
+                    setCouponError(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: 0,
+                    padding: 0,
+                    color: "var(--danger)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    lineHeight: 1,
+                  }}
                 >
-                  {couponChecking ? "กำลังตรวจสอบ…" : "ใช้คูปอง"}
+                  ✕
                 </button>
-              </div>
-              {couponError && (
-                <div style={{ color: "var(--danger)", fontSize: 13, marginTop: 6 }} role="alert">
-                  {couponError}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ marginBottom: 6 }}>
-              <button type="button" onClick={() => setCouponOpen(true)} style={linkButtonStyle}>
-                มีคูปอง?
-              </button>
+              </span>
+              <span style={{ color: "var(--ok)", fontWeight: 600 }}>−{baht(discount)}</span>
             </div>
           )}
         </div>
 
-        {coupon && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 14,
-              marginBottom: 6,
-            }}
-          >
-            <span className="muted">ส่วนลดคูปอง</span>
-            <span style={{ color: "var(--ok)", fontWeight: 600 }}>−{baht(discount)}</span>
+        {/* coupon ENTRY — shown only when no coupon is applied. An applied coupon lives in the money
+            lines above as its discount row (with its own ✕), so it can never appear twice. */}
+        {!coupon && (
+          <div style={{ paddingTop: 10, marginTop: 2 }}>
+            {couponOpen ? (
+              <div style={{ marginBottom: 6, display: "grid", gap: 12 }}>
+                {/* Way 1 — pick a collected coupon. Each row applies via the same server check as the
+                  code box below, so both paths agree on validity. Shipping coupons are shown but not
+                  tappable: the server only discounts the subtotal, and shipping is free today. */}
+                {collectedCoupons.length > 0 && (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                      คูปองของฉัน
+                    </div>
+                    {collectedCoupons.map((c) => {
+                      const isShip = c.kind === "ship";
+                      const tone = isShip ? "var(--ship)" : "var(--brand)";
+                      return (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => void applyCoupon(c.code)}
+                          disabled={couponChecking || isShip}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "10px 12px",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)",
+                            background: "var(--white)",
+                            textAlign: "left",
+                            cursor: couponChecking || isShip ? "default" : "pointer",
+                            opacity: isShip ? 0.6 : 1,
+                            font: "inherit",
+                          }}
+                        >
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              fontWeight: 800,
+                              fontSize: 14,
+                              color: tone,
+                              minWidth: 52,
+                            }}
+                          >
+                            {c.value}
+                          </span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span
+                              style={{
+                                display: "block",
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: "var(--gray-dark)",
+                              }}
+                            >
+                              {c.title}
+                            </span>
+                            <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                              {isShip ? "ใช้กับค่าจัดส่ง · ตอนนี้ส่งฟรีทุกออเดอร์" : c.cond}
+                            </span>
+                          </span>
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: isShip ? "var(--text-muted)" : "var(--brand)",
+                            }}
+                          >
+                            {applyingCode === c.code ? "…" : isShip ? "" : "ใช้"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Way 2 — type a code (for coupons not collected). */}
+                <div style={{ display: "grid", gap: 6 }}>
+                  {collectedCoupons.length > 0 && (
+                    <div className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                      หรือใส่รหัสคูปอง
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="รหัสคูปอง"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void applyCoupon();
+                        }
+                      }}
+                      style={{ flex: 1, minWidth: 0 }}
+                      aria-label="รหัสคูปอง"
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => void applyCoupon()}
+                      disabled={couponChecking || couponInput.trim() === ""}
+                      style={{ flexShrink: 0 }}
+                    >
+                      {couponChecking && applyingCode === null ? "กำลังตรวจสอบ…" : "ใช้คูปอง"}
+                    </button>
+                  </div>
+                </div>
+
+                {couponError && (
+                  <div style={{ color: "var(--danger)", fontSize: 13 }} role="alert">
+                    {couponError}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginBottom: 6 }}>
+                <button type="button" onClick={() => setCouponOpen(true)} style={linkButtonStyle}>
+                  มีคูปอง?
+                </button>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Total — the one thing to skim. t-price-l (the app's large-price size, 24px) so it stays
+            consistent with prices everywhere; the savings badge restates the discount as a benefit. */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "baseline",
+            alignItems: "flex-end",
+            gap: 12,
             paddingTop: 12,
-            marginTop: 6,
+            marginTop: 10,
             borderTop: "2px solid var(--gray-lite)",
           }}
         >
-          <span className="t-h4" style={{ color: "var(--gray-dark)" }}>
-            รวมทั้งหมด
+          <span>
+            <span className="t-h4" style={{ display: "block", color: "var(--gray-dark)" }}>
+              ยอดชำระทั้งหมด
+            </span>
+            {discount > 0 && (
+              <span
+                style={{
+                  display: "inline-block",
+                  marginTop: 6,
+                  padding: "3px 10px",
+                  borderRadius: 999,
+                  background: "var(--ok-soft)",
+                  color: "var(--ok)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                ประหยัด {baht(discount)}
+              </span>
+            )}
           </span>
-          <span className="t-price-l">{baht(total)}</span>
+          <span className="t-price-l" style={{ color: "var(--brand-deep)", flexShrink: 0 }}>
+            {baht(total)}
+          </span>
         </div>
-        <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
-          ส่งฟรีทั่วไทยช่วงเปิดร้าน
-        </p>
       </div>
 
       {error && (

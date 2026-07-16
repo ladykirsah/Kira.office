@@ -28,7 +28,8 @@ export type IconName =
   | "close"
   | "trash"
   | "logout"
-  | "chevron";
+  | "chevron"
+  | "copy";
 
 export interface Glyph {
   /** inner SVG markup (stroke-only) drawn in a 0 0 24 24 viewBox */
@@ -130,6 +131,12 @@ export const ICONS: Record<IconName, Glyph> = {
   },
   chevron: {
     inner: '<path d="M9 6l6 6-6 6"/>',
+  },
+  // "Duplicate" — a back sheet with the front one stepped out to the corner (owner-picked C).
+  copy: {
+    inner:
+      '<rect x="3.5" y="3.5" width="12" height="12" rx="2"/><path d="M8 16v2a2.5 2.5 0 0 0 2.5 2.5h8A2.5 2.5 0 0 0 21 18v-8A2.5 2.5 0 0 0 18.5 7.5h-2"/>',
+    scale: 0.98,
   },
 };
 

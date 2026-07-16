@@ -29,3 +29,18 @@ export function mmss(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/**
+ * A Thai phone for display: 0812345678 → "081-234-5678" (and the 9-digit form → "02-123-4567").
+ * Anything unexpected is returned untouched rather than mangled.
+ *
+ * Lives here, not in a page, because two screens now show a phone number — the account card and its
+ * edit flow — and a number that formats differently on each would read as two different numbers.
+ */
+export function formatThaiPhone(digits: string): string {
+  if (/^\d{10}$/.test(digits))
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (/^\d{9}$/.test(digits))
+    return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+  return digits;
+}

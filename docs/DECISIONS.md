@@ -3,7 +3,7 @@
 This is the single source of truth for project decisions confirmed by the owner.
 All other docs must stay consistent with this file. Update by editing here first.
 
-_Last confirmed: 2026-07-13._
+_Last confirmed: 2026-07-17._
 
 ## Business
 
@@ -47,6 +47,15 @@ _Last confirmed: 2026-07-13._
 | Two-axis order lifecycle | Orders track **two independent axes**. Fulfilment `order_status`: `new` → `preparing` (เตรียมจัดส่ง) → `shipping` → `done`, plus **cancel** / **refund** branches. Money `payment_status`: `awaiting` → `paid`, plus **COD**. The admin status dropdown exposes **fulfilment states only**. |
 | Schema impact | **No schema change** — reuses the existing free-text status columns. |
 | Scope | Applies to **AirPlus-channel** orders only. |
+
+## AirPlus storefront — identity & address UX
+
+| Topic | Decision |
+| --- | --- |
+| Brand CI | **Red DENSO CI** (the shop is a DENSO representative), replacing the earlier coral `#eb5031` which read too close to the owner's own Shopee shop (`#ee4d2d`). Roles: **แดงสด `#e10000`** = header / CTAs / sale · **แดงเข้ม `#960101`** = price / links / hover · black `#000` · white `#fff` · gray `#ebebeb`/`#bbbbbb`/`#737373`. **Blue `#015abf` is a highlight ONLY** — info counts, badges, "แท้/genuine", the LINE-consult rail — never on section labels. Section headlines use one locked pattern (dark-red overline + charcoal title). Tokens: `apps/storefront/src/app/globals.css`. Banner PNGs still to be re-exported off coral. |
+| Address book | Add / **edit** / delete; exactly **one default**, always the **newest** address (the API clears others on write and collapses any legacy duplicate to the latest). Delete is a 2-tap trash icon (no cancel button). |
+| Thai address autofill | Both the account book and checkout share `lib/thaiGeo.ts` + `public/thai-postcodes.json` (earthchie dataset, MIT). Zip-first: type a 5-digit รหัสไปรษณีย์ → auto-fill จังหวัด/อำเภอ (editable) + a ตำบล dropdown for that zip; picking a ตำบล refines the อำเภอ for the 175 zips that span more than one. |
+| "กล่องไม่สวย" (open box) | An offer-type category surfaced ONLY via its own home collection — kept **out** of the `/products` category pickers (chips + filter). |
 
 ## Shopee integration
 

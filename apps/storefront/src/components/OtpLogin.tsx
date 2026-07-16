@@ -593,7 +593,7 @@ export function OtpLogin({
               fontSize: 13,
             }}
           >
-            <button type="button" onClick={backToPhone} className="btn btn-text btn-primary btn-s">
+            <button type="button" onClick={backToPhone} className="btn btn-text btn-info btn-s">
               เปลี่ยนเบอร์
             </button>
             <button

@@ -19,10 +19,11 @@ const EXPECTED: IconName[] = [
   "trash",
   "logout",
   "chevron",
+  "copy", // added 2026-07-16 — owner asked for a copy affordance on the bank-account number
 ];
 
 describe("icon registry", () => {
-  it("exposes exactly the 17 chosen interface icons", () => {
+  it("exposes exactly the chosen interface icons", () => {
     expect([...ICON_NAMES].sort()).toEqual([...EXPECTED].sort());
   });
 

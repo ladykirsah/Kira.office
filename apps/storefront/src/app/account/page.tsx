@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { LINE_OA_URL } from "@/lib/links";
 import { Icon, type IconName } from "@/components/Icon";
+import { ProfileCard } from "./ProfileCard";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +14,6 @@ export const dynamic = "force-dynamic";
  * big icon tiles (orders/addresses with live counts, coupons, help-via-LINE), a slim shipping-info
  * row, and logout. All destinations are real routes; counts come from one D1 read.
  */
-
-function formatThaiPhone(digits: string): string {
-  if (/^\d{10}$/.test(digits))
-    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-  if (/^\d{9}$/.test(digits))
-    return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
-  return digits;
-}
 
 function formatDate(ms: number): string {
   const d = new Date(ms);
@@ -98,10 +91,10 @@ export default async function AccountPage() {
         </p>
       </div>
 
-      <div className="acct-member">
-        <div className="p">{formatThaiPhone(customer.phone)}</div>
-        <div className="b">สมาชิก</div>
-      </div>
+      {/* Replaces the old read-only phone strip. The greeting above needs a name we never asked
+          for, and a name captured once at checkout could never be corrected — so the card that
+          shows those two facts is also the place to fix them. */}
+      <ProfileCard name={customer.name} phone={customer.phone} />
 
       <div className="acct-tiles">
         <Tile href="/account/orders" name="orders" label="คำสั่งซื้อ" count={info?.orders ?? 0} />

@@ -68,7 +68,8 @@ describe("phoneChangeError", () => {
   });
 
   it("checks 'taken' even when the format is fine — order of checks cannot skip the takeover guard", () => {
-    expect(phoneChangeError({ currentPhone: "0812345678", nextPhone: "0899999999", taken: true }))
-      .toBeTruthy();
+    expect(
+      phoneChangeError({ currentPhone: "0812345678", nextPhone: "0899999999", taken: true }),
+    ).toBeTruthy();
   });
 });
