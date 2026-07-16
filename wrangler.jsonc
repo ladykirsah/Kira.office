@@ -50,6 +50,10 @@
   "env": {
     "staging": {
       "name": "kira-office-staging",
+      // Do NOT inherit the top-level `routes` (api.homeseeker.me custom domain) — an empty list
+      // keeps staging on *.workers.dev so `deploy --env staging` can never reassign the production
+      // API's custom domain to the staging Worker.
+      "routes": [],
       "observability": { "enabled": true },
       "durable_objects": {
         "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }]

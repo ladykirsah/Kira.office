@@ -11,9 +11,18 @@ production launch. Decisions are made here (not left open); owner action items a
   from `main` via Workers Builds; GitHub CI green.
 - **D1** `kira-office` (APAC) — 16 tables migrated. **KV** bound. **Durable Object** `StockLedger`
   serializes `/sync`. Endpoints: `/health`, `/pricing/preview`, `/products`, idempotent `/sync`
-  (verified end-to-end, including idempotency + stock ledger).
+  (verified end-to-end, including idempotency + stock ledger); and `PATCH /orders/:id` — AirPlus-channel
+  order fulfilment: edits `order_status`/`payment_status`/`carrier`/`tracking_no` and auto-stamps
+  `ship_time_ms` on the first tracking number (no schema change; existing free-text columns).
 - **`packages/core`** — complete domain logic, 100+ tests (pricing/tax/cost/stock/terms/sync/orders/
   imports/finance, refunds, reserved stock, price-from-margin, Shopee delta).
+- **AirPlus customer storefront** (`apps/storefront`, Next 15 on OpenNext/Cloudflare) — built and on
+  staging: Home v2 (search landing `/search`, shortcut bar, collections, timed flash sale, best-sellers,
+  shop-by-brand, categories, banners, recently-viewed), PDP with share + collapsible sections, compact
+  cart, phone-OTP auth (`/login` login|register + PDPA consent + 6-box OTP with resend), `/account` hub
+  (orders, addresses, consent-receipt card, mock coupons wallet), agent-discovery routes (`/llms.txt`,
+  `/sitemap.md`, `/skills.md`, `/rss.xml`, `/sitemap.xml`), and legal drafts (`/privacy`, `/terms`).
+  Coupons are mock/localStorage until a backend ships.
 
 ## Launch decision (recommended)
 
@@ -86,7 +95,10 @@ inheritable), and a second Workers Builds project (or a non-production branch bu
 4. **Images** — **[OWNER] enable R2** in the dashboard → wire R2 + Cloudflare Images upload.
 5. **Shopee CSV bridge** — order import endpoint + stock export, then **Queues + Cron** for retries/
    polling; **live v2 API gated** on **[OWNER]** confirming managed-seller eligibility + creating the app.
-6. **Finance reports + accountant export** (CSV) and the refund/cancellation flows (logic ready).
+6. **Finance reports + accountant export** (CSV). Order status editing is now wired via `PATCH
+   /orders/:id` — two-axis lifecycle: `order_status` new → preparing (เตรียมจัดส่ง) → shipping → done
+   (+ cancel/refund branches) and `payment_status` awaiting → paid (+ COD), stored in existing
+   free-text columns (no schema change).
 
 ## Go-live runbook
 

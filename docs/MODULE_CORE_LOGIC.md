@@ -2,7 +2,8 @@
 
 The money- and stock-critical engine. **Pure TypeScript, no I/O, no Cloudflare or React deps** — it
 operates on plain inputs and returns plain results, so every rule is unit-testable without a DB,
-browser, or Shopee. `apps/api` and `apps/admin` import it; it imports nothing of theirs. **Change it
+browser, or Shopee. `apps/api`, `apps/admin`, and `apps/storefront` import it; it imports nothing of
+theirs. **Change it
 test-first** (red→green) per [AGENTS.md](../AGENTS.md).
 
 Authoritative formula reference: [PRICING_AND_FINANCE.md](PRICING_AND_FINANCE.md). All amounts here
@@ -75,4 +76,5 @@ vars)` — the substitution engine behind the (not-yet-built) per-product genera
 
 Each file has a sibling `*.test.ts` (Vitest, node env). Critical paths (money, tax, cost, stock,
 sync) must cover happy path **plus** failure/edge values (zero, negative, infeasible margin,
-oversell, duplicate uuid). These run in the repo-wide `npm test` (186 tests total with `apps/api`).
+oversell, duplicate uuid). These run in the repo-wide `npm test` (632 tests total across `apps/api`
+and `apps/storefront`).

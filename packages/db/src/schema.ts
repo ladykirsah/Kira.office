@@ -374,8 +374,30 @@ export const salesOrders = sqliteTable(
     carrier: text("carrier"),
     trackingNo: text("tracking_no"),
     profitSatang: integer("profit_satang"),
+    // AirPlus storefront checkout (migration 0039) — null for CSV-imported Shopee orders.
+    storefrontCustomerId: text("storefront_customer_id").references(() => storefrontCustomers.id),
+    shippingAddressId: text("shipping_address_id").references(() => addresses.id),
   },
   (t) => [uniqueIndex("order_channel_external_uq").on(t.channel, t.externalOrderId)],
+);
+
+export const salesOrderLines = sqliteTable(
+  "sales_order_lines",
+  {
+    id: id(),
+    salesOrderId: text("sales_order_id")
+      .notNull()
+      .references(() => salesOrders.id),
+    productVariantId: text("product_variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    quantity: integer("quantity").notNull(),
+    unitPriceSatang: integer("unit_price_satang").notNull(),
+    unitCostSatang: integer("unit_cost_satang").notNull().default(0), // cost snapshot at sale time
+    lineTotalSatang: integer("line_total_satang").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sales_order_lines_order_idx").on(t.salesOrderId)],
 );
 
 export const financialRecords = sqliteTable(
@@ -437,4 +459,252 @@ export const customers = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
   (t) => [index("customers_phone_idx").on(t.phone)],
+);
+
+/**
+ * AirPlus storefront customer ACCOUNTS, keyed by phone (migrations 0037 + 0041). Deliberately a
+ * NEW table, not a change to the plate-keyed `customers` table above (that one is NOT NULL UNIQUE
+ * on license_plate, built for on-site walk-ins). A future pass can link the two by phone.
+ * name '' = "not captured yet" sentinel (accounts are created at OTP-verify, before checkout).
+ * PDPA: a row must never be created without pdpa_consent_at set on the same statement.
+ */
+export const storefrontCustomers = sqliteTable(
+  "storefront_customers",
+  {
+    id: id(),
+    phone: text("phone").notNull().unique(),
+    name: text("name").notNull(),
+    email: text("email"),
+    phoneVerifiedAt: integer("phone_verified_at", { mode: "timestamp_ms" }),
+    pdpaConsentAt: integer("pdpa_consent_at", { mode: "timestamp_ms" }),
+    lastLoginAt: integer("last_login_at", { mode: "timestamp_ms" }),
+    lineUserId: text("line_user_id"),
+    facebookId: text("facebook_id"),
+    passwordHash: text("password_hash"),
+    status: text("status", { enum: ["active", "disabled"] })
+      .notNull()
+      .default("active"),
+    createdAt: createdAt(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    // Partial UNIQUE in the real DDL (WHERE ... IS NOT NULL) — SQLite treats NULLs as distinct.
+    uniqueIndex("storefront_customers_line_uq").on(t.lineUserId),
+    uniqueIndex("storefront_customers_fb_uq").on(t.facebookId),
+  ],
+);
+
+/** DB-backed storefront sessions (migration 0042): cookie holds the raw token, D1 the SHA-256. */
+export const storefrontSessions = sqliteTable(
+  "storefront_sessions",
+  {
+    id: id(),
+    tokenHash: text("token_hash").notNull().unique(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => storefrontCustomers.id),
+    createdAt: createdAt(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("storefront_sessions_customer_idx").on(t.customerId),
+    index("storefront_sessions_expires_idx").on(t.expiresAt),
+  ],
+);
+
+/** Phone-OTP login codes (migration 0043): salted SHA-256, 5-min TTL, 5 attempts, single-use. */
+export const authOtpCodes = sqliteTable(
+  "auth_otp_codes",
+  {
+    id: id(),
+    phone: text("phone").notNull(),
+    codeHash: text("code_hash").notNull(),
+    salt: text("salt").notNull(),
+    purpose: text("purpose").notNull().default("login"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    consumedAt: integer("consumed_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("auth_otp_phone_idx").on(t.phone)],
+);
+
+/** Fixed-window rate-limit counters (migration 0043), incremented via single-statement upsert. */
+export const authThrottle = sqliteTable("auth_throttle", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStartedAt: integer("window_started_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** Member-only coupon codes (migration 0044). fixed → satang off; percent → basis points. */
+export const coupons = sqliteTable("coupons", {
+  id: id(),
+  code: text("code").notNull().unique(),
+  type: text("type", { enum: ["fixed", "percent"] }).notNull(),
+  value: integer("value").notNull(),
+  minSubtotalSatang: integer("min_subtotal_satang").notNull().default(0),
+  startsAt: integer("starts_at", { mode: "timestamp_ms" }),
+  endsAt: integer("ends_at", { mode: "timestamp_ms" }),
+  maxUses: integer("max_uses"),
+  maxUsesPerCustomer: integer("max_uses_per_customer").notNull().default(1),
+  status: text("status", { enum: ["active", "disabled"] })
+    .notNull()
+    .default("active"),
+  createdAt: createdAt(),
+});
+
+export const couponRedemptions = sqliteTable(
+  "coupon_redemptions",
+  {
+    id: id(),
+    couponId: text("coupon_id")
+      .notNull()
+      .references(() => coupons.id),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => storefrontCustomers.id),
+    salesOrderId: text("sales_order_id")
+      .notNull()
+      .references(() => salesOrders.id),
+    amountDiscountedSatang: integer("amount_discounted_satang").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("coupon_redemptions_order_uq").on(t.couponId, t.salesOrderId),
+    index("coupon_redemptions_customer_idx").on(t.customerId, t.couponId),
+  ],
+);
+
+/** Flash-sale campaigns (migration 0045): timed price windows, resolved in code (no cron). */
+export const campaigns = sqliteTable("campaigns", {
+  id: id(),
+  name: text("name").notNull(),
+  startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
+  endsAt: integer("ends_at", { mode: "timestamp_ms" }).notNull(),
+  status: text("status", { enum: ["active", "disabled"] })
+    .notNull()
+    .default("active"),
+  createdAt: createdAt(),
+});
+
+export const campaignPrices = sqliteTable(
+  "campaign_prices",
+  {
+    id: id(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    productVariantId: text("product_variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    campaignPriceSatang: integer("campaign_price_satang").notNull(),
+    stockCap: integer("stock_cap"),
+    soldCount: integer("sold_count").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("campaign_prices_variant_uq").on(t.campaignId, t.productVariantId),
+    index("campaign_prices_variant_idx").on(t.productVariantId),
+  ],
+);
+
+/** Home-page banners (migration 0046): hero carousel + promo strip, admin-managed. */
+export const banners = sqliteTable("banners", {
+  id: id(),
+  slot: text("slot", { enum: ["hero", "promo"] }).notNull(),
+  imageKey: text("image_key"),
+  linkUrl: text("link_url"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  startsAt: integer("starts_at", { mode: "timestamp_ms" }),
+  endsAt: integer("ends_at", { mode: "timestamp_ms" }),
+  status: text("status", { enum: ["active", "disabled"] })
+    .notNull()
+    .default("active"),
+  createdAt: createdAt(),
+});
+
+/** Mechanic-tools affiliate cards (migration 0047). price_text is display-only, never math. */
+export const affiliateItems = sqliteTable("affiliate_items", {
+  id: id(),
+  title: text("title").notNull(),
+  imageKey: text("image_key"),
+  priceText: text("price_text"),
+  source: text("source", { enum: ["shopee", "lazada", "other"] })
+    .notNull()
+    .default("other"),
+  targetUrl: text("target_url").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  status: text("status", { enum: ["active", "disabled"] })
+    .notNull()
+    .default("active"),
+  createdAt: createdAt(),
+});
+
+export const affiliateClicks = sqliteTable(
+  "affiliate_clicks",
+  {
+    id: id(),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => affiliateItems.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("affiliate_clicks_item_idx").on(t.itemId)],
+);
+
+/** Shipping addresses for storefront customers (migration 0038). */
+export const addresses = sqliteTable(
+  "addresses",
+  {
+    id: id(),
+    storefrontCustomerId: text("storefront_customer_id")
+      .notNull()
+      .references(() => storefrontCustomers.id),
+    recipientName: text("recipient_name").notNull(),
+    phone: text("phone").notNull(),
+    addressLine1: text("address_line1").notNull(),
+    subdistrict: text("subdistrict").notNull(),
+    district: text("district").notNull(),
+    province: text("province").notNull(),
+    postalCode: text("postal_code").notNull(),
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [index("addresses_customer_idx").on(t.storefrontCustomerId)],
+);
+
+/**
+ * Payment approvals — the anti-cheat trail (migration 0031). Staff take payment on the Payment
+ * page: pick a PromptPay method, enter the amount, show the QR, then approve once the customer's
+ * banking app confirms. status is future-proofed for auto-confirmation via SlipOK
+ * (@l-shopee/core payments.ts): pending -> approved -> confirmed. sales_order_id (migration 0040)
+ * links a storefront-checkout payment to its order; null for POS-recorded on-site payments.
+ */
+export const payments = sqliteTable(
+  "payments",
+  {
+    id: id(),
+    methodLabel: text("method_label").notNull(),
+    promptpayId: text("promptpay_id").notNull(),
+    amountSatang: integer("amount_satang").notNull(),
+    status: text("status", { enum: ["pending", "approved", "confirmed", "void"] })
+      .notNull()
+      .default("approved"),
+    note: text("note"),
+    createdAt: createdAt(),
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+    clearedAt: integer("cleared_at", { mode: "timestamp_ms" }),
+    slipRef: text("slip_ref"),
+    confirmedAt: integer("confirmed_at", { mode: "timestamp_ms" }),
+    verifyNote: text("verify_note"),
+    salesOrderId: text("sales_order_id").references(() => salesOrders.id),
+  },
+  (t) => [
+    index("payments_created_idx").on(t.createdAt),
+    // SQLite treats NULLs as distinct in a UNIQUE index, so this is equivalent to the migration's
+    // explicit `WHERE slip_ref IS NOT NULL` partial index — multiple NULL slip_ref rows are fine.
+    uniqueIndex("payments_slip_ref_unique").on(t.slipRef),
+  ],
 );

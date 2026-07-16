@@ -108,7 +108,8 @@ car_brand, car_model}`.
 | `POST` | `/sales/:id/refund` | `refundSale()` | Restocks lines via the ledger → `{applied, reason?, restockedLines}`. |
 | `GET` | `/sales/export.csv` | _(link)_ | CSV export for the accountant. |
 | `GET` | `/finance/summary` | `fetchFinanceSummary()` | `{salesCount, revenueSatang, vatSatang, grossProfitSatang, refundCount, refundedSatang}`. |
-| `GET` | `/orders` | `fetchOrders()` | Imported marketplace orders. |
+| `GET` | `/orders` | `fetchOrders()` | Imported Shopee orders plus AirPlus storefront orders (`OrderRow[]`), newest first. |
+| `PATCH` | `/orders/:id` | `updateAirPlusOrder()` | Fulfilment editor for an **AirPlus-channel** order (`404` for Shopee/absent rows). Body `OrderPatch {orderStatus?, paymentStatus?, carrier?, trackingNo?}` — a key present with an empty string clears the column to `NULL`; returns `{order: OrderRow}`. The **first** time a tracking number is set, `ship_time_ms` is stamped (later corrections keep the original). Two-axis lifecycle rides existing free-text columns (no schema change): `order_status` (fulfilment) `new → preparing (เตรียมจัดส่ง) → shipping → done` + cancel/refund branches, and `payment_status` (money) `awaiting → paid` + COD. |
 
 ## Offline POS sync & imports
 

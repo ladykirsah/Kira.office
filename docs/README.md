@@ -49,6 +49,8 @@ Reading order for someone (human or AI) continuing this project.
 | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) | Resolved answers + remaining minor questions. |
 | [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md) | Repo publish steps. |
 
-> **Doc currency:** §1–§3 reflect the code as built (2026-06-24). §4–§5 mix as-built with original
+> **Doc currency:** §1–§3 reflect the code as built (2026-07-13), now including the AirPlus customer
+> storefront (`apps/storefront`) and the two-axis order-fulfilment/payment lifecycle — both covered in
+> STATE_OF_THE_BUILD.md until a dedicated storefront module doc exists. §4–§5 mix as-built with original
 > intent — where a planning doc disagrees with the code, the code + §1–§3 win. Keep this index and
 > STATE_OF_THE_BUILD updated when contracts, schema, or module behavior change.

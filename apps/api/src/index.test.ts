@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import worker, {
   addBarcodeToProduct,
   applyAdjustmentToDb,
   applySyncToDb,
+  applyOnlineSaleToDb,
   archiveProduct,
+  BACKUP_TABLES,
   buildCorsHeaders,
   createProduct,
   deleteGalleryImage,
@@ -112,6 +117,20 @@ function makeDb(canned: {
   batchChanges?: number[];
   paymentById?: unknown | null;
   slipRefOwner?: { id: string } | null;
+  onlineSaleLedgerRow?: { id: string } | null;
+  orderById?: unknown | null;
+  banners?: unknown[];
+  bannerById?: { id: string; imageKey: string | null } | null;
+  coupons?: unknown[];
+  couponByCode?: { id: string } | null;
+  couponRedemptions?: number;
+  campaigns?: unknown[];
+  campaignPrices?: unknown[];
+  campaignPriceDup?: { id: string } | null;
+  variantMatches?: unknown[];
+  variantById?: { id: string } | null;
+  affiliateItems?: unknown[];
+  affiliateItemById?: { id: string; imageKey: string | null } | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -138,6 +157,16 @@ function makeDb(canned: {
         // products-list query routes to canned.products, not the bare product_fitments branch below.
         if (sql.includes("AS offlinePriceSatang"))
           return { results: (canned.products ?? []) as T[] };
+        // searchVariants (the campaign product picker) also selects FROM products — match its
+        // unique LIKE predicate before the products branch below, or it answers with canned.products.
+        if (sql.includes("p.name LIKE ?")) return { results: (canned.variantMatches ?? []) as T[] };
+        if (sql.includes("FROM banners")) return { results: (canned.banners ?? []) as T[] };
+        if (sql.includes("FROM coupons c")) return { results: (canned.coupons ?? []) as T[] };
+        if (sql.includes("FROM campaign_prices cp"))
+          return { results: (canned.campaignPrices ?? []) as T[] };
+        if (sql.includes("FROM campaigns")) return { results: (canned.campaigns ?? []) as T[] };
+        if (sql.includes("FROM affiliate_items a"))
+          return { results: (canned.affiliateItems ?? []) as T[] };
         if (sql.includes("FROM product_images")) return { results: (canned.images ?? []) as T[] };
         if (sql.includes("FROM product_fitments"))
           return { results: (canned.fitments ?? []) as T[] };
@@ -172,6 +201,8 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("FROM stock_ledger_entries WHERE source_type"))
+          return (canned.onlineSaleLedgerRow ?? null) as T | null;
         if (sql.includes("FROM payments WHERE slip_ref"))
           return (canned.slipRefOwner ?? null) as T | null;
         if (sql.includes("FROM payments WHERE id")) return (canned.paymentById ?? null) as T | null;
@@ -201,6 +232,19 @@ function makeDb(canned: {
           return { imageKey: "products/p1/gallery.png" } as T;
         if (sql.includes("FROM barcodes")) return (canned.barcode ?? null) as T | null;
         if (sql.includes("FROM users WHERE email")) return (canned.userRow ?? null) as T | null;
+        if (sql.includes("FROM sales_orders WHERE id = ? AND channel = 'airplus'"))
+          return (canned.orderById ?? null) as T | null;
+        if (sql.includes("FROM coupons WHERE code"))
+          return (canned.couponByCode ?? null) as T | null;
+        if (sql.includes("FROM coupon_redemptions WHERE coupon_id"))
+          return { n: canned.couponRedemptions ?? 0 } as T;
+        if (sql.includes("FROM campaign_prices WHERE campaign_id"))
+          return (canned.campaignPriceDup ?? null) as T | null;
+        if (sql.includes("FROM product_variants WHERE id"))
+          return (canned.variantById ?? null) as T | null;
+        if (sql.includes("FROM banners WHERE id")) return (canned.bannerById ?? null) as T | null;
+        if (sql.includes("FROM affiliate_items WHERE id"))
+          return (canned.affiliateItemById ?? null) as T | null;
         return null;
       },
       async run() {
@@ -572,6 +616,593 @@ describe("buildCorsHeaders", () => {
     const h = buildCorsHeaders(req);
     expect(h["access-control-allow-origin"]).toBe("*");
     expect(h["access-control-allow-credentials"]).toBeUndefined();
+  });
+});
+
+describe("PATCH /orders/:id (AirPlus fulfillment editor)", () => {
+  const baseOrder = {
+    id: "o1",
+    channel: "airplus",
+    externalOrderId: "AP-1",
+    orderStatus: "ใหม่",
+    paymentStatus: "รอชำระเงิน",
+    grandTotalSatang: 119000,
+    feeTotalSatang: 0,
+    orderCreatedAt: 1720000000000,
+    importedAt: 1720000000000,
+    buyerUsername: "L",
+    salesSatang: 119000,
+    feeBp: 0,
+    shipTimeMs: null,
+    carrier: null,
+    trackingNo: null,
+    profitSatang: 0,
+  };
+
+  it("updates an order's fulfilment status and returns the updated row", async () => {
+    const { env, runs } = makeDb({ orderById: baseOrder });
+    const res = await worker.fetch!(
+      new Request("https://x/orders/o1", {
+        method: "PATCH",
+        body: JSON.stringify({ orderStatus: "เตรียมจัดส่ง" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { order: { orderStatus: string } };
+    expect(data.order.orderStatus).toBe("เตรียมจัดส่ง");
+    expect(runs.some((r) => r.sql.includes("UPDATE sales_orders SET order_status"))).toBe(true);
+  });
+
+  it("stamps ship_time_ms the first time a tracking number is set", async () => {
+    const { env } = makeDb({ orderById: baseOrder });
+    const res = await worker.fetch!(
+      new Request("https://x/orders/o1", {
+        method: "PATCH",
+        body: JSON.stringify({
+          orderStatus: "กำลังจัดส่ง",
+          carrier: "Flash Express",
+          trackingNo: "TH123",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { order: { trackingNo: string; shipTimeMs: number | null } };
+    expect(data.order.trackingNo).toBe("TH123");
+    expect(typeof data.order.shipTimeMs).toBe("number");
+  });
+
+  it("404s for a non-existent or non-AirPlus order", async () => {
+    const { env } = makeDb({ orderById: null });
+    const res = await worker.fetch!(
+      new Request("https://x/orders/nope", {
+        method: "PATCH",
+        body: JSON.stringify({ orderStatus: "สำเร็จ" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("AirPlus merchandising admin routes (banners / coupons / campaigns / affiliate)", () => {
+  /** R2 double for the image upload/delete routes. */
+  function fakeBucket() {
+    const puts: { key: string }[] = [];
+    const deletes: string[] = [];
+    const bucket = {
+      put: async (key: string) => void puts.push({ key }),
+      delete: async (key: string) => void deletes.push(key),
+    } as unknown as R2Bucket;
+    return { bucket, puts, deletes };
+  }
+  const png = () => new Uint8Array([137, 80, 78, 71]).buffer;
+
+  describe("banners", () => {
+    it("GET /banners > lists every banner in the admin's shape", async () => {
+      const banner = {
+        id: "b1",
+        slot: "hero",
+        imageKey: "banners/b1-x.png",
+        linkUrl: null,
+        sortOrder: 0,
+        startsAt: null,
+        endsAt: null,
+        status: "active",
+        createdAt: 1,
+      };
+      const { env } = makeDb({ banners: [banner] });
+      const res = await worker.fetch!(new Request("https://x/banners"), env, ctx);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ banners: [banner] });
+    });
+
+    it("POST /banners > creates a banner and returns its id", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/banners", {
+          method: "POST",
+          body: JSON.stringify({ slot: "promo", linkUrl: "/collections/all", sortOrder: 2 }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      expect((await res.json()) as { id: string }).toHaveProperty("id");
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO banners"));
+      expect(insert?.binds).toContain("promo");
+      expect(insert?.binds).toContain("/collections/all");
+    });
+
+    it("POST /banners > 400 for a slot outside hero|promo (the CHECK would reject it)", async () => {
+      const { env } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/banners", { method: "POST", body: JSON.stringify({ slot: "top" }) }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("PATCH /banners/:id > updates only the supplied fields", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/banners/b1", {
+          method: "PATCH",
+          body: JSON.stringify({ status: "disabled" }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      const update = runs.find((r) => r.sql.includes("UPDATE banners SET"));
+      expect(update?.sql).toContain("status = ?");
+      expect(update?.sql).not.toContain("slot = ?");
+    });
+
+    it("POST /banners/:id/image > stores the image under banners/ and returns key + url", async () => {
+      const { db } = makeDb({ bannerById: { id: "b1", imageKey: null } });
+      const { bucket, puts } = fakeBucket();
+      const res = await worker.fetch!(
+        new Request("https://x/banners/b1/image", {
+          method: "POST",
+          headers: { "content-type": "image/png" },
+          body: png(),
+        }),
+        { DB: db, IMAGES: bucket } as unknown as Env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      const out = (await res.json()) as { key: string; url: string };
+      expect(out.key).toMatch(/^banners\/b1-.*\.png$/);
+      expect(out.url).toBe(`/img/${out.key}`);
+      expect(puts.length).toBe(1);
+    });
+
+    it("POST /banners/:id/image > 404 for an unknown banner, 400 for a bad image", async () => {
+      const { bucket } = fakeBucket();
+      const missing = await worker.fetch!(
+        new Request("https://x/banners/nope/image", {
+          method: "POST",
+          headers: { "content-type": "image/png" },
+          body: png(),
+        }),
+        { DB: makeDb({ bannerById: null }).db, IMAGES: bucket } as unknown as Env,
+        ctx,
+      );
+      expect(missing.status).toBe(404);
+      const badType = await worker.fetch!(
+        new Request("https://x/banners/b1/image", {
+          method: "POST",
+          headers: { "content-type": "image/gif" },
+          body: png(),
+        }),
+        {
+          DB: makeDb({ bannerById: { id: "b1", imageKey: null } }).db,
+          IMAGES: bucket,
+        } as unknown as Env,
+        ctx,
+      );
+      expect(badType.status).toBe(400);
+    });
+
+    it("DELETE /banners/:id > removes the row and its R2 image", async () => {
+      const { db, runs } = makeDb({ bannerById: { id: "b1", imageKey: "banners/b1-x.png" } });
+      const { bucket, deletes } = fakeBucket();
+      const res = await worker.fetch!(
+        new Request("https://x/banners/b1", { method: "DELETE" }),
+        { DB: db, IMAGES: bucket } as unknown as Env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(runs.some((r) => r.sql.includes("DELETE FROM banners"))).toBe(true);
+      expect(deletes).toEqual(["banners/b1-x.png"]);
+    });
+  });
+
+  describe("coupons", () => {
+    it("GET /coupons > lists coupons with their redemption counts", async () => {
+      const coupon = { id: "c1", code: "SAVE10", type: "percent", value: 1000, redemptions: 3 };
+      const { env } = makeDb({ coupons: [coupon] });
+      const res = await worker.fetch!(new Request("https://x/coupons"), env, ctx);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ coupons: [coupon] });
+    });
+
+    it("POST /coupons > trims + uppercases the code before storing it", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons", {
+          method: "POST",
+          body: JSON.stringify({ code: "  save10 ", type: "percent", value: 1000 }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      expect(insert?.binds).toContain("SAVE10");
+      expect(insert?.binds).not.toContain("  save10 ");
+    });
+
+    it("POST /coupons > 409 when the (normalized) code already exists", async () => {
+      const { env } = makeDb({ couponByCode: { id: "existing" } });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons", {
+          method: "POST",
+          body: JSON.stringify({ code: "save10", type: "percent", value: 1000 }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()) as { error: string }).toHaveProperty("error");
+    });
+
+    it("POST /coupons > 400 for a missing code, bad type, or non-positive value", async () => {
+      const bad = async (body: unknown) =>
+        (
+          await worker.fetch!(
+            new Request("https://x/coupons", { method: "POST", body: JSON.stringify(body) }),
+            makeDb({}).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad({ type: "percent", value: 1000 })).toBe(400);
+      expect(await bad({ code: "X", type: "bogus", value: 1000 })).toBe(400);
+      expect(await bad({ code: "X", type: "fixed", value: 0 })).toBe(400);
+    });
+
+    it("PATCH /coupons/:id > uppercases a new code", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", {
+          method: "PATCH",
+          body: JSON.stringify({ code: " summer " }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      const update = runs.find((r) => r.sql.includes("UPDATE coupons SET"));
+      expect(update?.binds).toContain("SUMMER");
+    });
+
+    it("PATCH /coupons/:id > 409 when the new code belongs to another coupon", async () => {
+      const { env, runs } = makeDb({ couponByCode: { id: "other" } });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", {
+          method: "PATCH",
+          body: JSON.stringify({ code: "SUMMER" }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(409);
+      expect(runs.some((r) => r.sql.includes("UPDATE coupons SET"))).toBe(false);
+    });
+
+    it("DELETE /coupons/:id > deletes a coupon that was never redeemed", async () => {
+      const { env, runs } = makeDb({ couponRedemptions: 0 });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(runs.some((r) => r.sql.includes("DELETE FROM coupons"))).toBe(true);
+    });
+
+    it("DELETE /coupons/:id > 409 once redeemed — financial history is never deleted", async () => {
+      const { env, runs } = makeDb({ couponRedemptions: 2 });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(409); // the admin client special-cases 409 → "disable it instead"
+      expect((await res.json()) as { error: string }).toHaveProperty("error");
+      expect(runs.some((r) => r.sql.includes("DELETE FROM coupons"))).toBe(false);
+    });
+  });
+
+  describe("campaigns", () => {
+    it("GET /campaigns > lists campaigns with their prices nested", async () => {
+      const { env } = makeDb({
+        campaigns: [{ id: "k1", name: "7.7", startsAt: 1, endsAt: 2, status: "active" }],
+        campaignPrices: [{ id: "p1", campaignId: "k1", productVariantId: "v1", soldCount: 0 }],
+      });
+      const res = await worker.fetch!(new Request("https://x/campaigns"), env, ctx);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { campaigns: { id: string; prices: unknown[] }[] };
+      expect(body.campaigns[0]!.id).toBe("k1");
+      expect(body.campaigns[0]!.prices).toHaveLength(1);
+    });
+
+    it("POST /campaigns > creates a campaign shell and returns its id", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/campaigns", {
+          method: "POST",
+          body: JSON.stringify({ name: " 7.7 Flash ", startsAt: 1000, endsAt: 2000 }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      expect((await res.json()) as { id: string }).toHaveProperty("id");
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO campaigns"));
+      expect(insert?.binds).toContain("7.7 Flash");
+    });
+
+    it("POST /campaigns > 400 without a name or a valid window", async () => {
+      const bad = async (body: unknown) =>
+        (
+          await worker.fetch!(
+            new Request("https://x/campaigns", { method: "POST", body: JSON.stringify(body) }),
+            makeDb({}).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad({ startsAt: 1, endsAt: 2 })).toBe(400);
+      expect(await bad({ name: "x", startsAt: 1 })).toBe(400);
+      expect(await bad({ name: "x", startsAt: 2, endsAt: 1 })).toBe(400);
+    });
+
+    it("PATCH /campaigns/:id > updates only the supplied fields", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/campaigns/k1", {
+          method: "PATCH",
+          body: JSON.stringify({ status: "disabled" }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(runs.find((r) => r.sql.includes("UPDATE campaigns SET"))?.sql).toContain("status = ?");
+    });
+
+    it("DELETE /campaigns/:id > removes the campaign and its prices", async () => {
+      const { env, batched } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/campaigns/k1", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(batched.some((s) => s.sql.includes("DELETE FROM campaign_prices"))).toBe(true);
+      expect(batched.some((s) => s.sql.includes("DELETE FROM campaigns"))).toBe(true);
+    });
+
+    it("POST /campaigns/:id/prices > attaches a variant at a flash price", async () => {
+      const { env, runs } = makeDb({ variantById: { id: "v1" }, campaignPriceDup: null });
+      const res = await worker.fetch!(
+        new Request("https://x/campaigns/k1/prices", {
+          method: "POST",
+          body: JSON.stringify({ productVariantId: "v1", campaignPriceSatang: 9900, stockCap: 10 }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      expect((await res.json()) as { id: string }).toHaveProperty("id");
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO campaign_prices"));
+      expect(insert?.binds).toContain(9900);
+    });
+
+    it("POST /campaigns/:id/prices > 404 unknown variant, 409 duplicate, 400 bad price", async () => {
+      const post = async (canned: Parameters<typeof makeDb>[0], body: unknown): Promise<number> =>
+        (
+          await worker.fetch!(
+            new Request("https://x/campaigns/k1/prices", {
+              method: "POST",
+              body: JSON.stringify(body),
+            }),
+            makeDb(canned).env,
+            ctx,
+          )
+        ).status;
+      expect(
+        await post({ variantById: null }, { productVariantId: "v9", campaignPriceSatang: 1 }),
+      ).toBe(404);
+      expect(
+        await post(
+          { variantById: { id: "v1" }, campaignPriceDup: { id: "cp1" } },
+          { productVariantId: "v1", campaignPriceSatang: 1 },
+        ),
+      ).toBe(409);
+      expect(
+        await post(
+          { variantById: { id: "v1" } },
+          { productVariantId: "v1", campaignPriceSatang: 0 },
+        ),
+      ).toBe(400);
+    });
+
+    it("DELETE /campaigns/:campaignId/prices/:priceId > detaches one product, not the campaign", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/campaigns/k1/prices/p1", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      // Must not be swallowed by DELETE /campaigns/:id — the campaign itself has to survive.
+      const deletes = runs.filter((r) => r.sql.includes("DELETE FROM"));
+      expect(deletes.some((r) => r.sql.includes("DELETE FROM campaign_prices"))).toBe(true);
+      expect(deletes.some((r) => /DELETE FROM campaigns\b/.test(r.sql))).toBe(false);
+    });
+
+    it("GET /variant-search > returns picker rows, not the products list", async () => {
+      const hit = {
+        variantId: "v1",
+        productId: "p1",
+        name: "คอมแอร์",
+        productRef: "AC-1",
+        onlinePriceSatang: 250000,
+      };
+      const { env } = makeDb({ variantMatches: [hit], products: [{ id: "WRONG" }] });
+      const res = await worker.fetch!(new Request("https://x/variant-search?q=แอร์"), env, ctx);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ variants: [hit] });
+    });
+  });
+
+  describe("affiliate items", () => {
+    it("GET /affiliate-items > lists cards with their click counts", async () => {
+      const item = { id: "a1", title: "ปั๊มสูญญากาศ", source: "shopee", clicks: 7 };
+      const { env } = makeDb({ affiliateItems: [item] });
+      const res = await worker.fetch!(new Request("https://x/affiliate-items"), env, ctx);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ items: [item] });
+    });
+
+    it("POST /affiliate-items > creates a card and returns its id", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/affiliate-items", {
+          method: "POST",
+          body: JSON.stringify({
+            title: " ปั๊ม ",
+            targetUrl: "https://shopee.co.th/x",
+            source: "shopee",
+            priceText: "฿1,290",
+          }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      expect((await res.json()) as { id: string }).toHaveProperty("id");
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO affiliate_items"));
+      expect(insert?.binds).toContain("ปั๊ม");
+      expect(insert?.binds).toContain("shopee");
+    });
+
+    it("POST /affiliate-items > 400 for a missing title, non-https target, or unknown source", async () => {
+      const bad = async (body: unknown) =>
+        (
+          await worker.fetch!(
+            new Request("https://x/affiliate-items", {
+              method: "POST",
+              body: JSON.stringify(body),
+            }),
+            makeDb({}).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad({ targetUrl: "https://shopee.co.th/x" })).toBe(400);
+      expect(await bad({ title: "x", targetUrl: "http://shopee.co.th/x" })).toBe(400);
+      expect(await bad({ title: "x", targetUrl: "javascript:alert(1)" })).toBe(400);
+      expect(await bad({ title: "x", targetUrl: "https://a.co/x", source: "amazon" })).toBe(400);
+    });
+
+    it("PATCH /affiliate-items/:id > updates only the supplied fields", async () => {
+      const { env, runs } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/affiliate-items/a1", {
+          method: "PATCH",
+          body: JSON.stringify({ sortOrder: 3 }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(runs.find((r) => r.sql.includes("UPDATE affiliate_items SET"))?.sql).toContain(
+        "sort_order = ?",
+      );
+    });
+
+    it("PATCH /affiliate-items/:id > 400 for a non-https target", async () => {
+      const { env } = makeDb({});
+      const res = await worker.fetch!(
+        new Request("https://x/affiliate-items/a1", {
+          method: "PATCH",
+          body: JSON.stringify({ targetUrl: "http://shopee.co.th/x" }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("POST /affiliate-items/:id/image > stores the image under affiliate/", async () => {
+      const { db } = makeDb({ affiliateItemById: { id: "a1", imageKey: null } });
+      const { bucket, puts } = fakeBucket();
+      const res = await worker.fetch!(
+        new Request("https://x/affiliate-items/a1/image", {
+          method: "POST",
+          headers: { "content-type": "image/png" },
+          body: png(),
+        }),
+        { DB: db, IMAGES: bucket } as unknown as Env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      const out = (await res.json()) as { key: string; url: string };
+      expect(out.key).toMatch(/^affiliate\/a1-.*\.png$/);
+      expect(puts.length).toBe(1);
+    });
+
+    it("PATCH > 400 for any value a column's CHECK would refuse (never a D1 500)", async () => {
+      const patch = async (path: string, body: unknown) =>
+        (
+          await worker.fetch!(
+            new Request(`https://x${path}`, { method: "PATCH", body: JSON.stringify(body) }),
+            makeDb({}).env,
+            ctx,
+          )
+        ).status;
+      expect(await patch("/banners/b1", { slot: "top" })).toBe(400);
+      expect(await patch("/banners/b1", { status: "paused" })).toBe(400);
+      expect(await patch("/coupons/c1", { type: "bogus" })).toBe(400);
+      expect(await patch("/coupons/c1", { value: 0 })).toBe(400);
+      expect(await patch("/coupons/c1", { status: "paused" })).toBe(400);
+      expect(await patch("/campaigns/k1", { status: "paused" })).toBe(400);
+      expect(await patch("/affiliate-items/a1", { source: "amazon" })).toBe(400);
+      expect(await patch("/affiliate-items/a1", { status: "paused" })).toBe(400);
+    });
+
+    it("DELETE /affiliate-items/:id > removes clicks, the row, and its R2 image", async () => {
+      const { db, batched } = makeDb({
+        affiliateItemById: { id: "a1", imageKey: "affiliate/a1-x.png" },
+      });
+      const { bucket, deletes } = fakeBucket();
+      const res = await worker.fetch!(
+        new Request("https://x/affiliate-items/a1", { method: "DELETE" }),
+        { DB: db, IMAGES: bucket } as unknown as Env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(batched.some((s) => s.sql.includes("DELETE FROM affiliate_clicks"))).toBe(true);
+      expect(batched.some((s) => s.sql.includes("DELETE FROM affiliate_items"))).toBe(true);
+      expect(deletes).toEqual(["affiliate/a1-x.png"]);
+    });
   });
 });
 
@@ -1257,6 +1888,62 @@ describe("runDailyBackup", () => {
     expect(backupR2Bucket(env)).toBe((env as unknown as { BACKUPS: unknown }).BACKUPS);
     await runDailyBackup(env, 0);
     expect(puts.length).toBe(1);
+  });
+});
+
+describe("BACKUP_TABLES vs the migrations", () => {
+  // The MIGRATIONS are the schema's source of truth — packages/db/src/schema.ts says DRAFT in its
+  // own header, omits live tables, and nothing imports it. A table added by a migration but never
+  // added here drops out of the daily dump silently, which is exactly how 2026-07's storefront
+  // tables went unbacked-up; this test makes that drift a failing build instead.
+  const migrationsDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../packages/db/migrations",
+  );
+
+  /** Tables a migrated D1 actually holds: replay every CREATE / DROP / RENAME in migration order. */
+  function liveTables(): Set<string> {
+    const ddl =
+      /CREATE TABLE(?: IF NOT EXISTS)?\s+`?(\w+)`?|DROP TABLE(?: IF EXISTS)?\s+`?(\w+)`?|ALTER TABLE\s+`?(\w+)`?\s+RENAME TO\s+`?(\w+)`?/gi;
+    const live = new Set<string>();
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort(); // zero-padded prefixes → lexical order is apply order
+    for (const file of files) {
+      const sql = readFileSync(join(migrationsDir, file), "utf8");
+      for (const [, created, dropped, renamedFrom, renamedTo] of sql.matchAll(ddl)) {
+        if (created) live.add(created);
+        else if (dropped) live.delete(dropped);
+        else if (renamedFrom && renamedTo) {
+          live.delete(renamedFrom); // the 0025/0026 table-rebuild dance: *_new becomes the real name
+          live.add(renamedTo);
+        }
+      }
+    }
+    return live;
+  }
+
+  /**
+   * Tables deliberately left OUT of the daily dump. Every entry needs a reason, so the next person
+   * reads a decision instead of guessing at a gap. (d1_migrations needs no entry — it is
+   * Cloudflare's own bookkeeping, not created by any migration here, so it never shows up above.)
+   */
+  const BACKUP_EXCLUSIONS: Record<string, string> = {
+    auth_otp_codes: "transient: 6-digit codes with a 5-minute TTL; meaningless by the next backup",
+    auth_throttle: "transient: fixed-window rate-limit counters, rebuilt continuously",
+    storefront_sessions: "transient: only token hashes; a restore re-issues them at next login",
+  };
+
+  it("covers every table the migrations create", () => {
+    const missing = [...liveTables()].filter(
+      (t) => !BACKUP_TABLES.includes(t) && !(t in BACKUP_EXCLUSIONS),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("lists no table the migrations do not create (catches typos + dropped tables)", () => {
+    const live = liveTables();
+    expect(BACKUP_TABLES.filter((t) => !live.has(t))).toEqual([]);
   });
 });
 
@@ -2563,5 +3250,69 @@ describe("confirmPaymentWithSlip (Payment auto-confirm via slip verification)", 
     expect(upd).toBeDefined();
     expect(upd?.binds[0]).toBe("TR123");
     expect(upd?.binds[3]).toBe("pay1");
+  });
+});
+
+describe("applyOnlineSaleToDb (AirPlus order stock deduction)", () => {
+  const LINES = [
+    { productVariantId: "var-1", quantity: 2 },
+    { productVariantId: "var-2", quantity: 1 },
+  ];
+
+  it("given no lines > applies nothing", async () => {
+    const { db, batched } = makeDb({});
+    const out = await applyOnlineSaleToDb(db, "order-1", []);
+    expect(out).toEqual({ applied: false, duplicate: false, conflicts: [] });
+    expect(batched.length).toBe(0);
+  });
+
+  it("IDEMPOTENT: given the order already has ledger rows > no-op duplicate, nothing written", async () => {
+    const { db, batched } = makeDb({ onlineSaleLedgerRow: { id: "led-x" } });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out).toEqual({ applied: false, duplicate: true, conflicts: [] });
+    expect(batched.length).toBe(0);
+  });
+
+  it("FAIL-CLOSED: given any line short on stock > whole order conflicts, nothing written", async () => {
+    const { db, batched } = makeDb({
+      available: [
+        { variantId: "var-1", available: 5 },
+        { variantId: "var-2", available: 0 }, // second line short
+      ],
+    });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out.applied).toBe(false);
+    expect(out.conflicts).toEqual([{ productVariantId: "var-2", requested: 1, available: 0 }]);
+    expect(batched.length).toBe(0);
+  });
+
+  it("given enough stock > writes one online_sale ledger delta per line with running quantity_after", async () => {
+    const { db, batched } = makeDb({
+      available: [
+        { variantId: "var-1", available: 5 },
+        { variantId: "var-2", available: 3 },
+      ],
+    });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out).toEqual({ applied: true, duplicate: false, conflicts: [] });
+    expect(batched.length).toBe(2);
+    const inserts = batched as unknown as { sql: string; boundArgs: unknown[] }[];
+    expect(inserts[0]!.sql).toContain("INSERT INTO stock_ledger_entries");
+    expect(inserts[0]!.sql).toContain("'online_sale'");
+    expect(inserts[0]!.sql).toContain("'sales_order'");
+    // (id, variant, delta, after, orderId, createdAt)
+    expect(inserts[0]!.boundArgs[1]).toBe("var-1");
+    expect(inserts[0]!.boundArgs[2]).toBe(-2);
+    expect(inserts[0]!.boundArgs[3]).toBe(3); // 5 - 2
+    expect(inserts[0]!.boundArgs[4]).toBe("order-1");
+    expect(inserts[1]!.boundArgs[1]).toBe("var-2");
+    expect(inserts[1]!.boundArgs[2]).toBe(-1);
+    expect(inserts[1]!.boundArgs[3]).toBe(2); // 3 - 1
+  });
+
+  it("given a variant missing from the ledger entirely > treats available as 0 and conflicts", async () => {
+    const { db } = makeDb({ available: [{ variantId: "var-1", available: 5 }] });
+    const out = await applyOnlineSaleToDb(db, "order-1", LINES);
+    expect(out.conflicts).toEqual([{ productVariantId: "var-2", requested: 1, available: 0 }]);
   });
 });

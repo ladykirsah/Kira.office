@@ -17,6 +17,7 @@ and it keeps the **offline-first POS** correct via Durable Objects.
 | --- | --- | --- |
 | Admin UI + POS | **Workers** via **OpenNext** (`@opennextjs/cloudflare`) | Next.js App Router app (`apps/admin`) as a PWA |
 | API + jobs | **Workers** | `apps/api` request handler, sync endpoint, Shopee adapter, queue consumers |
+| Storefront (public) | **Workers** via **OpenNext** (`@opennextjs/cloudflare`) | Customer-facing AirPlus car-parts store (`apps/storefront`); shares api's D1 + KV, cross-binds the stock-ledger DO; authenticates customers via phone-OTP (persists session + OTP-throttle state) |
 | Database | **D1** (serverless SQLite) | System of record; accessed with **Drizzle ORM** |
 | Stock consistency | **Durable Objects** | Serialize stock-ledger writes; idempotent offline-sale apply |
 | Object storage | **R2** | Product image originals (S3-compatible, no egress fees) |
@@ -66,6 +67,15 @@ shapes never leak into it.
   business endpoints, the offline-sync endpoint, the Shopee boundary, and queue consumers. Keep it
   thin: validate input, enforce RBAC, call `packages/core`, persist via Drizzle/D1, route stock
   mutations through the ledger Durable Object.
+- **`apps/storefront`** — the customer-facing **AirPlus** car-parts storefront (Next.js App Router,
+  deployed with the **OpenNext Cloudflare adapter**). It is its own Worker (`airplus-storefront`),
+  separate from admin/api but on the **same Cloudflare account** — bindings do not cross accounts —
+  so it binds the **same D1 database (`DB`)** and **KV** as `apps/api` (a D1 database can be bound by
+  multiple Workers; KV is read-only here for the checkout PromptPay target, and the storefront also
+  persists its own customer auth state — `storefront_sessions`, `throttle` — for phone-OTP login) and cross-binds the
+  stock-ledger **Durable Object** (`STOCK_LEDGER` → `StockLedger`) via `script_name`. The DO class
+  stays owned by `apps/api`, so that binding resolves only after api has deployed it (and not in
+  local `next dev`).
 - Prefer **Service Bindings** (`services` in wrangler config) for admin→api calls.
 - For a smaller MVP, the API can live inside `apps/admin` as Next.js route handlers; split into a
   dedicated Worker when sync/jobs grow. Either way the boundary modules stay the same.
@@ -169,10 +179,21 @@ lookups. KV is eventually consistent — fine for caches, never for authoritativ
 - Use **service tokens** for machine-to-machine (cron, CI). The POS obtains a short-lived session
   while online and operates from cache when offline, re-syncing on reconnect.
 
+### Storefront customer auth (public storefront)
+
+The public storefront is **not** behind Cloudflare Access; it authenticates end customers itself via
+**phone-OTP** at `/login` (login | register mode tabs). New members see a PDPA consent panel;
+verification uses a 6-box OTP with a resend countdown. `POST /api/auth/otp/send` enforces a
+registration gate (login → existing/registered numbers only; register → new numbers only);
+`POST /api/auth/otp/verify` enforces the consent invariant. Sessions and send-throttling are tracked
+in `storefront_sessions` and `throttle`. A **Turnstile** seam guards OTP send. Staging sets
+`OTP_DEV_ECHO` to echo the code instead of sending SMS (never enabled in production).
+
 ## Edge security
 
-Cloudflare **WAF**, **Rate Limiting** (login + `/sync`), **Turnstile** on login, managed TLS, and
-DNS sit in front by default. Bot protection on public endpoints.
+Cloudflare **WAF**, **Rate Limiting** (back-office login + `/sync`, and the storefront
+`POST /api/auth/otp/send` OTP-send throttle), **Turnstile** on back-office login and (seam) on
+storefront OTP send, managed TLS, and DNS sit in front by default. Bot protection on public endpoints.
 
 ## Environments
 
