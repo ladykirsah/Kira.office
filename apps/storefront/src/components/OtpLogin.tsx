@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { displayNameError, isAtLeastYears } from "@l-shopee/core";
+import { ageInYears, displayNameError } from "@l-shopee/core";
+import { daysInBeMonth, toDobIso } from "@/lib/dob";
 import { normalizePhone, mmss } from "@/lib/format";
 import { spreadOtp, backspaceOtp, otpCode, emptyOtp, OTP_LEN } from "@/lib/otpInput";
 import { OTP_TTL_MS } from "@/lib/authCore";
@@ -177,11 +178,15 @@ export function OtpLogin({
   const phoneDigits = normalizePhone(phone);
   const phoneOk = phoneDigits.length >= 9 && phoneDigits.length <= 10;
   // Register birthday → ISO "YYYY-MM-DD" (Buddhist year − 543); "" until all three are chosen.
-  const dobIso =
-    bYear && bMonth && bDay
-      ? `${Number(bYear) - 543}-${bMonth.padStart(2, "0")}-${bDay.padStart(2, "0")}`
-      : "";
+  const dobIso = toDobIso(bYear, bMonth, bDay);
   const regReady = mode !== "register" || (Boolean(regName.trim()) && dobIso !== "");
+  // The วัน list only offers days the chosen month actually has, so 31 ก.พ. is unpickable.
+  const dayCount = daysInBeMonth(bYear, bMonth);
+  // Switching to a shorter month with a high day already picked would strand an impossible date in
+  // state (the select would show a value it no longer lists) — drop it and make them re-pick.
+  useEffect(() => {
+    if (bDay && Number(bDay) > dayCount) setBDay("");
+  }, [bDay, dayCount]);
 
   function switchMode(next: "login" | "register") {
     if (next === mode) return;
@@ -206,7 +211,15 @@ export function OtpLogin({
         setError("กรุณาเลือกวันเกิดให้ครบ");
         return;
       }
-      if (!isAtLeastYears(dobIso, 20, Date.now())) {
+      // ageInYears returns null for a date that does not exist (and for a future one) — that is NOT
+      // the same as being too young, and telling someone "you must be 20+" when they picked a bad
+      // day is a dead end they cannot act on. Branch the two apart.
+      const age = ageInYears(dobIso, Date.now());
+      if (age === null) {
+        setError("วันเกิดไม่ถูกต้อง กรุณาตรวจสอบ วัน/เดือน/ปี ที่เลือก");
+        return;
+      }
+      if (age < 20) {
         setError("ต้องมีอายุ 20 ปีบริบูรณ์ขึ้นไปจึงจะสมัครสมาชิกได้");
         return;
       }
@@ -575,7 +588,7 @@ export function OtpLogin({
                     }}
                   >
                     <option value="">วัน</option>
-                    {Array.from({ length: 31 }, (_, i) => (
+                    {Array.from({ length: dayCount }, (_, i) => (
                       <option key={i + 1} value={String(i + 1)}>
                         {i + 1}
                       </option>

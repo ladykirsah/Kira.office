@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { isAtLeastYears } from "@l-shopee/core";
+import { displayNameError, isAtLeastYears, normalizeDisplayName } from "@l-shopee/core";
 import { OTP_MAX_ATTEMPTS, SESSION_COOKIE, hashOtp } from "@/lib/authCore";
 import { createSession, guardMutation, sessionCookieOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -84,7 +84,11 @@ export async function POST(req: Request): Promise<Response> {
     // Server-authoritative: the client blocks under-20 before the SMS, but this is the real barrier.
     // Checked before consuming the code so a fixable mistake doesn't burn the SMS.
     if (!existing) {
-      if (!name) return Response.json({ error: "กรุณากรอกชื่อเพื่อสร้างบัญชี" }, { status: 400 });
+      // The SHARED name rules — the register screen, the account screen and this endpoint must agree
+      // on what a name is, or registration re-opens the "customer permanently called L" hole that
+      // accountProfile.ts exists to close (a bare `!name` check passes "L" and a 500-char string).
+      const nameErr = displayNameError(name);
+      if (nameErr) return Response.json({ error: nameErr }, { status: 400 });
       if (!isAtLeastYears(dob, 20, now))
         return Response.json(
           { error: "ต้องมีอายุ 20 ปีบริบูรณ์ขึ้นไปจึงจะสมัครสมาชิกได้" },
@@ -113,8 +117,8 @@ export async function POST(req: Request): Promise<Response> {
         .run();
     } else {
       customerId = crypto.randomUUID();
-      // Registration captures name + DOB up front (age-gated above); '' name only for the legacy
-      // login-tab fallback, which the registration gate makes unreachable in practice.
+      // Registration captures name + DOB up front (validated + age-gated above). The name is stored
+      // NORMALIZED so "  สมชาย   ใจดี  " and "สมชาย ใจดี" are one name, matching the account screen.
       await db
         .prepare(
           `INSERT INTO storefront_customers
@@ -123,7 +127,7 @@ export async function POST(req: Request): Promise<Response> {
            ON CONFLICT(phone) DO UPDATE SET phone_verified_at = excluded.phone_verified_at,
              last_login_at = excluded.last_login_at, updated_at = excluded.updated_at`,
         )
-        .bind(customerId, phone, name, dob || null, now, now, now, now, now)
+        .bind(customerId, phone, normalizeDisplayName(name), dob || null, now, now, now, now, now)
         .run();
       const row = await db
         .prepare(`SELECT id FROM storefront_customers WHERE phone = ?`)
@@ -135,7 +139,7 @@ export async function POST(req: Request): Promise<Response> {
     const session = await createSession(db, customerId);
     (await cookies()).set(SESSION_COOKIE, session.token, sessionCookieOptions());
     return Response.json({
-      customer: { id: customerId, phone, name: existing?.name ?? name },
+      customer: { id: customerId, phone, name: existing?.name ?? normalizeDisplayName(name) },
     });
   } catch (err) {
     console.error("POST /api/auth/otp/verify failed", err);

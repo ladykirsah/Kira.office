@@ -1,8 +1,12 @@
 // Claim / Returns / Warranty policy — rendered from docs/policies/claim-returns-warranty-policy.md
 // (policy branch). Backed by the built order cancel/return flow (/api/orders/{cancel,returns}).
-// PRE-LAUNCH: placeholder domain + lawyer review pending; per-category return windows live on each
-// product page (this policy deliberately states no fixed day count).
+// PRE-LAUNCH: placeholder domain + lawyer review pending.
+//
+// The window is stated from RETURN_WINDOW_DAYS, the SAME constant orderLifecycle.ts enforces, so the
+// published policy cannot drift from the code. Per-category windows do not exist: an earlier draft
+// promised them "on each product page", which was never built and is not enforceable.
 import type { Metadata } from "next";
+import { RETURN_WINDOW_DAYS } from "@l-shopee/core";
 import { PolicyDoc, type PolicySection } from "@/components/PolicyDoc";
 
 export const metadata: Metadata = {
@@ -14,7 +18,7 @@ export const metadata: Metadata = {
 const SECTIONS: PolicySection[] = [
   {
     heading: "1. ขอบเขต",
-    body: "นโยบายนี้ใช้กับสินค้าทุกชิ้นที่จำหน่ายผ่าน AirPlus ระยะเวลาการคืน/เคลม/รับประกันของสินค้าแต่ละชิ้นแตกต่างกันตามหมวดหมู่สินค้า และจะระบุไว้ในหน้ารายละเอียดสินค้านั้น ๆ ระยะเวลานี้ใช้ครอบคลุมทั้งกรณีคืนสินค้าและกรณีเคลมประกันในช่วงเวลาเดียวกัน",
+    body: `นโยบายนี้ใช้กับสินค้าทุกชิ้นที่จำหน่ายผ่าน AirPlus ท่านสามารถยื่นคำขอคืนสินค้าหรือเคลมได้ภายใน ${RETURN_WINDOW_DAYS} วัน นับจากคำสั่งซื้อมีสถานะสำเร็จ ระยะเวลานี้ใช้ครอบคลุมทั้งกรณีคืนสินค้าและกรณีเคลมประกันในช่วงเวลาเดียวกัน`,
   },
   {
     heading: "2. สิ่งที่ครอบคลุมและไม่ครอบคลุม",
@@ -22,7 +26,7 @@ const SECTIONS: PolicySection[] = [
   },
   {
     heading: "3. วิธีเปิดเคลม",
-    body: "1. กดปุ่มยกเลิก/เคลมสินค้าในคำสั่งซื้อ และเลือกเหตุผล: เปลี่ยนใจ หรือ สินค้าชำรุด/เสียหาย\n2. แนบรูปถ่ายปัญหาที่พบ (และวิดีโอสั้น ๆ หากสงสัยว่าเสียหายจากการขนส่ง) — จำเป็นต้องแนบเพื่อเปิดเรื่องเคลม\n3. รับที่อยู่ร้านเพื่อส่งสินค้าคืน และแจ้งเลขที่บัญชีธนาคารสำหรับรับเงินคืน (กรณีมีการคืนเงิน)\n4. ค่าจัดส่งไป-กลับ: เปลี่ยนใจ ลูกค้ารับผิดชอบ / สินค้าชำรุด ร้านรับผิดชอบ (ตามที่แจ้งไว้ตอนเปิดเรื่อง — แม้ผลการตรวจสอบภายหลังจะออกมาต่างจากที่แจ้ง ร้านจะไม่เรียกเก็บค่าจัดส่งที่จ่ายไปแล้วคืนจากลูกค้า)",
+    body: "1. กดปุ่มยกเลิก/เคลมสินค้าในคำสั่งซื้อ และเลือกเหตุผล: เปลี่ยนใจ หรือ สินค้าชำรุด/เสียหาย\n2. ทีมช่างจะติดต่อกลับทาง LINE เพื่อขอรูปถ่ายปัญหาที่พบ (และวิดีโอสั้น ๆ หากสงสัยว่าเสียหายจากการขนส่ง) — กรุณาถ่ายเก็บไว้ก่อนส่งสินค้าคืน\n3. รับที่อยู่ร้านเพื่อส่งสินค้าคืน และแจ้งเลขที่บัญชีธนาคารสำหรับรับเงินคืน (กรณีมีการคืนเงิน)\n4. ค่าจัดส่งไป-กลับ: เปลี่ยนใจ ลูกค้ารับผิดชอบ / สินค้าชำรุด ร้านรับผิดชอบ (ตามที่แจ้งไว้ตอนเปิดเรื่อง — แม้ผลการตรวจสอบภายหลังจะออกมาต่างจากที่แจ้ง ร้านจะไม่เรียกเก็บค่าจัดส่งที่จ่ายไปแล้วคืนจากลูกค้า)",
   },
   {
     heading: "4. กระบวนการตรวจสอบโดยช่าง",
