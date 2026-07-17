@@ -4,6 +4,7 @@ import {
   slipVerificationConfigured,
   verifySlipWithSlipOk,
 } from "@l-shopee/core";
+import { guardMutation } from "@/lib/auth";
 import { getDb, getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 
@@ -23,6 +24,10 @@ import { normalizePhone } from "@/lib/format";
 const NOT_FOUND = "ไม่พบคำสั่งซื้อ กรุณาตรวจสอบเบอร์โทรและเลขที่คำสั่งซื้อ";
 
 export async function POST(req: Request): Promise<Response> {
+  // CSRF gate first, like every other mutating route (content-type + Origin check). This was the one
+  // mutation handler missing it, so a cross-origin simple POST could reach the slip write.
+  const guarded = guardMutation(req);
+  if (guarded) return guarded;
   try {
     let raw: unknown;
     try {

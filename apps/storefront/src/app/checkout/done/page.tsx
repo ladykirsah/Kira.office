@@ -27,6 +27,15 @@ const MOCK_BANK = {
   accountName: "บจก. เด่น แอร์ เซอร์วิส",
 };
 
+/**
+ * MOCK PromptPay target — same rationale as MOCK_BANK: the shop's real PromptPay ID is managed in
+ * Kira.office and not yet wired to the storefront, so an order placed before that lands has no
+ * promptpayId. This valid-format demo phone lets the PromptPay QR flow render end to end on staging;
+ * it is clearly labelled a demo below the QR and is NOT a real receiving account. Swap for live
+ * shop-settings data when that lands (then the mock branch simply never runs).
+ */
+const MOCK_PROMPTPAY_ID = "0812345678";
+
 type LastOrder = CheckoutSuccess & { phone: string };
 
 function parseLastOrder(raw: string | null): LastOrder | null {
@@ -129,36 +138,40 @@ export default function CheckoutDonePage() {
           {amount}
         </div>
 
-        {order.paymentMethod === "promptpay" &&
-          (order.promptpayId ? (
-            <>
-              <p className="muted" style={{ fontSize: 13, margin: "12px 0 10px" }}>
-                สแกน QR ด้วยแอปธนาคารใดก็ได้
-              </p>
-              <PromptPayQr
-                promptpayId={order.promptpayId}
-                amountSatang={order.amountSatang}
-                size={200}
-              />
-              <div style={{ marginTop: 14 }}>
-                <SlipUpload orderRef={order.ref} phone={order.phone} />
-              </div>
-            </>
-          ) : (
-            <p
-              style={{
-                margin: "14px 0 0",
-                padding: 12,
-                borderRadius: "var(--radius-sm)",
-                background: "var(--warn-soft)",
-                color: "var(--warn)",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              ร้านยังไม่ได้ตั้งค่า PromptPay — ทางร้านจะติดต่อกลับเพื่อแจ้งช่องทางชำระเงิน
+        {order.paymentMethod === "promptpay" && (
+          <>
+            <p className="muted" style={{ fontSize: 13, margin: "12px 0 10px" }}>
+              สแกน QR ด้วยแอปธนาคารใดก็ได้
             </p>
-          ))}
+            {/* Real PromptPay ID once shop-settings is wired; a labelled demo QR until then so the
+                pay-by-QR flow is visible instead of a dead-end warning. PromptPayQr renders nothing
+                on an invalid ID, so a bad live setting still degrades safely. */}
+            <PromptPayQr
+              promptpayId={order.promptpayId || MOCK_PROMPTPAY_ID}
+              amountSatang={order.amountSatang}
+              size={200}
+            />
+            {!order.promptpayId && (
+              <p
+                style={{
+                  margin: "10px auto 0",
+                  maxWidth: 220,
+                  padding: "6px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "var(--warn-soft)",
+                  color: "var(--warn)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                ตัวอย่าง (เดโม) — ยังไม่ใช่บัญชีรับเงินจริง
+              </p>
+            )}
+            <div style={{ marginTop: 14 }}>
+              <SlipUpload orderRef={order.ref} phone={order.phone} />
+            </div>
+          </>
+        )}
 
         {order.paymentMethod === "transfer" && (
           <>

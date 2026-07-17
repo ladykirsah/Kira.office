@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { resolvePostcode, type PostcodeMap } from "./thaiGeo";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { resolvePostcode, loadPostcodes, type PostcodeMap } from "./thaiGeo";
 
 const MAP: PostcodeMap = {
   "81120": [
@@ -32,5 +32,28 @@ describe("resolvePostcode", () => {
 
   it("given an unknown zip > returns null", () => {
     expect(resolvePostcode(MAP, "99999")).toBeNull();
+  });
+});
+
+describe("loadPostcodes", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("given a transient fetch failure > does not poison the cache; a later call retries and succeeds", async () => {
+    const good: PostcodeMap = { "10250": [["หัวหมาก", "บางกะปิ", "กรุงเทพมหานคร"]] };
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("network");
+        return { ok: true, json: async () => good } as unknown as Response;
+      }),
+    );
+    // First attempt fails…
+    await expect(loadPostcodes()).rejects.toThrow();
+    // …and the NEXT attempt must re-fetch and resolve (the poisoned-cache bug returned the same
+    // rejected promise here, breaking autofill for the whole session).
+    await expect(loadPostcodes()).resolves.toEqual(good);
+    expect(calls).toBe(2);
   });
 });

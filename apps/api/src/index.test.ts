@@ -1312,8 +1312,15 @@ describe("runDailyBackup", () => {
     const dump = JSON.parse(puts[0]!.body) as { tables: Record<string, unknown[]> };
     expect(dump).toHaveProperty("tables");
     // Irreplaceable data must be in the daily dump: the customer directory, the anti-cheat
-    // payment trail, the audit log, and hand-transcribed legacy history.
-    for (const table of ["customers", "payments", "audit_logs", "customer_history_entries"]) {
+    // payment trail, the audit log, hand-transcribed legacy history, and the storefront
+    // return/claim requests (incl. the shop's verbatim decision notes — unrecoverable if lost).
+    for (const table of [
+      "customers",
+      "payments",
+      "audit_logs",
+      "customer_history_entries",
+      "order_returns",
+    ]) {
       expect(Object.keys(dump.tables)).toContain(table);
     }
   });

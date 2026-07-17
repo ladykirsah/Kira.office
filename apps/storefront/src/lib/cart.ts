@@ -43,7 +43,15 @@ function readRaw(): CartLine[] {
 }
 
 function write(lines: CartLine[]): void {
-  window.localStorage.setItem(KEY, JSON.stringify(lines));
+  // Persist best-effort — a full/blocked store (private mode, quota) must not throw out of
+  // addToCart/clearCart. Update the in-memory cache + notify regardless, so the UI (badge, cart page,
+  // post-order redirect) stays consistent even when localStorage refuses the write. Matches the
+  // best-effort setItem in recentSearches.ts / RecentlyViewed.tsx / coupons.ts.
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(lines));
+  } catch {
+    /* ignore — persistence is best-effort */
+  }
   cache = lines;
   window.dispatchEvent(new Event(EVENT));
 }

@@ -1728,6 +1728,9 @@ const BACKUP_TABLES = [
   "payments",
   "audit_logs",
   "customer_history_entries",
+  // Storefront return/claim requests (migration 0049). Irreplaceable customer dispute data — the
+  // reason, note, status, and the shop's verbatim decision_note shown back to the customer.
+  "order_returns",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
@@ -1827,6 +1830,12 @@ export async function updateOrder(
     next.shipTimeMs = Date.now();
   }
 
+  // NOTE — deliberate: a shop-side cancel/refund (order_status → 'ยกเลิก'/'คืนเงิน') does NOT restore
+  // stock. Restocking is STAFF RESPONSIBILITY (owner decision 2026-07-17): a returned part may be
+  // damaged/unsellable, so staff decide per case and put it back via a manual Stock adjust. This is
+  // intentionally different from the customer-side storefront cancel, which auto-restores because it
+  // only applies to UN-SHIPPED orders whose units never physically left the shelf. Do not "fix" this
+  // into an automatic restore without a new owner decision.
   await db
     .prepare(
       `UPDATE sales_orders SET order_status = ?, payment_status = ?, carrier = ?, tracking_no = ?,

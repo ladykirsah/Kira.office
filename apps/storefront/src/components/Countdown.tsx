@@ -36,8 +36,16 @@ export function Countdown({
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
+  const [mounted, setMounted] = useState(false);
   const refreshedRef = useRef(false);
-  const over = now >= endsAt;
+  // Gate `over` on mount so the server render and the first client render are structurally identical
+  // (both emit the running timer). Without this, an `endsAt` crossed inside the SSR→hydrate window
+  // makes the server emit the running subtree while the client emits <span>จบแล้ว</span> — a
+  // structural mismatch suppressHydrationWarning can't cover (it only suppresses text one level deep).
+  // After mount the real over-state takes over and fires the one-shot route refresh below.
+  const over = mounted && now >= endsAt;
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (over) return;

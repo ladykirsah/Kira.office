@@ -22,8 +22,23 @@ export function resolvePostcode(
 }
 
 let cache: Promise<PostcodeMap> | null = null;
-/** Lazily fetch + memoize the postcode table (served gzipped from /public). */
+/**
+ * Lazily fetch + memoize the postcode table (served gzipped from /public). Only a SUCCESSFUL load is
+ * memoized — on a transient failure (offline blip, 5xx, or a 404 HTML body that fails JSON parsing)
+ * the cache is cleared so the next zip entry retries, instead of poisoning autofill for the whole
+ * session with a permanently-rejected promise.
+ */
 export function loadPostcodes(): Promise<PostcodeMap> {
-  if (!cache) cache = fetch("/thai-postcodes.json").then((r) => r.json() as Promise<PostcodeMap>);
+  if (!cache) {
+    cache = fetch("/thai-postcodes.json")
+      .then((r) => {
+        if (!r.ok) throw new Error(`postcodes fetch failed: ${r.status}`);
+        return r.json() as Promise<PostcodeMap>;
+      })
+      .catch((e) => {
+        cache = null; // don't memoize the failure — let the next call retry
+        throw e;
+      });
+  }
   return cache;
 }
