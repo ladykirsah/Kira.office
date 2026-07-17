@@ -2441,6 +2441,10 @@ export interface ProductDetail {
     productRef: string;
     category: string | null;
     weightGrams: number;
+    /** Parcel size in mm; null until measured (the form shows/takes cm). */
+    widthMm: number | null;
+    lengthMm: number | null;
+    heightMm: number | null;
     brandId: string | null;
     brandName: string | null;
     typeId: string | null;
@@ -2471,6 +2475,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
       `SELECT p.id, p.product_ref AS productRef, p.name, p.description, p.status, p.image_key AS imageKey,
               p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId,
               p.category, p.weight_grams AS weightGrams,
+              p.width_mm AS widthMm, p.length_mm AS lengthMm, p.height_mm AS heightMm,
               p.brand_id AS brandId, b.name AS brandName,
               p.type_id AS typeId, t.name AS typeName,
               p.usage_id AS usageId, u.name AS usageName,
@@ -2546,6 +2551,11 @@ export async function updateProduct(
     productRef?: string;
     category?: string;
     weightGrams?: number;
+    /** Parcel size in MILLIMETRES (the form takes cm). Carriers rate on volumetric weight
+     *  w×l×h/5000, so a quote is impossible without all three. */
+    widthMm?: number | null;
+    lengthMm?: number | null;
+    heightMm?: number | null;
     brandId?: string | null;
     typeId?: string | null;
     usageId?: string | null;
@@ -2553,7 +2563,7 @@ export async function updateProduct(
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ?, updated_at = ? WHERE id = ?",
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, width_mm = ?, length_mm = ?, height_mm = ?, brand_id = ?, type_id = ?, usage_id = ?, updated_at = ? WHERE id = ?",
     )
     .bind(
       fields.name.trim(),
@@ -2564,6 +2574,11 @@ export async function updateProduct(
       fields.productRef?.trim() || null,
       fields.category?.trim() || null,
       Math.max(0, Math.round(fields.weightGrams ?? 0)),
+      // NULL, not 0: an unmeasured box must stay unknown so it fails loudly at quote time rather
+      // than quietly rating as a zero-size parcel. Unlike weight_grams, which defaults to 0 already.
+      mmOrNull(fields.widthMm),
+      mmOrNull(fields.lengthMm),
+      mmOrNull(fields.heightMm),
       fields.brandId ?? null,
       fields.typeId ?? null,
       fields.usageId ?? null,
@@ -2571,6 +2586,13 @@ export async function updateProduct(
       id,
     )
     .run();
+}
+
+/** A parcel edge in mm: a positive whole number, or null when it hasn't been measured. */
+function mmOrNull(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  const mm = Math.round(Number(value));
+  return Number.isFinite(mm) && mm > 0 ? mm : null;
 }
 
 export interface AttrOption {
@@ -4070,6 +4092,9 @@ const worker = {
         shopeeItemId?: string;
         productRef?: string;
         weightGrams?: number;
+        widthMm?: number | null;
+        lengthMm?: number | null;
+        heightMm?: number | null;
         barcode?: string;
         brandName?: string;
         usageName?: string;
@@ -4098,6 +4123,9 @@ const worker = {
         productRef: body.productRef,
         category,
         weightGrams: body.weightGrams,
+        widthMm: body.widthMm,
+        lengthMm: body.lengthMm,
+        heightMm: body.heightMm,
         brandId,
         typeId,
         usageId,

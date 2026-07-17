@@ -531,6 +531,10 @@ export interface ProductDetail {
     productRef: string;
     category: string | null;
     weightGrams: number;
+    /** Parcel size in mm; null until measured. The form shows and takes centimetres. */
+    widthMm: number | null;
+    lengthMm: number | null;
+    heightMm: number | null;
     brandId: string | null;
     brandName: string | null;
     typeId: string | null;
@@ -570,6 +574,9 @@ export async function updateProduct(
     shopeeItemId?: string;
     productRef?: string;
     weightGrams?: number;
+    widthMm?: number | null;
+    lengthMm?: number | null;
+    heightMm?: number | null;
     barcode?: string;
     brandName?: string;
     usageName?: string;

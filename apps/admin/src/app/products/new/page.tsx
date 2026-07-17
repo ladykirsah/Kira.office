@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputL, inputS } from "@/lib/inputStyles";
+import { cmToMm } from "@/lib/parcel";
 import {
   createProduct,
   updateProduct,
@@ -57,6 +58,9 @@ export default function NewProductPage() {
   const [name, setName] = useState("");
   const [stockQty, setStockQty] = useState("0");
   const [weightKg, setWeightKg] = useState("");
+  const [widthCm, setWidthCm] = useState("");
+  const [lengthCm, setLengthCm] = useState("");
+  const [heightCm, setHeightCm] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
   const [productRef, setProductRef] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
@@ -128,6 +132,9 @@ export default function NewProductPage() {
         // The barcode is the Product ID (one identifier; scanning the part's barcode fills it in).
         barcode: productRef.trim(),
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
+        widthMm: cmToMm(widthCm),
+        lengthMm: cmToMm(lengthCm),
+        heightMm: cmToMm(heightCm),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
         typeName: part.type || undefined,
@@ -234,6 +241,32 @@ export default function NewProductPage() {
               placeholder="0"
               style={{ ...inputS, width: 160 }}
             />
+          </label>
+          {/* Box size, not part size. Carriers rate on volumetric weight (w×l×h/5000), so a big
+              light part bills by its box — without all three there is no shipping quote at all. */}
+          <label style={field}>
+            Box size (cm) — W × L × H
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {(
+                [
+                  ["W", widthCm, setWidthCm],
+                  ["L", lengthCm, setLengthCm],
+                  ["H", heightCm, setHeightCm],
+                ] as const
+              ).map(([label, value, set], i) => (
+                <span key={label} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {i > 0 && <span style={{ opacity: 0.5 }}>×</span>}
+                  <input
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    inputMode="decimal"
+                    placeholder={label}
+                    aria-label={`Box ${label} in centimetres`}
+                    style={{ ...inputS, width: 72 }}
+                  />
+                </span>
+              ))}
+            </span>
           </label>
         </div>
 

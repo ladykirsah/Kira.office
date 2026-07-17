@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { inputL, inputS } from "@/lib/inputStyles";
+import { cmToMm, mmToCm } from "@/lib/parcel";
 import { useParams } from "next/navigation";
 import {
   apiBase,
@@ -175,6 +176,9 @@ export default function EditProductPage() {
   const [productRef, setProductRef] = useState("");
   const [shopeeActive, setShopeeActive] = useState(true);
   const [weightKg, setWeightKg] = useState("");
+  const [widthCm, setWidthCm] = useState("");
+  const [lengthCm, setLengthCm] = useState("");
+  const [heightCm, setHeightCm] = useState("");
   const [stockQty, setStockQty] = useState("");
   const [attributes, setAttributes] = useState<Attributes | null>(null);
   const [carTree, setCarTree] = useState<CarBrandTree[]>([]);
@@ -204,6 +208,9 @@ export default function EditProductPage() {
     });
     setShopeeActive(Boolean(d.product.shopeeListed));
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
+    setWidthCm(mmToCm(d.product.widthMm));
+    setLengthCm(mmToCm(d.product.lengthMm));
+    setHeightCm(mmToCm(d.product.heightMm));
     setStockQty(String(d.onHand ?? 0));
     setFitments(d.fitments ?? []);
     setPricing({
@@ -265,6 +272,9 @@ export default function EditProductPage() {
         shopeeItemId,
         productRef,
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
+        widthMm: cmToMm(widthCm),
+        lengthMm: cmToMm(lengthCm),
+        heightMm: cmToMm(heightCm),
         // The barcode is the Product ID (one identifier).
         barcode: productRef.trim(),
         brandName: part.brand,
@@ -456,6 +466,31 @@ export default function EditProductPage() {
                   placeholder="0"
                   style={{ ...inputS, width: 140 }}
                 />
+              </label>
+              {/* Box size, not part size — carriers rate on volumetric weight (w×l×h/5000). */}
+              <label style={field}>
+                Box size (cm) — W × L × H
+                <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {(
+                    [
+                      ["W", widthCm, setWidthCm],
+                      ["L", lengthCm, setLengthCm],
+                      ["H", heightCm, setHeightCm],
+                    ] as const
+                  ).map(([label, value, set], i) => (
+                    <span key={label} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {i > 0 && <span style={{ opacity: 0.5 }}>×</span>}
+                      <input
+                        value={value}
+                        onChange={(e) => set(e.target.value)}
+                        inputMode="decimal"
+                        placeholder={label}
+                        aria-label={`Box ${label} in centimetres`}
+                        style={{ ...inputS, width: 64 }}
+                      />
+                    </span>
+                  ))}
+                </span>
               </label>
             </div>
 
