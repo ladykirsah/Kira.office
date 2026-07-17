@@ -419,15 +419,16 @@ textarea {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 .otp-welcome {
-  border: 1px solid var(--accent-soft);
-  background: #fff8f6;
+  /* Blue info tint (not the red "warning" look) — a friendly welcome + consent panel, not an alert. */
+  border: 1px solid rgba(1, 90, 191, 0.22);
+  background: rgba(1, 90, 191, 0.05);
   border-radius: 12px;
   padding: 13px 14px;
 }
 .otp-welcome-t {
   font-size: 14px;
   font-weight: 800;
-  color: var(--brand-deep);
+  color: var(--brand-blue);
   margin-bottom: 10px;
 }
 .otp-consent {
@@ -444,10 +445,10 @@ textarea {
   height: 18px;
   flex: 0 0 auto;
   margin-top: 1px;
-  accent-color: var(--brand);
+  accent-color: var(--brand-blue);
 }
 .otp-consent a {
-  color: var(--brand);
+  color: var(--brand-blue);
   text-decoration: underline;
   font-weight: 600;
 }
@@ -1528,6 +1529,21 @@ textarea {
   font-size: 14px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+/* Birthday line — a quiet third row under the phone; the label keeps it from reading as a number. */
+.acct-profile-dob {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.acct-profile-dob-k {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint, var(--text-muted));
 }
 /* Inside the edit panel: the phone is shown but changed through its own OTP flow. */
 .acct-profile-phonerow {

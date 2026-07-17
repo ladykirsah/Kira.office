@@ -504,6 +504,8 @@ export const storefrontCustomers = sqliteTable(
     phone: text("phone").notNull().unique(),
     name: text("name").notNull(),
     email: text("email"),
+    // ISO "YYYY-MM-DD"; collected at registration for the 20+ age gate (migration 0050).
+    dateOfBirth: text("date_of_birth"),
     phoneVerifiedAt: integer("phone_verified_at", { mode: "timestamp_ms" }),
     pdpaConsentAt: integer("pdpa_consent_at", { mode: "timestamp_ms" }),
     lastLoginAt: integer("last_login_at", { mode: "timestamp_ms" }),

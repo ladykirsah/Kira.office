@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { productShareTitle, shareOrCopy, type ShareCapableNavigator } from "./share";
+import {
+  productShareTitle,
+  shareOrCopy,
+  shareImageOrDownload,
+  type ShareCapableNavigator,
+  type FileShareCapableNavigator,
+} from "./share";
 
 describe("productShareTitle", () => {
   it("given a metadata title with the ' — AirPlus' suffix > strips the suffix", () => {
@@ -67,5 +73,49 @@ describe("shareOrCopy", () => {
     const nav: ShareCapableNavigator = { clipboard: { writeText } };
 
     await expect(shareOrCopy(nav, payload)).resolves.toBe("unsupported");
+  });
+});
+
+describe("shareImageOrDownload", () => {
+  const file = new File([new Uint8Array([1, 2, 3])], "airplus-qr.png", { type: "image/png" });
+
+  it("given Web Share can take the file > shares it and reports 'shared'", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    const canShare = vi.fn().mockReturnValue(true);
+    const nav: FileShareCapableNavigator = { share, canShare };
+
+    await expect(shareImageOrDownload(nav, file, "PromptPay QR")).resolves.toBe("shared");
+    expect(share).toHaveBeenCalledWith({ files: [file], title: "PromptPay QR" });
+  });
+
+  it("given canShare rejects files > reports 'download' without calling share", async () => {
+    const share = vi.fn();
+    const canShare = vi.fn().mockReturnValue(false);
+    const nav: FileShareCapableNavigator = { share, canShare };
+
+    await expect(shareImageOrDownload(nav, file, "PromptPay QR")).resolves.toBe("download");
+    expect(share).not.toHaveBeenCalled();
+  });
+
+  it("given the user dismisses the sheet > reports 'cancelled' (never a silent download)", async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException("dismissed", "AbortError"));
+    const canShare = vi.fn().mockReturnValue(true);
+
+    await expect(shareImageOrDownload({ share, canShare }, file, "PromptPay QR")).resolves.toBe(
+      "cancelled",
+    );
+  });
+
+  it("given share throws a non-abort error > falls back to 'download'", async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException("nope", "NotAllowedError"));
+    const canShare = vi.fn().mockReturnValue(true);
+
+    await expect(shareImageOrDownload({ share, canShare }, file, "PromptPay QR")).resolves.toBe(
+      "download",
+    );
+  });
+
+  it("given no Web Share at all > reports 'download'", async () => {
+    await expect(shareImageOrDownload({}, file, "PromptPay QR")).resolves.toBe("download");
   });
 });

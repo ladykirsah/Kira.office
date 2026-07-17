@@ -18,7 +18,17 @@ import { formatThaiPhone, normalizePhone } from "@/lib/format";
  *    guest order tracking resolves orders by, so changing it without proving ownership would hand
  *    someone an account and its entire order history.
  */
-export function ProfileCard({ name, phone }: { name: string; phone: string }) {
+export function ProfileCard({
+  name,
+  phone,
+  birthday,
+}: {
+  name: string;
+  phone: string;
+  // Pre-formatted Thai birthday ("20 มีนาคม 2540"), or null when the account has no DOB on file —
+  // the line is simply omitted rather than showing an empty "วันเกิด".
+  birthday?: string | null;
+}) {
   const router = useRouter();
   // "edit" holds BOTH fields, because owner-picked Design B has a single แก้ไข button; "phone" is
   // the OTP sub-flow nested inside it, kept separate so a half-finished phone change can never be
@@ -148,6 +158,12 @@ export function ProfileCard({ name, phone }: { name: string; phone: string }) {
               {name || <span className="acct-profile-empty">ยังไม่ได้ระบุชื่อ</span>}
             </div>
             <div className="acct-profile-phone">{formatThaiPhone(phone)}</div>
+            {birthday && (
+              <div className="acct-profile-dob">
+                <span className="acct-profile-dob-k">วันเกิด</span>
+                {birthday}
+              </div>
+            )}
           </div>
           <button
             type="button"

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { displayNameError } from "@l-shopee/core";
+import { displayNameError, isAtLeastYears } from "@l-shopee/core";
 import { normalizePhone, mmss } from "@/lib/format";
 import { spreadOtp, backspaceOtp, otpCode, emptyOtp, OTP_LEN } from "@/lib/otpInput";
 import { OTP_TTL_MS } from "@/lib/authCore";
@@ -22,6 +22,21 @@ import { OTP_TTL_MS } from "@/lib/authCore";
  */
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+const THAI_MONTHS = [
+  "ม.ค.",
+  "ก.พ.",
+  "มี.ค.",
+  "เม.ย.",
+  "พ.ค.",
+  "มิ.ย.",
+  "ก.ค.",
+  "ส.ค.",
+  "ก.ย.",
+  "ต.ค.",
+  "พ.ย.",
+  "ธ.ค.",
+];
 
 interface TurnstileApi {
   render: (
@@ -65,17 +80,32 @@ export interface OtpLoginCustomer {
 export function OtpLogin({
   onLoggedIn,
   compact = false,
+  onStepChange,
 }: {
   onLoggedIn?: (customer: OtpLoginCustomer) => void;
   compact?: boolean;
+  /** Reports the current step so a host page can react (e.g. hide its header on success screens). */
+  onStepChange?: (step: "phone" | "code" | "name" | "address") => void;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [step, setStep] = useState<"phone" | "code" | "name">("phone");
-  /** the just-authenticated customer, held while the optional name step runs */
+  const [step, setStep] = useState<"phone" | "code" | "name" | "address">("phone");
+  /** the just-authenticated customer, held while the name / address step runs */
   const [verified, setVerified] = useState<OtpLoginCustomer | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
+  // Register tab collects these up front (see the register form): name + a 20+ birthday.
+  const [regName, setRegName] = useState("");
+  const [bDay, setBDay] = useState("");
+  const [bMonth, setBMonth] = useState("");
+  const [bYear, setBYear] = useState(""); // Buddhist-era year string
+  // พ.ศ. year options: 15..100 years ago. useState initializer so new Date() runs once, not per render.
+  const [beYears] = useState(() => {
+    const currentBe = new Date().getFullYear() + 543;
+    const ys: number[] = [];
+    for (let y = currentBe - 15; y >= currentBe - 100; y--) ys.push(y);
+    return ys;
+  });
   const [phone, setPhone] = useState("");
   const [digits, setDigits] = useState<string[]>(emptyOtp);
   const code = otpCode(digits);
@@ -113,6 +143,11 @@ export function OtpLogin({
     if (step === "code") boxRefs.current[0]?.focus();
   }, [step]);
 
+  // Report the current step so the host page can hide its generic header on the success screens.
+  useEffect(() => {
+    onStepChange?.(step);
+  }, [step, onStepChange]);
+
   // Turnstile widget — re-rendered per step so a resend always has a fresh token.
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | undefined>(undefined);
@@ -141,6 +176,12 @@ export function OtpLogin({
 
   const phoneDigits = normalizePhone(phone);
   const phoneOk = phoneDigits.length >= 9 && phoneDigits.length <= 10;
+  // Register birthday → ISO "YYYY-MM-DD" (Buddhist year − 543); "" until all three are chosen.
+  const dobIso =
+    bYear && bMonth && bDay
+      ? `${Number(bYear) - 543}-${bMonth.padStart(2, "0")}-${bDay.padStart(2, "0")}`
+      : "";
+  const regReady = mode !== "register" || (Boolean(regName.trim()) && dobIso !== "");
 
   function switchMode(next: "login" | "register") {
     if (next === mode) return;
@@ -156,9 +197,23 @@ export function OtpLogin({
       setError("กรุณากรอกเบอร์โทรศัพท์ 9-10 หลัก");
       return;
     }
-    if (mode === "register" && !consentChecked) {
-      setError("กรุณายอมรับนโยบายความเป็นส่วนตัวเพื่อสร้างบัญชี");
-      return;
+    if (mode === "register") {
+      if (!regName.trim()) {
+        setError("กรุณากรอกชื่อ-นามสกุล");
+        return;
+      }
+      if (!dobIso) {
+        setError("กรุณาเลือกวันเกิดให้ครบ");
+        return;
+      }
+      if (!isAtLeastYears(dobIso, 20, Date.now())) {
+        setError("ต้องมีอายุ 20 ปีบริบูรณ์ขึ้นไปจึงจะสมัครสมาชิกได้");
+        return;
+      }
+      if (!consentChecked) {
+        setError("กรุณายอมรับนโยบายความเป็นส่วนตัวเพื่อสร้างบัญชี");
+        return;
+      }
     }
     setSending(true);
     setError(null);
@@ -172,6 +227,7 @@ export function OtpLogin({
         body: JSON.stringify({
           phone: phoneDigits,
           mode,
+          ...(mode === "register" ? { dob: dobIso } : {}),
           ...(turnstileToken ? { turnstileToken } : {}),
         }),
       });
@@ -242,6 +298,7 @@ export function OtpLogin({
           phone: phoneDigits,
           code,
           ...(consentChecked ? { pdpaConsent: true } : {}),
+          ...(mode === "register" ? { name: regName.trim(), dob: dobIso } : {}),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -274,6 +331,22 @@ export function OtpLogin({
       // friction lands after they have committed rather than in front of the registration form.
       // name === "" is the "never captured" sentinel, so this also catches accounts that predate
       // this step; they get asked once at their next login and can still skip.
+      // A brand-new registration (register tab): the account already has the name + DOB entered up
+      // front. Standalone (login page) → offer to set up a delivery address; embedded (checkout) →
+      // hand back to the caller, which runs its own address step.
+      if (mode === "register") {
+        if (compact) {
+          // checkout embed — hand back to the caller, which runs its own address step
+          onLoggedIn?.(data.customer);
+          router.refresh();
+        } else {
+          // standalone /login registration — offer to set up a delivery address
+          setVerified(data.customer);
+          setStep("address");
+        }
+        return;
+      }
+      // Legacy/login accounts with no name captured yet → ask once (skippable).
       if (!data.customer.name) {
         setVerified(data.customer);
         setStep("name");
@@ -370,7 +443,35 @@ export function OtpLogin({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
-      {step === "name" ? (
+      {step === "address" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap }}>
+          <div>
+            <h2 className="t-h2" style={{ margin: "0 0 4px", color: "var(--gray-dark)" }}>
+              สมัครสมาชิกสำเร็จ 🎉
+            </h2>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+              ตั้งค่าที่อยู่จัดส่งเลยไหม? จะช่วยให้สั่งซื้อครั้งต่อไปเร็วขึ้น
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={() => router.push("/account/addresses")}
+          >
+            ตั้งค่าที่อยู่จัดส่ง
+          </button>
+          <button
+            type="button"
+            className="btn btn-block btn-text btn-default"
+            onClick={() => {
+              if (verified && onLoggedIn) onLoggedIn(verified);
+              else router.push("/account");
+            }}
+          >
+            ข้ามไปก่อน
+          </button>
+        </div>
+      ) : step === "name" ? (
         <form
           style={{ display: "flex", flexDirection: "column", gap }}
           onSubmit={(e) => {
@@ -444,6 +545,78 @@ export function OtpLogin({
               สมัครสมาชิก
             </button>
           </div>
+          {mode === "register" && (
+            <>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="reg-name">ชื่อ-นามสกุล</label>
+                <input
+                  id="reg-name"
+                  className="input"
+                  autoComplete="name"
+                  placeholder="เช่น สมชาย ใจดี"
+                  value={regName}
+                  onChange={(e) => {
+                    setRegName(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  required
+                />
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>วันเกิด (สมัครได้เมื่ออายุ 20 ปีขึ้นไป)</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1.2fr", gap: 8 }}>
+                  <select
+                    className="input"
+                    aria-label="วันเกิด"
+                    value={bDay}
+                    onChange={(e) => {
+                      setBDay(e.target.value);
+                      if (error) setError(null);
+                    }}
+                  >
+                    <option value="">วัน</option>
+                    {Array.from({ length: 31 }, (_, i) => (
+                      <option key={i + 1} value={String(i + 1)}>
+                        {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="input"
+                    aria-label="เดือนเกิด"
+                    value={bMonth}
+                    onChange={(e) => {
+                      setBMonth(e.target.value);
+                      if (error) setError(null);
+                    }}
+                  >
+                    <option value="">เดือน</option>
+                    {THAI_MONTHS.map((m, i) => (
+                      <option key={i + 1} value={String(i + 1)}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="input"
+                    aria-label="ปีเกิด (พ.ศ.)"
+                    value={bYear}
+                    onChange={(e) => {
+                      setBYear(e.target.value);
+                      if (error) setError(null);
+                    }}
+                  >
+                    <option value="">ปี พ.ศ.</option>
+                    {beYears.map((y) => (
+                      <option key={y} value={String(y)}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="otp-phone">เบอร์โทรศัพท์</label>
             <input
@@ -470,7 +643,7 @@ export function OtpLogin({
             disabled={
               sending ||
               Boolean(SITE_KEY && !turnstileToken) ||
-              (mode === "register" && !consentChecked)
+              (mode === "register" && (!consentChecked || !regReady))
             }
           >
             {sending ? "กำลังส่งรหัส…" : "รับรหัส OTP"}

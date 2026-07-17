@@ -5,6 +5,7 @@ import { CartHeader } from "./CartHeader";
 import { InnerHeader } from "./InnerHeader";
 import { SearchLandingBar } from "./search/SearchLandingBar";
 import { SiteFooter } from "./SiteFooter";
+import { CookieConsent } from "@/components/CookieConsent";
 import "./globals.css";
 
 // Prompt is a genuine LAST-RESORT fallback for the CI's system-first stack (see --font-body in
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
 
         <SiteFooter />
+        <CookieConsent />
       </body>
     </html>
   );

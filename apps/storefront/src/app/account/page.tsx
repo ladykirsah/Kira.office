@@ -5,9 +5,15 @@ import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { LINE_OA_URL } from "@/lib/links";
 import { Icon, type IconName } from "@/components/Icon";
+import { formatThaiDate } from "@l-shopee/core";
 import { ProfileCard } from "./ProfileCard";
 
 export const dynamic = "force-dynamic";
+
+// The pre-registration demo account (0123456789) predates DOB capture (migration 0050), so its row
+// has no date_of_birth — show a mock birthday so the card's วันเกิด line renders for demos. Real
+// accounts registered after 0050 carry their own DOB and never fall through to this.
+const DEMO_DOB: Record<string, string> = { "0123456789": "1997-03-20" };
 
 /**
  * My-account hub ("Design 3" — friendly tiles): a personal greeting + member card, a 2×2 grid of
@@ -61,7 +67,7 @@ export default async function AccountPage() {
   const db = await getDb();
   const info = await db
     .prepare(
-      `SELECT c.created_at AS createdAt, c.pdpa_consent_at AS pdpaConsentAt,
+      `SELECT c.created_at AS createdAt, c.pdpa_consent_at AS pdpaConsentAt, c.date_of_birth AS dob,
         (SELECT COUNT(*) FROM sales_orders o
          WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orders,
         (SELECT COUNT(*) FROM addresses a WHERE a.storefront_customer_id = c.id) AS addresses
@@ -71,11 +77,15 @@ export default async function AccountPage() {
     .first<{
       createdAt: number;
       pdpaConsentAt: number | null;
+      dob: string | null;
       orders: number;
       addresses: number;
     }>();
 
   const firstName = customer.name ? customer.name.trim().split(/\s+/)[0] : "";
+  // Real DOB if the account has one; otherwise the demo fallback (see DEMO_DOB). formatThaiDate
+  // returns null for a null/invalid date, so the card simply omits the birthday line.
+  const birthday = formatThaiDate(info?.dob ?? DEMO_DOB[customer.phone] ?? null);
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -94,7 +104,7 @@ export default async function AccountPage() {
       {/* Replaces the old read-only phone strip. The greeting above needs a name we never asked
           for, and a name captured once at checkout could never be corrected — so the card that
           shows those two facts is also the place to fix them. */}
-      <ProfileCard name={customer.name} phone={customer.phone} />
+      <ProfileCard name={customer.name} phone={customer.phone} birthday={birthday} />
 
       <div className="acct-tiles">
         <Tile href="/account/orders" name="orders" label="คำสั่งซื้อ" count={info?.orders ?? 0} />

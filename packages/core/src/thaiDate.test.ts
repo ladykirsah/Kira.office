@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseThaiDateMs } from "./thaiDate";
+import { parseThaiDateMs, formatThaiDate } from "./thaiDate";
 
 const bkk = (iso: string) => Date.parse(`${iso}T00:00:00+07:00`);
 
@@ -51,5 +51,31 @@ describe("parseThaiDateMs > impossible calendar days", () => {
 
   it("still accepts a real leap day (29 กพ 2567 → 2024-02-29)", () => {
     expect(parseThaiDateMs("29 กพ 67")).toBe(Date.parse("2024-02-29T00:00:00+07:00"));
+  });
+});
+
+describe("formatThaiDate", () => {
+  it("given an ISO birthday > formats as 'D <full Thai month> <Buddhist year>'", () => {
+    expect(formatThaiDate("1997-03-20")).toBe("20 มีนาคม 2540");
+    expect(formatThaiDate("2004-01-01")).toBe("1 มกราคม 2547");
+    expect(formatThaiDate("2000-12-31")).toBe("31 ธันวาคม 2543");
+  });
+
+  it("given a leading-zero day > drops the leading zero (Thai reads '5', not '05')", () => {
+    expect(formatThaiDate("2000-12-05")).toBe("5 ธันวาคม 2543");
+  });
+
+  it("given null / undefined / blank > returns null so the caller can omit the line", () => {
+    expect(formatThaiDate(null)).toBeNull();
+    expect(formatThaiDate(undefined)).toBeNull();
+    expect(formatThaiDate("")).toBeNull();
+    expect(formatThaiDate("   ")).toBeNull();
+  });
+
+  it("given a non-ISO or impossible date > returns null", () => {
+    expect(formatThaiDate("20 มีนาคม 2540")).toBeNull(); // not ISO
+    expect(formatThaiDate("2020-02-30")).toBeNull(); // no such day
+    expect(formatThaiDate("1997-13-01")).toBeNull(); // no such month
+    expect(formatThaiDate("not-a-date")).toBeNull();
   });
 });

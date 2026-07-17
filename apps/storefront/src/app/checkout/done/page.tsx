@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PromptPayQr } from "@/components/PromptPayQr";
+import { SaveQrButton } from "@/components/SaveQrButton";
 import { SlipUpload } from "@/components/SlipUpload";
 import { Icon } from "@/components/Icon";
 import type { CheckoutSuccess } from "@/lib/checkoutApi";
@@ -54,6 +55,7 @@ export default function CheckoutDonePage() {
   const [order, setOrder] = useState<LastOrder | null | undefined>(undefined);
   const [copied, setCopied] = useState(false);
   const [copiedAcct, setCopiedAcct] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null); // wraps the QR SVG so "Save QR" can rasterize it
 
   useEffect(() => {
     setOrder(parseLastOrder(window.sessionStorage.getItem("airplus.lastOrder")));
@@ -110,8 +112,10 @@ export default function CheckoutDonePage() {
             width: 56,
             height: 56,
             borderRadius: 999,
-            background: "var(--ok-soft)",
-            color: "var(--ok)",
+            // Blue disc + white check — the order-success hero reads at a glance, and blue (the CI's
+            // trust highlight) feels friendlier here than the solid green that preceded it.
+            background: "var(--brand-blue)",
+            color: "var(--white)",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -138,19 +142,53 @@ export default function CheckoutDonePage() {
           {amount}
         </div>
 
+        {/* Order number as a payment reference — by the amount, copyable, ONE place (was a
+            de-emphasized row at the very bottom). Shown for every payment method. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            margin: "8px 0 2px",
+            fontSize: 13,
+          }}
+        >
+          <span className="muted">เลขที่คำสั่งซื้อ</span>
+          <b style={{ color: "var(--gray-dark)", letterSpacing: 0.5 }}>{order.ref}</b>
+          {/* Icon-only copy, matching the transfer-flow account copy: flips to a green check. */}
+          <button
+            type="button"
+            onClick={copyRef}
+            aria-label={copied ? "คัดลอกแล้ว" : "คัดลอกเลขที่คำสั่งซื้อ"}
+            style={{
+              display: "inline-flex",
+              flexShrink: 0,
+              background: "none",
+              border: 0,
+              padding: 0,
+              lineHeight: 0,
+              cursor: "pointer",
+              color: copied ? "var(--ok)" : "var(--brand)",
+            }}
+          >
+            <Icon name={copied ? "check" : "copy"} size={16} />
+          </button>
+        </div>
+
         {order.paymentMethod === "promptpay" && (
           <>
-            <p className="muted" style={{ fontSize: 13, margin: "12px 0 10px" }}>
-              สแกน QR ด้วยแอปธนาคารใดก็ได้
-            </p>
             {/* Real PromptPay ID once shop-settings is wired; a labelled demo QR until then so the
                 pay-by-QR flow is visible instead of a dead-end warning. PromptPayQr renders nothing
-                on an invalid ID, so a bad live setting still degrades safely. */}
-            <PromptPayQr
-              promptpayId={order.promptpayId || MOCK_PROMPTPAY_ID}
-              amountSatang={order.amountSatang}
-              size={200}
-            />
+                on an invalid ID, so a bad live setting still degrades safely. Wrapped so SaveQrButton
+                can find + rasterize the SVG. */}
+            <div ref={qrRef} style={{ display: "inline-flex", marginTop: 12 }}>
+              <PromptPayQr
+                promptpayId={order.promptpayId || MOCK_PROMPTPAY_ID}
+                amountSatang={order.amountSatang}
+                size={200}
+              />
+            </div>
             {!order.promptpayId && (
               <p
                 style={{
@@ -167,6 +205,26 @@ export default function CheckoutDonePage() {
                 ตัวอย่าง (เดโม) — ยังไม่ใช่บัญชีรับเงินจริง
               </p>
             )}
+            <div
+              style={{
+                textAlign: "left",
+                margin: "14px auto 0",
+                maxWidth: 300,
+                fontSize: 12.5,
+                color: "var(--gray-mid)",
+                lineHeight: 1.7,
+              }}
+            >
+              <div style={{ fontWeight: 700, color: "var(--gray-dark)", marginBottom: 2 }}>
+                จ่ายด้วยมือถือเครื่องเดียว
+              </div>
+              <ol style={{ margin: 0, paddingLeft: 18 }}>
+                <li>กด “บันทึก QR code” (หรือแคปหน้าจอ)</li>
+                <li>เปิดแอปธนาคารของคุณ</li>
+                <li>เลือก “สแกน” แล้วเลือกรูป QR จากอัลบั้ม</li>
+              </ol>
+            </div>
+            <SaveQrButton qrRef={qrRef} filename={`airplus-promptpay-${order.ref}.png`} />
             <div style={{ marginTop: 14 }}>
               <SlipUpload orderRef={order.ref} phone={order.phone} />
             </div>
@@ -245,38 +303,6 @@ export default function CheckoutDonePage() {
         <Link href="/" className="btn btn-block">
           กลับหน้าแรก
         </Link>
-      </div>
-
-      {/* Order number — de-emphasized (owner: not important), but kept + copyable for guest lookup. */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          margin: "12px 0 24px",
-          fontSize: 12,
-          color: "var(--text-muted)",
-        }}
-      >
-        เลขที่คำสั่งซื้อ
-        <b style={{ color: "var(--gray-dark)", letterSpacing: 0.5 }}>{order.ref}</b>
-        <button
-          type="button"
-          onClick={copyRef}
-          style={{
-            background: "none",
-            border: 0,
-            padding: 0,
-            color: "var(--brand)",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            textDecoration: "underline",
-          }}
-        >
-          {copied ? "คัดลอกแล้ว" : "คัดลอก"}
-        </button>
       </div>
     </div>
   );

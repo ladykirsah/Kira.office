@@ -42,6 +42,41 @@ function toMs(year: number, month: number, day: number): number | null {
   return t;
 }
 
+const THAI_MONTHS_FULL = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
+/**
+ * Format an ISO calendar date "YYYY-MM-DD" (Christian year) as a friendly Thai birthday line —
+ * "1997-03-20" → "20 มีนาคม 2540" (full Thai month + Buddhist year, no leading-zero day). This is
+ * the display inverse of parseThaiDateMs, used for the account profile card. Null / blank / impossible
+ * dates return null so the caller can simply omit the line.
+ */
+export function formatThaiDate(iso: string | null | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((iso ?? "").trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  // Reject impossible dates (JS rolls 2020-02-30 into March — the round-trip catches it).
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
+    return null;
+  }
+  return `${d} ${THAI_MONTHS_FULL[mo - 1]} ${y + 543}`;
+}
+
 export function parseThaiDateMs(s: string): number | null {
   const str = (s ?? "").trim();
   if (!str) return null;

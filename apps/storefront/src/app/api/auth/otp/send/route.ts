@@ -10,6 +10,7 @@ import {
   hashOtp,
   randomSessionToken,
 } from "@/lib/authCore";
+import { isAtLeastYears } from "@l-shopee/core";
 import { clientIp, guardMutation, takeThrottle } from "@/lib/auth";
 import { getDb, getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
@@ -35,6 +36,7 @@ export async function POST(req: Request): Promise<Response> {
       phone?: string;
       mode?: "login" | "register";
       turnstileToken?: string;
+      dob?: string;
     };
     const phone = normalizePhone(body.phone ?? "");
     if (phone.length < 9 || phone.length > 10)
@@ -75,6 +77,13 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json(
         { alreadyRegistered: true, error: "เบอร์นี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ" },
         { status: 409 },
+      );
+    // Age gate — don't send an SMS to an under-20 registration (Terms §2). The client blocks this too;
+    // verify re-checks authoritatively before the account is created.
+    if (mode === "register" && !isAtLeastYears((body.dob ?? "").trim(), 20, now))
+      return Response.json(
+        { error: "ต้องมีอายุ 20 ปีบริบูรณ์ขึ้นไปจึงจะสมัครสมาชิกได้" },
+        { status: 403 },
       );
 
     // Fixed code so the owner can walk the login flow with a predictable OTP (it is also echoed to

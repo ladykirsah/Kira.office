@@ -25,3 +25,4 @@ export * from "./campaigns";
 export * from "./paymentMethods";
 export * from "./customerImport";
 export * from "./thaiDate";
+export * from "./age";
