@@ -176,6 +176,13 @@ export default async function ProductPage(props: PageProps) {
                           ? `${(detail.weightGrams / 1000).toFixed(1)} กก.`
                           : null,
                     },
+                    {
+                      ic: "🛡️",
+                      label: "ระยะเวลารับประกัน",
+                      // Per product category (product_types.warranty_days). Null category default =
+                      // no row, so a category without a warranty set never shows "0 วัน".
+                      value: detail.warrantyDays ? `${detail.warrantyDays} วัน` : null,
+                    },
                     { ic: "#️⃣", label: "รหัสสินค้า", value: detail.productRef },
                   ] as { ic: string; label: string; value: string | null }[]
                 )
@@ -279,6 +286,30 @@ export default async function ProductPage(props: PageProps) {
                 </CollapsibleSection>
               </>
             )}
+
+            {/* การคืน ยกเลิก เคลม — collapsible block (Returns & Claims). Always shown: the return/
+                claim policy applies to every product; the exact per-category window lives on /returns. */}
+            <div className="pdp-band" />
+            <CollapsibleSection titleTh="การคืน ยกเลิก เคลม" titleEn="Returns &amp; Claims">
+              <div style={{ fontSize: 15, lineHeight: 1.7, color: "var(--gray-dark)" }}>
+                <p style={{ margin: 0 }}>
+                  สินค้าชำรุด เสียหายจากการขนส่ง หรือไม่ตรงตามที่แจ้ง —
+                  เปิดเรื่องเคลมได้โดยแนบรูปถ่าย ช่างของเราตรวจสอบและคืนเงินภายใน 2-3
+                  วันทำการเมื่ออนุมัติ (ระยะเวลาการคืน/รับประกัน แตกต่างตามหมวดหมู่สินค้า)
+                </p>
+                <a
+                  href="/returns"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    color: "var(--brand)",
+                    fontWeight: 600,
+                  }}
+                >
+                  อ่านนโยบายการคืน ยกเลิก เคลม แบบเต็ม →
+                </a>
+              </div>
+            </CollapsibleSection>
 
             <div className="pdp-band" />
           </div>

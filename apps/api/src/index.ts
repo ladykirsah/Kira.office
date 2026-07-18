@@ -2636,6 +2636,42 @@ export async function listAttributes(db: D1Database): Promise<{
   };
 }
 
+export interface TypeWarranty {
+  id: string;
+  name: string;
+  warrantyDays: number | null;
+}
+
+/** Warranty/return window (days) per product category — a positive whole number, or null for "none".
+ *  0, blank, negatives and junk all collapse to null so a category never advertises a "0 วัน" warranty. */
+export function normalizeWarrantyDays(input: unknown): number | null {
+  if (input == null || input === "") return null;
+  const n = Math.round(Number(input));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** All product categories with their warranty window, for the back-office warranty settings. */
+export async function listTypeWarranties(db: D1Database): Promise<TypeWarranty[]> {
+  const rows = await db
+    .prepare(
+      "SELECT id, name, warranty_days AS warrantyDays FROM product_types ORDER BY sort_order, name",
+    )
+    .all<TypeWarranty>();
+  return rows.results ?? [];
+}
+
+/** Set (or clear) the warranty window for one product category. */
+export async function setTypeWarranty(
+  db: D1Database,
+  id: string,
+  warrantyDays: number | null,
+): Promise<void> {
+  await db
+    .prepare("UPDATE product_types SET warranty_days = ? WHERE id = ?")
+    .bind(normalizeWarrantyDays(warrantyDays), id)
+    .run();
+}
+
 /** Find an option by name (case-insensitive) or create it. Returns the option. */
 export async function addAttribute(
   db: D1Database,
@@ -3935,6 +3971,17 @@ const worker = {
     // Managed part-attribute lists (brand / car system / part name) for the dropdowns + settings.
     if (url.pathname === "/attributes" && request.method === "GET") {
       return json(await listAttributes(env.DB));
+    }
+    // Warranty/return window per product category — read for the settings page…
+    if (url.pathname === "/product-types/warranty" && request.method === "GET") {
+      return json(await listTypeWarranties(env.DB));
+    }
+    // …and set (or clear) one category's window.
+    const warrantySet = url.pathname.match(/^\/product-types\/([^/]+)\/warranty$/);
+    if (warrantySet && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { warrantyDays?: number | null };
+      await setTypeWarranty(env.DB, warrantySet[1]!, body.warrantyDays ?? null);
+      return json({ ok: true });
     }
     const attrAdd = url.pathname.match(/^\/attributes\/([^/]+)$/);
     if (attrAdd && request.method === "POST") {

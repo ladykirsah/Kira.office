@@ -133,6 +133,28 @@ export async function fetchAttributes(): Promise<Attributes> {
   return (await res.json()) as Attributes;
 }
 
+/** Warranty/return window (days) per product category — the storefront shows it on each PDP. */
+export interface TypeWarranty {
+  id: string;
+  name: string;
+  warrantyDays: number | null;
+}
+
+export async function fetchTypeWarranties(): Promise<TypeWarranty[]> {
+  const res = await apiFetch(`/product-types/warranty`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load warranties (HTTP ${res.status})`);
+  return (await res.json()) as TypeWarranty[];
+}
+
+export async function setTypeWarranty(id: string, warrantyDays: number | null): Promise<void> {
+  const res = await apiFetch(`/product-types/${id}/warranty`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ warrantyDays }),
+  });
+  if (!res.ok) throw new Error(`Failed to save warranty (HTTP ${res.status})`);
+}
+
 export async function addAttribute(kind: AttrKind, name: string): Promise<AttrOption> {
   const res = await apiFetch(`/attributes/${kind}`, {
     method: "POST",

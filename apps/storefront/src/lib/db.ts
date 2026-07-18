@@ -50,6 +50,8 @@ export interface CatalogItem {
   productRef: string;
   brandName: string | null;
   typeName: string | null;
+  /** Warranty / return window in DAYS for this product's category (product_types), or null if unset. */
+  warrantyDays: number | null;
   imageKey: string | null;
   /** BASE online price. Pass with `campaign` through core resolveEffectivePrice for display. */
   priceSatang: number;
@@ -73,7 +75,7 @@ interface CatalogRow extends Omit<CatalogItem, "campaign"> {
 /** Binds ONE `?` (now, epoch ms) for the campaign-candidate subselect — callers bind now first. */
 const CATALOG_SELECT = `
   SELECT p.id AS productId, v.id AS variantId, p.name AS name, p.product_ref AS productRef,
-         b.name AS brandName, t.name AS typeName, p.image_key AS imageKey,
+         b.name AS brandName, t.name AS typeName, t.warranty_days AS warrantyDays, p.image_key AS imageKey,
          COALESCE(pp.online_price_satang, 0) AS priceSatang,
          COALESCE((SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id), 0) AS onHand,
          (SELECT TRIM(COALESCE(f.car_brand, '') || ' ' || COALESCE(f.car_model, ''))

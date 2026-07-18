@@ -29,6 +29,7 @@ import worker, {
   addCarModel,
   updateCarModel,
   updateProduct,
+  normalizeWarrantyDays,
   confirmPaymentWithSlip,
   importCustomers,
   importCustomerHistory,
@@ -483,6 +484,22 @@ describe("parseMoneyToSatang", () => {
     expect(parseMoneyToSatang(undefined)).toBe(0);
     expect(parseMoneyToSatang("")).toBe(0);
     expect(parseMoneyToSatang("n/a")).toBe(0);
+  });
+});
+
+describe("normalizeWarrantyDays (per-category warranty window)", () => {
+  it("keeps a positive whole number of days", () => {
+    expect(normalizeWarrantyDays(365)).toBe(365);
+    expect(normalizeWarrantyDays("180")).toBe(180);
+    expect(normalizeWarrantyDays(7.6)).toBe(8); // rounds
+  });
+  it("collapses 0, negatives, blank, and junk to null (never a '0 วัน' warranty)", () => {
+    expect(normalizeWarrantyDays(0)).toBeNull();
+    expect(normalizeWarrantyDays(-5)).toBeNull();
+    expect(normalizeWarrantyDays("")).toBeNull();
+    expect(normalizeWarrantyDays(null)).toBeNull();
+    expect(normalizeWarrantyDays(undefined)).toBeNull();
+    expect(normalizeWarrantyDays("abc")).toBeNull();
   });
 });
 
