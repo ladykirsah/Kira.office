@@ -171,6 +171,7 @@ export default function OrdersPage() {
                 <th>Order</th>
                 <th>Channel</th>
                 <th style={{ textAlign: "right" }}>Total</th>
+                <th style={{ textAlign: "right" }}>Shipping</th>
                 <th>Status</th>
                 <th>Payment</th>
                 <th>Order date</th>
@@ -187,6 +188,13 @@ export default function OrdersPage() {
                   <td style={{ textAlign: "right", ...tableText.body2 }}>
                     {o.grandTotalSatang ? (
                       formatBahtTrim(o.grandTotalSatang)
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: "right", ...tableText.body2 }}>
+                    {o.shippingFeeSatang ? (
+                      formatBahtTrim(o.shippingFeeSatang)
                     ) : (
                       <span className="muted">—</span>
                     )}

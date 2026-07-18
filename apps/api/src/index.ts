@@ -1838,7 +1838,8 @@ async function listOrders(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
             payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
-            fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+            fee_total_satang AS feeTotalSatang, shipping_fee_satang AS shippingFeeSatang,
+            order_created_at AS orderCreatedAt,
             imported_at AS importedAt, buyer_username AS buyerUsername,
             sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
             carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
@@ -1856,6 +1857,7 @@ export interface OrderRow {
   paymentStatus: string | null;
   grandTotalSatang: number;
   feeTotalSatang: number;
+  shippingFeeSatang: number;
   orderCreatedAt: number | null;
   importedAt: number;
   buyerUsername: string | null;

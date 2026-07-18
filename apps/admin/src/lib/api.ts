@@ -686,6 +686,7 @@ export interface OrderRow {
   paymentStatus: string | null;
   grandTotalSatang: number;
   feeTotalSatang: number;
+  shippingFeeSatang: number; // ค่าจัดส่ง (AirPlus; 0 for Shopee/legacy)
   orderCreatedAt: number | null;
   importedAt: number;
   buyerUsername?: string | null; // ชื่อผู้ใช้ (ผู้ซื้อ)

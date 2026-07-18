@@ -195,6 +195,7 @@ export function AirPlusOrders({
           <tr>
             <th>Order ID</th>
             <th>Sales</th>
+            <th>Shipping</th>
             <th>Profit</th>
             <th>Carrier</th>
             <th>Date</th>
@@ -214,10 +215,18 @@ export function AirPlusOrders({
                     <div style={{ ...tableText.body2, ...mono }}>{o.externalOrderId}</div>
                     {o.buyerUsername && <div style={tableText.subtitle}>{o.buyerUsername}</div>}
                   </td>
-                  {/* Sales = what the customer paid (no commission → seller keeps it) */}
+                  {/* Sales = goods revenue the customer paid (shipping excluded) */}
                   <td>
                     {o.salesSatang != null ? (
                       formatBahtTrim(o.salesSatang)
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  {/* Shipping the customer paid (owed onward to Flash — a pass-through) */}
+                  <td>
+                    {o.shippingFeeSatang ? (
+                      formatBahtTrim(o.shippingFeeSatang)
                     ) : (
                       <span className="muted">—</span>
                     )}
@@ -265,7 +274,7 @@ export function AirPlusOrders({
                 </tr>
                 {editing && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <OrderEditor
                         order={o}
                         onCancel={() => setEditingId(null)}
