@@ -205,7 +205,7 @@ export default async function ProductPage(props: PageProps) {
                           height: 30,
                           flex: "0 0 auto",
                           borderRadius: 9,
-                          background: "rgba(235, 80, 49, 0.1)",
+                          background: "rgba(1, 90, 191, 0.1)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",

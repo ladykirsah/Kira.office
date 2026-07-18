@@ -110,6 +110,7 @@ export default async function Home() {
             eyebrow="🚗 ยี่ห้อรถ · Car Fitment"
             title="เลือกตามยี่ห้อรถ"
             link={{ href: "/brands", label: "ดูทั้งหมด →" }}
+            eyebrowColor="var(--brand-blue)"
           />
           <CategoryRow
             items={brands.map((b) => {
@@ -311,14 +312,17 @@ function SectionHead({
   eyebrow,
   title,
   link,
+  eyebrowColor = "var(--brand-deep)",
 }: {
   eyebrow: string;
   title: string;
   link?: { href: string; label: string };
+  /** Overline colour — defaults to dark red; the Car-Fitment head passes the blue highlight. */
+  eyebrowColor?: string;
 }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
+      <div className="t-overline" style={{ color: eyebrowColor, marginBottom: 6 }}>
         {eyebrow}
       </div>
       <div
