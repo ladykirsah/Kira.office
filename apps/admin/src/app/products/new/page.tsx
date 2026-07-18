@@ -10,8 +10,11 @@ import {
   adjustStock,
   setProductPricing,
   fetchAttributes,
+  fetchCarFitment,
   checkIdentifier,
   type Attributes,
+  type Fitment,
+  type CarBrandTree,
   type IdentifierKind,
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
@@ -19,6 +22,7 @@ import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
+import { FitmentSection } from "../FitmentSection";
 
 const field = { display: "grid", gap: 4 } as const;
 
@@ -50,18 +54,22 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
   return warn;
 }
 
-/** Add product — same sections as the editor (photos, part details, pricing). The product is created
- *  lazily on the first photo upload or on save; "Save draft" / "Save product" set the status. */
+/** Add product — same sections as the editor (photos, description, part details, fitments, pricing).
+ *  The product is created lazily on the first photo upload or on save; "Save draft" / "Save product"
+ *  set the status. */
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [stockQty, setStockQty] = useState("0");
   const [weightKg, setWeightKg] = useState("");
   const [widthCm, setWidthCm] = useState("");
   const [lengthCm, setLengthCm] = useState("");
   const [heightCm, setHeightCm] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
+  const [fitments, setFitments] = useState<Fitment[]>([]);
+  const [carTree, setCarTree] = useState<CarBrandTree[]>([]);
   const [productRef, setProductRef] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [pricing, setPricing] = useState<PricingForm>({
@@ -82,6 +90,9 @@ export default function NewProductPage() {
     fetchAttributes()
       .then(setAttributes)
       .catch(() => setAttributes(null));
+    fetchCarFitment()
+      .then(setCarTree)
+      .catch(() => setCarTree([]));
   }, []);
 
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
@@ -125,6 +136,7 @@ export default function NewProductPage() {
       }
       await updateProduct(id, {
         name,
+        description,
         status,
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
@@ -138,6 +150,7 @@ export default function NewProductPage() {
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
         typeName: part.type || undefined,
+        fitments,
       });
       await setProductPricing(id, {
         itemCostSatang: toSatang(pricing.costThb),
@@ -169,7 +182,7 @@ export default function NewProductPage() {
     <main>
       <PageHeader
         title="Add product"
-        subtitle="New product — fitments are added on the edit page after saving."
+        subtitle="New product — fill in the details, fitments, and pricing, then save."
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
             <button type="button" onClick={() => router.push("/products")} disabled={busy}>
@@ -220,6 +233,17 @@ export default function NewProductPage() {
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product name *
           <input value={name} onChange={(e) => setName(e.target.value)} required style={inputL} />
+        </label>
+
+        <label style={{ ...field, gridColumn: "1 / -1" }}>
+          Description
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Short spec — refrigerant, type, fitment note…"
+            style={{ width: "100%", resize: "vertical" }}
+          />
         </label>
 
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", gridColumn: "1 / -1" }}>
@@ -282,6 +306,10 @@ export default function NewProductPage() {
             refWarning={refWarn}
             shopeeWarning={shopeeWarn}
           />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FitmentSection fitments={fitments} onChange={setFitments} carTree={carTree} />
         </div>
 
         <div style={{ gridColumn: "1 / -1" }}>
