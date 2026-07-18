@@ -9,7 +9,7 @@ import { DiscountTag } from "@/components/DiscountTag";
 import { Pill } from "@/components/Pill";
 import { ProductCard } from "@/components/ProductCard";
 import { ReadyToShip } from "@/components/ReadyToShip";
-import { RecentlyViewed, RecordView } from "@/components/RecentlyViewed";
+import { RecordView } from "@/components/RecentlyViewed";
 import { Icon } from "@/components/Icon";
 import { AddToCartBar } from "./AddToCartBar";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -334,7 +334,6 @@ export default async function ProductPage(props: PageProps) {
         </section>
       )}
 
-      <RecentlyViewed currentProductId={detail.productId} />
       <RecordView
         item={{
           productId: detail.productId,
@@ -343,6 +342,7 @@ export default async function ProductPage(props: PageProps) {
           imageKey: detail.imageKey,
           productRef: detail.productRef,
           variantId: detail.variantId,
+          brandName: detail.brandName,
           typeName: detail.typeName,
         }}
       />

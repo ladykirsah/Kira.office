@@ -23,7 +23,6 @@ import { FlashRail } from "@/components/FlashRail";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { ProductCard } from "@/components/ProductCard";
 import { QuickAccessBar } from "@/components/QuickAccessBar";
-import { RecentlyViewed } from "@/components/RecentlyViewed";
 import { imgUrl } from "@/lib/img";
 
 // Live catalog data from D1 — must render per-request on the Worker, never prerender at build
@@ -227,7 +226,6 @@ export default async function Home() {
           className="card"
           style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
         >
-          <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <a
               href={LINE_OA_URL}
@@ -263,8 +261,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-      <RecentlyViewed />
     </div>
   );
 }
