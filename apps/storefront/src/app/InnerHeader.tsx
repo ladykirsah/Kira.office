@@ -198,7 +198,7 @@ export function InnerHeader() {
                   height: 18,
                   padding: "0 4px",
                   borderRadius: 999,
-                  background: "var(--brand-deep)",
+                  background: "var(--brand-blue)",
                   color: "var(--white)",
                   fontSize: 11,
                   fontWeight: 800,
