@@ -105,7 +105,7 @@ export default function HowToOrderPage() {
           <div className="t-body">
             <p className="muted" style={{ margin: 0 }}>
               เปลี่ยนใจ ยกเลิก หรือสินค้ามีปัญหา? ดูขั้นตอนได้ที่{" "}
-              <a href="/returns" style={{ color: "var(--brand)", fontWeight: 600 }}>
+              <a href="/returns" style={{ color: "var(--brand-blue)", fontWeight: 600 }}>
                 การคืน ยกเลิก เคลม
               </a>
             </p>

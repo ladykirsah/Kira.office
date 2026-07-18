@@ -302,7 +302,7 @@ export default async function ProductPage(props: PageProps) {
                   style={{
                     display: "inline-block",
                     marginTop: 10,
-                    color: "var(--brand)",
+                    color: "var(--brand-blue)",
                     fontWeight: 600,
                   }}
                 >

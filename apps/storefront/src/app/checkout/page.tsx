@@ -873,7 +873,7 @@ export default function CheckoutPage() {
 
       <p className="muted" style={{ fontSize: 12, margin: "12px 4px 0", lineHeight: 1.6 }}>
         ซื้อได้อย่างมั่นใจ — หากสินค้าชำรุดหรือมีปัญหา สามารถ{" "}
-        <a href="/returns" style={{ color: "var(--brand)", fontWeight: 600 }}>
+        <a href="/returns" style={{ color: "var(--brand-blue)", fontWeight: 600 }}>
           คืน ยกเลิก หรือเคลม
         </a>{" "}
         ได้ตามนโยบาย
