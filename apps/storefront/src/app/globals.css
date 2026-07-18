@@ -14,7 +14,7 @@
   /* ---- Locked 8-color CI (red DENSO) — see component preview artifact ---- */
   --brand: #e10000; /* Primary bright red — header, CTAs, wordmark, sale badge, accents */
   --brand-deep: #960101; /* Dark red — price, depth, hover text, links, deep accents */
-  --brand-blue: #015abf; /* Blue HIGHLIGHT only — genuine/แท้ trust + Car-Fitment overline */
+  --brand-blue: #015abf; /* Blue HIGHLIGHT only — count badges + genuine/แท้ trust. NEVER on section labels. */
   --gray-dark: #1a1a1a; /* Near-black — ink text, default button, footer bg */
   --gray-mid: #737373; /* Muted body text, disabled text */
   --gray-lite: #bbbbbb; /* Borders, subtle dividers, disabled bg */
