@@ -6,8 +6,8 @@ import { imgUrl } from "@/lib/img";
 
 /**
  * Compact product tile for horizontal "slide-aside" rows: full-bleed image + 2-line name + price,
- * the whole tile links to the PDP (no in-row add-to-cart). Promotion tags match the main card —
- * "ลด" corner ribbon (when on sale) + the "ส่งฟรี" ribbon. Pure display → a server component.
+ * the whole tile links to the PDP (no in-row add-to-cart). Promotion tag matches the main card —
+ * the "ลด" corner ribbon (when on sale). Pure display → a server component.
  */
 function CompactCard({ item }: { item: CatalogItem }) {
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
@@ -22,7 +22,6 @@ function CompactCard({ item }: { item: CatalogItem }) {
             ✦
           </span>
         )}
-        <span className="ribbon-free">ส่งฟรี</span>
       </div>
       <div className="ci-body">
         <div className="ci-title">{item.name}</div>

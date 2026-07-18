@@ -2,7 +2,11 @@ import type { D1Database } from "@cloudflare/workers-types";
 import {
   couponDiscountSatang,
   defaultPaymentMethod,
+  FLASH_TH_RATE_CARD,
+  FLASH_TH_REMOTE_POSTCODES,
+  isRemotePostcode,
   parsePaymentMethods,
+  quoteShippingSatang,
   resolveEffectivePrice,
   validateCoupon,
 } from "@l-shopee/core";
@@ -107,7 +111,13 @@ async function replayPayload(
   db: D1Database,
   ref: string,
   paymentMethod: CheckoutPaymentMethod,
-  order: { id: string; grand: number; discount: number | null; createdAt: number | null },
+  order: {
+    id: string;
+    grand: number;
+    discount: number | null;
+    shipping: number | null;
+    createdAt: number | null;
+  },
 ): Promise<CheckoutSuccess> {
   const [payment, count, redemption] = await Promise.all([
     db
@@ -134,6 +144,7 @@ async function replayPayload(
     orderId: order.id,
     paymentMethod,
     amountSatang: order.grand,
+    shippingSatang: order.shipping ?? 0,
     promptpayId: payment?.promptpayId ? payment.promptpayId : null,
     itemCount: count?.n ?? 0,
     createdAt: order.createdAt ?? Date.now(),
@@ -226,12 +237,18 @@ export async function POST(req: Request): Promise<Response> {
     const existing = await db
       .prepare(
         `SELECT id, grand_total_satang AS grand, discount_total_satang AS discount,
-                order_created_at AS createdAt
+                shipping_fee_satang AS shipping, order_created_at AS createdAt
          FROM sales_orders
          WHERE channel = 'airplus' AND external_order_id = ? AND storefront_customer_id = ?`,
       )
       .bind(ref, customer.id)
-      .first<{ id: string; grand: number; discount: number | null; createdAt: number | null }>();
+      .first<{
+        id: string;
+        grand: number;
+        discount: number | null;
+        shipping: number | null;
+        createdAt: number | null;
+      }>();
     if (existing) {
       // Replay-safe deduction: use the order's STORED lines (not the request body, which a
       // tampered replay could alter) — the DO no-ops if this order's ledger rows already exist.
@@ -263,18 +280,23 @@ export async function POST(req: Request): Promise<Response> {
 
     // 4) Address: a saved id (must be OWNED by this customer) or a new address to save.
     let shippingAddressId: string;
+    let shippingPostcode: string;
     let addressInsert: ReturnType<D1Database["prepare"]> | null = null;
     if (body.addressId) {
       const owned = await db
-        .prepare(`SELECT id FROM addresses WHERE id = ? AND storefront_customer_id = ?`)
+        .prepare(
+          `SELECT id, postal_code AS postalCode FROM addresses
+           WHERE id = ? AND storefront_customer_id = ?`,
+        )
         .bind(body.addressId, customer.id)
-        .first<{ id: string }>();
+        .first<{ id: string; postalCode: string }>();
       if (!owned)
         return Response.json(
           { error: "ไม่พบที่อยู่ที่เลือก กรุณาเลือกที่อยู่ใหม่" },
           { status: 400 },
         );
       shippingAddressId = owned.id;
+      shippingPostcode = owned.postalCode;
     } else {
       const a = body.address;
       if (!a)
@@ -284,6 +306,7 @@ export async function POST(req: Request): Promise<Response> {
         .bind(customer.id)
         .first<{ id: string }>();
       shippingAddressId = crypto.randomUUID();
+      shippingPostcode = a.postalCode;
       addressInsert = db
         .prepare(
           `INSERT INTO addresses (id, storefront_customer_id, recipient_name, phone, address_line1,
@@ -319,6 +342,10 @@ export async function POST(req: Request): Promise<Response> {
       costSatang: number;
       /** set ONLY when the effective price came from a live campaign (cap accounting) */
       campaignPriceId: string | null;
+      weightGrams: number;
+      widthMm: number | null;
+      lengthMm: number | null;
+      heightMm: number | null;
     }[] = [];
     for (const line of body.lines) {
       const row = pricing.get(line.variantId);
@@ -343,6 +370,10 @@ export async function POST(req: Request): Promise<Response> {
         priceSatang: eff.priceSatang,
         costSatang: row.costSatang,
         campaignPriceId: eff.onSale ? row.campaignPriceId : null,
+        weightGrams: row.weightGrams,
+        widthMm: row.widthMm,
+        lengthMm: row.lengthMm,
+        heightMm: row.heightMm,
       });
     }
 
@@ -365,7 +396,20 @@ export async function POST(req: Request): Promise<Response> {
       coupon = { id: found.coupon.id, code: found.coupon.code };
       discount = couponDiscountSatang(found.coupon, subtotal);
     }
-    const grand = subtotal - discount;
+    // 6b) Shipping fee — computed server-side from parcel weight/dims × destination,
+    //     never trusted from the client (same rule as pricing). A pass-through the
+    //     customer pays: it lands in grand_total but NOT in sales_satang or profit.
+    const isRemote = isRemotePostcode(shippingPostcode, FLASH_TH_REMOTE_POSTCODES);
+    const shipping = quoteShippingSatang(
+      priced.map((p) => ({
+        weightGrams: p.weightGrams,
+        dims: { widthMm: p.widthMm, lengthMm: p.lengthMm, heightMm: p.heightMm },
+        qty: p.qty,
+      })),
+      isRemote,
+      FLASH_TH_RATE_CARD,
+    );
+    const grand = subtotal - discount + shipping;
     const profit =
       priced.reduce((sum, p) => sum + (p.priceSatang - p.costSatang) * p.qty, 0) - discount;
 
@@ -408,9 +452,10 @@ export async function POST(req: Request): Promise<Response> {
         .prepare(
           `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
              subtotal_satang, discount_total_satang, tax_total_satang, fee_total_satang,
-             grand_total_satang, order_created_at, imported_at, import_source, buyer_username,
-             sales_satang, fee_bp, profit_satang, storefront_customer_id, shipping_address_id)
-           VALUES (?, 'airplus', ?, 'ใหม่', ?, ?, ?, 0, 0, ?, ?, ?, 'api', ?, ?, 0, ?, ?, ?)`,
+             shipping_fee_satang, grand_total_satang, order_created_at, imported_at, import_source,
+             buyer_username, sales_satang, fee_bp, profit_satang, storefront_customer_id,
+             shipping_address_id)
+           VALUES (?, 'airplus', ?, 'ใหม่', ?, ?, ?, 0, 0, ?, ?, ?, ?, 'api', ?, ?, 0, ?, ?, ?)`,
         )
         .bind(
           orderId,
@@ -418,6 +463,7 @@ export async function POST(req: Request): Promise<Response> {
           paymentStatus,
           subtotal,
           discount,
+          shipping,
           grand,
           now,
           now,
@@ -487,6 +533,7 @@ export async function POST(req: Request): Promise<Response> {
       orderId,
       paymentMethod: body.paymentMethod,
       amountSatang: grand,
+      shippingSatang: shipping,
       promptpayId,
       itemCount,
       createdAt: now,

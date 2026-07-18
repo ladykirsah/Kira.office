@@ -504,6 +504,11 @@ export interface CheckoutPricingRow {
   /** id of the campaign_prices row (needed for the guarded sold_count increment) */
   campaignPriceId: string | null;
   campaign: CampaignPriceInfo | null;
+  /** parcel weight + box dimensions for the shipping-fee calc (dims NULL if unmeasured) */
+  weightGrams: number;
+  widthMm: number | null;
+  lengthMm: number | null;
+  heightMm: number | null;
 }
 
 /** Authoritative per-variant pricing for checkout re-pricing. Order NOT preserved — match by id. */
@@ -516,6 +521,8 @@ export async function getCheckoutPricing(
   const rows = await db
     .prepare(
       `SELECT v.id AS variantId, p.name AS name,
+              p.weight_grams AS weightGrams,
+              p.width_mm AS widthMm, p.length_mm AS lengthMm, p.height_mm AS heightMm,
               COALESCE(pp.online_price_satang, 0) AS priceSatang,
               COALESCE(pp.item_cost_satang, 0) AS costSatang,
               COALESCE((SELECT SUM(quantity_delta) FROM stock_ledger_entries
@@ -541,6 +548,10 @@ export async function getCheckoutPricing(
     .all<{
       variantId: string;
       name: string;
+      weightGrams: number;
+      widthMm: number | null;
+      lengthMm: number | null;
+      heightMm: number | null;
       priceSatang: number;
       costSatang: number;
       onHand: number;
@@ -557,6 +568,10 @@ export async function getCheckoutPricing(
     out.set(r.variantId, {
       variantId: r.variantId,
       name: r.name,
+      weightGrams: r.weightGrams,
+      widthMm: r.widthMm,
+      lengthMm: r.lengthMm,
+      heightMm: r.heightMm,
       priceSatang: r.priceSatang,
       costSatang: r.costSatang,
       onHand: r.onHand,

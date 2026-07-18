@@ -44,8 +44,10 @@ export interface CheckoutSuccess {
   ref: string;
   orderId: string;
   paymentMethod: CheckoutPaymentMethod;
-  /** Grand total AFTER discount — the amount the customer actually pays. */
+  /** Grand total AFTER discount and INCLUDING shipping — the amount the customer actually pays. */
   amountSatang: number;
+  /** Shipping fee included in amountSatang (0 = free / not charged). */
+  shippingSatang: number;
   /** Default PromptPay target from shop settings; null when the shop hasn't configured one. */
   promptpayId: string | null;
   itemCount: number;
