@@ -16,6 +16,7 @@ import { LINE_PENDING_COOKIE, takeLinePending } from "@/lib/lineAuth";
 const EXPIRED = "เซสชันหมดอายุ กรุณาเข้าสู่ระบบด้วย LINE อีกครั้ง";
 
 interface DeliveryAddress {
+  recipientName: string;
   phone: string;
   addressLine1: string;
   subdistrict: string;
@@ -31,6 +32,7 @@ function parseAddress(input: unknown): DeliveryAddress | null {
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   const phone = normalizePhone(str(a.phone));
   const addr: DeliveryAddress = {
+    recipientName: str(a.recipientName),
     phone,
     addressLine1: str(a.addressLine1),
     subdistrict: str(a.subdistrict),
@@ -39,6 +41,7 @@ function parseAddress(input: unknown): DeliveryAddress | null {
     postalCode: str(a.postalCode),
   };
   const ok =
+    addr.recipientName &&
     phone.length >= 9 &&
     phone.length <= 10 &&
     addr.addressLine1 &&
@@ -132,7 +135,7 @@ export async function POST(request: Request): Promise<Response> {
         .bind(
           crypto.randomUUID(),
           customerId,
-          displayName,
+          address.recipientName,
           phone,
           address.addressLine1,
           address.subdistrict,

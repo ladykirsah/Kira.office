@@ -4,12 +4,14 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PROVINCES } from "@/lib/provinces";
+import { loadPostcodes, resolvePostcode, type PostcodeEntry } from "@/lib/thaiGeo";
 
 /**
  * Reached only after a first-time LINE sign-in (the /callback route sets the pending cookie and
  * sends the browser here). LINE is the only login (no OTP), so we collect as little as possible:
  * a casual username + one delivery address. The phone lives INSIDE that address (it's also the
- * account phone — a customer row can't exist without one). Address entry is a bottom-sheet popup.
+ * account phone — a customer row can't exist without one). Address entry is a bottom-sheet popup
+ * with zip-first autofill: the postcode fills จังหวัด/อำเภอ and offers that area's ตำบล.
  */
 
 function safeNext(raw: string | null): string {
@@ -29,12 +31,14 @@ function LineRegisterContent() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [subdistrict, setSubdistrict] = useState("");
   const [district, setDistrict] = useState("");
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [tambons, setTambons] = useState<PostcodeEntry[]>([]);
 
   // Pre-fill the username with the LINE display name (editable).
   useEffect(() => {
@@ -53,9 +57,22 @@ function LineRegisterContent() {
     };
   }, []);
 
+  // Typing a 5-digit zip fills จังหวัด + อำเภอ (still editable) and loads that area's ตำบล options.
+  async function applyPostcode(zip: string) {
+    const map = await loadPostcodes();
+    const res = resolvePostcode(map, zip);
+    setTambons(res ? res.tambons : []);
+    if (res) {
+      setProvince(res.province);
+      setDistrict(res.amphoe);
+      setSubdistrict("");
+    }
+  }
+
   const nameOk = name.trim().length > 0;
   const phoneDigits = phone.replace(/\D/g, "");
   const addressComplete =
+    recipientName.trim() !== "" &&
     phoneDigits.length >= 9 &&
     phoneDigits.length <= 10 &&
     addressLine1.trim() !== "" &&
@@ -64,9 +81,18 @@ function LineRegisterContent() {
     province !== "" &&
     /^\d{5}$/.test(postalCode.trim());
 
+  const multiAmphoe = new Set(tambons.map((t) => t.amphoe)).size > 1;
+  const tambonIdx = tambons.findIndex((t) => t.tambon === subdistrict && t.amphoe === district);
+
+  function openSheet() {
+    if (!recipientName.trim()) setRecipientName(name.trim());
+    setSheetError(null);
+    setSheetOpen(true);
+  }
+
   function saveAddress() {
     if (!addressComplete) {
-      setSheetError("กรุณากรอกเบอร์โทรและที่อยู่ให้ครบทุกช่อง");
+      setSheetError("กรุณากรอกข้อมูลจัดส่งให้ครบทุกช่อง");
       return;
     }
     setSheetError(null);
@@ -88,6 +114,7 @@ function LineRegisterContent() {
           name: name.trim(),
           pdpaConsent: consent,
           address: {
+            recipientName: recipientName.trim(),
             phone,
             addressLine1: addressLine1.trim(),
             subdistrict: subdistrict.trim(),
@@ -152,7 +179,7 @@ function LineRegisterContent() {
             >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--gray-dark)" }}>
-                  📦 ที่อยู่จัดส่ง · {phone}
+                  📦 {recipientName} · {phone}
                 </div>
                 <div style={{ fontSize: 13, color: "var(--gray-mid)", marginTop: 3 }}>
                   {addressLine1} {subdistrict} {district} {province} {postalCode}
@@ -177,7 +204,7 @@ function LineRegisterContent() {
           ) : (
             <button
               type="button"
-              onClick={() => setSheetOpen(true)}
+              onClick={openSheet}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -239,7 +266,7 @@ function LineRegisterContent() {
         </form>
       </div>
 
-      {/* Bottom-sheet popup: the full delivery address (phone + address, all required). */}
+      {/* Bottom-sheet popup: the full delivery address (recipient + phone + address, all required). */}
       {sheetOpen && (
         <div
           style={{ position: "fixed", inset: 0, zIndex: 50 }}
@@ -260,7 +287,7 @@ function LineRegisterContent() {
               background: "var(--white)",
               borderRadius: "18px 18px 0 0",
               padding: "10px 18px 20px",
-              maxHeight: "90%",
+              maxHeight: "92%",
               overflowY: "auto",
               maxWidth: 460,
               margin: "0 auto",
@@ -279,6 +306,21 @@ function LineRegisterContent() {
               ข้อมูลจัดส่ง
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="d-recipient">ชื่อผู้รับ</label>
+                <input
+                  id="d-recipient"
+                  className="input"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="ชื่อผู้รับสินค้า"
+                  value={recipientName}
+                  onChange={(e) => {
+                    setRecipientName(e.target.value);
+                    if (sheetError) setSheetError(null);
+                  }}
+                />
+              </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label htmlFor="d-phone">เบอร์โทรผู้รับ</label>
                 <input
@@ -311,25 +353,26 @@ function LineRegisterContent() {
                   style={{ resize: "vertical" }}
                 />
               </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="d-postal">รหัสไปรษณีย์</label>
+                <input
+                  id="d-postal"
+                  className="input"
+                  inputMode="numeric"
+                  maxLength={5}
+                  autoComplete="postal-code"
+                  placeholder="กรอกเพื่อเติมจังหวัด/อำเภออัตโนมัติ"
+                  value={postalCode}
+                  onChange={(e) => {
+                    const zip = e.target.value.replace(/\D/g, "").slice(0, 5);
+                    setPostalCode(zip);
+                    if (sheetError) setSheetError(null);
+                    if (/^\d{5}$/.test(zip)) void applyPostcode(zip);
+                    else setTambons([]);
+                  }}
+                />
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="d-subdistrict">ตำบล/แขวง</label>
-                  <input
-                    id="d-subdistrict"
-                    className="input"
-                    value={subdistrict}
-                    onChange={(e) => setSubdistrict(e.target.value)}
-                  />
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="d-district">อำเภอ/เขต</label>
-                  <input
-                    id="d-district"
-                    className="input"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                  />
-                </div>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="d-province">จังหวัด</label>
                   <select
@@ -347,16 +390,49 @@ function LineRegisterContent() {
                   </select>
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="d-postal">รหัสไปรษณีย์</label>
+                  <label htmlFor="d-district">อำเภอ/เขต</label>
                   <input
-                    id="d-postal"
+                    id="d-district"
                     className="input"
-                    inputMode="numeric"
-                    maxLength={5}
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
                   />
                 </div>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="d-subdistrict">ตำบล/แขวง</label>
+                {tambons.length > 0 ? (
+                  <select
+                    id="d-subdistrict"
+                    className="input"
+                    value={tambonIdx >= 0 ? String(tambonIdx) : ""}
+                    onChange={(e) => {
+                      const t = tambons[Number(e.target.value)];
+                      if (t) {
+                        setSubdistrict(t.tambon);
+                        setDistrict(t.amphoe);
+                        setProvince(t.province);
+                        if (sheetError) setSheetError(null);
+                      }
+                    }}
+                  >
+                    <option value="">เลือกตำบล/แขวง</option>
+                    {tambons.map((t, i) => (
+                      <option key={i} value={i}>
+                        {t.tambon}
+                        {multiAmphoe ? ` · ${t.amphoe}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="d-subdistrict"
+                    className="input"
+                    placeholder="กรอกรหัสไปรษณีย์ก่อน"
+                    value={subdistrict}
+                    onChange={(e) => setSubdistrict(e.target.value)}
+                  />
+                )}
               </div>
               {sheetError && (
                 <div
