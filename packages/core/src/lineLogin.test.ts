@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   base64UrlEncode,
+  base64UrlDecode,
+  decodeJwtClaims,
   pkceChallengeS256,
   buildLineAuthorizeUrl,
   LINE_AUTHORIZE_URL,
 } from "./lineLogin";
+
+/** Build an unsigned-looking JWT (header.payload.sig) from a claims object. */
+function makeJwt(claims: Record<string, unknown>): string {
+  const enc = (o: unknown) => base64UrlEncode(new TextEncoder().encode(JSON.stringify(o)));
+  return `${enc({ alg: "HS256", typ: "JWT" })}.${enc(claims)}.signature-ignored`;
+}
 
 describe("base64UrlEncode", () => {
   it("emits URL-safe base64 (- and _), no padding", () => {
@@ -58,5 +66,38 @@ describe("buildLineAuthorizeUrl", () => {
       .searchParams;
     expect(q.get("scope")).toBe("openid");
     expect(q.get("nonce")).toBe("n_1");
+  });
+});
+
+describe("base64UrlDecode", () => {
+  it("round-trips with base64UrlEncode", () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 253, 254, 255]);
+    expect(Array.from(base64UrlDecode(base64UrlEncode(bytes)))).toEqual(Array.from(bytes));
+  });
+
+  it("decodes URL-safe base64 back to the original UTF-8 text", () => {
+    const text = "สมชาย ใจดี"; // Thai — exercises multi-byte UTF-8
+    const encoded = base64UrlEncode(new TextEncoder().encode(text));
+    expect(new TextDecoder().decode(base64UrlDecode(encoded))).toBe(text);
+  });
+});
+
+describe("decodeJwtClaims", () => {
+  it("returns the payload claims of a well-formed JWT (unverified)", () => {
+    const claims = {
+      sub: "U1234567890abcdef",
+      name: "สมชาย ใจดี",
+      aud: "2010753164",
+      iss: "https://access.line.me",
+      exp: 9999999999,
+    };
+    expect(decodeJwtClaims(makeJwt(claims))).toEqual(claims);
+  });
+
+  it("returns null for malformed tokens", () => {
+    expect(decodeJwtClaims("")).toBeNull();
+    expect(decodeJwtClaims("not-a-jwt")).toBeNull();
+    expect(decodeJwtClaims("a.b")).toBeNull(); // too few segments
+    expect(decodeJwtClaims("a.%%%.c")).toBeNull(); // payload not valid base64/JSON
   });
 });

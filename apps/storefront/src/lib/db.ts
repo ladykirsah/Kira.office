@@ -28,6 +28,10 @@ export interface StorefrontEnv {
   THAIBULKSMS_API_SECRET?: string;
   /** Sender name shown on the SMS (default "AirPlus"). Must be pre-approved in the account. */
   THAIBULKSMS_SENDER?: string;
+  /** LINE Login channel ID (public — appears in the authorize URL). Unset = LINE login disabled. */
+  LINE_CHANNEL_ID?: string;
+  /** LINE Login channel secret (server-only; set via `wrangler secret put`). */
+  LINE_CHANNEL_SECRET?: string;
 }
 
 export async function getEnv(): Promise<StorefrontEnv> {

@@ -11,6 +11,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true },
+  // LINE Login channel ID (public — it appears in the OAuth authorize URL). The matching
+  // LINE_CHANNEL_SECRET is set per-env via `wrangler secret put`, never committed. Named envs
+  // do NOT inherit these vars, so LINE_CHANNEL_ID is repeated under env.staging below.
+  "vars": { "LINE_CHANNEL_ID": "2010753164" },
   // Same D1 database as apps/api (a D1 db can be bound by multiple Workers).
   "d1_databases": [
     {
@@ -37,7 +41,7 @@
       // fixed "123456" and is returned to the UI (owner can walk the login flow on their phone).
       // ONLY here — the default/production config above has no OTP_DEV_ECHO, so prod keeps random
       // codes + a real SMS provider. Remove this once THAIBULKSMS_* secrets are set on staging.
-      "vars": { "OTP_DEV_ECHO": "1" },
+      "vars": { "OTP_DEV_ECHO": "1", "LINE_CHANNEL_ID": "2010753164" },
       "d1_databases": [
         {
           "binding": "DB",

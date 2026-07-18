@@ -21,6 +21,35 @@ export function base64UrlEncode(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** Decode URL-safe base64 (unpadded) back to raw bytes. */
+export function base64UrlDecode(input: string): Uint8Array {
+  const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/**
+ * Decode the claims (payload) of a JWT WITHOUT verifying its signature.
+ * Safe only for tokens obtained directly from LINE's token endpoint over TLS
+ * (server-to-server) — never for a token that arrived via the browser. Returns
+ * null for anything that isn't a three-segment JWT with a JSON payload.
+ */
+export function decodeJwtClaims(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const json = new TextDecoder().decode(base64UrlDecode(parts[1]!));
+    const claims: unknown = JSON.parse(json);
+    if (typeof claims !== "object" || claims === null) return null;
+    return claims as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 /** PKCE S256 code challenge for a given verifier: base64url(SHA-256(verifier)). */
 export async function pkceChallengeS256(verifier: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));

@@ -287,6 +287,20 @@ export function OtpLogin({
 
   const gap = compact ? 8 : 12;
 
+  // LINE Login is a full-page redirect (not the in-place OTP flow), so it carries the
+  // return path itself: an explicit ?next=, else back to the current page (checkout),
+  // else the account page.
+  function startLineLogin() {
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname;
+    const next =
+      params.get("next") ??
+      (path === "/login" || path.startsWith("/register")
+        ? "/account"
+        : path + window.location.search);
+    window.location.assign(`/api/auth/line/start?next=${encodeURIComponent(next)}`);
+  }
+
   // Design A's "ยินดีต้อนรับสมาชิกใหม่" welcome + transparency panel, reused on the register tab
   // (before OTP) and as the login-tab fallback (at the OTP step).
   const consentPanel = (
@@ -318,6 +332,47 @@ export function OtpLogin({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
+      {step === "phone" && (
+        <>
+          <button
+            type="button"
+            onClick={startLineLogin}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              width: "100%",
+              padding: "12px 16px",
+              background: "#06C755",
+              color: "#fff",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <span aria-hidden="true" style={{ fontWeight: 900 }}>
+              LINE
+            </span>
+            เข้าสู่ระบบด้วย LINE
+          </button>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              color: "var(--gray-mid)",
+              fontSize: 13,
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
+            หรือใช้เบอร์โทร
+            <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          </div>
+        </>
+      )}
       {step === "phone" ? (
         <form
           style={{ display: "flex", flexDirection: "column", gap }}
