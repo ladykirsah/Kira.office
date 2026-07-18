@@ -33,46 +33,51 @@ homeseeker account is on the wrong account and won't be used.)
 
 ## Order matters — configure Access BEFORE deploying, so the admin is never briefly open
 
-An Access application is created by hostname; the hostname does not need to resolve yet. So we set up
-Access for `admin.homeseeker.me` FIRST, then deploy the admin into it — it is behind login from its
-first request. Deploying first would leave an unauthenticated back office public for a window.
+**Only ONE Access app is needed — on `admin.homeseeker.me`. Do NOT put edge Access on the API.** The
+API worker verifies the forwarded JWT itself (`requireAccess`): the admin's `/api/worker` proxy passes
+`Cf-Access-Jwt-Assertion` through, and the worker checks it against `ACCESS_AUD` (= the admin app's
+AUD). No API edge app means the `/img/*` bypass is unnecessary — images are never edge-gated, the
+worker's `isPublic` serves them, and `requireAccess` 401s everything else. (Edge Access on the API
+would instead block the admin proxy's server-side fetches.)
+
+## Values (verified 2026-07-18 — config identifiers, not credentials)
+- `ACCESS_TEAM_DOMAIN` = `gogocash.cloudflareaccess.com`
+- `ACCESS_AUD` = `dfcb79fcb7c150e7f0e2c3af5b3bbfcfe118eb960fee8c46fa815dd1ad76ea65`
 
 ---
 
 ## Steps (all on the GoGoCash account)
 
-### 1. Create the Access application for the admin  — [OWNER, dashboard]
-Switch the dashboard to the **GoGoCash** account (top-left account picker). Open **Zero Trust →
-Access controls**. If prompted, pick a **team name** (this becomes `<name>.cloudflareaccess.com` — the
-GoGoCash team domain; reuse `kiraoffice` if free, or `airplus`).
-- **Create an application → Self-hosted.**
-- Application domain: **`admin.homeseeker.me`**.
-- **Login method: One-time PIN.**
-- Policy → **Allow**, rule **Emails**, value `lady.kirsah@gmail.com`. Nothing else.
-- Save, then open the app → copy its **Application Audience (AUD) Tag**, and note the **team domain**.
-- **→ Send me the AUD tag + team domain.** (Both are config identifiers, safe to paste — not credentials.)
+### 1. Create the Access application for the admin  — [OWNER, dashboard]  ✅ DONE
+App `admin` → `admin.homeseeker.me`, policy "Super Admin Only" (Allow → Emails →
+`lady.kirsah@gmail.com`, One-time PIN). AUD captured above.
+> Verify the policy has **only** the Emails include rule — no "Login Methods" rule (that would be an
+> OR-hole letting anyone in via email code).
 
-### 2. Create the two Access applications for the API  — [OWNER, dashboard]
-On `api.homeseeker.me`, most-specific path first:
-- **Bypass app:** `api.homeseeker.me/img/*` → policy **Bypass**, **Everyone**. (Keeps images public.)
-- **Protected app:** `api.homeseeker.me/*` → **One-time PIN**, **Allow → Emails → `lady.kirsah@gmail.com`**.
-
-### 3. Set the Worker secrets on the API  — [after AUD received]
+### 2. Deploy the admin to GoGoCash  — [OWNER — needs a GoGoCash Workers+DNS token]
+The agent's wrangler is read-only, so the owner runs this. The admin is now a GoGoCash worker, so a
+GoGoCash Workers-edit token (the kind CI uses as `CLOUDFLARE_API_TOKEN`) deploys it:
 ```
-CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_TEAM_DOMAIN   # <team>.cloudflareaccess.com
-CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_AUD           # the AUD tag
+npm ci
+CLOUDFLARE_API_TOKEN=<gogocash-workers+dns-token> npm run deploy -w @l-shopee/admin
 ```
-Now `requireAccess` verifies the JWT on every non-`/img/*` request. **This is the point the localhost
-admin stops working** (it calls the open API with no Access session) — from here you use
-`admin.homeseeker.me`, not localhost.
+OpenNext build + deploy; the `admin.homeseeker.me` custom domain provisions same-account. It is behind
+Access from its first request. The API is still open at this point, so the admin works immediately.
 
-### 4. Deploy the admin to GoGoCash  — [needs a GoGoCash Workers-edit token]
-The admin is now a GoGoCash worker, so the **existing** `CLOUDFLARE_API_TOKEN` (already a GoGoCash
-token for the API) can deploy it — `CF_ADMIN_API_TOKEN` may no longer be needed.
-`npm run deploy -w @l-shopee/admin` (OpenNext build + deploy). The `admin.homeseeker.me` custom domain
-provisions same-account. It is behind Access from its first request (step 1).
+### 3. Log in and verify the admin  — [OWNER]
+Open `admin.homeseeker.me` in a fresh browser → Access emails a code → enter it → the admin loads and
+can list products (this exercises the admin→api proxy). Do this BEFORE step 4 so you have a working
+way in before the API closes.
 
-### 5. Seed the owner row  — [additive, R1]
+### 4. Set the Worker secrets on the API  — [OWNER, GoGoCash token]
+```
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_TEAM_DOMAIN   # gogocash.cloudflareaccess.com
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_AUD           # dfcb79…76ea65
+```
+Now `requireAccess` verifies the JWT on every non-`/img/*` request. **This closes the open-API hole,
+and is the point the localhost admin stops working** — from here use `admin.homeseeker.me`, not localhost.
+
+### 5. Seed the owner row  — [OWNER, additive R1]
 ```
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 execute kira-office --remote --command \
   "INSERT INTO users (id,name,email,role,status,created_at) VALUES ('<uuid>','Lady Kirsah','lady.kirsah@gmail.com','owner','active',strftime('%s','now')*1000);"
