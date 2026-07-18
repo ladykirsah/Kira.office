@@ -20,6 +20,7 @@ export async function POST(request: Request): Promise<Response> {
     if (guarded) return guarded;
 
     const body = (await request.json().catch(() => null)) as {
+      name?: unknown;
       phone?: unknown;
       pdpaConsent?: unknown;
     } | null;
@@ -40,6 +41,10 @@ export async function POST(request: Request): Promise<Response> {
     const env = await getEnv();
     const pending = await takeLinePending(env, token);
     if (!pending) return Response.json({ error: EXPIRED }, { status: 400 });
+
+    // Username: the (editable) value the user confirmed, falling back to the LINE display name.
+    const displayName =
+      typeof body?.name === "string" && body.name.trim() ? body.name.trim() : pending.name;
 
     const db = env.DB;
     const now = Date.now();
@@ -74,14 +79,14 @@ export async function POST(request: Request): Promise<Response> {
              (id, phone, name, line_user_id, pdpa_consent_at, last_login_at, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(customerId, phone, pending.name, pending.lineUserId, now, now, now, now)
+        .bind(customerId, phone, displayName, pending.lineUserId, now, now, now, now)
         .run();
     }
 
     const session = await createSession(db, customerId);
     cookieStore.set(SESSION_COOKIE, session.token, sessionCookieOptions());
     cookieStore.delete(LINE_PENDING_COOKIE);
-    return Response.json({ customer: { id: customerId, phone, name: pending.name } });
+    return Response.json({ customer: { id: customerId, phone, name: displayName } });
   } catch (err) {
     console.error("POST /api/auth/line/register failed", err);
     return Response.json({ error: "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง" }, { status: 500 });

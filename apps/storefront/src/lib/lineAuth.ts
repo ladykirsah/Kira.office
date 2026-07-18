@@ -86,6 +86,19 @@ export async function stashLinePending(env: Env, identity: LineIdentity): Promis
   return token;
 }
 
+/** Read a pending LINE identity WITHOUT consuming it (used to pre-fill the register form). */
+export async function peekLinePending(env: Env, token: string): Promise<LineIdentity | null> {
+  const raw = await env.KV.get(`line_pending:${token}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as LineIdentity;
+    if (typeof parsed.lineUserId === "string" && typeof parsed.name === "string") return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Read + delete a pending LINE identity by its token. Null if missing/expired. */
 export async function takeLinePending(env: Env, token: string): Promise<LineIdentity | null> {
   const key = `line_pending:${token}`;

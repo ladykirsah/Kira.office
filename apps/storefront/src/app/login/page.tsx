@@ -36,7 +36,7 @@ function LoginContent() {
           เข้าสู่ระบบ / สมัครสมาชิก
         </h1>
         <p style={{ margin: "0 0 18px", fontSize: 15, lineHeight: 1.5, color: "var(--gray-mid)" }}>
-          ใช้เบอร์โทรศัพท์รับรหัส OTP — ไม่ต้องตั้งรหัสผ่าน
+          เข้าสู่ระบบด้วย LINE ในคลิกเดียว — ปลอดภัย ไม่ต้องจำรหัสผ่าน
         </p>
         {lineError && (
           <div

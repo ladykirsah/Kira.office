@@ -21,6 +21,9 @@ import { OTP_TTL_MS } from "@/lib/authCore";
  */
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+// Launch is LINE-first. The phone/OTP path is shown ONLY when an SMS provider is wired
+// (NEXT_PUBLIC_OTP_ENABLED="1"); otherwise we never render a "รับรหัส OTP" button that can't send.
+const OTP_ENABLED = process.env.NEXT_PUBLIC_OTP_ENABLED === "1";
 
 interface TurnstileApi {
   render: (
@@ -329,6 +332,42 @@ export function OtpLogin({
       </label>
     </div>
   );
+
+  // LINE-first launch: with OTP disabled, the widget is just the LINE button — no phone
+  // form, no tabs, no OTP boxes (all of that stays below, ready to re-enable behind the flag).
+  if (!OTP_ENABLED) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap }}>
+        <button
+          type="button"
+          onClick={startLineLogin}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            width: "100%",
+            padding: "12px 16px",
+            background: "#06C755",
+            color: "#fff",
+            border: "none",
+            borderRadius: "var(--radius-sm)",
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontWeight: 900 }}>
+            LINE
+          </span>
+          เข้าสู่ระบบด้วย LINE
+        </button>
+        <p className="muted" style={{ fontSize: 13, textAlign: "center", margin: 0 }}>
+          เข้าสู่ระบบง่ายและปลอดภัยด้วยบัญชี LINE ของคุณ
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>

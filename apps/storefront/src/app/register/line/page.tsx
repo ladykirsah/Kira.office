@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -19,24 +19,43 @@ function LineRegisterContent() {
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
 
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-fill the username with the LINE display name (editable — the user can change it).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/line/pending");
+        const data = (await res.json()) as { name?: string | null };
+        if (!cancelled && typeof data.name === "string" && data.name.trim()) setName(data.name);
+      } catch {
+        /* leave blank — the user types it */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const nameOk = name.trim().length > 0;
   const phoneDigits = phone.replace(/\D/g, "");
   const phoneOk = phoneDigits.length >= 9 && phoneDigits.length <= 10;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !phoneOk || !consent) return;
+    if (busy || !nameOk || !phoneOk || !consent) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/auth/line/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, pdpaConsent: consent }),
+        body: JSON.stringify({ name: name.trim(), phone, pdpaConsent: consent }),
       });
       const data = (await res.json()) as { customer?: unknown; error?: string };
       if (res.ok) {
@@ -58,9 +77,25 @@ function LineRegisterContent() {
           อีกขั้นตอนเดียว
         </h1>
         <p style={{ margin: "0 0 18px", fontSize: 15, lineHeight: 1.5, color: "var(--gray-mid)" }}>
-          เข้าสู่ระบบด้วย LINE สำเร็จ — กรอกเบอร์โทรศัพท์เพื่อใช้จัดส่งและติดตามคำสั่งซื้อ
+          เข้าสู่ระบบด้วย LINE สำเร็จ — ยืนยันชื่อและเบอร์โทรศัพท์เพื่อใช้จัดส่งและติดตามคำสั่งซื้อ
         </p>
         <form style={{ display: "flex", flexDirection: "column", gap: 12 }} onSubmit={submit}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="line-name">ชื่อผู้ใช้</label>
+            <input
+              id="line-name"
+              className="input"
+              type="text"
+              autoComplete="name"
+              placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+            />
+          </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="line-phone">เบอร์โทรศัพท์</label>
             <input
@@ -109,7 +144,7 @@ function LineRegisterContent() {
           <button
             type="submit"
             className="btn btn-primary btn-block"
-            disabled={busy || !phoneOk || !consent}
+            disabled={busy || !nameOk || !phoneOk || !consent}
           >
             {busy ? "กำลังสร้างบัญชี…" : "สร้างบัญชีและเข้าสู่ระบบ"}
           </button>
