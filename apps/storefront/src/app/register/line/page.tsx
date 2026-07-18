@@ -353,26 +353,26 @@ function LineRegisterContent() {
                   style={{ resize: "vertical" }}
                 />
               </div>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="d-postal">รหัสไปรษณีย์</label>
-                <input
-                  id="d-postal"
-                  className="input"
-                  inputMode="numeric"
-                  maxLength={5}
-                  autoComplete="postal-code"
-                  placeholder="กรอกเพื่อเติมจังหวัด/อำเภออัตโนมัติ"
-                  value={postalCode}
-                  onChange={(e) => {
-                    const zip = e.target.value.replace(/\D/g, "").slice(0, 5);
-                    setPostalCode(zip);
-                    if (sheetError) setSheetError(null);
-                    if (/^\d{5}$/.test(zip)) void applyPostcode(zip);
-                    else setTambons([]);
-                  }}
-                />
-              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="d-postal">รหัสไปรษณีย์</label>
+                  <input
+                    id="d-postal"
+                    className="input"
+                    inputMode="numeric"
+                    maxLength={5}
+                    autoComplete="postal-code"
+                    placeholder="เช่น 10260"
+                    value={postalCode}
+                    onChange={(e) => {
+                      const zip = e.target.value.replace(/\D/g, "").slice(0, 5);
+                      setPostalCode(zip);
+                      if (sheetError) setSheetError(null);
+                      if (/^\d{5}$/.test(zip)) void applyPostcode(zip);
+                      else setTambons([]);
+                    }}
+                  />
+                </div>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="d-province">จังหวัด</label>
                   <select
@@ -398,41 +398,41 @@ function LineRegisterContent() {
                     onChange={(e) => setDistrict(e.target.value)}
                   />
                 </div>
-              </div>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="d-subdistrict">ตำบล/แขวง</label>
-                {tambons.length > 0 ? (
-                  <select
-                    id="d-subdistrict"
-                    className="input"
-                    value={tambonIdx >= 0 ? String(tambonIdx) : ""}
-                    onChange={(e) => {
-                      const t = tambons[Number(e.target.value)];
-                      if (t) {
-                        setSubdistrict(t.tambon);
-                        setDistrict(t.amphoe);
-                        setProvince(t.province);
-                        if (sheetError) setSheetError(null);
-                      }
-                    }}
-                  >
-                    <option value="">เลือกตำบล/แขวง</option>
-                    {tambons.map((t, i) => (
-                      <option key={i} value={i}>
-                        {t.tambon}
-                        {multiAmphoe ? ` · ${t.amphoe}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    id="d-subdistrict"
-                    className="input"
-                    placeholder="กรอกรหัสไปรษณีย์ก่อน"
-                    value={subdistrict}
-                    onChange={(e) => setSubdistrict(e.target.value)}
-                  />
-                )}
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="d-subdistrict">ตำบล/แขวง</label>
+                  {tambons.length > 0 ? (
+                    <select
+                      id="d-subdistrict"
+                      className="input"
+                      value={tambonIdx >= 0 ? String(tambonIdx) : ""}
+                      onChange={(e) => {
+                        const t = tambons[Number(e.target.value)];
+                        if (t) {
+                          setSubdistrict(t.tambon);
+                          setDistrict(t.amphoe);
+                          setProvince(t.province);
+                          if (sheetError) setSheetError(null);
+                        }
+                      }}
+                    >
+                      <option value="">เลือกตำบล/แขวง</option>
+                      {tambons.map((t, i) => (
+                        <option key={i} value={i}>
+                          {t.tambon}
+                          {multiAmphoe ? ` · ${t.amphoe}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id="d-subdistrict"
+                      className="input"
+                      placeholder="กรอกรหัสไปรษณีย์ก่อน"
+                      value={subdistrict}
+                      onChange={(e) => setSubdistrict(e.target.value)}
+                    />
+                  )}
+                </div>
               </div>
               {sheetError && (
                 <div
