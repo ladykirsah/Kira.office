@@ -1,94 +1,95 @@
 # Kira.office (admin) — go-live via Cloudflare Access
 
-Goal: host the **admin back office** on a real domain, reachable only by the owner, logging in with an
-**email one-time code**. This is independent of the AirPlus storefront launch — separate Worker,
-separate domain.
+Goal: host the **admin back office** at **`admin.homeseeker.me`**, reachable only by the owner,
+logging in with an **email one-time code**. Independent of the AirPlus storefront launch.
 
 > **Owner decisions (2026-07-18):**
-> - Login method: **Email one-time PIN** (not Google).
-> - **Super admin = `lady.kirsah@gmail.com`** only. No other email may enter.
-> - Role in the app: **`owner`**.
+> - Login method: **Email one-time PIN**.
+> - **Super admin = `lady.kirsah@gmail.com`** only. Nobody else may enter. App role: **`owner`**.
+> - Admin domain: **`admin.homeseeker.me`**.
+> - **Everything on the GoGoCash account** (`187ab61ed9dbc6e616cb23e6b95aa8f1`).
 
-## The security model (read this once)
+## Account topology — the thing that was wrong, now fixed
 
-- **There is no password.** The `users` table has no password column, by design. Cloudflare Access
-  logs you in by emailing a 6-digit code to an allow-listed address. Nothing to store, nothing to leak.
-- **"Invite an admin" = add their email to the Access policy** in the Zero Trust dashboard (+ seed a
-  `users` row for their role). There is no invite UI to build.
-- **Access must cover the API too, not just the admin UI.** The admin talks to `api.homeseeker.me`;
-  if only the UI were gated, anyone could hit the open API directly.
-- **⚠️ THE ONE GOTCHA — keep `/img/*` public.** The AirPlus storefront loads every product image from
-  `https://api.homeseeker.me/img/*` with no login. If Access gates the whole API host, every product
-  photo on the customer storefront 403s and the shop looks broken. The API code already treats
-  `/img/*` as public (`apps/api/src/index.ts` — `isPublic = url.pathname.startsWith("/img/")`), but
-  Cloudflare Access blocks at the *edge*, before the code runs — so the Access policy must **bypass**
-  `/img/*` explicitly.
+Verified 2026-07-18: `api.homeseeker.me` is served by the **GoGoCash** worker (HTTP 200), which means
+the **live `homeseeker.me` zone is on GoGoCash**, together with the API and the storefront. The admin
+worker used to sit on a *separate* `homeseeker` account — that split is the documented "1003
+cross-account proxy" failure. `apps/admin/wrangler.jsonc` now points the admin at **GoGoCash** with a
+`admin.homeseeker.me` custom domain, so admin + API + storefront + DNS + Access are all one account.
 
-## Why the sequence matters (do NOT gate the API first)
+**Cloudflare Access is per-account, so ALL of this happens on the GoGoCash account's Zero Trust** —
+NOT the `homeseeker` account. (The `kiraoffice.cloudflareaccess.com` team domain created on the
+homeseeker account is on the wrong account and won't be used.)
 
-Today the admin runs on your laptop (`localhost`) and calls `api.homeseeker.me`, which is open.
-The moment Access gates the API, those localhost calls have no Access session and **break** — you'd
-lock your own working setup out. So the admin must be **deployed to its own gated domain first**, and
-you then use the admin *through that domain* (where the Access session exists and is forwarded to the
-API by the admin's `/api/worker` proxy), not through localhost.
+## The security model
 
-**Do the whole thing on STAGING first.** A wrong Access rule on the prod API takes the storefront's
-images down. Verify the flow end-to-end on staging, then repeat on prod.
+- **No password.** The `users` table has no password column. Access emails a 6-digit code to an
+  allow-listed address. Nothing to store or leak.
+- **"Invite an admin" = add their email to the Access policy** (+ seed a `users` row for their role).
+- **Access must cover the API too**, or someone could hit the open API directly, bypassing the UI.
+- **⚠️ KEEP `/img/*` PUBLIC.** The storefront loads every product image from `api.homeseeker.me/img/*`
+  with no login. Access blocks at the edge before the API's own `isPublic` check runs, so the policy
+  must **Bypass** `/img/*` or every storefront photo 403s.
+
+## Order matters — configure Access BEFORE deploying, so the admin is never briefly open
+
+An Access application is created by hostname; the hostname does not need to resolve yet. So we set up
+Access for `admin.homeseeker.me` FIRST, then deploy the admin into it — it is behind login from its
+first request. Deploying first would leave an unauthenticated back office public for a window.
 
 ---
 
-## Steps
+## Steps (all on the GoGoCash account)
 
-### 1. Deploy the admin Worker to a domain  — [OWNER + CODE]
-The admin (`kiraoffice-admin`) is on the **homeseeker** Cloudflare account and has never been deployed.
-- [OWNER] Create a Workers-edit API token on the homeseeker account; add it as the repo secret
-  `CF_ADMIN_API_TOKEN` (this flips on the `deploy-admin` CI job), OR run `npm run deploy -w @l-shopee/admin` locally.
-- [CODE] Add a custom domain to `apps/admin/wrangler.jsonc`, e.g. `app.homeseeker.me`.
+### 1. Create the Access application for the admin  — [OWNER, dashboard]
+Switch the dashboard to the **GoGoCash** account (top-left account picker). Open **Zero Trust →
+Access controls**. If prompted, pick a **team name** (this becomes `<name>.cloudflareaccess.com` — the
+GoGoCash team domain; reuse `kiraoffice` if free, or `airplus`).
+- **Create an application → Self-hosted.**
+- Application domain: **`admin.homeseeker.me`**.
+- **Login method: One-time PIN.**
+- Policy → **Allow**, rule **Emails**, value `lady.kirsah@gmail.com`. Nothing else.
+- Save, then open the app → copy its **Application Audience (AUD) Tag**, and note the **team domain**.
+- **→ Send me the AUD tag + team domain.** (Both are config identifiers, safe to paste — not credentials.)
 
-### 2. Create the Access application for the ADMIN  — [OWNER, dashboard]
-Cloudflare dashboard → **Zero Trust → Access → Applications → Add an application → Self-hosted**.
-- Application domain: your admin domain (e.g. `app.homeseeker.me`).
-- **Login method: One-time PIN** (turn off other IdPs for this app if you want email-only).
-- Policy → **Allow**, rule type **Emails**, value: `lady.kirsah@gmail.com`. Nothing else.
-- Save. Copy the application's **AUD tag** and note your **team domain** (`<your-team>.cloudflareaccess.com`).
+### 2. Create the two Access applications for the API  — [OWNER, dashboard]
+On `api.homeseeker.me`, most-specific path first:
+- **Bypass app:** `api.homeseeker.me/img/*` → policy **Bypass**, **Everyone**. (Keeps images public.)
+- **Protected app:** `api.homeseeker.me/*` → **One-time PIN**, **Allow → Emails → `lady.kirsah@gmail.com`**.
 
-### 3. Create the Access application for the API, WITH the `/img/*` bypass  — [OWNER, dashboard]
-Two applications on `api.homeseeker.me`, most-specific path first:
-- **App A (bypass):** path `api.homeseeker.me/img/*` → policy **Bypass**, **Everyone**. (Keeps product images public.)
-- **App B (protected):** path `api.homeseeker.me/*` → **One-time PIN**, **Allow → Emails → `lady.kirsah@gmail.com`**.
-  Reuse the same AUD as the admin app if the dashboard lets you, or note App B's AUD.
-
-### 4. Set the Worker secrets  — [OWNER runs; values from steps 2–3]
-On the **API** Worker (never paste these into chat or a file):
+### 3. Set the Worker secrets on the API  — [after AUD received]
 ```
-CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_TEAM_DOMAIN   # <your-team>.cloudflareaccess.com
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_TEAM_DOMAIN   # <team>.cloudflareaccess.com
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_AUD           # the AUD tag
 ```
-Once both are set, `requireAccess` verifies the Access JWT on every non-`/img/*` request; an
-un-authed request gets 401/403. (Staging first: use the staging API Worker + a staging Access app.)
+Now `requireAccess` verifies the JWT on every non-`/img/*` request. **This is the point the localhost
+admin stops working** (it calls the open API with no Access session) — from here you use
+`admin.homeseeker.me`, not localhost.
 
-### 5. Seed the owner row  — [do at go-live; additive, R1]
-So audit rows carry your email and future role-gating has data. No password — just email + role.
+### 4. Deploy the admin to GoGoCash  — [needs a GoGoCash Workers-edit token]
+The admin is now a GoGoCash worker, so the **existing** `CLOUDFLARE_API_TOKEN` (already a GoGoCash
+token for the API) can deploy it — `CF_ADMIN_API_TOKEN` may no longer be needed.
+`npm run deploy -w @l-shopee/admin` (OpenNext build + deploy). The `admin.homeseeker.me` custom domain
+provisions same-account. It is behind Access from its first request (step 1).
+
+### 5. Seed the owner row  — [additive, R1]
 ```
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 execute kira-office --remote --command \
-  "INSERT INTO users (id, name, email, role, status, created_at) VALUES ('<uuidgen>', 'Lady Kirsah', 'lady.kirsah@gmail.com', 'owner', 'active', strftime('%s','now')*1000);"
+  "INSERT INTO users (id,name,email,role,status,created_at) VALUES ('<uuid>','Lady Kirsah','lady.kirsah@gmail.com','owner','active',strftime('%s','now')*1000);"
 ```
-Generate `<uuidgen>` fresh (macOS: `uuidgen | tr A-Z a-z`). Verify: `SELECT email, role FROM users;`
+`<uuid>`: `uuidgen | tr A-Z a-z`. No password — email + role only.
 
-### 6. Verify  — [CODE + OWNER]
-- Hit the admin domain in a fresh browser → Access prompts for the email code → enter it → admin loads.
-- Confirm the admin can reach the API (products list, etc.) through the domain — this exercises the
-  cross-account `/api/worker` proxy (the "1003" cautionary tale; verify on staging first).
-- Confirm `https://api.homeseeker.me/img/<any-key>` still loads WITHOUT a login (storefront images).
-- Confirm an un-authed `curl https://api.homeseeker.me/products` now 401s.
+### 6. Verify directly (no staging domain needed for the checks)
+- `curl -I https://api.homeseeker.me/img/<any-key>` → **200** (image still public — storefront safe).
+- `curl -I https://api.homeseeker.me/products` → **401/302** (API now gated).
+- Open `admin.homeseeker.me` in a fresh browser → Access asks for the email code → enter → admin loads.
+- Confirm the admin can list products (exercises the now-same-account admin→api proxy).
 
 ## Rollback
-- Remove the two Access applications → the edge stops gating.
+- Delete the Access applications → edge stops gating.
 - `wrangler secret delete ACCESS_TEAM_DOMAIN` / `ACCESS_AUD` → `requireAccess` fails open again.
-- The admin keeps working on localhost throughout (localhost is never behind Access).
+- The localhost admin keeps working throughout (localhost is never behind Access).
 
 ## Not needed yet — role enforcement
-`resolveActor` + `requireRole` + `canPerform` are built and tested but **not wired into any route**.
-With a single allow-listed email, everyone who gets in IS the owner, so role checks are redundant.
-Wire them the day you invite a SECOND admin with a lesser role (`manager` / `stock_operator` /
-`finance_viewer`) — that is a separate, TDD'd piece of work, not part of this single-owner setup.
+`resolveActor`/`requireRole`/`canPerform` are built + tested but unwired. With one allow-listed email,
+everyone who gets in IS the owner. Wire them the day a SECOND, lesser admin is invited.
