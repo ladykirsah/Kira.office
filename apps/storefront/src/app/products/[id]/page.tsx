@@ -168,6 +168,14 @@ export default async function ProductPage(props: PageProps) {
                   [
                     { ic: "🗂️", label: "หมวดหมู่", value: detail.typeName },
                     { ic: "🏷️", label: "แบรนด์", value: detail.brandName },
+                    { ic: "#️⃣", label: "รหัสสินค้า", value: detail.productRef },
+                    {
+                      ic: "🛡️",
+                      label: "ระยะเวลารับประกัน",
+                      // Per product category (product_types.warranty_days). Null category default =
+                      // no row, so a category without a warranty set never shows "0 วัน".
+                      value: detail.warrantyDays ? `${detail.warrantyDays} วัน` : null,
+                    },
                     {
                       ic: "⚖️",
                       label: "น้ำหนัก",
@@ -176,14 +184,6 @@ export default async function ProductPage(props: PageProps) {
                           ? `${(detail.weightGrams / 1000).toFixed(1)} กก.`
                           : null,
                     },
-                    {
-                      ic: "🛡️",
-                      label: "ระยะเวลารับประกัน",
-                      // Per product category (product_types.warranty_days). Null category default =
-                      // no row, so a category without a warranty set never shows "0 วัน".
-                      value: detail.warrantyDays ? `${detail.warrantyDays} วัน` : null,
-                    },
-                    { ic: "#️⃣", label: "รหัสสินค้า", value: detail.productRef },
                   ] as { ic: string; label: string; value: string | null }[]
                 )
                   .filter((s) => s.value)
