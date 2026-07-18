@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { PROVINCES } from "@/lib/provinces";
 
 /**
  * Reached only after a first-time LINE sign-in (the /callback route sets the pending
@@ -24,7 +25,6 @@ function LineRegisterContent() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [addressOpen, setAddressOpen] = useState(false);
   const [addressLine1, setAddressLine1] = useState("");
   const [subdistrict, setSubdistrict] = useState("");
   const [district, setDistrict] = useState("");
@@ -132,6 +132,9 @@ function LineRegisterContent() {
               required
             />
           </div>
+          {/* Delivery info — the same fields as the account address book. Phone is REQUIRED
+              (every account needs one — the DB enforces it), the address itself is optional
+              (fill it now for one-tap checkout, or add it later at checkout). */}
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="line-phone">เบอร์โทรศัพท์</label>
             <input
@@ -150,107 +153,72 @@ function LineRegisterContent() {
             />
           </div>
 
-          {!addressOpen ? (
-            <button
-              type="button"
-              onClick={() => setAddressOpen(true)}
-              style={{
-                alignSelf: "flex-start",
-                background: "none",
-                border: "none",
-                padding: "2px 0",
-                color: "var(--brand-blue)",
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: "pointer",
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="line-address">
+              ที่อยู่จัดส่ง{" "}
+              <span style={{ color: "var(--gray-mid)", fontWeight: 400 }}>(ไม่บังคับ)</span>
+            </label>
+            <textarea
+              id="line-address"
+              className="input"
+              rows={2}
+              autoComplete="street-address"
+              placeholder="บ้านเลขที่ หมู่ ซอย ถนน"
+              value={addressLine1}
+              onChange={(e) => {
+                setAddressLine1(e.target.value);
+                if (error) setError(null);
               }}
-            >
-              + เพิ่มที่อยู่จัดส่ง (ไม่บังคับ)
-            </button>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                padding: 12,
-                background: "var(--paper)",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              <div
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--gray-dark)" }}>
-                  ที่อยู่จัดส่ง (ไม่บังคับ)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddressOpen(false);
-                    setAddressLine1("");
-                    setSubdistrict("");
-                    setDistrict("");
-                    setProvince("");
-                    setPostalCode("");
-                    if (error) setError(null);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--gray-mid)",
-                    fontSize: 13,
-                    cursor: "pointer",
-                  }}
-                >
-                  ข้ามไปก่อน
-                </button>
-              </div>
+              style={{ resize: "vertical" }}
+            />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="line-subdistrict">ตำบล/แขวง</label>
               <input
+                id="line-subdistrict"
                 className="input"
-                placeholder="บ้านเลขที่ / ถนน / ซอย"
-                value={addressLine1}
-                onChange={(e) => {
-                  setAddressLine1(e.target.value);
-                  if (error) setError(null);
-                }}
+                value={subdistrict}
+                onChange={(e) => setSubdistrict(e.target.value)}
               />
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  className="input"
-                  placeholder="ตำบล/แขวง"
-                  value={subdistrict}
-                  onChange={(e) => setSubdistrict(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  placeholder="อำเภอ/เขต"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  className="input"
-                  placeholder="จังหวัด"
-                  value={province}
-                  onChange={(e) => setProvince(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="รหัสไปรษณีย์"
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-              </div>
             </div>
-          )}
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="line-district">อำเภอ/เขต</label>
+              <input
+                id="line-district"
+                className="input"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+              />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="line-province">จังหวัด</label>
+              <select
+                id="line-province"
+                className="input"
+                value={province}
+                onChange={(e) => setProvince(e.target.value)}
+              >
+                <option value="">เลือกจังหวัด</option>
+                {PROVINCES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="line-postal">รหัสไปรษณีย์</label>
+              <input
+                id="line-postal"
+                className="input"
+                inputMode="numeric"
+                maxLength={5}
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+              />
+            </div>
+          </div>
 
           <div className="otp-welcome">
             <label className="otp-consent">
