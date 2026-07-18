@@ -6,10 +6,10 @@ import { useSearchParams } from "next/navigation";
 import { PROVINCES } from "@/lib/provinces";
 
 /**
- * Reached only after a first-time LINE sign-in (the /callback route sets the pending
- * cookie and sends the browser here). LINE gives us no phone number, and a customer
- * row can't exist without one, so we collect a phone + PDPA consent, then create the
- * account. On success we hard-navigate so the new session cookie is picked up.
+ * Reached only after a first-time LINE sign-in (the /callback route sets the pending cookie and
+ * sends the browser here). LINE is the only login (no OTP), so we collect as little as possible:
+ * a casual username + one delivery address. The phone lives INSIDE that address (it's also the
+ * account phone — a customer row can't exist without one). Address entry is a bottom-sheet popup.
  */
 
 function safeNext(raw: string | null): string {
@@ -21,17 +21,22 @@ function LineRegisterContent() {
   const next = safeNext(searchParams.get("next"));
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Delivery address (required) — collected in the popup, then summarized on the form.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [subdistrict, setSubdistrict] = useState("");
   const [district, setDistrict] = useState("");
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // Pre-fill the username with the LINE display name (editable — the user can change it).
+  // Pre-fill the username with the LINE display name (editable).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -50,26 +55,29 @@ function LineRegisterContent() {
 
   const nameOk = name.trim().length > 0;
   const phoneDigits = phone.replace(/\D/g, "");
-  const phoneOk = phoneDigits.length >= 9 && phoneDigits.length <= 10;
-
-  // Default address is optional: skipped when blank, but must be COMPLETE if started.
-  const addressStarted = [addressLine1, subdistrict, district, province, postalCode].some(
-    (f) => f.trim() !== "",
-  );
   const addressComplete =
+    phoneDigits.length >= 9 &&
+    phoneDigits.length <= 10 &&
     addressLine1.trim() !== "" &&
     subdistrict.trim() !== "" &&
     district.trim() !== "" &&
-    province.trim() !== "" &&
+    province !== "" &&
     /^\d{5}$/.test(postalCode.trim());
+
+  function saveAddress() {
+    if (!addressComplete) {
+      setSheetError("กรุณากรอกเบอร์โทรและที่อยู่ให้ครบทุกช่อง");
+      return;
+    }
+    setSheetError(null);
+    setSaved(true);
+    setSheetOpen(false);
+    if (error) setError(null);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !nameOk || !phoneOk || !consent) return;
-    if (addressStarted && !addressComplete) {
-      setError("กรุณากรอกที่อยู่จัดส่งให้ครบ หรือลบออกเพื่อข้ามไปก่อน");
-      return;
-    }
+    if (busy || !nameOk || !saved || !consent) return;
     setBusy(true);
     setError(null);
     try {
@@ -78,19 +86,15 @@ function LineRegisterContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          phone,
           pdpaConsent: consent,
-          ...(addressComplete
-            ? {
-                address: {
-                  addressLine1: addressLine1.trim(),
-                  subdistrict: subdistrict.trim(),
-                  district: district.trim(),
-                  province: province.trim(),
-                  postalCode: postalCode.trim(),
-                },
-              }
-            : {}),
+          address: {
+            phone,
+            addressLine1: addressLine1.trim(),
+            subdistrict: subdistrict.trim(),
+            district: district.trim(),
+            province,
+            postalCode: postalCode.trim(),
+          },
         }),
       });
       const data = (await res.json()) as { customer?: unknown; error?: string };
@@ -113,9 +117,9 @@ function LineRegisterContent() {
           อีกขั้นตอนเดียว
         </h1>
         <p style={{ margin: "0 0 18px", fontSize: 15, lineHeight: 1.5, color: "var(--gray-mid)" }}>
-          เข้าสู่ระบบด้วย LINE สำเร็จ — ยืนยันชื่อและเบอร์โทรศัพท์เพื่อใช้จัดส่งและติดตามคำสั่งซื้อ
+          เข้าสู่ระบบด้วย LINE สำเร็จ — ตั้งชื่อผู้ใช้และเพิ่มที่อยู่จัดส่งเพื่อเริ่มสั่งซื้อ
         </p>
-        <form style={{ display: "flex", flexDirection: "column", gap: 12 }} onSubmit={submit}>
+        <form style={{ display: "flex", flexDirection: "column", gap: 14 }} onSubmit={submit}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="line-name">ชื่อผู้ใช้</label>
             <input
@@ -132,93 +136,68 @@ function LineRegisterContent() {
               required
             />
           </div>
-          {/* Delivery info — the same fields as the account address book. Phone is REQUIRED
-              (every account needs one — the DB enforces it), the address itself is optional
-              (fill it now for one-tap checkout, or add it later at checkout). */}
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="line-phone">เบอร์โทรศัพท์</label>
-            <input
-              id="line-phone"
-              className="input"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="08x-xxx-xxxx"
-              value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                if (error) setError(null);
-              }}
-              required
-            />
-          </div>
 
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="line-address">
-              ที่อยู่จัดส่ง{" "}
-              <span style={{ color: "var(--gray-mid)", fontWeight: 400 }}>(ไม่บังคับ)</span>
-            </label>
-            <textarea
-              id="line-address"
-              className="input"
-              rows={2}
-              autoComplete="street-address"
-              placeholder="บ้านเลขที่ หมู่ ซอย ถนน"
-              value={addressLine1}
-              onChange={(e) => {
-                setAddressLine1(e.target.value);
-                if (error) setError(null);
+          {/* Delivery address — required. The phone lives inside it. */}
+          {saved ? (
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                padding: "12px 14px",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "flex-start",
               }}
-              style={{ resize: "vertical" }}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="line-subdistrict">ตำบล/แขวง</label>
-              <input
-                id="line-subdistrict"
-                className="input"
-                value={subdistrict}
-                onChange={(e) => setSubdistrict(e.target.value)}
-              />
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="line-district">อำเภอ/เขต</label>
-              <input
-                id="line-district"
-                className="input"
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-              />
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="line-province">จังหวัด</label>
-              <select
-                id="line-province"
-                className="input"
-                value={province}
-                onChange={(e) => setProvince(e.target.value)}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--gray-dark)" }}>
+                  📦 ที่อยู่จัดส่ง · {phone}
+                </div>
+                <div style={{ fontSize: 13, color: "var(--gray-mid)", marginTop: 3 }}>
+                  {addressLine1} {subdistrict} {district} {province} {postalCode}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSheetOpen(true)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--brand-blue)",
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
               >
-                <option value="">เลือกจังหวัด</option>
-                {PROVINCES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+                แก้ไข
+              </button>
             </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="line-postal">รหัสไปรษณีย์</label>
-              <input
-                id="line-postal"
-                className="input"
-                inputMode="numeric"
-                maxLength={5}
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-              />
-            </div>
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                width: "100%",
+                padding: 13,
+                background: "rgba(1, 90, 191, 0.06)",
+                color: "var(--brand-blue)",
+                border: "1px dashed #9cc0ea",
+                borderRadius: "var(--radius-sm)",
+                fontFamily: "inherit",
+                fontWeight: 700,
+                fontSize: 14.5,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 17, lineHeight: 1 }}>＋</span> เพิ่มข้อมูลจัดส่ง
+            </button>
+          )}
 
           <div className="otp-welcome">
             <label className="otp-consent">
@@ -243,22 +222,157 @@ function LineRegisterContent() {
               </span>
             </label>
           </div>
+
           {error && (
             <div style={{ color: "var(--danger)", fontSize: 14, fontWeight: 600 }} role="alert">
               {error}
             </div>
           )}
+
           <button
             type="submit"
             className="btn btn-primary btn-block"
-            disabled={
-              busy || !nameOk || !phoneOk || !consent || (addressStarted && !addressComplete)
-            }
+            disabled={busy || !nameOk || !saved || !consent}
           >
             {busy ? "กำลังสร้างบัญชี…" : "สร้างบัญชีและเข้าสู่ระบบ"}
           </button>
         </form>
       </div>
+
+      {/* Bottom-sheet popup: the full delivery address (phone + address, all required). */}
+      {sheetOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 50 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="ข้อมูลจัดส่ง"
+        >
+          <div
+            onClick={() => setSheetOpen(false)}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.42)" }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "var(--white)",
+              borderRadius: "18px 18px 0 0",
+              padding: "10px 18px 20px",
+              maxHeight: "90%",
+              overflowY: "auto",
+              maxWidth: 460,
+              margin: "0 auto",
+            }}
+          >
+            <div
+              style={{
+                width: 38,
+                height: 4,
+                background: "#d5d5d5",
+                borderRadius: 2,
+                margin: "0 auto 14px",
+              }}
+            />
+            <h2 className="t-h4" style={{ margin: "0 0 14px", color: "var(--gray-dark)" }}>
+              ข้อมูลจัดส่ง
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="d-phone">เบอร์โทรผู้รับ</label>
+                <input
+                  id="d-phone"
+                  className="input"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="08x-xxx-xxxx"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (sheetError) setSheetError(null);
+                  }}
+                />
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="d-address">ที่อยู่</label>
+                <textarea
+                  id="d-address"
+                  className="input"
+                  rows={2}
+                  autoComplete="street-address"
+                  placeholder="บ้านเลขที่ หมู่ ซอย ถนน"
+                  value={addressLine1}
+                  onChange={(e) => {
+                    setAddressLine1(e.target.value);
+                    if (sheetError) setSheetError(null);
+                  }}
+                  style={{ resize: "vertical" }}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="d-subdistrict">ตำบล/แขวง</label>
+                  <input
+                    id="d-subdistrict"
+                    className="input"
+                    value={subdistrict}
+                    onChange={(e) => setSubdistrict(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="d-district">อำเภอ/เขต</label>
+                  <input
+                    id="d-district"
+                    className="input"
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="d-province">จังหวัด</label>
+                  <select
+                    id="d-province"
+                    className="input"
+                    value={province}
+                    onChange={(e) => setProvince(e.target.value)}
+                  >
+                    <option value="">เลือกจังหวัด</option>
+                    {PROVINCES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="d-postal">รหัสไปรษณีย์</label>
+                  <input
+                    id="d-postal"
+                    className="input"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                  />
+                </div>
+              </div>
+              {sheetError && (
+                <div
+                  style={{ color: "var(--danger)", fontSize: 13.5, fontWeight: 600 }}
+                  role="alert"
+                >
+                  {sheetError}
+                </div>
+              )}
+              <button type="button" className="btn btn-primary btn-block" onClick={saveAddress}>
+                บันทึกที่อยู่
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

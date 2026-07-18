@@ -6,15 +6,17 @@ import { normalizePhone } from "@/lib/format";
 import { LINE_PENDING_COOKIE, takeLinePending } from "@/lib/lineAuth";
 
 /**
- * POST /api/auth/line/register — finish a first-time LINE signup by attaching a phone
- * (LINE never gives us one) + PDPA consent, then create the account and log in. The
- * verified LINE identity comes from the KV-backed pending record set by /callback, not
- * the request body, so a caller can't register an arbitrary LINE id.
+ * POST /api/auth/line/register — finish a first-time LINE signup. LINE is the only credential and
+ * OTP is retired, so we never collect a login phone. But a customer row can't exist without a phone
+ * (DB-enforced) and a Thai delivery address needs one anyway — so the phone is collected ONCE, as
+ * part of a required delivery address, and used as both the account phone and the address's phone.
+ * The verified LINE identity comes from the KV pending record set by /callback, never the body.
  */
 
 const EXPIRED = "เซสชันหมดอายุ กรุณาเข้าสู่ระบบด้วย LINE อีกครั้ง";
 
-interface OptionalAddress {
+interface DeliveryAddress {
+  phone: string;
   addressLine1: string;
   subdistrict: string;
   district: string;
@@ -22,29 +24,29 @@ interface OptionalAddress {
   postalCode: string;
 }
 
-/**
- * A default delivery address is OPTIONAL at signup. Returns the address only when EVERY
- * field is present and the postcode is 5 digits; a blank/partial address is treated as
- * "none" (skipped) rather than an error, so it never blocks account creation.
- */
-function parseOptionalAddress(input: unknown): OptionalAddress | null {
+/** The delivery address is required and must be complete — returns null on any missing/invalid field. */
+function parseAddress(input: unknown): DeliveryAddress | null {
   if (typeof input !== "object" || input === null) return null;
   const a = input as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-  const addr: OptionalAddress = {
+  const phone = normalizePhone(str(a.phone));
+  const addr: DeliveryAddress = {
+    phone,
     addressLine1: str(a.addressLine1),
     subdistrict: str(a.subdistrict),
     district: str(a.district),
     province: str(a.province),
     postalCode: str(a.postalCode),
   };
-  const complete =
+  const ok =
+    phone.length >= 9 &&
+    phone.length <= 10 &&
     addr.addressLine1 &&
     addr.subdistrict &&
     addr.district &&
     addr.province &&
     /^\d{5}$/.test(addr.postalCode);
-  return complete ? addr : null;
+  return ok ? addr : null;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -54,15 +56,16 @@ export async function POST(request: Request): Promise<Response> {
 
     const body = (await request.json().catch(() => null)) as {
       name?: unknown;
-      phone?: unknown;
       pdpaConsent?: unknown;
       address?: unknown;
     } | null;
 
-    const optionalAddress = parseOptionalAddress(body?.address);
-    const phone = normalizePhone(typeof body?.phone === "string" ? body.phone : "");
-    if (phone.length < 9 || phone.length > 10)
-      return Response.json({ error: "กรุณากรอกเบอร์โทรศัพท์ 9-10 หลัก" }, { status: 400 });
+    const address = parseAddress(body?.address);
+    if (!address)
+      return Response.json(
+        { error: "กรุณากรอกข้อมูลจัดส่งให้ครบ (เบอร์โทรและที่อยู่)" },
+        { status: 400 },
+      );
     if (body?.pdpaConsent !== true)
       return Response.json(
         { requiresConsent: true, error: "กรุณายอมรับนโยบายความเป็นส่วนตัวเพื่อสร้างบัญชี" },
@@ -80,12 +83,14 @@ export async function POST(request: Request): Promise<Response> {
     // Username: the (editable) value the user confirmed, falling back to the LINE display name.
     const displayName =
       typeof body?.name === "string" && body.name.trim() ? body.name.trim() : pending.name;
+    // The account phone IS the delivery phone — collected once.
+    const phone = address.phone;
 
     const db = env.DB;
     const now = Date.now();
 
-    // Idempotency: a double-submit / back-button may re-run this for a LINE id that
-    // already got an account — just log that account in.
+    // Idempotency: a double-submit / back-button may re-run this for a LINE id that already has an
+    // account — just log that account in.
     const existingByLine = await db
       .prepare(`SELECT id FROM storefront_customers WHERE line_user_id = ?`)
       .bind(pending.lineUserId)
@@ -117,28 +122,26 @@ export async function POST(request: Request): Promise<Response> {
         .bind(customerId, phone, displayName, pending.lineUserId, now, now, now, now)
         .run();
 
-      // Optional default delivery address (recipient/phone default to the account).
-      if (optionalAddress) {
-        await db
-          .prepare(
-            `INSERT INTO addresses (id, storefront_customer_id, recipient_name, phone, address_line1,
-               subdistrict, district, province, postal_code, is_default, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-          )
-          .bind(
-            crypto.randomUUID(),
-            customerId,
-            displayName,
-            phone,
-            optionalAddress.addressLine1,
-            optionalAddress.subdistrict,
-            optionalAddress.district,
-            optionalAddress.province,
-            optionalAddress.postalCode,
-            now,
-          )
-          .run();
-      }
+      // The delivery address becomes their default (recipient = the account name + this phone).
+      await db
+        .prepare(
+          `INSERT INTO addresses (id, storefront_customer_id, recipient_name, phone, address_line1,
+             subdistrict, district, province, postal_code, is_default, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          customerId,
+          displayName,
+          phone,
+          address.addressLine1,
+          address.subdistrict,
+          address.district,
+          address.province,
+          address.postalCode,
+          now,
+        )
+        .run();
     }
 
     const session = await createSession(db, customerId);
