@@ -565,6 +565,13 @@ export default function EditProductPage() {
                   <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
                 </Field>
                 <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
+                {/* Box size feeds the shipping-fee calc (volumetric weight w×l×h/5000), alongside
+                    weight — shown here read-only so the parcel data is visible without opening Edit. */}
+                <Field label="Box size (W×L×H)">
+                  {p.widthMm && p.lengthMm && p.heightMm
+                    ? `${mmToCm(p.widthMm)} × ${mmToCm(p.lengthMm)} × ${mmToCm(p.heightMm)} cm`
+                    : "—"}
+                </Field>
               </div>
 
               {/* Column 2 — Identifiers */}
