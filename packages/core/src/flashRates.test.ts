@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FLASH_TH_RATE_CARD, isRemotePostcode } from "./flashRates";
+import { FLASH_TH_RATE_CARD, FLASH_TH_REMOTE_POSTCODES, isRemotePostcode } from "./flashRates";
 import { quoteShippingSatang, feeForChargeableKg } from "./shipping";
 
 describe("FLASH_TH_RATE_CARD", () => {
@@ -68,5 +68,24 @@ describe("isRemotePostcode", () => {
 
   it("returns false when the remote set is empty (no list loaded yet)", () => {
     expect(isRemotePostcode("94110", new Set())).toBe(false);
+  });
+});
+
+describe("FLASH_TH_REMOTE_POSTCODES", () => {
+  it("is a non-empty set of valid 5-digit Thai postcodes", () => {
+    expect(FLASH_TH_REMOTE_POSTCODES.size).toBeGreaterThan(0);
+    for (const code of FLASH_TH_REMOTE_POSTCODES) {
+      expect(code).toMatch(/^\d{5}$/);
+      expect(code >= "10000" && code <= "96999").toBe(true);
+    }
+  });
+
+  it("flags known deep-south / far-north remote postcodes, not Bangkok", () => {
+    // Narathiwat, Chiang Mai (Omkoi), Mae Hong Son — all on Flash's remote list.
+    expect(isRemotePostcode("96000", FLASH_TH_REMOTE_POSTCODES)).toBe(true);
+    expect(isRemotePostcode("50310", FLASH_TH_REMOTE_POSTCODES)).toBe(true);
+    expect(isRemotePostcode("58110", FLASH_TH_REMOTE_POSTCODES)).toBe(true);
+    // Bangkok is never remote.
+    expect(isRemotePostcode("10110", FLASH_TH_REMOTE_POSTCODES)).toBe(false);
   });
 });
