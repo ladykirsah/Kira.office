@@ -12,6 +12,7 @@
 **Snapshot:** 2026-07-19 · working branch `claude/airplus-publication-plan-08e4c7` (PR open to `main`) · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
 **Tests:** 718 passing · **Migrations:** `0000`–`0047` + `0053`–`0055` (`0048`–`0052` live on the parked `returns` branch — see §3).
 **AirPlus is LIVE in production** at [`airplusauto.com`](https://airplusauto.com) (Worker `airplus-storefront`, Version `e212cc60`, deployed 2026-07-19). ⚠️ The prod catalog is still **demo data** (e.g. a "ครีมบำรุงผิว (Demo)" skincare cream shows as top best-seller) — real catalog load is the first post-launch task.
+**Kira.office is LIVE too** (deployed 2026-07-19 from this branch): API worker `kira-office` at `api.homeseeker.me` (branch code — warranty endpoints, `widthMm` persistence, shipping fee) and admin `kiraoffice-admin` at `admin.homeseeker.me` (Version `fd67775f`, behind Cloudflare Access "Super Admin Only"). Both on the GoGoCash account (consolidated — no more cross-account split). NOTE: the API is now ahead of `main` until PR #24 merges; Cloudflare Workers Builds still auto-deploys the API from `main`.
 
 ---
 

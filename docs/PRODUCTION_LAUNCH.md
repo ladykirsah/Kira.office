@@ -27,8 +27,12 @@ production launch. Decisions are made here (not left open); owner action items a
   mock/localStorage until a backend ships.
   - ⚠️ **Post-launch blockers still open:** prod catalog is **demo data** (a "ครีมบำรุงผิว (Demo)"
     skincare cream shows as top best-seller — load the real catalog); confirm Flash rate-card numbers;
-    set PromptPay/bank in admin; legal sign-off; re-export the red-CI banner PNGs. Admin-side product
-    changes (Add-page Description+Fitment, box-size on the detail view) need an **admin** deploy to go live.
+    set PromptPay/bank in admin; legal sign-off; re-export the red-CI banner PNGs.
+- **Kira.office back office is now deployed** (2026-07-19): API worker `kira-office` at `api.homeseeker.me`
+  (warranty endpoints + `widthMm` + shipping fee live) and admin `kiraoffice-admin` at
+  `admin.homeseeker.me` (behind Cloudflare Access, Super Admin Only). The Add-page Description+Fitment
+  and box-size-on-detail-view changes are **live** in the admin. Both deployed manually from the
+  publication-plan branch (PR #24); the API is ahead of `main` until that merges.
 
 ## Launch decision (recommended)
 
