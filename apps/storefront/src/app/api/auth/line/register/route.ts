@@ -14,6 +14,39 @@ import { LINE_PENDING_COOKIE, takeLinePending } from "@/lib/lineAuth";
 
 const EXPIRED = "เซสชันหมดอายุ กรุณาเข้าสู่ระบบด้วย LINE อีกครั้ง";
 
+interface OptionalAddress {
+  addressLine1: string;
+  subdistrict: string;
+  district: string;
+  province: string;
+  postalCode: string;
+}
+
+/**
+ * A default delivery address is OPTIONAL at signup. Returns the address only when EVERY
+ * field is present and the postcode is 5 digits; a blank/partial address is treated as
+ * "none" (skipped) rather than an error, so it never blocks account creation.
+ */
+function parseOptionalAddress(input: unknown): OptionalAddress | null {
+  if (typeof input !== "object" || input === null) return null;
+  const a = input as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const addr: OptionalAddress = {
+    addressLine1: str(a.addressLine1),
+    subdistrict: str(a.subdistrict),
+    district: str(a.district),
+    province: str(a.province),
+    postalCode: str(a.postalCode),
+  };
+  const complete =
+    addr.addressLine1 &&
+    addr.subdistrict &&
+    addr.district &&
+    addr.province &&
+    /^\d{5}$/.test(addr.postalCode);
+  return complete ? addr : null;
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const guarded = guardMutation(request);
@@ -23,8 +56,10 @@ export async function POST(request: Request): Promise<Response> {
       name?: unknown;
       phone?: unknown;
       pdpaConsent?: unknown;
+      address?: unknown;
     } | null;
 
+    const optionalAddress = parseOptionalAddress(body?.address);
     const phone = normalizePhone(typeof body?.phone === "string" ? body.phone : "");
     if (phone.length < 9 || phone.length > 10)
       return Response.json({ error: "กรุณากรอกเบอร์โทรศัพท์ 9-10 หลัก" }, { status: 400 });
@@ -81,6 +116,29 @@ export async function POST(request: Request): Promise<Response> {
         )
         .bind(customerId, phone, displayName, pending.lineUserId, now, now, now, now)
         .run();
+
+      // Optional default delivery address (recipient/phone default to the account).
+      if (optionalAddress) {
+        await db
+          .prepare(
+            `INSERT INTO addresses (id, storefront_customer_id, recipient_name, phone, address_line1,
+               subdistrict, district, province, postal_code, is_default, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          )
+          .bind(
+            crypto.randomUUID(),
+            customerId,
+            displayName,
+            phone,
+            optionalAddress.addressLine1,
+            optionalAddress.subdistrict,
+            optionalAddress.district,
+            optionalAddress.province,
+            optionalAddress.postalCode,
+            now,
+          )
+          .run();
+      }
     }
 
     const session = await createSession(db, customerId);

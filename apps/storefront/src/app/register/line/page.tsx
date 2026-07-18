@@ -24,6 +24,12 @@ function LineRegisterContent() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addressOpen, setAddressOpen] = useState(false);
+  const [addressLine1, setAddressLine1] = useState("");
+  const [subdistrict, setSubdistrict] = useState("");
+  const [district, setDistrict] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   // Pre-fill the username with the LINE display name (editable — the user can change it).
   useEffect(() => {
@@ -46,16 +52,46 @@ function LineRegisterContent() {
   const phoneDigits = phone.replace(/\D/g, "");
   const phoneOk = phoneDigits.length >= 9 && phoneDigits.length <= 10;
 
+  // Default address is optional: skipped when blank, but must be COMPLETE if started.
+  const addressStarted = [addressLine1, subdistrict, district, province, postalCode].some(
+    (f) => f.trim() !== "",
+  );
+  const addressComplete =
+    addressLine1.trim() !== "" &&
+    subdistrict.trim() !== "" &&
+    district.trim() !== "" &&
+    province.trim() !== "" &&
+    /^\d{5}$/.test(postalCode.trim());
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy || !nameOk || !phoneOk || !consent) return;
+    if (addressStarted && !addressComplete) {
+      setError("กรุณากรอกที่อยู่จัดส่งให้ครบ หรือลบออกเพื่อข้ามไปก่อน");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/auth/line/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), phone, pdpaConsent: consent }),
+        body: JSON.stringify({
+          name: name.trim(),
+          phone,
+          pdpaConsent: consent,
+          ...(addressComplete
+            ? {
+                address: {
+                  addressLine1: addressLine1.trim(),
+                  subdistrict: subdistrict.trim(),
+                  district: district.trim(),
+                  province: province.trim(),
+                  postalCode: postalCode.trim(),
+                },
+              }
+            : {}),
+        }),
       });
       const data = (await res.json()) as { customer?: unknown; error?: string };
       if (res.ok) {
@@ -113,6 +149,109 @@ function LineRegisterContent() {
               required
             />
           </div>
+
+          {!addressOpen ? (
+            <button
+              type="button"
+              onClick={() => setAddressOpen(true)}
+              style={{
+                alignSelf: "flex-start",
+                background: "none",
+                border: "none",
+                padding: "2px 0",
+                color: "var(--brand-blue)",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              + เพิ่มที่อยู่จัดส่ง (ไม่บังคับ)
+            </button>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                padding: 12,
+                background: "var(--paper)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <div
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--gray-dark)" }}>
+                  ที่อยู่จัดส่ง (ไม่บังคับ)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddressOpen(false);
+                    setAddressLine1("");
+                    setSubdistrict("");
+                    setDistrict("");
+                    setProvince("");
+                    setPostalCode("");
+                    if (error) setError(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--gray-mid)",
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  ข้ามไปก่อน
+                </button>
+              </div>
+              <input
+                className="input"
+                placeholder="บ้านเลขที่ / ถนน / ซอย"
+                value={addressLine1}
+                onChange={(e) => {
+                  setAddressLine1(e.target.value);
+                  if (error) setError(null);
+                }}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="input"
+                  placeholder="ตำบล/แขวง"
+                  value={subdistrict}
+                  onChange={(e) => setSubdistrict(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  placeholder="อำเภอ/เขต"
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="input"
+                  placeholder="จังหวัด"
+                  value={province}
+                  onChange={(e) => setProvince(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="รหัสไปรษณีย์"
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="otp-welcome">
             <label className="otp-consent">
               <input
@@ -144,7 +283,9 @@ function LineRegisterContent() {
           <button
             type="submit"
             className="btn btn-primary btn-block"
-            disabled={busy || !nameOk || !phoneOk || !consent}
+            disabled={
+              busy || !nameOk || !phoneOk || !consent || (addressStarted && !addressComplete)
+            }
           >
             {busy ? "กำลังสร้างบัญชี…" : "สร้างบัญชีและเข้าสู่ระบบ"}
           </button>
