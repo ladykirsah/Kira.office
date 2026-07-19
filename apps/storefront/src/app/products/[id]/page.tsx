@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import { getDb, getProduct, listCatalog } from "@/lib/db";
 import { imgUrl } from "@/lib/img";
@@ -9,6 +9,9 @@ import {
   productJsonLd,
   breadcrumbJsonLd,
   serializeJsonLd,
+  productHref,
+  extractProductId,
+  SITE_ORIGIN,
 } from "@/lib/seo";
 import { baht } from "@/lib/format";
 import { BrandTag } from "@/components/BrandTag";
@@ -34,12 +37,12 @@ interface PageProps {
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const { id } = await props.params;
   const db = await getDb();
-  const detail = await getProduct(db, id);
+  const detail = await getProduct(db, extractProductId(id));
   if (!detail) return { title: "ไม่พบสินค้า — AirPlus" };
 
   const title = productSeoTitle(detail);
   const description = productMetaDescription(detail);
-  const canonical = `/products/${detail.productId}`;
+  const canonical = productHref(detail);
   const images = detail.imageKey ? [imgUrl(detail.imageKey)] : undefined;
   return {
     title,
@@ -62,10 +65,24 @@ function fitmentYear(f: { yearFrom: number | null; yearTo: number | null }): str
 }
 
 export default async function ProductPage(props: PageProps) {
-  const { id } = await props.params;
+  const { id: param } = await props.params;
   const db = await getDb();
-  const detail = await getProduct(db, id);
+  const detail = await getProduct(db, extractProductId(param));
   if (!detail) notFound();
+
+  // Canonical keyword URL. A bare-UUID (old) or stale-slug request 308-redirects here — one URL per
+  // product, so search equity never splits and shared links keep working after a rename.
+  const canonicalHref = productHref(detail);
+  const canonicalParam = canonicalHref.slice("/products/".length);
+  // The route param can arrive percent-encoded (raw Thai) — decode before comparing so a canonical
+  // hit doesn't loop. Redirect target is encodeURI'd: a raw Thai slug is an invalid header character.
+  let decodedParam = param;
+  try {
+    decodedParam = decodeURIComponent(param);
+  } catch {
+    /* malformed encoding — treat as non-canonical and redirect to the clean URL */
+  }
+  if (decodedParam !== canonicalParam) permanentRedirect(encodeURI(canonicalHref));
 
   const inStock = detail.onHand > 0;
   // Same core resolver as checkout — the price shown here can never disagree with re-pricing.
@@ -76,7 +93,7 @@ export default async function ProductPage(props: PageProps) {
   // filter. No type (or a sparse one) falls back to the latest products. Self is excluded.
   const typeRow = await db
     .prepare(`SELECT type_id AS typeId FROM products WHERE id = ?`)
-    .bind(id)
+    .bind(detail.productId)
     .first<{ typeId: string | null }>();
   const relatedPool = typeRow?.typeId
     ? await listCatalog(db, { typeId: typeRow.typeId, limit: 8 })
@@ -85,8 +102,9 @@ export default async function ProductPage(props: PageProps) {
 
   // Structured data for rich results + AEO/AIO/GEO. Priced at the effective (shown) price so the
   // schema never disagrees with the page. Injected as raw JSON so React doesn't escape the braces.
-  const productLd = productJsonLd(detail, { priceSatang: eff.priceSatang });
-  const breadcrumbLd = breadcrumbJsonLd(detail);
+  const canonicalUrl = `${SITE_ORIGIN}${canonicalHref}`;
+  const productLd = productJsonLd(detail, { priceSatang: eff.priceSatang, url: canonicalUrl });
+  const breadcrumbLd = breadcrumbJsonLd(detail, { url: canonicalUrl });
 
   return (
     <div className="has-sticky-bar">

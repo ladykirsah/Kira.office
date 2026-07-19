@@ -3,6 +3,7 @@ import { resolveEffectivePrice } from "@l-shopee/core";
 import type { CatalogItem } from "@/lib/db";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { productHref } from "@/lib/seo";
 
 /**
  * Compact product tile for horizontal "slide-aside" rows: full-bleed image + 2-line name + price,
@@ -12,7 +13,7 @@ import { imgUrl } from "@/lib/img";
 function CompactCard({ item }: { item: CatalogItem }) {
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
   return (
-    <Link href={`/products/${item.productId}`} className="compact-card">
+    <Link href={productHref(item)} className="compact-card">
       <div className="ci-frame">
         {eff.onSale && <span className="ribbon-lad">ลด</span>}
         {item.imageKey ? (

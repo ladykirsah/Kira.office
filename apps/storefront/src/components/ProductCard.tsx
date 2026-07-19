@@ -10,6 +10,7 @@ import { DiscountTag } from "@/components/DiscountTag";
 import { ReadyToShip } from "@/components/ReadyToShip";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { productHref } from "@/lib/seo";
 
 /**
  * Marketplace catalog card (owner-briefed off "Design 1"): a full-bleed square product image on a
@@ -55,7 +56,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
         color: "var(--gray-dark)",
       }}
     >
-      <Link href={`/products/${item.productId}`} style={{ color: "inherit", display: "block" }}>
+      <Link href={productHref(item)} style={{ color: "inherit", display: "block" }}>
         <div
           style={{
             position: "relative",

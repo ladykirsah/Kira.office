@@ -5,9 +5,15 @@ import {
   productJsonLd,
   breadcrumbJsonLd,
   serializeJsonLd,
+  slugify,
+  productSlug,
+  productHref,
+  extractProductId,
   SITE_ORIGIN,
   type SeoProduct,
 } from "./seo";
+
+const PROD_URL = `${SITE_ORIGIN}/products/abc-123`;
 
 const vios: SeoProduct = {
   productId: "abc-123",
@@ -84,7 +90,7 @@ describe("productMetaDescription > then reads as a keyword-rich sentence", () =>
 
 describe("productJsonLd > then is valid schema.org Product + Offer", () => {
   it("maps core fields for an in-stock product", () => {
-    const ld = productJsonLd(vios, { priceSatang: 289000 });
+    const ld = productJsonLd(vios, { priceSatang: 289000, url: PROD_URL });
     expect(ld["@context"]).toBe("https://schema.org");
     expect(ld["@type"]).toBe("Product");
     expect(ld.sku).toBe("CL-COMP-VIOS14");
@@ -98,17 +104,85 @@ describe("productJsonLd > then is valid schema.org Product + Offer", () => {
   });
 
   it("marks OutOfStock when onHand is 0", () => {
-    const ld = productJsonLd({ ...vios, onHand: 0 }, { priceSatang: 289000 });
+    const ld = productJsonLd({ ...vios, onHand: 0 }, { priceSatang: 289000, url: PROD_URL });
     expect((ld.offers as Record<string, unknown>).availability).toBe(
       "https://schema.org/OutOfStock",
     );
   });
 
   it("omits brand/image and never emits null for a bare product", () => {
-    const ld = productJsonLd(bare, { priceSatang: 0 });
+    const ld = productJsonLd(bare, { priceSatang: 0, url: PROD_URL });
     expect(ld).not.toHaveProperty("brand");
     expect(ld).not.toHaveProperty("image");
     expect(JSON.stringify(ld)).not.toContain("null");
+  });
+});
+
+describe("slugify > keeps Thai, hyphenates the rest", () => {
+  it("lowercases Latin, keeps Thai letters + digits, collapses separators", () => {
+    expect(slugify("ตู้แอร์ Toyota Vios 2014")).toBe("ตู้แอร์-toyota-vios-2014");
+  });
+  it("trims and never emits leading/trailing or doubled hyphens", () => {
+    const s = slugify("  Toyota · Vios!! ");
+    expect(s).toBe("toyota-vios");
+    expect(s).not.toMatch(/(^-|-$|--)/);
+  });
+  it("caps overly long input", () => {
+    expect(slugify("a".repeat(200)).length).toBeLessThanOrEqual(80);
+  });
+});
+
+describe("productSlug > Thai part-type from name + brand + fitment, deduped", () => {
+  const p = {
+    name: "คอมเพรสเซอร์แอร์ Toyota Vios 2014",
+    brandName: "DENSO",
+    fitmentShort: "Toyota Vios",
+  };
+  it("includes the Thai part-type, brand and car", () => {
+    const s = productSlug(p);
+    expect(s).toContain("คอมเพรสเซอร์แอร์");
+    expect(s).toContain("toyota");
+    expect(s).toContain("vios");
+    expect(s).toContain("denso");
+    expect(s).not.toContain(" ");
+  });
+  it("does not repeat the brand already present in the name", () => {
+    const s = productSlug({
+      name: "ตู้แอร์ DENSO Coolgear",
+      brandName: "DENSO",
+      fitmentShort: null,
+    });
+    expect((s.match(/denso/g) ?? []).length).toBe(1);
+  });
+  it("degrades to the name alone when brand + fitment are null", () => {
+    const s = productSlug({ name: "อะไหล่แอร์", brandName: null, fitmentShort: null });
+    expect(s).toBe("อะไหล่แอร์");
+  });
+});
+
+describe("productHref + extractProductId > round-trip through /products/<slug>--<id>", () => {
+  const item = {
+    productId: "abc-123",
+    name: "คอมเพรสเซอร์แอร์ Toyota Vios",
+    brandName: "DENSO",
+    fitmentShort: "Toyota Vios",
+  };
+  it("builds /products/<slug>--<id>", () => {
+    const href = productHref(item);
+    expect(href.startsWith("/products/")).toBe(true);
+    expect(href.endsWith("--abc-123")).toBe(true);
+    expect(href).toContain("denso");
+  });
+  it("recovers the id from a slug URL", () => {
+    expect(extractProductId(productHref(item).replace("/products/", ""))).toBe("abc-123");
+  });
+  it("recovers a bare id (old UUID-only URL)", () => {
+    expect(extractProductId("856fa7ac-0860-4a6d-ab99-595da0ae11c2")).toBe(
+      "856fa7ac-0860-4a6d-ab99-595da0ae11c2",
+    );
+  });
+  it("recovers a hyphenated non-UUID id", () => {
+    expect(extractProductId("ตู้แอร์-vigo--prod-demo")).toBe("prod-demo");
   });
 });
 
@@ -128,13 +202,13 @@ describe("serializeJsonLd > prevents </script> breakout (XSS)", () => {
 
 describe("breadcrumbJsonLd > then is a 3-level trail with absolute URLs", () => {
   it("goes home → สินค้า → product", () => {
-    const bc = breadcrumbJsonLd(vios);
+    const bc = breadcrumbJsonLd(vios, { url: PROD_URL });
     expect(bc["@type"]).toBe("BreadcrumbList");
     const items = bc.itemListElement as { position: number; name: string; item: string }[];
     expect(items).toHaveLength(3);
     expect(items.map((i) => i.position)).toEqual([1, 2, 3]);
     expect(items[2].name).toBe("คอมเพรสเซอร์แอร์ Toyota Vios 2014");
-    expect(items[2].item).toBe(`${SITE_ORIGIN}/products/abc-123`);
+    expect(items[2].item).toBe(PROD_URL);
     expect(items[0].item).toBe(`${SITE_ORIGIN}/`);
   });
 });

@@ -1,5 +1,6 @@
 import { getDb, listCatalog } from "@/lib/db";
 import { escapeXml, CORE_PAGES } from "@/lib/discovery";
+import { productHref } from "@/lib/seo";
 
 // XML sitemap for crawlers: the public core pages plus current product URLs. Fails soft to the core
 // pages if D1 is unavailable. (Route handler rather than the app/sitemap.ts convention so the origin
@@ -14,7 +15,8 @@ export async function GET(req: Request): Promise<Response> {
     const db = await getDb();
     const products = await listCatalog(db, { limit: 100 });
     for (const p of products) {
-      urls.push(`${origin}/products/${encodeURIComponent(p.productId)}`);
+      // encodeURI keeps the "/" and "-" but percent-encodes the Thai slug for a valid sitemap URL.
+      urls.push(`${origin}${encodeURI(productHref(p))}`);
     }
   } catch (err) {
     console.error("GET /sitemap.xml catalog read failed", err);

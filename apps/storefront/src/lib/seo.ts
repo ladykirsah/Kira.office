@@ -52,6 +52,59 @@ export function productSeoTitle(p: SeoProduct): string {
   return `${acc} | AirPlus`;
 }
 
+/** The minimal shape needed to build a product URL — satisfied by both CatalogItem and ProductDetail. */
+export interface ProductLink {
+  productId: string;
+  name: string;
+  brandName: string | null;
+  fitmentShort: string | null;
+}
+
+/**
+ * URL-safe slug that KEEPS Thai letters (the searched keywords) — only non-letter/number runs become
+ * a single hyphen. Latin is lowercased; Thai has no case. Capped so URLs stay sane (unlike the
+ * competitor's 369-char title). Empty in → empty out.
+ */
+export function slugify(s: string): string {
+  const out = s
+    .trim()
+    .toLowerCase()
+    // Keep letters, numbers AND combining marks — Thai vowels/tone marks (ู ้ ์ …) are Marks (\p{M}),
+    // not Letters, so without \p{M} they'd be stripped and "ตู้แอร์" would mangle to "ต-แอร".
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+  return out.length > 80 ? out.slice(0, 80).replace(/-+$/g, "") : out;
+}
+
+/**
+ * Keyword slug from the product NAME (which carries the Thai part-type), then brand + first fitment
+ * appended only when not already in the name — same dedup as the SEO title, so nothing repeats. This
+ * is the systematic, deterministic rule applied to every product.
+ */
+export function productSlug(p: Pick<ProductLink, "name" | "brandName" | "fitmentShort">): string {
+  let acc = p.name.trim();
+  const add = (s: string | null | undefined) => {
+    const v = (s ?? "").trim();
+    if (v && !acc.toLowerCase().includes(v.toLowerCase())) acc += ` ${v}`;
+  };
+  add(p.brandName);
+  add(p.fitmentShort);
+  return slugify(acc);
+}
+
+/** Canonical product path: /products/<slug>--<id>. The `--` separates slug from id (slugify never
+ *  emits `--`), so the id — a UUID or a short code like "prod-demo" — is recovered unambiguously. */
+export function productHref(p: ProductLink): string {
+  const slug = productSlug(p);
+  return slug ? `/products/${slug}--${p.productId}` : `/products/${p.productId}`;
+}
+
+/** Recover the product id from a route param, whether it's `<slug>--<id>` or a bare id (old URLs). */
+export function extractProductId(param: string): string {
+  const i = param.indexOf("--");
+  return i === -1 ? param : param.slice(i + 2);
+}
+
 /** Meta description: a keyword sentence from the structured fields, degrading cleanly past any nulls. */
 export function productMetaDescription(p: SeoProduct): string {
   let s = p.name.trim();
@@ -72,9 +125,9 @@ export function productMetaDescription(p: SeoProduct): string {
  */
 export function productJsonLd(
   p: SeoProduct,
-  opts: { priceSatang: number },
+  opts: { priceSatang: number; url: string },
 ): Record<string, unknown> {
-  const url = `${SITE_ORIGIN}/products/${p.productId}`;
+  const url = opts.url;
   const ld: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -107,21 +160,21 @@ export function serializeJsonLd(obj: unknown): string {
   return JSON.stringify(obj).replace(/</g, "\\u003c");
 }
 
-/** schema.org BreadcrumbList: หน้าแรก → สินค้า → this product, with absolute prod URLs. */
-export function breadcrumbJsonLd(p: SeoProduct): Record<string, unknown> {
-  const crumb = (position: number, name: string, path: string) => ({
+/** schema.org BreadcrumbList: หน้าแรก → สินค้า → this product. `url` is the product's absolute URL. */
+export function breadcrumbJsonLd(p: SeoProduct, opts: { url: string }): Record<string, unknown> {
+  const crumb = (position: number, name: string, item: string) => ({
     "@type": "ListItem",
     position,
     name,
-    item: `${SITE_ORIGIN}${path}`,
+    item,
   });
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      crumb(1, "หน้าแรก", "/"),
-      crumb(2, "สินค้า", "/products"),
-      crumb(3, p.name, `/products/${p.productId}`),
+      crumb(1, "หน้าแรก", `${SITE_ORIGIN}/`),
+      crumb(2, "สินค้า", `${SITE_ORIGIN}/products`),
+      crumb(3, p.name, opts.url),
     ],
   };
 }

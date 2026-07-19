@@ -1,5 +1,6 @@
 import { getDb, listCatalog } from "@/lib/db";
 import { escapeXml } from "@/lib/discovery";
+import { productHref } from "@/lib/seo";
 
 // RSS 2.0 feed of the newest catalog items (AirPlus has no articles yet, so "new arrivals" is the
 // content stream). Fails soft to an empty-but-valid channel if D1 is unavailable.
@@ -14,7 +15,7 @@ export async function GET(req: Request): Promise<Response> {
     const products = await listCatalog(db, { limit: 30 });
     items = products
       .map((p) => {
-        const url = `${origin}/products/${encodeURIComponent(p.productId)}`;
+        const url = `${origin}${encodeURI(productHref(p))}`;
         const desc =
           [p.typeName, p.brandName, p.fitmentShort ? `fits ${p.fitmentShort}` : null]
             .filter(Boolean)
