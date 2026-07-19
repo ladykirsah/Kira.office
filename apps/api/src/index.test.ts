@@ -29,6 +29,7 @@ import worker, {
   addCarModel,
   updateCarModel,
   updateProduct,
+  normalizeWarrantyDays,
   confirmPaymentWithSlip,
   importCustomers,
   importCustomerHistory,
@@ -483,6 +484,22 @@ describe("parseMoneyToSatang", () => {
     expect(parseMoneyToSatang(undefined)).toBe(0);
     expect(parseMoneyToSatang("")).toBe(0);
     expect(parseMoneyToSatang("n/a")).toBe(0);
+  });
+});
+
+describe("normalizeWarrantyDays (per-category warranty window)", () => {
+  it("keeps a positive whole number of days", () => {
+    expect(normalizeWarrantyDays(365)).toBe(365);
+    expect(normalizeWarrantyDays("180")).toBe(180);
+    expect(normalizeWarrantyDays(7.6)).toBe(8); // rounds
+  });
+  it("collapses 0, negatives, blank, and junk to null (never a '0 วัน' warranty)", () => {
+    expect(normalizeWarrantyDays(0)).toBeNull();
+    expect(normalizeWarrantyDays(-5)).toBeNull();
+    expect(normalizeWarrantyDays("")).toBeNull();
+    expect(normalizeWarrantyDays(null)).toBeNull();
+    expect(normalizeWarrantyDays(undefined)).toBeNull();
+    expect(normalizeWarrantyDays("abc")).toBeNull();
   });
 });
 
@@ -2652,6 +2669,48 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     expect(upd?.sql).toContain("updated_at = ?");
     // updated_at is the second-to-last bind (before the id)
     expect(typeof upd?.binds.at(-2)).toBe("number");
+  });
+
+  /** The value bound to a named column, read via the SET clause's own order — positional
+   *  slicing silently passes against the wrong column (brand_id/type_id/usage_id are also null). */
+  const boundValue = (run: { sql: string; binds: unknown[] }, column: string): unknown => {
+    const set = /UPDATE products SET (.*) WHERE/.exec(run.sql)?.[1] ?? "";
+    const columns = set.split(", ").map((c) => c.split(" = ")[0]);
+    const i = columns.indexOf(column);
+    return i === -1 ? undefined : run.binds[i];
+  };
+
+  // Parcel size for carrier rating. Shippop (and GoShip) price on VOLUMETRIC weight — w×l×h/5000 —
+  // so a big light box costs more than its scale weight, and a quote is impossible without these.
+  // Stored in MILLIMETRES as integers, mirroring weight_grams: the form takes cm (a box is really
+  // 12.5cm), and cm-as-float in a path that decides money is how rounding bugs get in.
+  it("updateProduct persists parcel dimensions in mm alongside the weight", async () => {
+    const { db, runs } = makeDb({});
+    await updateProduct(db, "p1", {
+      name: "คอมเพรสเซอร์",
+      status: "active",
+      weightGrams: 4200,
+      widthMm: 250,
+      lengthMm: 400,
+      heightMm: 155,
+    });
+    const upd = runs.find((r) => r.sql.startsWith("UPDATE products SET name"))!;
+    expect(boundValue(upd, "weight_grams")).toBe(4200);
+    expect(boundValue(upd, "width_mm")).toBe(250);
+    expect(boundValue(upd, "length_mm")).toBe(400);
+    expect(boundValue(upd, "height_mm")).toBe(155);
+  });
+
+  it("updateProduct given no dimensions > writes NULL, not 0", async () => {
+    // 0×0×0 is a real volumetric claim (a zero-size parcel). "Unknown" must stay unknown, so a
+    // missing size surfaces at quote time instead of silently pricing as a flat envelope.
+    // (weight_grams keeps its existing 0 default — that is pre-existing behaviour, not ours.)
+    const { db, runs } = makeDb({});
+    await updateProduct(db, "p1", { name: "New", status: "active" });
+    const upd = runs.find((r) => r.sql.startsWith("UPDATE products SET name"))!;
+    expect(boundValue(upd, "width_mm")).toBeNull();
+    expect(boundValue(upd, "length_mm")).toBeNull();
+    expect(boundValue(upd, "height_mm")).toBeNull();
   });
 
   it("setVariantPricing replaces the profile (delete + insert)", async () => {

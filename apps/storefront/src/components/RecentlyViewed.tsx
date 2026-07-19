@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { baht } from "@/lib/format";
-import { imgUrl } from "@/lib/img";
+import type { CatalogItem } from "@/lib/db";
+import { ProductCard } from "@/components/ProductCard";
 
 /**
  * "ดูล่าสุด" — purely client-side recently-viewed list in localStorage (same bet as the cart:
  * no server persistence for browse state). RecordView writes on PDP mount; RecentlyViewed reads
- * after mount only, so the server snapshot is empty and hydration never mismatches.
+ * after mount only, so the server snapshot is empty and hydration never mismatches. Shown ONLY on
+ * the account page (owner call) — the PDP still records views, it just no longer displays them.
  */
 export interface RecentItem {
   productId: string;
@@ -17,6 +17,8 @@ export interface RecentItem {
   imageKey: string | null;
   productRef: string;
   variantId: string;
+  /** Brand name for the card's gray brand pill; older stored entries omit it (pill just hides). */
+  brandName?: string | null;
   /** Part-type name — added later; older stored entries omit it. Used by /search to re-rank
    *  suggestions toward the types a returning visitor has shown interest in. */
   typeName?: string | null;
@@ -36,7 +38,11 @@ function readList(): RecentItem[] {
         x !== null &&
         typeof (x as RecentItem).productId === "string" &&
         typeof (x as RecentItem).name === "string" &&
-        typeof (x as RecentItem).priceSatang === "number",
+        typeof (x as RecentItem).priceSatang === "number" &&
+        // variantId + productRef are what the card's add-to-cart needs; drop pre-variantId
+        // entries rather than render a card whose button would push an undefined variant.
+        typeof (x as RecentItem).variantId === "string" &&
+        typeof (x as RecentItem).productRef === "string",
     );
   } catch {
     return [];
@@ -64,9 +70,31 @@ export function RecordView({ item }: { item: RecentItem }) {
   return null;
 }
 
+/**
+ * A stored RecentItem carries only what a card needs to render; the remaining CatalogItem fields are
+ * display-inert defaults (ProductCard reads none of onHand / fitmentShort / warrantyDays). The stored
+ * priceSatang is the EFFECTIVE price captured at view time, so campaign stays null — the card shows
+ * that price as the plain price, with no stale discount chip.
+ */
+function toCatalogItem(item: RecentItem): CatalogItem {
+  return {
+    productId: item.productId,
+    variantId: item.variantId,
+    name: item.name,
+    productRef: item.productRef,
+    brandName: item.brandName ?? null,
+    typeName: item.typeName ?? null,
+    warrantyDays: null,
+    imageKey: item.imageKey,
+    priceSatang: item.priceSatang,
+    onHand: 1,
+    fitmentShort: null,
+    campaign: null,
+  };
+}
+
 export function RecentlyViewed({ currentProductId }: { currentProductId?: string }) {
   const [items, setItems] = useState<RecentItem[]>([]);
-  const [failed, setFailed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setItems(readList().filter((x) => x.productId !== currentProductId));
@@ -76,8 +104,8 @@ export function RecentlyViewed({ currentProductId }: { currentProductId?: string
 
   return (
     <section className="section">
-      {/* Stacked section head — eyebrow above title, left-aligned — matching every other home
-          section (Best Sellers, etc.). NOT the old flex `.section-head` that split them apart. */}
+      {/* Stacked section head — dark-red overline above a charcoal title — matching every other
+          section (the locked AirPlus headline pattern). */}
       <div style={{ marginBottom: 14 }}>
         <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
           🕘 ดูล่าสุด · Recently Viewed
@@ -86,64 +114,9 @@ export function RecentlyViewed({ currentProductId }: { currentProductId?: string
           ดูล่าสุด
         </h2>
       </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          overflowX: "auto",
-          padding: "2px 0 6px",
-          scrollbarWidth: "none",
-        }}
-      >
+      <div className="product-grid">
         {items.map((item) => (
-          <Link
-            key={item.productId}
-            href={`/products/${item.productId}`}
-            className="card"
-            style={{
-              flex: "0 0 auto",
-              width: 116,
-              padding: 8,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            {item.imageKey && !failed[item.productId] ? (
-              <div className="frame" style={{ width: 96, height: 96, margin: "0 auto" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imgUrl(item.imageKey)}
-                  alt={item.name}
-                  loading="lazy"
-                  onError={() => setFailed((prev) => ({ ...prev, [item.productId]: true }))}
-                />
-              </div>
-            ) : (
-              <div className="frame" style={{ width: 96, height: 96, margin: "0 auto" }}>
-                <span
-                  aria-hidden="true"
-                  style={{ fontSize: 44, lineHeight: 1, color: "var(--brand)" }}
-                >
-                  ✦
-                </span>
-              </div>
-            )}
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                lineHeight: 1.35,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {item.name}
-            </div>
-            <div className="t-price-m">{baht(item.priceSatang)}</div>
-          </Link>
+          <ProductCard key={item.productId} item={toCatalogItem(item)} />
         ))}
       </div>
     </section>

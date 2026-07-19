@@ -11,19 +11,20 @@
  */
 
 :root {
-  /* ---- Locked 7-color CI (see component preview artifact) ---- */
-  --brand: #eb5031; /* Primary orange — CTAs, wordmark, accents */
-  --brand-deep: #c62100; /* Secondary deep red — depth, hover text, sale badge, price */
-  --gray-dark: #373636; /* Default button, ink text, footer bg */
+  /* ---- Locked 8-color CI (red DENSO) — see component preview artifact ---- */
+  --brand: #e10000; /* Primary bright red — header, CTAs, wordmark, sale badge, accents */
+  --brand-deep: #960101; /* Dark red — price, depth, hover text, links, deep accents */
+  --brand-blue: #015abf; /* Blue HIGHLIGHT only — count badges + genuine/แท้ trust. NEVER on section labels. */
+  --gray-dark: #1a1a1a; /* Near-black — ink text, default button, footer bg */
   --gray-mid: #737373; /* Muted body text, disabled text */
-  --gray-lite: #d0cfcf; /* Borders, subtle dividers, disabled bg */
-  --paper: #f4f4f4; /* Body paper background */
+  --gray-lite: #bbbbbb; /* Borders, subtle dividers, disabled bg */
+  --paper: #ebebeb; /* Body paper background */
   --white: #ffffff; /* Cards, button text on colored buttons */
 
   /* ---- Computed hover backgrounds (fade-to-lighter pattern, per spec) ---- */
-  --brand-hover-bg: #f1846f; /* 70% of brand mixed with white */
-  --brand-deep-hover-bg: #dd7a66; /* 60% of brand-deep mixed with white */
-  --gray-dark-hover-bg: #878686; /* 60% of gray-dark mixed with white */
+  --brand-hover-bg: #ea4d4d; /* 70% of brand mixed with white */
+  --brand-deep-hover-bg: #c06767; /* 60% of brand-deep mixed with white */
+  --gray-dark-hover-bg: #767676; /* 60% of gray-dark mixed with white */
 
   /* ---- Legacy semantic tokens remapped to the new palette (BACKWARD COMPAT).
    *      Existing page code uses --accent, --text, --border, --surface, etc. — those
@@ -37,7 +38,7 @@
   --text-faint: #a5a5a5; /* Decorative only — never real information */
   --accent: var(--brand);
   --accent-hover: var(--brand-deep);
-  --accent-soft: #ffe8e0; /* Soft brand tint for pills / badges */
+  --accent-soft: #fbe0e0; /* Soft brand tint for pills / badges */
 
   /* Status colors (kept from prior for stock/error pills) */
   --ok: #1a7f37;
@@ -45,19 +46,19 @@
   --warn: #9a6700;
   --warn-soft: #fcf3dd;
   --ship: #059669; /* Emerald — free-ship ribbon + "พร้อมส่ง" ready-to-ship dot on product cards */
-  --flash-soft: #ffd9cd; /* flash-sale scarcity-bar track (soft brand tint) */
+  --flash-soft: #f9caca; /* flash-sale scarcity-bar track (soft brand tint) */
   --silver: #9aa0a6; /* best-seller rank 2 medal */
   --bronze: #c17a3f; /* best-seller rank 3 medal */
   --shopee: #ee4d2d; /* partner platform brand — badge/CTA only (affiliate shelf) */
   --lazada: #0f146d; /* partner platform brand — badge/CTA only (affiliate shelf) */
   --danger: var(--brand-deep);
-  --danger-soft: #ffe8e0;
+  --danger-soft: #fbe0e0;
 
   /* ---- Layout / chrome ---- */
   --radius: 16px;
   --radius-sm: 10px;
   --shadow: 0 1px 3px rgba(55, 54, 54, 0.06);
-  --shadow-md: 0 4px 12px rgba(198, 33, 0, 0.14);
+  --shadow-md: 0 4px 12px rgba(150, 1, 1, 0.14);
   --maxw: 1080px;
   --footer-bg: var(--gray-dark);
   --footer-text: var(--gray-lite);
@@ -195,14 +196,14 @@ textarea {
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
-  color: var(--brand-deep);
+  color: var(--brand); /* bright red — the selling / promotion price */
 }
 .t-price-m {
   font-size: 18px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.015em;
-  color: var(--brand-deep);
+  color: var(--brand); /* bright red — the selling / promotion price */
 }
 .t-price-strike {
   font-size: 12px;
@@ -650,7 +651,7 @@ textarea {
   background: transparent;
 }
 .btn-outline.btn-primary:hover:not(:disabled):not(.is-disabled) {
-  background: rgba(235, 80, 49, 0.08);
+  background: rgba(225, 0, 0, 0.08);
   color: var(--brand-deep);
   border-color: var(--brand-deep);
 }
@@ -660,7 +661,7 @@ textarea {
   background: transparent;
 }
 .btn-outline.btn-secondary:hover:not(:disabled):not(.is-disabled) {
-  background: rgba(198, 33, 0, 0.08);
+  background: rgba(150, 1, 1, 0.08);
   color: var(--brand-deep);
 }
 .btn-outline.btn-default {
@@ -761,7 +762,7 @@ textarea {
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--brand);
+  background: var(--brand-blue); /* filter count badge → blue, matching the cart badge */
   color: var(--white);
   font-size: 11px;
   font-weight: 800;
@@ -1286,7 +1287,7 @@ textarea {
 .cat-sub {
   font-size: 10.5px;
   font-weight: 600;
-  color: var(--brand-deep);
+  color: var(--brand-blue); /* item count → blue highlight (count convention) */
   margin-top: 2px;
 }
 
@@ -1457,7 +1458,7 @@ textarea {
   font-size: 11px;
   font-weight: 800;
   color: var(--brand-deep);
-  background: rgba(235, 80, 49, 0.12);
+  background: rgba(225, 0, 0, 0.12);
   border-radius: 999px;
   padding: 4px 10px;
 }
@@ -1487,7 +1488,7 @@ textarea {
   height: 40px;
   flex: 0 0 auto;
   border-radius: 12px;
-  background: rgba(235, 80, 49, 0.1);
+  background: rgba(225, 0, 0, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1723,7 +1724,7 @@ textarea {
 .catlist-count {
   font-size: 11px;
   font-weight: 600;
-  color: var(--brand-deep);
+  color: var(--brand-blue); /* item count → blue highlight (count convention) */
   margin-top: 3px;
 }
 .catlist-chev {

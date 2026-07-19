@@ -76,7 +76,7 @@ export function AddToCartBar({
     minHeight: 44,
     padding: "0 2px",
     border: "none",
-    background: "rgba(235, 80, 49, 0.1)",
+    background: "rgba(225, 0, 0, 0.1)",
     borderRadius: 12,
     color: "var(--brand)",
     fontSize: 10,

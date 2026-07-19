@@ -9,8 +9,10 @@
 > **this file and the code win** — older docs (`DATA_MODEL.md`, parts of `ARCHITECTURE.md`/`README`)
 > describe the original plan and lag the implementation.
 
-**Snapshot:** 2026-07-14 · branch `main` · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
-**Tests:** 632 passing · **Migrations:** 0000–0047 (0036–0047 add the **AirPlus storefront** schema — see §3).
+**Snapshot:** 2026-07-19 · working branch `claude/airplus-publication-plan-08e4c7` (PR open to `main`) · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
+**Tests:** 718 passing · **Migrations:** `0000`–`0047` + `0053`–`0055` (`0048`–`0052` live on the parked `returns` branch — see §3).
+**AirPlus is LIVE in production** at [`airplusauto.com`](https://airplusauto.com) (Worker `airplus-storefront`, Version `e212cc60`, deployed 2026-07-19). ⚠️ The prod catalog is still **demo data** (e.g. a "ครีมบำรุงผิว (Demo)" skincare cream shows as top best-seller) — real catalog load is the first post-launch task.
+**Kira.office is LIVE too** (deployed 2026-07-19 from this branch): API worker `kira-office` at `api.homeseeker.me` (branch code — warranty endpoints, `widthMm` persistence, shipping fee) and admin `kiraoffice-admin` at `admin.homeseeker.me` (Version `fd67775f`, behind Cloudflare Access "Super Admin Only"). Both on the GoGoCash account (consolidated — no more cross-account split). NOTE: the API is now ahead of `main` until PR #24 merges; Cloudflare Workers Builds still auto-deploys the API from `main`.
 
 ---
 
@@ -74,7 +76,7 @@ lifecycle, no schema change** (existing free-text columns): `order_status` (fulf
 CSV parse/map, order dedupe, finance — all unit-tested. This is the money-critical, framework-free
 layer; change it test-first. Now also consumed by `apps/storefront` (coupons, campaigns, payments).
 
-**Storefront (apps/storefront — built; staging preview live):** the customer-facing **AirPlus**
+**Storefront (apps/storefront — LIVE in production at `airplusauto.com`):** the customer-facing **AirPlus**
 car-parts store — its own Cloudflare Worker (Next.js 15 / OpenNext) that shares the back office's D1 +
 KV and cross-binds the `StockLedger` DO. **Home v2** landing (shortcut bar, collections, a timed
 flash-sale hero, best-sellers, shop-by-brand, categories, promo banners, recently-viewed) plus a
@@ -95,11 +97,15 @@ Agent-discovery route handlers (`/llms.txt`, `/sitemap.md`, `/skills.md`, `/rss.
 account "ช่วยเหลือ" tile, home follow strip) opens the shop's **LINE OA add-friend link directly**
 (`lin.ee/tltIFtI` → `@811gvdun`, in `lib/links.ts`). Money
 never trusts the client (server re-prices), stock deducts through the shared DO. Migrations `0036`–`0047`
-add its schema. Deployed to a durable phone-viewable **staging** preview at
-`airplus-storefront-staging.bettergogocash.workers.dev` (latest deploy 2026-07-14, Worker Version ID
-`96368b71-b46b-44ba-8f3b-5cb92877e616`, in sync with git — the working branch is pushed through
-`eb6420f`); member login runs in dev-echo mode there (fixed OTP `123456`, no SMS) until an SMS provider
-(ThaiBulkSMS/Twilio) + Turnstile keys are configured. The demo flash campaign is **permanently seeded in
+add its schema. **Deployed to PRODUCTION** at [`airplusauto.com`](https://airplusauto.com) (Worker `airplus-storefront`,
+Version `e212cc60`, deployed 2026-07-19), sharing the prod D1 `kira-office`. The phone-viewable
+**staging** preview at `airplus-storefront-staging.bettergogocash.workers.dev` remains for pre-prod
+checks. **Login is now LINE-first** (this branch): the phone+OTP flow is hidden behind
+`NEXT_PUBLIC_OTP_ENABLED`, sign-up is a minimal LINE flow (casual username + one required delivery
+address with the phone captured *inside* the address, since D1 can't null `storefront_customers.phone`
+— 4 incoming FKs), and the brand skin moved coral → **red DENSO CI** (`--brand #e10000`, blue reserved
+for count highlights + genuine/แท้ trust). ⚠️ **The prod catalog is still demo data** (see the snapshot
+banner at the top) — loading the real catalog is the first post-launch task. The demo flash campaign is **permanently seeded in
 the staging D1** (`seed-camp-1`, window `2025-01-01`→`2028-01-01`) — this is DATA, not schema — so the
 Flash Sale hero, the สินค้าลดราคา home collection, and the PDP discount always render as a mock. The
 customer-facing UI has since had a coral-CI polish pass (Shopee-style PDP section blocks, a shared

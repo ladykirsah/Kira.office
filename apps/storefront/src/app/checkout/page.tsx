@@ -210,6 +210,9 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shipping-fee estimate for the summary; null = not yet known (no valid postcode).
+  // The authoritative fee is recomputed server-side at checkout.
+  const [shipping, setShipping] = useState<{ satang: number; isRemote: boolean } | null>(null);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -273,7 +276,53 @@ export default function CheckoutPage() {
 
   const subtotal = cartTotalSatang(lines);
   const discount = coupon ? Math.min(coupon.discountSatang, subtotal) : 0;
-  const total = subtotal - discount;
+  const total = subtotal - discount + (shipping?.satang ?? 0);
+
+  // Destination postcode drives the shipping fee: the typed one for a new address,
+  // or the selected saved address's.
+  const effectivePostcode =
+    addressChoice === "new"
+      ? postalCode
+      : (addresses.find((a) => a.id === addressChoice)?.postalCode ?? "");
+
+  // A stable key so the quote refetches only when the cart or destination changes,
+  // not on every render (useCart returns a fresh array reference).
+  const cartKey = lines.map((l) => `${l.variantId}x${l.qty}`).join(",");
+
+  // Live shipping estimate for the summary. Ignores stale responses (fast address edits).
+  useEffect(() => {
+    if (lines.length === 0 || !/^\d{5}$/.test(effectivePostcode)) {
+      setShipping(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/shipping/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lines: lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+            postcode: effectivePostcode,
+          }),
+        });
+        if (!res.ok) {
+          if (!cancelled) setShipping(null);
+          return;
+        }
+        const data = (await res.json()) as { shippingSatang?: number; isRemote?: boolean };
+        if (!cancelled && typeof data.shippingSatang === "number") {
+          setShipping({ satang: data.shippingSatang, isRemote: data.isRemote === true });
+        }
+      } catch {
+        if (!cancelled) setShipping(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartKey, effectivePostcode]);
 
   async function applyCoupon() {
     const code = couponInput.trim();
@@ -704,7 +753,19 @@ export default function CheckoutPage() {
           }}
         >
           <span className="muted">ค่าจัดส่ง</span>
-          <span style={{ color: "var(--ok)", fontWeight: 600 }}>ฟรี (ช่วงเปิดร้าน)</span>
+          {shipping == null ? (
+            <span className="muted">กรอกที่อยู่เพื่อคำนวณ</span>
+          ) : (
+            <span style={{ fontWeight: 600 }}>
+              {baht(shipping.satang)}
+              {shipping.isRemote && (
+                <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>
+                  {" "}
+                  (พื้นที่ห่างไกล)
+                </span>
+              )}
+            </span>
+          )}
         </div>
 
         {/* coupon — collapsible so the summary stays clean for the no-coupon majority */}
@@ -806,9 +867,17 @@ export default function CheckoutPage() {
           <span className="t-price-l">{baht(total)}</span>
         </div>
         <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
-          ส่งฟรีทั่วไทยช่วงเปิดร้าน
+          ค่าจัดส่งคำนวณตามน้ำหนักและปลายทาง (Flash Express)
         </p>
       </div>
+
+      <p className="muted" style={{ fontSize: 12, margin: "12px 4px 0", lineHeight: 1.6 }}>
+        ซื้อได้อย่างมั่นใจ — หากสินค้าชำรุดหรือมีปัญหา สามารถ{" "}
+        <a href="/returns" style={{ color: "var(--brand-blue)", fontWeight: 600 }}>
+          คืน ยกเลิก หรือเคลม
+        </a>{" "}
+        ได้ตามนโยบาย
+      </p>
 
       {error && (
         <div

@@ -1,0 +1,12 @@
+-- Shipping fee charged to the customer, per order, in satang.
+--
+-- Until now AirPlus orders carried no shipping amount at all — grand_total was
+-- subtotal − discount, and the storefront showed "ฟรี (ช่วงเปิดร้าน)". Launch
+-- charges the real Flash rate (calculated in @l-shopee/core from parcel weight ×
+-- destination), so the order needs a place to record what the customer paid to
+-- ship, separate from goods revenue (sales_satang) and the Shopee marketplace
+-- fee (fee_total_satang, always 0 for AirPlus).
+--
+-- NOT NULL DEFAULT 0: every existing order predates paid shipping and genuinely
+-- had a 0 shipping charge, so 0 is the correct historical value, not a guess.
+ALTER TABLE `sales_orders` ADD COLUMN `shipping_fee_satang` integer NOT NULL DEFAULT 0;

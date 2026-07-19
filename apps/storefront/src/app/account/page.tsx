@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { LINE_OA_URL } from "@/lib/links";
 import { Icon, type IconName } from "@/components/Icon";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
 
 export const dynamic = "force-dynamic";
 
@@ -124,6 +125,10 @@ export default async function AccountPage() {
           <Icon name="chevron" size={18} className="acct-chev" />
         </Link>
       </div>
+
+      {/* Recently viewed — client-side (localStorage); renders nothing when empty. This is the one
+          place ดูล่าสุด appears (owner call); the PDP records views but no longer shows them. */}
+      <RecentlyViewed />
 
       {/* PDPA consent receipt — every member accepted at sign-up, so we confirm it (with the date)
           and keep the policy + terms one tap away. */}

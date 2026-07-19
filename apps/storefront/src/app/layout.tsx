@@ -5,6 +5,7 @@ import { CartHeader } from "./CartHeader";
 import { InnerHeader } from "./InnerHeader";
 import { SearchLandingBar } from "./search/SearchLandingBar";
 import { SiteFooter } from "./SiteFooter";
+import { SITE_ORIGIN } from "@/lib/seo";
 import "./globals.css";
 
 // Prompt is a genuine LAST-RESORT fallback for the CI's system-first stack (see --font-body in
@@ -24,9 +25,13 @@ const prompt = Prompt({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for canonical + OpenGraph URLs — always the prod domain, so canonical never
+  // points at a staging host. Per-page metadata (e.g. the PDP) resolves its relative URLs against it.
+  metadataBase: new URL(SITE_ORIGIN),
   title: "AirPlus — อะไหล่แอร์รถยนต์",
   description:
     "AirPlus ร้านอะไหล่แอร์รถยนต์ออนไลน์ ของแท้ ราคาชัดเจน สั่งง่าย จ่ายผ่าน PromptPay โอนธนาคาร หรือเก็บเงินปลายทาง โดย Den Air Service",
+  openGraph: { siteName: "AirPlus", locale: "th_TH", type: "website" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

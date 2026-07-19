@@ -3,16 +3,17 @@ import { resolveEffectivePrice } from "@l-shopee/core";
 import type { CatalogItem } from "@/lib/db";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { productHref } from "@/lib/seo";
 
 /**
  * Compact product tile for horizontal "slide-aside" rows: full-bleed image + 2-line name + price,
- * the whole tile links to the PDP (no in-row add-to-cart). Promotion tags match the main card —
- * "ลด" corner ribbon (when on sale) + the "ส่งฟรี" ribbon. Pure display → a server component.
+ * the whole tile links to the PDP (no in-row add-to-cart). Promotion tag matches the main card —
+ * the "ลด" corner ribbon (when on sale). Pure display → a server component.
  */
 function CompactCard({ item }: { item: CatalogItem }) {
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
   return (
-    <Link href={`/products/${item.productId}`} className="compact-card">
+    <Link href={productHref(item)} className="compact-card">
       <div className="ci-frame">
         {eff.onSale && <span className="ribbon-lad">ลด</span>}
         {item.imageKey ? (
@@ -22,7 +23,6 @@ function CompactCard({ item }: { item: CatalogItem }) {
             ✦
           </span>
         )}
-        <span className="ribbon-free">ส่งฟรี</span>
       </div>
       <div className="ci-body">
         <div className="ci-title">{item.name}</div>

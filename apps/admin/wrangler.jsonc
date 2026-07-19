@@ -1,15 +1,20 @@
 {
   // Deploy config for the admin app (separate Worker from the api). OpenNext generates
-  // .open-next/worker.js + assets; `opennextjs-cloudflare deploy` uses this. Set up a second
-  // Workers Builds project: root directory = apps/admin, deploy command = `npx opennextjs-cloudflare deploy`.
+  // .open-next/worker.js + assets; `opennextjs-cloudflare deploy` uses this.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kiraoffice-admin",
-  "account_id": "8724aa41ebe346f0cbd1c62126fe8942",
+  // GoGoCash — the SAME account as the api + storefront (and the homeseeker.me zone). The admin
+  // used to live on the old "homeseeker" account (8724aa41…); that split is exactly what caused the
+  // cross-account proxy 1003 failure the storefront config warns about. Consolidated here so the
+  // admin→api proxy, the custom domain below, and Cloudflare Access all stay within one account.
+  "account_id": "187ab61ed9dbc6e616cb23e6b95aa8f1",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
-  "observability": { "enabled": true }
-  // Custom domain (homeseeker.me / app.homeseeker.me) added once the UI is ready, e.g.:
-  // "routes": [{ "pattern": "app.homeseeker.me", "custom_domain": true }]
+  "observability": { "enabled": true },
+  // The back-office login domain. homeseeker.me is a GoGoCash zone, so this custom_domain resolves
+  // same-account. Gate it with Cloudflare Access BEFORE/at deploy so it is never a public,
+  // unauthenticated back office — see docs/KIRA_OFFICE_ACCESS_SETUP.md.
+  "routes": [{ "pattern": "admin.homeseeker.me", "custom_domain": true }]
 }

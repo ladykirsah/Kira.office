@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputL, inputS } from "@/lib/inputStyles";
+import { cmToMm } from "@/lib/parcel";
 import {
   createProduct,
   updateProduct,
   adjustStock,
   setProductPricing,
   fetchAttributes,
+  fetchCarFitment,
   checkIdentifier,
   type Attributes,
+  type Fitment,
+  type CarBrandTree,
   type IdentifierKind,
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
@@ -18,6 +22,7 @@ import { useToast } from "../../ToastProvider";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
+import { FitmentSection } from "../FitmentSection";
 
 const field = { display: "grid", gap: 4 } as const;
 
@@ -49,15 +54,22 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
   return warn;
 }
 
-/** Add product — same sections as the editor (photos, part details, pricing). The product is created
- *  lazily on the first photo upload or on save; "Save draft" / "Save product" set the status. */
+/** Add product — same sections as the editor (photos, description, part details, fitments, pricing).
+ *  The product is created lazily on the first photo upload or on save; "Save draft" / "Save product"
+ *  set the status. */
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [stockQty, setStockQty] = useState("0");
   const [weightKg, setWeightKg] = useState("");
+  const [widthCm, setWidthCm] = useState("");
+  const [lengthCm, setLengthCm] = useState("");
+  const [heightCm, setHeightCm] = useState("");
   const [part, setPart] = useState<PartForm>({ brand: "", usage: "", type: "" });
+  const [fitments, setFitments] = useState<Fitment[]>([]);
+  const [carTree, setCarTree] = useState<CarBrandTree[]>([]);
   const [productRef, setProductRef] = useState("");
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [pricing, setPricing] = useState<PricingForm>({
@@ -78,6 +90,9 @@ export default function NewProductPage() {
     fetchAttributes()
       .then(setAttributes)
       .catch(() => setAttributes(null));
+    fetchCarFitment()
+      .then(setCarTree)
+      .catch(() => setCarTree([]));
   }, []);
 
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
@@ -121,6 +136,7 @@ export default function NewProductPage() {
       }
       await updateProduct(id, {
         name,
+        description,
         status,
         shopeeListed: status === "active",
         shopeeItemId: shopeeItemId || undefined,
@@ -128,9 +144,13 @@ export default function NewProductPage() {
         // The barcode is the Product ID (one identifier; scanning the part's barcode fills it in).
         barcode: productRef.trim(),
         weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
+        widthMm: cmToMm(widthCm),
+        lengthMm: cmToMm(lengthCm),
+        heightMm: cmToMm(heightCm),
         brandName: part.brand || undefined,
         usageName: part.usage || undefined,
         typeName: part.type || undefined,
+        fitments,
       });
       await setProductPricing(id, {
         itemCostSatang: toSatang(pricing.costThb),
@@ -162,7 +182,7 @@ export default function NewProductPage() {
     <main>
       <PageHeader
         title="Add product"
-        subtitle="New product — fitments are added on the edit page after saving."
+        subtitle="New product — fill in the details, fitments, and pricing, then save."
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
             <button type="button" onClick={() => router.push("/products")} disabled={busy}>
@@ -215,6 +235,17 @@ export default function NewProductPage() {
           <input value={name} onChange={(e) => setName(e.target.value)} required style={inputL} />
         </label>
 
+        <label style={{ ...field, gridColumn: "1 / -1" }}>
+          Description
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Short spec — refrigerant, type, fitment note…"
+            style={{ width: "100%", resize: "vertical" }}
+          />
+        </label>
+
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", gridColumn: "1 / -1" }}>
           <label style={field}>
             Stock on hand
@@ -235,6 +266,32 @@ export default function NewProductPage() {
               style={{ ...inputS, width: 160 }}
             />
           </label>
+          {/* Box size, not part size. Carriers rate on volumetric weight (w×l×h/5000), so a big
+              light part bills by its box — without all three there is no shipping quote at all. */}
+          <label style={field}>
+            Box size (cm) — W × L × H
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {(
+                [
+                  ["W", widthCm, setWidthCm],
+                  ["L", lengthCm, setLengthCm],
+                  ["H", heightCm, setHeightCm],
+                ] as const
+              ).map(([label, value, set], i) => (
+                <span key={label} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {i > 0 && <span style={{ opacity: 0.5 }}>×</span>}
+                  <input
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    inputMode="decimal"
+                    placeholder={label}
+                    aria-label={`Box ${label} in centimetres`}
+                    style={{ ...inputS, width: 72 }}
+                  />
+                </span>
+              ))}
+            </span>
+          </label>
         </div>
 
         <div style={{ gridColumn: "1 / -1" }}>
@@ -249,6 +306,10 @@ export default function NewProductPage() {
             refWarning={refWarn}
             shopeeWarning={shopeeWarn}
           />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FitmentSection fitments={fitments} onChange={setFitments} carTree={carTree} />
         </div>
 
         <div style={{ gridColumn: "1 / -1" }}>

@@ -14,6 +14,8 @@ import {
 } from "@/lib/db";
 import { AffiliateShelf } from "@/components/AffiliateShelf";
 import { LINE_OA_URL } from "@/lib/links";
+import { localBusinessJsonLd } from "@/lib/business";
+import { serializeJsonLd } from "@/lib/seo";
 import { PART_TYPE_EN, CAR_BRAND_TH, CAR_BRAND_LOGO } from "@/lib/labels";
 import { BestSellerList } from "@/components/BestSellerList";
 import { CategoryRow } from "@/components/CategoryRow";
@@ -23,7 +25,6 @@ import { FlashRail } from "@/components/FlashRail";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { ProductCard } from "@/components/ProductCard";
 import { QuickAccessBar } from "@/components/QuickAccessBar";
-import { RecentlyViewed } from "@/components/RecentlyViewed";
 import { imgUrl } from "@/lib/img";
 
 // Live catalog data from D1 — must render per-request on the Worker, never prerender at build
@@ -64,6 +65,11 @@ export default async function Home() {
 
   return (
     <div className="home-sections">
+      {/* LocalBusiness structured data — the site's half of the site↔Google-listing link (matching NAP). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(localBusinessJsonLd()) }}
+      />
       <section className="section qa-section">
         <QuickAccessBar />
       </section>
@@ -227,7 +233,6 @@ export default async function Home() {
           className="card"
           style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
         >
-          <div className="muted">สอบถาม/แจ้งปัญหา ทักได้เลย</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <a
               href={LINE_OA_URL}
@@ -263,8 +268,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-      <RecentlyViewed />
     </div>
   );
 }
@@ -318,6 +321,7 @@ function SectionHead({
 }) {
   return (
     <div style={{ marginBottom: 14 }}>
+      {/* Overline is ALWAYS dark red — the locked section-head pattern; blue is for counts/trust only. */}
       <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
         {eyebrow}
       </div>

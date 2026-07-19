@@ -11,6 +11,15 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true },
+  // LINE Login channel ID (public — it appears in the OAuth authorize URL). The matching
+  // LINE_CHANNEL_SECRET is set per-env via `wrangler secret put`, never committed. Named envs
+  // do NOT inherit these vars, so LINE_CHANNEL_ID is repeated under env.staging below.
+  "vars": { "LINE_CHANNEL_ID": "2010753164" },
+  // Production custom domain (airplusauto.com — Cloudflare Registrar zone on THIS GoGoCash account,
+  // required: a Worker can only bind a zone in its own account). custom_domain auto-creates the DNS
+  // record + cert. www can be added as a second custom_domain entry later. Staging keeps its
+  // *.workers.dev URL (env.staging has no routes), so `deploy --env staging` never touches this.
+  "routes": [{ "pattern": "airplusauto.com", "custom_domain": true }],
   // Same D1 database as apps/api (a D1 db can be bound by multiple Workers).
   "d1_databases": [
     {
@@ -33,11 +42,14 @@
   "env": {
     "staging": {
       "name": "airplus-storefront-staging",
+      // Empty routes so `deploy --env staging` keeps the *.workers.dev URL and never tries to bind
+      // the production airplusauto.com custom domain (same guard the API worker uses for its prod domain).
+      "routes": [],
       // Staging has no SMS provider yet, so OTP delivery runs in dev-echo mode: the code is the
       // fixed "123456" and is returned to the UI (owner can walk the login flow on their phone).
       // ONLY here — the default/production config above has no OTP_DEV_ECHO, so prod keeps random
       // codes + a real SMS provider. Remove this once THAIBULKSMS_* secrets are set on staging.
-      "vars": { "OTP_DEV_ECHO": "1" },
+      "vars": { "OTP_DEV_ECHO": "1", "LINE_CHANNEL_ID": "2010753164" },
       "d1_databases": [
         {
           "binding": "DB",

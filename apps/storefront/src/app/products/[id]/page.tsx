@@ -1,7 +1,18 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import { getDb, getProduct, listCatalog } from "@/lib/db";
+import { imgUrl } from "@/lib/img";
+import {
+  productSeoTitle,
+  productMetaDescription,
+  productJsonLd,
+  breadcrumbJsonLd,
+  serializeJsonLd,
+  productHref,
+  extractProductId,
+  SITE_ORIGIN,
+} from "@/lib/seo";
 import { baht } from "@/lib/format";
 import { BrandTag } from "@/components/BrandTag";
 import { Countdown } from "@/components/Countdown";
@@ -9,7 +20,7 @@ import { DiscountTag } from "@/components/DiscountTag";
 import { Pill } from "@/components/Pill";
 import { ProductCard } from "@/components/ProductCard";
 import { ReadyToShip } from "@/components/ReadyToShip";
-import { RecentlyViewed, RecordView } from "@/components/RecentlyViewed";
+import { RecordView } from "@/components/RecentlyViewed";
 import { Icon } from "@/components/Icon";
 import { AddToCartBar } from "./AddToCartBar";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -26,8 +37,20 @@ interface PageProps {
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const { id } = await props.params;
   const db = await getDb();
-  const detail = await getProduct(db, id);
-  return { title: detail ? `${detail.name} — AirPlus` : "ไม่พบสินค้า — AirPlus" };
+  const detail = await getProduct(db, extractProductId(id));
+  if (!detail) return { title: "ไม่พบสินค้า — AirPlus" };
+
+  const title = productSeoTitle(detail);
+  const description = productMetaDescription(detail);
+  const canonical = productHref(detail);
+  const images = detail.imageKey ? [imgUrl(detail.imageKey)] : undefined;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
 }
 
 /** Fitment split into two columns: "Toyota · Hilux Vigo" (brand · model) and the bare year range. */
@@ -42,10 +65,24 @@ function fitmentYear(f: { yearFrom: number | null; yearTo: number | null }): str
 }
 
 export default async function ProductPage(props: PageProps) {
-  const { id } = await props.params;
+  const { id: param } = await props.params;
   const db = await getDb();
-  const detail = await getProduct(db, id);
+  const detail = await getProduct(db, extractProductId(param));
   if (!detail) notFound();
+
+  // Canonical keyword URL. A bare-UUID (old) or stale-slug request 308-redirects here — one URL per
+  // product, so search equity never splits and shared links keep working after a rename.
+  const canonicalHref = productHref(detail);
+  const canonicalParam = canonicalHref.slice("/products/".length);
+  // The route param can arrive percent-encoded (raw Thai) — decode before comparing so a canonical
+  // hit doesn't loop. Redirect target is encodeURI'd: a raw Thai slug is an invalid header character.
+  let decodedParam = param;
+  try {
+    decodedParam = decodeURIComponent(param);
+  } catch {
+    /* malformed encoding — treat as non-canonical and redirect to the clean URL */
+  }
+  if (decodedParam !== canonicalParam) permanentRedirect(encodeURI(canonicalHref));
 
   const inStock = detail.onHand > 0;
   // Same core resolver as checkout — the price shown here can never disagree with re-pricing.
@@ -56,15 +93,29 @@ export default async function ProductPage(props: PageProps) {
   // filter. No type (or a sparse one) falls back to the latest products. Self is excluded.
   const typeRow = await db
     .prepare(`SELECT type_id AS typeId FROM products WHERE id = ?`)
-    .bind(id)
+    .bind(detail.productId)
     .first<{ typeId: string | null }>();
   const relatedPool = typeRow?.typeId
     ? await listCatalog(db, { typeId: typeRow.typeId, limit: 8 })
     : await listCatalog(db, { limit: 12 });
   const related = relatedPool.filter((i) => i.productId !== detail.productId).slice(0, 4);
 
+  // Structured data for rich results + AEO/AIO/GEO. Priced at the effective (shown) price so the
+  // schema never disagrees with the page. Injected as raw JSON so React doesn't escape the braces.
+  const canonicalUrl = `${SITE_ORIGIN}${canonicalHref}`;
+  const productLd = productJsonLd(detail, { priceSatang: eff.priceSatang, url: canonicalUrl });
+  const breadcrumbLd = breadcrumbJsonLd(detail, { url: canonicalUrl });
+
   return (
     <div className="has-sticky-bar">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(productLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
+      />
       {/* mobile-first single column; ≥720px two-column gallery|info (same page widened) */}
       <style>{`
         .pdp-grid { display: grid; gap: 0; }
@@ -168,6 +219,14 @@ export default async function ProductPage(props: PageProps) {
                   [
                     { ic: "🗂️", label: "หมวดหมู่", value: detail.typeName },
                     { ic: "🏷️", label: "แบรนด์", value: detail.brandName },
+                    { ic: "#️⃣", label: "รหัสสินค้า", value: detail.productRef },
+                    {
+                      ic: "🛡️",
+                      label: "ระยะเวลารับประกัน",
+                      // Per product category (product_types.warranty_days). Null category default =
+                      // no row, so a category without a warranty set never shows "0 วัน".
+                      value: detail.warrantyDays ? `${detail.warrantyDays} วัน` : null,
+                    },
                     {
                       ic: "⚖️",
                       label: "น้ำหนัก",
@@ -176,7 +235,6 @@ export default async function ProductPage(props: PageProps) {
                           ? `${(detail.weightGrams / 1000).toFixed(1)} กก.`
                           : null,
                     },
-                    { ic: "#️⃣", label: "รหัสสินค้า", value: detail.productRef },
                   ] as { ic: string; label: string; value: string | null }[]
                 )
                   .filter((s) => s.value)
@@ -198,7 +256,7 @@ export default async function ProductPage(props: PageProps) {
                           height: 30,
                           flex: "0 0 auto",
                           borderRadius: 9,
-                          background: "rgba(235, 80, 49, 0.1)",
+                          background: "rgba(1, 90, 191, 0.1)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -280,6 +338,30 @@ export default async function ProductPage(props: PageProps) {
               </>
             )}
 
+            {/* การคืน ยกเลิก เคลม — collapsible block (Returns & Claims). Always shown: the return/
+                claim policy applies to every product; the exact per-category window lives on /returns. */}
+            <div className="pdp-band" />
+            <CollapsibleSection titleTh="การคืน ยกเลิก เคลม" titleEn="Returns &amp; Claims">
+              <div style={{ fontSize: 15, lineHeight: 1.7, color: "var(--gray-dark)" }}>
+                <p style={{ margin: 0 }}>
+                  สินค้าชำรุด เสียหายจากการขนส่ง หรือไม่ตรงตามที่แจ้ง —
+                  เปิดเรื่องเคลมได้โดยแนบรูปถ่าย ช่างของเราตรวจสอบและคืนเงินภายใน 2-3
+                  วันทำการเมื่ออนุมัติ (ระยะเวลาการคืน/รับประกัน แตกต่างตามหมวดหมู่สินค้า)
+                </p>
+                <a
+                  href="/returns"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    color: "var(--brand-blue)",
+                    fontWeight: 600,
+                  }}
+                >
+                  อ่านนโยบายการคืน ยกเลิก เคลม แบบเต็ม →
+                </a>
+              </div>
+            </CollapsibleSection>
+
             <div className="pdp-band" />
           </div>
         </div>
@@ -303,7 +385,6 @@ export default async function ProductPage(props: PageProps) {
         </section>
       )}
 
-      <RecentlyViewed currentProductId={detail.productId} />
       <RecordView
         item={{
           productId: detail.productId,
@@ -312,6 +393,7 @@ export default async function ProductPage(props: PageProps) {
           imageKey: detail.imageKey,
           productRef: detail.productRef,
           variantId: detail.variantId,
+          brandName: detail.brandName,
           typeName: detail.typeName,
         }}
       />

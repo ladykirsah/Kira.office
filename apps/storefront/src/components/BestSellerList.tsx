@@ -3,6 +3,7 @@ import { resolveEffectivePrice } from "@l-shopee/core";
 import type { BestSeller } from "@/lib/db";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { productHref } from "@/lib/seo";
 
 /** Medal colours for ranks 1/2/3; ranks 4+ fall back to a neutral gray. */
 const RANK_COLOR = ["var(--brand)", "var(--silver)", "var(--bronze)"];
@@ -16,7 +17,7 @@ function BestSellerRow({ item, rank }: { item: BestSeller; rank: number }) {
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
   const ribbonColor = RANK_COLOR[rank - 1] ?? "var(--gray-mid)";
   return (
-    <Link href={`/products/${item.productId}`} className="bs-row">
+    <Link href={productHref(item)} className="bs-row">
       <div className="bs-thumb">
         {item.imageKey ? (
           <img src={imgUrl(item.imageKey)} alt={item.name} loading="lazy" />

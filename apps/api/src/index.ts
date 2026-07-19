@@ -1838,7 +1838,8 @@ async function listOrders(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
             payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
-            fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+            fee_total_satang AS feeTotalSatang, shipping_fee_satang AS shippingFeeSatang,
+            order_created_at AS orderCreatedAt,
             imported_at AS importedAt, buyer_username AS buyerUsername,
             sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
             carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
@@ -1856,6 +1857,7 @@ export interface OrderRow {
   paymentStatus: string | null;
   grandTotalSatang: number;
   feeTotalSatang: number;
+  shippingFeeSatang: number;
   orderCreatedAt: number | null;
   importedAt: number;
   buyerUsername: string | null;
@@ -2441,6 +2443,10 @@ export interface ProductDetail {
     productRef: string;
     category: string | null;
     weightGrams: number;
+    /** Parcel size in mm; null until measured (the form shows/takes cm). */
+    widthMm: number | null;
+    lengthMm: number | null;
+    heightMm: number | null;
     brandId: string | null;
     brandName: string | null;
     typeId: string | null;
@@ -2471,6 +2477,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
       `SELECT p.id, p.product_ref AS productRef, p.name, p.description, p.status, p.image_key AS imageKey,
               p.shopee_listed AS shopeeListed, p.shopee_item_id AS shopeeItemId,
               p.category, p.weight_grams AS weightGrams,
+              p.width_mm AS widthMm, p.length_mm AS lengthMm, p.height_mm AS heightMm,
               p.brand_id AS brandId, b.name AS brandName,
               p.type_id AS typeId, t.name AS typeName,
               p.usage_id AS usageId, u.name AS usageName,
@@ -2546,6 +2553,11 @@ export async function updateProduct(
     productRef?: string;
     category?: string;
     weightGrams?: number;
+    /** Parcel size in MILLIMETRES (the form takes cm). Carriers rate on volumetric weight
+     *  w×l×h/5000, so a quote is impossible without all three. */
+    widthMm?: number | null;
+    lengthMm?: number | null;
+    heightMm?: number | null;
     brandId?: string | null;
     typeId?: string | null;
     usageId?: string | null;
@@ -2553,7 +2565,7 @@ export async function updateProduct(
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, brand_id = ?, type_id = ?, usage_id = ?, updated_at = ? WHERE id = ?",
+      "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, width_mm = ?, length_mm = ?, height_mm = ?, brand_id = ?, type_id = ?, usage_id = ?, updated_at = ? WHERE id = ?",
     )
     .bind(
       fields.name.trim(),
@@ -2564,6 +2576,11 @@ export async function updateProduct(
       fields.productRef?.trim() || null,
       fields.category?.trim() || null,
       Math.max(0, Math.round(fields.weightGrams ?? 0)),
+      // NULL, not 0: an unmeasured box must stay unknown so it fails loudly at quote time rather
+      // than quietly rating as a zero-size parcel. Unlike weight_grams, which defaults to 0 already.
+      mmOrNull(fields.widthMm),
+      mmOrNull(fields.lengthMm),
+      mmOrNull(fields.heightMm),
       fields.brandId ?? null,
       fields.typeId ?? null,
       fields.usageId ?? null,
@@ -2571,6 +2588,13 @@ export async function updateProduct(
       id,
     )
     .run();
+}
+
+/** A parcel edge in mm: a positive whole number, or null when it hasn't been measured. */
+function mmOrNull(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  const mm = Math.round(Number(value));
+  return Number.isFinite(mm) && mm > 0 ? mm : null;
 }
 
 export interface AttrOption {
@@ -2612,6 +2636,42 @@ export async function listAttributes(db: D1Database): Promise<{
     carBrands: carBrands.results ?? [],
     carModels: carModels.results ?? [],
   };
+}
+
+export interface TypeWarranty {
+  id: string;
+  name: string;
+  warrantyDays: number | null;
+}
+
+/** Warranty/return window (days) per product category — a positive whole number, or null for "none".
+ *  0, blank, negatives and junk all collapse to null so a category never advertises a "0 วัน" warranty. */
+export function normalizeWarrantyDays(input: unknown): number | null {
+  if (input == null || input === "") return null;
+  const n = Math.round(Number(input));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** All product categories with their warranty window, for the back-office warranty settings. */
+export async function listTypeWarranties(db: D1Database): Promise<TypeWarranty[]> {
+  const rows = await db
+    .prepare(
+      "SELECT id, name, warranty_days AS warrantyDays FROM product_types ORDER BY sort_order, name",
+    )
+    .all<TypeWarranty>();
+  return rows.results ?? [];
+}
+
+/** Set (or clear) the warranty window for one product category. */
+export async function setTypeWarranty(
+  db: D1Database,
+  id: string,
+  warrantyDays: number | null,
+): Promise<void> {
+  await db
+    .prepare("UPDATE product_types SET warranty_days = ? WHERE id = ?")
+    .bind(normalizeWarrantyDays(warrantyDays), id)
+    .run();
 }
 
 /** Find an option by name (case-insensitive) or create it. Returns the option. */
@@ -3914,6 +3974,17 @@ const worker = {
     if (url.pathname === "/attributes" && request.method === "GET") {
       return json(await listAttributes(env.DB));
     }
+    // Warranty/return window per product category — read for the settings page…
+    if (url.pathname === "/product-types/warranty" && request.method === "GET") {
+      return json(await listTypeWarranties(env.DB));
+    }
+    // …and set (or clear) one category's window.
+    const warrantySet = url.pathname.match(/^\/product-types\/([^/]+)\/warranty$/);
+    if (warrantySet && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { warrantyDays?: number | null };
+      await setTypeWarranty(env.DB, warrantySet[1]!, body.warrantyDays ?? null);
+      return json({ ok: true });
+    }
     const attrAdd = url.pathname.match(/^\/attributes\/([^/]+)$/);
     if (attrAdd && request.method === "POST") {
       const table = ATTR_TABLE[attrAdd[1]!];
@@ -4070,6 +4141,9 @@ const worker = {
         shopeeItemId?: string;
         productRef?: string;
         weightGrams?: number;
+        widthMm?: number | null;
+        lengthMm?: number | null;
+        heightMm?: number | null;
         barcode?: string;
         brandName?: string;
         usageName?: string;
@@ -4098,6 +4172,9 @@ const worker = {
         productRef: body.productRef,
         category,
         weightGrams: body.weightGrams,
+        widthMm: body.widthMm,
+        lengthMm: body.lengthMm,
+        heightMm: body.heightMm,
         brandId,
         typeId,
         usageId,

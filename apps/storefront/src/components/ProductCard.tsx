@@ -8,14 +8,14 @@ import { addToCart } from "@/lib/cart";
 import { BrandTag } from "@/components/BrandTag";
 import { DiscountTag } from "@/components/DiscountTag";
 import { ReadyToShip } from "@/components/ReadyToShip";
-import { Icon } from "@/components/Icon";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { productHref } from "@/lib/seo";
 
 /**
  * Marketplace catalog card (owner-briefed off "Design 1"): a full-bleed square product image on a
  * gray field — the brand-orange ✦ stands in until a real photo is set (the photo itself carries
- * the type / model / brand text). Kept "ลด" + "ส่งฟรี" ribbons (flagged for a later redesign), a
+ * the type / model / brand text). Kept the "ลด" ribbon (flagged for a later redesign), a
  * gray brand pill, brand-orange price with a −% chip, a "พร้อมส่ง" (ready-to-ship) status line, and
  * a compact add-to-cart. Image + text link to the PDP; the button is a sibling of the link so the
  * markup stays valid.
@@ -56,7 +56,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
         color: "var(--gray-dark)",
       }}
     >
-      <Link href={`/products/${item.productId}`} style={{ color: "inherit", display: "block" }}>
+      <Link href={productHref(item)} style={{ color: "inherit", display: "block" }}>
         <div
           style={{
             position: "relative",
@@ -80,26 +80,6 @@ export function ProductCard({ item }: { item: CatalogItem }) {
               ✦
             </span>
           )}
-          <span
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              zIndex: 1,
-              background: "var(--ship)",
-              color: "var(--white)",
-              fontSize: 11,
-              fontWeight: 800,
-              padding: "4px 9px 4px 7px",
-              borderRadius: "0 12px 0 0",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            <Icon name="truck" size={13} />
-            ส่งฟรี
-          </span>
         </div>
 
         <div style={{ padding: "8px 9px 0", display: "flex", flexDirection: "column", gap: 6 }}>

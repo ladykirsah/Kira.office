@@ -28,6 +28,10 @@ export interface StorefrontEnv {
   THAIBULKSMS_API_SECRET?: string;
   /** Sender name shown on the SMS (default "AirPlus"). Must be pre-approved in the account. */
   THAIBULKSMS_SENDER?: string;
+  /** LINE Login channel ID (public — appears in the authorize URL). Unset = LINE login disabled. */
+  LINE_CHANNEL_ID?: string;
+  /** LINE Login channel secret (server-only; set via `wrangler secret put`). */
+  LINE_CHANNEL_SECRET?: string;
 }
 
 export async function getEnv(): Promise<StorefrontEnv> {
@@ -50,6 +54,8 @@ export interface CatalogItem {
   productRef: string;
   brandName: string | null;
   typeName: string | null;
+  /** Warranty / return window in DAYS for this product's category (product_types), or null if unset. */
+  warrantyDays: number | null;
   imageKey: string | null;
   /** BASE online price. Pass with `campaign` through core resolveEffectivePrice for display. */
   priceSatang: number;
@@ -73,7 +79,7 @@ interface CatalogRow extends Omit<CatalogItem, "campaign"> {
 /** Binds ONE `?` (now, epoch ms) for the campaign-candidate subselect — callers bind now first. */
 const CATALOG_SELECT = `
   SELECT p.id AS productId, v.id AS variantId, p.name AS name, p.product_ref AS productRef,
-         b.name AS brandName, t.name AS typeName, p.image_key AS imageKey,
+         b.name AS brandName, t.name AS typeName, t.warranty_days AS warrantyDays, p.image_key AS imageKey,
          COALESCE(pp.online_price_satang, 0) AS priceSatang,
          COALESCE((SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id), 0) AS onHand,
          (SELECT TRIM(COALESCE(f.car_brand, '') || ' ' || COALESCE(f.car_model, ''))
@@ -180,6 +186,38 @@ export async function listCatalog(
     .bind(...Array(CATALOG_NOW_BINDS).fill(now), ...binds)
     .all<CatalogRow>();
   return (rows.results ?? []).map(toCatalogItem);
+}
+
+/** One row per indexable product for the sitemap: the fields the slug needs + a lastmod. Uncapped
+ *  (unlike listCatalog's 100), one row per product (not per variant), and it applies the SAME
+ *  active + in-stock gate as the PDP — so every URL in the sitemap actually resolves (never a 404). */
+export interface SitemapProduct {
+  productId: string;
+  name: string;
+  brandName: string | null;
+  fitmentShort: string | null;
+  updatedAt: number;
+}
+
+export async function sitemapProducts(db: D1Database): Promise<SitemapProduct[]> {
+  const rows = await db
+    .prepare(
+      `SELECT p.id AS productId, p.name AS name, b.name AS brandName,
+         (SELECT TRIM(COALESCE(f.car_brand, '') || ' ' || COALESCE(f.car_model, ''))
+            FROM product_fitments f WHERE f.product_id = p.id
+            ORDER BY f.sort_order LIMIT 1) AS fitmentShort,
+         COALESCE(p.updated_at, p.created_at) AS updatedAt
+       FROM products p
+       LEFT JOIN brands b ON b.id = p.brand_id
+       WHERE p.status = 'active'
+         AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id
+                       AND (SELECT COALESCE(SUM(quantity_delta), 0)
+                              FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0)
+       ORDER BY COALESCE(p.updated_at, p.created_at) DESC
+       LIMIT 45000`,
+    )
+    .all<SitemapProduct>();
+  return rows.results ?? [];
 }
 
 /** A best-seller row carries its rank-driving metric: average units sold per month over the window
@@ -502,6 +540,11 @@ export interface CheckoutPricingRow {
   /** id of the campaign_prices row (needed for the guarded sold_count increment) */
   campaignPriceId: string | null;
   campaign: CampaignPriceInfo | null;
+  /** parcel weight + box dimensions for the shipping-fee calc (dims NULL if unmeasured) */
+  weightGrams: number;
+  widthMm: number | null;
+  lengthMm: number | null;
+  heightMm: number | null;
 }
 
 /** Authoritative per-variant pricing for checkout re-pricing. Order NOT preserved — match by id. */
@@ -514,6 +557,8 @@ export async function getCheckoutPricing(
   const rows = await db
     .prepare(
       `SELECT v.id AS variantId, p.name AS name,
+              p.weight_grams AS weightGrams,
+              p.width_mm AS widthMm, p.length_mm AS lengthMm, p.height_mm AS heightMm,
               COALESCE(pp.online_price_satang, 0) AS priceSatang,
               COALESCE(pp.item_cost_satang, 0) AS costSatang,
               COALESCE((SELECT SUM(quantity_delta) FROM stock_ledger_entries
@@ -539,6 +584,10 @@ export async function getCheckoutPricing(
     .all<{
       variantId: string;
       name: string;
+      weightGrams: number;
+      widthMm: number | null;
+      lengthMm: number | null;
+      heightMm: number | null;
       priceSatang: number;
       costSatang: number;
       onHand: number;
@@ -555,6 +604,10 @@ export async function getCheckoutPricing(
     out.set(r.variantId, {
       variantId: r.variantId,
       name: r.name,
+      weightGrams: r.weightGrams,
+      widthMm: r.widthMm,
+      lengthMm: r.lengthMm,
+      heightMm: r.heightMm,
       priceSatang: r.priceSatang,
       costSatang: r.costSatang,
       onHand: r.onHand,

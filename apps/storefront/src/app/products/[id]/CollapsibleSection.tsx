@@ -55,7 +55,7 @@ export function CollapsibleSection({
           size={18}
           style={{
             flex: "0 0 auto",
-            color: open ? "var(--brand)" : "var(--gray-mid)",
+            color: "var(--gray-dark)",
             transform: open ? "rotate(90deg)" : "none",
             transition: "transform 0.2s ease",
           }}

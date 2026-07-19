@@ -16,13 +16,23 @@ production launch. Decisions are made here (not left open); owner action items a
   `ship_time_ms` on the first tracking number (no schema change; existing free-text columns).
 - **`packages/core`** — complete domain logic, 100+ tests (pricing/tax/cost/stock/terms/sync/orders/
   imports/finance, refunds, reserved stock, price-from-margin, Shopee delta).
-- **AirPlus customer storefront** (`apps/storefront`, Next 15 on OpenNext/Cloudflare) — built and on
-  staging: Home v2 (search landing `/search`, shortcut bar, collections, timed flash sale, best-sellers,
-  shop-by-brand, categories, banners, recently-viewed), PDP with share + collapsible sections, compact
-  cart, phone-OTP auth (`/login` login|register + PDPA consent + 6-box OTP with resend), `/account` hub
-  (orders, addresses, consent-receipt card, mock coupons wallet), agent-discovery routes (`/llms.txt`,
-  `/sitemap.md`, `/skills.md`, `/rss.xml`, `/sitemap.xml`), and legal drafts (`/privacy`, `/terms`).
-  Coupons are mock/localStorage until a backend ships.
+- **AirPlus customer storefront** (`apps/storefront`, Next 15 on OpenNext/Cloudflare) — **LIVE in
+  production** at [`airplusauto.com`](https://airplusauto.com) (Worker `airplus-storefront`, Version
+  `e212cc60`, deployed 2026-07-19; prod D1 `kira-office`): Home v2 (search landing `/search`, shortcut
+  bar, collections, timed flash sale, best-sellers, shop-by-brand, categories, banners), PDP with share +
+  collapsible sections, compact cart + Flash shipping-fee checkout, **LINE-first login** (phone/OTP
+  hidden behind `NEXT_PUBLIC_OTP_ENABLED`; minimal LINE sign-up = username + required delivery address),
+  `/account` hub (orders, addresses, consent-receipt card, recently-viewed, mock coupons wallet),
+  agent-discovery routes, and legal drafts (`/privacy`, `/terms`). Red DENSO CI. Coupons are
+  mock/localStorage until a backend ships.
+  - ⚠️ **Post-launch blockers still open:** prod catalog is **demo data** (a "ครีมบำรุงผิว (Demo)"
+    skincare cream shows as top best-seller — load the real catalog); confirm Flash rate-card numbers;
+    set PromptPay/bank in admin; legal sign-off; re-export the red-CI banner PNGs.
+- **Kira.office back office is now deployed** (2026-07-19): API worker `kira-office` at `api.homeseeker.me`
+  (warranty endpoints + `widthMm` + shipping fee live) and admin `kiraoffice-admin` at
+  `admin.homeseeker.me` (behind Cloudflare Access, Super Admin Only). The Add-page Description+Fitment
+  and box-size-on-detail-view changes are **live** in the admin. Both deployed manually from the
+  publication-plan branch (PR #24); the API is ahead of `main` until that merges.
 
 ## Launch decision (recommended)
 

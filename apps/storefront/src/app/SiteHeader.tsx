@@ -51,7 +51,7 @@ export function SiteHeader() {
             Air
             <span
               style={{
-                color: "var(--white)",
+                color: "var(--gray-dark)",
                 fontSize: "1.25em",
                 fontWeight: 900,
                 display: "inline-block",

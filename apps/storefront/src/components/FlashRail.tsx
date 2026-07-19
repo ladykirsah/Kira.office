@@ -3,6 +3,7 @@ import { resolveEffectivePrice } from "@l-shopee/core";
 import type { CatalogItem } from "@/lib/db";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { productHref } from "@/lib/seo";
 
 /**
  * A single flash-deal card ("Design B" horizontal/landscape: square image + discount badge on the
@@ -30,7 +31,7 @@ function FlashCard({ item }: { item: CatalogItem }) {
     remaining != null && remaining <= 2 ? `⚡ เหลือ ${remaining} ชิ้น` : `ขายแล้ว ${soldPct ?? 0}%`;
 
   return (
-    <Link href={`/products/${item.productId}`} className="flash-card">
+    <Link href={productHref(item)} className="flash-card">
       <div className="fl-img">
         {savePct > 0 && <span className="fl-badge">-{savePct}%</span>}
         {item.imageKey ? (

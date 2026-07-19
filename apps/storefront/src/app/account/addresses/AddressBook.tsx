@@ -2,93 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AddressRow } from "@/app/api/account/addresses/route";
+import { PROVINCES } from "@/lib/provinces";
 
 /**
  * Client address book: list + make-default + delete (2-tap arm) + add via the same flat Thai
- * address form used at checkout (no cascading dropdowns). All mutations send JSON content-type
- * (guardMutation requires it); DELETE has no body by design.
+ * address form used at checkout and LINE registration (no cascading dropdowns). All mutations
+ * send JSON content-type (guardMutation requires it); DELETE has no body by design.
  */
-
-/** กรุงเทพมหานคร first (most orders), then the other 76 provinces alphabetically. */
-const PROVINCES = [
-  "กรุงเทพมหานคร",
-  "กระบี่",
-  "กาญจนบุรี",
-  "กาฬสินธุ์",
-  "กำแพงเพชร",
-  "ขอนแก่น",
-  "จันทบุรี",
-  "ฉะเชิงเทรา",
-  "ชลบุรี",
-  "ชัยนาท",
-  "ชัยภูมิ",
-  "ชุมพร",
-  "เชียงราย",
-  "เชียงใหม่",
-  "ตรัง",
-  "ตราด",
-  "ตาก",
-  "นครนายก",
-  "นครปฐม",
-  "นครพนม",
-  "นครราชสีมา",
-  "นครศรีธรรมราช",
-  "นครสวรรค์",
-  "นนทบุรี",
-  "นราธิวาส",
-  "น่าน",
-  "บึงกาฬ",
-  "บุรีรัมย์",
-  "ปทุมธานี",
-  "ประจวบคีรีขันธ์",
-  "ปราจีนบุรี",
-  "ปัตตานี",
-  "พระนครศรีอยุธยา",
-  "พะเยา",
-  "พังงา",
-  "พัทลุง",
-  "พิจิตร",
-  "พิษณุโลก",
-  "เพชรบุรี",
-  "เพชรบูรณ์",
-  "แพร่",
-  "ภูเก็ต",
-  "มหาสารคาม",
-  "มุกดาหาร",
-  "แม่ฮ่องสอน",
-  "ยโสธร",
-  "ยะลา",
-  "ร้อยเอ็ด",
-  "ระนอง",
-  "ระยอง",
-  "ราชบุรี",
-  "ลพบุรี",
-  "ลำปาง",
-  "ลำพูน",
-  "เลย",
-  "ศรีสะเกษ",
-  "สกลนคร",
-  "สงขลา",
-  "สตูล",
-  "สมุทรปราการ",
-  "สมุทรสงคราม",
-  "สมุทรสาคร",
-  "สระแก้ว",
-  "สระบุรี",
-  "สิงห์บุรี",
-  "สุโขทัย",
-  "สุพรรณบุรี",
-  "สุราษฎร์ธานี",
-  "สุรินทร์",
-  "หนองคาย",
-  "หนองบัวลำภู",
-  "อ่างทอง",
-  "อำนาจเจริญ",
-  "อุดรธานี",
-  "อุตรดิตถ์",
-  "อุทัยธานี",
-  "อุบลราชธานี",
-];
 
 const EMPTY_FORM = {
   recipientName: "",
