@@ -22,11 +22,11 @@ describe("localBusinessJsonLd > schema.org LocalBusiness from the SHOP NAP", () 
     expect(addr.addressCountry).toBe("TH");
   });
 
-  it("carries opening hours (09:00–17:00) with days", () => {
+  it("carries opening hours (08:30–17:00) every day", () => {
     const spec = (ld.openingHoursSpecification as Record<string, unknown>[])[0];
-    expect(spec.opens).toBe("09:00");
+    expect(spec.opens).toBe("08:30");
     expect(spec.closes).toBe("17:00");
-    expect(spec.dayOfWeek).toContain("Monday");
+    expect(spec.dayOfWeek).toHaveLength(7);
   });
 
   it("lists the LINE OA in sameAs and never emits null/undefined", () => {

@@ -2142,3 +2142,29 @@ textarea {
   color: var(--text-muted);
   font-size: 14px;
 }
+
+/* ---- FAQ question cards (Design A: chevron accordion, no marker) ---- */
+.faq-item {
+  border-color: #e3e3e3; /* lighter than --gray-lite: the dense FAQ list reads softer */
+}
+.faq-item > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+  color: var(--gray-dark);
+}
+.faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+.faq-item .faq-chev {
+  flex: 0 0 auto;
+  color: var(--gray-mid);
+  transition: transform 0.2s ease;
+}
+.faq-item[open] > summary .faq-chev {
+  transform: rotate(90deg);
+}

@@ -22,10 +22,10 @@ export const SHOP = {
     postalCode: "32140",
     addressCountry: "TH",
   },
-  // 09:00–17:00. DAYS are an assumption (the listing shows one hours line) — owner to confirm/adjust.
+  // Every day 08:30–17:00 — confirmed by the owner (2026-07). Keep in sync with the Google listing.
   hours: {
     days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    opens: "09:00",
+    opens: "08:30",
     closes: "17:00",
   },
   /** Profiles that are the same business — reinforces the entity. Add Shopee / Facebook / Google later. */
