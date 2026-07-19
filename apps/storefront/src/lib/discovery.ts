@@ -36,6 +36,7 @@ export const CORE_PAGES: CorePage[] = [
   { path: "/coupons", title: "Coupons (คูปอง)" },
   { path: "/tools", title: "Mechanic tools — partner (เครื่องมือช่าง)" },
   { path: "/info", title: "Shipping & payment (การจัดส่ง & ชำระเงิน)" },
+  { path: "/faq", title: "FAQ (คำถามที่พบบ่อย)" },
   { path: "/orders", title: "Track an order (ติดตามคำสั่งซื้อ)" },
   { path: "/privacy", title: "Privacy policy (PDPA)" },
   { path: "/login", title: "Login / register (เข้าสู่ระบบ / สมัครสมาชิก)" },

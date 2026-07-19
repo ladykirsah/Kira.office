@@ -54,6 +54,7 @@ export function SiteFooter() {
           <Link href="/orders">ติดตามคำสั่งซื้อ</Link>
           <Link href="/privacy">นโยบายความเป็นส่วนตัว</Link>
           <Link href="/info">การจัดส่งและการชำระเงิน</Link>
+          <Link href="/faq">คำถามที่พบบ่อย</Link>
         </div>
       </div>
     </footer>
