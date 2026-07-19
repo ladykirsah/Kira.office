@@ -3,9 +3,11 @@ import { parseFaqAnswer, type FaqAnswerPart } from "@/lib/faq";
 
 const PART_COLOR = { red: "var(--brand-deep)", blue: "var(--brand-blue)" } as const;
 
+// Colour carries the meaning; weight stays light so long answers don't look heavy. Links keep a
+// slight weight bump + underline as the clickable signal (owner's rule: red = clickable only).
 const LINK_STYLE = {
   color: "var(--brand-deep)",
-  fontWeight: 600,
+  fontWeight: 500,
   textDecoration: "underline",
   textUnderlineOffset: 3,
 } as const;
@@ -30,7 +32,7 @@ function Parts({ parts }: { parts: FaqAnswerPart[] }) {
             </Link>
           )
         ) : p.color ? (
-          <span key={i} style={{ color: PART_COLOR[p.color], fontWeight: 600 }}>
+          <span key={i} style={{ color: PART_COLOR[p.color] }}>
             {p.text}
           </span>
         ) : (
