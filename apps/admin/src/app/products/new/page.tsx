@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
+import { carrySummary, clearedProductFields } from "@/lib/batchAdd";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
@@ -83,6 +84,9 @@ export default function NewProductPage() {
   const [attributes, setAttributes] = useState<Attributes | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Batch listing: products saved via "Save & add next" in this visit (drives the counter + pill).
+  const [savedCount, setSavedCount] = useState(0);
+  const nameRef = useRef<HTMLInputElement | null>(null);
   // Source of truth for the created product (sync, avoids stale state in async flows).
   const created = useRef<{ id: string; variantId: string | null } | null>(null);
 
@@ -126,7 +130,7 @@ export default function NewProductPage() {
     return out.productId;
   }
 
-  async function submit(status: "draft" | "active") {
+  async function submit(status: "draft" | "active", andNext = false) {
     setBusy(true);
     try {
       const id = await ensureProduct();
@@ -170,6 +174,28 @@ export default function NewProductPage() {
           reason: "created from Add product",
         });
       }
+      if (andNext) {
+        // Keep the batch fields (part taxonomy + fitments); reset everything per-product.
+        const cleared = clearedProductFields();
+        setName(cleared.name);
+        setDescription(cleared.description);
+        setStockQty(cleared.stockQty);
+        setWeightKg(cleared.weightKg);
+        setWidthCm(cleared.widthCm);
+        setLengthCm(cleared.lengthCm);
+        setHeightCm(cleared.heightCm);
+        setProductRef(cleared.productRef);
+        setShopeeItemId(cleared.shopeeItemId);
+        setPricing(cleared.pricing);
+        created.current = null;
+        setCreatedId(null);
+        setSavedCount((n) => n + 1);
+        toast(`Saved “${name}” — ready for the next one`, "success");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        nameRef.current?.focus();
+        setBusy(false);
+        return;
+      }
       toast(status === "active" ? `Saved “${name}”` : `Draft “${name}” saved`, "success");
       router.push(`/products/${id}/edit`);
     } catch (err) {
@@ -185,6 +211,11 @@ export default function NewProductPage() {
         subtitle="New product — fill in the details, fitments, and pricing, then save."
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+            {savedCount > 0 && (
+              <span className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                +{savedCount} added
+              </span>
+            )}
             <button type="button" onClick={() => router.push("/products")} disabled={busy}>
               Cancel
             </button>
@@ -199,11 +230,20 @@ export default function NewProductPage() {
             </button>
             <button
               type="button"
-              className="btn-primary"
+              className="btn-soft"
               onClick={() => submit("active")}
               disabled={busy}
+              style={{ minHeight: 44, padding: "10px 16px", fontSize: 14 }}
             >
               Save product
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => submit("active", true)}
+              disabled={busy}
+            >
+              Save &amp; add next
             </button>
           </div>
         }
@@ -221,9 +261,29 @@ export default function NewProductPage() {
           alignItems: "start",
         }}
       >
+        {savedCount > 0 && carrySummary(part, fitments.length) && (
+          <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="muted" style={{ fontSize: 13 }}>
+              Carried from last product: <strong>{carrySummary(part, fitments.length)}</strong>
+            </span>
+            <button
+              type="button"
+              className="btn-soft"
+              style={{ padding: "4px 10px", fontSize: 12 }}
+              onClick={() => {
+                setPart({ brand: "", usage: "", type: "" });
+                setFitments([]);
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         <div style={{ ...field, gridColumn: "1 / -1" }}>
           <span style={{ fontWeight: 600 }}>Photos</span>
           <ProductGallery
+            key={createdId ?? `next-${savedCount}`}
             productId={createdId ?? ""}
             initial={[]}
             ensureProductId={ensureProduct}
@@ -232,7 +292,13 @@ export default function NewProductPage() {
 
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Product name *
-          <input value={name} onChange={(e) => setName(e.target.value)} required style={inputL} />
+          <input
+            ref={nameRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            style={inputL}
+          />
         </label>
 
         <label style={{ ...field, gridColumn: "1 / -1" }}>
