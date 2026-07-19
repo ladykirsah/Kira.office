@@ -1,4 +1,4 @@
-import { getDb, listCatalog } from "@/lib/db";
+import { getDb, sitemapProducts } from "@/lib/db";
 import { escapeXml, CORE_PAGES } from "@/lib/discovery";
 import { productHref } from "@/lib/seo";
 
@@ -9,14 +9,19 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request): Promise<Response> {
   const origin = new URL(req.url).origin;
-  const urls: string[] = CORE_PAGES.map((p) => `${origin}${p.path}`);
+  const entries: { loc: string; lastmod?: string }[] = CORE_PAGES.map((p) => ({
+    loc: `${origin}${p.path}`,
+  }));
 
   try {
     const db = await getDb();
-    const products = await listCatalog(db, { limit: 100 });
-    for (const p of products) {
-      // encodeURI keeps the "/" and "-" but percent-encodes the Thai slug for a valid sitemap URL.
-      urls.push(`${origin}${encodeURI(productHref(p))}`);
+    // Every in-stock product (uncapped, one URL each), stamped with lastmod so crawlers re-fetch a
+    // page only when it actually changed. encodeURI keeps "/" and "-" but %-encodes the Thai slug.
+    for (const p of await sitemapProducts(db)) {
+      entries.push({
+        loc: `${origin}${encodeURI(productHref(p))}`,
+        lastmod: new Date(p.updatedAt).toISOString(),
+      });
     }
   } catch (err) {
     console.error("GET /sitemap.xml catalog read failed", err);
@@ -24,7 +29,12 @@ export async function GET(req: Request): Promise<Response> {
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url><loc>${escapeXml(u)}</loc></url>`).join("\n")}
+${entries
+  .map(
+    (e) =>
+      `  <url><loc>${escapeXml(e.loc)}</loc>${e.lastmod ? `<lastmod>${e.lastmod}</lastmod>` : ""}</url>`,
+  )
+  .join("\n")}
 </urlset>
 `;
   return new Response(body, {

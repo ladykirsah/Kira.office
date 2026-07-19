@@ -188,6 +188,38 @@ export async function listCatalog(
   return (rows.results ?? []).map(toCatalogItem);
 }
 
+/** One row per indexable product for the sitemap: the fields the slug needs + a lastmod. Uncapped
+ *  (unlike listCatalog's 100), one row per product (not per variant), and it applies the SAME
+ *  active + in-stock gate as the PDP — so every URL in the sitemap actually resolves (never a 404). */
+export interface SitemapProduct {
+  productId: string;
+  name: string;
+  brandName: string | null;
+  fitmentShort: string | null;
+  updatedAt: number;
+}
+
+export async function sitemapProducts(db: D1Database): Promise<SitemapProduct[]> {
+  const rows = await db
+    .prepare(
+      `SELECT p.id AS productId, p.name AS name, b.name AS brandName,
+         (SELECT TRIM(COALESCE(f.car_brand, '') || ' ' || COALESCE(f.car_model, ''))
+            FROM product_fitments f WHERE f.product_id = p.id
+            ORDER BY f.sort_order LIMIT 1) AS fitmentShort,
+         COALESCE(p.updated_at, p.created_at) AS updatedAt
+       FROM products p
+       LEFT JOIN brands b ON b.id = p.brand_id
+       WHERE p.status = 'active'
+         AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id
+                       AND (SELECT COALESCE(SUM(quantity_delta), 0)
+                              FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0)
+       ORDER BY COALESCE(p.updated_at, p.created_at) DESC
+       LIMIT 45000`,
+    )
+    .all<SitemapProduct>();
+  return rows.results ?? [];
+}
+
 /** A best-seller row carries its rank-driving metric: average units sold per month over the window
  *  (null for gap-fillers with no sales history). */
 export type BestSeller = CatalogItem & { monthlySales: number | null };
