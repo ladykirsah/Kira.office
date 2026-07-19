@@ -1,4 +1,4 @@
-// DRAFT — customer-facing "how to order" guide. Describes the real checkout flow (OTP login,
+// DRAFT — customer-facing "how to order" guide. Describes the real checkout flow (LINE login,
 // address, payment options, slip upload, tracking). Owner to confirm before launch.
 import type { Metadata } from "next";
 
@@ -58,10 +58,11 @@ export default function HowToOrderPage() {
           </p>
         </Step>
 
-        <Step n={2} title="เข้าสู่ระบบด้วยเบอร์โทร">
+        <Step n={2} title="เข้าสู่ระบบด้วย LINE">
           <p style={{ margin: 0 }}>
-            ก่อนสั่งซื้อ ท่านต้องยืนยันตัวตนด้วย <strong>เบอร์โทรศัพท์และรหัส OTP</strong> ที่ส่งทาง
-            SMS (สมาชิกใหม่กรอกชื่อและวันเกิดเพื่อยืนยันอายุ 20 ปีบริบูรณ์)
+            ก่อนสั่งซื้อ เข้าสู่ระบบด้วย <strong>บัญชี LINE</strong> ในคลิกเดียว ปลอดภัย
+            ไม่ต้องจำรหัสผ่านและไม่ต้องใช้ OTP
+            (สมาชิกใหม่เพียงตั้งชื่อผู้ใช้และเพิ่มที่อยู่จัดส่งก็เริ่มสั่งซื้อได้ทันที)
           </p>
         </Step>
 
