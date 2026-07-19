@@ -2,6 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import { getDb, getProduct, listCatalog } from "@/lib/db";
+import { imgUrl } from "@/lib/img";
+import {
+  productSeoTitle,
+  productMetaDescription,
+  productJsonLd,
+  breadcrumbJsonLd,
+  serializeJsonLd,
+} from "@/lib/seo";
 import { baht } from "@/lib/format";
 import { BrandTag } from "@/components/BrandTag";
 import { Countdown } from "@/components/Countdown";
@@ -27,7 +35,19 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const { id } = await props.params;
   const db = await getDb();
   const detail = await getProduct(db, id);
-  return { title: detail ? `${detail.name} — AirPlus` : "ไม่พบสินค้า — AirPlus" };
+  if (!detail) return { title: "ไม่พบสินค้า — AirPlus" };
+
+  const title = productSeoTitle(detail);
+  const description = productMetaDescription(detail);
+  const canonical = `/products/${detail.productId}`;
+  const images = detail.imageKey ? [imgUrl(detail.imageKey)] : undefined;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, images, type: "website" },
+    twitter: { card: "summary_large_image", title, description, images },
+  };
 }
 
 /** Fitment split into two columns: "Toyota · Hilux Vigo" (brand · model) and the bare year range. */
@@ -63,8 +83,21 @@ export default async function ProductPage(props: PageProps) {
     : await listCatalog(db, { limit: 12 });
   const related = relatedPool.filter((i) => i.productId !== detail.productId).slice(0, 4);
 
+  // Structured data for rich results + AEO/AIO/GEO. Priced at the effective (shown) price so the
+  // schema never disagrees with the page. Injected as raw JSON so React doesn't escape the braces.
+  const productLd = productJsonLd(detail, { priceSatang: eff.priceSatang });
+  const breadcrumbLd = breadcrumbJsonLd(detail);
+
   return (
     <div className="has-sticky-bar">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(productLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
+      />
       {/* mobile-first single column; ≥720px two-column gallery|info (same page widened) */}
       <style>{`
         .pdp-grid { display: grid; gap: 0; }
