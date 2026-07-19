@@ -2142,3 +2142,26 @@ textarea {
   color: var(--text-muted);
   font-size: 14px;
 }
+
+/* ---- FAQ question cards (Design A: chevron accordion, no marker) ---- */
+.faq-item > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+  color: var(--gray-dark);
+}
+.faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+.faq-item .faq-chev {
+  flex: 0 0 auto;
+  color: var(--gray-mid);
+  transition: transform 0.2s ease;
+}
+.faq-item[open] > summary .faq-chev {
+  transform: rotate(90deg);
+}

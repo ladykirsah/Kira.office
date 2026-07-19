@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FAQ_SECTIONS, faqPageJsonLd } from "@/lib/faq";
+import { FAQ_SECTIONS, faqPageJsonLd, faqAnchorId } from "@/lib/faq";
 import { serializeJsonLd } from "@/lib/seo";
+import { FaqAnswer } from "@/components/FaqAnswer";
+import { FaqHashOpener } from "@/components/FaqHashOpener";
+import { Icon } from "@/components/Icon";
 
 const TITLE = "คำถามที่พบบ่อย (FAQ) — AirPlus";
 const DESC =
@@ -26,10 +29,11 @@ export default function FaqPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(ld) }}
       />
+      <FaqHashOpener />
 
       <div style={{ marginBottom: 8 }}>
         <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
-          ❓ ช่วยเหลือ · FAQ
+          ช่วยเหลือ · FAQ
         </div>
         <h1 className="t-h1" style={{ margin: 0, color: "var(--gray-dark)" }}>
           คำถามที่พบบ่อย
@@ -46,13 +50,17 @@ export default function FaqPage() {
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {s.items.map((it, i) => (
-              <details key={i} className="card" style={{ padding: "13px 16px" }}>
-                <summary style={{ fontWeight: 700, cursor: "pointer", color: "var(--gray-dark)" }}>
+              <details
+                key={i}
+                id={faqAnchorId(it.q)}
+                className="card faq-item"
+                style={{ padding: "13px 16px" }}
+              >
+                <summary>
                   {it.q}
+                  <Icon name="chevron" size={18} className="faq-chev" />
                 </summary>
-                <p className="muted" style={{ margin: "10px 0 0", lineHeight: 1.75 }}>
-                  {it.a}
-                </p>
+                <FaqAnswer a={it.a} />
               </details>
             ))}
           </div>
