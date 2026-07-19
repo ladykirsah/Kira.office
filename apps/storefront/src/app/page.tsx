@@ -14,6 +14,8 @@ import {
 } from "@/lib/db";
 import { AffiliateShelf } from "@/components/AffiliateShelf";
 import { LINE_OA_URL } from "@/lib/links";
+import { localBusinessJsonLd } from "@/lib/business";
+import { serializeJsonLd } from "@/lib/seo";
 import { PART_TYPE_EN, CAR_BRAND_TH, CAR_BRAND_LOGO } from "@/lib/labels";
 import { BestSellerList } from "@/components/BestSellerList";
 import { CategoryRow } from "@/components/CategoryRow";
@@ -63,6 +65,11 @@ export default async function Home() {
 
   return (
     <div className="home-sections">
+      {/* LocalBusiness structured data — the site's half of the site↔Google-listing link (matching NAP). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(localBusinessJsonLd()) }}
+      />
       <section className="section qa-section">
         <QuickAccessBar />
       </section>
