@@ -63,10 +63,13 @@ jobs:
           echo "::error::API Worker deploy failed (beyond the custom-domain step)."
           exit 1
 
-  # Auto-deploy the admin (kiraoffice-admin) via OpenNext. It lives on a SEPARATE Cloudflare account
-  # and uses its own CF_ADMIN_API_TOKEN secret. The hosted admin is intentionally NOT deployed yet
-  # (owner: desktop-first) — so a missing token WARNS (green) instead of failing. Set the secret to
-  # turn on admin auto-deploy; then a missing/broken token would surface as a real deploy error.
+  # Auto-deploy the admin (kiraoffice-admin) via OpenNext after checks pass on main.
+  # It shares CLOUDFLARE_API_TOKEN with the api job: the admin is on the SAME GoGoCash account
+  # (187ab61e… in apps/admin/wrangler.jsonc) and the SAME homeseeker.me zone, so a second token
+  # bought no isolation — and the old CF_ADMIN_API_TOKEN was never set, which silently left every
+  # merged admin change undeployed behind a green check (PR #27 needed a manual deploy).
+  # Same contract as the api job: missing token FAILS LOUDLY; the known custom-domain re-assert
+  # wart is tolerated with a warning so it can't mask a genuine deploy failure.
   deploy-admin:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -80,10 +83,22 @@ jobs:
       - run: npm ci
       - name: Deploy admin (OpenNext)
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_ADMIN_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::warning::CF_ADMIN_API_TOKEN not set — the hosted admin is intentionally not deployed (desktop-first). Set the secret to enable admin auto-deploy."
+            echo "::error::CLOUDFLARE_API_TOKEN is not set — the admin was NOT deployed; admin.homeseeker.me is still serving the previous build."
+            exit 1
+          fi
+          set +e
+          out=$(npm run deploy -w @l-shopee/admin 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -eq 0 ]; then exit 0; fi
+          # Code uploaded + deployed, but wrangler couldn't re-assert the custom domain — same known
+          # wart the api job tolerates. Warn, don't fail; anything else is a real deploy failure.
+          if echo "$out" | grep -q "Deployed kiraoffice-admin"; then
+            echo "::warning::Admin code deployed, but wrangler could not re-assert the admin.homeseeker.me custom domain (known — needs a Cloudflare dashboard fix). Not failing the run."
             exit 0
           fi
-          npm run deploy -w @l-shopee/admin
+          echo "::error::Admin deploy failed (beyond the custom-domain step)."
+          exit 1

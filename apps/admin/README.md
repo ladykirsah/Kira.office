@@ -24,15 +24,24 @@ Set `NEXT_PUBLIC_API_BASE` to point at a different API (defaults to `https://api
 
 ## Deploy (separate Worker: `kiraoffice-admin`)
 
-The admin is its **own** Workers Builds project (distinct from the api):
+**Deploys are MANUAL — nothing auto-deploys on push (verified 2026-07-20):**
 
-- **Root directory:** `apps/admin`
-- **Deploy command:** `npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy`
-- **Production branch:** `main`
+```bash
+npm run deploy -w @l-shopee/admin   # opennextjs-cloudflare build && deploy
+```
 
-`wrangler.jsonc` here targets the `kiraoffice-admin` Worker on the homeseeker account. Add a custom
-domain (`app.homeseeker.me`) via a `routes` entry or the dashboard once the UI is ready. Gate the app
-behind **Cloudflare Access** (Zero Trust) before launch.
+- There is **no Workers Builds project** for the admin (no `Workers Builds: kiraoffice-admin`
+  check on commits; every deployment shows `Source: Upload`).
+- The GitHub Actions `deploy-admin` job **exits green without deploying** because the
+  `CF_ADMIN_API_TOKEN` secret is unset — never read its green check as a real deploy. Setting
+  the secret would enable auto-deploy on `main`.
+
+`wrangler.jsonc` here targets the `kiraoffice-admin` Worker on the **GoGoCash** account
+(`187ab61ed9dbc6e616cb23e6b95aa8f1` — same account as the api + storefront; the old homeseeker
+account split caused the 1003 cross-account proxy failure). It is live at the custom domain
+**`admin.homeseeker.me`**, gated by **Cloudflare Access** (email OTP) — see
+[../../docs/KIRA_OFFICE_ACCESS_SETUP.md](../../docs/KIRA_OFFICE_ACCESS_SETUP.md) and
+[../../docs/STATE_OF_THE_BUILD.md](../../docs/STATE_OF_THE_BUILD.md) §6 for the full deploy picture.
 
 ## Planned screens
 
