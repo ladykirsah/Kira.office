@@ -24,7 +24,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-  # Auto-deploy the API Worker (kira-office) to prod after checks pass on main.
+  # Auto-deploy the API Worker (script id `kiraoffice`, no hyphen) to prod after checks pass on main.
   # Requires the CLOUDFLARE_API_TOKEN repo secret (a GoGoCash Workers+DNS-edit token; account id is
   # in wrangler.jsonc). Missing token FAILS LOUDLY — a green "deploy" that silently skipped once let
   # merged code sit undeployed for weeks (2026-07). But wrangler also exits non-zero when it can't
@@ -56,7 +56,7 @@ jobs:
           if [ $code -eq 0 ]; then exit 0; fi
           # The code uploaded + deployed, but wrangler couldn't re-assert the custom domain. Treat
           # as success (with a warning) — do NOT let this known wart hide a genuine deploy failure.
-          if echo "$out" | grep -q "Deployed kira-office"; then
+          if echo "$out" | grep -q "Deployed kiraoffice"; then
             echo "::warning::API code deployed, but wrangler could not re-assert the api.homeseeker.me custom domain (known — needs a Cloudflare dashboard fix). Not failing the run."
             exit 0
           fi

@@ -30,13 +30,16 @@
   ],
   // Same KV as apps/api — read-only use here (shop:paymentMethods → PromptPay target for checkout).
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
-  // Cross-Worker binding to the StockLedger DO deployed by the kira-office Worker (apps/api).
+  // Cross-Worker binding to the StockLedger DO deployed by the api Worker (apps/api).
   // No `migrations` block here — DO class migrations are owned by apps/api's wrangler.jsonc.
+  // `script_name` must be the api Worker's real script id: `kiraoffice`, NO HYPHEN (see the long
+  // note in the root wrangler.jsonc). Pointing it at a non-existent `kira-office` fails the whole
+  // storefront deploy with 10061 "Cannot create binding for class in script ... that does not exist".
   // NOTE: works only after apps/api has deployed the class; in local `next dev` this binding is
   // not resolvable (external script) — stock deduction code must treat it as optional locally.
   "durable_objects": {
     "bindings": [
-      { "name": "STOCK_LEDGER", "class_name": "StockLedger", "script_name": "kira-office" }
+      { "name": "STOCK_LEDGER", "class_name": "StockLedger", "script_name": "kiraoffice" }
     ]
   },
   "env": {
