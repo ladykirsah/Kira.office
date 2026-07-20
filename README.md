@@ -9,7 +9,8 @@ from one workspace.
 > **Picking this up?** Read **[docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md)** — the current
 > as-built snapshot (what's done, in progress, and next). The summary below is the short version.
 
-- **Live API on Cloudflare:** the `kira-office` Worker runs at **`https://api.homeseeker.me`**,
+- **Live API on Cloudflare:** the `kiraoffice` Worker (script id — **no hyphen**; the D1 database is
+  the hyphenated `kira-office`, they are different names) runs at **`https://api.homeseeker.me`**,
   backed by **D1** (`kira-office`) + **R2** (`kiraoffice-images`) + **KV** + the **`StockLedger`
   Durable Object**, with a daily backup cron. **Pushing to `main` auto-deploys the API Worker**
   (GitHub Actions `deploy` job; `CLOUDFLARE_API_TOKEN` secret set 2026-07-05). The **admin and the

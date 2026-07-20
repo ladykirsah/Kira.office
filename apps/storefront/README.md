@@ -6,7 +6,8 @@ with zero staff/admin routes in it** — a routing bug here can never expose bac
 
 **Kira IS the backend:** this Worker binds the SAME D1 database as `apps/api` directly (raw SQL,
 same convention), the same KV (reads `shop:paymentMethods` for the PromptPay target), and
-cross-binds the `StockLedger` Durable Object from the `kira-office` Worker via `script_name`.
+cross-binds the `StockLedger` Durable Object from the `kiraoffice` Worker via `script_name` (script
+id has NO hyphen — pointing it at `kira-office` fails the deploy with 10061; see wrangler.jsonc).
 It must deploy on the **same Cloudflare account as `apps/api`** (GoGoCash) — bindings don't cross
 accounts.
 
