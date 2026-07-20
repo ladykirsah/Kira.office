@@ -12,7 +12,7 @@
 **Snapshot:** 2026-07-19 · working branch `claude/airplus-publication-plan-08e4c7` (PR open to `main`) · repo [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private)
 **Tests:** 718 passing · **Migrations:** `0000`–`0047` + `0053`–`0055` (`0048`–`0052` live on the parked `returns` branch — see §3).
 **AirPlus is LIVE in production** at [`airplusauto.com`](https://airplusauto.com) (Worker `airplus-storefront`, Version `e212cc60`, deployed 2026-07-19). ⚠️ The prod catalog is still **demo data** (e.g. a "ครีมบำรุงผิว (Demo)" skincare cream shows as top best-seller) — real catalog load is the first post-launch task.
-**Kira.office is LIVE too** (deployed 2026-07-19 from this branch): API worker `kira-office` at `api.homeseeker.me` (branch code — warranty endpoints, `widthMm` persistence, shipping fee) and admin `kiraoffice-admin` at `admin.homeseeker.me` (Version `fd67775f`, behind Cloudflare Access "Super Admin Only"). Both on the GoGoCash account (consolidated — no more cross-account split). NOTE: the API is now ahead of `main` until PR #24 merges; Cloudflare Workers Builds still auto-deploys the API from `main`.
+**Kira.office is LIVE too** (deployed 2026-07-19 from this branch): API worker `kira-office` at `api.homeseeker.me` (branch code — warranty endpoints, `widthMm` persistence, shipping fee) and admin `kiraoffice-admin` at `admin.homeseeker.me` (Version `fd67775f`, behind Cloudflare Access "Super Admin Only"). Both on the GoGoCash account (consolidated — no more cross-account split). NOTE: PR #24/#25 have merged; the GitHub Actions `deploy` job auto-deploys the API from `main` (see §6 — admin and storefront stay manual).
 
 ---
 
@@ -198,13 +198,16 @@ npm test              # vitest (632 tests) — node env
 NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck+build
 ```
 
-**Deploy — pushing to `main` does NOT auto-deploy (verified 2026-06-27).** The GitHub Actions
-`deploy`/`deploy-admin` jobs **skip** because their `CLOUDFLARE_API_TOKEN` / `CF_ADMIN_API_TOKEN`
-secrets are unset (they exit green WITHOUT deploying — never read a green `deploy` check as a real
-deploy), and the Cloudflare **Workers Builds** integration fails on every push (its managed token
-lacks zone-DNS edit for the custom domain — see §7). **The owner deploys manually:**
-`npm run deploy` (API Worker) and `npm run deploy -w @l-shopee/admin` (admin). After any API change,
-tell the owner to `npm run deploy` — the change is not live until they do.
+**Deploy — pushing to `main` DOES auto-deploy the API (verified 2026-07-20).** The
+`CLOUDFLARE_API_TOKEN` repo secret was added 2026-07-05, so the GitHub Actions `deploy` job now
+deploys the `kira-office` API Worker on every `main` push (wrangler deployments at 2026-07-19 08:26
+and 17:21 match the PR #24/#25 merge pushes). The job fails loudly if the token goes missing; the
+known custom-domain re-assert wart is downgraded to a warning (see `ci.yml`). **Admin and storefront
+remain manual:** `deploy-admin` still **skips** because `CF_ADMIN_API_TOKEN` is unset — it exits
+green WITHOUT deploying, so never read a green `deploy-admin` check as a real deploy. The owner
+deploys the admin with `npm run deploy -w @l-shopee/admin`, and the AirPlus storefront per its
+runbook ([apps/storefront/README.md](../apps/storefront/README.md)). The Cloudflare **Workers
+Builds** integration still fails on every push and has never deployed anything (see §7).
 
 **Migrations workflow (important):** write a new numbered SQL file in `packages/db/migrations/`,
 apply it to **BOTH** prod (`2e88a362-…`) and staging (`85f22f44-…`) D1 (via the Cloudflare D1 MCP
@@ -236,7 +239,8 @@ Keep changes additive/nullable when an older Worker may still be live during rol
 - **The Next dev console retains stale HMR compile errors** across reloads/restarts. Verify "clean" via
   `build:check` passing + the page rendering with no error boundary — not the console buffer.
 - **One CI check fails on every push and is NOT a code bug:** `Workers Builds: kira-office` (Cloudflare's
-  redundant Git integration; its managed token lacks zone-DNS edit). Ignore it / disconnect it in the
-  Cloudflare dashboard. The real gate is GitHub Actions `build`.
+  redundant Git integration; its managed token lacks zone-DNS edit — it has never deployed anything).
+  Ignore it / disconnect it in the Cloudflare dashboard. The real gates are GitHub Actions `build` and
+  `deploy` (the API auto-deploy, §6); a green `deploy-admin` is still NOT a real deploy (token unset).
 - **Owner's UI vocabulary:** the tall input is the "L input box" (`inputL`), the compact one the "S input
   box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.

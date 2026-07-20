@@ -11,9 +11,10 @@ from one workspace.
 
 - **Live API on Cloudflare:** the `kira-office` Worker runs at **`https://api.homeseeker.me`**,
   backed by **D1** (`kira-office`) + **R2** (`kiraoffice-images`) + **KV** + the **`StockLedger`
-  Durable Object**, with a daily backup cron. **Deploy is manual** (`npm run deploy`) — pushing to
-  `main` does **not** auto-deploy (CI deploy jobs skip on unset secrets; Workers Builds fails on the
-  custom-domain DNS). See [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §6.
+  Durable Object**, with a daily backup cron. **Pushing to `main` auto-deploys the API Worker**
+  (GitHub Actions `deploy` job; `CLOUDFLARE_API_TOKEN` secret set 2026-07-05). The **admin and the
+  AirPlus storefront still deploy manually** — `deploy-admin` exits green without deploying while
+  `CF_ADMIN_API_TOKEN` is unset. See [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §6.
 - **Full REST surface** — products CRUD + image gallery, pricing, stock/ledger, barcodes, attributes,
   car-fitment tree, services, **bilingual shop info + logo/QR uploads**, sales/refunds, finance, CSV
   imports, idempotent `/sync`. See [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
