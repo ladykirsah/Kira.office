@@ -36,8 +36,9 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
     section: "Settings",
     links: [
       ["/settings/shop", "🏪", "Shop info"],
+      // Warranty used to be its own entry; it now lives on the Product categories card here, so a
+      // category is created complete (title + photo + warranty) in one place.
       ["/settings/attributes", "🧩", "Part attributes"],
-      ["/settings/warranty", "🛡️", "Warranty"],
       ["/settings/services", "🔧", "Service Setup"],
       ["/settings/car-fitment", "🚗", "Car fitment"],
       ["/settings/banners", "🖼️", "Banners"],
