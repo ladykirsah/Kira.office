@@ -63,19 +63,66 @@ export function chargeableWeightKg(
 }
 
 /**
- * Chargeable weight of a whole cart, treated as ONE combined parcel:
- * the greater of the summed actual weights and the summed volumetric weights
- * (the owner's confirmed multi-item rule). Each line is scaled by its qty.
+ * Dimensions of the single carton a cart is packed into, per the owner's rule
+ * (confirmed 2026-07-20): items are stacked so one face of each touches, and
+ * each is laid on its LARGEST face. So an item contributes its smallest
+ * dimension to the stack height, and the carton's footprint is the largest
+ * footprint in the cart.
+ *
+ *   combined = max(d1) x max(d2) x SUM(d3 x qty)   where d1 >= d2 >= d3 per item
+ *
+ * This deliberately counts the void space that summing each item's own volume
+ * ignores — a small item sitting on a large one still ships inside the large
+ * one's footprint. It is therefore never cheaper than summing volumes, and for
+ * identical items it is exactly qty x the single-item volume.
+ *
+ * Items with unknown or non-positive dimensions are skipped (they cannot be
+ * stacked); `null` means nothing in the cart was measurable, and the caller
+ * should price on actual weight alone.
+ */
+export function packedParcelDims(
+  items: readonly { dims: ParcelDims | null; qty: number }[],
+): ParcelDims | null {
+  let footprintLong = 0;
+  let footprintShort = 0;
+  let stackHeight = 0;
+  let measurable = false;
+
+  for (const item of items) {
+    const qty = Math.max(0, Math.floor(item.qty));
+    if (qty <= 0) continue;
+    const d = item.dims;
+    if (!d) continue;
+    const { widthMm, lengthMm, heightMm } = d;
+    if (widthMm == null || lengthMm == null || heightMm == null) continue;
+    if (widthMm <= 0 || lengthMm <= 0 || heightMm <= 0) continue;
+
+    // Largest face is the two biggest dimensions; the smallest is the stack axis.
+    const sorted = [widthMm, lengthMm, heightMm].sort((a, b) => b - a);
+    const [d1 = 0, d2 = 0, d3 = 0] = sorted;
+    measurable = true;
+    footprintLong = Math.max(footprintLong, d1);
+    footprintShort = Math.max(footprintShort, d2);
+    stackHeight += d3 * qty;
+  }
+
+  if (!measurable) return null;
+  return { widthMm: footprintLong, lengthMm: footprintShort, heightMm: stackHeight };
+}
+
+/**
+ * Chargeable weight of a whole cart, treated as ONE combined parcel: the greater
+ * of the summed actual weights and the volumetric weight of the packed carton
+ * (see `packedParcelDims`). Each line is scaled by its qty.
  */
 export function cartChargeableWeightKg(items: ShippableItem[], divisor: number): number {
   let totalActualKg = 0;
-  let totalVolumetricKg = 0;
   for (const item of items) {
     const qty = Math.max(0, item.qty);
     totalActualKg += (Math.max(0, item.weightGrams) / 1000) * qty;
-    totalVolumetricKg += volumetricWeightKg(item.dims, divisor) * qty;
   }
-  return Math.max(totalActualKg, totalVolumetricKg);
+  const packedKg = volumetricWeightKg(packedParcelDims(items), divisor);
+  return Math.max(totalActualKg, packedKg);
 }
 
 /**

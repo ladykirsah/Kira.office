@@ -3,6 +3,7 @@ import {
   volumetricWeightKg,
   chargeableWeightKg,
   cartChargeableWeightKg,
+  packedParcelDims,
   feeForChargeableKg,
   quoteShippingSatang,
   type ShippingRateCard,
@@ -162,5 +163,81 @@ describe("quoteShippingSatang", () => {
     ];
     // 5.8 kg -> 6000 + ceil(0.8)=1 kg overflow (1000) = 7000, + remote 5000 = 12000
     expect(quoteShippingSatang(items, true, CARD)).toBe(12000);
+  });
+});
+
+/**
+ * The owner's packing rule (confirmed 2026-07-20): items are stacked so one face of each
+ * touches, and they are laid on their LARGEST face. So each item contributes its smallest
+ * dimension to the stack height, and the footprint is the largest footprint in the cart.
+ *
+ * Fixtures are the owner's own three worked examples, in mm.
+ */
+const PROD_A = { widthMm: 500, lengthMm: 1000, heightMm: 200 }; // 50 x 100 x 20 cm
+const PROD_B = { widthMm: 200, lengthMm: 600, heightMm: 100 }; //  20 x 60  x 10 cm
+const PROD_C = { widthMm: 300, lengthMm: 300, heightMm: 300 }; //  30 x 30  x 30 cm
+
+describe("packedParcelDims (owner's stack-on-largest-face rule)", () => {
+  it("owner case 1 > 2 units of A stack on the 50x100 face > 100 x 50 x 40 cm", () => {
+    expect(packedParcelDims([{ dims: PROD_A, qty: 2 }])).toEqual({
+      widthMm: 1000,
+      lengthMm: 500,
+      heightMm: 400,
+    });
+  });
+
+  it("owner case 2 > A + B, 50x100 touching 20x60 > 100 x 50 x 30 cm", () => {
+    expect(
+      packedParcelDims([
+        { dims: PROD_A, qty: 1 },
+        { dims: PROD_B, qty: 1 },
+      ]),
+    ).toEqual({ widthMm: 1000, lengthMm: 500, heightMm: 300 });
+  });
+
+  it("owner case 3 > 2 cubes > 30 x 30 x 60 cm (orientation is moot when sides are equal)", () => {
+    expect(packedParcelDims([{ dims: PROD_C, qty: 2 }])).toEqual({
+      widthMm: 300,
+      lengthMm: 300,
+      heightMm: 600,
+    });
+  });
+
+  it("given a single item > returns it laid on its largest face, not its stored order", () => {
+    expect(packedParcelDims([{ dims: PROD_A, qty: 1 }])).toEqual({
+      widthMm: 1000,
+      lengthMm: 500,
+      heightMm: 200,
+    });
+  });
+
+  it("given an item with unknown dims > ignores it rather than treating it as zero-sized", () => {
+    expect(
+      packedParcelDims([
+        { dims: PROD_C, qty: 1 },
+        { dims: null, qty: 3 },
+      ]),
+    ).toEqual({ widthMm: 300, lengthMm: 300, heightMm: 300 });
+  });
+
+  it("given nothing measurable > returns null so the caller prices on actual weight alone", () => {
+    expect(packedParcelDims([{ dims: null, qty: 2 }])).toBeNull();
+  });
+});
+
+describe("cart volumetric weight uses the packed box, not summed item volumes", () => {
+  it("owner case 2 > packed box counts the void space that summing volumes ignores", () => {
+    // Summing each item's own volume gives 20 + 2.4 = 22.4 kg and UNDER-charges: the real
+    // carton is 100x50x30 cm because B sits on top of A's larger footprint.
+    const items = [
+      { weightGrams: 0, dims: PROD_A, qty: 1 },
+      { weightGrams: 0, dims: PROD_B, qty: 1 },
+    ];
+    expect(cartChargeableWeightKg(items, 5000)).toBeCloseTo(30, 6);
+  });
+
+  it("owner case 1 > two identical items are exactly twice the volume", () => {
+    const items = [{ weightGrams: 0, dims: PROD_A, qty: 2 }];
+    expect(cartChargeableWeightKg(items, 5000)).toBeCloseTo(40, 6);
   });
 });
