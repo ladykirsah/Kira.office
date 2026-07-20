@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { carBrandTiles, getDb } from "@/lib/db";
 import { CAR_BRAND_LOGO, CAR_BRAND_TH } from "@/lib/labels";
+import { imgUrl } from "@/lib/img";
 import { Icon } from "@/components/Icon";
 
 export const metadata: Metadata = { title: "ยี่ห้อรถ · AirPlus" };
@@ -37,7 +38,9 @@ export default async function BrandsPage() {
         <div className="catlist">
           {brands.map((b) => {
             const th = CAR_BRAND_TH[b.brand]; // Thai headline, English becomes the sub-line
-            const logo = CAR_BRAND_LOGO[b.brand];
+            // Owner-uploaded cover (Kira.office → Car fitment) wins; the bundled logo map is the
+            // legacy fallback for the 3 brands that shipped with one, then ✦.
+            const logo = b.imageKey ? imgUrl(b.imageKey) : CAR_BRAND_LOGO[b.brand];
             return (
               <Link
                 key={b.brand}

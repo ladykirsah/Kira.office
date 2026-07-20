@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { inputS } from "@/lib/inputStyles";
 import {
   fetchAttributes,
   addAttribute,
   deleteAttribute,
+  uploadTaxonomyImage,
+  clearTaxonomyImage,
+  imageUrl,
   type AttrKind,
   type AttrOption,
   type Attributes,
@@ -19,20 +22,124 @@ export interface AttrKindConfig {
   label: string;
   listKey: keyof Attributes;
   placeholder: string;
+  /** Show a cover-image picker per row — only kinds the storefront renders tiles for. */
+  cover?: "type" | "car-brand";
+}
+
+/** Square thumbnail + upload / remove for one taxonomy row's storefront cover image. */
+export function CoverPicker({
+  kind,
+  option,
+  onChanged,
+}: {
+  kind: "type" | "car-brand";
+  option: AttrOption;
+  onChanged: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const toast = useToast();
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      await uploadTaxonomyImage(kind, option.id, file);
+      await onChanged();
+      toast(`Cover set for “${option.name}” ✓`, "success");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await clearTaxonomyImage(kind, option.id);
+      await onChanged();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => pick(e.target.files?.[0])}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        title={option.imageKey ? "Replace cover image" : "Add cover image"}
+        aria-label={`${option.imageKey ? "Replace" : "Add"} cover image for ${option.name}`}
+        style={{
+          width: 34,
+          height: 34,
+          padding: 0,
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+          cursor: busy ? "default" : "pointer",
+          overflow: "hidden",
+          display: "grid",
+          placeItems: "center",
+          fontSize: 15,
+          lineHeight: 1,
+        }}
+      >
+        {option.imageKey ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl(option.imageKey)}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          <span aria-hidden="true" className="muted">
+            ＋
+          </span>
+        )}
+      </button>
+      {option.imageKey && (
+        <ConfirmButton
+          className="icon-btn"
+          ariaLabel={`Remove cover image for ${option.name}`}
+          confirmLabel="Remove image?"
+          onConfirm={remove}
+        >
+          <XIcon />
+        </ConfirmButton>
+      )}
+    </span>
+  );
 }
 
 function ListCard({
   label,
   placeholder,
   items,
+  cover,
   onAdd,
   onDelete,
+  onChanged,
 }: {
   label: string;
   placeholder: string;
   items: AttrOption[];
+  cover?: "type" | "car-brand";
   onAdd: (name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onChanged: () => Promise<void>;
 }) {
   const [val, setVal] = useState("");
   const [busy, setBusy] = useState(false);
@@ -74,7 +181,10 @@ function ListCard({
                 padding: "8px 0",
               }}
             >
-              <span>{o.name}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                {cover && <CoverPicker kind={cover} option={o} onChanged={onChanged} />}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.name}</span>
+              </span>
               <ConfirmButton
                 className="icon-btn"
                 ariaLabel={`Remove ${o.name}`}
@@ -174,6 +284,8 @@ export function AttributeManager({
               label={k.label}
               placeholder={k.placeholder}
               items={data ? data[k.listKey] : []}
+              cover={k.cover}
+              onChanged={load}
               onAdd={(name) => add(k.kind, name)}
               onDelete={(id) => del(k.kind, id)}
             />

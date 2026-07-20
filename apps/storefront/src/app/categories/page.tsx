@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb, listProductTypes } from "@/lib/db";
 import { PART_TYPE_EN } from "@/lib/labels";
+import { imgUrl } from "@/lib/img";
 import { Icon } from "@/components/Icon";
 
 export const metadata: Metadata = { title: "หมวดหมู่สินค้า · AirPlus" };
@@ -43,10 +44,19 @@ export default async function CategoriesPage() {
               aria-label={`ดูสินค้าในหมวด ${t.name} (${t.productCount} รายการ)`}
             >
               <div className="catlist-thumb">
-                {/* categories have no photo yet → brand-orange ✦ placeholder (same as the home strip) */}
-                <span aria-hidden="true" className="star">
-                  ✦
-                </span>
+                {/* Owner-uploaded cover (Kira.office → Part attributes); ✦ until one is set. */}
+                {t.imageKey ? (
+                  <img
+                    src={imgUrl(t.imageKey)}
+                    alt=""
+                    loading="lazy"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }}
+                  />
+                ) : (
+                  <span aria-hidden="true" className="star">
+                    ✦
+                  </span>
+                )}
               </div>
               <div className="catlist-info">
                 <div className="catlist-name">{t.name}</div>

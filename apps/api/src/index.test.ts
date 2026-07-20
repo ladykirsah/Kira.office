@@ -2807,6 +2807,7 @@ describe("part attributes (brand / car system / part name)", () => {
         {
           id: "cb1",
           name: "Toyota",
+          imageKey: null, // no storefront cover set for this brand
           models: [
             {
               id: "cm1",

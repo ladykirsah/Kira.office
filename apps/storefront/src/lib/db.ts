@@ -278,11 +278,14 @@ export async function bestSellers(
 export async function carBrandTiles(
   db: D1Database,
   limit = 8,
-): Promise<{ brand: string; productCount: number }[]> {
+): Promise<{ brand: string; productCount: number; imageKey: string | null }[]> {
   const rows = await db
     .prepare(
-      `SELECT f.car_brand AS brand, COUNT(DISTINCT f.product_id) AS productCount
+      // cb is a LEFT JOIN on NAME: tiles are grouped by the fitment's free-text car_brand, while the
+      // cover image lives on the car_brands taxonomy row. No match (or no cover) → imageKey null → ✦.
+      `SELECT f.car_brand AS brand, MAX(cb.image_key) AS imageKey, COUNT(DISTINCT f.product_id) AS productCount
        FROM product_fitments f JOIN products p ON p.id = f.product_id AND p.status = 'active'
+       LEFT JOIN car_brands cb ON cb.name = f.car_brand
        WHERE f.car_brand IS NOT NULL AND TRIM(f.car_brand) != ''
          -- match the catalog: count only products with at least one in-stock variant
          AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id
@@ -290,7 +293,7 @@ export async function carBrandTiles(
                             FROM stock_ledger_entries WHERE product_variant_id = pv.id) > 0)
        GROUP BY f.car_brand ORDER BY productCount DESC, brand LIMIT ${Math.min(limit, 64)}`,
     )
-    .all<{ brand: string; productCount: number }>();
+    .all<{ brand: string; productCount: number; imageKey: string | null }>();
   return rows.results ?? [];
 }
 
@@ -389,21 +392,21 @@ export async function fitmentOptions(
  *  out-of-stock hiding rule). */
 export async function listProductTypes(
   db: D1Database,
-): Promise<{ id: string; name: string; productCount: number }[]> {
+): Promise<{ id: string; name: string; productCount: number; imageKey: string | null }[]> {
   const rows = await db
     .prepare(
       // Only types with an active, in-stock product surface; productCount = distinct such products
       // (same in-stock rule as the catalog + by-brand tiles, so the counts stay consistent).
-      `SELECT t.id, t.name, COUNT(DISTINCT p.id) AS productCount
+      `SELECT t.id, t.name, t.image_key AS imageKey, COUNT(DISTINCT p.id) AS productCount
        FROM product_types t
        JOIN products p ON p.type_id = t.id AND p.status = 'active'
        JOIN product_variants v ON v.product_id = p.id
        WHERE (SELECT COALESCE(SUM(quantity_delta), 0)
                 FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0
-       GROUP BY t.id, t.name, t.sort_order
+       GROUP BY t.id, t.name, t.image_key, t.sort_order
        ORDER BY t.sort_order, t.name`,
     )
-    .all<{ id: string; name: string; productCount: number }>();
+    .all<{ id: string; name: string; productCount: number; imageKey: string | null }>();
   return rows.results ?? [];
 }
 
