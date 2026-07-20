@@ -16,7 +16,8 @@ import { AffiliateShelf } from "@/components/AffiliateShelf";
 import { LINE_OA_URL } from "@/lib/links";
 import { localBusinessJsonLd } from "@/lib/business";
 import { serializeJsonLd } from "@/lib/seo";
-import { PART_TYPE_EN, CAR_BRAND_TH, CAR_BRAND_LOGO } from "@/lib/labels";
+import { PART_TYPE_EN, CAR_BRAND_TH } from "@/lib/labels";
+import { resolveBrandLogo } from "@/lib/brandLogo";
 import { BestSellerList } from "@/components/BestSellerList";
 import { CategoryRow } from "@/components/CategoryRow";
 import { CollectionRow } from "@/components/CollectionRow";
@@ -126,9 +127,7 @@ export default async function Home() {
                 name: th ?? b.brand, // Thai headline (falls back to the English brand if unmapped)
                 nameEn: th ? b.brand : undefined, // English gray sub-line only when we have a Thai headline
                 subtitle: `${b.productCount} รายการ`,
-                // owner-uploaded cover wins; bundled make logo (Toyota/Honda/Isuzu) is the legacy
-                // fallback, then ✦ if neither exists
-                image: b.imageKey ? imgUrl(b.imageKey) : CAR_BRAND_LOGO[b.brand],
+                image: resolveBrandLogo(b.brand, b.imageKey) ?? undefined,
               };
             })}
           />
