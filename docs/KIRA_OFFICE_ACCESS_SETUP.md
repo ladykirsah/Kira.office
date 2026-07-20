@@ -69,7 +69,7 @@ Open `admin.homeseeker.me` in a fresh browser → Access emails a code → enter
 can list products (this exercises the admin→api proxy). Do this BEFORE step 4 so you have a working
 way in before the API closes.
 
-### 4. Set the Worker secrets on the API  — [OWNER, GoGoCash token]
+### 4. Set the Worker secrets on the API  — [OWNER, GoGoCash token]  ✅ DONE 2026-07-20
 ```
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_TEAM_DOMAIN   # gogocash.cloudflareaccess.com
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put ACCESS_AUD           # dfcb79…76ea65
@@ -77,7 +77,21 @@ CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler secret put A
 Now `requireAccess` verifies the JWT on every non-`/img/*` request. **This closes the open-API hole,
 and is the point the localhost admin stops working** — from here use `admin.homeseeker.me`, not localhost.
 
-### 5. Seed the owner row  — [OWNER, additive R1]
+> ⚠️ **This step had NOT been run until 2026-07-20**, so the API was reachable with no credentials
+> for the whole period the admin was live — reads *and* writes (`PUT`/`DELETE /taxonomy-images/…`
+> both succeeded unauthenticated). Cause: `requireAccess` **fails OPEN** when either secret is
+> missing, and nothing warns about that. Verified closed after setting them: `/products`, `/orders`,
+> `/customers`, `/stock/movements`, `/audit-log`, `/settings` → 401; `/health` + `/img/*` still
+> public; `airplusauto.com` unaffected.
+>
+> **Secrets propagate across edge colos over ~30–60s** — right after `secret put`, endpoints flap
+> 200/401 depending on which colo answers. That is not a routing bug; re-test ~25s apart until it
+> converges.
+
+### 5. Seed the owner row  — [OWNER, additive R1]  ⬜ NOT DONE (verified empty 2026-07-20)
+The `users` table is still empty. Harmless today — role enforcement is unwired (see the last
+section), so the single allow-listed Access email IS the owner. Do this when a second admin is
+invited, or now if you want the row to exist.
 ```
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 execute kira-office --remote --command \
   "INSERT INTO users (id,name,email,role,status,created_at) VALUES ('<uuid>','Lady Kirsah','lady.kirsah@gmail.com','owner','active',strftime('%s','now')*1000);"
