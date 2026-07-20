@@ -63,10 +63,11 @@ jobs:
           echo "::error::API Worker deploy failed (beyond the custom-domain step)."
           exit 1
 
-  # Auto-deploy the admin (kiraoffice-admin) via OpenNext. It lives on a SEPARATE Cloudflare account
-  # and uses its own CF_ADMIN_API_TOKEN secret. The hosted admin is intentionally NOT deployed yet
-  # (owner: desktop-first) — so a missing token WARNS (green) instead of failing. Set the secret to
-  # turn on admin auto-deploy; then a missing/broken token would surface as a real deploy error.
+  # Auto-deploy the admin (kiraoffice-admin) via OpenNext, using its own CF_ADMIN_API_TOKEN secret.
+  # The secret is NOT set, so this job warns and exits green WITHOUT deploying. Since 2026-07-19 the
+  # admin is LIVE at admin.homeseeker.me, so a green check here does NOT mean the merge is live —
+  # admin changes sit undeployed until someone runs `npm run deploy -w @l-shopee/admin`. Set the
+  # secret to turn on real auto-deploy; then a missing/broken token surfaces as a real deploy error.
   deploy-admin:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -83,7 +84,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_ADMIN_API_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::warning::CF_ADMIN_API_TOKEN not set — the hosted admin is intentionally not deployed (desktop-first). Set the secret to enable admin auto-deploy."
+            echo "::warning::CF_ADMIN_API_TOKEN not set — admin NOT deployed. admin.homeseeker.me is LIVE but still serving the previous build; run 'npm run deploy -w @l-shopee/admin' to ship this merge, or set the secret to enable auto-deploy."
             exit 0
           fi
           npm run deploy -w @l-shopee/admin
