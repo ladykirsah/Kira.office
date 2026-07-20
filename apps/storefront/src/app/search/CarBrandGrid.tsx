@@ -1,12 +1,19 @@
 import Link from "next/link";
-import { CAR_BRAND_LOGO, CAR_BRAND_TH } from "@/lib/labels";
+import { CAR_BRAND_TH } from "@/lib/labels";
+import { resolveBrandLogo } from "@/lib/brandLogo";
 
 /**
- * "ค้นหาตามรถของคุณ" — a grid of car-brand tiles whose logo fills the whole square (same logo assets
- * as the home by-brand row; ✦ fallback for brands without a logo file). No "ทั้งหมด" tile — every
- * tile is a real make. Pure display → server component. Each tile filters /products by fitment.
+ * "ค้นหาตามรถของคุณ" — a grid of car-brand tiles whose logo fills the whole square (owner-uploaded
+ * cover first, bundled logo as fallback, ✦ when neither exists). No "ทั้งหมด" tile — every tile is
+ * a real make. Pure display → server component. Each tile filters /products by fitment.
  */
-export function CarBrandGrid({ brands }: { brands: { brand: string; productCount: number }[] }) {
+export function CarBrandGrid({
+  brands,
+}: {
+  // imageKey MUST stay on this type: dropping it is what silently ignored owner-uploaded logos here
+  // while /brands and the home row showed them.
+  brands: { brand: string; productCount: number; imageKey: string | null }[];
+}) {
   if (brands.length === 0) return null;
   return (
     <section>
@@ -16,7 +23,7 @@ export function CarBrandGrid({ brands }: { brands: { brand: string; productCount
       <div className="car-grid">
         {brands.map((b) => {
           const th = CAR_BRAND_TH[b.brand];
-          const logo = CAR_BRAND_LOGO[b.brand];
+          const logo = resolveBrandLogo(b.brand, b.imageKey);
           return (
             <Link
               key={b.brand}
