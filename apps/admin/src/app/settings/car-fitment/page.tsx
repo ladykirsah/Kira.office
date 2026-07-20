@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
+import { CoverPicker } from "../AttributeManager";
 import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
@@ -171,7 +172,12 @@ export default function CarFitmentPage() {
                     padding: "4px 6px 8px",
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>{selected.name} · models</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    {/* Cover photo for this brand's storefront tile (replaces the old hardcoded
+                        logo map — any brand can have one now, not just Toyota/Honda/Isuzu). */}
+                    <CoverPicker kind="car-brand" option={selected} onChanged={() => load()} />
+                    <span style={{ fontWeight: 600 }}>{selected.name} · models</span>
+                  </span>
                   <ConfirmButton
                     className="btn-sm"
                     confirmLabel="Remove brand?"

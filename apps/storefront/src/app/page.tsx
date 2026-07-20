@@ -105,6 +105,7 @@ export default async function Home() {
               name: t.name,
               nameEn: PART_TYPE_EN[t.name],
               subtitle: `${t.productCount} รายการ`,
+              image: t.imageKey ? imgUrl(t.imageKey) : undefined, // owner-uploaded cover, else ✦
             }))}
           />
         </section>
@@ -125,7 +126,9 @@ export default async function Home() {
                 name: th ?? b.brand, // Thai headline (falls back to the English brand if unmapped)
                 nameEn: th ? b.brand : undefined, // English gray sub-line only when we have a Thai headline
                 subtitle: `${b.productCount} รายการ`,
-                image: CAR_BRAND_LOGO[b.brand], // make logo (Toyota/Honda/Isuzu…), ✦ fallback if unmapped
+                // owner-uploaded cover wins; bundled make logo (Toyota/Honda/Isuzu) is the legacy
+                // fallback, then ✦ if neither exists
+                image: b.imageKey ? imgUrl(b.imageKey) : CAR_BRAND_LOGO[b.brand],
               };
             })}
           />

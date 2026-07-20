@@ -111,6 +111,8 @@ export type AttrKind = "brand" | "type" | "usage" | "car_brand" | "car_model";
 export interface AttrOption {
   id: string;
   name: string;
+  /** Cover-image R2 key — product types and car brands only; null/absent for other kinds. */
+  imageKey?: string | null;
 }
 export interface Attributes {
   brands: AttrOption[];
@@ -479,6 +481,8 @@ export interface CarModelNode extends AttrOption, CarModelInfo {}
 export interface CarBrandTree {
   id: string;
   name: string;
+  /** Cover image for the storefront's car-brand tile (null → ✦ placeholder). */
+  imageKey?: string | null;
   models: CarModelNode[];
 }
 
@@ -837,6 +841,35 @@ export async function clearPayments(): Promise<{ cleared: number }> {
 }
 
 /** Upload the shop logo or contact-QR image (jpeg/png/webp, ≤5MB). Returns the stored R2 key. */
+/** Upload a cover image for a product category / car brand (storefront tiles). Replaces any existing
+ *  cover. Kinds match the api's /taxonomy-images/:kind/:id route. */
+export async function uploadTaxonomyImage(
+  kind: "type" | "car-brand",
+  id: string,
+  file: File,
+): Promise<{ key: string; url: string }> {
+  const res = await apiFetch(`/taxonomy-images/${kind}/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "content-type": file.type },
+    body: file,
+  });
+  if (!res.ok) {
+    const msg = await res.json().catch(() => null);
+    throw new Error(
+      (msg as { error?: string } | null)?.error ?? `Upload failed (HTTP ${res.status})`,
+    );
+  }
+  return (await res.json()) as { key: string; url: string };
+}
+
+/** Remove a category / car-brand cover image (the storefront falls back to its ✦ placeholder). */
+export async function clearTaxonomyImage(kind: "type" | "car-brand", id: string): Promise<void> {
+  const res = await apiFetch(`/taxonomy-images/${kind}/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Remove failed (HTTP ${res.status})`);
+}
+
 export async function uploadShopImage(
   slot: "logo" | "qr",
   file: File,

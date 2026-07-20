@@ -5,7 +5,8 @@ import { AttributeManager, type AttrKindConfig } from "../AttributeManager";
 const KINDS: AttrKindConfig[] = [
   { kind: "brand", label: "Part brands", listKey: "brands", placeholder: "Add brand…" },
   { kind: "usage", label: "Car systems", listKey: "usages", placeholder: "Add system…" },
-  { kind: "type", label: "Part names", listKey: "types", placeholder: "Add part…" },
+  // Part names are the storefront's product categories — they carry the category tile's cover photo.
+  { kind: "type", label: "Part names", listKey: "types", placeholder: "Add part…", cover: "type" },
 ];
 
 export default function PartAttributesPage() {

@@ -14,6 +14,9 @@ import {
   verifySlipWithSlipOk,
   type RowError,
   type SaleLineInput,
+  TAXONOMY_IMAGE_TABLE,
+  taxonomyImageKey,
+  type TaxonomyImageKind,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2600,6 +2603,8 @@ function mmOrNull(value: number | null | undefined): number | null {
 export interface AttrOption {
   id: string;
   name: string;
+  /** Cover-image R2 key — only product types and car brands can have one; null/absent otherwise. */
+  imageKey?: string | null;
 }
 
 // Whitelist of attribute kinds → their table. Table names come from this literal map only (never
@@ -2622,11 +2627,16 @@ export async function listAttributes(db: D1Database): Promise<{
 }> {
   const q = (table: string) =>
     db.prepare(`SELECT id, name FROM ${table} ORDER BY sort_order, name`).all<AttrOption>();
+  // product_types and car_brands additionally carry a cover image for the storefront tiles.
+  const qImg = (table: string) =>
+    db
+      .prepare(`SELECT id, name, image_key AS imageKey FROM ${table} ORDER BY sort_order, name`)
+      .all<AttrOption>();
   const [brands, types, usages, carBrands, carModels] = await Promise.all([
     q("brands"),
-    q("product_types"),
+    qImg("product_types"),
     q("usage_categories"),
-    q("car_brands"),
+    qImg("car_brands"),
     q("car_models"),
   ]);
   return {
@@ -2672,6 +2682,52 @@ export async function setTypeWarranty(
     .prepare("UPDATE product_types SET warranty_days = ? WHERE id = ?")
     .bind(normalizeWarrantyDays(warrantyDays), id)
     .run();
+}
+
+/**
+ * Store a cover image for a taxonomy row (product category / car brand) in R2 and record its key.
+ * Mirrors storeShopImage: same validator, same public /img/ serving route — but under the
+ * `taxonomy/` namespace, which GET /img/:key must allow-list or the picture 404s.
+ * Replacing a cover writes a NEW key and deletes the old object, so no stale <img> cache survives.
+ */
+export async function storeTaxonomyImage(
+  db: D1Database,
+  bucket: R2Bucket,
+  kind: TaxonomyImageKind,
+  id: string,
+  bytes: ArrayBuffer,
+  contentType: string | null,
+): Promise<UploadImageResult> {
+  const table = TAXONOMY_IMAGE_TABLE[kind];
+  if (!table) throw new Error("unknown taxonomy kind");
+  const ext = validateImage(bytes, contentType);
+  const key = taxonomyImageKey(kind, id, ext, crypto.randomUUID());
+  const prev = await db
+    .prepare(`SELECT image_key AS imageKey FROM ${table} WHERE id = ?`)
+    .bind(id)
+    .first<{ imageKey: string | null }>();
+  if (!prev) throw new Error("not found");
+  await bucket.put(key, bytes, { httpMetadata: { contentType: contentType! } });
+  await db.prepare(`UPDATE ${table} SET image_key = ? WHERE id = ?`).bind(key, id).run();
+  if (prev.imageKey) await bucket.delete(prev.imageKey).catch(() => {});
+  return { key, url: `/img/${key}` };
+}
+
+/** Clear a taxonomy row's cover image (row keeps working — the storefront falls back to ✦). */
+export async function clearTaxonomyImage(
+  db: D1Database,
+  bucket: R2Bucket,
+  kind: TaxonomyImageKind,
+  id: string,
+): Promise<void> {
+  const table = TAXONOMY_IMAGE_TABLE[kind];
+  if (!table) throw new Error("unknown taxonomy kind");
+  const prev = await db
+    .prepare(`SELECT image_key AS imageKey FROM ${table} WHERE id = ?`)
+    .bind(id)
+    .first<{ imageKey: string | null }>();
+  await db.prepare(`UPDATE ${table} SET image_key = NULL WHERE id = ?`).bind(id).run();
+  if (prev?.imageKey) await bucket.delete(prev.imageKey).catch(() => {});
 }
 
 /** Find an option by name (case-insensitive) or create it. Returns the option. */
@@ -2787,13 +2843,17 @@ export interface CarModelNode extends AttrOption, CarModelInfo {}
 export interface CarBrandTree {
   id: string;
   name: string;
+  /** Cover image for the storefront's car-brand tile (null → ✦ placeholder). */
+  imageKey?: string | null;
   models: CarModelNode[];
 }
 
 /** Car brands with their models nested — for the fitment dropdowns and the Car fitment settings. */
 export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrandTree[] }> {
   const [brands, models] = await Promise.all([
-    db.prepare("SELECT id, name FROM car_brands ORDER BY sort_order, name").all<AttrOption>(),
+    db
+      .prepare("SELECT id, name, image_key AS imageKey FROM car_brands ORDER BY sort_order, name")
+      .all<AttrOption>(),
     db
       .prepare(
         "SELECT id, name, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_usage AS oringUsage, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
@@ -2833,6 +2893,7 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     brands: (brands.results ?? []).map((b) => ({
       id: b.id,
       name: b.name,
+      imageKey: b.imageKey ?? null,
       models: byBrand.get(b.id) ?? [],
     })),
   };
@@ -3985,6 +4046,33 @@ const worker = {
       await setTypeWarranty(env.DB, warrantySet[1]!, body.warrantyDays ?? null);
       return json({ ok: true });
     }
+    // Cover image for a product category / car brand: PUT the raw bytes, DELETE to clear.
+    const taxImage = url.pathname.match(/^\/taxonomy-images\/(type|car-brand)\/([^/]+)$/);
+    if (taxImage) {
+      const kind = taxImage[1] as TaxonomyImageKind;
+      const id = decodeURIComponent(taxImage[2]!);
+      if (request.method === "PUT") {
+        try {
+          const bytes = await request.arrayBuffer();
+          const out = await storeTaxonomyImage(
+            env.DB,
+            env.IMAGES,
+            kind,
+            id,
+            bytes,
+            request.headers.get("content-type"),
+          );
+          return json(out);
+        } catch (err) {
+          const msg = (err as Error).message;
+          return json({ error: msg }, msg === "not found" ? 404 : 400);
+        }
+      }
+      if (request.method === "DELETE") {
+        await clearTaxonomyImage(env.DB, env.IMAGES, kind, id);
+        return json({ ok: true });
+      }
+    }
     const attrAdd = url.pathname.match(/^\/attributes\/([^/]+)$/);
     if (attrAdd && request.method === "POST") {
       const table = ATTR_TABLE[attrAdd[1]!];
@@ -4225,7 +4313,7 @@ const worker = {
       // This route is public (auth-exempt) so <img> tags work. The IMAGES bucket also holds the
       // daily full-DB backup (backups/*.json) — restrict public reads to the image namespaces only,
       // never serve anything else, so a guessable key can't leak the backup or other objects.
-      if (!/^(products|shop)\//.test(key)) {
+      if (!/^(products|shop|taxonomy)\//.test(key)) {
         return new Response("Not found", { status: 404, headers: responseHeaders });
       }
       const obj = await env.IMAGES.get(key);

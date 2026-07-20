@@ -23,5 +23,6 @@ export * from "./customerImport";
 export * from "./thaiDate";
 export * from "./shipping";
 export * from "./flashRates";
+export * from "./taxonomyImages";
 
 export * from "./lineLogin";
