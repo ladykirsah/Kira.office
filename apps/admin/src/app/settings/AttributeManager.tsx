@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { inputS } from "@/lib/inputStyles";
 import { parseWarrantyDays, validateAttributeName } from "@/lib/categoryForm";
+import { toSquareCover } from "@/lib/cropImage";
 import {
   fetchAttributes,
   fetchTypeWarranties,
@@ -60,7 +61,9 @@ export function CoverPicker({
     if (!file) return;
     setBusy(true);
     try {
-      await uploadTaxonomyImage(kind, option.id, file);
+      // Square it before upload — every tile that shows this is 1:1 with object-fit: cover,
+      // so an oblong original would be cropped at display time without the owner seeing it.
+      await uploadTaxonomyImage(kind, option.id, await toSquareCover(file));
       await onChanged();
       toast(`Cover set for “${option.name}” ✓`, "success");
     } catch (err) {
@@ -498,7 +501,8 @@ export function AttributeManager({
   async function createCategory(draft: { name: string; file?: File; warrantyDays: number | null }) {
     try {
       const created = await addAttribute("type", draft.name);
-      if (draft.file) await uploadTaxonomyImage("type", created.id, draft.file);
+      if (draft.file)
+        await uploadTaxonomyImage("type", created.id, await toSquareCover(draft.file));
       if (draft.warrantyDays !== null) await setTypeWarranty(created.id, draft.warrantyDays);
       await load();
       toast(`Added “${draft.name}” ✓`, "success");
