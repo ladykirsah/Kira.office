@@ -85,3 +85,50 @@ Also open, from the 2026-07-20 storefront audit (all HARDCODED, none admin-edita
 policy pages (returns/terms/privacy — two still carry `TODO(owner)` and DRAFT headers), shop NAP +
 opening hours, SEO title/description, home trust tiles and section headings, footer (which renders on
 the home page only, so inner pages have no route to /returns or /terms).
+
+---
+
+# Backlog — agreed 2026-07-20, to start after the next weekly reset
+
+Owner's list, in their words, with the context needed to pick each one up cold.
+
+## AirPlus (storefront)
+
+**Replacing FAQs.** The FAQ is 27 Q&As hardcoded in `apps/storefront/src/lib/faq.ts:73-252` and is
+also emitted as `FAQPage` JSON-LD (`faq.ts:255`), so it feeds Google AI Overviews — every wording
+fix currently needs a deploy. It also contradicts other pages: warranty prose there vs
+`product_types.warranty_days` on the PDP, a hardcoded product-type UUID at `faq.ts:176`, and a phone
+number that differs from `lib/business.ts:17` and `app/returns/page.tsx:143`. Making it
+admin-managed fixes the drift as well as the editing.
+
+**Suggested / related products on the product detail page.** New feature. Note `product_fitments`
+already gives a natural relation (same car brand/model), as does `type_id` — related-by-fitment is
+likely more useful to a mechanic than related-by-category.
+
+## Kira.office (admin)
+
+**Marketing center.** Consolidation: banners, coupons, campaigns/flash sales and affiliate tools are
+four separate settings screens today.
+
+**AirPlus homepage re-ordering.** Section order and every section heading are hardcoded JSX in
+`apps/storefront/src/app/page.tsx` (headings at :98, :117, :151-156, :165, :174-176, :184, :208).
+Owner wants to control order — and presumably visibility — from admin.
+
+**Product grouping setup for product collections.** Group products into named collections the
+storefront can render as a row/page.
+
+**Auto-apply product naming.** Directly follows the naming pattern agreed 2026-07-20:
+`[ประเภทไทย] [ชื่อเรียกอีกแบบ] [ยี่ห้อรถ] [รุ่นหลัก] | [ยี่ห้ออะไหล่] [แท้] [รหัส]`
+e.g. `ตู้แอร์ คอยล์เย็น Toyota Vigo วีโก้ / Fortuner / Innova / Altis | Denso แท้ TG447610-7290`.
+Rules settled with the owner: part-type first (Thai buyers search `[อะไหล่]+[รถ]`, so front-load it);
+include BOTH common Thai part names; 3-4 top car models only, the rest live as fitment rows; years
+belong in fitment rows, NOT the title (a single year like "Fortuner 2005" reads as fits-2005-only and
+causes returns); one separator. One product per part code — two brands of the same part are two
+products, six car models are six fitments on each. See also the sibling Terms-pattern idea.
+
+**Affiliate tool.** Extends `/settings/affiliate-items` (today: title, image, price text, target URL
+→ `/tools` page + home shelf).
+
+---
+
+Still parked from earlier the same day, above: payment verify, shipping fee, Kira.office UX/UI.
