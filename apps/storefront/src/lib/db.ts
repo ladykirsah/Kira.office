@@ -281,17 +281,37 @@ export async function carBrandTiles(
 ): Promise<{ brand: string; productCount: number; imageKey: string | null }[]> {
   const rows = await db
     .prepare(
-      // cb is a LEFT JOIN on NAME: tiles are grouped by the fitment's free-text car_brand, while the
-      // cover image lives on the car_brands taxonomy row. No match (or no cover) → imageKey null → ✦.
-      `SELECT f.car_brand AS brand, MAX(cb.image_key) AS imageKey, COUNT(DISTINCT f.product_id) AS productCount
-       FROM product_fitments f JOIN products p ON p.id = f.product_id AND p.status = 'active'
-       LEFT JOIN car_brands cb ON cb.name = f.car_brand
-       WHERE f.car_brand IS NOT NULL AND TRIM(f.car_brand) != ''
-         -- match the catalog: count only products with at least one in-stock variant
-         AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id
-                     AND (SELECT COALESCE(SUM(quantity_delta), 0)
-                            FROM stock_ledger_entries WHERE product_variant_id = pv.id) > 0)
-       GROUP BY f.car_brand ORDER BY productCount DESC, brand LIMIT ${Math.min(limit, 64)}`,
+      // The tile list is the OWNER'S car-brand taxonomy (Kira.office -> Car fitment), not just the
+      // makes that happen to have stock — the owner wants their full coverage visible while the
+      // catalogue is still being listed, "0 รายการ" included.
+      //
+      // The `union` arm keeps a product visible if it is fitted to a make the taxonomy has never
+      // heard of (fitment.car_brand is free text). Without it, deleting a taxonomy row would
+      // silently hide real products.
+      //
+      // productCount still counts only ACTIVE + IN-STOCK products so it matches the catalogue. That
+      // condition must live inside the CASE, not in a WHERE — a WHERE would collapse the LEFT JOINs
+      // back to inner joins and drop the zero-count makes this query exists to show.
+      `WITH makes AS (
+         SELECT name, image_key, sort_order FROM car_brands
+         UNION
+         SELECT DISTINCT f.car_brand, NULL, 9999 FROM product_fitments f
+          WHERE TRIM(COALESCE(f.car_brand, '')) != ''
+            AND f.car_brand NOT IN (SELECT name FROM car_brands)
+       )
+       SELECT m.name AS brand, m.image_key AS imageKey,
+              COUNT(DISTINCT CASE WHEN p.status = 'active' AND EXISTS (
+                      SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id
+                       AND (SELECT COALESCE(SUM(quantity_delta), 0)
+                              FROM stock_ledger_entries WHERE product_variant_id = pv.id) > 0)
+                   THEN p.id END) AS productCount
+         FROM makes m
+         LEFT JOIN product_fitments f ON f.car_brand = m.name
+         LEFT JOIN products p ON p.id = f.product_id
+        GROUP BY m.name, m.image_key, m.sort_order
+        -- in-stock makes first, so a length-limited row (home) still leads with the useful ones
+        ORDER BY productCount DESC, m.sort_order, m.name
+        LIMIT ${Math.min(limit, 64)}`,
     )
     .all<{ brand: string; productCount: number; imageKey: string | null }>();
   return rows.results ?? [];
@@ -395,16 +415,23 @@ export async function listProductTypes(
 ): Promise<{ id: string; name: string; productCount: number; imageKey: string | null }[]> {
   const rows = await db
     .prepare(
-      // Only types with an active, in-stock product surface; productCount = distinct such products
-      // (same in-stock rule as the catalog + by-brand tiles, so the counts stay consistent).
-      `SELECT t.id, t.name, t.image_key AS imageKey, COUNT(DISTINCT p.id) AS productCount
-       FROM product_types t
-       JOIN products p ON p.type_id = t.id AND p.status = 'active'
-       JOIN product_variants v ON v.product_id = p.id
-       WHERE (SELECT COALESCE(SUM(quantity_delta), 0)
-                FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0
-       GROUP BY t.id, t.name, t.image_key, t.sort_order
-       ORDER BY t.sort_order, t.name`,
+      // EVERY category the owner has defined surfaces, including ones with nothing in stock yet
+      // ("0 รายการ" is fine) — same decision as the car-brand tiles: show the full range while the
+      // catalogue is being listed.
+      //
+      // productCount still counts only ACTIVE + IN-STOCK products so it matches the catalogue. That
+      // condition must live inside the CASE, not in a WHERE — a WHERE would collapse the LEFT JOINs
+      // back to inner joins and the empty categories would disappear again.
+      `SELECT t.id, t.name, t.image_key AS imageKey,
+              COUNT(DISTINCT CASE WHEN p.status = 'active' AND (
+                      SELECT COALESCE(SUM(quantity_delta), 0)
+                        FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0
+                   THEN p.id END) AS productCount
+         FROM product_types t
+         LEFT JOIN products p ON p.type_id = t.id
+         LEFT JOIN product_variants v ON v.product_id = p.id
+        GROUP BY t.id, t.name, t.image_key, t.sort_order
+        ORDER BY t.sort_order, t.name`,
     )
     .all<{ id: string; name: string; productCount: number; imageKey: string | null }>();
   return rows.results ?? [];
