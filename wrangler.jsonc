@@ -51,7 +51,17 @@
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the deploy token (CLOUDFLARE_API_TOKEN) to have zone
   // DNS/Workers-routes edit.
-  "routes": [{ "pattern": "api.homeseeker.me", "custom_domain": true }],
+  // BOTH hostnames during the move to a single domain. api.airplusauto.com is the destination;
+  // api.homeseeker.me stays live until every caller has been switched over, so nothing goes dark
+  // mid-migration. Remove the old one only after the admin and storefront are confirmed on the new.
+  //
+  // Safe to expose immediately: this Worker is gated by requireAccess in code (it verifies the
+  // forwarded Access JWT), NOT by an edge Access application — so a new hostname does not create an
+  // unprotected door the way it would for the admin.
+  "routes": [
+    { "pattern": "api.homeseeker.me", "custom_domain": true },
+    { "pattern": "api.airplusauto.com", "custom_domain": true },
+  ],
   // Queues + Cron are the next phase (Shopee sync) — see docs/CLOUDFLARE_ARCHITECTURE.md.
 
   // Staging env: isolated D1/KV/R2 and its OWN hostname on this zone, behind Cloudflare Access.

@@ -1,10 +1,13 @@
 /**
  * Product images are served by the EXISTING public route on the api Worker
- * (GET api.homeseeker.me/img/products/…, key-namespace restricted) — the storefront has no R2
+ * (GET api.airplusauto.com/img/products/…, key-namespace restricted) — the storefront has no R2
  * binding of its own. In local dev those keys usually 404 (local-only R2 state) — the UI must
  * always render a graceful placeholder frame, never a broken image.
+ *
+ * The api Worker answers on api.homeseeker.me as well, so pages cached with the previous host keep
+ * loading their images while the single-domain move settles.
  */
-const IMG_BASE = process.env.NEXT_PUBLIC_IMG_BASE ?? "https://api.homeseeker.me";
+const IMG_BASE = process.env.NEXT_PUBLIC_IMG_BASE ?? "https://api.airplusauto.com";
 
 export function imgUrl(imageKey: string): string {
   // Storefront-bundled assets (leading slash, e.g. the demo banners in /public) are served by the
