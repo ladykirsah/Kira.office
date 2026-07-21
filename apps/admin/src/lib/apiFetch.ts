@@ -1,7 +1,14 @@
 import { ACCESS_JWT_HEADER } from "./workerProxy";
 
-/** Public API host — used for image URLs and server-side direct calls. */
-export const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.homeseeker.me";
+/**
+ * Public API host — used for image URLs and server-side direct calls.
+ *
+ * Single-domain move: everything now lives under airplusauto.com. Only the admin *Worker* uses
+ * this (browser calls go through the same-origin /api/worker proxy below), so it is a
+ * server-to-server hop — no CORS entry and no cookie-domain coupling to worry about. The Worker
+ * still answers on api.homeseeker.me, so this is reversible by env var alone.
+ */
+export const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.airplusauto.com";
 
 /**
  * Fetch the API Worker from the admin app. Browser calls go through the same-origin

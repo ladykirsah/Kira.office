@@ -6,7 +6,7 @@ describe("resolveBrandLogo", () => {
     // Regression guard: /search dropped imageKey entirely and always read the bundled map, so a
     // logo uploaded in admin appeared on / and /brands but NOT on /search — it looked broken.
     expect(resolveBrandLogo("Toyota", "taxonomy/car-brand-toyota-abc.png")).toBe(
-      "https://api.homeseeker.me/img/taxonomy/car-brand-toyota-abc.png",
+      "https://api.airplusauto.com/img/taxonomy/car-brand-toyota-abc.png",
     );
   });
 
@@ -21,7 +21,7 @@ describe("resolveBrandLogo", () => {
   it("given an unmapped brand WITH an upload > still uses the upload", () => {
     // The whole point: a brand the bundled map never heard of is fully owner-managed.
     expect(resolveBrandLogo("Hyundai", "taxonomy/car-brand-hyundai-xyz.png")).toBe(
-      "https://api.homeseeker.me/img/taxonomy/car-brand-hyundai-xyz.png",
+      "https://api.airplusauto.com/img/taxonomy/car-brand-hyundai-xyz.png",
     );
   });
 

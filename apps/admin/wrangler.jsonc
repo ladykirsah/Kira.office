@@ -13,8 +13,17 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true },
-  // The back-office login domain. homeseeker.me is a GoGoCash zone, so this custom_domain resolves
-  // same-account. Gate it with Cloudflare Access BEFORE/at deploy so it is never a public,
-  // unauthenticated back office — see docs/KIRA_OFFICE_ACCESS_SETUP.md.
-  "routes": [{ "pattern": "admin.homeseeker.me", "custom_domain": true }]
+  // The back-office login domains. Both zones are on GoGoCash, so these custom_domains resolve
+  // same-account. airplusauto.com is the destination of the single-domain move; homeseeker.me stays
+  // until every bookmark has moved, so the owner is never locked out mid-migration.
+  //
+  // Gate a hostname with Cloudflare Access BEFORE it is attached here, never after — see
+  // docs/KIRA_OFFICE_ACCESS_SETUP.md. Access destinations are per-app and REPLACING the destination
+  // instead of ADDING one silently unprotects the old hostname: that happened on 2026-07-21 and left
+  // admin.homeseeker.me serving with no login challenge for ~6 minutes. Both hostnames below must
+  // appear as destinations on the "admin" Access app (aud dfcb79fc…) at all times.
+  "routes": [
+    { "pattern": "admin.airplusauto.com", "custom_domain": true },
+    { "pattern": "admin.homeseeker.me", "custom_domain": true }
+  ]
 }

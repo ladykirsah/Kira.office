@@ -100,7 +100,7 @@ describe("productJsonLd > then is valid schema.org Product + Offer", () => {
     expect(offers.price).toBe("2890.00");
     expect(offers.availability).toBe("https://schema.org/InStock");
     expect(offers.url).toBe(`${SITE_ORIGIN}/products/abc-123`);
-    expect(ld.image).toEqual(["https://api.homeseeker.me/img/products/vios.jpg"]);
+    expect(ld.image).toEqual(["https://api.airplusauto.com/img/products/vios.jpg"]);
   });
 
   it("marks OutOfStock when onHand is 0", () => {
