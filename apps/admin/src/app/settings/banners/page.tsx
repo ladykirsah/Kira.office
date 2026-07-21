@@ -14,7 +14,13 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
-import { liveWindow, slotCountLabel, slotIsFull, type BannerSlot } from "@/lib/bannerSlots";
+import {
+  liveWindow,
+  SLOT_LIMIT,
+  slotCountLabel,
+  slotIsFull,
+  type BannerSlot,
+} from "@/lib/bannerSlots";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -281,27 +287,34 @@ function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{
-        width: 44,
+        width: 46,
         height: 26,
         flex: "none",
         padding: 3,
         borderRadius: 999,
-        border: "1px solid var(--border)",
-        background: checked ? "var(--accent, #bf3c1d)" : "var(--border)",
+        border: "none",
+        // Off state needs a track that is clearly DARKER than the card, or the control reads as
+        // disabled/broken. --border against a white card left the knob white-on-near-white.
+        background: checked ? "var(--accent, #bf3c1d)" : "#c7c7cc",
         cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
         display: "flex",
         justifyContent: checked ? "flex-end" : "flex-start",
         alignItems: "center",
-        transition: "background 120ms",
+        transition: "background 160ms ease",
       }}
     >
       <span
         style={{
-          width: 18,
-          height: 18,
+          width: 20,
+          height: 20,
           borderRadius: "50%",
-          background: "var(--surface, #fff)",
+          background: "#fff",
           display: "block",
+          // Lifts the knob off the track in both states — without it the white knob dissolves
+          // into a light track.
+          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+          transition: "transform 160ms ease",
         }}
       />
     </button>
@@ -423,7 +436,7 @@ function AddBannerForm({
             style={{ ...inputS, minWidth: 0 }}
           />
         </div>
-        <button type="submit" className="btn-primary" disabled={busy}>
+        <button type="submit" className="btn-primary btn-sm" disabled={busy}>
           {busy ? "Adding…" : "Add"}
         </button>
       </div>
@@ -511,6 +524,36 @@ export default function BannersPage() {
             <p className="muted" style={{ fontSize: 12, margin: "0 0 14px" }}>
               {SLOT_HINT[s]}
             </p>
+
+            {/* Capacity is shown as explicit slide slots rather than implied by a form that simply
+                reappears. Without this the owner cannot tell WHERE slides 2 and 3 go, or how many
+                are left — the count alone reads as a limit, not as remaining room. */}
+            {SLOT_LIMIT[s] !== null && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+                {Array.from({ length: SLOT_LIMIT[s] as number }, (_, i) => {
+                  const filled = i < rows.length;
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        flex: "1 1 120px",
+                        minWidth: 110,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: "center",
+                        border: filled ? "1px solid var(--border)" : "1px dashed var(--text-muted)",
+                        background: filled ? "var(--surface)" : "transparent",
+                        color: filled ? "var(--text)" : "var(--text-muted)",
+                      }}
+                    >
+                      {filled ? `✓ Slide ${i + 1}` : `Slide ${i + 1} — empty`}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <AddBannerForm slot={s} count={rows.length} onAdded={load} />
 
