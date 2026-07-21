@@ -3,6 +3,7 @@ import {
   buildWorkerProxyUrl,
   workerProxyForwardHeaders,
   workerProxyResponseHeaders,
+  fetchUpstream,
 } from "@/lib/workerProxy";
 
 // Runs in the OpenNext/Cloudflare Workers server function (already at the edge) — NOT Next's edge
@@ -17,7 +18,14 @@ async function proxy(request: Request, path: string[]): Promise<Response> {
   const headers = workerProxyForwardHeaders(request.headers);
   const body =
     request.method !== "GET" && request.method !== "HEAD" ? await request.arrayBuffer() : undefined;
-  const res = await fetch(target, { method: request.method, headers, body });
+  // fetchUpstream, not bare fetch: a thrown hop used to escape as a generic Next.js 500 (see the
+  // note on fetchUpstream). GETs retry once; writes never do.
+  const res = await fetchUpstream(
+    fetch,
+    target,
+    { method: request.method, headers, body },
+    request.method,
+  );
   return new Response(res.body, {
     status: res.status,
     headers: workerProxyResponseHeaders(res.headers),
