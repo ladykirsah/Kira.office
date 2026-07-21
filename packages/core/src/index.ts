@@ -21,6 +21,7 @@ export * from "./campaigns";
 export * from "./paymentMethods";
 export * from "./customerImport";
 export * from "./thaiDate";
+export * from "./shopProfiles";
 export * from "./shipping";
 export * from "./flashRates";
 export * from "./taxonomyImages";

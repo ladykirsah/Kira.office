@@ -17,6 +17,9 @@ import {
   TAXONOMY_IMAGE_TABLE,
   taxonomyImageKey,
   type TaxonomyImageKind,
+  parseShopProfile,
+  shopKey,
+  type ShopProfile,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -1270,6 +1273,15 @@ export const SHOP_TEXT_FIELDS = [
   // JSON array of PromptPay methods ({id,label,promptpayId,isDefault}) — the Payment page dropdown.
   // Parsed/normalized by @l-shopee/core paymentMethods; stored verbatim as one KV string.
   "paymentMethods",
+  // Per-profile LINE account. Was hardcoded in the storefront, so the two businesses could not have
+  // different LINE channels — which is exactly what they do have.
+  "lineUrl",
+  // AirPlus only, but stored on every profile so the shape stays uniform. ONE address does all four
+  // shipping jobs (parcel sender block, shipping-fee origin, returns, courier pickup) — the owner
+  // confirmed they are the same place. The postcode is separate from the free-text address because
+  // the shipping-fee engine needs it as a field, not buried in prose.
+  "shipFromPhone",
+  "shipFromPostcode",
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
@@ -1280,11 +1292,13 @@ export async function storeShopImage(
   slot: "logo" | "qr",
   bytes: ArrayBuffer,
   contentType: string | null,
+  profile: ShopProfile,
 ): Promise<UploadImageResult> {
   const ext = validateImage(bytes, contentType);
-  const key = `shop/${slot}-${crypto.randomUUID()}.${ext}`;
+  // Profile is in the object key too, so the two shops' logos are distinguishable in the bucket.
+  const key = `shop/${profile}-${slot}-${crypto.randomUUID()}.${ext}`;
   await bucket.put(key, bytes, { httpMetadata: { contentType: contentType! } });
-  await kv.put(slot === "logo" ? "shop:logoKey" : "shop:qrKey", key);
+  await kv.put(shopKey(profile, slot === "logo" ? "logoKey" : "qrKey"), key);
   return { key, url: `/img/${key}` };
 }
 
@@ -3900,31 +3914,15 @@ const worker = {
       return json({ ok: true });
     }
 
-    // Shop identity (name + address) — shown on bills and labels.
-    if (url.pathname === "/shop-info" && request.method === "GET") {
-      const [texts, logoKey, qrKey] = await Promise.all([
-        Promise.all(SHOP_TEXT_FIELDS.map((f) => env.KV.get(`shop:${f}`))),
-        env.KV.get("shop:logoKey"),
-        env.KV.get("shop:qrKey"),
-      ]);
-      const out: Record<string, string | null> = {};
-      SHOP_TEXT_FIELDS.forEach((f, i) => (out[f] = texts[i] ?? ""));
-      out.logoKey = logoKey; // null when unset
-      out.qrKey = qrKey;
-      return json(out);
-    }
-    if (url.pathname === "/shop-info" && request.method === "PUT") {
-      const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-      await Promise.all(
-        SHOP_TEXT_FIELDS.map((f) => env.KV.put(`shop:${f}`, String(body[f] ?? "").trim())),
-      );
-      return json({ ok: true });
-    }
-    if (
-      (url.pathname === "/shop-info/logo" || url.pathname === "/shop-info/qr") &&
-      request.method === "POST"
-    ) {
-      const slot = url.pathname.endsWith("/logo") ? "logo" : "qr";
+    // Shop identity, per business profile. Den Air Service (workshop/POS) and AirPlus (storefront)
+    // are fully separate — own name, address, logo, LINE and bank account — so every route below is
+    // scoped to a validated profile. An unknown profile 404s rather than defaulting, because
+    // guessing would write one shop's settings into the other's namespace.
+    const shopImg = url.pathname.match(/^\/shop-info\/([^/]+)\/(logo|qr)$/);
+    if (shopImg && request.method === "POST") {
+      const profile = parseShopProfile(shopImg[1]);
+      if (!profile) return json({ error: "unknown shop profile" }, 404);
+      const slot = shopImg[2] as "logo" | "qr";
       const bytes = await request.arrayBuffer();
       try {
         const out = await storeShopImage(
@@ -3933,11 +3931,34 @@ const worker = {
           slot,
           bytes,
           request.headers.get("content-type"),
+          profile,
         );
         return json(out, 201);
       } catch (err) {
         return json({ error: (err as Error).message }, 400);
       }
+    }
+    const shopInfo = url.pathname.match(/^\/shop-info\/([^/]+)$/);
+    if (shopInfo && (request.method === "GET" || request.method === "PUT")) {
+      const profile = parseShopProfile(shopInfo[1]);
+      if (!profile) return json({ error: "unknown shop profile" }, 404);
+      if (request.method === "GET") {
+        const [texts, logoKey, qrKey] = await Promise.all([
+          Promise.all(SHOP_TEXT_FIELDS.map((f) => env.KV.get(shopKey(profile, f)))),
+          env.KV.get(shopKey(profile, "logoKey")),
+          env.KV.get(shopKey(profile, "qrKey")),
+        ]);
+        const out: Record<string, string | null> = { profile };
+        SHOP_TEXT_FIELDS.forEach((f, i) => (out[f] = texts[i] ?? ""));
+        out.logoKey = logoKey; // null when unset
+        out.qrKey = qrKey;
+        return json(out);
+      }
+      const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      await Promise.all(
+        SHOP_TEXT_FIELDS.map((f) => env.KV.put(shopKey(profile, f), String(body[f] ?? "").trim())),
+      );
+      return json({ ok: true });
     }
 
     if (url.pathname === "/stock/adjust" && request.method === "POST") {

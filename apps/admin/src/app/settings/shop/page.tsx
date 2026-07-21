@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchShopInfo, saveShopInfo, uploadShopImage, imageUrl, type ShopInfo } from "@/lib/api";
 import {
   defaultPaymentMethod,
   parsePaymentMethods,
   serializePaymentMethods,
+  SHOP_PROFILES,
+  SHOP_PROFILE_LABELS,
   type PaymentMethod,
+  type ShopProfile,
 } from "@l-shopee/core";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
@@ -79,6 +82,9 @@ const TEXT_KEYS = [
   "qrSubtitle",
   "qrSubtitleEn",
   "paymentMethods",
+  "lineUrl",
+  "shipFromPhone",
+  "shipFromPostcode",
 ] as const;
 
 /** View-mode bilingual block — mirrors editPair's layout exactly (field label, then the Thai value
@@ -147,6 +153,8 @@ function ViewImage({ label, imgKey }: { label: string; imgKey: string | null }) 
 
 export default function ShopInfoPage() {
   const toast = useToast();
+  const [profile, setProfile] = useState<ShopProfile>("denair");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [info, setInfo] = useState<ShopInfo | null>(null);
   const [saved, setSaved] = useState<ShopInfo | null>(null); // last server state (for Cancel)
   const [editing, setEditing] = useState(false);
@@ -155,15 +163,37 @@ export default function ShopInfoPage() {
   // parser DROPS incomplete rows — a freshly-added blank row must survive re-renders while typing.
   const [payDraft, setPayDraft] = useState<PaymentMethod[] | null>(null);
 
-  useEffect(() => {
-    fetchShopInfo()
+  const load = useCallback((p: ShopProfile) => {
+    setLoadError(null);
+    setInfo(null);
+    setSaved(null);
+    fetchShopInfo(p)
       .then((s) => {
         setInfo(s);
         setSaved(s);
       })
-      .catch((e) => toast((e as Error).message, "error"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      // Record the failure as well as toasting it. Previously a failed load only fired a toast
+      // that then vanished, leaving the page on "Loading…" forever with nothing to act on.
+      .catch((e) => setLoadError((e as Error).message));
   }, []);
+
+  useEffect(() => {
+    load(profile);
+  }, [load, profile]);
+
+  if (loadError) {
+    return (
+      <main>
+        <h1>Shop info</h1>
+        <p role="alert" style={{ color: "var(--danger, #bf3c1d)" }}>
+          โหลดข้อมูลร้านไม่สำเร็จ — {loadError}
+        </p>
+        <button type="button" className="btn-primary btn-sm" onClick={() => load(profile)}>
+          ลองอีกครั้ง
+        </button>
+      </main>
+    );
+  }
 
   if (!info || !saved) {
     return (
@@ -183,7 +213,7 @@ export default function ShopInfoPage() {
       const text = Object.fromEntries(
         TEXT_KEYS.map((k) => [k, (info[k] as string).trim()]),
       ) as Record<(typeof TEXT_KEYS)[number], string>;
-      await saveShopInfo(text);
+      await saveShopInfo(profile, text);
       // Merge only the text fields, functionally — so a logo/QR uploaded while this PUT was in
       // flight (its own functional setState) isn't clobbered by a stale full snapshot.
       setInfo((s) => (s ? { ...s, ...text } : s));
@@ -207,7 +237,7 @@ export default function ShopInfoPage() {
   async function upload(slot: "logo" | "qr", file: File | undefined) {
     if (!file) return;
     try {
-      const out = await uploadShopImage(slot, file);
+      const out = await uploadShopImage(profile, slot, file);
       const patch: Partial<ShopInfo> = slot === "logo" ? { logoKey: out.key } : { qrKey: out.key };
       setInfo((s) => (s ? { ...s, ...patch } : s));
       setSaved((s) => (s ? { ...s, ...patch } : s)); // already persisted server-side
@@ -308,7 +338,7 @@ export default function ShopInfoPage() {
     <main>
       <PageHeader
         title="Shop info"
-        subtitle="Shown on printed bills and quotations. Thai prints by default; a Thai/English switch on the POS picks which language to print. Barcode labels use the Thai shop name."
+        subtitle="Den Air Service and AirPlus are separate businesses — each keeps its own name, address, logo, LINE account and PromptPay. Pick a profile below; nothing is shared between them."
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
             {editing ? (
@@ -328,6 +358,42 @@ export default function ShopInfoPage() {
           </div>
         }
       />
+
+      {/* Profile tabs. Switching refetches — the two profiles share no state, so a half-typed edit
+          on one can never be saved onto the other. */}
+      <div
+        role="tablist"
+        aria-label="Business profile"
+        style={{ display: "flex", gap: 8, marginTop: 14 }}
+      >
+        {SHOP_PROFILES.map((p) => {
+          const active = p === profile;
+          return (
+            <button
+              key={p}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              disabled={editing || busy}
+              title={editing ? "Save or cancel first" : undefined}
+              onClick={() => setProfile(p)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: editing || busy ? "not-allowed" : "pointer",
+                border: `1px solid ${active ? "var(--accent, #bf3c1d)" : "var(--border)"}`,
+                background: active ? "var(--accent, #bf3c1d)" : "var(--surface)",
+                color: active ? "#fff" : "var(--text)",
+                opacity: editing && !active ? 0.5 : 1,
+              }}
+            >
+              {SHOP_PROFILE_LABELS[p]}
+            </button>
+          );
+        })}
+      </div>
 
       <div style={{ ...cardStyle, marginTop: 14 }}>
         {editing ? (
