@@ -266,61 +266,6 @@ function BannerItem({
   );
 }
 
-/** Accessible on/off switch. Used for "Live time" — off means the banner runs until changed. */
-function Switch({
-  checked,
-  onChange,
-  label,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      style={{
-        width: 46,
-        height: 26,
-        flex: "none",
-        padding: 3,
-        borderRadius: 999,
-        border: "none",
-        // Off state needs a track that is clearly DARKER than the card, or the control reads as
-        // disabled/broken. --border against a white card left the knob white-on-near-white.
-        background: checked ? "var(--accent, #bf3c1d)" : "#c7c7cc",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        display: "flex",
-        justifyContent: checked ? "flex-end" : "flex-start",
-        alignItems: "center",
-        transition: "background 160ms ease",
-      }}
-    >
-      <span
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: "50%",
-          background: "#fff",
-          display: "block",
-          // Lifts the knob off the track in both states — without it the white knob dissolves
-          // into a light track.
-          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-          transition: "transform 160ms ease",
-        }}
-      />
-    </button>
-  );
-}
-
 /**
  * Add-form for ONE slot. Each slot owns its own form because the two frames are different shapes,
  * so their guidance and limits differ.
@@ -442,8 +387,21 @@ function AddBannerForm({
       </div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <Switch checked={liveTime} onChange={setLiveTime} label="Live time" disabled={busy} />
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Live time</span>
+        {/* Same .switch/.slider control as the Active toggle on each row below, and as every other
+            switch in the admin — not a bespoke one. */}
+        <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={liveTime}
+              disabled={busy}
+              aria-label="Live time"
+              onChange={(e) => setLiveTime(e.target.checked)}
+            />
+            <span className="slider" />
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Live time</span>
+        </label>
         <span className="muted" style={{ fontSize: 12 }}>
           {liveTime
             ? "Shows only between the two dates below."
