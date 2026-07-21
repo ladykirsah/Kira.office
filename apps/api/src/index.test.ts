@@ -1919,6 +1919,27 @@ describe("api worker routes", () => {
     expect(readKey).toBeNull(); // …without ever reading the object
   });
 
+  it("GET /img/:key > serves EVERY namespace the app writes to (banners + affiliate were blocked)", async () => {
+    // Regression: banner and affiliate images are written under banners/ and affiliate/, and a
+    // comment in this file claimed the allowlist admitted them — it did not. Every uploaded banner
+    // and affiliate tile 404'd on the storefront while sitting perfectly fine in R2.
+    const env = {
+      IMAGES: {
+        get: async () => ({ body: "PNG", httpMetadata: { contentType: "image/png" } }),
+      },
+    } as unknown as Env;
+    for (const key of [
+      "products/p1/a.png",
+      "shop/denair-logo-1.png",
+      "taxonomy/type-x-1.png",
+      "banners/b1-abc.png",
+      "affiliate/a1-abc.png",
+    ]) {
+      const res = await worker.fetch!(new Request(`https://x/img/${key}`), env, ctx);
+      expect(res.status, `${key} should be served`).toBe(200);
+    }
+  });
+
   it("GET /products/by-barcode/:code > 404 for an unknown barcode", async () => {
     const { env } = makeDb({ barcode: null });
     const res = await worker.fetch!(new Request("https://x/products/by-barcode/nope"), env, ctx);

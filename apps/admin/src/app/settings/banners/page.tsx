@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchBanners,
   addBanner,
@@ -14,6 +14,7 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
+import { liveWindow, slotCountLabel, slotIsFull, type BannerSlot } from "@/lib/bannerSlots";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -36,6 +37,13 @@ const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
 const SLOT_LABELS: Record<BannerRow["slot"], string> = {
   hero: "Hero carousel",
   promo: "Promo strip",
+};
+
+/** What each frame is, so the owner knows what shape of image to prepare. */
+const SLOT_HINT: Record<BannerRow["slot"], string> = {
+  hero: "Rotating slides at the top of the home page. Wide 16:6 images work best. Max 3 — slides past the third are rarely seen.",
+  promo:
+    "A single wide band lower down the home page. Same wide shape; add as many as you like and they stack.",
 };
 
 // datetime-local value ("2026-07-10T14:30") ↔ epoch ms; "" ↔ null (no window bound).
@@ -252,101 +260,188 @@ function BannerItem({
   );
 }
 
-export default function BannersPage() {
+/** Accessible on/off switch. Used for "Live time" — off means the banner runs until changed. */
+function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 44,
+        height: 26,
+        flex: "none",
+        padding: 3,
+        borderRadius: 999,
+        border: "1px solid var(--border)",
+        background: checked ? "var(--accent, #bf3c1d)" : "var(--border)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        display: "flex",
+        justifyContent: checked ? "flex-end" : "flex-start",
+        alignItems: "center",
+        transition: "background 120ms",
+      }}
+    >
+      <span
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          background: "var(--surface, #fff)",
+          display: "block",
+        }}
+      />
+    </button>
+  );
+}
+
+/**
+ * Add-form for ONE slot. Each slot owns its own form because the two frames are different shapes,
+ * so their guidance and limits differ.
+ *
+ * The image is picked HERE rather than uploaded afterwards: the previous flow created the banner
+ * first and left it imageless until a second step, which meant a half-made banner could sit in the
+ * list looking broken. Create + upload now happen in one submit, and the image is required.
+ */
+function AddBannerForm({
+  slot,
+  count,
+  onAdded,
+}: {
+  slot: BannerSlot;
+  count: number;
+  onAdded: () => Promise<void>;
+}) {
   const toast = useToast();
-  const [banners, setBanners] = useState<BannerRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [slot, setSlot] = useState<BannerRow["slot"]>("hero");
+  const [file, setFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
-  const [sort, setSort] = useState("0");
+  const [liveTime, setLiveTime] = useState(false);
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  async function load() {
-    try {
-      setBanners(await fetchBanners());
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const full = slotIsFull(slot, count);
 
-  async function add(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (full) return;
+    if (!file) {
+      setError("เลือกรูปแบนเนอร์ก่อน — a banner without an image renders nothing.");
+      fileRef.current?.click();
+      return;
+    }
+    setError(null);
     setBusy(true);
     try {
-      await addBanner({
+      const { startsAt, endsAt } = liveWindow(liveTime, starts, ends);
+      // Sort to the end of this slot; order is edited per row afterwards.
+      const { id } = await addBanner({
         slot,
         linkUrl: linkUrl.trim() || undefined,
-        sortOrder: Math.round(parseFloat(sort) || 0),
-        startsAt: inputToMs(starts),
-        endsAt: inputToMs(ends),
+        sortOrder: count,
+        startsAt,
+        endsAt,
       });
-      toast("Banner added — upload its image in the table below", "success");
+      await uploadBannerImage(id, file);
+      toast(`เพิ่ม${SLOT_LABELS[slot]}แล้ว ✓`, "success");
+      setFile(null);
       setLinkUrl("");
-      setSort("0");
+      setLiveTime(false);
       setStarts("");
       setEnds("");
-      await load();
+      if (fileRef.current) fileRef.current.value = "";
+      await onAdded();
     } catch (e2) {
-      toast((e2 as Error).message, "error");
+      // Reload either way: the banner row may exist even if the image upload failed, and the list
+      // must show what actually landed rather than a stale view.
+      await onAdded();
+      setError((e2 as Error).message);
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <main>
-      <PageHeader
-        title="Banners"
-        subtitle="Home-page banners on the AirPlus storefront: the hero carousel and the promo strip. Add a banner, then upload its image. An optional window shows it only between the two dates."
-      />
+  if (full) {
+    return (
+      <p className="muted" style={{ fontSize: 13, margin: "0 0 4px" }}>
+        {SLOT_LABELS[slot]} is full ({slotCountLabel(slot, count)}). Remove one below to add
+        another.
+      </p>
+    );
+  }
 
-      {/* Frame 1 — add a banner */}
-      <div style={cardStyle}>
-        <div style={cardLabel}>Add a banner</div>
-        <form
-          onSubmit={add}
-          style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}
-        >
+  return (
+    <form onSubmit={submit} noValidate style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={fieldCol}>
+          <span style={fieldLabel}>Banner image</span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setError(null);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            style={{
+              ...inputS,
+              maxWidth: 230,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {file ? `🖼 ${file.name}` : "＋ Choose image…"}
+          </button>
+        </div>
+        <div style={{ ...fieldCol, flex: "1 1 180px" }}>
+          <span style={fieldLabel}>Link URL (optional)</span>
+          <input
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="/products/… or https://…"
+            style={{ ...inputS, minWidth: 0 }}
+          />
+        </div>
+        <button type="submit" className="btn-primary" disabled={busy}>
+          {busy ? "Adding…" : "Add"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <Switch checked={liveTime} onChange={setLiveTime} label="Live time" disabled={busy} />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Live time</span>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {liveTime
+            ? "Shows only between the two dates below."
+            : "Off — goes live now and stays until you change it."}
+        </span>
+      </div>
+
+      {liveTime && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <div style={fieldCol}>
-            <span style={fieldLabel}>Slot</span>
-            <select
-              aria-label="Slot"
-              value={slot}
-              onChange={(e) => setSlot(e.target.value as BannerRow["slot"])}
-              style={inputS}
-            >
-              <option value="hero">Hero carousel</option>
-              <option value="promo">Promo strip</option>
-            </select>
-          </div>
-          <div style={{ ...fieldCol, flex: "1 1 180px" }}>
-            <span style={fieldLabel}>Link URL (optional)</span>
-            <input
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="/products/… or https://…"
-              style={{ ...inputS, minWidth: 0 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Sort</span>
-            <input
-              type="number"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              style={{ ...inputS, width: 64 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Starts (optional)</span>
+            <span style={fieldLabel}>Starts</span>
             <input
               type="datetime-local"
               value={starts}
@@ -355,7 +450,7 @@ export default function BannersPage() {
             />
           </div>
           <div style={fieldCol}>
-            <span style={fieldLabel}>Ends (optional)</span>
+            <span style={fieldLabel}>Ends</span>
             <input
               type="datetime-local"
               value={ends}
@@ -363,49 +458,93 @@ export default function BannersPage() {
               style={inputS}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={busy}>
-            Add
-          </button>
-        </form>
-      </div>
+        </div>
+      )}
 
-      {/* Frame 2 — banners grouped by slot */}
+      {error && (
+        <p role="alert" style={{ color: "var(--danger, #bf3c1d)", fontSize: 12, margin: 0 }}>
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+export default function BannersPage() {
+  const toast = useToast();
+  const [banners, setBanners] = useState<BannerRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      setBanners(await fetchBanners());
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <main>
+      <PageHeader
+        title="Banners"
+        subtitle="Home-page banners on the AirPlus storefront. The hero carousel and the promo strip are different frames, so each is set up separately below."
+      />
+
       {(["hero", "promo"] as const).map((s) => {
         const rows = banners
           .filter((b) => b.slot === s)
           .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt);
         return (
           <div key={s} style={{ ...cardStyle, marginTop: 16 }}>
-            <div style={cardLabel}>{SLOT_LABELS[s]}</div>
-            {loading ? (
-              <p className="muted" style={{ fontSize: 13 }}>
-                Loading…
-              </p>
-            ) : rows.length === 0 ? (
-              <p className="muted" style={{ fontSize: 13 }}>
-                No {SLOT_LABELS[s].toLowerCase()} banners yet. Add one above.
-              </p>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Image</th>
-                      <th>Link</th>
-                      <th>Sort</th>
-                      <th>Window</th>
-                      <th>Active</th>
-                      <th aria-label="Actions" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((b) => (
-                      <BannerItem key={b.id} banner={b} onChanged={load} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
+              <div style={{ ...cardLabel, marginBottom: 0 }}>{SLOT_LABELS[s]}</div>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {slotCountLabel(s, rows.length)}
+              </span>
+            </div>
+            <p className="muted" style={{ fontSize: 12, margin: "0 0 14px" }}>
+              {SLOT_HINT[s]}
+            </p>
+
+            <AddBannerForm slot={s} count={rows.length} onAdded={load} />
+
+            <div style={{ marginTop: 16 }}>
+              {loading ? (
+                <p className="muted" style={{ fontSize: 13 }}>
+                  Loading…
+                </p>
+              ) : rows.length === 0 ? (
+                <p className="muted" style={{ fontSize: 13 }}>
+                  No {SLOT_LABELS[s].toLowerCase()} banners yet.
+                </p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Image</th>
+                        <th>Link</th>
+                        <th>Sort</th>
+                        <th>Window</th>
+                        <th>Active</th>
+                        <th aria-label="Actions" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((b) => (
+                        <BannerItem key={b.id} banner={b} onChanged={load} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         );
       })}

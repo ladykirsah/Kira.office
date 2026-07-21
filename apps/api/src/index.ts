@@ -4334,7 +4334,11 @@ const worker = {
       // This route is public (auth-exempt) so <img> tags work. The IMAGES bucket also holds the
       // daily full-DB backup (backups/*.json) — restrict public reads to the image namespaces only,
       // never serve anything else, so a guessable key can't leak the backup or other objects.
-      if (!/^(products|shop|taxonomy)\//.test(key)) {
+      // Must list EVERY namespace the app writes images to. `banners/` and `affiliate/` were
+      // missing while a comment elsewhere claimed they were admitted, so every uploaded banner and
+      // affiliate tile 404'd on the storefront despite sitting fine in R2. Adding a new image
+      // namespace means adding it here too — the test above pins all five.
+      if (!/^(products|shop|taxonomy|banners|affiliate)\//.test(key)) {
         return new Response("Not found", { status: 404, headers: responseHeaders });
       }
       const obj = await env.IMAGES.get(key);
