@@ -230,12 +230,40 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Help card: routes to the FAQ first, but keeps LINE as the secondary action — LINE is still
+          the fastest way to reach a mechanic, and the FAQ itself tells people to ask there when
+          unsure, so this section leads with self-serve without removing the human route. */}
       <section className="section">
-        <div
-          className="card"
-          style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}
-        >
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className="card" style={{ padding: "18px 16px", textAlign: "center" }}>
+          <div aria-hidden="true" style={{ fontSize: 30, lineHeight: 1, marginBottom: 8 }}>
+            💬
+          </div>
+          <p
+            style={{
+              margin: "0 0 4px",
+              fontSize: 18,
+              fontWeight: 700,
+              color: "var(--gray-dark)",
+              textWrap: "balance",
+            }}
+          >
+            ไม่แน่ใจว่าต้องใช้ตัวไหน?
+          </p>
+          <p
+            style={{
+              margin: "0 0 14px",
+              fontSize: 13.5,
+              color: "var(--gray-mid)",
+              lineHeight: 1.5,
+              textWrap: "balance",
+            }}
+          >
+            รวมคำถามที่ลูกค้าถามบ่อย เรื่องความเข้ากับรุ่นรถ การจัดส่ง การรับประกัน และการเคลม
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Link className="btn btn-primary" href="/faq" style={{ textAlign: "center" }}>
+              อ่านคำถามที่พบบ่อย
+            </Link>
             <a
               href={LINE_OA_URL}
               target="_blank"
@@ -245,11 +273,10 @@ export default async function Home() {
                 background: "#06C755",
                 borderColor: "#06C755",
                 color: "var(--white)",
-                flex: "1 1 200px",
                 textAlign: "center",
               }}
             >
-              เพิ่มเพื่อน LINE
+              ถามช่างทาง LINE
             </a>
             {facebookUrl && (
               <a
@@ -261,7 +288,7 @@ export default async function Home() {
                   background: "#1877F2",
                   borderColor: "#1877F2",
                   color: "var(--white)",
-                  flex: "1 1 200px",
+                  textAlign: "center",
                 }}
               >
                 ติดตามบน Facebook
