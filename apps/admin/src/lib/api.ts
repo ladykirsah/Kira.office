@@ -342,6 +342,77 @@ export async function getCustomerDetail(plate: string): Promise<CustomerDetail> 
   return (await res.json()) as CustomerDetail;
 }
 
+// ── AirPlus customers (storefront accounts) ─────────────────────────────────────────────────────
+// A separate business with a separate consent basis, so a separate table and separate endpoints —
+// never merged with the plate-keyed directory above. See migration 0037.
+export interface StorefrontCustomerListItem {
+  id: string;
+  /** The customer's public User ID (AP-XXXXXXXX) — the same one shown on their AirPlus account. */
+  customerCode: string | null;
+  name: string;
+  phone: string;
+  email: string | null;
+  status: string;
+  createdAt: number; // when the account was created
+  lastLoginAt: number | null;
+  phoneVerifiedAt: number | null;
+  pdpaConsentAt: number | null;
+  marketingConsentAt: number | null; // null = no marketing consent on record
+  anonymizedAt: number | null;
+  lineLinked: number; // 1/0 — whether a LINE identity is linked (the id itself is never exposed)
+  orderCount: number;
+  spentSatang: number;
+  lastOrderAt: number | null;
+}
+
+export interface StorefrontOrder {
+  id: string;
+  externalOrderId: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  grandTotalSatang: number;
+  orderCreatedAt: number | null;
+  carrier: string | null;
+  trackingNo: string | null;
+}
+
+export interface StorefrontCustomerDetail {
+  customer: (StorefrontCustomerListItem & { updatedAt: number }) | null;
+  orders: StorefrontOrder[];
+}
+
+export async function searchStorefrontCustomers(q: string): Promise<StorefrontCustomerListItem[]> {
+  const res = await apiFetch(`/storefront-customers?q=${encodeURIComponent(q)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to load AirPlus customers (HTTP ${res.status})`);
+  return ((await res.json()) as { customers: StorefrontCustomerListItem[] }).customers;
+}
+
+export async function getStorefrontCustomerDetail(id: string): Promise<StorefrontCustomerDetail> {
+  const res = await apiFetch(`/storefront-customers/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to load AirPlus customer (HTTP ${res.status})`);
+  return (await res.json()) as StorefrontCustomerDetail;
+}
+
+export async function setStorefrontMarketingConsent(id: string, optedIn: boolean): Promise<void> {
+  const res = await apiFetch(`/storefront-customers/${encodeURIComponent(id)}/marketing`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ optedIn }),
+  });
+  if (!res.ok) throw new Error(`Failed to save marketing consent (HTTP ${res.status})`);
+}
+
+export async function anonymizeStorefrontCustomer(id: string): Promise<void> {
+  const res = await apiFetch(`/storefront-customers/${encodeURIComponent(id)}/anonymize`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Failed to erase customer (HTTP ${res.status})`);
+}
+
 export interface FullBillLine {
   productVariantId: string | null;
   lineType: string;

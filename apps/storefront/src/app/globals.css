@@ -1462,6 +1462,30 @@ textarea {
   border-radius: 999px;
   padding: 4px 10px;
 }
+/* The customer's User ID — the same code the shop sees in the back office, so it can be quoted. */
+.acct-userid {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(55, 54, 54, 0.08);
+}
+.acct-userid .l {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray);
+}
+.acct-userid code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--gray-dark);
+}
 .acct-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

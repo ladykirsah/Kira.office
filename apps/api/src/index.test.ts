@@ -51,11 +51,16 @@ import worker, {
   salesToCsv,
   draftHeaderTotals,
   searchCustomers,
+  anonymizeStorefrontCustomerInDb,
+  searchStorefrontCustomers,
+  getStorefrontCustomerDetail,
+  setStorefrontMarketingConsent,
   normalizePlate,
   validateSyncLine,
   writeAuditLog,
   type Env,
 } from "./index";
+import { CUSTOMER_CODE_PREFIX, generateCustomerCode, isCustomerCode } from "@l-shopee/core";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
 // Stub its DurableObject base so importing the Worker (which extends it) works in tests.
@@ -438,6 +443,117 @@ describe("searchCustomers", () => {
     expect(sql).toContain("FROM customer_history_entries");
     expect(sql).toContain("COALESCE(b.billCount, 0) + COALESCE(h.legacyCount, 0)");
     expect(sql).toContain("h.lastLegacyAt");
+  });
+});
+
+describe("AirPlus customer directory (storefront_customers)", () => {
+  it("given a search > reads the AirPlus account table, not the plate-keyed one", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+
+    await searchStorefrontCustomers(db, "somchai");
+
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("FROM storefront_customers");
+    // The two businesses stay separate — this list must never reach into Den Air's table.
+    expect(sql).not.toMatch(/\bFROM customers\b/);
+  });
+
+  it("counts only AirPlus orders, so Shopee rows never inflate the total", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+
+    await searchStorefrontCustomers(db, "");
+
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("channel = 'airplus'");
+  });
+
+  it("surfaces the signup date and both consent timestamps", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+
+    await searchStorefrontCustomers(db, "");
+
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("created_at AS createdAt");
+    expect(sql).toContain("pdpa_consent_at AS pdpaConsentAt");
+    expect(sql).toContain("marketing_consent_at AS marketingConsentAt");
+  });
+
+  it("surfaces the customer code and lets staff search by it", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+
+    await searchStorefrontCustomers(db, "AP-3F7A2C91");
+
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("customer_code AS customerCode");
+    // A customer quoting their User ID over LINE must be findable by it.
+    expect(sql).toContain("c.customer_code LIKE ?");
+  });
+
+  it("detail returns the customer code too, so both apps show the same ID", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+
+    await getStorefrontCustomerDetail(db, "cus_1");
+
+    const sql = prepare.mock.calls.map((c) => c[0] as string).join("\n");
+    expect(sql).toContain("customer_code AS customerCode");
+  });
+
+  it("detail scopes the purchase history to that customer's AirPlus orders", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+
+    await getStorefrontCustomerDetail(db, "cus_1");
+
+    const sql = prepare.mock.calls.map((c) => c[0] as string).join("\n");
+    expect(sql).toContain("storefront_customer_id = ?");
+    expect(sql).toContain("channel = 'airplus'");
+  });
+});
+
+describe("setStorefrontMarketingConsent", () => {
+  it("given an opt-in > stamps the consent time", async () => {
+    const { db, runs } = makeDb({});
+
+    await setStorefrontMarketingConsent(db, "cus_1", true, 1_700_000_000_000);
+
+    expect(runs[0]?.sql).toContain("marketing_consent_at");
+    expect(runs[0]?.binds).toContain(1_700_000_000_000);
+  });
+
+  it("given a withdrawal > clears the timestamp rather than recording a false", async () => {
+    const { db, runs } = makeDb({});
+
+    await setStorefrontMarketingConsent(db, "cus_1", false, 1_700_000_000_000);
+
+    // NULL is what "no consent on record" means everywhere else in this table.
+    expect(runs[0]?.binds[0]).toBeNull();
+  });
+
+  it("never re-consents an erased account", async () => {
+    const { db, runs } = makeDb({});
+
+    await setStorefrontMarketingConsent(db, "cus_1", true, 1_700_000_000_000);
+
+    expect(runs[0]?.sql).toContain("anonymized_at IS NULL");
+  });
+});
+
+describe("anonymizeStorefrontCustomerInDb (PDPA erasure)", () => {
+  it("given an erasure request > blanks the account but never touches the order rows", async () => {
+    const { db, runs, batched } = makeDb({});
+
+    await anonymizeStorefrontCustomerInDb(db, "cus_1", 1_700_000_000_000);
+
+    const sql = [...runs, ...batched].map((s) => s.sql).join("\n");
+    expect(sql).toContain("UPDATE storefront_customers");
+    // Orders are tax records we must retain (Privacy Notice §5) — erasure must never reach them.
+    expect(sql).not.toContain("sales_orders");
+    expect(sql).not.toMatch(/DELETE\s+FROM/i);
   });
 });
 
@@ -2027,6 +2143,30 @@ describe("runDailyBackup", () => {
     expect(backupR2Bucket(env)).toBe((env as unknown as { BACKUPS: unknown }).BACKUPS);
     await runDailyBackup(env, 0);
     expect(puts.length).toBe(1);
+  });
+});
+
+describe("customer_code backfill vs generateCustomerCode", () => {
+  // The migration backfills existing accounts in SQL while new accounts get their code from core.
+  // If the two ever disagree on shape, half the customers carry a User ID that fails validation —
+  // and nothing else in the suite would notice. This makes that drift a failing build.
+  it("the SQL backfill produces the same shape the generator does", () => {
+    const sql = readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../packages/db/migrations/0059_storefront_customer_code.sql",
+      ),
+      "utf8",
+    );
+    const backfill = /SET customer_code = '([^']+)' \|\| hex\(randomblob\((\d+)\)\)/.exec(sql);
+
+    expect(backfill, "backfill expression not found — did the migration change?").not.toBeNull();
+    const [, prefix, bytes] = backfill!;
+    // hex() of N bytes is 2N uppercase hex chars, so the shapes must line up with core's output.
+    const generated = generateCustomerCode();
+    expect(prefix).toBe(CUSTOMER_CODE_PREFIX);
+    expect(prefix!.length + Number(bytes) * 2).toBe(generated.length);
+    expect(isCustomerCode(`${prefix}${"A".repeat(Number(bytes) * 2)}`)).toBe(true);
   });
 });
 

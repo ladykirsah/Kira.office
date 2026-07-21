@@ -32,7 +32,11 @@ import {
   parseCsv,
   rowsToCsv,
   xlsxToRows,
+  SHOP_PROFILES,
+  SHOP_PROFILE_LABELS,
+  type ShopProfile,
 } from "@l-shopee/core";
+import { AirPlusCustomers } from "./AirPlusCustomers";
 import { formatBahtTrim } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
@@ -257,7 +261,50 @@ function BillTable({
   );
 }
 
+/**
+ * The two businesses share this page but never share data: Den Air Service is keyed by licence
+ * plate (one row per car), AirPlus by phone (one row per account), and each was collected under
+ * its own consent. The tab pattern mirrors Shop Info's business switcher.
+ */
 export default function CustomersPage() {
+  const [profile, setProfile] = useState<ShopProfile>("denair");
+  return (
+    <>
+      <div
+        role="tablist"
+        aria-label="Business"
+        style={{ display: "flex", gap: 8, marginBottom: 14 }}
+      >
+        {SHOP_PROFILES.map((p) => {
+          const active = p === profile;
+          return (
+            <button
+              key={p}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setProfile(p)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 999,
+                border: "1px solid var(--border)",
+                background: active ? "var(--primary)" : "var(--surface)",
+                color: active ? "#fff" : "inherit",
+                cursor: "pointer",
+                fontWeight: active ? 600 : 400,
+              }}
+            >
+              {SHOP_PROFILE_LABELS[p]}
+            </button>
+          );
+        })}
+      </div>
+      {profile === "denair" ? <DenAirCustomers /> : <AirPlusCustomers />}
+    </>
+  );
+}
+
+function DenAirCustomers() {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [list, setList] = useState<CustomerListItem[]>([]);
