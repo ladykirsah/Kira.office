@@ -17,16 +17,16 @@
   "vars": { "LINE_CHANNEL_ID": "2010753164" },
   // Production custom domain (airplusauto.com — Cloudflare Registrar zone on THIS GoGoCash account,
   // required: a Worker can only bind a zone in its own account). custom_domain auto-creates the DNS
-  // record + cert. www can be added as a second custom_domain entry later. Staging keeps its
-  // *.workers.dev URL (env.staging has no routes), so `deploy --env staging` never touches this.
+  // record + cert. www can be added as a second custom_domain entry later. Staging has its own
+  // hostname (see env.staging), so `deploy --env staging` never touches this one.
   "routes": [{ "pattern": "airplusauto.com", "custom_domain": true }],
   // Same D1 database as apps/api (a D1 db can be bound by multiple Workers).
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "kira-office",
-      "database_id": "2e88a362-ffd7-4255-b178-e511d475f687"
-    }
+      "database_id": "2e88a362-ffd7-4255-b178-e511d475f687",
+    },
   ],
   // Same KV as apps/api — read-only use here (shop:paymentMethods → PromptPay target for checkout).
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
@@ -39,15 +39,18 @@
   // not resolvable (external script) — stock deduction code must treat it as optional locally.
   "durable_objects": {
     "bindings": [
-      { "name": "STOCK_LEDGER", "class_name": "StockLedger", "script_name": "kiraoffice" }
-    ]
+      { "name": "STOCK_LEDGER", "class_name": "StockLedger", "script_name": "kiraoffice" },
+    ],
   },
   "env": {
     "staging": {
       "name": "airplus-storefront-staging",
-      // Empty routes so `deploy --env staging` keeps the *.workers.dev URL and never tries to bind
-      // the production airplusauto.com custom domain (same guard the API worker uses for its prod domain).
-      "routes": [],
+      // Same reasoning as the API's staging env: *.workers.dev cannot be put behind Cloudflare
+      // Access, so staging moves onto our own zone and workers.dev is switched off. This matters
+      // more here than anywhere — OTP_DEV_ECHO below makes the login code a fixed "123456", which
+      // is only acceptable while nobody but the owner can reach the site at all.
+      "workers_dev": false,
+      "routes": [{ "pattern": "staging-shop.homeseeker.me", "custom_domain": true }],
       // Staging has no SMS provider yet, so OTP delivery runs in dev-echo mode: the code is the
       // fixed "123456" and is returned to the UI (owner can walk the login flow on their phone).
       // ONLY here — the default/production config above has no OTP_DEV_ECHO, so prod keeps random
@@ -57,8 +60,8 @@
         {
           "binding": "DB",
           "database_name": "kira-office-staging",
-          "database_id": "85f22f44-063d-424e-91ef-39e1fa1fef24"
-        }
+          "database_id": "85f22f44-063d-424e-91ef-39e1fa1fef24",
+        },
       ],
       "kv_namespaces": [{ "binding": "KV", "id": "c876509fba5c40608e1c0f1abf5d4502" }],
       // script_name is NOT inherited per environment — must be repeated with the staging Worker name.
@@ -67,10 +70,10 @@
           {
             "name": "STOCK_LEDGER",
             "class_name": "StockLedger",
-            "script_name": "kira-office-staging"
-          }
-        ]
-      }
-    }
-  }
+            "script_name": "kira-office-staging",
+          },
+        ],
+      },
+    },
+  },
 }
