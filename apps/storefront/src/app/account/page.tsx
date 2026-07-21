@@ -70,6 +70,7 @@ export default async function AccountPage() {
   const info = await db
     .prepare(
       `SELECT c.created_at AS createdAt, c.pdpa_consent_at AS pdpaConsentAt,
+        c.customer_code AS customerCode,
         (SELECT COUNT(*) FROM sales_orders o
          WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orders,
         (SELECT COUNT(*) FROM addresses a WHERE a.storefront_customer_id = c.id) AS addresses
@@ -79,6 +80,7 @@ export default async function AccountPage() {
     .first<{
       createdAt: number;
       pdpaConsentAt: number | null;
+      customerCode: string | null;
       orders: number;
       addresses: number;
     }>();
@@ -103,6 +105,14 @@ export default async function AccountPage() {
         <div className="p">{formatThaiPhone(customer.phone)}</div>
         <div className="b">สมาชิก</div>
       </div>
+
+      {/* The User ID the shop sees too — quote it when contacting us and staff can find you at once. */}
+      {info?.customerCode && (
+        <div className="acct-userid">
+          <span className="l">รหัสสมาชิก</span>
+          <code>{info.customerCode}</code>
+        </div>
+      )}
 
       <div className="acct-tiles">
         <Tile href="/account/orders" name="orders" label="คำสั่งซื้อ" count={info?.orders ?? 0} />

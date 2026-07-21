@@ -20,6 +20,7 @@ import {
   parseShopProfile,
   shopKey,
   type ShopProfile,
+  anonymizeStorefrontCustomer,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2303,6 +2304,123 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
   };
 }
 
+/** The AirPlus customer directory — `storefront_customers`, with their AirPlus order totals. */
+export async function searchStorefrontCustomers(db: D1Database, q: string): Promise<unknown[]> {
+  const term = `%${q.trim()}%`;
+  const rows = await db
+    .prepare(
+      `SELECT c.id, c.name, c.phone, c.email, c.status,
+              c.customer_code AS customerCode,
+              c.created_at AS createdAt,
+              c.last_login_at AS lastLoginAt,
+              c.phone_verified_at AS phoneVerifiedAt,
+              c.pdpa_consent_at AS pdpaConsentAt,
+              c.marketing_consent_at AS marketingConsentAt,
+              c.anonymized_at AS anonymizedAt,
+              -- "Linked" rather than the id itself: staff never need the raw LINE identifier.
+              CASE WHEN c.line_user_id IS NOT NULL THEN 1 ELSE 0 END AS lineLinked,
+              COALESCE(o.orderCount, 0) AS orderCount,
+              COALESCE(o.spentSatang, 0) AS spentSatang,
+              o.lastOrderAt AS lastOrderAt
+       FROM storefront_customers c
+       LEFT JOIN (SELECT storefront_customer_id AS cid, COUNT(*) AS orderCount,
+                         SUM(grand_total_satang) AS spentSatang,
+                         MAX(order_created_at) AS lastOrderAt
+                  FROM sales_orders
+                  WHERE channel = 'airplus' AND storefront_customer_id IS NOT NULL
+                  GROUP BY storefront_customer_id) o ON o.cid = c.id
+       WHERE (? = '' OR c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?
+              OR c.customer_code LIKE ?)
+       ORDER BY COALESCE(o.lastOrderAt, c.created_at) DESC
+       LIMIT 100`,
+    )
+    // Uppercased so a customer quoting "ap-3f7a2c91" still finds their own record.
+    .bind(q.trim(), term, term, term, term.toUpperCase())
+    .all();
+  return rows.results ?? [];
+}
+
+/** One AirPlus account: profile + consent trail + their AirPlus purchase history. */
+export async function getStorefrontCustomerDetail(db: D1Database, id: string): Promise<unknown> {
+  const customer = await db
+    .prepare(
+      `SELECT c.id, c.name, c.phone, c.email, c.status,
+              c.customer_code AS customerCode,
+              c.created_at AS createdAt,
+              c.updated_at AS updatedAt,
+              c.last_login_at AS lastLoginAt,
+              c.phone_verified_at AS phoneVerifiedAt,
+              c.pdpa_consent_at AS pdpaConsentAt,
+              c.marketing_consent_at AS marketingConsentAt,
+              c.anonymized_at AS anonymizedAt,
+              CASE WHEN c.line_user_id IS NOT NULL THEN 1 ELSE 0 END AS lineLinked
+       FROM storefront_customers c WHERE c.id = ?`,
+    )
+    .bind(id)
+    .first();
+  const orders = await db
+    .prepare(
+      `SELECT id, external_order_id AS externalOrderId, order_status AS orderStatus,
+              payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
+              order_created_at AS orderCreatedAt, carrier, tracking_no AS trackingNo
+       FROM sales_orders
+       WHERE storefront_customer_id = ? AND channel = 'airplus'
+       ORDER BY order_created_at DESC
+       LIMIT 200`,
+    )
+    .bind(id)
+    .all();
+  return { customer: customer ?? null, orders: orders.results ?? [] };
+}
+
+/**
+ * Records or withdraws marketing consent. Withdrawal clears the timestamp rather than storing a
+ * "false" — under PDPA the lawful basis simply ceases to exist, and NULL is what "no consent on
+ * record" already means everywhere else in this table.
+ */
+export async function setStorefrontMarketingConsent(
+  db: D1Database,
+  id: string,
+  optedIn: boolean,
+  at: number,
+): Promise<{ ok: boolean }> {
+  const res = await db
+    .prepare(
+      `UPDATE storefront_customers SET marketing_consent_at = ?, updated_at = ?
+        WHERE id = ? AND anonymized_at IS NULL`,
+    )
+    .bind(optedIn ? at : null, at, id)
+    .run();
+  return { ok: (res.meta?.changes ?? 0) > 0 };
+}
+
+/**
+ * PDPA erasure for one AirPlus account. Blanks the identity columns in place — it deliberately
+ * does NOT delete the row, because `sales_orders` carries an FK to it and those orders are tax
+ * records the law requires us to keep (Privacy Notice §5). See `anonymizeStorefrontCustomer` in
+ * core for the field-level rules.
+ */
+export async function anonymizeStorefrontCustomerInDb(
+  db: D1Database,
+  id: string,
+  at: number,
+): Promise<{ ok: boolean }> {
+  const patch = anonymizeStorefrontCustomer({ id, at });
+  // `anonymized_at IS NULL` makes this idempotent: a second click cannot overwrite the original
+  // erasure timestamp, which is the audit trail for when the request was honoured.
+  const res = await db
+    .prepare(
+      `UPDATE storefront_customers
+          SET name = ?, phone = ?, email = NULL, line_user_id = NULL, facebook_id = NULL,
+              password_hash = NULL, marketing_consent_at = NULL, status = ?,
+              anonymized_at = ?, updated_at = ?
+        WHERE id = ? AND anonymized_at IS NULL`,
+    )
+    .bind(patch.name, patch.phone, patch.status, patch.anonymizedAt, at, id)
+    .run();
+  return { ok: (res.meta?.changes ?? 0) > 0 };
+}
+
 const csvCell = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 const thb = (satang: number): string => (satang / 100).toFixed(2);
 
@@ -3827,6 +3945,41 @@ const worker = {
     const customerGet = url.pathname.match(/^\/customers\/([^/]+)$/);
     if (customerGet && request.method === "GET") {
       return json(await getCustomerDetail(env.DB, decodeURIComponent(customerGet[1]!)));
+    }
+
+    // AirPlus customers. A separate path prefix, not a sub-path of /customers — that route ends in
+    // a `([^/]+)` catch-all which would otherwise swallow these.
+    if (url.pathname === "/storefront-customers" && request.method === "GET") {
+      return json({
+        customers: await searchStorefrontCustomers(env.DB, url.searchParams.get("q") ?? ""),
+      });
+    }
+    const sfMarketing = url.pathname.match(/^\/storefront-customers\/([^/]+)\/marketing$/);
+    if (sfMarketing && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { optedIn?: boolean };
+      if (typeof body.optedIn !== "boolean") {
+        return json({ ok: false, error: "optedIn (boolean) required" }, 400);
+      }
+      const result = await setStorefrontMarketingConsent(
+        env.DB,
+        decodeURIComponent(sfMarketing[1]!),
+        body.optedIn,
+        Date.now(),
+      );
+      return json(result, result.ok ? 200 : 404);
+    }
+    const sfErase = url.pathname.match(/^\/storefront-customers\/([^/]+)\/anonymize$/);
+    if (sfErase && request.method === "POST") {
+      const result = await anonymizeStorefrontCustomerInDb(
+        env.DB,
+        decodeURIComponent(sfErase[1]!),
+        Date.now(),
+      );
+      return json(result, result.ok ? 200 : 404);
+    }
+    const sfGet = url.pathname.match(/^\/storefront-customers\/([^/]+)$/);
+    if (sfGet && request.method === "GET") {
+      return json(await getStorefrontCustomerDetail(env.DB, decodeURIComponent(sfGet[1]!)));
     }
 
     // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).

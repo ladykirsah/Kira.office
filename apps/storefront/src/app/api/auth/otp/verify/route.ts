@@ -3,6 +3,7 @@ import { OTP_MAX_ATTEMPTS, SESSION_COOKIE, hashOtp } from "@/lib/authCore";
 import { createSession, guardMutation, sessionCookieOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
+import { generateCustomerCode } from "@l-shopee/core";
 
 /**
  * POST /api/auth/otp/verify { phone, code, pdpaConsent? }
@@ -100,12 +101,15 @@ export async function POST(req: Request): Promise<Response> {
       await db
         .prepare(
           `INSERT INTO storefront_customers
-             (id, phone, name, phone_verified_at, pdpa_consent_at, last_login_at, created_at, updated_at)
-           VALUES (?, ?, '', ?, ?, ?, ?, ?)
+             (id, phone, name, customer_code, phone_verified_at, pdpa_consent_at, last_login_at,
+              created_at, updated_at)
+           VALUES (?, ?, '', ?, ?, ?, ?, ?, ?)
            ON CONFLICT(phone) DO UPDATE SET phone_verified_at = excluded.phone_verified_at,
              last_login_at = excluded.last_login_at, updated_at = excluded.updated_at`,
         )
-        .bind(customerId, phone, now, now, now, now, now)
+        // customer_code is absent from the DO UPDATE on purpose: a returning account keeps the
+        // User ID it has already been told, it never gets reissued.
+        .bind(customerId, phone, generateCustomerCode(), now, now, now, now, now)
         .run();
       const row = await db
         .prepare(`SELECT id FROM storefront_customers WHERE phone = ?`)

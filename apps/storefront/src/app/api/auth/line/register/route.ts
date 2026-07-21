@@ -4,6 +4,7 @@ import { SESSION_COOKIE } from "@/lib/authCore";
 import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 import { LINE_PENDING_COOKIE, takeLinePending } from "@/lib/lineAuth";
+import { generateCustomerCode } from "@l-shopee/core";
 
 /**
  * POST /api/auth/line/register — finish a first-time LINE signup. LINE is the only credential and
@@ -119,10 +120,21 @@ export async function POST(request: Request): Promise<Response> {
       await db
         .prepare(
           `INSERT INTO storefront_customers
-             (id, phone, name, line_user_id, pdpa_consent_at, last_login_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, phone, name, customer_code, line_user_id, pdpa_consent_at, last_login_at,
+              created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(customerId, phone, displayName, pending.lineUserId, now, now, now, now)
+        .bind(
+          customerId,
+          phone,
+          displayName,
+          generateCustomerCode(),
+          pending.lineUserId,
+          now,
+          now,
+          now,
+          now,
+        )
         .run();
 
       // The delivery address becomes their default (recipient = the account name + this phone).
