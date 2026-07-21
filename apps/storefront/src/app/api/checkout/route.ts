@@ -8,6 +8,7 @@ import {
   parsePaymentMethods,
   quoteShippingSatang,
   resolveEffectivePrice,
+  shopKey,
   validateCoupon,
 } from "@l-shopee/core";
 import { getSession, guardMutation } from "@/lib/auth";
@@ -417,7 +418,9 @@ export async function POST(req: Request): Promise<Response> {
     let promptpayId: string | null = null;
     if (body.paymentMethod !== "cod") {
       const { KV } = await getEnv();
-      const methods = parsePaymentMethods(await KV.get("shop:paymentMethods"));
+      // AirPlus's OWN account — Den Air Service takes money into a different one, so this must
+      // never fall back to the workshop's profile.
+      const methods = parsePaymentMethods(await KV.get(shopKey("airplus", "paymentMethods")));
       promptpayId = defaultPaymentMethod(methods)?.promptpayId ?? null;
     }
 

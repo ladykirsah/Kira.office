@@ -9,7 +9,8 @@ export default async function BarcodesPage() {
     [products, barcodes, shopInfo] = await Promise.all([
       fetchProducts(),
       fetchBarcodes(),
-      fetchShopInfo().catch(() => ({ name: "", address: "" })),
+      // Barcode labels are printed at the workshop counter -> Den Air Service identity.
+      fetchShopInfo("denair").catch(() => ({ name: "", address: "" })),
     ]);
   } catch (err) {
     return (

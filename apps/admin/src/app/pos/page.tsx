@@ -1092,7 +1092,8 @@ export default function PosPage() {
     fetchServices()
       .then((s) => setServices(s))
       .catch(() => {});
-    fetchShopInfo()
+    // POS bills and quotations are Den Air Service documents.
+    fetchShopInfo("denair")
       .then((s) => setShop(s))
       .catch(() => {});
     fetchCarFitment()

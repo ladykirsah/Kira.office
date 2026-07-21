@@ -55,7 +55,10 @@ export default function PaymentPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    fetchShopInfo()
+    // TODO(owner): this dropdown records WHICH account received money, and the page also lists
+    // AirPlus slip confirmations. It currently offers Den Air Service accounts only — revisit once
+    // AirPlus has its own PromptPay set, so an online payment is not recorded against the workshop.
+    fetchShopInfo("denair")
       .then((s) => {
         const list = parsePaymentMethods(s.paymentMethods);
         setMethods(list);

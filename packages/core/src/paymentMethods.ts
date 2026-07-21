@@ -1,6 +1,7 @@
 /**
  * Shop payment methods — multiple PromptPay accounts (the owner's, mom's, dad's…) with exactly one
- * default. Stored as a JSON string in shop-info KV (`shop:paymentMethods`) and edited on the Shop
+ * default. Stored as a JSON string per business profile in KV (`shop:<profile>:paymentMethods`,
+ * see shopProfiles) and edited on the Shop
  * page; the Payment page offers them as the method dropdown. Parsing is tolerant (bad JSON → []),
  * serialization normalizes so exactly one method carries the default flag.
  */

@@ -1,5 +1,6 @@
 /** Typed client for the kiraoffice API Worker. */
 import { apiFetch, apiBase } from "./apiFetch";
+import type { ShopProfile } from "@l-shopee/core";
 import type { DraftApiLine } from "./posDraft";
 
 export { apiBase };
@@ -737,6 +738,11 @@ export interface ShopInfo {
   qrSubtitle: string; // contact-QR subtitle
   qrSubtitleEn: string;
   paymentMethods: string; // JSON array of PromptPay methods (core parsePaymentMethods); "" = none
+  /** Per-profile LINE account (was hardcoded in the storefront). */
+  lineUrl: string;
+  /** AirPlus: phone + postcode for the parcel sender block and the shipping-fee origin. */
+  shipFromPhone: string;
+  shipFromPostcode: string;
   logoKey: string | null; // R2 key, served at /img/<key>
   qrKey: string | null;
 }
@@ -756,19 +762,24 @@ export const EMPTY_SHOP_INFO: ShopInfo = {
   qrSubtitle: "",
   qrSubtitleEn: "",
   paymentMethods: "",
+  lineUrl: "",
+  shipFromPhone: "",
+  shipFromPostcode: "",
   logoKey: null,
   qrKey: null,
 };
 
-export async function fetchShopInfo(): Promise<ShopInfo> {
-  const res = await apiFetch(`/shop-info`, { cache: "no-store" });
+/** Every call is scoped to a business profile — Den Air Service and AirPlus keep separate
+ *  settings (own bank account, LINE and logo), so there is no unscoped "the shop". */
+export async function fetchShopInfo(profile: ShopProfile): Promise<ShopInfo> {
+  const res = await apiFetch(`/shop-info/${profile}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load shop info (HTTP ${res.status})`);
-  // Fill any missing keys so the UI stays robust against an older API (name/address only).
+  // Fill any missing keys so the UI stays robust against an API that predates a newer field.
   return { ...EMPTY_SHOP_INFO, ...((await res.json()) as Partial<ShopInfo>) };
 }
 
-export async function saveShopInfo(info: ShopInfoText): Promise<void> {
-  const res = await apiFetch(`/shop-info`, {
+export async function saveShopInfo(profile: ShopProfile, info: ShopInfoText): Promise<void> {
+  const res = await apiFetch(`/shop-info/${profile}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(info),
@@ -871,10 +882,11 @@ export async function clearTaxonomyImage(kind: "type" | "car-brand", id: string)
 }
 
 export async function uploadShopImage(
+  profile: ShopProfile,
   slot: "logo" | "qr",
   file: File,
 ): Promise<{ key: string; url: string }> {
-  const res = await apiFetch(`/shop-info/${slot}`, {
+  const res = await apiFetch(`/shop-info/${profile}/${slot}`, {
     method: "POST",
     headers: { "content-type": file.type },
     body: file,

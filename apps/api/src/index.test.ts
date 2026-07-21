@@ -1741,7 +1741,7 @@ describe("api worker routes", () => {
     expect(saved).toBe("T {{x}}");
   });
 
-  it("shop-info round-trips paymentMethods (the Payment page dropdown needs it)", async () => {
+  function kvEnv() {
     const store = new Map<string, string>();
     const env = {
       KV: {
@@ -1749,22 +1749,65 @@ describe("api worker routes", () => {
         put: async (k: string, v: string) => void store.set(k, v),
       },
     } as unknown as Env;
+    return { store, env };
+  }
+
+  it("shop-info round-trips paymentMethods per profile (the Payment page dropdown needs it)", async () => {
+    const { store, env } = kvEnv();
     const methods = JSON.stringify([
       { id: "a", label: "ร้าน", promptpayId: "0812345678", isDefault: true },
       { id: "b", label: "แม่", promptpayId: "1234567890123" },
     ]);
     await worker.fetch!(
-      new Request("https://x/shop-info", {
+      new Request("https://x/shop-info/denair", {
         method: "PUT",
         body: JSON.stringify({ name: "ร้าน", paymentMethods: methods }),
       }),
       env,
       ctx,
     );
-    expect(store.get("shop:paymentMethods")).toBe(methods);
-    const res = await worker.fetch!(new Request("https://x/shop-info"), env, ctx);
+    expect(store.get("shop:denair:paymentMethods")).toBe(methods);
+    const res = await worker.fetch!(new Request("https://x/shop-info/denair"), env, ctx);
     const body = (await res.json()) as Record<string, string | null>;
     expect(body.paymentMethods).toBe(methods);
+    expect(body.profile).toBe("denair");
+  });
+
+  it("shop-info keeps the two businesses' bank accounts apart", async () => {
+    // The reason this split exists: Den Air Service and AirPlus take money into different accounts.
+    // Writing one must never be readable as the other.
+    const { env } = kvEnv();
+    const denair = JSON.stringify([{ id: "d", label: "หน้าร้าน", promptpayId: "0811111111" }]);
+    const airplus = JSON.stringify([{ id: "a", label: "ออนไลน์", promptpayId: "0822222222" }]);
+    for (const [profile, methods] of [
+      ["denair", denair],
+      ["airplus", airplus],
+    ]) {
+      await worker.fetch!(
+        new Request(`https://x/shop-info/${profile}`, {
+          method: "PUT",
+          body: JSON.stringify({ paymentMethods: methods }),
+        }),
+        env,
+        ctx,
+      );
+    }
+    const d = (await (
+      await worker.fetch!(new Request("https://x/shop-info/denair"), env, ctx)
+    ).json()) as Record<string, string>;
+    const a = (await (
+      await worker.fetch!(new Request("https://x/shop-info/airplus"), env, ctx)
+    ).json()) as Record<string, string>;
+    expect(d.paymentMethods).toBe(denair);
+    expect(a.paymentMethods).toBe(airplus);
+    expect(d.paymentMethods).not.toBe(a.paymentMethods);
+  });
+
+  it("shop-info 404s an unknown profile instead of defaulting to one", async () => {
+    // Defaulting would write one shop's settings into the other's namespace.
+    const { env } = kvEnv();
+    const res = await worker.fetch!(new Request("https://x/shop-info/shopee"), env, ctx);
+    expect(res.status).toBe(404);
   });
 
   it("POST /payments > records an approved payment (label, account, amount, timestamps)", async () => {
