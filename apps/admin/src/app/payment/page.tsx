@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchShopInfo,
   fetchPayments,
@@ -54,17 +54,24 @@ export default function PaymentPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const reloadShop = useCallback(async () => {
+    setError(null);
+    try {
+      const s = await fetchShopInfo("denair");
+      const list = parsePaymentMethods(s.paymentMethods);
+      setMethods(list);
+      setMethodId(defaultPaymentMethod(list)?.id ?? "");
+    } catch (e) {
+      setError(`ไม่สามารถโหลดบัญชีร้านได้ — ${(e as Error).message}`);
+    }
+  }, []);
+
   useEffect(() => {
-    // TODO(owner): this dropdown records WHICH account received money, and the page also lists
-    // AirPlus slip confirmations. It currently offers Den Air Service accounts only — revisit once
-    // AirPlus has its own PromptPay set, so an online payment is not recorded against the workshop.
-    fetchShopInfo("denair")
-      .then((s) => {
-        const list = parsePaymentMethods(s.paymentMethods);
-        setMethods(list);
-        setMethodId(defaultPaymentMethod(list)?.id ?? "");
-      })
-      .catch((e) => setError((e as Error).message));
+    // CONFIRMED by the owner (2026-07-21): this page is Den Air Service only, so the account
+    // dropdown offers the workshop's PromptPay accounts and nothing else. AirPlus takes money
+    // into its own account through the storefront checkout, which reads the airplus profile
+    // directly — an online payment must never be recorded against the workshop here.
+    void reloadShop();
     fetchPayments()
       .then((v) => {
         setPayments(v.payments);
@@ -145,26 +152,50 @@ export default function PaymentPage() {
     }
   }
 
-  if (error) {
-    return (
-      <main>
-        <h1>Payment</h1>
-        <p style={{ color: "var(--danger)" }}>{error}</p>
-      </main>
-    );
-  }
-
   return (
     <main>
       <PageHeader
         title="Payment"
-        subtitle="Take a PromptPay payment: pick the receiving account, enter the amount, create the QR, let the customer scan, then approve once their banking app confirms."
+        subtitle="Den Air Service · take a PromptPay payment: pick the receiving account, enter the amount, create the QR, let the customer scan, then approve once their banking app confirms."
       />
+
+      {/* A shop-info failure used to REPLACE this whole page, taking the payments list and slip
+          verification down with it — even though neither depends on shop info. It is now a banner
+          with a retry, and everything below keeps working. */}
+      {error && (
+        <div
+          role="alert"
+          className="card"
+          style={{
+            padding: "12px 14px",
+            marginBottom: 14,
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+            borderColor: "var(--danger)",
+            color: "var(--danger)",
+            fontSize: 14,
+          }}
+        >
+          <span style={{ flex: "1 1 320px" }}>{error}</span>
+          <button
+            type="button"
+            className="btn-sm"
+            onClick={() => void reloadShop()}
+            disabled={busy}
+          >
+            ลองอีกครั้ง
+          </button>
+        </div>
+      )}
 
       {methods.length === 0 ? (
         <div className="empty">
           <div className="empty-icon">💳</div>
-          No PromptPay accounts yet — add them in Shop info → Payment.
+          {error
+            ? "Accounts could not be loaded — retry above. The payment history below is unaffected."
+            : "No PromptPay accounts yet — add them in Shop info → Den Air Service → Payment."}
         </div>
       ) : (
         <>
