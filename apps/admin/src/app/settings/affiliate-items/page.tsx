@@ -210,9 +210,11 @@ export default function AffiliateItemsPage() {
   const [source, setSource] = useState<AffiliateItemRow["source"]>("shopee");
   const [sort, setSort] = useState("0");
   const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const urlOk = isHttps(targetUrl);
-  const canAdd = title.trim() !== "" && urlOk;
 
   async function load() {
     try {
@@ -230,24 +232,44 @@ export default function AffiliateItemsPage() {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!canAdd) return;
+    // The Add button is deliberately NOT disabled on incomplete input. A disabled button that a
+    // click passes straight through reads as broken — the owner hit exactly that on Part
+    // attributes. Always act, and say what is missing.
+    if (title.trim() === "") {
+      setAddError("ใส่ชื่อเครื่องมือก่อน — a card needs a title.");
+      return;
+    }
+    if (!urlOk) {
+      setAddError("Target URL ต้องขึ้นต้นด้วย https:// — that is the link the card opens.");
+      return;
+    }
+    setAddError(null);
     setBusy(true);
     try {
-      await addAffiliateItem({
+      const created = await addAffiliateItem({
         title: title.trim(),
         targetUrl: targetUrl.trim(),
         priceText: priceText.trim() || undefined,
         source,
         sortOrder: Math.round(parseFloat(sort) || 0),
       });
-      toast("Item added — upload its image in the table below", "success");
+      // Picture goes up in the SAME submit. Previously the item was created imageless and the
+      // owner had to find a second upload control in the table below — the same two-step flow
+      // they flagged on Banners.
+      if (file) await uploadAffiliateItemImage(created.id, file);
+      toast(`เพิ่ม “${title.trim()}” แล้ว ✓`, "success");
       setTitle("");
       setTargetUrl("");
       setPriceText("");
       setSort("0");
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = "";
       await load();
     } catch (e2) {
-      toast((e2 as Error).message, "error");
+      // The row may exist even if the image failed — reload either way so the list shows what
+      // actually landed.
+      await load();
+      setAddError((e2 as Error).message);
     } finally {
       setBusy(false);
     }
@@ -318,13 +340,48 @@ export default function AffiliateItemsPage() {
               style={{ ...inputS, width: 64 }}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={busy || !canAdd}>
+          <div style={fieldCol}>
+            <span style={fieldLabel}>Picture</span>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              hidden
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                setAddError(null);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              style={{
+                ...inputS,
+                maxWidth: 170,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {file ? `🖼 ${file.name}` : "＋ Choose…"}
+            </button>
+          </div>
+          <button type="submit" className="btn-primary btn-sm" disabled={busy}>
             Add
           </button>
         </form>
+        {/* Live hint while typing; addError is what a rejected SUBMIT reports. */}
         {targetUrl.trim() !== "" && !urlOk && (
           <p style={{ fontSize: 12, color: "var(--danger)", marginTop: 6, marginBottom: 0 }}>
             The target URL must start with https://
+          </p>
+        )}
+        {addError && (
+          <p
+            role="alert"
+            style={{ fontSize: 12, color: "var(--danger)", marginTop: 6, marginBottom: 0 }}
+          >
+            {addError}
           </p>
         )}
       </div>
