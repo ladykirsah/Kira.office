@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb, listProductTypes } from "@/lib/db";
-import { PART_TYPE_EN } from "@/lib/labels";
+import { displayNames } from "@l-shopee/core";
 import { imgUrl } from "@/lib/img";
 import { Icon } from "@/components/Icon";
 
@@ -59,10 +59,8 @@ export default async function CategoriesPage() {
                 )}
               </div>
               <div className="catlist-info">
-                <div className="catlist-name">{t.name}</div>
-                {PART_TYPE_EN[t.name] && (
-                  <div className="catlist-name-en">{PART_TYPE_EN[t.name]}</div>
-                )}
+                <div className="catlist-name">{displayNames(t).th}</div>
+                {displayNames(t).en && <div className="catlist-name-en">{displayNames(t).en}</div>}
                 <div className="catlist-count">{t.productCount} รายการ</div>
               </div>
               <span className="catlist-chev" aria-hidden="true">

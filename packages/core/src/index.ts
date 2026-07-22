@@ -29,3 +29,4 @@ export * from "./taxonomyImages";
 
 export * from "./lineLogin";
 export * from "./retryRead";
+export * from "./taxonomyNames";

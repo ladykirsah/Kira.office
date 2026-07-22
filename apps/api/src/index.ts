@@ -2738,6 +2738,10 @@ export interface AttrOption {
   name: string;
   /** Cover-image R2 key — only product types and car brands can have one; null/absent otherwise. */
   imageKey?: string | null;
+  /** Thai display name (migration 0060). Null until the owner supplies one. */
+  nameTh?: string | null;
+  /** English display name (migration 0060). Null until the owner supplies one. */
+  nameEn?: string | null;
 }
 
 // Whitelist of attribute kinds → their table. Table names come from this literal map only (never
@@ -2758,12 +2762,22 @@ export async function listAttributes(db: D1Database): Promise<{
   carBrands: AttrOption[];
   carModels: AttrOption[];
 }> {
+  // name_th / name_en are display-only (migration 0060); `name` stays the identity every other
+  // table joins on, so it is always selected too.
   const q = (table: string) =>
-    db.prepare(`SELECT id, name FROM ${table} ORDER BY sort_order, name`).all<AttrOption>();
+    db
+      .prepare(
+        `SELECT id, name, name_th AS nameTh, name_en AS nameEn
+           FROM ${table} ORDER BY sort_order, name`,
+      )
+      .all<AttrOption>();
   // product_types and car_brands additionally carry a cover image for the storefront tiles.
   const qImg = (table: string) =>
     db
-      .prepare(`SELECT id, name, image_key AS imageKey FROM ${table} ORDER BY sort_order, name`)
+      .prepare(
+        `SELECT id, name, name_th AS nameTh, name_en AS nameEn, image_key AS imageKey
+           FROM ${table} ORDER BY sort_order, name`,
+      )
       .all<AttrOption>();
   const [brands, types, usages, carBrands, carModels] = await Promise.all([
     q("brands"),
@@ -2884,6 +2898,32 @@ export async function addAttribute(
   return { id: optionId, name: n };
 }
 
+/**
+ * Set a row's Thai / English display names (migration 0060).
+ *
+ * `name` is NOT touched: it is the identity that product_fitments.car_brand joins on as free text,
+ * and it carries the UNIQUE index. Renaming through here would orphan fitments, so this endpoint
+ * only ever writes the two display columns.
+ *
+ * An empty string clears the column rather than storing "" — a blank must read as "not translated
+ * yet" everywhere, so displayNames() can drop the second line instead of rendering an empty one.
+ */
+export async function setAttributeNames(
+  db: D1Database,
+  table: string,
+  id: string,
+  names: { nameTh?: string | null; nameEn?: string | null },
+): Promise<void> {
+  const norm = (v: string | null | undefined) => {
+    const t = (v ?? "").trim();
+    return t === "" ? null : t;
+  };
+  await db
+    .prepare(`UPDATE ${table} SET name_th = ?, name_en = ? WHERE id = ?`)
+    .bind(norm(names.nameTh), norm(names.nameEn), id)
+    .run();
+}
+
 /** Remove an option. Products still referencing it simply show a blank value. */
 export async function deleteAttribute(db: D1Database, table: string, id: string): Promise<void> {
   await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
@@ -2985,15 +3025,19 @@ export interface CarBrandTree {
 export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrandTree[] }> {
   const [brands, models] = await Promise.all([
     db
-      .prepare("SELECT id, name, image_key AS imageKey FROM car_brands ORDER BY sort_order, name")
+      .prepare(
+        "SELECT id, name, name_th AS nameTh, name_en AS nameEn, image_key AS imageKey FROM car_brands ORDER BY sort_order, name",
+      )
       .all<AttrOption>(),
     db
       .prepare(
-        "SELECT id, name, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_usage AS oringUsage, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
+        "SELECT id, name, name_th AS nameTh, name_en AS nameEn, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_usage AS oringUsage, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
       )
       .all<{
         id: string;
         name: string;
+        nameTh: string | null;
+        nameEn: string | null;
         carBrandId: string | null;
         generationCode: string | null;
         yearFrom: number | null;
@@ -3010,6 +3054,8 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     const node: CarModelNode = {
       id: m.id,
       name: m.name,
+      nameTh: m.nameTh ?? null,
+      nameEn: m.nameEn ?? null,
       generationCode: m.generationCode ?? null,
       yearFrom: m.yearFrom ?? null,
       yearTo: m.yearTo ?? null,
@@ -3026,6 +3072,8 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     brands: (brands.results ?? []).map((b) => ({
       id: b.id,
       name: b.name,
+      nameTh: b.nameTh ?? null,
+      nameEn: b.nameEn ?? null,
       imageKey: b.imageKey ?? null,
       models: byBrand.get(b.id) ?? [],
     })),
@@ -4258,15 +4306,37 @@ const worker = {
     if (attrAdd && request.method === "POST") {
       const table = ATTR_TABLE[attrAdd[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
-      const body = (await request.json().catch(() => ({}))) as { name?: string };
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        nameTh?: string | null;
+        nameEn?: string | null;
+      };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      return json(await addAttribute(env.DB, table, body.name), 201);
+      const created = await addAttribute(env.DB, table, body.name);
+      // Names are optional on create — the owner can fill the second language later from the row.
+      if (body.nameTh != null || body.nameEn != null) {
+        await setAttributeNames(env.DB, table, created.id, body);
+        return json({ ...created, nameTh: body.nameTh ?? null, nameEn: body.nameEn ?? null }, 201);
+      }
+      return json(created, 201);
     }
     const attrDel = url.pathname.match(/^\/attributes\/([^/]+)\/([^/]+)$/);
     if (attrDel && request.method === "DELETE") {
       const table = ATTR_TABLE[attrDel[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
       await deleteAttribute(env.DB, table, attrDel[2]!);
+      return json({ ok: true });
+    }
+    // Thai / English display names (migration 0060). PATCH, not PUT: this edits only the two
+    // display columns and never `name`, which other tables join on as free text.
+    if (attrDel && request.method === "PATCH") {
+      const table = ATTR_TABLE[attrDel[1]!];
+      if (!table) return json({ error: "unknown attribute kind" }, 404);
+      const body = (await request.json().catch(() => ({}))) as {
+        nameTh?: string | null;
+        nameEn?: string | null;
+      };
+      await setAttributeNames(env.DB, table, attrDel[2]!, body);
       return json({ ok: true });
     }
 

@@ -14,6 +14,7 @@ import {
   clearTaxonomyImage,
   imageUrl,
   type AttrKind,
+  setAttributeNames,
   type AttrOption,
   type Attributes,
 } from "@/lib/api";
@@ -152,8 +153,128 @@ function FieldError({ children }: { children: string }) {
   );
 }
 
-/** Simple creatable list (part brands, car systems). One text field per card. */
+/**
+ * Thai + English display names for one taxonomy row.
+ *
+ * Follows the owner's rule from the banner table: input box → filled → save → PLAIN TEXT. A row
+ * that already has its names reads as a quiet caption, not as two more form fields shouting for
+ * attention; click Edit to change it. That keeps a long list of categories scannable.
+ *
+ * These are display-only. The row's `name` is the identity that products and fitments join on, so
+ * it is never editable here — renaming it would orphan those references.
+ */
+export function BilingualNames({
+  kind,
+  option,
+  onChanged,
+}: {
+  kind: AttrKind;
+  option: AttrOption;
+  onChanged: () => Promise<void>;
+}) {
+  const savedTh = (option.nameTh ?? "").trim();
+  const savedEn = (option.nameEn ?? "").trim();
+  const [editing, setEditing] = useState(false);
+  const [th, setTh] = useState(savedTh);
+  const [en, setEn] = useState(savedEn);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  async function save() {
+    setBusy(true);
+    try {
+      await setAttributeNames(kind, option.id, {
+        nameTh: th.trim() || null,
+        nameEn: en.trim() || null,
+      });
+      await onChanged();
+      setEditing(false);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Save failed", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {savedTh || savedEn ? (
+            <>
+              {savedTh && <span>ไทย: {savedTh}</span>}
+              {savedTh && savedEn && <span> · </span>}
+              {savedEn && <span>EN: {savedEn}</span>}
+            </>
+          ) : (
+            // Not an error state: the storefront falls back to `name`, it just shows one line.
+            <em>ยังไม่มีชื่อไทย / อังกฤษ</em>
+          )}
+        </span>
+        <button
+          type="button"
+          className="btn-sm"
+          onClick={() => setEditing(true)}
+          style={{
+            minHeight: 0,
+            padding: "2px 8px",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            background: "var(--surface)",
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
+          {savedTh || savedEn ? "Edit names" : "Add names"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input
+        value={th}
+        onChange={(e) => setTh(e.target.value)}
+        placeholder="ชื่อภาษาไทย"
+        aria-label={`ชื่อภาษาไทยของ ${option.name}`}
+        style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
+      />
+      <input
+        value={en}
+        onChange={(e) => setEn(e.target.value)}
+        placeholder="English name"
+        aria-label={`English name for ${option.name}`}
+        style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
+      />
+      <button type="button" className="btn-primary btn-sm" onClick={save} disabled={busy}>
+        {busy ? "Saving…" : "Save"}
+      </button>
+      <button
+        type="button"
+        className="btn-sm"
+        onClick={() => {
+          setTh(savedTh);
+          setEn(savedEn);
+          setEditing(false);
+        }}
+        style={{
+          minHeight: 0,
+          padding: "6px 10px",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          background: "var(--surface)",
+          cursor: "pointer",
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 function ListCard({
+  kind,
   label,
   placeholder,
   items,
@@ -162,6 +283,7 @@ function ListCard({
   onDelete,
   onChanged,
 }: {
+  kind: AttrKind;
   label: string;
   placeholder: string;
   items: AttrOption[];
@@ -214,15 +336,20 @@ function ListCard({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
+                alignItems: "flex-start",
                 gap: 8,
                 borderTop: "1px solid var(--border)",
                 padding: "8px 0",
               }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <span
+                style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, flex: 1 }}
+              >
                 {cover && <CoverPicker kind={cover} option={o} onChanged={onChanged} />}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.name}</span>
+                <span style={{ display: "grid", gap: 4, minWidth: 0, flex: 1 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.name}</span>
+                  <BilingualNames kind={kind} option={o} onChanged={onChanged} />
+                </span>
               </span>
               <ConfirmButton
                 className="icon-btn"
@@ -341,17 +468,16 @@ function CategoryCard({
                 key={o.id}
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: 10,
                   borderTop: "1px solid var(--border)",
                   padding: "8px 0",
                 }}
               >
                 <CoverPicker kind="type" option={o} onChanged={onChanged} />
-                <span
-                  style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
-                >
-                  {o.name}
+                <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 4 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.name}</span>
+                  <BilingualNames kind="type" option={o} onChanged={onChanged} />
                 </span>
                 <input
                   value={shown}
@@ -570,6 +696,7 @@ export function AttributeManager({
             ) : (
               <ListCard
                 key={k.kind}
+                kind={k.kind}
                 label={k.label}
                 placeholder={k.placeholder}
                 items={data ? data[k.listKey] : []}

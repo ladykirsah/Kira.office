@@ -3011,11 +3011,17 @@ describe("part attributes (brand / car system / part name)", () => {
         {
           id: "cb1",
           name: "Toyota",
+          // Display names (migration 0060). The stub rows below set neither, so both come back
+          // null and the storefront falls back to `name` — one line instead of two.
+          nameTh: null,
+          nameEn: null,
           imageKey: null, // no storefront cover set for this brand
           models: [
             {
               id: "cm1",
               name: "Vios",
+              nameTh: null,
+              nameEn: null,
               generationCode: "NCP150",
               yearFrom: 2013,
               yearTo: 2019,
