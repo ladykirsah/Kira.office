@@ -11,7 +11,7 @@ import {
   randomSessionToken,
 } from "@/lib/authCore";
 import { clientIp, guardMutation, takeThrottle } from "@/lib/auth";
-import { getDb, getEnv } from "@/lib/db";
+import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 import { sendOtpSms } from "@/lib/sms";
 import { verifyTurnstile } from "@/lib/turnstile";

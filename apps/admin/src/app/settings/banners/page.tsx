@@ -200,7 +200,6 @@ function BannerItem({
           }}
         >
           {banner.imageKey ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imageUrl(banner.imageKey)}
               alt="Banner"

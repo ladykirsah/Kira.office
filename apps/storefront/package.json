@@ -2,13 +2,14 @@
   "name": "@l-shopee/storefront",
   "version": "0.0.0",
   "private": true,
-  "description": "AirPlus — customer-facing car-parts storefront on Cloudflare Workers via OpenNext",
+  "description": "AirPlus \u2014 customer-facing car-parts storefront on Cloudflare Workers via OpenNext",
   "scripts": {
     "dev": "next dev --port 3002",
     "build": "next build",
     "build:check": "NEXT_DIST_DIR=.next-verify next build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "lint:es": "eslint ."
   },
   "dependencies": {
     "@l-shopee/core": "*",
@@ -20,8 +21,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5",
+    "@eslint/eslintrc": "^3.3.6",
     "@opennextjs/cloudflare": "^1.0.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.0"
   }
 }

@@ -53,7 +53,6 @@ export default function OrdersPage() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load a chosen file into the CSV box: a Shopee .xlsx is parsed + normalized in-browser (all its

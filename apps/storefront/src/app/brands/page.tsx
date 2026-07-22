@@ -49,7 +49,6 @@ export default async function BrandsPage() {
               >
                 <div className="catlist-thumb">
                   {logo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={logo} alt={th ?? b.brand} loading="lazy" />
                   ) : (
                     <span aria-hidden="true" className="star">

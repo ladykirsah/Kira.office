@@ -111,7 +111,7 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
           background: "var(--hover)",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {}
         <img
           src={`${apiBase}/img/${images[idx].imageKey}`}
           alt={name}
@@ -147,7 +147,7 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
                 border: i === idx ? "2px solid var(--primary)" : "1px solid var(--border)",
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {}
               <img
                 src={`${apiBase}/img/${img.imageKey}`}
                 alt=""

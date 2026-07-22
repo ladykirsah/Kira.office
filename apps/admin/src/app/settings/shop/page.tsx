@@ -141,7 +141,6 @@ function ViewImage({ label, imgKey }: { label: string; imgKey: string | null }) 
         }}
       >
         {imgKey ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={imageUrl(imgKey)} alt={label} style={{ maxWidth: "100%", maxHeight: "100%" }} />
         ) : (
           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>none</span>
@@ -312,7 +311,6 @@ export default function ShopInfoPage() {
           }}
         >
           {imgKey ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imageUrl(imgKey)}
               alt={label}

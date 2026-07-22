@@ -136,7 +136,6 @@ export default function SalesPage() {
     (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
   );
   const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
-  const shopeeFees = shopeeInRange.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
   // Shopee tab view: search + order-status filter over the period (cards + table reflect it).
   // Status filters on the short mapped label (Complete/Shipped/…), not the verbose raw status.
   const shopeeStatuses = Array.from(

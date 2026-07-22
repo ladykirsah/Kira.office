@@ -19,7 +19,6 @@ export function CategoryRow({
         <Link key={item.href} href={item.href} className="cat-card">
           <div className="cat-thumb">
             {item.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={item.image} alt={item.name} loading="lazy" />
             ) : (
               <span aria-hidden="true" className="star">

@@ -39,7 +39,6 @@ export function CarBrandGrid({
             >
               <div className="car-thumb">
                 {logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={logo} alt={b.brand} loading="lazy" />
                 ) : (
                   <span aria-hidden="true" className="star">

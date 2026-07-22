@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { usePathname } from "next/navigation";
 
 const GROUPS: { section: string; links: [string, string, string][] }[] = [
@@ -59,9 +61,9 @@ export function Sidebar() {
     .sort((a, b) => b.length - a.length)[0];
   return (
     <nav className="sidebar" aria-label="Main">
-      <a className="brand" href="/">
+      <Link className="brand" href="/">
         Kira.office
-      </a>
+      </Link>
       {GROUPS.map((g) => (
         <div key={g.section}>
           <div className="nav-section-label">{g.section}</div>
