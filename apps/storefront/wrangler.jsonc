@@ -46,16 +46,19 @@
     "staging": {
       "name": "airplus-storefront-staging",
       // Same reasoning as the API's staging env: *.workers.dev cannot be put behind Cloudflare
-      // Access, so staging moves onto our own zone and workers.dev is switched off. This matters
-      // more here than anywhere — OTP_DEV_ECHO below makes the login code a fixed "123456", which
-      // is only acceptable while nobody but the owner can reach the site at all.
+      // Access, so staging lives on our own zone and workers.dev stays off. The hostname below is
+      // PUBLIC — there is no Access app on it — which is exactly why the fixed dev OTP had to go
+      // (see the vars note). Non-production hosts also serve a blanket robots Disallow and an
+      // X-Robots-Tag: noindex, so this copy of the shop never competes with the real one in search.
       "workers_dev": false,
       "routes": [{ "pattern": "staging-shop.homeseeker.me", "custom_domain": true }],
-      // Staging has no SMS provider yet, so OTP delivery runs in dev-echo mode: the code is the
-      // fixed "123456" and is returned to the UI (owner can walk the login flow on their phone).
-      // ONLY here — the default/production config above has no OTP_DEV_ECHO, so prod keeps random
-      // codes + a real SMS provider. Remove this once THAIBULKSMS_* secrets are set on staging.
-      "vars": { "OTP_DEV_ECHO": "1", "LINE_CHANNEL_ID": "2010753164" },
+      // OTP_DEV_ECHO IS DELIBERATELY ABSENT. It made the login code a fixed "123456" returned to
+      // the UI, which was only tolerable while staging was unreachable. Staging is now on a public
+      // hostname, and storefront_customers holds real phone numbers — a fixed code would let anyone
+      // log in as any customer. With no SMS provider configured, login on staging simply does not
+      // complete; the catalogue is still fully browsable, which is what staging is for.
+      // Do NOT re-add this. Put staging behind Cloudflare Access first if login testing is needed.
+      "vars": { "LINE_CHANNEL_ID": "2010753164" },
       "d1_databases": [
         {
           "binding": "DB",
