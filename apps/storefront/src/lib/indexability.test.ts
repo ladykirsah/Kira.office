@@ -15,8 +15,13 @@ describe("isIndexableHost", () => {
     expect(isIndexableHost("www.airplusauto.com")).toBe(true);
   });
 
-  it("given staging > NOT indexable", () => {
+  it("given staging > NOT indexable, on either zone", () => {
     expect(isIndexableHost("staging-shop.homeseeker.me")).toBe(false);
+    // Staging moved onto the production zone (2026-07-22) so homeseeker.me can lapse. A SUBDOMAIN
+    // of the indexable host must still be refused — this only holds because the allow-list is an
+    // exact match. A suffix check would silently start indexing staging.
+    expect(isIndexableHost("staging-shop.airplusauto.com")).toBe(false);
+    expect(isIndexableHost("staging-admin.airplusauto.com")).toBe(false);
   });
 
   it("given a workers.dev preview > NOT indexable", () => {
