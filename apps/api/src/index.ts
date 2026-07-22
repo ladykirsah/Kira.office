@@ -21,6 +21,7 @@ import {
   shopKey,
   type ShopProfile,
   anonymizeStorefrontCustomer,
+  retryRead,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -1692,7 +1693,7 @@ const DEFAULT_TERMS_TEMPLATE = [
 
 /** Thai T&C template, stored in KV. The admin editor renders it via @l-shopee/core/terms. */
 async function getTerms(env: Env): Promise<Response> {
-  const template = (await env.KV.get("terms:template")) ?? DEFAULT_TERMS_TEMPLATE;
+  const template = (await retryRead(() => env.KV.get("terms:template"))) ?? DEFAULT_TERMS_TEMPLATE;
   return json({ template });
 }
 
@@ -4096,10 +4097,16 @@ const worker = {
       const profile = parseShopProfile(shopInfo[1]);
       if (!profile) return json({ error: "unknown shop profile" }, 404);
       if (request.method === "GET") {
+        // Every read is wrapped: this fans out to SHOP_TEXT_FIELDS.length + 2 concurrent KV gets
+        // under Promise.all, so ONE transient "internal error … (10001)" rejected the whole page
+        // and the owner saw an intermittent 500 on Shop info. The more reads a route fans out, the
+        // likelier it is to lose the dice roll — which is why this endpoint was among the worst.
         const [texts, logoKey, qrKey] = await Promise.all([
-          Promise.all(SHOP_TEXT_FIELDS.map((f) => env.KV.get(shopKey(profile, f)))),
-          env.KV.get(shopKey(profile, "logoKey")),
-          env.KV.get(shopKey(profile, "qrKey")),
+          Promise.all(
+            SHOP_TEXT_FIELDS.map((f) => retryRead(() => env.KV.get(shopKey(profile, f)))),
+          ),
+          retryRead(() => env.KV.get(shopKey(profile, "logoKey"))),
+          retryRead(() => env.KV.get(shopKey(profile, "qrKey"))),
         ]);
         const out: Record<string, string | null> = { profile };
         SHOP_TEXT_FIELDS.forEach((f, i) => (out[f] = texts[i] ?? ""));
@@ -4494,7 +4501,11 @@ const worker = {
       if (!/^(products|shop|taxonomy|banners|affiliate)\//.test(key)) {
         return new Response("Not found", { status: 404, headers: responseHeaders });
       }
-      const obj = await env.IMAGES.get(key);
+      // retryRead, not a bare get: R2 intermittently throws "internal error … Please try again.
+      // (10001)". That throw used to reach the top-level boundary and become a 500, so roughly one
+      // in eight product photos on the storefront was visibly broken. A null result (key genuinely
+      // absent) is NOT retried — that is a real answer and still means 404.
+      const obj = await retryRead(() => env.IMAGES.get(key));
       if (!obj) return new Response("Not found", { status: 404, headers: responseHeaders });
       return new Response(obj.body, {
         headers: {
