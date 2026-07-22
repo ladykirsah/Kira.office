@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { carBrandTiles, getDb } from "@/lib/db";
-import { CAR_BRAND_TH } from "@/lib/labels";
+import { displayNames } from "@l-shopee/core";
 import { resolveBrandLogo } from "@/lib/brandLogo";
 import { Icon } from "@/components/Icon";
 
@@ -37,7 +37,8 @@ export default async function BrandsPage() {
       ) : (
         <div className="catlist">
           {brands.map((b) => {
-            const th = CAR_BRAND_TH[b.brand]; // Thai headline, English becomes the sub-line
+            const n = displayNames({ name: b.brand, nameTh: b.nameTh, nameEn: b.nameEn });
+            const th = n.th; // headline; n.en is the sub-line (null when there is nothing to add)
             const logo = resolveBrandLogo(b.brand, b.imageKey);
             return (
               <Link
