@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
 import { TableFrame } from "../TableFrame";
@@ -245,7 +245,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   );
 }
 
-export function AirPlusCustomers() {
+export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [list, setList] = useState<StorefrontCustomerListItem[]>([]);
@@ -279,7 +279,9 @@ export function AirPlusCustomers() {
         title="AirPlus customers"
         subtitle="Online shop accounts — sign-up date, consent, and what they've bought."
       />
-      <div style={{ marginBottom: 12 }}>
+      {tabs}
+      {/* 14px below the tabs — the same gap Shop info leaves between its switcher and the card. */}
+      <div style={{ marginTop: 14, marginBottom: 12 }}>
         <input
           style={{ ...inputS, width: 320 }}
           placeholder="Search User ID, name, phone, or email"
