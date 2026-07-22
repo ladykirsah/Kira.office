@@ -6,11 +6,10 @@ import {
   defaultPaymentMethod,
   parsePaymentMethods,
   serializePaymentMethods,
-  SHOP_PROFILES,
-  SHOP_PROFILE_LABELS,
   type PaymentMethod,
   type ShopProfile,
 } from "@l-shopee/core";
+import { BusinessTabs } from "../../BusinessTabs";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import { PageHeader } from "../../PageHeader";
@@ -361,39 +360,13 @@ export default function ShopInfoPage() {
 
       {/* Profile tabs. Switching refetches — the two profiles share no state, so a half-typed edit
           on one can never be saved onto the other. */}
-      <div
-        role="tablist"
-        aria-label="Business profile"
-        style={{ display: "flex", gap: 8, marginTop: 14 }}
-      >
-        {SHOP_PROFILES.map((p) => {
-          const active = p === profile;
-          return (
-            <button
-              key={p}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              disabled={editing || busy}
-              title={editing ? "Save or cancel first" : undefined}
-              onClick={() => setProfile(p)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 999,
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: editing || busy ? "not-allowed" : "pointer",
-                border: `1px solid ${active ? "var(--accent, #bf3c1d)" : "var(--border)"}`,
-                background: active ? "var(--accent, #bf3c1d)" : "var(--surface)",
-                color: active ? "#fff" : "var(--text)",
-                opacity: editing && !active ? 0.5 : 1,
-              }}
-            >
-              {SHOP_PROFILE_LABELS[p]}
-            </button>
-          );
-        })}
-      </div>
+      <BusinessTabs
+        value={profile}
+        onChange={setProfile}
+        disabled={editing || busy}
+        disabledTitle="Save or cancel first"
+        dimInactive={editing}
+      />
 
       <div style={{ ...cardStyle, marginTop: 14 }}>
         {editing ? (

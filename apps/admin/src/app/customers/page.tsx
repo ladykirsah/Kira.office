@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
 import { TableFrame } from "../TableFrame";
@@ -32,11 +32,10 @@ import {
   parseCsv,
   rowsToCsv,
   xlsxToRows,
-  SHOP_PROFILES,
-  SHOP_PROFILE_LABELS,
   type ShopProfile,
 } from "@l-shopee/core";
 import { AirPlusCustomers } from "./AirPlusCustomers";
+import { BusinessTabs } from "../BusinessTabs";
 import { formatBahtTrim } from "@/lib/format";
 import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
@@ -268,43 +267,13 @@ function BillTable({
  */
 export default function CustomersPage() {
   const [profile, setProfile] = useState<ShopProfile>("denair");
-  return (
-    <>
-      <div
-        role="tablist"
-        aria-label="Business"
-        style={{ display: "flex", gap: 8, marginBottom: 14 }}
-      >
-        {SHOP_PROFILES.map((p) => {
-          const active = p === profile;
-          return (
-            <button
-              key={p}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setProfile(p)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 999,
-                border: "1px solid var(--border)",
-                background: active ? "var(--primary)" : "var(--surface)",
-                color: active ? "#fff" : "inherit",
-                cursor: "pointer",
-                fontWeight: active ? 600 : 400,
-              }}
-            >
-              {SHOP_PROFILE_LABELS[p]}
-            </button>
-          );
-        })}
-      </div>
-      {profile === "denair" ? <DenAirCustomers /> : <AirPlusCustomers />}
-    </>
-  );
+  // Handed down rather than rendered here: the switcher belongs UNDER each view's PageHeader
+  // (the Shop info pattern), and only on the list — inside one customer there is nothing to switch.
+  const tabs = <BusinessTabs value={profile} onChange={setProfile} />;
+  return profile === "denair" ? <DenAirCustomers tabs={tabs} /> : <AirPlusCustomers tabs={tabs} />;
 }
 
-function DenAirCustomers() {
+function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [list, setList] = useState<CustomerListItem[]>([]);
@@ -685,9 +654,13 @@ function DenAirCustomers() {
         title="Customers"
         subtitle="Find a car by plate, phone, or model to see its full service history."
       />
+      {tabs}
       {/* A real <button> (not a label) so it gets the app's button styling; it drives the
           hidden file input via ref. */}
-      <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
+      {/* 14px below the tabs — the same gap Shop info leaves between its switcher and the card. */}
+      <div
+        style={{ marginTop: 14, marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}
+      >
         {/* Fill the transcription sheet, then download it and Import (a button, not a plain
             <a>, so it gets the app's button styling). */}
         <button
