@@ -2,6 +2,13 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import { securityHeaderRules } from "./src/lib/securityHeaders";
+import { assertDeployableImgBase } from "./src/lib/imgBaseGuard";
+
+// Kill a production build that would inline an unreachable image host. On 2026-07-22 a deploy ran
+// from a shell where NEXT_PUBLIC_IMG_BASE still pointed at the dev server on :8788, and every
+// product photo on the live storefront broke — build, tests, types and deploy all passed. This is
+// the only point where that value becomes permanent, so it is the only place the check can work.
+assertDeployableImgBase(process.env.NEXT_PUBLIC_IMG_BASE, process.env.NODE_ENV === "production");
 
 // TypeScript rather than .mjs (Next 15 loads either) purely so the security header policy can be
 // imported from one tested module instead of being retyped here where nothing checks it.
