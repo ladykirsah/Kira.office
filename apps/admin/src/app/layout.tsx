@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { ToastProvider } from "./ToastProvider";
+import { DevApiBanner } from "./DevApiBanner";
 
 export const metadata = {
   title: "Kira.office — Admin",
@@ -25,7 +26,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <span className="muted">Shopee Thailand back office</span>
                 <ThemeToggle />
               </header>
-              <div className="content">{children}</div>
+              <div className="content">
+                <DevApiBanner />
+                {children}
+              </div>
             </div>
           </div>
         </ToastProvider>
