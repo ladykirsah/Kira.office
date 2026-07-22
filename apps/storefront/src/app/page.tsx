@@ -313,7 +313,6 @@ function PromoStrip({ banner }: { banner: BannerRow }) {
       style={{ aspectRatio: "2659 / 984", borderRadius: "var(--radius)", marginBottom: 10 }}
     >
       {banner.imageKey ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={imgUrl(banner.imageKey)} alt="" loading="lazy" style={{ objectFit: "cover" }} />
       ) : (
         <span aria-hidden="true" style={{ color: "var(--brand)", fontSize: 44, lineHeight: 1 }}>

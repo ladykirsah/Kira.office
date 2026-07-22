@@ -35,7 +35,6 @@ export function AffiliateCard({ item }: { item: AffiliateItemRow }) {
     >
       <div className="rec-frame">
         {item.imageKey ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={imgUrl(item.imageKey)} alt={item.title} loading="lazy" />
         ) : (
           <span aria-hidden="true" className="star">

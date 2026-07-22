@@ -15,11 +15,12 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc -b packages/core && tsc --noEmit -p apps/api && tsc --noEmit -p apps/storefront && tsc --noEmit -p apps/admin",
-    "lint": "prettier --check \"{packages,apps}/**/src/**/*.{ts,tsx}\"",
+    "lint": "prettier --check \"{packages,apps}/**/src/**/*.{ts,tsx}\" && npm run lint:es",
     "format": "prettier --write \"{packages,apps}/**/src/**/*.{ts,tsx}\"",
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
-    "deploy:dry": "wrangler deploy --dry-run --outdir .wrangler/dry"
+    "deploy:dry": "wrangler deploy --dry-run --outdir .wrangler/dry",
+    "lint:es": "npm run lint:es -w apps/storefront && npm run lint:es -w apps/admin"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5",

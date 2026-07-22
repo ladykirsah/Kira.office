@@ -100,7 +100,6 @@ function Seg<T extends string>({
 
 function Cover({ p, size }: { p: StudioProduct; size: number }) {
   return p.imageKey ? (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={`${apiBase}/img/${p.imageKey}`}
       alt={p.name}

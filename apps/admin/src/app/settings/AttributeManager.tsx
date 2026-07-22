@@ -118,7 +118,6 @@ export function CoverPicker({
         }}
       >
         {option.imageKey ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imageUrl(option.imageKey)}
             alt=""

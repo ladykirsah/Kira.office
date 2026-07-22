@@ -96,7 +96,6 @@ export function HeroCarousel({ banners }: { banners: HeroBanner[] }) {
         {banners.map((b, i) => (
           <Slide key={b.id} linkUrl={b.linkUrl} ariaLabel={`แบนเนอร์ที่ ${i + 1}`}>
             {b.imageKey && !failed[b.id] ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={imgUrl(b.imageKey)}
                 alt=""
