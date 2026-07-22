@@ -62,11 +62,19 @@
     "staging": {
       "name": "kiraoffice-admin-staging",
       "workers_dev": false,
-      // Cloudflare Access covers staging-admin.homeseeker.me (added as a THIRD destination on the
-      // existing "admin" app, aud dfcb79fc… — added, never replaced), so attaching it is safe.
+      // Cloudflare Access covers BOTH staging admin hostnames, each ADDED as a destination on the
+      // existing "admin" app (aud dfcb79fc…) — never replacing an existing row.
+      //
+      // staging-admin.airplusauto.com is the destination: staging moved onto the production zone on
+      // 2026-07-22 so homeseeker.me can be allowed to lapse. staging-admin.homeseeker.me stays until
+      // that renewal passes, exactly like the production fallbacks above — nothing goes dark mid-move.
+      //
       // Keep this array explicit: an omitted `routes` key inherits the top-level production
       // hostnames and steals them on deploy. That is not hypothetical — see the note above.
-      "routes": [{ "pattern": "staging-admin.homeseeker.me", "custom_domain": true }],
+      "routes": [
+        { "pattern": "staging-admin.airplusauto.com", "custom_domain": true },
+        { "pattern": "staging-admin.homeseeker.me", "custom_domain": true }
+      ],
       "observability": { "enabled": true },
       "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
     },

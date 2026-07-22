@@ -75,7 +75,7 @@
       // `workers_dev: false` closes that side door: this Worker is reachable ONLY via the hostname
       // below, which sits behind the staging Access application.
       "workers_dev": false,
-      "routes": [{ "pattern": "staging-api.homeseeker.me", "custom_domain": true }],
+      "routes": [{ "pattern": "staging-api.airplusauto.com", "custom_domain": true }],
       "observability": { "enabled": true },
       "durable_objects": {
         "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }],
