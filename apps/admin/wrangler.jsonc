@@ -24,7 +24,7 @@
   // appear as destinations on the "admin" Access app (aud dfcb79fc…) at all times.
   "routes": [
     { "pattern": "admin.airplusauto.com", "custom_domain": true },
-    { "pattern": "admin.homeseeker.me", "custom_domain": true }
+    { "pattern": "admin.homeseeker.me", "custom_domain": true },
   ],
 
   // Staging back office. Deploy with `opennextjs-cloudflare deploy -- --env staging`.
@@ -62,9 +62,13 @@
     "staging": {
       "name": "kiraoffice-admin-staging",
       "workers_dev": false,
-      "routes": [],
+      // Cloudflare Access covers staging-admin.homeseeker.me (added as a THIRD destination on the
+      // existing "admin" app, aud dfcb79fc… — added, never replaced), so attaching it is safe.
+      // Keep this array explicit: an omitted `routes` key inherits the top-level production
+      // hostnames and steals them on deploy. That is not hypothetical — see the note above.
+      "routes": [{ "pattern": "staging-admin.homeseeker.me", "custom_domain": true }],
       "observability": { "enabled": true },
-      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" }
-    }
-  }
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+    },
+  },
 }
