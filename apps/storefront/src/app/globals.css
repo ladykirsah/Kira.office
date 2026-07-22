@@ -2074,7 +2074,12 @@ textarea {
   }
 }
 .rec-frame {
-  aspect-ratio: 4 / 3;
+  /* Square, matching every other card frame (.ci-frame, .cat-thumb, .car-thumb). This was 4/3 and
+     was the only outlier, which showed as ragged image edges where the mechanic-picks row sits
+     under the square product cards. object-fit stays `contain` below: a partner's product photo
+     arrives at whatever ratio they shot it, and cropping someone else's product is worse than
+     letterboxing it. See src/lib/cardFrameRatio.ts — a test pins this. */
+  aspect-ratio: 1 / 1;
   margin: 10px 10px 0;
   background: var(--accent-soft);
   border-radius: var(--radius-sm);

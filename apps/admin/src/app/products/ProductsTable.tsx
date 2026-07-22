@@ -235,7 +235,6 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                       <td className="freeze-col">
                         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                           {p.imageKey ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={`${apiBase}/img/${p.imageKey}`}
                               alt={p.name}

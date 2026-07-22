@@ -24,6 +24,59 @@
   // appear as destinations on the "admin" Access app (aud dfcb79fc…) at all times.
   "routes": [
     { "pattern": "admin.airplusauto.com", "custom_domain": true },
-    { "pattern": "admin.homeseeker.me", "custom_domain": true }
-  ]
+    { "pattern": "admin.homeseeker.me", "custom_domain": true },
+  ],
+
+  // Staging back office. Deploy with `opennextjs-cloudflare deploy -- --env staging`.
+  //
+  // ⚠️ `"routes": []` IS LOAD-BEARING — DO NOT DELETE IT.
+  //
+  // An OMITTED routes key does NOT mean "no routes". A named environment INHERITS the top-level
+  // `routes`, so deploying this env without the empty array REASSIGNS admin.airplusauto.com and
+  // admin.homeseeker.me away from the production Worker and onto this staging one. That happened
+  // on 2026-07-22: both production admin hostnames were served by the staging build (pointed at the
+  // staging API and database) until the production Worker was redeployed to reclaim them. Wrangler
+  // does warn, but it warns AFTER doing it.
+  //
+  // The empty array, combined with workers_dev:false, is what makes this Worker UNREACHABLE — which
+  // is the entire point until a Cloudflare Access application covers its hostname.
+  //
+  // Why it matters more here than for the storefront: this Worker enforces NOTHING itself. The
+  // production admin is safe only because Cloudflare Access sits in front of it at the edge and
+  // injects the JWT that the api Worker then verifies. Attach a hostname before that Access app
+  // exists and you have published a back office whose only remaining defence is the staging API's
+  // ACCESS_* secrets — a fail-open check (requireAccess returns {email:null} when they are unset),
+  // so one accidental secret deletion would expose real data. See the 2026-07-21 incident in the
+  // note above: six minutes of an unprotected admin, caused by exactly this ordering mistake.
+  //
+  // TO GO LIVE, IN THIS ORDER:
+  //   1. owner: add `staging-admin.homeseeker.me` as a destination on the EXISTING "admin" Access
+  //      app (ADD, never replace — replacing silently unprotects the other hostnames)
+  //   2. add the route here:  "routes": [{ "pattern": "staging-admin.homeseeker.me", "custom_domain": true }]
+  //   3. deploy, then curl the hostname and confirm it 302s to the Access login
+  //
+  // NEXT_PUBLIC_API_BASE is NOT set as a var below on purpose — it is inlined at BUILD time, so a
+  // runtime var does nothing. It must be exported for the build:
+  //   NEXT_PUBLIC_API_BASE=https://staging-api.homeseeker.me npx opennextjs-cloudflare build
+  "env": {
+    "staging": {
+      "name": "kiraoffice-admin-staging",
+      "workers_dev": false,
+      // Cloudflare Access covers BOTH staging admin hostnames, each ADDED as a destination on the
+      // existing "admin" app (aud dfcb79fc…) — never replacing an existing row.
+      //
+      // staging-admin.airplusauto.com is the destination: staging moved onto the production zone on
+      // 2026-07-22 so homeseeker.me can be allowed to lapse. staging-admin.homeseeker.me stays until
+      // that renewal passes, exactly like the production fallbacks above — nothing goes dark mid-move.
+      //
+      // Keep this array explicit: an omitted `routes` key inherits the top-level production
+      // hostnames and steals them on deploy. That is not hypothetical — see the note above.
+      "routes": [
+        { "pattern": "staging-admin.airplusauto.com", "custom_domain": true },
+        { "pattern": "staging-admin.homeseeker.me", "custom_domain": true }
+      ],
+      "observability": { "enabled": true },
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+    },
+  },
 }

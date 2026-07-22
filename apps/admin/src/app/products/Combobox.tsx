@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { inputS } from "@/lib/inputStyles";
 
 /**
@@ -19,6 +19,9 @@ export function Combobox({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Stable id so aria-controls can point at the popup; useId keeps two comboboxes on one
+  // page from colliding.
+  const listboxId = useId();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +57,7 @@ export function Combobox({
         style={{ ...inputS, width: "100%", paddingRight: 30 }}
         role="combobox"
         aria-expanded={open}
+        aria-controls={listboxId}
       />
       <button
         type="button"
@@ -65,7 +69,7 @@ export function Combobox({
         ▾
       </button>
       {open && (filtered.length > 0 || isNew) && (
-        <div className="combo-pop">
+        <div className="combo-pop" id={listboxId} role="listbox">
           {filtered.map((o) => (
             <button key={o} type="button" className="combo-opt" onClick={() => pick(o)}>
               {o}

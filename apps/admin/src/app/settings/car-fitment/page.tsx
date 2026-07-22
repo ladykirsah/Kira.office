@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
-import { CoverPicker } from "../AttributeManager";
+import { CoverPicker, BilingualNames } from "../AttributeManager";
 import { ConfirmButton } from "../../ConfirmButton";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
@@ -176,7 +176,14 @@ export default function CarFitmentPage() {
                     {/* Cover photo for this brand's storefront tile (replaces the old hardcoded
                         logo map — any brand can have one now, not just Toyota/Honda/Isuzu). */}
                     <CoverPicker kind="car-brand" option={selected} onChanged={() => load()} />
-                    <span style={{ fontWeight: 600 }}>{selected.name} · models</span>
+                    <span style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                      <span style={{ fontWeight: 600 }}>{selected.name} · models</span>
+                      <BilingualNames
+                        kind="car_brand"
+                        option={selected}
+                        onChanged={() => load(selected.id)}
+                      />
+                    </span>
                   </span>
                   <ConfirmButton
                     className="btn-sm"
@@ -252,11 +259,22 @@ export default function CarFitmentPage() {
                                 onCancel={() => setEditMode(false)}
                               />
                             ) : (
-                              <ModelInfoView
-                                model={m}
-                                onEdit={() => setEditMode(true)}
-                                onRemove={() => run(() => deleteCarModel(m.id), selected.id)}
-                              />
+                              <>
+                                {/* Thai / English names sit in the expanded panel, so the collapsed
+                                    model list stays a clean one-line-per-model scan. */}
+                                <div style={{ padding: "8px 10px 0" }}>
+                                  <BilingualNames
+                                    kind="car_model"
+                                    option={m}
+                                    onChanged={() => load(selected.id)}
+                                  />
+                                </div>
+                                <ModelInfoView
+                                  model={m}
+                                  onEdit={() => setEditMode(true)}
+                                  onRemove={() => run(() => deleteCarModel(m.id), selected.id)}
+                                />
+                              </>
                             ))}
                         </div>
                       );

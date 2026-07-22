@@ -16,7 +16,7 @@ import { AffiliateShelf } from "@/components/AffiliateShelf";
 import { LINE_OA_URL } from "@/lib/links";
 import { localBusinessJsonLd } from "@/lib/business";
 import { serializeJsonLd } from "@/lib/seo";
-import { PART_TYPE_EN, CAR_BRAND_TH } from "@/lib/labels";
+import { displayNames } from "@l-shopee/core";
 import { resolveBrandLogo } from "@/lib/brandLogo";
 import { BestSellerList } from "@/components/BestSellerList";
 import { CategoryRow } from "@/components/CategoryRow";
@@ -101,13 +101,17 @@ export default async function Home() {
             link={{ href: "/categories", label: "ดูทั้งหมด →" }}
           />
           <CategoryRow
-            items={types.map((t) => ({
-              href: `/products?type=${encodeURIComponent(t.id)}&ctx=cat`,
-              name: t.name,
-              nameEn: PART_TYPE_EN[t.name],
-              subtitle: `${t.productCount} รายการ`,
-              image: t.imageKey ? imgUrl(t.imageKey) : undefined, // owner-uploaded cover, else ✦
-            }))}
+            items={types.map((t) => {
+              // Same two-line treatment as the car-brand row below — one helper, one rule.
+              const n = displayNames(t);
+              return {
+                href: `/products?type=${encodeURIComponent(t.id)}&ctx=cat`,
+                name: n.th,
+                nameEn: n.en ?? undefined,
+                subtitle: `${t.productCount} รายการ`,
+                image: t.imageKey ? imgUrl(t.imageKey) : undefined, // owner-uploaded cover, else ✦
+              };
+            })}
           />
         </section>
       )}
@@ -121,11 +125,11 @@ export default async function Home() {
           />
           <CategoryRow
             items={brands.map((b) => {
-              const th = CAR_BRAND_TH[b.brand];
+              const n = displayNames({ name: b.brand, nameTh: b.nameTh, nameEn: b.nameEn });
               return {
                 href: `/products?carBrand=${encodeURIComponent(b.brand)}&ctx=brand`,
-                name: th ?? b.brand, // Thai headline (falls back to the English brand if unmapped)
-                nameEn: th ? b.brand : undefined, // English gray sub-line only when we have a Thai headline
+                name: n.th,
+                nameEn: n.en ?? undefined,
                 subtitle: `${b.productCount} รายการ`,
                 image: resolveBrandLogo(b.brand, b.imageKey) ?? undefined,
               };
@@ -309,7 +313,6 @@ function PromoStrip({ banner }: { banner: BannerRow }) {
       style={{ aspectRatio: "2659 / 984", borderRadius: "var(--radius)", marginBottom: 10 }}
     >
       {banner.imageKey ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={imgUrl(banner.imageKey)} alt="" loading="lazy" style={{ objectFit: "cover" }} />
       ) : (
         <span aria-hidden="true" style={{ color: "var(--brand)", fontSize: 44, lineHeight: 1 }}>

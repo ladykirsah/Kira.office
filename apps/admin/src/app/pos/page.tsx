@@ -51,7 +51,6 @@ import { apiFetch } from "@/lib/apiFetch";
 import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
 
-type SaleType = "parts" | "repair";
 type AddKind = "product" | "service" | "addon";
 type AddMethod = "scan" | "code" | "search";
 type LineKind = "part" | "service";
@@ -688,7 +687,6 @@ function BillDoc({
   // Contact QR: the uploaded image when set, otherwise the sample placeholder.
   const qrNode = (size: number) =>
     shop.qrKey ? (
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={imageUrl(shop.qrKey)}
         alt="Contact QR"

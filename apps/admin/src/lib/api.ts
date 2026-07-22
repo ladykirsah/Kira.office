@@ -114,6 +114,10 @@ export interface AttrOption {
   name: string;
   /** Cover-image R2 key — product types and car brands only; null/absent for other kinds. */
   imageKey?: string | null;
+  /** Thai display name (migration 0060). Null until the owner supplies one. */
+  nameTh?: string | null;
+  /** English display name (migration 0060). Null until the owner supplies one. */
+  nameEn?: string | null;
 }
 export interface Attributes {
   brands: AttrOption[];
@@ -158,11 +162,15 @@ export async function setTypeWarranty(id: string, warrantyDays: number | null): 
   if (!res.ok) throw new Error(`Failed to save warranty (HTTP ${res.status})`);
 }
 
-export async function addAttribute(kind: AttrKind, name: string): Promise<AttrOption> {
+export async function addAttribute(
+  kind: AttrKind,
+  name: string,
+  names?: { nameTh?: string | null; nameEn?: string | null },
+): Promise<AttrOption> {
   const res = await apiFetch(`/attributes/${kind}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, ...names }),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -174,6 +182,23 @@ export async function addAttribute(kind: AttrKind, name: string): Promise<AttrOp
 export async function deleteAttribute(kind: AttrKind, id: string): Promise<void> {
   const res = await apiFetch(`/attributes/${kind}/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+}
+
+/**
+ * Save a row's Thai / English display names. PATCH, not PUT: `name` is the identity other tables
+ * join on as free text and is never edited here — only the two display columns.
+ */
+export async function setAttributeNames(
+  kind: AttrKind,
+  id: string,
+  names: { nameTh: string | null; nameEn: string | null },
+): Promise<void> {
+  const res = await apiFetch(`/attributes/${kind}/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(names),
+  });
+  if (!res.ok) throw new Error(`Save names failed (HTTP ${res.status})`);
 }
 
 export interface ServiceRow {
@@ -555,6 +580,9 @@ export interface CarBrandTree {
   name: string;
   /** Cover image for the storefront's car-brand tile (null → ✦ placeholder). */
   imageKey?: string | null;
+  /** Thai / English display names (migration 0060). */
+  nameTh?: string | null;
+  nameEn?: string | null;
   models: CarModelNode[];
 }
 

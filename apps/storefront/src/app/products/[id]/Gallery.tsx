@@ -67,7 +67,6 @@ export function Gallery({ images, coverKey, name }: GalleryProps) {
               }}
             >
               {key && !failed[key] ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={imgUrl(key)}
                   alt={name}

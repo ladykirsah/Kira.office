@@ -17,10 +17,12 @@ import {
   TAXONOMY_IMAGE_TABLE,
   taxonomyImageKey,
   type TaxonomyImageKind,
+  adminUrlForApiHost,
   parseShopProfile,
   shopKey,
   type ShopProfile,
   anonymizeStorefrontCustomer,
+  retryRead,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -91,10 +93,18 @@ const STATIC_SECURITY_HEADERS: Record<string, string> = {
   "referrer-policy": "no-referrer",
 };
 
+// Browser origins allowed to call this API directly with credentials.
+//
+// NOTE: the admin does NOT rely on this. Its browser calls go to its own same-origin /api/worker
+// proxy, and only the admin Worker talks to this API — server-to-server, where CORS does not apply.
+// The storefront reads D1 directly. So this list is a safety net for future direct callers, not a
+// load-bearing part of today's architecture; adding a host here does not "fix" an admin 401.
+//
+// app.homeseeker.me was removed: it has no DNS record and never existed.
 export const DEFAULT_CORS_ORIGINS = [
   "http://localhost:3000",
-  "https://app.homeseeker.me",
-  "https://homeseeker.me",
+  "https://airplusauto.com",
+  "https://admin.airplusauto.com",
 ];
 
 /** CORS headers for this request — allowlisted origins get credentials; others stay wildcard (no cookies). */
@@ -1692,7 +1702,7 @@ const DEFAULT_TERMS_TEMPLATE = [
 
 /** Thai T&C template, stored in KV. The admin editor renders it via @l-shopee/core/terms. */
 async function getTerms(env: Env): Promise<Response> {
-  const template = (await env.KV.get("terms:template")) ?? DEFAULT_TERMS_TEMPLATE;
+  const template = (await retryRead(() => env.KV.get("terms:template"))) ?? DEFAULT_TERMS_TEMPLATE;
   return json({ template });
 }
 
@@ -2737,6 +2747,10 @@ export interface AttrOption {
   name: string;
   /** Cover-image R2 key — only product types and car brands can have one; null/absent otherwise. */
   imageKey?: string | null;
+  /** Thai display name (migration 0060). Null until the owner supplies one. */
+  nameTh?: string | null;
+  /** English display name (migration 0060). Null until the owner supplies one. */
+  nameEn?: string | null;
 }
 
 // Whitelist of attribute kinds → their table. Table names come from this literal map only (never
@@ -2757,12 +2771,22 @@ export async function listAttributes(db: D1Database): Promise<{
   carBrands: AttrOption[];
   carModels: AttrOption[];
 }> {
+  // name_th / name_en are display-only (migration 0060); `name` stays the identity every other
+  // table joins on, so it is always selected too.
   const q = (table: string) =>
-    db.prepare(`SELECT id, name FROM ${table} ORDER BY sort_order, name`).all<AttrOption>();
+    db
+      .prepare(
+        `SELECT id, name, name_th AS nameTh, name_en AS nameEn
+           FROM ${table} ORDER BY sort_order, name`,
+      )
+      .all<AttrOption>();
   // product_types and car_brands additionally carry a cover image for the storefront tiles.
   const qImg = (table: string) =>
     db
-      .prepare(`SELECT id, name, image_key AS imageKey FROM ${table} ORDER BY sort_order, name`)
+      .prepare(
+        `SELECT id, name, name_th AS nameTh, name_en AS nameEn, image_key AS imageKey
+           FROM ${table} ORDER BY sort_order, name`,
+      )
       .all<AttrOption>();
   const [brands, types, usages, carBrands, carModels] = await Promise.all([
     q("brands"),
@@ -2883,6 +2907,32 @@ export async function addAttribute(
   return { id: optionId, name: n };
 }
 
+/**
+ * Set a row's Thai / English display names (migration 0060).
+ *
+ * `name` is NOT touched: it is the identity that product_fitments.car_brand joins on as free text,
+ * and it carries the UNIQUE index. Renaming through here would orphan fitments, so this endpoint
+ * only ever writes the two display columns.
+ *
+ * An empty string clears the column rather than storing "" — a blank must read as "not translated
+ * yet" everywhere, so displayNames() can drop the second line instead of rendering an empty one.
+ */
+export async function setAttributeNames(
+  db: D1Database,
+  table: string,
+  id: string,
+  names: { nameTh?: string | null; nameEn?: string | null },
+): Promise<void> {
+  const norm = (v: string | null | undefined) => {
+    const t = (v ?? "").trim();
+    return t === "" ? null : t;
+  };
+  await db
+    .prepare(`UPDATE ${table} SET name_th = ?, name_en = ? WHERE id = ?`)
+    .bind(norm(names.nameTh), norm(names.nameEn), id)
+    .run();
+}
+
 /** Remove an option. Products still referencing it simply show a blank value. */
 export async function deleteAttribute(db: D1Database, table: string, id: string): Promise<void> {
   await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
@@ -2984,15 +3034,19 @@ export interface CarBrandTree {
 export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrandTree[] }> {
   const [brands, models] = await Promise.all([
     db
-      .prepare("SELECT id, name, image_key AS imageKey FROM car_brands ORDER BY sort_order, name")
+      .prepare(
+        "SELECT id, name, name_th AS nameTh, name_en AS nameEn, image_key AS imageKey FROM car_brands ORDER BY sort_order, name",
+      )
       .all<AttrOption>(),
     db
       .prepare(
-        "SELECT id, name, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_usage AS oringUsage, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
+        "SELECT id, name, name_th AS nameTh, name_en AS nameEn, car_brand_id AS carBrandId, generation_code AS generationCode, year_from AS yearFrom, year_to AS yearTo, refrigerant, oring_usage AS oringUsage, coolant_liters AS coolantLiters, notes FROM car_models ORDER BY sort_order, name",
       )
       .all<{
         id: string;
         name: string;
+        nameTh: string | null;
+        nameEn: string | null;
         carBrandId: string | null;
         generationCode: string | null;
         yearFrom: number | null;
@@ -3009,6 +3063,8 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     const node: CarModelNode = {
       id: m.id,
       name: m.name,
+      nameTh: m.nameTh ?? null,
+      nameEn: m.nameEn ?? null,
       generationCode: m.generationCode ?? null,
       yearFrom: m.yearFrom ?? null,
       yearTo: m.yearTo ?? null,
@@ -3025,6 +3081,8 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
     brands: (brands.results ?? []).map((b) => ({
       id: b.id,
       name: b.name,
+      nameTh: b.nameTh ?? null,
+      nameEn: b.nameEn ?? null,
       imageKey: b.imageKey ?? null,
       models: byBrand.get(b.id) ?? [],
     })),
@@ -3864,8 +3922,9 @@ const worker = {
     // Friendly root, so hitting the API host directly isn't a bare 404. The admin UI is a separate
     // app on its own origin (port 3000 in local dev). Public — no data here.
     if (url.pathname === "/" && (request.method === "GET" || request.method === "HEAD")) {
-      const adminUrl =
-        url.hostname === "localhost" ? "http://localhost:3000" : "https://app.homeseeker.me";
+      // Derived from the request, never hardcoded: this used to point at app.homeseeker.me, a
+      // hostname with no DNS record that had been a dead link for as long as it existed.
+      const adminUrl = adminUrlForApiHost(url.hostname);
       const body = `<!doctype html><meta charset="utf-8"><title>kiraoffice API</title>
 <body style="font-family:system-ui;max-width:34rem;margin:4rem auto;padding:0 1rem;color:#1f2430;line-height:1.6">
 <h1 style="color:#bf3c1d;margin-bottom:.25rem">kiraoffice API</h1>
@@ -4096,10 +4155,16 @@ const worker = {
       const profile = parseShopProfile(shopInfo[1]);
       if (!profile) return json({ error: "unknown shop profile" }, 404);
       if (request.method === "GET") {
+        // Every read is wrapped: this fans out to SHOP_TEXT_FIELDS.length + 2 concurrent KV gets
+        // under Promise.all, so ONE transient "internal error … (10001)" rejected the whole page
+        // and the owner saw an intermittent 500 on Shop info. The more reads a route fans out, the
+        // likelier it is to lose the dice roll — which is why this endpoint was among the worst.
         const [texts, logoKey, qrKey] = await Promise.all([
-          Promise.all(SHOP_TEXT_FIELDS.map((f) => env.KV.get(shopKey(profile, f)))),
-          env.KV.get(shopKey(profile, "logoKey")),
-          env.KV.get(shopKey(profile, "qrKey")),
+          Promise.all(
+            SHOP_TEXT_FIELDS.map((f) => retryRead(() => env.KV.get(shopKey(profile, f)))),
+          ),
+          retryRead(() => env.KV.get(shopKey(profile, "logoKey"))),
+          retryRead(() => env.KV.get(shopKey(profile, "qrKey"))),
         ]);
         const out: Record<string, string | null> = { profile };
         SHOP_TEXT_FIELDS.forEach((f, i) => (out[f] = texts[i] ?? ""));
@@ -4251,15 +4316,37 @@ const worker = {
     if (attrAdd && request.method === "POST") {
       const table = ATTR_TABLE[attrAdd[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
-      const body = (await request.json().catch(() => ({}))) as { name?: string };
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        nameTh?: string | null;
+        nameEn?: string | null;
+      };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      return json(await addAttribute(env.DB, table, body.name), 201);
+      const created = await addAttribute(env.DB, table, body.name);
+      // Names are optional on create — the owner can fill the second language later from the row.
+      if (body.nameTh != null || body.nameEn != null) {
+        await setAttributeNames(env.DB, table, created.id, body);
+        return json({ ...created, nameTh: body.nameTh ?? null, nameEn: body.nameEn ?? null }, 201);
+      }
+      return json(created, 201);
     }
     const attrDel = url.pathname.match(/^\/attributes\/([^/]+)\/([^/]+)$/);
     if (attrDel && request.method === "DELETE") {
       const table = ATTR_TABLE[attrDel[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
       await deleteAttribute(env.DB, table, attrDel[2]!);
+      return json({ ok: true });
+    }
+    // Thai / English display names (migration 0060). PATCH, not PUT: this edits only the two
+    // display columns and never `name`, which other tables join on as free text.
+    if (attrDel && request.method === "PATCH") {
+      const table = ATTR_TABLE[attrDel[1]!];
+      if (!table) return json({ error: "unknown attribute kind" }, 404);
+      const body = (await request.json().catch(() => ({}))) as {
+        nameTh?: string | null;
+        nameEn?: string | null;
+      };
+      await setAttributeNames(env.DB, table, attrDel[2]!, body);
       return json({ ok: true });
     }
 
@@ -4494,7 +4581,11 @@ const worker = {
       if (!/^(products|shop|taxonomy|banners|affiliate)\//.test(key)) {
         return new Response("Not found", { status: 404, headers: responseHeaders });
       }
-      const obj = await env.IMAGES.get(key);
+      // retryRead, not a bare get: R2 intermittently throws "internal error … Please try again.
+      // (10001)". That throw used to reach the top-level boundary and become a 500, so roughly one
+      // in eight product photos on the storefront was visibly broken. A null result (key genuinely
+      // absent) is NOT retried — that is a real answer and still means 404.
+      const obj = await retryRead(() => env.IMAGES.get(key));
       if (!obj) return new Response("Not found", { status: 404, headers: responseHeaders });
       return new Response(obj.body, {
         headers: {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CAR_BRAND_TH } from "@/lib/labels";
+import { displayNames } from "@l-shopee/core";
 import { resolveBrandLogo } from "@/lib/brandLogo";
 
 /**
@@ -11,8 +11,15 @@ export function CarBrandGrid({
   brands,
 }: {
   // imageKey MUST stay on this type: dropping it is what silently ignored owner-uploaded logos here
-  // while /brands and the home row showed them.
-  brands: { brand: string; productCount: number; imageKey: string | null }[];
+  // while /brands and the home row showed them. nameTh/nameEn are here for the same reason — a
+  // narrower prop type is how this tile fell out of step with the others once already.
+  brands: {
+    brand: string;
+    nameTh: string | null;
+    nameEn: string | null;
+    productCount: number;
+    imageKey: string | null;
+  }[];
 }) {
   if (brands.length === 0) return null;
   return (
@@ -22,7 +29,7 @@ export function CarBrandGrid({
       </h2>
       <div className="car-grid">
         {brands.map((b) => {
-          const th = CAR_BRAND_TH[b.brand];
+          const th = displayNames({ name: b.brand, nameTh: b.nameTh, nameEn: b.nameEn }).th;
           const logo = resolveBrandLogo(b.brand, b.imageKey);
           return (
             <Link
@@ -32,7 +39,6 @@ export function CarBrandGrid({
             >
               <div className="car-thumb">
                 {logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={logo} alt={b.brand} loading="lazy" />
                 ) : (
                   <span aria-hidden="true" className="star">

@@ -60,7 +60,7 @@ export function ProductGallery({
       <div className="frames">
         {images.map((img, i) => (
           <div className="frame" key={img.id}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img src={`${apiBase}/img/${img.imageKey}`} alt="" />
             {i === 0 && <span className="cover-badge">Cover</span>}
             <button

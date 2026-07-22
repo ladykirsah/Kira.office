@@ -278,7 +278,15 @@ export async function bestSellers(
 export async function carBrandTiles(
   db: D1Database,
   limit = 8,
-): Promise<{ brand: string; productCount: number; imageKey: string | null }[]> {
+): Promise<
+  {
+    brand: string;
+    nameTh: string | null;
+    nameEn: string | null;
+    productCount: number;
+    imageKey: string | null;
+  }[]
+> {
   const rows = await db
     .prepare(
       // The tile list is the OWNER'S car-brand taxonomy (Kira.office -> Car fitment), not just the
@@ -293,13 +301,14 @@ export async function carBrandTiles(
       // condition must live inside the CASE, not in a WHERE — a WHERE would collapse the LEFT JOINs
       // back to inner joins and drop the zero-count makes this query exists to show.
       `WITH makes AS (
-         SELECT name, image_key, sort_order FROM car_brands
+         SELECT name, name_th, name_en, image_key, sort_order FROM car_brands
          UNION
-         SELECT DISTINCT f.car_brand, NULL, 9999 FROM product_fitments f
+         -- A make referenced only by free-text fitment has no taxonomy row, so no translations.
+         SELECT DISTINCT f.car_brand, NULL, NULL, NULL, 9999 FROM product_fitments f
           WHERE TRIM(COALESCE(f.car_brand, '')) != ''
             AND f.car_brand NOT IN (SELECT name FROM car_brands)
        )
-       SELECT m.name AS brand, m.image_key AS imageKey,
+       SELECT m.name AS brand, m.name_th AS nameTh, m.name_en AS nameEn, m.image_key AS imageKey,
               COUNT(DISTINCT CASE WHEN p.status = 'active' AND EXISTS (
                       SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id
                        AND (SELECT COALESCE(SUM(quantity_delta), 0)
@@ -308,12 +317,18 @@ export async function carBrandTiles(
          FROM makes m
          LEFT JOIN product_fitments f ON f.car_brand = m.name
          LEFT JOIN products p ON p.id = f.product_id
-        GROUP BY m.name, m.image_key, m.sort_order
+        GROUP BY m.name, m.name_th, m.name_en, m.image_key, m.sort_order
         -- in-stock makes first, so a length-limited row (home) still leads with the useful ones
         ORDER BY productCount DESC, m.sort_order, m.name
         LIMIT ${Math.min(limit, 64)}`,
     )
-    .all<{ brand: string; productCount: number; imageKey: string | null }>();
+    .all<{
+      brand: string;
+      nameTh: string | null;
+      nameEn: string | null;
+      productCount: number;
+      imageKey: string | null;
+    }>();
   return rows.results ?? [];
 }
 
@@ -410,9 +425,16 @@ export async function fitmentOptions(
 /** Part categories (product types) for the home category browser + catalog chips — only types that
  *  actually have an active, in-stock product, so empty categories never surface (matches the
  *  out-of-stock hiding rule). */
-export async function listProductTypes(
-  db: D1Database,
-): Promise<{ id: string; name: string; productCount: number; imageKey: string | null }[]> {
+export async function listProductTypes(db: D1Database): Promise<
+  {
+    id: string;
+    name: string;
+    nameTh: string | null;
+    nameEn: string | null;
+    productCount: number;
+    imageKey: string | null;
+  }[]
+> {
   const rows = await db
     .prepare(
       // EVERY category the owner has defined surfaces, including ones with nothing in stock yet
@@ -422,7 +444,7 @@ export async function listProductTypes(
       // productCount still counts only ACTIVE + IN-STOCK products so it matches the catalogue. That
       // condition must live inside the CASE, not in a WHERE — a WHERE would collapse the LEFT JOINs
       // back to inner joins and the empty categories would disappear again.
-      `SELECT t.id, t.name, t.image_key AS imageKey,
+      `SELECT t.id, t.name, t.name_th AS nameTh, t.name_en AS nameEn, t.image_key AS imageKey,
               COUNT(DISTINCT CASE WHEN p.status = 'active' AND (
                       SELECT COALESCE(SUM(quantity_delta), 0)
                         FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0
@@ -430,10 +452,17 @@ export async function listProductTypes(
          FROM product_types t
          LEFT JOIN products p ON p.type_id = t.id
          LEFT JOIN product_variants v ON v.product_id = p.id
-        GROUP BY t.id, t.name, t.image_key, t.sort_order
+        GROUP BY t.id, t.name, t.name_th, t.name_en, t.image_key, t.sort_order
         ORDER BY t.sort_order, t.name`,
     )
-    .all<{ id: string; name: string; productCount: number; imageKey: string | null }>();
+    .all<{
+      id: string;
+      name: string;
+      nameTh: string | null;
+      nameEn: string | null;
+      productCount: number;
+      imageKey: string | null;
+    }>();
   return rows.results ?? [];
 }
 

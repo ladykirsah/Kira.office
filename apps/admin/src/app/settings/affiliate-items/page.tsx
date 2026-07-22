@@ -122,7 +122,6 @@ function AffiliateItem({
           }}
         >
           {item.imageKey ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imageUrl(item.imageKey)}
               alt={item.title}
