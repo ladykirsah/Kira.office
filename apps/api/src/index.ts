@@ -17,6 +17,7 @@ import {
   TAXONOMY_IMAGE_TABLE,
   taxonomyImageKey,
   type TaxonomyImageKind,
+  adminUrlForApiHost,
   parseShopProfile,
   shopKey,
   type ShopProfile,
@@ -92,10 +93,18 @@ const STATIC_SECURITY_HEADERS: Record<string, string> = {
   "referrer-policy": "no-referrer",
 };
 
+// Browser origins allowed to call this API directly with credentials.
+//
+// NOTE: the admin does NOT rely on this. Its browser calls go to its own same-origin /api/worker
+// proxy, and only the admin Worker talks to this API — server-to-server, where CORS does not apply.
+// The storefront reads D1 directly. So this list is a safety net for future direct callers, not a
+// load-bearing part of today's architecture; adding a host here does not "fix" an admin 401.
+//
+// app.homeseeker.me was removed: it has no DNS record and never existed.
 export const DEFAULT_CORS_ORIGINS = [
   "http://localhost:3000",
-  "https://app.homeseeker.me",
-  "https://homeseeker.me",
+  "https://airplusauto.com",
+  "https://admin.airplusauto.com",
 ];
 
 /** CORS headers for this request — allowlisted origins get credentials; others stay wildcard (no cookies). */
@@ -3913,8 +3922,9 @@ const worker = {
     // Friendly root, so hitting the API host directly isn't a bare 404. The admin UI is a separate
     // app on its own origin (port 3000 in local dev). Public — no data here.
     if (url.pathname === "/" && (request.method === "GET" || request.method === "HEAD")) {
-      const adminUrl =
-        url.hostname === "localhost" ? "http://localhost:3000" : "https://app.homeseeker.me";
+      // Derived from the request, never hardcoded: this used to point at app.homeseeker.me, a
+      // hostname with no DNS record that had been a dead link for as long as it existed.
+      const adminUrl = adminUrlForApiHost(url.hostname);
       const body = `<!doctype html><meta charset="utf-8"><title>kiraoffice API</title>
 <body style="font-family:system-ui;max-width:34rem;margin:4rem auto;padding:0 1rem;color:#1f2430;line-height:1.6">
 <h1 style="color:#bf3c1d;margin-bottom:.25rem">kiraoffice API</h1>
