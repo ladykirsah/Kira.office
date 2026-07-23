@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   fetchStock,
   fetchStockMovements,
@@ -98,7 +99,7 @@ export default function StockMovementsPage() {
         subtitle={
           <>
             Receive stock, write off damage, or correct a count — every change is logged below.
-            Current on-hand per product lives on <a href="/products">Products</a>.
+            Current on-hand per product lives on <Link href="/products">Products</Link>.
           </>
         }
       />
