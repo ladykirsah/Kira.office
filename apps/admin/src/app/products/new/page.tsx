@@ -24,6 +24,7 @@ import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
 import { FitmentSection } from "../FitmentSection";
+import { buildProductName, canBuildProductName } from "@l-shopee/core";
 
 const field = { display: "grid", gap: 4 } as const;
 
@@ -56,7 +57,7 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
 }
 
 /** Add product — same sections as the editor (photos, description, part details, fitments, pricing).
- *  The product is created lazily on the first photo upload or on save; "Save draft" / "Save product"
+ *  The product is created lazily on the first photo upload or on save; "Save draft" / "Save"
  *  set the status. */
 export default function NewProductPage() {
   const router = useRouter();
@@ -84,7 +85,7 @@ export default function NewProductPage() {
   const [attributes, setAttributes] = useState<Attributes | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Batch listing: products saved via "Save & add next" in this visit (drives the counter + pill).
+  // Batch listing: products saved in this visit (drives the counter + pill).
   const [savedCount, setSavedCount] = useState(0);
   const nameRef = useRef<HTMLInputElement | null>(null);
   // Source of truth for the created product (sync, avoids stale state in async flows).
@@ -98,6 +99,21 @@ export default function NewProductPage() {
       .then(setCarTree)
       .catch(() => setCarTree([]));
   }, []);
+
+  // Auto Naming. The form holds taxonomy as display names, so the Thai names are looked up from
+  // the attribute lists by that name; anything missing simply falls back inside buildProductName.
+  const nameInput = {
+    typeNameTh:
+      attributes?.types.find((t) => t.name === part.type)?.nameTh ?? part.type.trim() ?? null,
+    brandName: attributes?.brands.find((b) => b.name === part.brand)?.name ?? part.brand ?? null,
+    productRef,
+    fitments: fitments.map((f) => ({
+      carBrand: f.carBrand,
+      carModel: f.carModel,
+      carModelTh: attributes?.carModels.find((m) => m.name === f.carModel)?.nameTh ?? null,
+    })),
+  };
+  const canAutoName = canBuildProductName(nameInput);
 
   const updatePart = (patch: Partial<PartForm>) => setPart((prev) => ({ ...prev, ...patch }));
   const updatePricing = (patch: Partial<PricingForm>) =>
@@ -224,26 +240,18 @@ export default function NewProductPage() {
               className="btn-soft"
               onClick={() => submit("draft")}
               disabled={busy}
-              style={{ minHeight: 44, padding: "10px 16px", fontSize: 14 }}
             >
               Save draft
             </button>
-            <button
-              type="button"
-              className="btn-soft"
-              onClick={() => submit("active")}
-              disabled={busy}
-              style={{ minHeight: 44, padding: "10px 16px", fontSize: 14 }}
-            >
-              Save product
-            </button>
+            {/* Saving always stays on the page ready for the next product — listing happens in
+                runs, so leaving for the edit page after every save was the wrong default. */}
             <button
               type="button"
               className="btn-primary"
               onClick={() => submit("active", true)}
               disabled={busy}
             >
-              Save &amp; add next
+              Save
             </button>
           </div>
         }
@@ -252,7 +260,8 @@ export default function NewProductPage() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          submit("active");
+          // Same as the Save button — pressing Enter must not behave differently from clicking it.
+          submit("active", true);
         }}
         style={{
           display: "grid",
@@ -290,16 +299,42 @@ export default function NewProductPage() {
           />
         </div>
 
-        <label style={{ ...field, gridColumn: "1 / -1" }}>
-          Product name *
+        {/* Not a <label> wrapper any more: a button inside a label steals the label's click. */}
+        <div style={{ ...field, gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <label htmlFor="product-name">Product name *</label>
+            <button
+              type="button"
+              onClick={() => setName(buildProductName(nameInput))}
+              disabled={!canAutoName}
+              title={
+                canAutoName
+                  ? "Compose the name from the part type, fitments, brand and code"
+                  : "Fill in the part type, at least one fitment, and the product code first"
+              }
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                minHeight: 0,
+                fontSize: 13,
+                fontWeight: 500,
+                color: canAutoName ? "var(--primary)" : "var(--text-muted)",
+                cursor: canAutoName ? "pointer" : "not-allowed",
+              }}
+            >
+              Auto Naming
+            </button>
+          </div>
           <input
+            id="product-name"
             ref={nameRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
             style={inputL}
           />
-        </label>
+        </div>
 
         <label style={{ ...field, gridColumn: "1 / -1" }}>
           Description
