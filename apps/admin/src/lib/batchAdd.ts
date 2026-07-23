@@ -1,5 +1,5 @@
 /**
- * "Save & add next" batch-listing rules for the Add-product page: after a save, the per-product
+ * "Save" batch-listing rules for the Add-product page: after a save, the per-product
  * fields reset while the batch fields (part taxonomy + fitments) carry over, so entering a run of
  * similar parts (e.g. 20 compressors for the same models) never re-selects the same dropdowns.
  */

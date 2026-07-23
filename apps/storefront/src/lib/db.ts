@@ -699,6 +699,7 @@ export interface CouponDbRow {
   endsAt: number | null;
   maxUses: number | null;
   maxUsesPerCustomer: number;
+  maxDiscountSatang: number | null;
   status: "active" | "disabled";
 }
 
@@ -711,7 +712,8 @@ export async function getCouponWithUsage(
     .prepare(
       `SELECT id, code, type, value, min_subtotal_satang AS minSubtotalSatang,
               starts_at AS startsAt, ends_at AS endsAt, max_uses AS maxUses,
-              max_uses_per_customer AS maxUsesPerCustomer, status
+              max_uses_per_customer AS maxUsesPerCustomer,
+              max_discount_satang AS maxDiscountSatang, status
        FROM coupons WHERE code = ? COLLATE NOCASE`,
     )
     .bind(code.trim())

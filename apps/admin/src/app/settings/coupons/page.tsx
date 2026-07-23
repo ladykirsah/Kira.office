@@ -157,6 +157,7 @@ export default function CouponsPage() {
   const [ends, setEnds] = useState("");
   const [maxUses, setMaxUses] = useState("");
   const [perCustomer, setPerCustomer] = useState("1");
+  const [maxCap, setMaxCap] = useState("");
   const [busy, setBusy] = useState(false);
 
   // Percent entered as % → basis points (×100); fixed entered as ฿ → satang (×100).
@@ -191,6 +192,8 @@ export default function CouponsPage() {
         endsAt: inputToMs(ends),
         maxUses: maxUses.trim() ? Math.max(1, Math.round(parseFloat(maxUses))) : null,
         maxUsesPerCustomer: Math.max(1, Math.round(parseFloat(perCustomer) || 1)),
+        // Blank = uncapped, so an empty box must send null rather than a 0 that would zero every discount.
+        maxDiscountSatang: maxCap.trim() ? Math.round((parseFloat(maxCap) || 0) * 100) : null,
       });
       toast("Coupon added", "success");
       setCode("");
@@ -200,6 +203,7 @@ export default function CouponsPage() {
       setEnds("");
       setMaxUses("");
       setPerCustomer("1");
+      setMaxCap("");
       await load();
     } catch (e2) {
       toast((e2 as Error).message, "error");
@@ -267,6 +271,18 @@ export default function CouponsPage() {
             />
           </div>
           <div style={fieldCol}>
+            <span style={fieldLabel}>Max cap (฿)</span>
+            <input
+              type="number"
+              min={0}
+              value={maxCap}
+              onChange={(e) => setMaxCap(e.target.value)}
+              placeholder="∞"
+              title="Largest discount this coupon can ever give. Blank = no cap."
+              style={{ ...inputS, width: 110 }}
+            />
+          </div>
+          <div style={fieldCol}>
             <span style={fieldLabel}>Starts (optional)</span>
             <input
               type="datetime-local"
@@ -305,7 +321,7 @@ export default function CouponsPage() {
               style={{ ...inputS, width: 74 }}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={busy || !canAdd}>
+          <button type="submit" className="btn-primary btn-sm" disabled={busy || !canAdd}>
             Add
           </button>
         </form>
