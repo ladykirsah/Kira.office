@@ -107,7 +107,6 @@ export default function NewProductPage() {
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) setProductRef(ref);
   }, []);
-
   // Auto Naming. The form holds taxonomy as display names, so the Thai names are looked up from
   // the attribute lists by that name; anything missing simply falls back inside buildProductName.
   const nameInput = {
