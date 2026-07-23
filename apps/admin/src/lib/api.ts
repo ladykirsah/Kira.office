@@ -1253,6 +1253,7 @@ export interface CouponRow {
   endsAt: number | null;
   maxUses: number | null;
   maxUsesPerCustomer: number;
+  maxDiscountSatang: number | null;
   status: "active" | "disabled";
   createdAt: number;
 }
@@ -1274,6 +1275,7 @@ export async function addCoupon(input: {
   endsAt?: number | null;
   maxUses?: number | null;
   maxUsesPerCustomer?: number;
+  maxDiscountSatang?: number | null;
 }): Promise<{ id: string }> {
   const res = await apiFetch(`/coupons`, {
     method: "POST",
@@ -1298,6 +1300,7 @@ export async function updateCoupon(
     endsAt: number | null;
     maxUses: number | null;
     maxUsesPerCustomer: number;
+    maxDiscountSatang: number | null;
     status: "active" | "disabled";
   }>,
 ): Promise<void> {

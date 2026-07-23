@@ -3486,7 +3486,8 @@ export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]
     .prepare(
       `SELECT c.id, c.code, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
               c.starts_at AS startsAt, c.ends_at AS endsAt, c.max_uses AS maxUses,
-              c.max_uses_per_customer AS maxUsesPerCustomer, c.status, c.created_at AS createdAt,
+              c.max_uses_per_customer AS maxUsesPerCustomer,
+              c.max_discount_satang AS maxDiscountSatang, c.status, c.created_at AS createdAt,
               (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions
        FROM coupons c ORDER BY c.created_at DESC`,
     )
@@ -3503,6 +3504,8 @@ export interface CouponCreate {
   endsAt?: number | null;
   maxUses?: number | null;
   maxUsesPerCustomer?: number;
+  /** Ceiling on the discount, satang. null/undefined = uncapped. */
+  maxDiscountSatang?: number | null;
 }
 
 /** Insert a coupon; refuses a duplicate code (codes are the customer-facing identity). */
@@ -3519,8 +3522,8 @@ export async function createCoupon(
   await db
     .prepare(
       `INSERT INTO coupons (id, code, type, value, min_subtotal_satang, starts_at, ends_at,
-                            max_uses, max_uses_per_customer, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+                            max_uses, max_uses_per_customer, max_discount_satang, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     )
     .bind(
       id,
@@ -3532,6 +3535,7 @@ export async function createCoupon(
       numOrNull(input.endsAt),
       numOrNull(input.maxUses),
       Math.max(1, Math.round(Number(input.maxUsesPerCustomer) || 1)),
+      numOrNull(input.maxDiscountSatang),
       Date.now(),
     )
     .run();
@@ -3547,6 +3551,7 @@ export interface CouponPatch {
   endsAt?: number | null;
   maxUses?: number | null;
   maxUsesPerCustomer?: number;
+  maxDiscountSatang?: number | null;
   status?: "active" | "disabled";
 }
 
@@ -3568,6 +3573,8 @@ export async function updateCoupon(db: D1Database, id: string, patch: CouponPatc
   if (patch.maxUses !== undefined) set("max_uses", numOrNull(patch.maxUses));
   if (patch.maxUsesPerCustomer !== undefined)
     set("max_uses_per_customer", Math.max(1, Math.round(Number(patch.maxUsesPerCustomer) || 1)));
+  if (patch.maxDiscountSatang !== undefined)
+    set("max_discount_satang", numOrNull(patch.maxDiscountSatang));
   if (patch.status !== undefined) set("status", patch.status);
   if (sets.length === 0) return;
   await db

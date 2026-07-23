@@ -15,6 +15,12 @@ export interface Coupon {
   /** null = unlimited total redemptions. */
   maxUses: number | null;
   maxUsesPerCustomer: number;
+  /**
+   * Largest discount this coupon may ever give, in satang. null = uncapped.
+   * Exists for percent coupons: "10% off" on a ฿30,000 compressor is ฿3,000 off, which can wipe
+   * out the margin on one order. The cap bounds the loss without lowering the headline percentage.
+   */
+  maxDiscountSatang: number | null;
   status: "active" | "disabled";
 }
 
@@ -57,9 +63,16 @@ export function validateCoupon(
   return { ok: true };
 }
 
-/** Discount in whole satang, always capped at the subtotal (a total can never go negative). */
+/**
+ * Discount in whole satang. Bounded twice: by the coupon's own max cap (when set), and always by
+ * the subtotal — a total can never go negative.
+ */
 export function couponDiscountSatang(coupon: Coupon, subtotalSatang: number): number {
   const raw =
     coupon.type === "fixed" ? coupon.value : Math.round((subtotalSatang * coupon.value) / 10000);
-  return Math.min(raw, subtotalSatang);
+  const capped =
+    coupon.maxDiscountSatang != null && coupon.maxDiscountSatang >= 0
+      ? Math.min(raw, coupon.maxDiscountSatang)
+      : raw;
+  return Math.min(capped, subtotalSatang);
 }

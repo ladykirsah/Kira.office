@@ -12,6 +12,7 @@ const BASE: Coupon = {
   endsAt: null,
   maxUses: null,
   maxUsesPerCustomer: 1,
+  maxDiscountSatang: null,
   status: "active",
 };
 
@@ -90,5 +91,46 @@ describe("couponDiscountSatang", () => {
   it("percent: capped at 100% of the subtotal even with silly basis points", () => {
     const c: Coupon = { ...BASE, type: "percent", value: 15000 }; // "150%"
     expect(couponDiscountSatang(c, 10000)).toBe(10000);
+  });
+});
+
+describe("couponDiscountSatang > max cap", () => {
+  const pct: Coupon = {
+    code: "TEN",
+    type: "percent",
+    value: 1000, // 10%
+    minSubtotalSatang: 0,
+    startsAt: null,
+    endsAt: null,
+    maxUses: null,
+    maxUsesPerCustomer: 1,
+    maxDiscountSatang: null,
+    status: "active",
+  };
+
+  it("given a cap > never gives more than the cap", () => {
+    // 10% of ฿30,000 would be ฿3,000; the cap holds it to ฿200.
+    expect(couponDiscountSatang({ ...pct, maxDiscountSatang: 20_000 }, 3_000_000)).toBe(20_000);
+  });
+
+  it("given a cap larger than the discount > the cap does nothing", () => {
+    expect(couponDiscountSatang({ ...pct, maxDiscountSatang: 20_000 }, 100_000)).toBe(10_000);
+  });
+
+  it("given no cap > behaves as before", () => {
+    expect(couponDiscountSatang(pct, 3_000_000)).toBe(300_000);
+  });
+
+  it("caps fixed coupons too", () => {
+    expect(
+      couponDiscountSatang(
+        { ...pct, type: "fixed", value: 50_000, maxDiscountSatang: 20_000 },
+        3_000_000,
+      ),
+    ).toBe(20_000);
+  });
+
+  it("still never exceeds the subtotal, even with a huge cap", () => {
+    expect(couponDiscountSatang({ ...pct, maxDiscountSatang: 999_999_999 }, 5_000)).toBe(500);
   });
 });
