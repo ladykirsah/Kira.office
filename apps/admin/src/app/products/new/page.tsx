@@ -100,6 +100,13 @@ export default function NewProductPage() {
       .catch(() => setCarTree([]));
   }, []);
 
+  // Pre-fill from "Scan here → Add new product": /products/new?ref=CODE seeds the Product ID (which
+  // is also the barcode source). Read once from the URL — window.location avoids useSearchParams'
+  // Suspense requirement, matching how the edit page reads its ?edit flag.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) setProductRef(ref);
+  }, []);
   // Auto Naming. The form holds taxonomy as display names, so the Thai names are looked up from
   // the attribute lists by that name; anything missing simply falls back inside buildProductName.
   const nameInput = {

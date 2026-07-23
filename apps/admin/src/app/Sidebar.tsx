@@ -8,6 +8,7 @@ const GROUPS: { section: string; links: [string, string, string][] }[] = [
   {
     section: "Catalog",
     links: [
+      ["/scan", "📷", "Scan here"],
       ["/products", "📦", "Products"],
       ["/products/new", "➕", "Add product"],
       ["/barcodes", "🏷️", "Barcodes"],

@@ -261,7 +261,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                           )}
                           <div style={{ minWidth: 0 }}>
                             <a
-                              href={`/products/${p.id}/edit`}
+                              href={`/products/${p.id}`}
                               title={p.name}
                               style={{
                                 fontWeight: 600,
