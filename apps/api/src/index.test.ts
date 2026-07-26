@@ -1001,11 +1001,21 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
   describe("coupons", () => {
     it("GET /coupons > lists coupons with their redemption counts", async () => {
-      const coupon = { id: "c1", code: "SAVE10", type: "percent", value: 1000, redemptions: 3 };
+      const coupon = {
+        id: "c1",
+        code: "SAVE10",
+        name: "Save 10",
+        type: "percent",
+        value: 1000,
+        redemptions: 3,
+      };
       const { env } = makeDb({ coupons: [coupon] });
       const res = await worker.fetch!(new Request("https://x/coupons"), env, ctx);
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ coupons: [coupon] });
+      // The admin list must carry the coupon `name` (migration 0065) back to the table.
+      const body = (await res.json()) as { coupons: { name?: string }[] };
+      expect(body).toEqual({ coupons: [coupon] });
+      expect(body.coupons[0]!.name).toBe("Save 10");
     });
 
     it("POST /coupons > trims + uppercases the code before storing it", async () => {
@@ -1052,9 +1062,10 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
             ctx,
           )
         ).status;
-      expect(await bad({ type: "percent", value: 1000 })).toBe(400);
-      expect(await bad({ code: "X", type: "bogus", value: 1000 })).toBe(400);
-      expect(await bad({ code: "X", type: "fixed", value: 0 })).toBe(400);
+      expect(await bad({ name: "N", type: "percent", value: 1000 })).toBe(400); // no code
+      // name present so these reach the type/value guards (not short-circuited by the name check).
+      expect(await bad({ code: "X", name: "N", type: "bogus", value: 1000 })).toBe(400);
+      expect(await bad({ code: "X", name: "N", type: "fixed", value: 0 })).toBe(400);
     });
 
     it("POST /coupons > stores the admin name", async () => {
