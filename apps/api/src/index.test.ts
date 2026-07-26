@@ -1534,17 +1534,15 @@ describe("api worker routes", () => {
     expect(sqls.some((s) => s.includes("stock_ledger_entries"))).toBe(false);
   });
 
-  it("POST /onsite/drafts > refuses to overwrite a finalized bill (never wipes its lines)", async () => {
-    // A draftId can collide with a finalized bill's id (both live in onsite_sales). If it does, the
-    // ON CONFLICT upsert would flip the bill's stage to 'draft' and the unconditional line-wipe would
-    // strip its items — silently gutting a real bill. Saving must refuse before touching anything.
-    const { db, env } = makeDb({ saleHeader: { stage: "bill" } });
-    const prepare = vi.spyOn(db, "prepare");
+  it("POST /onsite/drafts > refuses to overwrite a finalized bill (no header/line corruption)", async () => {
+    // A bill id fed back into the draft-save path must not reopen the bill as an editable draft:
+    // its header (stage/totals) must not be flipped and its lines must not be stripped/replaced.
+    const { env, batched } = makeDb({ saleHeader: { stage: "bill" } });
     const res = await worker.fetch!(
       new Request("https://x/onsite/drafts", {
         method: "POST",
         body: JSON.stringify({
-          draftId: "s1", // s1 already exists as a finalized bill
+          draftId: "bill-1",
           stage: "draft",
           lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
         }),
@@ -1553,9 +1551,9 @@ describe("api worker routes", () => {
       ctx,
     );
     expect(res.status).toBe(400);
-    const sqls = prepare.mock.calls.map((c) => c[0] as string);
-    expect(sqls.some((s) => s.includes("INTO onsite_sales"))).toBe(false);
-    expect(sqls.some((s) => s.includes("DELETE FROM onsite_sale_lines"))).toBe(false);
+    // nothing destructive may run against the existing bill
+    expect(batched.some((s) => s.sql.includes("INTO onsite_sales"))).toBe(false);
+    expect(batched.some((s) => s.sql.includes("DELETE FROM onsite_sale_lines"))).toBe(false);
   });
 
   it("GET /onsite/drafts > lists only open drafts and quotations", async () => {
