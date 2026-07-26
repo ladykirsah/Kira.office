@@ -2750,7 +2750,7 @@ describe("applySyncToDb (single-writer sync logic)", () => {
 describe("refundSaleToDb", () => {
   it("restocks lines, marks refunded, writes a reversing finance record", async () => {
     const { db, batched } = makeDb({
-      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed", stage: "bill" },
       saleLines: [{ productVariantId: "v1", quantity: 2 }],
       stockOnHand: 18,
     });
@@ -2759,9 +2759,20 @@ describe("refundSaleToDb", () => {
     expect(batched.length).toBe(3); // 1 restock ledger + update sale + finance record
   });
 
+  it("refuses to refund a draft/quotation (only a finalized bill) — no restock, no finance record", async () => {
+    const { db, batched } = makeDb({
+      saleHeader: { id: "d1", grandTotalSatang: 90000, saleStatus: "open", stage: "draft" },
+      saleLines: [{ productVariantId: "v1", quantity: 2 }],
+      stockOnHand: 5,
+    });
+    const out = await refundSaleToDb(db, "d1");
+    expect(out.applied).toBe(false);
+    expect(batched.length).toBe(0); // a draft never deducted stock / posted revenue — nothing to reverse
+  });
+
   it("writes the restock as a refund_return movement (schema enum, not 'refund')", async () => {
     const { db, batched } = makeDb({
-      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed", stage: "bill" },
       saleLines: [{ productVariantId: "v1", quantity: 2 }],
       stockOnHand: 18,
     });
@@ -2775,7 +2786,7 @@ describe("refundSaleToDb", () => {
 
   it("given two lines of the same variant > threads a running on-hand across the batch", async () => {
     const { db, batched } = makeDb({
-      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed" },
+      saleHeader: { id: "s1", grandTotalSatang: 10700, saleStatus: "completed", stage: "bill" },
       saleLines: [
         { productVariantId: "v1", quantity: 2 },
         { productVariantId: "v1", quantity: 3 },
@@ -2797,7 +2808,7 @@ describe("refundSaleToDb", () => {
 
   it("rejects a double refund", async () => {
     const { db } = makeDb({
-      saleHeader: { id: "s1", grandTotalSatang: 100, saleStatus: "refunded" },
+      saleHeader: { id: "s1", grandTotalSatang: 100, saleStatus: "refunded", stage: "bill" },
     });
     const out = await refundSaleToDb(db, "s1");
     expect(out.applied).toBe(false);
@@ -3660,6 +3671,18 @@ describe("barcodes", () => {
     expect(out.generated).toBe(false);
     expect(out.barcodeValue).toBe("8850000000000");
     expect(batched.length).toBe(1);
+  });
+
+  it("addBarcodeToProduct barcode INSERT is ON CONFLICT DO NOTHING (a taken value no-ops, never 500s)", async () => {
+    const { db, batched } = makeDb({
+      variantRow: { id: "v1", barcodePrimary: null },
+      productRef: { productRef: "AC-CMP-VIOS14" },
+    });
+    await addBarcodeToProduct(db, "p1");
+    const insert = (batched as { sql: string }[]).find((s) =>
+      s.sql.includes("INSERT INTO barcodes"),
+    );
+    expect(insert?.sql).toContain("ON CONFLICT(barcode_value) DO NOTHING");
   });
 });
 

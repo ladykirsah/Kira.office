@@ -382,7 +382,12 @@ export async function POST(req: Request): Promise<Response> {
     const itemCount = priced.reduce((sum, p) => sum + p.qty, 0);
 
     // 6) Coupon (optional) — validated against the EFFECTIVE subtotal, before any state changes.
-    let coupon: { id: string; code: string } | null = null;
+    let coupon: {
+      id: string;
+      code: string;
+      maxUses: number | null;
+      maxUsesPerCustomer: number;
+    } | null = null;
     let discount = 0;
     if (body.couponCode) {
       const found = await getCouponWithUsage(db, body.couponCode, customer.id);
@@ -394,7 +399,12 @@ export async function POST(req: Request): Promise<Response> {
           { error: couponReasonThai(verdict.reason, found.coupon.minSubtotalSatang) },
           { status: 400 },
         );
-      coupon = { id: found.coupon.id, code: found.coupon.code };
+      coupon = {
+        id: found.coupon.id,
+        code: found.coupon.code,
+        maxUses: found.coupon.maxUses,
+        maxUsesPerCustomer: found.coupon.maxUsesPerCustomer,
+      };
       discount = couponDiscountSatang(found.coupon, subtotal);
     }
     // 6b) Shipping fee — computed server-side from parcel weight/dims × destination,
@@ -446,8 +456,42 @@ export async function POST(req: Request): Promise<Response> {
       incremented.push({ id: p.campaignPriceId, qty: p.qty });
     }
 
-    // 9) (Address +) order + lines (+ payment) (+ coupon redemption) in ONE atomic D1 batch.
+    // 8b) Coupon redemption — a guarded insert that can't exceed maxUses / maxUsesPerCustomer even
+    //     under concurrent checkouts: the WHERE re-counts inside the single write and D1 serializes
+    //     writes, closing the validate→insert race. validateCoupon already handled the common case.
     const orderId = crypto.randomUUID();
+    const redemptionId = crypto.randomUUID();
+    if (coupon) {
+      const res = await db
+        .prepare(
+          `INSERT INTO coupon_redemptions (id, coupon_id, customer_id, sales_order_id, amount_discounted_satang, created_at)
+           SELECT ?, ?, ?, ?, ?, ?
+           WHERE (? IS NULL OR (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = ?) < ?)
+             AND (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = ? AND customer_id = ?) < ?`,
+        )
+        .bind(
+          redemptionId,
+          coupon.id,
+          customer.id,
+          orderId,
+          discount,
+          now,
+          coupon.maxUses,
+          coupon.id,
+          coupon.maxUses,
+          coupon.id,
+          customer.id,
+          coupon.maxUsesPerCustomer,
+        )
+        .run();
+      if (!res.meta.changes) {
+        await compensateCampaignIncrements(db, incremented);
+        return Response.json({ error: "คูปองถูกใช้ครบจำนวนแล้ว" }, { status: 409 });
+      }
+    }
+
+    // 9) (Address +) order + lines (+ payment) in ONE atomic D1 batch. The coupon redemption is
+    //    written above (8b) with its own concurrency guard.
     const paymentStatus = body.paymentMethod === "cod" ? "เก็บเงินปลายทาง" : "รอชำระเงิน";
     const statements = [
       ...(addressInsert ? [addressInsert] : []),
@@ -506,22 +550,18 @@ export async function POST(req: Request): Promise<Response> {
           .bind(crypto.randomUUID(), `AirPlus ${ref}`, promptpayId ?? "", grand, now, orderId),
       );
     }
-    if (coupon) {
-      statements.push(
-        db
-          .prepare(
-            `INSERT INTO coupon_redemptions (id, coupon_id, customer_id, sales_order_id,
-               amount_discounted_satang, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-          )
-          .bind(crypto.randomUUID(), coupon.id, customer.id, orderId, discount, now),
-      );
-    }
     try {
       await db.batch(statements);
     } catch (err) {
-      // The order didn't happen — release the flash-sale reservations before failing loudly.
+      // The order didn't happen — release the flash-sale reservations AND the coupon redemption we
+      // pre-inserted in (8b), before failing loudly, so neither is left dangling.
       await compensateCampaignIncrements(db, incremented);
+      if (coupon)
+        await db
+          .prepare("DELETE FROM coupon_redemptions WHERE id = ?")
+          .bind(redemptionId)
+          .run()
+          .catch(() => {});
       throw err;
     }
 
