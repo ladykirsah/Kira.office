@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import { inputL, inputS } from "@/lib/inputStyles";
 import { cmToMm } from "@/lib/parcel";
 import {
-  createProduct,
-  updateProduct,
+  saveFullProduct,
   adjustStock,
-  setProductPricing,
+  uploadGalleryImage,
   fetchAttributes,
   fetchCarFitment,
   checkIdentifier,
@@ -16,10 +15,13 @@ import {
   type Fitment,
   type CarBrandTree,
   type IdentifierKind,
+  type FullProductInput,
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { carrySummary, clearedProductFields } from "@/lib/batchAdd";
+import { missingRequiredToSave, shouldAutosaveDraft } from "@/lib/newProduct";
+import { uploadBufferInOrder, type BufferPhoto } from "@/lib/photoBuffer";
 import { PartDetails, type PartForm } from "../PartDetails";
 import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
@@ -56,9 +58,11 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
   return warn;
 }
 
+type SaveState = "idle" | "saving" | "saved" | "error";
+
 /** Add product — same sections as the editor (photos, description, part details, fitments, pricing).
- *  The product is created lazily on the first photo upload or on save; "Save draft" / "Save"
- *  set the status. */
+ *  Work auto-saves as a draft in the background (so nothing is lost between sessions); the explicit
+ *  "Publish" button makes it active. Photos are held locally and uploaded on Publish. */
 export default function NewProductPage() {
   const router = useRouter();
   const toast = useToast();
@@ -83,13 +87,18 @@ export default function NewProductPage() {
     onlineCommPct: "",
   });
   const [attributes, setAttributes] = useState<Attributes | null>(null);
-  const [createdId, setCreatedId] = useState<string | null>(null);
+  // Photos picked before the product exists — held locally and uploaded on Save (any order).
+  const [photos, setPhotos] = useState<BufferPhoto[]>([]);
   const [busy, setBusy] = useState(false);
   // Batch listing: products saved in this visit (drives the counter + pill).
   const [savedCount, setSavedCount] = useState(0);
   const nameRef = useRef<HTMLInputElement | null>(null);
-  // Source of truth for the created product (sync, avoids stale state in async flows).
-  const created = useRef<{ id: string; variantId: string | null } | null>(null);
+  // Background draft auto-save: the row we've created (so later saves update it by id, not by ref —
+  // renaming the Product ID mid-typing can't orphan drafts), the last-saved signature (skip no-op
+  // writes) and a small status for the indicator.
+  const autoSavedId = useRef<string | null>(null);
+  const lastSavedSig = useRef<string>("");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
 
   useEffect(() => {
     fetchAttributes()
@@ -129,100 +138,141 @@ export default function NewProductPage() {
   const refWarn = useIdentifierCheck("ref", productRef);
   const shopeeWarn = useIdentifierCheck("shopee", shopeeItemId);
 
-  /** Create the product once (for photo upload or save); returns its id, or null if it can't yet. */
-  async function ensureProduct(): Promise<string | null> {
-    if (created.current) return created.current.id;
-    if (!name.trim()) {
-      toast("Enter a product name first", "error");
-      return null;
-    }
-    // The Product ID is the single product identifier: it is the product code (SKU) and the source
-    // of the barcode. No separate auto-generated code.
-    const code = productRef.trim();
-    if (!code) {
-      toast("Enter a Product ID first", "error");
-      return null;
-    }
-    const out = await createProduct({ productRef: code, name });
-    if (!out.created) {
-      toast("Could not create the product — please try again", "error");
-      return null;
-    }
-    created.current = { id: out.productId, variantId: out.variantId };
-    setCreatedId(out.productId);
-    return out.productId;
-  }
-
-  async function submit(status: "draft" | "active", andNext = false) {
-    setBusy(true);
-    try {
-      const id = await ensureProduct();
-      if (!id) {
-        setBusy(false);
-        return;
-      }
-      await updateProduct(id, {
-        name,
-        description,
-        status,
-        shopeeListed: status === "active",
-        shopeeItemId: shopeeItemId || undefined,
-        productRef: productRef || undefined,
-        // The barcode is the Product ID (one identifier; scanning the part's barcode fills it in).
-        barcode: productRef.trim(),
-        weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
-        widthMm: cmToMm(widthCm),
-        lengthMm: cmToMm(lengthCm),
-        heightMm: cmToMm(heightCm),
-        brandName: part.brand || undefined,
-        usageName: part.usage || undefined,
-        typeName: part.type || undefined,
-        fitments,
-      });
-      await setProductPricing(id, {
+  /** The whole product as one atomic-save payload. `id` (once auto-save owns a row) targets that row
+   *  so a mid-typing Product-ID rename updates it instead of spawning a second draft. */
+  function buildProductPayload(status: "draft" | "active"): FullProductInput {
+    return {
+      id: autoSavedId.current ?? undefined,
+      productRef,
+      name,
+      description,
+      status,
+      shopeeListed: status === "active",
+      shopeeItemId: shopeeItemId || undefined,
+      // The barcode is the Product ID (one identifier; scanning the part's barcode fills it in).
+      barcode: productRef.trim(),
+      weightGrams: Math.round((parseFloat(weightKg) || 0) * 1000),
+      widthMm: cmToMm(widthCm),
+      lengthMm: cmToMm(lengthCm),
+      heightMm: cmToMm(heightCm),
+      brandName: part.brand || undefined,
+      usageName: part.usage || undefined,
+      typeName: part.type || undefined,
+      fitments,
+      pricing: {
         itemCostSatang: toSatang(pricing.costThb),
         targetPriceSatang: toSatang(pricing.b2cThb),
         onlinePriceSatang: toSatang(pricing.onlineThb),
         b2bPriceSatang: toSatang(pricing.b2bThb),
         onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
         taxOnCost: pricing.taxOnCost,
-      });
+      },
+    };
+  }
+
+  // Signature of the fields the draft save persists (photos + stock are applied on Publish, so they
+  // are not part of it) — used to skip redundant auto-saves.
+  const draftSignature = JSON.stringify({
+    name,
+    productRef,
+    description,
+    weightKg,
+    widthCm,
+    lengthCm,
+    heightCm,
+    part,
+    fitments,
+    pricing,
+    shopeeItemId,
+  });
+
+  // Background draft auto-save: debounce, then persist as a draft once there's enough to save. The
+  // atomic saveFullProduct means a failure can't strand a skeleton; the shouldAutosaveDraft guard
+  // keeps the first save from landing on someone else's Product ID.
+  useEffect(() => {
+    if (
+      !shouldAutosaveDraft({
+        busy,
+        name,
+        productRef,
+        hasAutosavedId: autoSavedId.current !== null,
+        refInUse: refWarn !== null,
+        signature: draftSignature,
+        lastSavedSignature: lastSavedSig.current,
+      })
+    )
+      return;
+    const t = setTimeout(async () => {
+      setSaveState("saving");
+      try {
+        const out = await saveFullProduct(buildProductPayload("draft"));
+        autoSavedId.current = out.productId;
+        lastSavedSig.current = draftSignature;
+        setSaveState("saved");
+      } catch {
+        setSaveState("error"); // keep the form; Publish (or the next change) retries
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftSignature, busy, refWarn]);
+
+  /** Publish (make active) + reset for the next product. Reuses the auto-saved draft row when there
+   *  is one, so publishing never creates a duplicate. */
+  async function publish() {
+    const missing = missingRequiredToSave({ name, productRef });
+    if (missing) {
+      toast(missing, "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const out = await saveFullProduct(buildProductPayload("active"));
+      const id = out.productId;
+      // Stock is ledger-based (serialized through its Durable Object), so it runs after the atomic
+      // product save. A stock hiccup can no longer lose the product data.
       const stock = Math.round(parseFloat(stockQty) || 0);
-      const vid = created.current?.variantId ?? null;
-      if (vid && stock > 0) {
+      if (out.variantId && stock > 0) {
         await adjustStock({
-          productVariantId: vid,
+          productVariantId: out.variantId,
           quantityDelta: stock,
           movementType: "opening_balance",
           reason: "created from Add product",
         });
       }
-      if (andNext) {
-        // Keep the batch fields (part taxonomy + fitments); reset everything per-product.
-        const cleared = clearedProductFields();
-        setName(cleared.name);
-        setDescription(cleared.description);
-        setStockQty(cleared.stockQty);
-        setWeightKg(cleared.weightKg);
-        setWidthCm(cleared.widthCm);
-        setLengthCm(cleared.lengthCm);
-        setHeightCm(cleared.heightCm);
-        setProductRef(cleared.productRef);
-        setShopeeItemId(cleared.shopeeItemId);
-        setPricing(cleared.pricing);
-        created.current = null;
-        setCreatedId(null);
-        setSavedCount((n) => n + 1);
-        toast(`Saved “${name}” — ready for the next one`, "success");
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        nameRef.current?.focus();
-        setBusy(false);
-        return;
+      // Photos were held locally so they could be added in any order; upload them now, then release
+      // the preview URLs.
+      if (photos.length) {
+        await uploadBufferInOrder(
+          photos.map((p) => p.file),
+          (file) => uploadGalleryImage(id, file),
+        );
+        photos.forEach((p) => URL.revokeObjectURL(p.url));
+        setPhotos([]);
       }
-      toast(status === "active" ? `Saved “${name}”` : `Draft “${name}” saved`, "success");
-      router.push(`/products/${id}/edit`);
+      // Keep the batch fields (part taxonomy + fitments); reset everything per-product and start a
+      // fresh draft (clear the auto-save row + signature so the next product saves cleanly).
+      const cleared = clearedProductFields();
+      setName(cleared.name);
+      setDescription(cleared.description);
+      setStockQty(cleared.stockQty);
+      setWeightKg(cleared.weightKg);
+      setWidthCm(cleared.widthCm);
+      setLengthCm(cleared.lengthCm);
+      setHeightCm(cleared.heightCm);
+      setProductRef(cleared.productRef);
+      setShopeeItemId(cleared.shopeeItemId);
+      setPricing(cleared.pricing);
+      autoSavedId.current = null;
+      lastSavedSig.current = "";
+      setSaveState("idle");
+      setSavedCount((n) => n + 1);
+      toast(`Published “${name}” — ready for the next one`, "success");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      nameRef.current?.focus();
     } catch (err) {
       toast((err as Error).message, "error");
+    } finally {
       setBusy(false);
     }
   }
@@ -231,34 +281,38 @@ export default function NewProductPage() {
     <main>
       <PageHeader
         title="Add product"
-        subtitle="New product — fill in the details, fitments, and pricing, then save."
+        subtitle="New product — your work auto-saves as a draft. Publish when it's ready."
         action={
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flex: "none" }}>
+            {saveState !== "idle" && (
+              <span
+                className="muted"
+                style={{
+                  fontSize: 13,
+                  whiteSpace: "nowrap",
+                  color: saveState === "error" ? "var(--danger)" : undefined,
+                }}
+              >
+                {saveState === "saving"
+                  ? "Saving draft…"
+                  : saveState === "saved"
+                    ? "Draft saved ✓"
+                    : "Couldn't save draft — will retry"}
+              </span>
+            )}
             {savedCount > 0 && (
               <span className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
                 +{savedCount} added
               </span>
             )}
+            {/* Draft is auto-saved, so leaving keeps it — this is "close", not "discard". */}
             <button type="button" onClick={() => router.push("/products")} disabled={busy}>
-              Cancel
+              Close
             </button>
-            <button
-              type="button"
-              className="btn-soft"
-              onClick={() => submit("draft")}
-              disabled={busy}
-            >
-              Save draft
-            </button>
-            {/* Saving always stays on the page ready for the next product — listing happens in
-                runs, so leaving for the edit page after every save was the wrong default. */}
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => submit("active", true)}
-              disabled={busy}
-            >
-              Save
+            {/* Publishing makes it active and stays on the page ready for the next product (listing
+                happens in runs). */}
+            <button type="button" className="btn-primary" onClick={() => publish()} disabled={busy}>
+              Publish
             </button>
           </div>
         }
@@ -267,8 +321,8 @@ export default function NewProductPage() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          // Same as the Save button — pressing Enter must not behave differently from clicking it.
-          submit("active", true);
+          // Same as the Publish button — pressing Enter must not behave differently from clicking it.
+          publish();
         }}
         style={{
           display: "grid",
@@ -299,10 +353,11 @@ export default function NewProductPage() {
         <div style={{ ...field, gridColumn: "1 / -1" }}>
           <span style={{ fontWeight: 600 }}>Photos</span>
           <ProductGallery
-            key={createdId ?? `next-${savedCount}`}
-            productId={createdId ?? ""}
+            key={`next-${savedCount}`}
+            productId=""
             initial={[]}
-            ensureProductId={ensureProduct}
+            buffer={photos}
+            onBufferChange={setPhotos}
           />
         </div>
 

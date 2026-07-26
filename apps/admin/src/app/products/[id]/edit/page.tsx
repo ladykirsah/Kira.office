@@ -6,8 +6,7 @@ import { cmToMm, mmToCm } from "@/lib/parcel";
 import { useParams } from "next/navigation";
 import {
   getProductDetail,
-  updateProduct,
-  setProductPricing,
+  saveFullProduct,
   fetchAttributes,
   fetchCarFitment,
   adjustStock,
@@ -136,7 +135,10 @@ export default function EditProductPage() {
     }
     setBusy(true);
     try {
-      await updateProduct(id, {
+      // One atomic write for the whole product (fields + pricing + fitments) — a partial failure
+      // can't half-apply an edit. `id` targets this exact row, so renaming the Product ID is safe.
+      await saveFullProduct({
+        id,
         name,
         description,
         // "Active on Shopee" = listed live on Shopee. ON also makes the product active on-site (a
@@ -155,20 +157,21 @@ export default function EditProductPage() {
         usageName: part.usage,
         typeName: part.type,
         fitments,
-      });
-      if (detail?.variantId) {
-        await setProductPricing(id, {
+        pricing: {
           itemCostSatang: toSatang(pricing.costThb),
           targetPriceSatang: toSatang(pricing.b2cThb),
           onlinePriceSatang: toSatang(pricing.onlineThb),
           b2bPriceSatang: toSatang(pricing.b2bThb),
           onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
           taxOnCost: pricing.taxOnCost,
-        });
-        // Stock is ledger-based: setting a new on-hand records an adjustment for the difference —
-        // computed by the server against a fresh read, since `detail.onHand` is from page load.
+        },
+      });
+      // Stock is ledger-based (serialized through its Durable Object), so it runs after the atomic
+      // product save: setting a new on-hand records an adjustment for the difference — computed by
+      // the server against a fresh read, since `detail.onHand` is from page load.
+      if (detail?.variantId) {
         const target = Math.round(parseFloat(stockQty) || 0);
-        if (detail && target !== (detail.onHand ?? 0)) {
+        if (target !== (detail.onHand ?? 0)) {
           const res = await adjustStock({
             productVariantId: detail.variantId,
             countedOnHand: target,

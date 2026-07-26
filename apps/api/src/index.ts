@@ -1251,6 +1251,187 @@ export async function createProduct(
   return { productId, variantId, created: true };
 }
 
+export interface FullProductInput {
+  /** When set, update THIS product row by id (edit page — lets the Product ID itself be renamed).
+   *  When absent, create-or-recover keyed on product_ref (Add page). */
+  id?: string;
+  productRef: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  shopeeListed?: boolean;
+  shopeeItemId?: string | null;
+  category?: string | null;
+  weightGrams?: number;
+  widthMm?: number | null;
+  lengthMm?: number | null;
+  heightMm?: number | null;
+  brandId?: string | null;
+  typeId?: string | null;
+  usageId?: string | null;
+  barcode?: string | null;
+  fitments?: Fitment[];
+  pricing?: VariantPricing | null;
+}
+
+export interface FullProductResult {
+  productId: string;
+  variantId: string;
+  created: boolean;
+}
+
+/**
+ * Create or recover a product and write ALL of it — product row, variant, barcode, pricing and
+ * fitments — in ONE D1 batch, so the save is all-or-nothing: a partial failure can no longer strand
+ * a name+code skeleton and lose everything else (the old create→update→pricing→stock chain committed
+ * each step in a separate request). Idempotent on product_ref: an existing Product ID — e.g. a prior
+ * half-saved attempt — is filled in via UPDATE rather than rejected. Stock is NOT written here (it is
+ * serialized through the StockLedger DO); the caller applies the opening balance after this succeeds.
+ * Attribute/car reference rows are resolved before the batch — creating them is idempotent shared
+ * data, harmless even if the batch rolls back.
+ */
+export async function saveFullProduct(
+  db: D1Database,
+  input: FullProductInput,
+): Promise<FullProductResult> {
+  const ref = input.productRef.trim();
+  const name = input.name.trim();
+  if (!ref || !name) throw new Error("productRef and name are required");
+  const now = Date.now();
+
+  // Edit page targets a specific row by id (and may rename its product_ref); the Add page has no id
+  // and create-or-recovers keyed on product_ref.
+  const existing = input.id
+    ? { id: input.id }
+    : await db
+        .prepare("SELECT id FROM products WHERE product_ref = ?")
+        .bind(ref)
+        .first<{ id: string }>();
+  const created = !existing;
+  const productId = existing?.id ?? crypto.randomUUID();
+  const existingVariant = existing
+    ? await db
+        .prepare("SELECT id FROM product_variants WHERE product_id = ? ORDER BY created_at LIMIT 1")
+        .bind(productId)
+        .first<{ id: string }>()
+    : null;
+  const variantId = existingVariant?.id ?? crypto.randomUUID();
+  const desc = input.description?.trim() || null;
+  const bc = input.barcode?.trim() || null;
+
+  // Resolve fitment car brands/models to reference rows first (idempotent), then write the fitment
+  // rows inside the atomic batch below.
+  for (const f of input.fitments ?? []) {
+    const brandName = f.carBrand?.trim();
+    if (!brandName) continue;
+    const carBrandId = (await addAttribute(db, "car_brands", brandName)).id;
+    if (f.carModel?.trim()) await addCarModel(db, carBrandId, f.carModel);
+  }
+
+  const stmts: D1PreparedStatement[] = [];
+  if (created) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO products (id, product_ref, name, description, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(productId, ref, name, desc, input.status, now),
+    );
+  }
+  if (!existingVariant) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO product_variants (id, product_id, sku, barcode_primary, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(variantId, productId, ref, bc, "active", now),
+    );
+  }
+  // Rich product fields — the same UPDATE the edit path uses; fills everything for create + recover.
+  stmts.push(
+    db
+      .prepare(
+        "UPDATE products SET name = ?, description = ?, status = ?, shopee_listed = ?, shopee_item_id = ?, product_ref = ?, category = ?, weight_grams = ?, width_mm = ?, length_mm = ?, height_mm = ?, brand_id = ?, type_id = ?, usage_id = ?, updated_at = ? WHERE id = ?",
+      )
+      .bind(
+        name,
+        desc,
+        input.status,
+        input.shopeeListed ? 1 : 0,
+        input.shopeeItemId?.trim() || null,
+        ref,
+        input.category?.trim() || null,
+        Math.max(0, Math.round(input.weightGrams ?? 0)),
+        mmOrNull(input.widthMm),
+        mmOrNull(input.lengthMm),
+        mmOrNull(input.heightMm),
+        input.brandId ?? null,
+        input.typeId ?? null,
+        input.usageId ?? null,
+        now,
+        productId,
+      ),
+  );
+  // Barcode = Product ID (one scannable identifier). ON CONFLICT keeps a globally-taken value safe.
+  if (bc) {
+    stmts.push(
+      db
+        .prepare("UPDATE product_variants SET barcode_primary = ? WHERE id = ?")
+        .bind(bc, variantId),
+    );
+    stmts.push(
+      db
+        .prepare(
+          "INSERT INTO barcodes (id, product_variant_id, barcode_value, is_primary, is_internal_generated, created_at) VALUES (?, ?, ?, 1, 0, ?) ON CONFLICT(barcode_value) DO NOTHING",
+        )
+        .bind(crypto.randomUUID(), variantId, bc, now),
+    );
+  }
+  // Pricing (replace any prior profile) — only when supplied.
+  if (input.pricing) {
+    const p = input.pricing;
+    stmts.push(
+      db.prepare("DELETE FROM pricing_profiles WHERE product_variant_id = ?").bind(variantId),
+    );
+    stmts.push(
+      db
+        .prepare(
+          "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          variantId,
+          p.itemCostSatang,
+          p.targetPriceSatang,
+          p.onlinePriceSatang,
+          p.b2bPriceSatang,
+          p.onlineCommissionBp,
+          p.taxOnCost ? 1 : 0,
+          now,
+        ),
+    );
+  }
+  // Fitments (replace the whole set) — skip blank rows.
+  stmts.push(db.prepare("DELETE FROM product_fitments WHERE product_id = ?").bind(productId));
+  (input.fitments ?? []).forEach((f, i) => {
+    const brand = f.carBrand?.trim() || null;
+    const model = f.carModel?.trim() || null;
+    const yearFrom = Number.isFinite(f.yearFrom) ? f.yearFrom : null;
+    const yearTo = Number.isFinite(f.yearTo) ? f.yearTo : null;
+    if (!brand && !model && yearFrom == null && yearTo == null) return;
+    stmts.push(
+      db
+        .prepare(
+          "INSERT INTO product_fitments (id, product_id, car_brand, car_model, year_from, year_to, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(crypto.randomUUID(), productId, brand, model, yearFrom, yearTo, i, now),
+    );
+  });
+
+  await db.batch(stmts);
+  return { productId, variantId, created };
+}
+
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -1810,6 +1991,7 @@ async function listStock(env: Env): Promise<Response> {
      FROM product_variants v
      JOIN products p ON p.id = v.product_id
      LEFT JOIN stock_ledger_entries e ON e.product_variant_id = v.id
+     WHERE p.status <> 'archived'
      GROUP BY v.id
      ORDER BY p.name
      LIMIT 200`,
@@ -1826,6 +2008,7 @@ async function listStockMovements(env: Env): Promise<Response> {
      FROM stock_ledger_entries e
      JOIN product_variants v ON v.id = e.product_variant_id
      JOIN products p ON p.id = v.product_id
+     WHERE p.status <> 'archived'
      ORDER BY e.created_at DESC
      LIMIT 100`,
   ).all();
@@ -1879,6 +2062,7 @@ async function listProducts(env: Env): Promise<Response> {
      LEFT JOIN product_variants v
        ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)
      LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id
+     WHERE p.status <> 'archived'
      ORDER BY p.created_at DESC LIMIT 200`,
   ).all();
   return json({ products: results });
@@ -2250,7 +2434,9 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
   return rows.map((r) => ({ ...r, lines: byDraft.get(r.id) ?? [] }));
 }
 
-/** Delete a draft/quotation and its lines. The stage guard makes it impossible to delete a bill. */
+/** Delete a draft/quotation and its lines. The stage guard makes it impossible to delete a bill —
+ *  applied to BOTH statements: guarding only the header would still wipe a finalized bill's line
+ *  items (a bill id is a normal onsite_sales.id), leaving revenue without its profit/line detail. */
 export async function deleteDraftFromDb(db: D1Database, id: string): Promise<{ ok: true }> {
   await db.batch([
     // The line delete carries the SAME stage guard as the header delete below: without it, passing a
@@ -2636,6 +2822,7 @@ export async function lookupBarcode(db: D1Database, code: string): Promise<Barco
        JOIN product_variants v ON v.id = b.product_variant_id
        JOIN products p ON p.id = v.product_id
        WHERE b.barcode_value = ?
+         AND p.status <> 'archived'
        LIMIT 1`,
     )
     .bind(code)
@@ -3103,7 +3290,33 @@ export async function setAttributeNames(
     .run();
 }
 
-/** Remove an option. Products still referencing it simply show a blank value. */
+/** Which products column references each attribute table (only the product-classification kinds). */
+const ATTR_PRODUCT_COLUMN: Record<string, string> = {
+  brands: "brand_id",
+  product_types: "type_id",
+  usage_categories: "usage_id",
+};
+
+/**
+ * How many products still reference this attribute. Returns 0 for tables with no product column
+ * (car_brands/car_models are referenced by fitments, not a product FK — not guarded here).
+ * The column comes from a fixed allowlist, never user input, so the interpolation is safe.
+ */
+export async function countProductsUsingAttribute(
+  db: D1Database,
+  table: string,
+  id: string,
+): Promise<number> {
+  const column = ATTR_PRODUCT_COLUMN[table];
+  if (!column) return 0;
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM products WHERE ${column} = ?`)
+    .bind(id)
+    .first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+/** Remove an option. Callers must first ensure no product references it (see the DELETE route). */
 export async function deleteAttribute(db: D1Database, table: string, id: string): Promise<void> {
   await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
 }
@@ -4531,6 +4744,11 @@ const worker = {
     if (attrDel && request.method === "DELETE") {
       const table = ATTR_TABLE[attrDel[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
+      // Deleting an in-use brand/type/system would silently blank it on every product (no enforced
+      // FK in D1). Refuse with a count so the admin reassigns those products first — reassign, then
+      // delete. The admin client turns this 409 into a helpful message.
+      const inUse = await countProductsUsingAttribute(env.DB, table, attrDel[2]!);
+      if (inUse > 0) return json({ error: `still used by ${inUse} product(s)`, count: inUse }, 409);
       await deleteAttribute(env.DB, table, attrDel[2]!);
       return json({ ok: true });
     }
@@ -4671,6 +4889,63 @@ const worker = {
         taxOnCost: body.taxOnCost ?? false,
       });
       return json({ ok: true });
+    }
+
+    // Atomic create/recover: the whole product (fields + pricing + fitments) in one transaction, so
+    // a partial failure never strands a name+code skeleton and loses the rest. Registered before the
+    // /products/:id matcher so "full" is never read as an id.
+    if (url.pathname === "/products/full" && request.method === "POST") {
+      const body = await readJson<{
+        id?: string;
+        productRef?: string;
+        name?: string;
+        description?: string;
+        status?: string;
+        shopeeListed?: boolean;
+        shopeeItemId?: string;
+        weightGrams?: number;
+        widthMm?: number | null;
+        lengthMm?: number | null;
+        heightMm?: number | null;
+        barcode?: string;
+        brandName?: string;
+        usageName?: string;
+        typeName?: string;
+        fitments?: Fitment[];
+        pricing?: VariantPricing | null;
+      }>(request);
+      if (!body?.productRef?.trim() || !body?.name?.trim() || !body?.status) {
+        return json({ error: "productRef, name and status are required" }, 400);
+      }
+      const brandId = await resolveAttribute(env.DB, "brands", body.brandName);
+      const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
+      const typeId = await resolveAttribute(env.DB, "product_types", body.typeName);
+      const category =
+        [body.brandName, body.usageName, body.typeName]
+          .map((s) => s?.trim())
+          .filter(Boolean)
+          .join(" · ") || undefined;
+      const out = await saveFullProduct(env.DB, {
+        id: body.id,
+        productRef: body.productRef,
+        name: body.name,
+        description: body.description,
+        status: body.status,
+        shopeeListed: body.shopeeListed,
+        shopeeItemId: body.shopeeItemId,
+        category,
+        weightGrams: body.weightGrams,
+        widthMm: body.widthMm,
+        lengthMm: body.lengthMm,
+        heightMm: body.heightMm,
+        brandId,
+        typeId,
+        usageId,
+        barcode: body.barcode,
+        fitments: body.fitments,
+        pricing: body.pricing,
+      });
+      return json(out, out.created ? 201 : 200);
     }
 
     const productById = url.pathname.match(/^\/products\/([^/]+)$/);

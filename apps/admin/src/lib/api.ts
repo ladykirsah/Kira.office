@@ -184,6 +184,10 @@ export async function addAttribute(
 
 export async function deleteAttribute(kind: AttrKind, id: string): Promise<void> {
   const res = await apiFetch(`/attributes/${kind}/${id}`, { method: "DELETE" });
+  if (res.status === 409) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`${err.error ?? "still in use"} — reassign those products first.`);
+  }
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
@@ -694,6 +698,55 @@ export async function getProductDetail(id: string): Promise<ProductDetail> {
   const res = await apiFetch(`/products/${id}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load product (HTTP ${res.status})`);
   return (await res.json()) as ProductDetail;
+}
+
+export interface FullProductInput {
+  /** Set to update a specific product row (edit page; allows renaming the Product ID). Omit on the
+   *  Add page, where the save create-or-recovers keyed on the Product ID. */
+  id?: string;
+  productRef: string;
+  name: string;
+  description?: string;
+  status: string;
+  shopeeListed?: boolean;
+  shopeeItemId?: string;
+  weightGrams?: number;
+  widthMm?: number | null;
+  lengthMm?: number | null;
+  heightMm?: number | null;
+  barcode?: string;
+  brandName?: string;
+  usageName?: string;
+  typeName?: string;
+  fitments?: Fitment[];
+  pricing?: {
+    itemCostSatang: number;
+    targetPriceSatang: number;
+    onlinePriceSatang: number;
+    b2bPriceSatang: number;
+    onlineCommissionBp: number;
+    taxOnCost: boolean;
+  } | null;
+}
+
+/**
+ * Atomic create/recover: writes the whole product (fields + pricing + fitments) in one server-side
+ * transaction, so a failure can't leave a half-saved skeleton and lose the rest. Idempotent on the
+ * Product ID — re-saving an existing one fills it in. Stock is applied separately (ledger DO).
+ */
+export async function saveFullProduct(
+  input: FullProductInput,
+): Promise<{ productId: string; variantId: string; created: boolean }> {
+  const res = await apiFetch(`/products/full`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Save failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { productId: string; variantId: string; created: boolean };
 }
 
 export async function updateProduct(
