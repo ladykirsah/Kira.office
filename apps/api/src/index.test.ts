@@ -1582,6 +1582,36 @@ describe("api worker routes", () => {
     expect(sqls.some((s) => s.includes("stock_ledger_entries"))).toBe(false);
   });
 
+  it("POST /onsite/drafts > persists the bill discount on a quotation (amount + raw %/฿, recomputed grand)", async () => {
+    const { env, batched } = makeDb({});
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "q1",
+          stage: "quotation",
+          saleNumber: "QT202607-26001",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, productVariantId: "v1" }],
+          discountSatang: 5000,
+          discountKind: "pct",
+          discountValue: "33.33",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INTO onsite_sales"),
+    );
+    expect(insert?.sql).toContain("discount_kind");
+    const binds = insert?.boundArgs ?? [];
+    expect(binds).toContain(5000); // discount_total_satang (the bill discount)
+    expect(binds).toContain(10000); // grand_total_satang = 15000 − 5000
+    expect(binds).toContain("pct"); // raw kind preserved
+    expect(binds).toContain("33.33"); // raw value preserved
+  });
+
   it("POST /onsite/drafts > refuses to overwrite a finalized bill (no header/line corruption)", async () => {
     // A bill id fed back into the draft-save path must not reopen the bill as an editable draft:
     // its header (stage/totals) must not be flipped and its lines must not be stripped/replaced.

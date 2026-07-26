@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpLogin } from "@/components/OtpLogin";
 import type { AddressRow } from "@/app/api/account/addresses/route";
-import { cartTotalSatang, clearCart, useCart } from "@/lib/cart";
+import { cartTotalSatang, clearCart, syncCartPrices, useCart } from "@/lib/cart";
 import { Icon } from "@/components/Icon";
 import {
   type CheckoutPaymentMethod,
@@ -374,7 +374,11 @@ export default function CheckoutPage() {
     const body: CheckoutRequest = {
       idempotencyRef: ref,
       paymentMethod: payment,
-      lines: lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+      lines: lines.map((l) => ({
+        variantId: l.variantId,
+        qty: l.qty,
+        expectedPriceSatang: l.priceSatang,
+      })),
     };
     if (needName) body.name = nameInput.trim();
     if (coupon) body.couponCode = coupon.code;
@@ -399,6 +403,11 @@ export default function CheckoutPage() {
       });
       const data = (await res.json()) as CheckoutResponse;
       if (!res.ok || "error" in data) {
+        // A price changed since the customer saw it: update the shown prices/total from the server
+        // and make them confirm again — never charge more than the total on the button silently.
+        if ("error" in data && data.reason === "prices_changed" && data.lines) {
+          syncCartPrices(data.lines);
+        }
         if ("error" in data && data.requiresLogin) {
           setMe(null);
           accountSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -1581,6 +1581,11 @@ export default function PosPage() {
       vehicle: vehicleLabel || null,
       notes: note.trim() || null,
       lines: cartToDraftLines(lines),
+      // Carry the bill discount on the header so a saved quotation reflects (and reopens at) the
+      // discounted price — lines stay at unit price. kind/value preserve the exact %/฿ input.
+      discountSatang,
+      discountKind,
+      discountValue,
     };
   }
 
@@ -1628,6 +1633,10 @@ export default function PosPage() {
     setLines(draftToCartLines(d.lines, () => crypto.randomUUID()) as SaleLine[]);
     setPlate(d.licensePlate ?? "");
     setNote(d.notes ?? "");
+    // Restore the bill discount exactly as entered, so a reopened quotation converts at the same
+    // price the customer was quoted (was silently dropped → full-price overcharge on convert).
+    setDiscountKind((d.discountKind as DiscountKind) ?? "thb");
+    setDiscountValue(d.discountValue ?? "");
     setDocType(d.stage === "quotation" ? "quotation" : "bill");
     // The car brand/model/year selects aren't reconstructed from the stored label — plate is the key.
     setCarBrandId("");

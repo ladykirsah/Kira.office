@@ -262,6 +262,11 @@ export interface SaveDraftInput {
   vehicle?: string | null;
   notes?: string | null;
   lines: DraftApiLine[];
+  // Bill-level discount carried on the header (not per line) so a quotation stores/prints/reopens
+  // at the discounted price. `discountSatang` is the computed amount; kind/value are the raw input.
+  discountSatang?: number;
+  discountKind?: string;
+  discountValue?: string;
 }
 
 /** A parked draft/quotation returned by GET /onsite/drafts, with its lines, for the reopen tray. */
@@ -274,6 +279,9 @@ export interface OpenDraft {
   notes: string | null;
   stage: "draft" | "quotation";
   grandTotalSatang: number;
+  discountTotalSatang: number;
+  discountKind: string | null;
+  discountValue: string | null;
   createdAt: number;
   lines: DraftApiLine[];
 }

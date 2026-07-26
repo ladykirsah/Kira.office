@@ -74,6 +74,23 @@ export function clearCart(): void {
   write([]);
 }
 
+/** Update display prices from a server re-price (checkout "prices changed"), so the shown line
+ *  prices + total match what will actually be charged before the customer re-confirms. */
+export function syncCartPrices(prices: { variantId: string; priceSatang: number }[]): void {
+  const map = new Map(prices.map((p) => [p.variantId, p.priceSatang]));
+  const lines = readRaw();
+  let changed = false;
+  const next = lines.map((l) => {
+    const p = map.get(l.variantId);
+    if (p != null && p !== l.priceSatang) {
+      changed = true;
+      return { ...l, priceSatang: p };
+    }
+    return l;
+  });
+  if (changed) write(next);
+}
+
 export function cartTotalSatang(lines: CartLine[]): number {
   return lines.reduce((sum, l) => sum + l.priceSatang * l.qty, 0);
 }

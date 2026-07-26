@@ -36,8 +36,10 @@ export interface CheckoutRequest {
   paymentMethod: CheckoutPaymentMethod;
   /** Optional coupon code — validated server-side against coupons + redemptions. */
   couponCode?: string;
-  /** 1..20 lines; qty integer 1..99. Prices are NEVER sent — the server re-prices from D1. */
-  lines: { variantId: string; qty: number }[];
+  /** 1..20 lines; qty integer 1..99. The server always re-prices from D1 — `expectedPriceSatang` is
+   *  only the price the customer SAW, so the server can refuse to silently charge a higher amount
+   *  (e.g. a flash price lapsed in-cart) and ask them to review + confirm the new total. */
+  lines: { variantId: string; qty: number; expectedPriceSatang?: number }[];
 }
 
 export interface CheckoutSuccess {
@@ -63,6 +65,11 @@ export interface CheckoutFailure {
   error: string;
   /** true → no valid session; the client should surface the login section. */
   requiresLogin?: boolean;
+  /** "prices_changed" → an item's price rose since the customer saw it; the client should update the
+   *  shown prices from `lines` and have the customer confirm the new total (no order was created). */
+  reason?: "prices_changed";
+  /** New authoritative prices, sent with reason "prices_changed". */
+  lines?: { variantId: string; priceSatang: number }[];
 }
 
 export type CheckoutResponse = CheckoutSuccess | CheckoutFailure;
