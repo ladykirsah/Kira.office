@@ -76,9 +76,9 @@ function Chevron({ open }: { open: boolean }) {
 }
 
 /**
- * A date + time pair for one window bound. The time box is disabled until a date is chosen, and
- * clearing the date clears the time — so you can never leave a time with no date, which would
- * silently drop the bound (a coupon that never expires / goes live immediately).
+ * A date + time pair for one window bound. The time box is DISABLED until a date is chosen — so you
+ * can't leave a time with no date (which would silently drop the bound). The time VALUE is preserved
+ * when the date is cleared (only greyed out), so clearing a date to re-pick it never loses the time.
  */
 function DateTimeField({
   label,
@@ -103,11 +103,7 @@ function DateTimeField({
           type="date"
           aria-label={`${base} date`}
           value={date}
-          onChange={(e) => {
-            const v = e.target.value;
-            onDate(v);
-            if (!v) onTime(""); // no date → no orphan time
-          }}
+          onChange={(e) => onDate(e.target.value)}
           style={inputS}
         />
         <input
@@ -416,7 +412,10 @@ function CouponRow({
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 2px" }}>
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => {
+            if (expanded) setEditing(false); // collapsing exits edit mode (don't strand unsaved edits)
+            setExpanded((v) => !v);
+          }}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} ${coupon.name ?? coupon.code}`}
           style={{
