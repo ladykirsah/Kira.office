@@ -24,7 +24,7 @@ export default function TermsPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [toast]);
 
   const placeholders = useMemo(() => extractPlaceholders(template), [template]);
   const rendered = renderTerms(template, values);
