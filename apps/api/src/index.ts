@@ -3149,6 +3149,9 @@ export interface AttrOption {
   nameTh?: string | null;
   /** English display name (migration 0060). Null until the owner supplies one. */
   nameEn?: string | null;
+  /** Product categories only (migration 0064): the car system (usage_categories.id) this category
+   *  belongs to — categories are a subset of a car system. Null/absent for the other kinds. */
+  usageId?: string | null;
 }
 
 // Whitelist of attribute kinds → their table. Table names come from this literal map only (never
@@ -3186,9 +3189,17 @@ export async function listAttributes(db: D1Database): Promise<{
            FROM ${table} ORDER BY sort_order, name`,
       )
       .all<AttrOption>();
+  // product_types additionally carry their car-system link (migration 0064).
+  const qType = () =>
+    db
+      .prepare(
+        `SELECT id, name, name_th AS nameTh, name_en AS nameEn, image_key AS imageKey, usage_id AS usageId
+           FROM product_types ORDER BY sort_order, name`,
+      )
+      .all<AttrOption>();
   const [brands, types, usages, carBrands, carModels] = await Promise.all([
     q("brands"),
-    qImg("product_types"),
+    qType(),
     q("usage_categories"),
     qImg("car_brands"),
     q("car_models"),
@@ -4781,6 +4792,15 @@ const worker = {
       await setTypeWarranty(env.DB, warrantySet[1]!, body.warrantyDays ?? null);
       return json({ ok: true });
     }
+    // Reassign a product category to a different car system (the "move" action, migration 0064).
+    const carSystemSet = url.pathname.match(/^\/product-types\/([^/]+)\/car-system$/);
+    if (carSystemSet && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { usageId?: string | null };
+      await env.DB.prepare("UPDATE product_types SET usage_id = ? WHERE id = ?")
+        .bind(body.usageId ?? null, carSystemSet[1]!)
+        .run();
+      return json({ ok: true });
+    }
     // Cover image for a product category / car brand: PUT the raw bytes, DELETE to clear.
     const taxImage = url.pathname.match(/^\/taxonomy-images\/(type|car-brand)\/([^/]+)$/);
     if (taxImage) {
@@ -4816,15 +4836,30 @@ const worker = {
         name?: string;
         nameTh?: string | null;
         nameEn?: string | null;
+        usageId?: string | null;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
       const created = await addAttribute(env.DB, table, body.name);
       // Names are optional on create — the owner can fill the second language later from the row.
       if (body.nameTh != null || body.nameEn != null) {
         await setAttributeNames(env.DB, table, created.id, body);
-        return json({ ...created, nameTh: body.nameTh ?? null, nameEn: body.nameEn ?? null }, 201);
       }
-      return json(created, 201);
+      // Product categories carry their car-system link (migration 0064); set it on create.
+      if (table === "product_types" && typeof body.usageId === "string" && body.usageId) {
+        await env.DB.prepare("UPDATE product_types SET usage_id = ? WHERE id = ?")
+          .bind(body.usageId, created.id)
+          .run();
+      }
+      return json(
+        {
+          ...created,
+          ...(body.nameTh != null || body.nameEn != null
+            ? { nameTh: body.nameTh ?? null, nameEn: body.nameEn ?? null }
+            : {}),
+          ...(table === "product_types" ? { usageId: body.usageId ?? null } : {}),
+        },
+        201,
+      );
     }
     const attrDel = url.pathname.match(/^\/attributes\/([^/]+)\/([^/]+)$/);
     if (attrDel && request.method === "DELETE") {

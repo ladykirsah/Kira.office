@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { inputS } from "@/lib/inputStyles";
 import { parseWarrantyDays, validateAttributeName } from "@/lib/categoryForm";
 import { toSquareCover } from "@/lib/cropImage";
@@ -8,6 +8,7 @@ import {
   fetchAttributes,
   fetchTypeWarranties,
   setTypeWarranty,
+  setTypeCarSystem,
   addAttribute,
   deleteAttribute,
   uploadTaxonomyImage,
@@ -272,6 +273,182 @@ export function BilingualNames({
   );
 }
 
+/** Pencil (edit) icon — same stroke style as XIcon so the row's edit + delete icons match. */
+function PencilIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+/**
+ * One taxonomy row as a card: English name over Thai name (plain text) on the left; an edit (pencil)
+ * and — when `onDelete` is given — a delete (cross) icon on the right. Clicking edit swaps to English
+ * + Thai inputs with Save / Cancel. `leading` (a cover thumbnail) and `trailing` (warranty + move
+ * controls) are slotted into view mode only; edit mode is just the two inputs + Save / Cancel.
+ *
+ * `name` stays the identity products/fitments join on and is never edited — the English input writes
+ * the display column `nameEn` (which falls back to `name` when blank), never `name` itself.
+ */
+function NameCard({
+  kind,
+  option,
+  onChanged,
+  onDelete,
+  leading,
+  trailing,
+  editExtras,
+  onEditingChange,
+}: {
+  kind: AttrKind;
+  option: AttrOption;
+  onChanged: () => Promise<void>;
+  onDelete?: () => Promise<void>;
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  /** Rendered in edit mode after the Thai input (e.g. a category's car-system + warranty inputs). */
+  editExtras?: ReactNode;
+  /** Notified when this card enters/leaves edit mode — e.g. so a header can hide sibling actions. */
+  onEditingChange?: (editing: boolean) => void;
+}) {
+  const savedTh = (option.nameTh ?? "").trim();
+  const savedEn = (option.nameEn ?? "").trim();
+  const [editing, setEditing] = useState(false);
+  const [th, setTh] = useState(savedTh);
+  const [en, setEn] = useState(savedEn);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  async function save() {
+    setBusy(true);
+    try {
+      await setAttributeNames(kind, option.id, {
+        nameTh: th.trim() || null,
+        nameEn: en.trim() || null,
+      });
+      await onChanged();
+      setEditing(false);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Save failed", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    onEditingChange?.(editing);
+  }, [editing, onEditingChange]);
+
+  if (editing) {
+    return (
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", flex: 1 }}>
+        <input
+          value={en}
+          onChange={(e) => setEn(e.target.value)}
+          placeholder="English name"
+          aria-label={`English name for ${option.name}`}
+          style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
+        />
+        <input
+          value={th}
+          onChange={(e) => setTh(e.target.value)}
+          placeholder="ชื่อภาษาไทย"
+          aria-label={`ชื่อภาษาไทยของ ${option.name}`}
+          style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
+        />
+        {editExtras}
+        <button type="button" className="btn-primary btn-sm" onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button
+          type="button"
+          className="btn-sm"
+          onClick={() => {
+            setEn(savedEn);
+            setTh(savedTh);
+            setEditing(false);
+          }}
+          style={{
+            minHeight: 0,
+            padding: "6px 10px",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            background: "var(--surface)",
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  const english = savedEn || option.name;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+      {leading}
+      <div style={{ display: "flex", alignItems: "center", gap: 40, flex: 1, minWidth: 0 }}>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
+          <span
+            style={{
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {english}
+          </span>
+          <span
+            className="muted"
+            style={{
+              minWidth: 0,
+              fontSize: 12,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {savedTh || "—"}
+          </span>
+        </span>
+        {trailing}
+      </div>
+      <button
+        type="button"
+        className="icon-btn"
+        onClick={() => setEditing(true)}
+        aria-label={`Edit ${english} names`}
+        title="Edit names"
+      >
+        <PencilIcon />
+      </button>
+      {onDelete && (
+        <ConfirmButton
+          className="icon-btn"
+          ariaLabel={`Remove ${option.name}`}
+          confirmLabel="Remove?"
+          onConfirm={onDelete}
+        >
+          <XIcon />
+        </ConfirmButton>
+      )}
+    </div>
+  );
+}
+
 function ListCard({
   kind,
   label,
@@ -301,30 +478,21 @@ function ListCard({
               key={o.id}
               style={{
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
+                alignItems: "center",
                 gap: 8,
                 borderTop: "1px solid var(--border)",
                 padding: "8px 0",
               }}
             >
-              <span
-                style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, flex: 1 }}
-              >
-                {cover && <CoverPicker kind={cover} option={o} onChanged={onChanged} />}
-                <span style={{ display: "grid", gap: 4, minWidth: 0, flex: 1 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.name}</span>
-                  <BilingualNames kind={kind} option={o} onChanged={onChanged} />
-                </span>
-              </span>
-              <ConfirmButton
-                className="icon-btn"
-                ariaLabel={`Remove ${o.name}`}
-                confirmLabel="Remove?"
-                onConfirm={() => onDelete(o.id)}
-              >
-                <XIcon />
-              </ConfirmButton>
+              <NameCard
+                kind={kind}
+                option={o}
+                onChanged={onChanged}
+                onDelete={() => onDelete(o.id)}
+                leading={
+                  cover ? <CoverPicker kind={cover} option={o} onChanged={onChanged} /> : undefined
+                }
+              />
             </div>
           ))}
         </div>
@@ -333,87 +501,225 @@ function ListCard({
   );
 }
 
+const UNASSIGNED = "__unassigned__";
+
 /**
- * Product categories: the storefront's category tiles. Each row is title + cover photo + warranty
- * window, and the add-form collects all three at once so a new category goes live complete.
+ * Car systems <-> product categories as a car-fitment-style master–detail: pick a car system on the
+ * left, manage its product categories (a subset of that system) on the right. Adding happens in the
+ * Add-new section up top; here you set covers / Thai-English names / warranty and delete. Categories
+ * are simple rows — no expandable per-row detail like car models have.
  */
-function CategoryCard({
-  label,
-  items,
+function CarSystemPanel({
+  usages,
+  categories,
   warranties,
-  onDelete,
+  onDeleteSystem,
+  onDeleteCategory,
+  onMoveCategory,
   onSaveWarranty,
   onChanged,
 }: {
-  label: string;
-  items: AttrOption[];
+  usages: AttrOption[];
+  categories: AttrOption[];
   warranties: Record<string, number | null>;
-  onDelete: (id: string) => Promise<void>;
+  onDeleteSystem: (id: string) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
+  onMoveCategory: (id: string, usageId: string) => Promise<void>;
   onSaveWarranty: (id: string, name: string, days: number | null) => Promise<void>;
   onChanged: () => Promise<void>;
 }) {
+  const systemIds = new Set(usages.map((u) => u.id));
+  const isOrphan = (c: AttrOption) => !c.usageId || !systemIds.has(c.usageId);
+  // After the 0064 backfill this is normally empty, but keep a bucket so a stray category (e.g. its
+  // system was deleted) is never hidden from the owner.
+  const orphanCount = categories.filter(isOrphan).length;
+
+  const [selectedId, setSelectedId] = useState<string | null>(usages[0]?.id ?? null);
   const [draftDays, setDraftDays] = useState<Record<string, string>>({});
+  const [systemEditing, setSystemEditing] = useState(false);
+
+  // Keep the selection valid across reloads (e.g. after the selected system is deleted).
+  useEffect(() => {
+    setSelectedId((cur) =>
+      cur === UNASSIGNED || usages.some((u) => u.id === cur) ? cur : (usages[0]?.id ?? null),
+    );
+  }, [usages]);
+
+  const selectedSystem = usages.find((u) => u.id === selectedId) ?? null;
+  const shownCats =
+    selectedId === UNASSIGNED
+      ? categories.filter(isOrphan)
+      : categories.filter((c) => c.usageId === selectedId);
+  const countFor = (id: string) => categories.filter((c) => c.usageId === id).length;
+  const selectedCount = selectedSystem ? countFor(selectedSystem.id) : orphanCount;
 
   return (
-    <div style={{ ...cardS, gridColumn: "1 / -1" }}>
-      <div style={{ fontWeight: 600, marginBottom: 2 }}>{label}</div>
-      <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
-        หมวดหมู่สินค้าบนหน้าร้าน — รูปหน้าปก + ระยะเวลารับประกัน (วัน) ต่อหมวด เว้นว่าง = ไม่แสดง
-      </p>
+    <div className="md">
+      <div className="md-pane">
+        {usages.map((u) => (
+          <div
+            key={u.id}
+            className={u.id === selectedId ? "md-brow sel" : "md-brow"}
+            onClick={() => setSelectedId(u.id)}
+          >
+            <span className="nm">{u.name}</span>
+            <span className="cnt">{countFor(u.id)}</span>
+          </div>
+        ))}
+        {orphanCount > 0 && (
+          <div
+            className={selectedId === UNASSIGNED ? "md-brow sel" : "md-brow"}
+            onClick={() => setSelectedId(UNASSIGNED)}
+          >
+            <span className="nm muted">Unassigned</span>
+            <span className="cnt">{orphanCount}</span>
+          </div>
+        )}
+        {usages.length === 0 && (
+          <p className="muted" style={{ fontSize: 13, padding: "8px 10px", margin: 0 }}>
+            No car systems yet — add one above.
+          </p>
+        )}
+      </div>
 
-      {items.length === 0 ? (
-        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          No categories yet.
-        </p>
-      ) : (
-        <div style={{ display: "grid", gap: 0 }}>
-          {items.map((o) => {
-            const current = warranties[o.id] ?? null;
-            const shown = draftDays[o.id] ?? (current === null ? "" : String(current));
-            return (
-              <div
-                key={o.id}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 10,
-                  borderTop: "1px solid var(--border)",
-                  padding: "8px 0",
-                }}
-              >
-                <CoverPicker kind="type" option={o} onChanged={onChanged} />
-                <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 4 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.name}</span>
-                  <BilingualNames kind="type" option={o} onChanged={onChanged} />
-                </span>
-                <input
-                  value={shown}
-                  onChange={(e) => setDraftDays((p) => ({ ...p, [o.id]: e.target.value }))}
-                  onBlur={() => {
-                    const parsed = parseWarrantyDays(shown);
-                    if (parsed !== current) void onSaveWarranty(o.id, o.name, parsed);
-                  }}
-                  inputMode="numeric"
-                  placeholder="—"
-                  aria-label={`ระยะเวลารับประกันของ ${o.name} (วัน)`}
-                  style={{ ...inputS, width: 72, textAlign: "right" }}
-                />
-                <span className="muted" style={{ fontSize: 12, width: 24 }}>
-                  วัน
-                </span>
-                <ConfirmButton
-                  className="icon-btn"
-                  ariaLabel={`Remove ${o.name}`}
-                  confirmLabel="Remove?"
-                  onConfirm={() => onDelete(o.id)}
-                >
-                  <XIcon />
-                </ConfirmButton>
+      <div className="md-pane">
+        {selectedId === null ? (
+          <p className="muted" style={{ padding: 10, margin: 0 }}>
+            Pick a car system on the left.
+          </p>
+        ) : (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 6px 8px",
+              }}
+            >
+              {selectedSystem ? (
+                <>
+                  <NameCard
+                    key={selectedSystem.id}
+                    kind="usage"
+                    option={selectedSystem}
+                    onChanged={onChanged}
+                    onEditingChange={setSystemEditing}
+                  />
+                  {/* Removing a system that still holds categories would orphan them — block it here
+                      until a proper "move categories" flow + server-side guard land, and hide it
+                      entirely while the system's names are being edited so editing stays focused. */}
+                  {!systemEditing && (
+                    <ConfirmButton
+                      className="btn-sm"
+                      confirmLabel="Remove system?"
+                      disabled={selectedCount > 0}
+                      onConfirm={() => onDeleteSystem(selectedSystem.id)}
+                    >
+                      Remove system
+                    </ConfirmButton>
+                  )}
+                </>
+              ) : (
+                <span style={{ fontWeight: 600 }}>Unassigned categories</span>
+              )}
+            </div>
+
+            {shownCats.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13, padding: "0 6px", margin: 0 }}>
+                No categories in this system yet — add one above.
+              </p>
+            ) : (
+              <div style={{ padding: "0 6px" }}>
+                {shownCats.map((c) => {
+                  const current = warranties[c.id] ?? null;
+                  const shown = draftDays[c.id] ?? (current === null ? "" : String(current));
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        borderTop: "1px solid var(--border)",
+                        padding: "8px 0",
+                      }}
+                    >
+                      <NameCard
+                        kind="type"
+                        option={c}
+                        onChanged={onChanged}
+                        onDelete={() => onDeleteCategory(c.id)}
+                        leading={<CoverPicker kind="type" option={c} onChanged={onChanged} />}
+                        trailing={
+                          <span className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                            {current != null ? `${current} Days` : "—"}
+                          </span>
+                        }
+                        editExtras={
+                          <>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                fontSize: 12,
+                              }}
+                            >
+                              <span className="muted">System</span>
+                              <select
+                                value={c.usageId && systemIds.has(c.usageId) ? c.usageId : ""}
+                                onChange={(e) => {
+                                  if (e.target.value) void onMoveCategory(c.id, e.target.value);
+                                }}
+                                aria-label={`Move ${c.name} to a car system`}
+                                style={{
+                                  ...inputS,
+                                  minHeight: 0,
+                                  padding: "2px 6px",
+                                  fontSize: 12,
+                                  width: "auto",
+                                }}
+                              >
+                                {(!c.usageId || !systemIds.has(c.usageId)) && (
+                                  <option value="">— none —</option>
+                                )}
+                                {usages.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <input
+                              value={shown}
+                              onChange={(e) =>
+                                setDraftDays((p) => ({ ...p, [c.id]: e.target.value }))
+                              }
+                              onBlur={() => {
+                                const parsed = parseWarrantyDays(shown);
+                                if (parsed !== current) void onSaveWarranty(c.id, c.name, parsed);
+                              }}
+                              inputMode="numeric"
+                              placeholder="—"
+                              aria-label={`ระยะเวลารับประกันของ ${c.name} (วัน)`}
+                              style={{ ...inputS, width: 72, textAlign: "right" }}
+                            />
+                            <span className="muted" style={{ fontSize: 12 }}>
+                              วัน
+                            </span>
+                          </>
+                        }
+                      />
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      )}
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -439,7 +745,13 @@ function AddAttributeSection({
   data: Attributes | null;
   onCreate: (
     kind: AttrKind,
-    draft: { english: string; thai: string; file?: File; warrantyDays: number | null },
+    draft: {
+      english: string;
+      thai: string;
+      usageId?: string;
+      file?: File;
+      warrantyDays: number | null;
+    },
   ) => Promise<void>;
 }) {
   const [kind, setKind] = useState<AttrKind>(kinds[0]!.kind);
@@ -447,6 +759,7 @@ function AddAttributeSection({
   const [thai, setThai] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [days, setDays] = useState("");
+  const [usageId, setUsageId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const englishRef = useRef<HTMLInputElement | null>(null);
@@ -464,12 +777,17 @@ function AddAttributeSection({
       englishRef.current?.focus();
       return;
     }
+    if (isCategory && !usageId) {
+      setError("Pick a car system for this category first.");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
       await onCreate(kind, {
         english: check.value,
         thai: thai.trim(),
+        usageId: isCategory ? usageId : undefined,
         file: isCategory ? (file ?? undefined) : undefined,
         warrantyDays: isCategory ? parseWarrantyDays(days) : null,
       });
@@ -477,6 +795,7 @@ function AddAttributeSection({
       setThai("");
       setFile(null);
       setDays("");
+      // Keep the selected car system so several categories can be added to it in a row.
       if (fileRef.current) fileRef.current.value = "";
       englishRef.current?.focus();
     } finally {
@@ -525,6 +844,29 @@ function AddAttributeSection({
             gap: 12,
           }}
         >
+          {isCategory && (
+            <div style={{ display: "grid", minWidth: 0 }}>
+              <span style={addFieldLabel}>Car system</span>
+              <select
+                value={usageId}
+                onChange={(e) => {
+                  setUsageId(e.target.value);
+                  if (error) setError(null);
+                }}
+                aria-label="Car system"
+                aria-invalid={error && !usageId ? true : undefined}
+                style={{ ...inputS, width: "100%" }}
+              >
+                <option value="">— Select car system —</option>
+                {(data?.usages ?? []).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div style={{ display: "grid", minWidth: 0 }}>
             <span style={addFieldLabel}>English name</span>
             <input
@@ -657,12 +999,19 @@ export function AttributeManager({
    */
   async function createAttribute(
     kind: AttrKind,
-    draft: { english: string; thai: string; file?: File; warrantyDays: number | null },
+    draft: {
+      english: string;
+      thai: string;
+      usageId?: string;
+      file?: File;
+      warrantyDays: number | null;
+    },
   ) {
     try {
       const created = await addAttribute(kind, draft.english, {
         nameTh: draft.thai.trim() || null,
         nameEn: draft.english.trim() || null,
+        usageId: kind === "type" ? draft.usageId || null : undefined,
       });
       if (kind === "type") {
         if (draft.file)
@@ -692,6 +1041,15 @@ export function AttributeManager({
     }
   }
 
+  async function moveCategory(id: string, usageId: string) {
+    try {
+      await setTypeCarSystem(id, usageId);
+      await load();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  }
+
   async function del(kind: AttrKind, id: string) {
     try {
       await deleteAttribute(kind, id);
@@ -710,41 +1068,37 @@ export function AttributeManager({
       {loading ? (
         <div className="skeleton skeleton-row" style={{ width: "60%", marginTop: 16 }} />
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
-            gap: 14,
-            marginTop: 16,
-            maxWidth: 900,
-            // Each card sizes to its own content instead of stretching to the tallest in the row.
-            alignItems: "start",
-          }}
-        >
-          {kinds.map((k) =>
-            k.warranty ? (
-              <CategoryCard
-                key={k.kind}
-                label={k.label}
-                items={data ? data[k.listKey] : []}
-                warranties={warranties}
-                onChanged={load}
-                onDelete={(id) => del(k.kind, id)}
-                onSaveWarranty={saveWarranty}
-              />
-            ) : (
-              <ListCard
-                key={k.kind}
-                kind={k.kind}
-                label={k.label}
-                items={data ? data[k.listKey] : []}
-                cover={k.cover}
-                onChanged={load}
-                onDelete={(id) => del(k.kind, id)}
-              />
-            ),
-          )}
-        </div>
+        <>
+          {/* Row 2 — Part brands (a flat list). */}
+          <div style={{ maxWidth: 900, marginTop: 16 }}>
+            <ListCard
+              kind="brand"
+              label="Part brands"
+              items={data?.brands ?? []}
+              onChanged={load}
+              onDelete={(id) => del("brand", id)}
+            />
+          </div>
+
+          {/* Row 3 — Car systems and their product categories (a subset of each system). */}
+          <div style={{ maxWidth: 900, marginTop: 16 }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>Car systems & product categories</div>
+            <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+              Product categories are a subset of a car system — pick a system to manage its
+              categories.
+            </p>
+            <CarSystemPanel
+              usages={data?.usages ?? []}
+              categories={data?.types ?? []}
+              warranties={warranties}
+              onChanged={load}
+              onDeleteSystem={(id) => del("usage", id)}
+              onDeleteCategory={(id) => del("type", id)}
+              onMoveCategory={moveCategory}
+              onSaveWarranty={saveWarranty}
+            />
+          </div>
+        </>
       )}
     </main>
   );

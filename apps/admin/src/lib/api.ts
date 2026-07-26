@@ -121,6 +121,8 @@ export interface AttrOption {
   nameTh?: string | null;
   /** English display name (migration 0060). Null until the owner supplies one. */
   nameEn?: string | null;
+  /** Product categories only (migration 0064): the car system (usage id) this category belongs to. */
+  usageId?: string | null;
 }
 export interface Attributes {
   brands: AttrOption[];
@@ -165,15 +167,25 @@ export async function setTypeWarranty(id: string, warrantyDays: number | null): 
   if (!res.ok) throw new Error(`Failed to save warranty (HTTP ${res.status})`);
 }
 
+/** Move a product category to a different car system (migration 0064). */
+export async function setTypeCarSystem(id: string, usageId: string): Promise<void> {
+  const res = await apiFetch(`/product-types/${id}/car-system`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ usageId }),
+  });
+  if (!res.ok) throw new Error(`Failed to move category (HTTP ${res.status})`);
+}
+
 export async function addAttribute(
   kind: AttrKind,
   name: string,
-  names?: { nameTh?: string | null; nameEn?: string | null },
+  extra?: { nameTh?: string | null; nameEn?: string | null; usageId?: string | null },
 ): Promise<AttrOption> {
   const res = await apiFetch(`/attributes/${kind}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, ...names }),
+    body: JSON.stringify({ name, ...extra }),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
