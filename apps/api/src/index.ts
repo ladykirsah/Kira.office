@@ -4042,6 +4042,7 @@ export async function createCoupon(
 
 export interface CouponPatch {
   code?: string; // route trims + uppercases + dedupes before calling
+  name?: string; // route trims + requires non-empty before calling
   type?: "fixed" | "percent";
   value?: number;
   minSubtotalSatang?: number;
@@ -4062,6 +4063,7 @@ export async function updateCoupon(db: D1Database, id: string, patch: CouponPatc
     binds.push(value);
   };
   if (patch.code !== undefined) set("code", patch.code);
+  if (patch.name !== undefined) set("name", patch.name.trim());
   if (patch.type !== undefined) set("type", patch.type);
   if (patch.value !== undefined) set("value", patch.value);
   if (patch.minSubtotalSatang !== undefined)
@@ -5344,6 +5346,11 @@ const worker = {
           .first<{ id: string }>();
         if (clash) return json({ error: `coupon code ${code} already exists` }, 409);
         patch.code = code;
+      }
+      if (patch.name !== undefined) {
+        const trimmed = patch.name.trim();
+        if (!trimmed) return json({ error: "name is required" }, 400);
+        patch.name = trimmed;
       }
       await updateCoupon(env.DB, id, patch);
       return json({ ok: true });

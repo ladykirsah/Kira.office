@@ -1418,6 +1418,7 @@ export async function updateCoupon(
   id: string,
   fields: Partial<{
     code: string;
+    name: string;
     type: "fixed" | "percent";
     value: number;
     minSubtotalSatang: number;

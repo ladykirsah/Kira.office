@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   fetchCoupons,
   addCoupon,
@@ -13,7 +13,7 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
-import { dateTimeToMs } from "@/lib/couponSchedule";
+import { dateTimeToMs, msToDateInput, msToTimeInput, compactWindow } from "@/lib/couponSchedule";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -32,23 +32,13 @@ const cardLabel = {
 } as const;
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
-
-const TrashIcon = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M3 6h18" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </svg>
-);
+// Small-caps label used inside the expanded coupon detail grid.
+const detailLabel = {
+  fontSize: 11,
+  color: "var(--text-faint)",
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+} as const;
 
 /** "10%" for percent coupons (value = basis points), "฿50" for fixed ones (value = satang). */
 function valueLabel(c: CouponWithUsage): string {
@@ -62,7 +52,335 @@ function windowLabel(startsAt: number | null, endsAt: number | null): string {
   return `${from} → ${to}`;
 }
 
-function CouponItem({
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{
+        flex: "none",
+        transform: open ? "rotate(90deg)" : "none",
+        transition: "transform .15s",
+      }}
+    >
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  );
+}
+
+/**
+ * A date + time pair for one window bound. The time box is disabled until a date is chosen, and
+ * clearing the date clears the time — so you can never leave a time with no date, which would
+ * silently drop the bound (a coupon that never expires / goes live immediately).
+ */
+function DateTimeField({
+  label,
+  base,
+  date,
+  time,
+  onDate,
+  onTime,
+}: {
+  label: string;
+  base: string;
+  date: string;
+  time: string;
+  onDate: (v: string) => void;
+  onTime: (v: string) => void;
+}) {
+  return (
+    <div style={fieldCol}>
+      <span style={fieldLabel}>{label}</span>
+      <span style={{ display: "flex", gap: 6 }}>
+        <input
+          type="date"
+          aria-label={`${base} date`}
+          value={date}
+          onChange={(e) => {
+            const v = e.target.value;
+            onDate(v);
+            if (!v) onTime(""); // no date → no orphan time
+          }}
+          style={inputS}
+        />
+        <input
+          type="time"
+          aria-label={`${base} time`}
+          value={time}
+          disabled={!date}
+          title={date ? undefined : "Pick a date first"}
+          onChange={(e) => onTime(e.target.value)}
+          style={{ ...inputS, opacity: date ? 1 : 0.55 }}
+        />
+      </span>
+    </div>
+  );
+}
+
+/** Edit mode — everything except Code (the customer-facing identity stays fixed). */
+function CouponEditor({
+  coupon,
+  onSaved,
+  onCancel,
+}: {
+  coupon: CouponWithUsage;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState(coupon.name ?? "");
+  const [type, setType] = useState<"percent" | "fixed">(coupon.type);
+  const [value, setValue] = useState(String(coupon.value / 100));
+  const [minSubtotal, setMinSubtotal] = useState(
+    coupon.minSubtotalSatang > 0 ? String(coupon.minSubtotalSatang / 100) : "",
+  );
+  const [maxCap, setMaxCap] = useState(
+    coupon.maxDiscountSatang != null ? String(coupon.maxDiscountSatang / 100) : "",
+  );
+  const [startDate, setStartDate] = useState(msToDateInput(coupon.startsAt));
+  const [startTime, setStartTime] = useState(msToTimeInput(coupon.startsAt));
+  const [endDate, setEndDate] = useState(msToDateInput(coupon.endsAt));
+  const [endTime, setEndTime] = useState(msToTimeInput(coupon.endsAt));
+  const [maxUses, setMaxUses] = useState(coupon.maxUses != null ? String(coupon.maxUses) : "");
+  const [perCustomer, setPerCustomer] = useState(String(coupon.maxUsesPerCustomer));
+  const [busy, setBusy] = useState(false);
+
+  const valueNum = Math.round((parseFloat(value) || 0) * 100);
+  const canSave = name.trim() !== "" && valueNum > 0 && (type !== "percent" || valueNum <= 10000);
+
+  async function save() {
+    if (!canSave) return;
+    setBusy(true);
+    try {
+      await updateCoupon(coupon.id, {
+        name: name.trim(),
+        type,
+        value: valueNum,
+        minSubtotalSatang: Math.round((parseFloat(minSubtotal) || 0) * 100),
+        maxDiscountSatang: maxCap.trim() ? Math.round((parseFloat(maxCap) || 0) * 100) : null,
+        startsAt: dateTimeToMs(startDate, startTime),
+        endsAt: dateTimeToMs(endDate, endTime),
+        maxUses: maxUses.trim() ? Math.max(1, Math.round(parseFloat(maxUses))) : null,
+        maxUsesPerCustomer: Math.max(1, Math.round(parseFloat(perCustomer) || 1)),
+      });
+      toast("Coupon updated", "success");
+      onSaved();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", gap: 36, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={fieldCol}>
+          <span style={fieldLabel}>Coupon name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Edit coupon name"
+            style={{ ...inputS, width: 220 }}
+          />
+        </div>
+        <div style={fieldCol}>
+          <span style={fieldLabel}>Code (locked)</span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono, monospace)",
+              fontWeight: 600,
+              minHeight: 32,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            {coupon.code}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 36, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+          <div style={fieldCol}>
+            <span style={fieldLabel}>Type</span>
+            <select
+              aria-label="Edit coupon type"
+              value={type}
+              onChange={(e) => setType(e.target.value as "percent" | "fixed")}
+              style={inputS}
+            >
+              <option value="percent">Percent off</option>
+              <option value="fixed">Baht off</option>
+            </select>
+          </div>
+          <div style={fieldCol}>
+            <span style={fieldLabel}>{type === "percent" ? "Value (%)" : "Value (฿)"}</span>
+            <input
+              type="number"
+              min={0}
+              max={type === "percent" ? 100 : undefined}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              style={{ ...inputS, width: 90 }}
+            />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+          <div style={fieldCol}>
+            <span style={fieldLabel}>Min spent (฿)</span>
+            <input
+              type="number"
+              min={0}
+              value={minSubtotal}
+              onChange={(e) => setMinSubtotal(e.target.value)}
+              placeholder="0"
+              style={{ ...inputS, width: 110 }}
+            />
+          </div>
+          <div style={fieldCol}>
+            <span style={fieldLabel}>Max cap (฿)</span>
+            <input
+              type="number"
+              min={0}
+              value={maxCap}
+              onChange={(e) => setMaxCap(e.target.value)}
+              placeholder="∞"
+              style={{ ...inputS, width: 110 }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={fieldCol}>
+          <span style={fieldLabel}>Quota</span>
+          <input
+            type="number"
+            min={1}
+            value={maxUses}
+            onChange={(e) => setMaxUses(e.target.value)}
+            placeholder="∞"
+            style={{ ...inputS, width: 74 }}
+          />
+        </div>
+        <div style={fieldCol}>
+          <span style={fieldLabel}>Usage for user</span>
+          <input
+            type="number"
+            min={1}
+            value={perCustomer}
+            onChange={(e) => setPerCustomer(e.target.value)}
+            style={{ ...inputS, width: 74 }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <DateTimeField
+          label="Starts (optional)"
+          base="Edit start"
+          date={startDate}
+          time={startTime}
+          onDate={setStartDate}
+          onTime={setStartTime}
+        />
+        <DateTimeField
+          label="Ends (optional)"
+          base="Edit end"
+          date={endDate}
+          time={endTime}
+          onDate={setEndDate}
+          onTime={setEndTime}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+        <button
+          type="button"
+          className="btn-primary btn-sm"
+          onClick={save}
+          disabled={busy || !canSave}
+        >
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button type="button" className="btn-sm" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** View mode — the full, untruncated detail + Edit / Delete. */
+function CouponView({
+  coupon,
+  onEdit,
+  onDelete,
+}: {
+  coupon: CouponWithUsage;
+  onEdit: () => void;
+  onDelete: () => void | Promise<void>;
+}) {
+  const rows: [string, ReactNode][] = [
+    [
+      "Code",
+      <span key="code" style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>
+        {coupon.code}
+      </span>,
+    ],
+    ["Discount", valueLabel(coupon)],
+    ["Min spent", coupon.minSubtotalSatang > 0 ? formatBahtTrim(coupon.minSubtotalSatang) : "—"],
+    ["Max cap", coupon.maxDiscountSatang != null ? formatBahtTrim(coupon.maxDiscountSatang) : "—"],
+    ["Window", windowLabel(coupon.startsAt, coupon.endsAt)],
+    ["Quota", coupon.maxUses ?? "∞"],
+    ["Usage for user", coupon.maxUsesPerCustomer],
+    ["Used", `${coupon.redemptions} / ${coupon.maxUses ?? "∞"}`],
+    ["Created", formatUpdatedAt(coupon.createdAt)],
+    ["Status", coupon.status === "active" ? "Active" : "Disabled"],
+  ];
+  return (
+    <>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))",
+          gap: "10px 20px",
+        }}
+      >
+        {rows.map(([label, val]) => (
+          <div key={label} style={fieldCol}>
+            <span style={detailLabel}>{label}</span>
+            <span style={{ fontSize: 14 }}>{val}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button type="button" className="btn-sm" onClick={onEdit}>
+          Edit
+        </button>
+        <ConfirmButton
+          className="btn-sm"
+          ariaLabel={`Delete ${coupon.code}`}
+          confirmLabel="Remove?"
+          onConfirm={onDelete}
+        >
+          Delete
+        </ConfirmButton>
+      </div>
+    </>
+  );
+}
+
+/** One coupon: a compact row (name · discount · period · active) that expands to view / edit. */
+function CouponRow({
   coupon,
   onChanged,
 }: {
@@ -70,8 +388,10 @@ function CouponItem({
   onChanged: () => void | Promise<void>;
 }) {
   const toast = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
 
-  async function toggle(active: boolean) {
+  async function toggleActive(active: boolean) {
     try {
       await updateCoupon(coupon.id, { status: active ? "active" : "disabled" });
       await onChanged();
@@ -92,53 +412,70 @@ function CouponItem({
   }
 
   return (
-    <tr>
-      <td style={{ fontWeight: 600 }}>{coupon.name ?? "—"}</td>
-      <td>
-        <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>
-          {coupon.code}
-        </span>
-      </td>
-      <td>
-        <span className="pill soft">{valueLabel(coupon)}</span>
-      </td>
-      <td>
-        {coupon.minSubtotalSatang > 0 ? (
-          formatBahtTrim(coupon.minSubtotalSatang)
-        ) : (
-          <span className="muted">—</span>
-        )}
-      </td>
-      <td style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-        {windowLabel(coupon.startsAt, coupon.endsAt)}
-      </td>
-      <td style={{ whiteSpace: "nowrap" }}>
-        {coupon.redemptions}
-        <span className="muted"> / {coupon.maxUses ?? "∞"}</span>
-      </td>
-      <td>{coupon.maxUsesPerCustomer}</td>
-      <td>
-        <span className="switch">
+    <div style={{ borderTop: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 2px" }}>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${coupon.name ?? coupon.code}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flex: 1,
+            minWidth: 0,
+            background: "none",
+            border: "none",
+            padding: "4px 0",
+            cursor: "pointer",
+            textAlign: "left",
+            color: "inherit",
+          }}
+        >
+          <Chevron open={expanded} />
+          <span
+            style={{
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {coupon.name ?? "—"}
+          </span>
+          <span className="pill soft">{valueLabel(coupon)}</span>
+          <span style={{ fontSize: 13, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            {compactWindow(coupon.startsAt, coupon.endsAt)}
+          </span>
+        </button>
+        <span className="switch" title={coupon.status === "active" ? "Active" : "Disabled"}>
           <input
             type="checkbox"
             checked={coupon.status === "active"}
             aria-label={`Coupon ${coupon.code} active`}
-            onChange={(e) => toggle(e.target.checked)}
+            onChange={(e) => toggleActive(e.target.checked)}
           />
           <span className="slider" />
         </span>
-      </td>
-      <td style={{ textAlign: "right" }}>
-        <ConfirmButton
-          className="icon-btn"
-          ariaLabel={`Delete ${coupon.code}`}
-          confirmLabel="Remove?"
-          onConfirm={del}
-        >
-          <TrashIcon />
-        </ConfirmButton>
-      </td>
-    </tr>
+      </div>
+      {expanded && (
+        <div style={{ padding: "0 2px 16px 30px" }}>
+          {editing ? (
+            <CouponEditor
+              coupon={coupon}
+              onSaved={() => {
+                setEditing(false);
+                onChanged();
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <CouponView coupon={coupon} onEdit={() => setEditing(true)} onDelete={del} />
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -338,44 +675,22 @@ export default function CouponsPage() {
 
           {/* Schedule — start / end date + time (optional; blank = no bound). */}
           <div style={{ display: "flex", gap: 20, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={fieldCol}>
-              <span style={fieldLabel}>Starts (optional)</span>
-              <span style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="date"
-                  aria-label="Start date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  style={inputS}
-                />
-                <input
-                  type="time"
-                  aria-label="Start time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  style={inputS}
-                />
-              </span>
-            </div>
-            <div style={fieldCol}>
-              <span style={fieldLabel}>Ends (optional)</span>
-              <span style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="date"
-                  aria-label="End date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  style={inputS}
-                />
-                <input
-                  type="time"
-                  aria-label="End time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  style={inputS}
-                />
-              </span>
-            </div>
+            <DateTimeField
+              label="Starts (optional)"
+              base="Start"
+              date={startDate}
+              time={startTime}
+              onDate={setStartDate}
+              onTime={setStartTime}
+            />
+            <DateTimeField
+              label="Ends (optional)"
+              base="End"
+              date={endDate}
+              time={endTime}
+              onDate={setEndDate}
+              onTime={setEndTime}
+            />
           </div>
 
           <div>
@@ -398,27 +713,10 @@ export default function CouponsPage() {
             No coupons yet. Add one above.
           </p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Code</th>
-                  <th>Discount</th>
-                  <th>Min spent</th>
-                  <th>Window</th>
-                  <th>Used</th>
-                  <th>Usage for user</th>
-                  <th>Active</th>
-                  <th aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {coupons.map((c) => (
-                  <CouponItem key={c.id} coupon={c} onChanged={load} />
-                ))}
-              </tbody>
-            </table>
+          <div>
+            {coupons.map((c) => (
+              <CouponRow key={c.id} coupon={c} onChanged={load} />
+            ))}
           </div>
         )}
       </div>

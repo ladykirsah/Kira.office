@@ -1101,6 +1101,35 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       expect(await bad({ code: "X", name: "   ", type: "fixed", value: 100 })).toBe(400); // blank
     });
 
+    it("PATCH /coupons/:id > updates the admin name (trimmed)", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", {
+          method: "PATCH",
+          body: JSON.stringify({ name: "  Renamed Promo  " }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      const update = runs.find((r) => r.sql.includes("UPDATE coupons SET"));
+      expect(update?.sql).toContain("name = ?");
+      expect(update?.binds).toContain("Renamed Promo");
+    });
+
+    it("PATCH /coupons/:id > 400 for a blank name", async () => {
+      const { env } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", {
+          method: "PATCH",
+          body: JSON.stringify({ name: "   " }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
+    });
+
     it("PATCH /coupons/:id > uppercases a new code", async () => {
       const { env, runs } = makeDb({ couponByCode: null });
       const res = await worker.fetch!(
