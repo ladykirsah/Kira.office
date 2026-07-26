@@ -1143,7 +1143,18 @@ export default function PosPage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("reprint")) return;
     listDrafts()
-      .then(setDrafts)
+      .then((ds) => {
+        setDrafts(ds);
+        // Seed the quotation counter from existing QT numbers (like the bill counter above), or a
+        // reload / second device restarts at QT…001 and the next save collides with the sale_number
+        // UNIQUE index — the quotation save then fails with a misleading "offline?" toast.
+        const seed = latestSalesIdForDay(
+          ds.map((d) => d.saleNumber),
+          Date.now(),
+          "QT",
+        );
+        if (seed) setLastQuoteId(seed);
+      })
       .catch(() => {});
   }, []);
 

@@ -1911,11 +1911,23 @@ export interface RefundResult {
 export async function refundSaleToDb(db: D1Database, saleId: string): Promise<RefundResult> {
   const sale = await db
     .prepare(
-      "SELECT id, grand_total_satang AS grandTotalSatang, sale_status AS saleStatus FROM onsite_sales WHERE id = ?",
+      "SELECT id, grand_total_satang AS grandTotalSatang, sale_status AS saleStatus, stage FROM onsite_sales WHERE id = ?",
     )
     .bind(saleId)
-    .first<{ id: string; grandTotalSatang: number; saleStatus: string }>();
+    .first<{ id: string; grandTotalSatang: number; saleStatus: string; stage: string }>();
   if (!sale) return { saleId, applied: false, restockedLines: 0, reason: "sale not found" };
+  // Only a finalized bill can be refunded. Drafts/quotations share this table (stage='draft'/
+  // 'quotation') but never deducted stock or posted revenue, so "refunding" one would inject phantom
+  // stock (an oversell source) and a bogus reversing finance record. Mirrors the draft/bill fence on
+  // deleteDraftFromDb / saveDraftToDb.
+  if (sale.stage !== "bill") {
+    return {
+      saleId,
+      applied: false,
+      restockedLines: 0,
+      reason: "only a completed bill can be refunded",
+    };
+  }
   if (sale.saleStatus === "refunded") {
     return { saleId, applied: false, restockedLines: 0, reason: "already refunded" };
   }
@@ -2881,7 +2893,9 @@ export async function addBarcodeToProduct(
   const statements = [
     db
       .prepare(
-        "INSERT INTO barcodes (id, product_variant_id, barcode_value, is_primary, is_internal_generated, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        // ON CONFLICT: a barcode value already taken globally is a safe no-op, not a UNIQUE-constraint
+        // 500 (matches setVariantBarcode + saveFullProduct).
+        "INSERT INTO barcodes (id, product_variant_id, barcode_value, is_primary, is_internal_generated, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(barcode_value) DO NOTHING",
       )
       .bind(
         crypto.randomUUID(),
