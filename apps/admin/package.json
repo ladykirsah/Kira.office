@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@l-shopee/core": "*",
+    "@zxing/browser": "^0.2.1",
     "jsbarcode": "^3.12.3",
     "jspdf": "^4.2.1",
     "next": "^15.5.0",
