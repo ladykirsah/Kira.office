@@ -1582,6 +1582,24 @@ describe("api worker routes", () => {
     );
   });
 
+  it("DELETE /onsite/drafts/:id > the line delete is stage-scoped too, so a bill can't be gutted", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    // A bill id is a normal onsite_sales.id; the route does no stage pre-check. The header delete is
+    // fenced by stage, so the LINE delete must be fenced the same way — otherwise passing a finalized
+    // bill's id strips its items while the guarded header survives, leaving a corrupt, itemless bill.
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts/s1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.find((s) => s.includes("DELETE FROM onsite_sale_lines"))).toContain(
+      "IN ('draft', 'quotation')",
+    );
+  });
+
   it("GET /onsite/sales/:id > returns the bill header with its lines (for reprint)", async () => {
     const { env } = makeDb({
       saleHeader: { id: "s1", saleNumber: "DAS202607-04001", grandTotalSatang: 80000 },

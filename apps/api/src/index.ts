@@ -2253,7 +2253,16 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
 /** Delete a draft/quotation and its lines. The stage guard makes it impossible to delete a bill. */
 export async function deleteDraftFromDb(db: D1Database, id: string): Promise<{ ok: true }> {
   await db.batch([
-    db.prepare(`DELETE FROM onsite_sale_lines WHERE onsite_sale_id = ?`).bind(id),
+    // The line delete carries the SAME stage guard as the header delete below: without it, passing a
+    // finalized bill's id would strip its line items while the guarded header survives — an itemless,
+    // corrupt bill. The subquery fences the line delete to draft/quotation ids only.
+    db
+      .prepare(
+        `DELETE FROM onsite_sale_lines
+          WHERE onsite_sale_id = ?
+            AND (SELECT stage FROM onsite_sales WHERE id = ?) IN ('draft', 'quotation')`,
+      )
+      .bind(id, id),
     db
       .prepare(`DELETE FROM onsite_sales WHERE id = ? AND stage IN ('draft', 'quotation')`)
       .bind(id),
