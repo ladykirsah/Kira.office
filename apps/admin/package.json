@@ -16,7 +16,7 @@
     "@zxing/browser": "^0.2.1",
     "jsbarcode": "^3.12.3",
     "jspdf": "^4.2.1",
-    "next": "^15.5.0",
+    "next": "^15.5.22",
     "qrcode-generator": "^2.0.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
