@@ -2138,6 +2138,17 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
     const reason = validateSyncLine(line);
     if (reason) return { ok: false, error: reason };
   }
+  // A finalized bill must never be reopened as an editable draft. Reusing a bill's id here would
+  // flip its stage/totals via the upsert and strip its lines via the unconditional delete below —
+  // silently corrupting a real financial record. New drafts mint fresh ids, so this only trips when
+  // a bill id is fed back in. Refuse it (the route maps { ok: false } to a 400).
+  const existing = await db
+    .prepare(`SELECT stage FROM onsite_sales WHERE id = ?`)
+    .bind(draft.draftId)
+    .first<{ stage: string }>();
+  if (existing?.stage === "bill") {
+    return { ok: false, error: "cannot save a draft over a finalized bill" };
+  }
   const totals = draftHeaderTotals(draft.lines);
   const id = draft.draftId;
   const now = Date.now();
