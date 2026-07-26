@@ -23,7 +23,7 @@ import {
   type OpenDraft,
 } from "@/lib/api";
 import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
-import { buildCheckoutCustomerUpsert } from "@/lib/checkout";
+import { buildCheckoutCustomerUpsert, finalizeParkedDraft } from "@/lib/checkout";
 import { THAI_PROVINCES } from "@/lib/provinces";
 import JsBarcode from "jsbarcode";
 import { formatBaht, formatBahtTrim } from "@/lib/format";
@@ -1532,15 +1532,9 @@ export default function PosPage() {
       printBill(); // prints saleNo — the counter hasn't advanced yet
       localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
       setLastSaleId(saleNo);
-      // Finalizing a reopened draft/quotation converts it to this bill — drop the parked copy.
-      if (activeDraftId) {
-        const finalizedId = activeDraftId;
-        await deleteDraft(finalizedId).catch(() => {});
-        // Remove it from the tray too, or the next staff member could reopen the ghost and check out
-        // again — a duplicate sale. Mirrors discardDraft's optimistic filter.
-        setDrafts((ds) => ds.filter((x) => x.id !== finalizedId));
-        setActiveDraftId(null);
-      }
+      // Finalizing a reopened draft/quotation converts it to this bill — delete it server-side AND
+      // drop it from the open-drafts tray, so it can't be reopened and checked out again (dup sale).
+      await finalizeParkedDraft({ activeDraftId, deleteDraft, setDrafts, setActiveDraftId });
       setDraftId(crypto.randomUUID()); // the next cart is a fresh draft
       toast("Sale saved ✓", "success");
       setLines([]);
