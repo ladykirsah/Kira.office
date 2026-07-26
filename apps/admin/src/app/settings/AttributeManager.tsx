@@ -146,7 +146,7 @@ export function CoverPicker({
 /** Inline validation message under an add-form. */
 function FieldError({ children }: { children: string }) {
   return (
-    <p role="alert" style={{ color: "var(--danger, #bf3c1d)", fontSize: 12, margin: "6px 0 0" }}>
+    <p role="alert" style={{ color: "var(--danger)", fontSize: 12, margin: "6px 0 0" }}>
       {children}
     </p>
   );
@@ -275,60 +275,27 @@ export function BilingualNames({
 function ListCard({
   kind,
   label,
-  placeholder,
   items,
   cover,
-  onAdd,
   onDelete,
   onChanged,
 }: {
   kind: AttrKind;
   label: string;
-  placeholder: string;
   items: AttrOption[];
   cover?: "type" | "car-brand";
-  onAdd: (name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onChanged: () => Promise<void>;
 }) {
-  const [val, setVal] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    // NOTE: the Add button is deliberately NOT disabled on empty input. It used to be, and a click
-    // that landed before React committed the typed value hit a disabled button — no request, no
-    // message, so the feature read as "cannot add anything". Always act, and explain when invalid.
-    const check = validateAttributeName(
-      val,
-      items.map((i) => i.name),
-    );
-    if (!check.ok) {
-      setError(check.error);
-      inputRef.current?.focus();
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      await onAdd(check.value);
-      setVal("");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div style={cardS}>
       <div style={{ fontWeight: 600, marginBottom: 10 }}>{label}</div>
       {items.length === 0 ? (
-        <p className="muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
           No values yet.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 0, marginBottom: 12 }}>
+        <div style={{ display: "grid", gap: 0 }}>
           {items.map((o) => (
             <div
               key={o.id}
@@ -362,26 +329,6 @@ function ListCard({
           ))}
         </div>
       )}
-      <form onSubmit={submit} noValidate>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            ref={inputRef}
-            value={val}
-            onChange={(e) => {
-              setVal(e.target.value);
-              if (error) setError(null);
-            }}
-            placeholder={placeholder}
-            aria-label={placeholder}
-            aria-invalid={error ? true : undefined}
-            style={{ ...inputS, flex: 1, minWidth: 0 }}
-          />
-          <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-            {busy ? "Adding…" : "Add"}
-          </button>
-        </div>
-        {error && <FieldError>{error}</FieldError>}
-      </form>
     </div>
   );
 }
@@ -392,59 +339,20 @@ function ListCard({
  */
 function CategoryCard({
   label,
-  placeholder,
   items,
   warranties,
-  onCreate,
   onDelete,
   onSaveWarranty,
   onChanged,
 }: {
   label: string;
-  placeholder: string;
   items: AttrOption[];
   warranties: Record<string, number | null>;
-  onCreate: (draft: { name: string; file?: File; warrantyDays: number | null }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onSaveWarranty: (id: string, name: string, days: number | null) => Promise<void>;
   onChanged: () => Promise<void>;
 }) {
-  const [name, setName] = useState("");
-  const [days, setDays] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const nameRef = useRef<HTMLInputElement | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const [draftDays, setDraftDays] = useState<Record<string, string>>({});
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const check = validateAttributeName(
-      name,
-      items.map((i) => i.name),
-    );
-    if (!check.ok) {
-      setError(check.error);
-      nameRef.current?.focus();
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      await onCreate({
-        name: check.value,
-        file: file ?? undefined,
-        warrantyDays: parseWarrantyDays(days),
-      });
-      setName("");
-      setDays("");
-      setFile(null);
-      if (fileRef.current) fileRef.current.value = "";
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div style={{ ...cardS, gridColumn: "1 / -1" }}>
@@ -454,11 +362,11 @@ function CategoryCard({
       </p>
 
       {items.length === 0 ? (
-        <p className="muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
           No categories yet.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 0, marginBottom: 14 }}>
+        <div style={{ display: "grid", gap: 0 }}>
           {items.map((o) => {
             const current = warranties[o.id] ?? null;
             const shown = draftDays[o.id] ?? (current === null ? "" : String(current));
@@ -506,66 +414,198 @@ function CategoryCard({
           })}
         </div>
       )}
+    </div>
+  );
+}
 
-      <form
-        onSubmit={submit}
-        noValidate
-        style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Add a category</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            ref={nameRef}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (error) setError(null);
-            }}
-            placeholder={placeholder}
-            aria-label="Category title"
-            aria-invalid={error ? true : undefined}
-            style={{ ...inputS, flex: "2 1 200px", minWidth: 0 }}
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            hidden
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-          <button
-            type="button"
-            className="btn-sm"
-            onClick={() => fileRef.current?.click()}
-            style={{
-              ...inputS,
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              background: "var(--surface)",
-              cursor: "pointer",
-              maxWidth: 190,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {file ? `🖼 ${file.name}` : "＋ Photo (optional)"}
-          </button>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+const addFieldLabel: React.CSSProperties = {
+  fontSize: 12,
+  color: "var(--text-muted)",
+  marginBottom: 4,
+};
+
+/**
+ * The one place to add a taxonomy value. A POS-style segmented selector picks the kind (Part brands
+ * / Car systems / Product categories); the form then collects the English name (the permanent
+ * identity + English display), an optional Thai display name, and — for product categories only — a
+ * cover photo and warranty window. On Save the new row lands in that kind's list below.
+ */
+function AddAttributeSection({
+  kinds,
+  data,
+  onCreate,
+}: {
+  kinds: AttrKindConfig[];
+  data: Attributes | null;
+  onCreate: (
+    kind: AttrKind,
+    draft: { english: string; thai: string; file?: File; warrantyDays: number | null },
+  ) => Promise<void>;
+}) {
+  const [kind, setKind] = useState<AttrKind>(kinds[0]!.kind);
+  const [english, setEnglish] = useState("");
+  const [thai, setThai] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [days, setDays] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const englishRef = useRef<HTMLInputElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const cfg = kinds.find((k) => k.kind === kind) ?? kinds[0]!;
+  const isCategory = !!cfg.warranty;
+  const existingNames = data ? data[cfg.listKey].map((i) => i.name) : [];
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const check = validateAttributeName(english, existingNames);
+    if (!check.ok) {
+      setError(check.error);
+      englishRef.current?.focus();
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await onCreate(kind, {
+        english: check.value,
+        thai: thai.trim(),
+        file: isCategory ? (file ?? undefined) : undefined,
+        warrantyDays: isCategory ? parseWarrantyDays(days) : null,
+      });
+      setEnglish("");
+      setThai("");
+      setFile(null);
+      setDays("");
+      if (fileRef.current) fileRef.current.value = "";
+      englishRef.current?.focus();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...cardS, maxWidth: 900, marginTop: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Add new</div>
+
+      {/* Kind selector — POS "Product / Service / Add-on" segmented style. */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {kinds.map((k) => {
+          const active = k.kind === kind;
+          return (
+            <button
+              key={k.kind}
+              type="button"
+              onClick={() => {
+                setKind(k.kind);
+                setError(null);
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 9,
+                minHeight: 0,
+                border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                background: active ? "var(--primary)" : "var(--surface)",
+                color: active ? "#fff" : "var(--text)",
+                fontWeight: active ? 600 : 500,
+                cursor: "pointer",
+              }}
+            >
+              {k.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <form onSubmit={submit} noValidate>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "grid", minWidth: 0 }}>
+            <span style={addFieldLabel}>English name</span>
             <input
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-              inputMode="numeric"
-              placeholder="—"
-              aria-label="ระยะเวลารับประกัน (วัน)"
-              style={{ ...inputS, width: 72, textAlign: "right" }}
+              ref={englishRef}
+              value={english}
+              onChange={(e) => {
+                setEnglish(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="e.g. DENSO"
+              aria-label="English name"
+              aria-invalid={error ? true : undefined}
+              style={{ ...inputS, width: "100%" }}
             />
-            <span className="muted" style={{ fontSize: 12 }}>
-              วัน
-            </span>
-          </span>
+          </div>
+
+          <div style={{ display: "grid", minWidth: 0 }}>
+            <span style={addFieldLabel}>Thai name</span>
+            <input
+              value={thai}
+              onChange={(e) => setThai(e.target.value)}
+              placeholder="ชื่อภาษาไทย"
+              aria-label="Thai name"
+              style={{ ...inputS, width: "100%" }}
+            />
+          </div>
+
+          {isCategory && (
+            <>
+              <div style={{ display: "grid", minWidth: 0 }}>
+                <span style={addFieldLabel}>Cover</span>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  style={{
+                    ...inputS,
+                    width: "100%",
+                    textAlign: "left",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    background: "var(--surface)",
+                    cursor: "pointer",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {file ? `🖼 ${file.name}` : "＋ Cover (optional)"}
+                </button>
+              </div>
+
+              <div style={{ display: "grid", minWidth: 0 }}>
+                <span style={addFieldLabel}>Warranty</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    value={days}
+                    onChange={(e) => setDays(e.target.value)}
+                    inputMode="numeric"
+                    placeholder="—"
+                    aria-label="ระยะเวลารับประกัน (วัน)"
+                    style={{ ...inputS, width: 72, textAlign: "right" }}
+                  />
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    วัน
+                  </span>
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ marginTop: 12 }}>
           <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-            {busy ? "Adding…" : "Add category"}
+            {busy ? "Saving…" : "Save"}
           </button>
         </div>
         {error && <FieldError>{error}</FieldError>}
@@ -609,31 +649,31 @@ export function AttributeManager({
     void load();
   }, [load]);
 
-  async function add(kind: AttrKind, name: string) {
-    try {
-      await addAttribute(kind, name);
-      await load();
-      toast(`Added “${name}” ✓`, "success");
-    } catch (err) {
-      toast((err as Error).message, "error");
-    }
-  }
-
   /**
-   * Create a category, then attach its photo and warranty. Order matters: the image and warranty
-   * routes both key off an existing row, so the category has to be created first.
+   * Create an attribute from the unified add section. English is the identity `name` AND the English
+   * display; Thai is the optional Thai display — both go on the single POST (addAttribute persists
+   * them on create). For product categories the cover photo and warranty window are attached after,
+   * since both routes key off the created row's id.
    */
-  async function createCategory(draft: { name: string; file?: File; warrantyDays: number | null }) {
+  async function createAttribute(
+    kind: AttrKind,
+    draft: { english: string; thai: string; file?: File; warrantyDays: number | null },
+  ) {
     try {
-      const created = await addAttribute("type", draft.name);
-      if (draft.file)
-        await uploadTaxonomyImage("type", created.id, await toSquareCover(draft.file));
-      if (draft.warrantyDays !== null) await setTypeWarranty(created.id, draft.warrantyDays);
+      const created = await addAttribute(kind, draft.english, {
+        nameTh: draft.thai.trim() || null,
+        nameEn: draft.english.trim() || null,
+      });
+      if (kind === "type") {
+        if (draft.file)
+          await uploadTaxonomyImage("type", created.id, await toSquareCover(draft.file));
+        if (draft.warrantyDays !== null) await setTypeWarranty(created.id, draft.warrantyDays);
+      }
       await load();
-      toast(`Added “${draft.name}” ✓`, "success");
+      toast(`Added “${draft.english}” ✓`, "success");
     } catch (err) {
-      // The category may already exist even if the photo/warranty step failed — reload either way
-      // so the screen shows what actually landed rather than a stale list.
+      // The row may already exist even if a photo/warranty step failed — reload either way so the
+      // screen shows what actually landed rather than a stale list.
       await load();
       toast((err as Error).message, "error");
     }
@@ -665,8 +705,10 @@ export function AttributeManager({
     <main>
       <PageHeader title={title} subtitle={subtitle} />
 
+      <AddAttributeSection kinds={kinds} data={data} onCreate={createAttribute} />
+
       {loading ? (
-        <div className="skeleton skeleton-row" style={{ width: "60%" }} />
+        <div className="skeleton skeleton-row" style={{ width: "60%", marginTop: 16 }} />
       ) : (
         <div
           style={{
@@ -684,11 +726,9 @@ export function AttributeManager({
               <CategoryCard
                 key={k.kind}
                 label={k.label}
-                placeholder={k.placeholder}
                 items={data ? data[k.listKey] : []}
                 warranties={warranties}
                 onChanged={load}
-                onCreate={createCategory}
                 onDelete={(id) => del(k.kind, id)}
                 onSaveWarranty={saveWarranty}
               />
@@ -697,11 +737,9 @@ export function AttributeManager({
                 key={k.kind}
                 kind={k.kind}
                 label={k.label}
-                placeholder={k.placeholder}
                 items={data ? data[k.listKey] : []}
                 cover={k.cover}
                 onChanged={load}
-                onAdd={(name) => add(k.kind, name)}
                 onDelete={(id) => del(k.kind, id)}
               />
             ),
