@@ -100,6 +100,7 @@ function makeDb(canned: {
   serviceByName?: { id: string } | null;
   fitments?: unknown[];
   attrOption?: unknown | null;
+  attrInUseCount?: number;
   stock?: unknown[];
   movements?: unknown[];
   stockOnHand?: number;
@@ -161,8 +162,15 @@ function makeDb(canned: {
           };
         // listProducts joins product_fitments in a subquery; match its unique alias first so the
         // products-list query routes to canned.products, not the bare product_fitments branch below.
-        if (sql.includes("AS offlinePriceSatang"))
-          return { results: (canned.products ?? []) as T[] };
+        if (sql.includes("AS offlinePriceSatang")) {
+          // Model D1's WHERE: the catalog list hides soft-deleted rows, so drop archived products
+          // when the query carries the exclusion predicate (a bare SELECT would still return them).
+          const rows = (canned.products ?? []) as { status?: string }[];
+          const hidesArchived = /status\s*(<>|!=)\s*'archived'/.test(sql);
+          return {
+            results: (hidesArchived ? rows.filter((r) => r.status !== "archived") : rows) as T[],
+          };
+        }
         // searchVariants (the campaign product picker) also selects FROM products — match its
         // unique LIKE predicate before the products branch below, or it answers with canned.products.
         if (sql.includes("p.name LIKE ?")) return { results: (canned.variantMatches ?? []) as T[] };
@@ -182,10 +190,17 @@ function makeDb(canned: {
         if (sql.includes("FROM car_brands")) return { results: (canned.carBrands ?? []) as T[] };
         if (sql.includes("FROM car_models")) return { results: (canned.carModels ?? []) as T[] };
         if (sql.includes("FROM services")) return { results: (canned.services ?? []) as T[] };
-        if (sql.includes("LEFT JOIN stock_ledger_entries"))
-          return { results: (canned.stock ?? []) as T[] };
-        if (sql.includes("movement_type AS movementType"))
-          return { results: (canned.movements ?? []) as T[] };
+        if (sql.includes("LEFT JOIN stock_ledger_entries")) {
+          // listStock hides soft-deleted rows — model the WHERE like the products branch above.
+          const rows = (canned.stock ?? []) as { status?: string }[];
+          const hides = /status\s*(<>|!=)\s*'archived'/.test(sql);
+          return { results: (hides ? rows.filter((r) => r.status !== "archived") : rows) as T[] };
+        }
+        if (sql.includes("movement_type AS movementType")) {
+          const rows = (canned.movements ?? []) as { status?: string }[];
+          const hides = /status\s*(<>|!=)\s*'archived'/.test(sql);
+          return { results: (hides ? rows.filter((r) => r.status !== "archived") : rows) as T[] };
+        }
         if (sql.includes("FROM product_variants v JOIN products"))
           return { results: (canned.barcodes ?? []) as T[] };
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
@@ -207,6 +222,8 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        if (sql.includes("COUNT(*) AS n FROM products WHERE"))
+          return { n: canned.attrInUseCount ?? 0 } as T;
         if (sql.includes("FROM stock_ledger_entries WHERE source_type"))
           return (canned.onlineSaleLedgerRow ?? null) as T | null;
         if (sql.includes("FROM payments WHERE slip_ref"))
@@ -236,7 +253,13 @@ function makeDb(canned: {
         if (sql.includes("FROM pricing_profiles")) return (canned.pricingRow ?? null) as T | null;
         if (sql.includes("image_key AS imageKey FROM product_images"))
           return { imageKey: "products/p1/gallery.png" } as T;
-        if (sql.includes("FROM barcodes")) return (canned.barcode ?? null) as T | null;
+        if (sql.includes("FROM barcodes")) {
+          // lookupBarcode hides soft-deleted products — model its WHERE p.status <> 'archived'.
+          const b = canned.barcode as { status?: string } | null | undefined;
+          if (b && /status\s*(<>|!=)\s*'archived'/.test(sql) && b.status === "archived")
+            return null as T | null;
+          return (canned.barcode ?? null) as T | null;
+        }
         if (sql.includes("FROM users WHERE email")) return (canned.userRow ?? null) as T | null;
         if (sql.includes("FROM sales_orders WHERE id = ? AND channel = 'airplus'"))
           return (canned.orderById ?? null) as T | null;
@@ -1441,6 +1464,17 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({ products: [row] });
   });
 
+  it("GET /products > omits archived (soft-deleted) products from the catalog list", async () => {
+    // Delete is a soft-delete (status='archived'). The deleted product must not linger in the list
+    // (nor the POS picker / barcodes page, which read the same GET /products).
+    const live = { id: "p1", productRef: "A-1", name: "Live part", status: "active" };
+    const deleted = { id: "p9", productRef: "OLD-1", name: "Deleted part", status: "archived" };
+    const { env } = makeDb({ products: [live, deleted] });
+    const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
+    const body = (await res.json()) as { products: { id: string }[] };
+    expect(body.products.map((p) => p.id)).toEqual(["p1"]);
+  });
+
   it("GET /products/identifier-check > finds a product (any status) using the id", async () => {
     const match = { id: "p9", name: "Old part", productRef: "OLD-1", status: "archived" };
     const { env } = makeDb({ identifierMatch: match });
@@ -1553,6 +1587,18 @@ describe("api worker routes", () => {
     expect(sqls.find((s) => s.includes("DELETE FROM onsite_sales"))).toContain(
       "stage IN ('draft', 'quotation')",
     );
+  });
+
+  it("DELETE /onsite/drafts/:id > fences the LINE delete from bills too, not just the header", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await worker.fetch!(new Request("https://x/onsite/drafts/d1", { method: "DELETE" }), env, ctx);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    const lineDelete = sqls.find((s) => s.includes("DELETE FROM onsite_sale_lines"));
+    expect(lineDelete).toBeTruthy();
+    // Passing a bill id must not wipe its line items — the line delete carries the same stage fence.
+    expect(lineDelete).toContain("stage");
+    expect(lineDelete).toContain("'draft', 'quotation'");
   });
 
   it("GET /onsite/sales/:id > returns the bill header with its lines (for reprint)", async () => {
@@ -2073,6 +2119,172 @@ describe("api worker routes", () => {
     const { env } = makeDb({ barcode: hit });
     const res = await worker.fetch!(new Request("https://x/products/by-barcode/885"), env, ctx);
     expect(await res.json()).toEqual(hit);
+  });
+
+  it("GET /products/by-barcode/:code > 404 for a soft-deleted product — a deleted part is not sellable via scan", async () => {
+    const archived = {
+      barcode: "885",
+      variantId: "v9",
+      productId: "p9",
+      productRef: "OLD-1",
+      name: "Deleted part",
+      status: "archived",
+    };
+    const { env } = makeDb({ barcode: archived });
+    const res = await worker.fetch!(new Request("https://x/products/by-barcode/885"), env, ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /stock > omits variants of archived (soft-deleted) products", async () => {
+    const live = {
+      variantId: "v1",
+      sku: null,
+      productName: "Live",
+      productRef: "A-1",
+      onHand: 5,
+      status: "active",
+    };
+    const dead = {
+      variantId: "v9",
+      sku: null,
+      productName: "Deleted",
+      productRef: "OLD-1",
+      onHand: 3,
+      status: "archived",
+    };
+    const { env } = makeDb({ stock: [live, dead] });
+    const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
+    const body = (await res.json()) as { stock: { variantId: string }[] };
+    expect(body.stock.map((s) => s.variantId)).toEqual(["v1"]);
+  });
+
+  it("GET /stock/movements > omits movements of archived (soft-deleted) products", async () => {
+    const live = {
+      id: "m1",
+      variantId: "v1",
+      sku: null,
+      productName: "Live",
+      movementType: "receive",
+      quantityDelta: 5,
+      quantityAfter: 5,
+      createdAt: 1,
+      status: "active",
+    };
+    const dead = {
+      id: "m9",
+      variantId: "v9",
+      sku: null,
+      productName: "Deleted",
+      movementType: "receive",
+      quantityDelta: 3,
+      quantityAfter: 3,
+      createdAt: 2,
+      status: "archived",
+    };
+    const { env } = makeDb({ movements: [live, dead] });
+    const res = await worker.fetch!(new Request("https://x/stock/movements"), env, ctx);
+    const body = (await res.json()) as { movements: { id: string }[] };
+    expect(body.movements.map((m) => m.id)).toEqual(["m1"]);
+  });
+
+  it("POST /products/full > writes product + pricing + fitments in ONE atomic batch", async () => {
+    const { db, env } = makeDb({ existingProduct: null });
+    const batchSpy = vi.spyOn(db, "batch");
+    const res = await worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        body: JSON.stringify({
+          productRef: "TG-1",
+          name: "Evaporator",
+          status: "draft",
+          description: "cold coil",
+          brandName: "DENSO",
+          usageName: "A/C",
+          typeName: "Evaporator",
+          weightGrams: 1500,
+          widthMm: 600,
+          lengthMm: 600,
+          heightMm: 200,
+          barcode: "TG-1",
+          fitments: [{ carBrand: "Toyota", carModel: "Vigo", yearFrom: null, yearTo: null }],
+          pricing: {
+            itemCostSatang: 5000,
+            targetPriceSatang: 9000,
+            onlinePriceSatang: 10000,
+            b2bPriceSatang: 8000,
+            onlineCommissionBp: 1000,
+            taxOnCost: false,
+          },
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()) as { created: boolean }).toMatchObject({ created: true });
+    // Atomicity: the product row, its pricing and its fitments are all in the SAME db.batch, so a
+    // failure rolls the whole thing back — no half-saved skeleton.
+    const atomic = batchSpy.mock.calls
+      .map((c) => c[0] as unknown as { sql: string }[])
+      .find((stmts) => stmts.some((s) => s.sql.includes("INSERT INTO products")));
+    expect(atomic, "product write must go through a batch").toBeTruthy();
+    const sqls = atomic!.map((s) => s.sql);
+    expect(sqls.some((s) => s.includes("INSERT INTO pricing_profiles"))).toBe(true);
+    expect(sqls.some((s) => s.includes("INSERT INTO product_fitments"))).toBe(true);
+  });
+
+  it("POST /products/full > recovers an existing Product ID (updates in place, no duplicate)", async () => {
+    const { db, env } = makeDb({
+      existingProduct: { id: "p-existing" },
+      variantRow: { id: "v-existing" },
+    });
+    const batchSpy = vi.spyOn(db, "batch");
+    const res = await worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        body: JSON.stringify({ productRef: "TG-1", name: "Evaporator", status: "draft" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { productId: string; created: boolean }).toMatchObject({
+      productId: "p-existing",
+      created: false,
+    });
+    const sqls = batchSpy.mock.calls
+      .flatMap((c) => c[0] as unknown as { sql: string }[])
+      .map((s) => s.sql);
+    expect(sqls.some((s) => s.includes("INSERT INTO products"))).toBe(false); // no duplicate row
+    expect(sqls.some((s) => s.includes("UPDATE products SET"))).toBe(true); // filled in via update
+  });
+
+  it("POST /products/full with id > updates that row by id (edit; allows renaming the Product ID)", async () => {
+    const { db, env } = makeDb({ variantRow: { id: "v1" } });
+    const batchSpy = vi.spyOn(db, "batch");
+    const res = await worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "p1",
+          productRef: "NEW-REF",
+          name: "Renamed",
+          status: "active",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { productId: string; created: boolean }).toMatchObject({
+      productId: "p1",
+      created: false,
+    });
+    const sqls = batchSpy.mock.calls
+      .flatMap((c) => c[0] as unknown as { sql: string }[])
+      .map((s) => s.sql);
+    expect(sqls.some((s) => s.includes("INSERT INTO products"))).toBe(false); // edits, never inserts
+    expect(sqls.some((s) => s.includes("UPDATE products SET"))).toBe(true);
   });
 
   it("POST /sync > routes through the StockLedger Durable Object", async () => {
@@ -3163,6 +3375,36 @@ describe("part attributes (brand / car system / part name)", () => {
     );
     expect(res.status).toBe(201);
     expect(((await res.json()) as { name: string }).name).toBe("Bosch");
+  });
+
+  it("DELETE /attributes/brand/:id > 409 when products still use it (no silent blanking)", async () => {
+    const { db, env } = makeDb({ attrInUseCount: 3 });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/attributes/brand/br1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { count: number }).toMatchObject({ count: 3 });
+    // The row must NOT be deleted while it is still in use.
+    expect(prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM brands"))).toBe(
+      false,
+    );
+  });
+
+  it("DELETE /attributes/brand/:id > 200 and deletes when no product uses it", async () => {
+    const { db, env } = makeDb({ attrInUseCount: 0 });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/attributes/brand/br1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM brands"))).toBe(
+      true,
+    );
   });
 });
 

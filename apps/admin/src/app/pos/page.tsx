@@ -1511,7 +1511,11 @@ export default function PosPage() {
       setLastSaleId(saleNo);
       // Finalizing a reopened draft/quotation converts it to this bill — drop the parked copy.
       if (activeDraftId) {
-        await deleteDraft(activeDraftId).catch(() => {});
+        const finalizedId = activeDraftId;
+        await deleteDraft(finalizedId).catch(() => {});
+        // Remove it from the tray too, or the next staff member could reopen the ghost and check out
+        // again — a duplicate sale. Mirrors discardDraft's optimistic filter.
+        setDrafts((ds) => ds.filter((x) => x.id !== finalizedId));
         setActiveDraftId(null);
       }
       setDraftId(crypto.randomUUID()); // the next cart is a fresh draft

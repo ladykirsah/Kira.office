@@ -32,9 +32,8 @@ export function DeleteProductCard({ productId }: { productId: string }) {
       <div>
         <div className="danger-zone-title">Delete product</div>
         <p className="danger-zone-text">
-          Removes this product from your catalog and unlists it from Shopee. It is archived, so
-          sales history is kept and you can restore it from the products list. Type{" "}
-          <strong>DELETE</strong> to confirm.
+          Removes this product from your catalog and unlists it from Shopee. Its sales history is
+          kept, so past orders and reports are unaffected. Type <strong>DELETE</strong> to confirm.
         </p>
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
