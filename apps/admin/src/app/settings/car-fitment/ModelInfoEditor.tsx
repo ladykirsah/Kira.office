@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { updateCarModel, type CarModelNode, type OringEntry } from "@/lib/api";
+import { updateCarModel, setAttributeNames, type CarModelNode, type OringEntry } from "@/lib/api";
+import { inputS } from "@/lib/inputStyles";
 import { useToast } from "../../ToastProvider";
 
 const BASIC_SIZES = ['3/8"', '1/2"', '5/8"'];
@@ -33,7 +34,11 @@ function seedSpecials(model: CarModelNode): { size: string; qty: string }[] {
     .map((e) => ({ size: e.size, qty: String(e.qty) }));
 }
 
-/** Inline editor for one car model's service notes — the cheat sheet used at customer-service time. */
+/**
+ * The one editor for a car model — English / Thai name, year range, and the service-notes cheat
+ * sheet (o-ring usage + notes), all saved together from the row's single Edit pencil. Names go to
+ * the display columns (setAttributeNames); the rest to updateCarModel.
+ */
 export function ModelInfoEditor({
   model,
   onSaved,
@@ -44,10 +49,12 @@ export function ModelInfoEditor({
   onCancel?: () => void;
 }) {
   const toast = useToast();
-  // Preserved (no longer edited in this form): keep the model's existing values so save doesn't wipe them.
+  const [enName, setEnName] = useState(model.nameEn ?? "");
+  const [thName, setThName] = useState(model.nameTh ?? "");
+  const [yearFrom, setYearFrom] = useState(model.yearFrom?.toString() ?? "");
+  const [yearTo, setYearTo] = useState(model.yearTo?.toString() ?? "");
+  // Preserved (not surfaced in this form): keep the model's existing values so save doesn't wipe them.
   const generationCode = model.generationCode ?? "";
-  const yearFrom = model.yearFrom?.toString() ?? "";
-  const yearTo = model.yearTo?.toString() ?? "";
   const refrigerant = model.refrigerant ?? "";
   const coolantLiters = model.coolantLiters ?? "";
   const [basicQty, setBasicQty] = useState<Record<string, string>>(() => seedBasic(model));
@@ -77,6 +84,10 @@ export function ModelInfoEditor({
     }
     setSaving(true);
     try {
+      await setAttributeNames("car_model", model.id, {
+        nameTh: thName.trim() || null,
+        nameEn: enName.trim() || null,
+      });
       await updateCarModel(model.id, {
         generationCode: generationCode.trim() || null,
         yearFrom: yearOrNull(yearFrom),
@@ -97,6 +108,59 @@ export function ModelInfoEditor({
 
   return (
     <div className="md-minfo">
+      {/* Names + year — the identity/display fields for this model. */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))",
+          gap: 10,
+          marginBottom: 12,
+        }}
+      >
+        <label>
+          <Label>English name</Label>
+          <input
+            value={enName}
+            onChange={(e) => setEnName(e.target.value)}
+            placeholder="English name"
+            aria-label={`English name for ${model.name}`}
+            style={{ ...inputS, width: "100%" }}
+          />
+        </label>
+        <label>
+          <Label>Thai name</Label>
+          <input
+            value={thName}
+            onChange={(e) => setThName(e.target.value)}
+            placeholder="ชื่อภาษาไทย"
+            aria-label={`ชื่อภาษาไทยของ ${model.name}`}
+            style={{ ...inputS, width: "100%" }}
+          />
+        </label>
+        <label>
+          <Label>Year from</Label>
+          <input
+            value={yearFrom}
+            onChange={(e) => setYearFrom(e.target.value)}
+            inputMode="numeric"
+            placeholder="from"
+            aria-label="Year from"
+            style={{ ...inputS, width: "100%" }}
+          />
+        </label>
+        <label>
+          <Label>Year to</Label>
+          <input
+            value={yearTo}
+            onChange={(e) => setYearTo(e.target.value)}
+            inputMode="numeric"
+            placeholder="to"
+            aria-label="Year to"
+            style={{ ...inputS, width: "100%" }}
+          />
+        </label>
+      </div>
+
       <div className="md-oring">
         <Label>O-ring usage — how many of each size this model uses</Label>
         <div className="md-oring-grid">
@@ -174,7 +238,7 @@ export function ModelInfoEditor({
 
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
         <button type="button" className="btn-primary btn-sm" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save notes"}
+          {saving ? "Saving…" : "Save"}
         </button>
         {onCancel && (
           <button type="button" className="btn-sm" onClick={onCancel} disabled={saving}>

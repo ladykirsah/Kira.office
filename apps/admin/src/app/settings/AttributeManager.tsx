@@ -302,7 +302,7 @@ function PencilIcon() {
  * `name` stays the identity products/fitments join on and is never edited — the English input writes
  * the display column `nameEn` (which falls back to `name` when blank), never `name` itself.
  */
-function NameCard({
+export function NameCard({
   kind,
   option,
   onChanged,
@@ -310,6 +310,8 @@ function NameCard({
   leading,
   trailing,
   editExtras,
+  onEdit,
+  hideActions,
   onEditingChange,
 }: {
   kind: AttrKind;
@@ -320,6 +322,11 @@ function NameCard({
   trailing?: ReactNode;
   /** Rendered in edit mode after the Thai input (e.g. a category's car-system + warranty inputs). */
   editExtras?: ReactNode;
+  /** Override the edit-pencil action — e.g. open a richer external editor instead of the inline one
+   *  (car models edit names + year + service notes together). When set, the inline editor is bypassed. */
+  onEdit?: () => void;
+  /** Hide the edit + delete icons entirely — e.g. model rows whose edit/remove live in the expand. */
+  hideActions?: boolean;
   /** Notified when this card enters/leaves edit mode — e.g. so a header can hide sibling actions. */
   onEditingChange?: (editing: boolean) => void;
 }) {
@@ -426,24 +433,28 @@ function NameCard({
         </span>
         {trailing}
       </div>
-      <button
-        type="button"
-        className="icon-btn"
-        onClick={() => setEditing(true)}
-        aria-label={`Edit ${english} names`}
-        title="Edit names"
-      >
-        <PencilIcon />
-      </button>
-      {onDelete && (
-        <ConfirmButton
-          className="icon-btn"
-          ariaLabel={`Remove ${option.name}`}
-          confirmLabel="Remove?"
-          onConfirm={onDelete}
-        >
-          <XIcon />
-        </ConfirmButton>
+      {!hideActions && (
+        <>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onEdit ?? (() => setEditing(true))}
+            aria-label={`Edit ${english} names`}
+            title="Edit names"
+          >
+            <PencilIcon />
+          </button>
+          {onDelete && (
+            <ConfirmButton
+              className="icon-btn"
+              ariaLabel={`Remove ${option.name}`}
+              confirmLabel="Remove?"
+              onConfirm={onDelete}
+            >
+              <XIcon />
+            </ConfirmButton>
+          )}
+        </>
       )}
     </div>
   );
