@@ -43,8 +43,9 @@ interface ParsedCheckout {
   address: CheckoutAddress | null;
   paymentMethod: CheckoutPaymentMethod;
   couponCode: string | null;
-  /** deduped by variantId (qty summed) so per-variant stock/cap checks can't be split-bypassed */
-  lines: { variantId: string; qty: number }[];
+  /** deduped by variantId (qty summed) so per-variant stock/cap checks can't be split-bypassed.
+   *  expectedPriceSatang = the price the customer saw (used only to refuse a silent overcharge). */
+  lines: { variantId: string; qty: number; expectedPriceSatang?: number }[];
 }
 
 /** Validate the raw JSON body → a normalized ParsedCheckout, or a Thai error string. */
@@ -93,6 +94,7 @@ function parseBody(raw: unknown): ParsedCheckout | string {
   if (!Array.isArray(rawLines) || rawLines.length < 1 || rawLines.length > 20)
     return "รายการสินค้าต้องมี 1-20 รายการ";
   const qtyByVariant = new Map<string, number>();
+  const expectedByVariant = new Map<string, number>();
   for (const entry of rawLines) {
     const line = (entry ?? {}) as Record<string, unknown>;
     const variantId = trimmed(line.variantId);
@@ -100,8 +102,14 @@ function parseBody(raw: unknown): ParsedCheckout | string {
     if (!variantId || typeof qty !== "number" || !Number.isInteger(qty) || qty < 1 || qty > 99)
       return "จำนวนสินค้าไม่ถูกต้อง (1-99 ชิ้นต่อรายการ)";
     qtyByVariant.set(variantId, (qtyByVariant.get(variantId) ?? 0) + qty);
+    if (typeof line.expectedPriceSatang === "number" && Number.isFinite(line.expectedPriceSatang))
+      expectedByVariant.set(variantId, line.expectedPriceSatang);
   }
-  const lines = [...qtyByVariant].map(([variantId, qty]) => ({ variantId, qty }));
+  const lines = [...qtyByVariant].map(([variantId, qty]) => ({
+    variantId,
+    qty,
+    expectedPriceSatang: expectedByVariant.get(variantId),
+  }));
   if (lines.some((l) => l.qty > 99)) return "จำนวนสินค้าไม่ถูกต้อง (1-99 ชิ้นต่อรายการ)";
 
   return { idempotencyRef: ref, name, addressId, address, paymentMethod, couponCode, lines };
@@ -348,6 +356,7 @@ export async function POST(req: Request): Promise<Response> {
       lengthMm: number | null;
       heightMm: number | null;
     }[] = [];
+    let priceChanged = false;
     for (const line of body.lines) {
       const row = pricing.get(line.variantId);
       if (!row)
@@ -364,6 +373,10 @@ export async function POST(req: Request): Promise<Response> {
           { status: 400 },
         );
       const eff = resolveEffectivePrice(row.priceSatang, row.campaign, now);
+      // The customer must never be charged more than the price they saw without re-confirming: if a
+      // shown price no longer matches (e.g. a flash price lapsed in-cart), flag it and bail below.
+      if (line.expectedPriceSatang != null && line.expectedPriceSatang !== eff.priceSatang)
+        priceChanged = true;
       priced.push({
         variantId: line.variantId,
         qty: line.qty,
@@ -377,6 +390,19 @@ export async function POST(req: Request): Promise<Response> {
         heightMm: row.heightMm,
       });
     }
+
+    // A shown price no longer matches — return the new prices and let the customer re-confirm the
+    // updated total. No order, no reservations, no coupon write happened yet, so this is side-effect
+    // free.
+    if (priceChanged)
+      return Response.json(
+        {
+          error: "ราคาสินค้ามีการเปลี่ยนแปลง กรุณาตรวจสอบยอดรวมแล้วยืนยันอีกครั้ง",
+          reason: "prices_changed",
+          lines: priced.map((p) => ({ variantId: p.variantId, priceSatang: p.priceSatang })),
+        },
+        { status: 409 },
+      );
 
     const subtotal = priced.reduce((sum, p) => sum + p.priceSatang * p.qty, 0);
     const itemCount = priced.reduce((sum, p) => sum + p.qty, 0);

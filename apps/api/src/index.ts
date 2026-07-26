@@ -2320,6 +2320,11 @@ export interface DraftInput {
   vehicle?: string | null;
   notes?: string | null;
   lines: SyncLine[];
+  // Bill-level discount (drafts/quotations store it here so the total is right and a reopened quote
+  // restores the exact input). `discountSatang` is the computed amount; kind/value are the raw input.
+  discountSatang?: number;
+  discountKind?: string;
+  discountValue?: string;
 }
 
 export type SaveDraftResult =
@@ -2348,14 +2353,23 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
   const totals = draftHeaderTotals(draft.lines);
   const id = draft.draftId;
   const now = Date.now();
+  // Bill-level discount (lines are stored at unit price, so the discount rides the header). Clamp to
+  // [0, subtotal] and recompute grand from it. Raw kind/value are kept for a faithful reopen; null
+  // when there's no discount.
+  const billDiscount = Math.max(
+    0,
+    Math.min(Math.round(draft.discountSatang ?? 0), totals.subtotalSatang),
+  );
+  const discountValue = draft.discountValue?.trim() || null;
+  const discountKind = discountValue ? (draft.discountKind ?? "thb") : null;
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
         `INSERT INTO onsite_sales
            (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, sync_status,
             subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang,
-            sale_status, stage, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, 'open', ?, ?)
+            discount_kind, discount_value, sale_status, stage, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            sale_number = excluded.sale_number,
            sale_type = excluded.sale_type,
@@ -2366,6 +2380,8 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
            discount_total_satang = excluded.discount_total_satang,
            tax_total_satang = excluded.tax_total_satang,
            grand_total_satang = excluded.grand_total_satang,
+           discount_kind = excluded.discount_kind,
+           discount_value = excluded.discount_value,
            stage = excluded.stage`,
       )
       .bind(
@@ -2377,9 +2393,11 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
         draft.vehicle?.trim() || null,
         draft.notes?.trim() || null,
         totals.subtotalSatang,
-        totals.discountTotalSatang,
+        billDiscount,
         totals.taxTotalSatang,
-        totals.grandTotalSatang,
+        totals.subtotalSatang - billDiscount,
+        discountKind,
+        discountValue,
         draft.stage,
         now,
       ),
@@ -2409,7 +2427,15 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
     ),
   ];
   await db.batch(statements);
-  return { ok: true, draftId: id, totals };
+  return {
+    ok: true,
+    draftId: id,
+    totals: {
+      ...totals,
+      discountTotalSatang: billDiscount,
+      grandTotalSatang: totals.subtotalSatang - billDiscount,
+    },
+  };
 }
 
 /** Open drafts + quotations (newest first) with their lines, so a POS device can reopen them. */
@@ -2418,7 +2444,8 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
     .prepare(
       `SELECT id, client_uuid AS clientUuid, sale_number AS saleNumber, sale_type AS saleType,
               license_plate AS licensePlate, vehicle, notes, stage,
-              grand_total_satang AS grandTotalSatang, created_at AS createdAt
+              grand_total_satang AS grandTotalSatang, discount_total_satang AS discountTotalSatang,
+              discount_kind AS discountKind, discount_value AS discountValue, created_at AS createdAt
        FROM onsite_sales WHERE stage IN ('draft', 'quotation')
        ORDER BY created_at DESC LIMIT 100`,
     )

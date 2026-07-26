@@ -30,6 +30,9 @@ function draft(id: string): OpenDraft {
     notes: null,
     stage: "draft",
     grandTotalSatang: 0,
+    discountTotalSatang: 0,
+    discountKind: null,
+    discountValue: null,
     createdAt: 0,
     lines: [],
   };
