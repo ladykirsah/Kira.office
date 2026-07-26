@@ -116,16 +116,19 @@ the next block before designing anything that depends on serialization.
 (`applySync`, `applyAdjustment`, `refundSale`) that each delegate straight to a module-level function
 (`applySyncToDb` / `applyAdjustmentToDb` / `refundSaleToDb`) operating on `this.env.DB` (D1).
 
-- **It holds no Durable Object state.** No `ctx.storage`, no `blockConcurrencyWhile`. Every read and
-  write is D1. The DO is a routing hop, not a lock.
+- **It holds no Durable Object state** (no `ctx.storage`) — every read and write is D1 — **but each
+  mutating method now wraps its work in `this.ctx.blockConcurrencyWhile(...)`**, which withholds
+  delivery of every other event until the read-then-write completes. That is what makes it a real
+  lock rather than just a routing hop.
 - **All traffic resolves to one instance** — every call site uses
   `env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"))` (not one DO per shop, not per
-  variant). It is one named instance for the whole Worker.
-- **⚠️ There is NO mutual-exclusion guarantee today.** A DO only withholds concurrent events while it
-  awaits *DO storage*. Every await here is D1 I/O, so concurrent events **interleave**. The oversell
-  check is a read-then-write (`SELECT COALESCE(SUM(quantity_delta), 0)` → `INSERT`) with an await in
-  the gap, so it is **TOCTOU-vulnerable**: two concurrent `-1` adjustments against on-hand `1` both
-  read `1`, both pass the `after < 0` check, and both insert — stock lands at `-1`.
+  variant). One named instance + `blockConcurrencyWhile` = a single serialized writer.
+- **Mutual exclusion is enforced explicitly.** A DO's automatic input gate only withholds events
+  while it awaits *DO storage*; since every await here is D1 I/O, that gate would NOT serialize these
+  methods, so `blockConcurrencyWhile` is used instead. This closes the read-then-write TOCTOU
+  (`SELECT COALESCE(SUM(quantity_delta), 0)` → `INSERT`): two concurrent `-1` adjustments against
+  on-hand `1` no longer both read `1` — the second is held until the first commits, so it reads `0`
+  and is rejected. The same guarantee protects the hold/unhold bucket moves against sales.
 - **Ledger deltas are real.** Stock is only ever appended as signed `quantity_delta` rows; on-hand is
   always derived as `SUM(quantity_delta)`. That part of the design holds. (`quantity_after` is
   written but is a snapshot for audit — never read back for math.)

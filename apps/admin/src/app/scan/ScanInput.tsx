@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { inputS } from "@/lib/inputStyles";
+import { CameraScanner } from "./CameraScanner";
 
 /**
  * Shared scan input for every scan mode. A keyboard-wedge (USB/Bluetooth) scanner types the code
@@ -27,6 +28,7 @@ export function ScanInput({
   autoFocus?: boolean;
 }) {
   const [val, setVal] = useState("");
+  const [camera, setCamera] = useState(false);
   const ref = useRef<HTMLInputElement | null>(null);
 
   function submit() {
@@ -38,31 +40,46 @@ export function ScanInput({
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-      style={{ display: "flex", gap: 8 }}
-    >
-      <input
-        ref={ref}
-        autoFocus={autoFocus}
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        placeholder={placeholder}
-        autoComplete="off"
-        aria-label="Barcode"
-        style={{ flex: 1, ...inputS }}
-      />
-      <button
-        type="submit"
-        className="btn-primary"
-        disabled={disabled || !val.trim()}
-        style={inputS}
+    <div style={{ display: "grid", gap: 10 }}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+        style={{ display: "flex", gap: 8 }}
       >
-        {buttonLabel}
-      </button>
-    </form>
+        <input
+          ref={ref}
+          autoFocus={autoFocus}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="off"
+          aria-label="Barcode"
+          style={{ flex: 1, ...inputS }}
+        />
+        {/* Camera path (phone). The handheld keyboard-wedge field above works with or without it. */}
+        <button
+          type="button"
+          onClick={() => setCamera((c) => !c)}
+          title="Scan with the camera"
+          aria-label="Scan with the camera"
+          aria-pressed={camera}
+          disabled={disabled}
+          style={inputS}
+        >
+          📷
+        </button>
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={disabled || !val.trim()}
+          style={inputS}
+        >
+          {buttonLabel}
+        </button>
+      </form>
+      {camera && <CameraScanner onCode={onScan} onClose={() => setCamera(false)} />}
+    </div>
   );
 }

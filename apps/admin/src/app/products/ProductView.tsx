@@ -148,6 +148,7 @@ const overviewGrid = {
 export function ProductView({ detail }: { detail: ProductDetail }) {
   const p = detail.product;
   const pr = detail.pricing;
+  const held = detail.held ?? 0;
 
   // Profits from the saved pricing (view mode).
   const vTC = pr ? totalCostSatang(pr.itemCostSatang, Boolean(pr.taxOnCost)) : 0;
@@ -204,11 +205,25 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
                 "—"
               )}
             </Field>
+            {/* Two figures, per the owner's design: what can be sold, and what is paused. Held
+                stock is already excluded from on-hand (holds are negative ledger deltas). */}
             <Field label="Stock on hand">
               <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
             </Field>
-            {/* "Stock on hold" is added here once the On-hold feature lands (it introduces the
-                held bucket + the API field); until then there is no held stock to show. */}
+            <Field label="Stock on hold">
+              <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
+                <strong
+                  style={{ fontSize: 20, color: held > 0 ? "var(--text)" : "var(--text-faint)" }}
+                >
+                  {held}
+                </strong>
+                {held > 0 && (
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    paused — not for sale
+                  </span>
+                )}
+              </span>
+            </Field>
             <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
             {/* Box size feeds the shipping-fee calc (volumetric weight w×l×h/5000), alongside
                 weight — shown here read-only so the parcel data is visible without opening Edit. */}

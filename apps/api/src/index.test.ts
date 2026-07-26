@@ -15,6 +15,7 @@ import worker, {
   ean13CheckDigit,
   entityFromPath,
   getProductDetail,
+  applyHoldToDb,
   setVariantPricing,
   setVariantBarcode,
   storeGalleryImage,
@@ -104,6 +105,7 @@ function makeDb(canned: {
   stock?: unknown[];
   movements?: unknown[];
   stockOnHand?: number;
+  heldNet?: number;
   saleHeader?: unknown | null;
   saleLines?: unknown[];
   barcodes?: unknown[];
@@ -235,6 +237,9 @@ function makeDb(canned: {
           return (canned.existingProduct ?? null) as T | null;
         if (sql.includes("product_ref =") || sql.includes("shopee_item_id ="))
           return (canned.identifierMatch ?? null) as T | null;
+        // The held read is a SUM(quantity_delta) too, so match its movement_type filter FIRST.
+        // Held deltas are stored negative, so the raw ledger sum is the negated held count.
+        if (sql.includes("movement_type IN ('hold'")) return { net: -(canned.heldNet ?? 0) } as T;
         if (sql.includes("SUM(quantity_delta)")) return { onHand: canned.stockOnHand ?? 0 } as T;
         if (sql.includes("FROM onsite_sale_lines l JOIN"))
           return (canned.financeProfit ?? null) as T | null;
@@ -1563,6 +1568,28 @@ describe("api worker routes", () => {
     expect(sqls.some((s) => s.includes("stock_ledger_entries"))).toBe(false);
   });
 
+  it("POST /onsite/drafts > refuses to overwrite a finalized bill (no header/line corruption)", async () => {
+    // A bill id fed back into the draft-save path must not reopen the bill as an editable draft:
+    // its header (stage/totals) must not be flipped and its lines must not be stripped/replaced.
+    const { env, batched } = makeDb({ saleHeader: { stage: "bill" } });
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "bill-1",
+          stage: "draft",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    // nothing destructive may run against the existing bill
+    expect(batched.some((s) => s.sql.includes("INTO onsite_sales"))).toBe(false);
+    expect(batched.some((s) => s.sql.includes("DELETE FROM onsite_sale_lines"))).toBe(false);
+  });
+
   it("GET /onsite/drafts > lists only open drafts and quotations", async () => {
     const { db, env } = makeDb({ sales: [] });
     const prepare = vi.spyOn(db, "prepare");
@@ -1589,16 +1616,22 @@ describe("api worker routes", () => {
     );
   });
 
-  it("DELETE /onsite/drafts/:id > fences the LINE delete from bills too, not just the header", async () => {
+  it("DELETE /onsite/drafts/:id > the line delete is stage-scoped too, so a bill can't be gutted", async () => {
     const { db, env } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
-    await worker.fetch!(new Request("https://x/onsite/drafts/d1", { method: "DELETE" }), env, ctx);
+    // A bill id is a normal onsite_sales.id; the route does no stage pre-check. The header delete is
+    // fenced by stage, so the LINE delete must be fenced the same way — otherwise passing a finalized
+    // bill's id strips its items while the guarded header survives, leaving a corrupt, itemless bill.
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts/s1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
     const sqls = prepare.mock.calls.map((c) => c[0] as string);
-    const lineDelete = sqls.find((s) => s.includes("DELETE FROM onsite_sale_lines"));
-    expect(lineDelete).toBeTruthy();
-    // Passing a bill id must not wipe its line items — the line delete carries the same stage fence.
-    expect(lineDelete).toContain("stage");
-    expect(lineDelete).toContain("'draft', 'quotation'");
+    expect(sqls.find((s) => s.includes("DELETE FROM onsite_sale_lines"))).toContain(
+      "IN ('draft', 'quotation')",
+    );
   });
 
   it("GET /onsite/sales/:id > returns the bill header with its lines (for reprint)", async () => {
@@ -3039,6 +3072,83 @@ describe("salesToCsv", () => {
   });
 });
 
+describe("applyHoldToDb (Scan here › On hold)", () => {
+  // The single ledger entry a hold/unhold wrote: [id, variantId, movementType, delta, quantityAfter, ...].
+  const entry = (batched: { sql: string; boundArgs?: unknown[] }[], type: "hold" | "unhold") =>
+    batched.find((s) => s.sql.includes("stock_ledger_entries") && s.boundArgs?.[2] === type)
+      ?.boundArgs;
+
+  it("take-away writes a NEGATIVE hold entry and reports the new buckets", async () => {
+    const { db, batched } = makeDb({ stockOnHand: 5, heldNet: 0 });
+    const results = await applyHoldToDb(db, [
+      { productVariantId: "v1", takeAway: 2, bringBack: 0 },
+    ]);
+    expect(results).toEqual([{ variantId: "v1", applied: true, sellableAfter: 3, heldAfter: 2 }]);
+    const e = entry(batched, "hold");
+    expect(e?.[3]).toBe(-2); // quantity_delta is negative → sellable SUM drops
+    expect(e?.[4]).toBe(3); // quantity_after = new sellable
+    expect(entry(batched, "unhold")).toBeUndefined();
+  });
+
+  it("bring-back writes a POSITIVE unhold entry", async () => {
+    const { db, batched } = makeDb({ stockOnHand: 3, heldNet: 2 });
+    const results = await applyHoldToDb(db, [
+      { productVariantId: "v1", takeAway: 0, bringBack: 2 },
+    ]);
+    expect(results).toEqual([{ variantId: "v1", applied: true, sellableAfter: 5, heldAfter: 0 }]);
+    const e = entry(batched, "unhold");
+    expect(e?.[3]).toBe(2);
+    expect(e?.[4]).toBe(5);
+  });
+
+  it("REJECTS taking away more than is sellable and writes NOTHING (the oversell guard)", async () => {
+    const { db, batched } = makeDb({ stockOnHand: 1, heldNet: 0 });
+    const results = await applyHoldToDb(db, [
+      { productVariantId: "v1", takeAway: 5, bringBack: 0 },
+    ]);
+    expect(results[0]?.applied).toBe(false);
+    expect(results[0]?.reason).toMatch(/1 sellable/);
+    expect(results[0]).toMatchObject({ sellableAfter: 1, heldAfter: 0 });
+    expect(batched).toHaveLength(0); // no ledger movement on a rejected line
+  });
+
+  it("REJECTS bringing back more than is held", async () => {
+    const { db, batched } = makeDb({ stockOnHand: 0, heldNet: 1 });
+    const results = await applyHoldToDb(db, [
+      { productVariantId: "v1", takeAway: 0, bringBack: 2 },
+    ]);
+    expect(results[0]?.applied).toBe(false);
+    expect(results[0]?.reason).toMatch(/1 on hold/);
+    expect(batched).toHaveLength(0);
+  });
+
+  it("a row left at 0/0 is a no-op (no entries, applied:false) — so a scanned-but-untouched row is skipped", async () => {
+    const { db, batched } = makeDb({ stockOnHand: 5, heldNet: 3 });
+    const results = await applyHoldToDb(db, [
+      { productVariantId: "v1", takeAway: 0, bringBack: 0 },
+    ]);
+    expect(results[0]?.applied).toBe(false);
+    expect(results[0]?.reason).toBe("no change");
+    expect(batched).toHaveLength(0);
+  });
+
+  it("lines are independent — a rejected row does not sink a valid one", async () => {
+    // Both variants read the same canned stock (the mock is per-db, not per-variant); v-bad over-takes.
+    const { db } = makeDb({ stockOnHand: 3, heldNet: 0 });
+    const results = await applyHoldToDb(db, [
+      { productVariantId: "v-ok", takeAway: 2, bringBack: 0 },
+      { productVariantId: "v-bad", takeAway: 9, bringBack: 0 },
+    ]);
+    expect(results[0]).toEqual({
+      variantId: "v-ok",
+      applied: true,
+      sellableAfter: 1,
+      heldAfter: 2,
+    });
+    expect(results[1]?.applied).toBe(false);
+  });
+});
+
 describe("getProductDetail / updateProduct / setVariantPricing", () => {
   it("returns product + default variant + pricing", async () => {
     const product = {
@@ -3060,6 +3170,7 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
       variantId: "v1",
       barcode: "885000111",
       onHand: 0,
+      held: 0,
       fitments: [],
       pricing: { itemCostSatang: 6000, targetPriceSatang: 10700 },
       images: [{ id: "img1", imageKey: "k1", sortOrder: 0, isCover: 1 }],
