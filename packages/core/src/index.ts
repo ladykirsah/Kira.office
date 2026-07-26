@@ -22,6 +22,7 @@ export * from "./paymentMethods";
 export * from "./customerImport";
 export * from "./storefrontCustomers";
 export * from "./productNaming";
+export * from "./stockHold";
 export * from "./thaiDate";
 export * from "./shopProfiles";
 export * from "./shipping";

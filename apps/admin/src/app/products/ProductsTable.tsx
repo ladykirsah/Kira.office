@@ -312,7 +312,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                         />
                       </td>
                       <td align="center">
-                        <StockCell variantId={p.variantId} onHand={p.onHand} />
+                        <StockCell variantId={p.variantId} onHand={p.onHand} held={p.held} />
                       </td>
                       <td>
                         {(() => {

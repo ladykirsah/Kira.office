@@ -23,7 +23,10 @@ export interface ProductRow {
   itemCostSatang: number;
   onlineCommissionBp: number;
   taxOnCost: number;
+  /** Sellable stock (held already excluded). */
   onHand: number;
+  /** Net quantity on hold (paused, not for sale). */
+  held: number;
 }
 
 export async function fetchProducts(): Promise<ProductRow[]> {
@@ -671,7 +674,10 @@ export interface ProductDetail {
   };
   variantId: string | null;
   barcode: string | null;
+  /** Sellable stock — held stock is already excluded. */
   onHand: number;
+  /** Net quantity on hold (paused, not for sale). */
+  held: number;
   fitments: Fitment[];
   pricing: {
     itemCostSatang: number;
@@ -1050,6 +1056,39 @@ export async function adjustStock(
   });
   if (!res.ok) throw new Error(`Adjust failed (HTTP ${res.status})`);
   return (await res.json()) as { applied: boolean; quantityAfter: number; reason?: string };
+}
+
+export interface HoldLineInput {
+  productVariantId: string;
+  /** Box 1 — move this many from sellable into the hold. */
+  takeAway: number;
+  /** Box 2 — move this many from the hold back into sellable. */
+  bringBack: number;
+}
+
+export interface HoldLineResult {
+  variantId: string;
+  applied: boolean;
+  reason?: string;
+  sellableAfter: number;
+  heldAfter: number;
+}
+
+/**
+ * Move stock between sellable and the hold bucket (Scan here › On hold). Lines are independent:
+ * one bad quantity doesn't discard the rest of a scanned batch, so the result is per line.
+ */
+export async function holdStock(lines: HoldLineInput[]): Promise<HoldLineResult[]> {
+  const res = await apiFetch(`/stock/hold`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ lines }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Hold failed (HTTP ${res.status})`);
+  }
+  return ((await res.json()) as { results: HoldLineResult[] }).results;
 }
 
 export async function archiveProduct(id: string): Promise<void> {

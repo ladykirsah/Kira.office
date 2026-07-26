@@ -54,8 +54,21 @@ const editWrap = {
   gap: 4,
 } as const;
 
-/** Inline stock editor: number + pencil → input + check (saves a ledger adjustment for the delta). */
-export function StockCell({ variantId, onHand }: { variantId: string | null; onHand: number }) {
+/**
+ * Inline stock editor: number + pencil → input + check (saves a ledger adjustment for the delta).
+ * The number is SELLABLE stock; when a hold is active it also shows the held count, so a stocktake
+ * here is never entered as the physical total (which would inflate sellable and oversell). Held
+ * stock is moved via Scan here › On hold, not this field.
+ */
+export function StockCell({
+  variantId,
+  onHand,
+  held = 0,
+}: {
+  variantId: string | null;
+  onHand: number;
+  held?: number;
+}) {
   const toast = useToast();
   const [current, setCurrent] = useState(onHand);
   const [editing, setEditing] = useState(false);
@@ -106,6 +119,7 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
           autoFocus
           className="stock-input"
           disabled={busy}
+          title={held > 0 ? `Sellable count — ${held} on hold is separate` : undefined}
           onKeyDown={(e) => {
             if (e.key === "Enter") save();
             else if (e.key === "Escape") setEditing(false);
@@ -130,6 +144,15 @@ export function StockCell({ variantId, onHand }: { variantId: string | null; onH
   return (
     <span style={wrap}>
       <span>{current}</span>
+      {held > 0 && (
+        <span
+          className="muted"
+          title={`${held} on hold — paused, not for sale`}
+          style={{ fontSize: 11, whiteSpace: "nowrap" }}
+        >
+          +{held} held
+        </span>
+      )}
       <button
         type="button"
         className="icon-btn"
