@@ -1534,6 +1534,30 @@ describe("api worker routes", () => {
     expect(sqls.some((s) => s.includes("stock_ledger_entries"))).toBe(false);
   });
 
+  it("POST /onsite/drafts > refuses to overwrite a finalized bill (never wipes its lines)", async () => {
+    // A draftId can collide with a finalized bill's id (both live in onsite_sales). If it does, the
+    // ON CONFLICT upsert would flip the bill's stage to 'draft' and the unconditional line-wipe would
+    // strip its items — silently gutting a real bill. Saving must refuse before touching anything.
+    const { db, env } = makeDb({ saleHeader: { stage: "bill" } });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "s1", // s1 already exists as a finalized bill
+          stage: "draft",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => s.includes("INTO onsite_sales"))).toBe(false);
+    expect(sqls.some((s) => s.includes("DELETE FROM onsite_sale_lines"))).toBe(false);
+  });
+
   it("GET /onsite/drafts > lists only open drafts and quotations", async () => {
     const { db, env } = makeDb({ sales: [] });
     const prepare = vi.spyOn(db, "prepare");
@@ -1557,6 +1581,24 @@ describe("api worker routes", () => {
     expect(sqls.some((s) => s.includes("DELETE FROM onsite_sale_lines"))).toBe(true);
     expect(sqls.find((s) => s.includes("DELETE FROM onsite_sales"))).toContain(
       "stage IN ('draft', 'quotation')",
+    );
+  });
+
+  it("DELETE /onsite/drafts/:id > the line delete is stage-scoped too, so a bill can't be gutted", async () => {
+    const { db, env } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    // A bill id is a normal onsite_sales.id; the route does no stage pre-check. The header delete is
+    // fenced by stage, so the LINE delete must be fenced the same way — otherwise passing a finalized
+    // bill's id strips its items while the guarded header survives, leaving a corrupt, itemless bill.
+    const res = await worker.fetch!(
+      new Request("https://x/onsite/drafts/s1", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const sqls = prepare.mock.calls.map((c) => c[0] as string);
+    expect(sqls.find((s) => s.includes("DELETE FROM onsite_sale_lines"))).toContain(
+      "IN ('draft', 'quotation')",
     );
   });
 
