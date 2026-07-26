@@ -183,7 +183,7 @@ export default function ShopInfoPage() {
     return (
       <main>
         <h1>Shop info</h1>
-        <p role="alert" style={{ color: "var(--danger, #bf3c1d)" }}>
+        <p role="alert" style={{ color: "var(--danger)" }}>
           โหลดข้อมูลร้านไม่สำเร็จ — {loadError}
         </p>
         <button type="button" className="btn-primary btn-sm" onClick={() => load(profile)}>
@@ -331,6 +331,11 @@ export default function ShopInfoPage() {
     </div>
   );
 
+  // AirPlus is an online storefront: its Shop info drops the on-site quotation note + QR caption and
+  // instead groups the LINE OA link with its QR under a "LINE contact" section. Den Air keeps the
+  // full on-site layout. Hidden fields keep their stored values — this only changes what's shown.
+  const isAirplus = profile === "airplus";
+
   return (
     <main>
       <PageHeader
@@ -379,12 +384,13 @@ export default function ShopInfoPage() {
                   info.logoKey,
                   "PNG/JPG/WebP, ≤5MB. Saved immediately. (Not on the bill yet.)",
                 )}
-                {editImage(
-                  "Contact QR image",
-                  "qr",
-                  info.qrKey,
-                  "PNG/JPG/WebP, ≤5MB. Saved immediately. Prints on the quotation.",
-                )}
+                {!isAirplus &&
+                  editImage(
+                    "Contact QR image",
+                    "qr",
+                    info.qrKey,
+                    "PNG/JPG/WebP, ≤5MB. Saved immediately. Prints on the quotation.",
+                  )}
               </div>
             </div>
 
@@ -401,27 +407,50 @@ export default function ShopInfoPage() {
               })}
             </div>
 
-            <div style={sectionWrap}>
-              <div style={sectionHead}>Quotation note</div>
-              {editPair("Quotation note", "quoteNote", "quoteNoteEn", {
-                multiline: true,
-                hideLabel: true,
-                thPlaceholder: SHOP_DEFAULTS.quoteNote,
-                enPlaceholder: "* Estimate only; final price may change on inspection",
-              })}
-            </div>
+            {isAirplus ? (
+              <div style={sectionWrap}>
+                <div style={sectionHead}>LINE contact</div>
+                <div style={{ marginBottom: 18 }}>
+                  <div style={editLabel}>LINE OA link</div>
+                  <input
+                    value={info.lineUrl ?? ""}
+                    onChange={(e) => set({ lineUrl: e.target.value })}
+                    placeholder="เช่น https://lin.ee/xxxxxxx"
+                    style={inputL}
+                  />
+                </div>
+                {editImage(
+                  "QR code",
+                  "qr",
+                  info.qrKey,
+                  "PNG/JPG/WebP, ≤5MB. Saved immediately. The LINE OA QR customers scan.",
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={sectionWrap}>
+                  <div style={sectionHead}>Quotation note</div>
+                  {editPair("Quotation note", "quoteNote", "quoteNoteEn", {
+                    multiline: true,
+                    hideLabel: true,
+                    thPlaceholder: SHOP_DEFAULTS.quoteNote,
+                    enPlaceholder: "* Estimate only; final price may change on inspection",
+                  })}
+                </div>
 
-            <div style={sectionWrap}>
-              <div style={sectionHead}>Contact QR caption</div>
-              {editPair("Headline", "qrHeadline", "qrHeadlineEn", {
-                thPlaceholder: SHOP_DEFAULTS.qrHeadline,
-                enPlaceholder: "e.g. Contact the shop",
-              })}
-              {editPair("Subtitle", "qrSubtitle", "qrSubtitleEn", {
-                thPlaceholder: SHOP_DEFAULTS.qrSubtitle,
-                enPlaceholder: "e.g. Scan to chat / book a slot",
-              })}
-            </div>
+                <div style={sectionWrap}>
+                  <div style={sectionHead}>Contact QR caption</div>
+                  {editPair("Headline", "qrHeadline", "qrHeadlineEn", {
+                    thPlaceholder: SHOP_DEFAULTS.qrHeadline,
+                    enPlaceholder: "e.g. Contact the shop",
+                  })}
+                  {editPair("Subtitle", "qrSubtitle", "qrSubtitleEn", {
+                    thPlaceholder: SHOP_DEFAULTS.qrSubtitle,
+                    enPlaceholder: "e.g. Scan to chat / book a slot",
+                  })}
+                </div>
+              </>
+            )}
 
             <div>
               <div style={sectionHead}>Payment — PromptPay accounts</div>
@@ -450,7 +479,7 @@ export default function ShopInfoPage() {
                               ),
                             )
                           }
-                          placeholder="ตำแหน่ง (เจ้าของ / พนักงาน)"
+                          placeholder="ตำแหน่ง"
                           aria-label="Position"
                           style={{ ...inputL, flex: "0 0 120px", minWidth: 0 }}
                         />
@@ -463,7 +492,7 @@ export default function ShopInfoPage() {
                               ),
                             )
                           }
-                          placeholder="ชื่อบัญชี (ร้าน / แม่ / พ่อ)"
+                          placeholder="ชื่อบัญชี"
                           aria-label="Method label"
                           style={{ ...inputL, flex: 1, minWidth: 0 }}
                         />
@@ -476,7 +505,7 @@ export default function ShopInfoPage() {
                               ),
                             )
                           }
-                          placeholder="เบอร์มือถือ / เลข 13 หลัก"
+                          placeholder="พร้อมเพย์"
                           aria-label="PromptPay ID"
                           style={{ ...inputL, flex: 1, minWidth: 0 }}
                         />
@@ -544,7 +573,7 @@ export default function ShopInfoPage() {
               <div style={sectionHead}>Branding</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <ViewImage label="Logo" imgKey={info.logoKey} />
-                <ViewImage label="Contact QR image" imgKey={info.qrKey} />
+                {!isAirplus && <ViewImage label="Contact QR image" imgKey={info.qrKey} />}
               </div>
             </div>
 
@@ -554,31 +583,55 @@ export default function ShopInfoPage() {
               <ViewPair label="Address" th={info.address} en={info.addressEn} />
             </div>
 
-            <div style={sectionWrap}>
-              <div style={sectionHead}>Quotation note</div>
-              <ViewPair
-                hideLabel
-                th={info.quoteNote}
-                en={info.quoteNoteEn}
-                thDefault={SHOP_DEFAULTS.quoteNote}
-              />
-            </div>
+            {isAirplus ? (
+              <div style={sectionWrap}>
+                <div style={sectionHead}>LINE contact</div>
+                <div style={{ marginBottom: 18 }}>
+                  <div style={editLabel}>LINE OA link</div>
+                  {info.lineUrl ? (
+                    <a
+                      href={info.lineUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 15, lineHeight: 1.5, wordBreak: "break-all" }}
+                    >
+                      {info.lineUrl}
+                    </a>
+                  ) : (
+                    <div style={valueMuted}>—</div>
+                  )}
+                </div>
+                <ViewImage label="QR code" imgKey={info.qrKey} />
+              </div>
+            ) : (
+              <>
+                <div style={sectionWrap}>
+                  <div style={sectionHead}>Quotation note</div>
+                  <ViewPair
+                    hideLabel
+                    th={info.quoteNote}
+                    en={info.quoteNoteEn}
+                    thDefault={SHOP_DEFAULTS.quoteNote}
+                  />
+                </div>
 
-            <div style={sectionWrap}>
-              <div style={sectionHead}>Contact QR caption</div>
-              <ViewPair
-                label="Headline"
-                th={info.qrHeadline}
-                en={info.qrHeadlineEn}
-                thDefault={SHOP_DEFAULTS.qrHeadline}
-              />
-              <ViewPair
-                label="Subtitle"
-                th={info.qrSubtitle}
-                en={info.qrSubtitleEn}
-                thDefault={SHOP_DEFAULTS.qrSubtitle}
-              />
-            </div>
+                <div style={sectionWrap}>
+                  <div style={sectionHead}>Contact QR caption</div>
+                  <ViewPair
+                    label="Headline"
+                    th={info.qrHeadline}
+                    en={info.qrHeadlineEn}
+                    thDefault={SHOP_DEFAULTS.qrHeadline}
+                  />
+                  <ViewPair
+                    label="Subtitle"
+                    th={info.qrSubtitle}
+                    en={info.qrSubtitleEn}
+                    thDefault={SHOP_DEFAULTS.qrSubtitle}
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <div style={sectionHead}>Payment — PromptPay accounts</div>
