@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { D1Database, KVNamespace, DurableObjectNamespace } from "@cloudflare/workers-types";
+import type { CategoryRow } from "./groupBySystem";
 
 /**
  * Server-side data access for the storefront: raw SQL over the SAME D1 database as apps/api
@@ -425,16 +426,7 @@ export async function fitmentOptions(
 /** Part categories (product types) for the home category browser + catalog chips — only types that
  *  actually have an active, in-stock product, so empty categories never surface (matches the
  *  out-of-stock hiding rule). */
-export async function listProductTypes(db: D1Database): Promise<
-  {
-    id: string;
-    name: string;
-    nameTh: string | null;
-    nameEn: string | null;
-    productCount: number;
-    imageKey: string | null;
-  }[]
-> {
+export async function listProductTypes(db: D1Database): Promise<CategoryRow[]> {
   const rows = await db
     .prepare(
       // EVERY category the owner has defined surfaces, including ones with nothing in stock yet
@@ -444,25 +436,25 @@ export async function listProductTypes(db: D1Database): Promise<
       // productCount still counts only ACTIVE + IN-STOCK products so it matches the catalogue. That
       // condition must live inside the CASE, not in a WHERE — a WHERE would collapse the LEFT JOINs
       // back to inner joins and the empty categories would disappear again.
+      //
+      // usage_id (migration 0064) is joined so the categories index can group by car system; ordering
+      // by the system's sort_order first keeps each system's categories together.
       `SELECT t.id, t.name, t.name_th AS nameTh, t.name_en AS nameEn, t.image_key AS imageKey,
+              t.usage_id AS usageId, u.name AS systemName, u.name_th AS systemNameTh,
+              u.name_en AS systemNameEn,
               COUNT(DISTINCT CASE WHEN p.status = 'active' AND (
                       SELECT COALESCE(SUM(quantity_delta), 0)
                         FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0
                    THEN p.id END) AS productCount
          FROM product_types t
+         LEFT JOIN usage_categories u ON u.id = t.usage_id
          LEFT JOIN products p ON p.type_id = t.id
          LEFT JOIN product_variants v ON v.product_id = p.id
-        GROUP BY t.id, t.name, t.name_th, t.name_en, t.image_key, t.sort_order
-        ORDER BY t.sort_order, t.name`,
+        GROUP BY t.id, t.name, t.name_th, t.name_en, t.image_key, t.sort_order,
+                 t.usage_id, u.name, u.name_th, u.name_en, u.sort_order
+        ORDER BY u.sort_order, u.name, t.sort_order, t.name`,
     )
-    .all<{
-      id: string;
-      name: string;
-      nameTh: string | null;
-      nameEn: string | null;
-      productCount: number;
-      imageKey: string | null;
-    }>();
+    .all<CategoryRow>();
   return rows.results ?? [];
 }
 

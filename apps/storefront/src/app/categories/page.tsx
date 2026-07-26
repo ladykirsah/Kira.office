@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb, listProductTypes } from "@/lib/db";
+import { groupCategoriesBySystem } from "@/lib/groupBySystem";
 import { displayNames } from "@l-shopee/core";
 import { imgUrl } from "@/lib/img";
 import { Icon } from "@/components/Icon";
@@ -11,14 +12,17 @@ export const metadata: Metadata = { title: "หมวดหมู่สินค
 export const dynamic = "force-dynamic";
 
 /**
- * Full categories index (owner-approved "Design 2"): best-seller-style rows — cover + Thai name +
+ * Full categories index, grouped by CAR SYSTEM (migration 0064: categories are a subset of car
+ * systems). Each system is a heading with its best-seller-style rows beneath — cover + Thai name +
  * English + count + chevron. The home "ดูทั้งหมด →" on the category strip links here; each row opens
  * that category's products. Same in-stock filtering as the home strip (listProductTypes), so empty
- * categories never show.
+ * categories never show. With a single-system catalogue this is one section; more appear as the shop
+ * stocks other systems.
  */
 export default async function CategoriesPage() {
   const db = await getDb();
   const types = await listProductTypes(db);
+  const groups = groupCategoriesBySystem(types);
 
   return (
     <div className="section">
@@ -27,7 +31,7 @@ export default async function CategoriesPage() {
           🗂️ หมวดหมู่ · Categories
         </div>
         <h1 className="t-h1" style={{ color: "var(--gray-dark)", margin: 0 }}>
-          เลือกตามหมวดหมู่
+          เลือกตามระบบและหมวดหมู่
         </h1>
       </div>
       {types.length === 0 ? (
@@ -35,39 +39,59 @@ export default async function CategoriesPage() {
           <p style={{ margin: 0, color: "var(--gray-mid)" }}>ยังไม่มีหมวดหมู่สินค้า</p>
         </div>
       ) : (
-        <div className="catlist">
-          {types.map((t) => (
-            <Link
-              key={t.id}
-              href={`/products?type=${encodeURIComponent(t.id)}&ctx=cat`}
-              className="catlist-row"
-              aria-label={`ดูสินค้าในหมวด ${t.name} (${t.productCount} รายการ)`}
-            >
-              <div className="catlist-thumb">
-                {/* Owner-uploaded cover (Kira.office → Part attributes); ✦ until one is set. */}
-                {t.imageKey ? (
-                  <img
-                    src={imgUrl(t.imageKey)}
-                    alt=""
-                    loading="lazy"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }}
-                  />
-                ) : (
-                  <span aria-hidden="true" className="star">
-                    ✦
-                  </span>
-                )}
-              </div>
-              <div className="catlist-info">
-                <div className="catlist-name">{displayNames(t).th}</div>
-                {displayNames(t).en && <div className="catlist-name-en">{displayNames(t).en}</div>}
-                <div className="catlist-count">{t.productCount} รายการ</div>
-              </div>
-              <span className="catlist-chev" aria-hidden="true">
-                <Icon name="chevron" size={22} />
-              </span>
-            </Link>
-          ))}
+        <div className="catgroups">
+          {groups.map((g, i) => {
+            const sys = g.system ? displayNames(g.system) : null;
+            return (
+              <section key={g.system?.id ?? `other-${i}`} className="catgroup">
+                <h2 className="catgroup-head">
+                  <span className="catgroup-th">{sys ? sys.th : "อื่นๆ"}</span>
+                  {sys?.en && <span className="catgroup-en">{sys.en}</span>}
+                </h2>
+                <div className="catlist">
+                  {g.categories.map((t) => (
+                    <Link
+                      key={t.id}
+                      href={`/products?type=${encodeURIComponent(t.id)}&ctx=cat`}
+                      className="catlist-row"
+                      aria-label={`ดูสินค้าในหมวด ${t.name} (${t.productCount} รายการ)`}
+                    >
+                      <div className="catlist-thumb">
+                        {/* Owner-uploaded cover (Kira.office → Part attributes); ✦ until one is set. */}
+                        {t.imageKey ? (
+                          <img
+                            src={imgUrl(t.imageKey)}
+                            alt=""
+                            loading="lazy"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              borderRadius: 10,
+                            }}
+                          />
+                        ) : (
+                          <span aria-hidden="true" className="star">
+                            ✦
+                          </span>
+                        )}
+                      </div>
+                      <div className="catlist-info">
+                        <div className="catlist-name">{displayNames(t).th}</div>
+                        {displayNames(t).en && (
+                          <div className="catlist-name-en">{displayNames(t).en}</div>
+                        )}
+                        <div className="catlist-count">{t.productCount} รายการ</div>
+                      </div>
+                      <span className="catlist-chev" aria-hidden="true">
+                        <Icon name="chevron" size={22} />
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

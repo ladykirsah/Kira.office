@@ -1688,9 +1688,36 @@ textarea {
   white-space: nowrap;
 }
 
-/* ---- full Categories page (/categories): best-seller-style rows — cover + Thai + English +
-   count + chevron. Plain: the rows sit directly on the paper background (like the home
-   best-seller list), no white card. "ดูทั้งหมด" on the home category strip links here. */
+/* ---- full Categories page (/categories): categories grouped by CAR SYSTEM. Each system is a
+   heading (charcoal Thai + dark-red English, dark-red underline — AirPlus section-head pattern)
+   with its best-seller-style rows beneath. */
+.catgroup + .catgroup {
+  margin-top: 28px;
+}
+.catgroup-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--brand-deep);
+}
+.catgroup-th {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gray-dark);
+  letter-spacing: -0.01em;
+}
+.catgroup-en {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand-deep);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- best-seller-style rows — cover + Thai + English + count + chevron. Plain: the rows sit
+   directly on the paper background (like the home best-seller list), no white card. */
 .catlist-row {
   display: flex;
   gap: 14px;
