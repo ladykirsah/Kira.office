@@ -1013,7 +1013,12 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       const res = await worker.fetch!(
         new Request("https://x/coupons", {
           method: "POST",
-          body: JSON.stringify({ code: "  save10 ", type: "percent", value: 1000 }),
+          body: JSON.stringify({
+            code: "  save10 ",
+            name: "Save 10",
+            type: "percent",
+            value: 1000,
+          }),
         }),
         env,
         ctx,
@@ -1029,7 +1034,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       const res = await worker.fetch!(
         new Request("https://x/coupons", {
           method: "POST",
-          body: JSON.stringify({ code: "save10", type: "percent", value: 1000 }),
+          body: JSON.stringify({ code: "save10", name: "Save 10", type: "percent", value: 1000 }),
         }),
         env,
         ctx,
@@ -1050,6 +1055,39 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       expect(await bad({ type: "percent", value: 1000 })).toBe(400);
       expect(await bad({ code: "X", type: "bogus", value: 1000 })).toBe(400);
       expect(await bad({ code: "X", type: "fixed", value: 0 })).toBe(400);
+    });
+
+    it("POST /coupons > stores the admin name", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons", {
+          method: "POST",
+          body: JSON.stringify({
+            code: "SAVE10",
+            name: "Songkran promo",
+            type: "percent",
+            value: 1000,
+          }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      expect(insert?.binds).toContain("Songkran promo");
+    });
+
+    it("POST /coupons > 400 when the name is missing or blank", async () => {
+      const bad = async (body: unknown) =>
+        (
+          await worker.fetch!(
+            new Request("https://x/coupons", { method: "POST", body: JSON.stringify(body) }),
+            makeDb({ couponByCode: null }).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad({ code: "X", type: "fixed", value: 100 })).toBe(400); // no name
+      expect(await bad({ code: "X", name: "   ", type: "fixed", value: 100 })).toBe(400); // blank
     });
 
     it("PATCH /coupons/:id > uppercases a new code", async () => {

@@ -32,13 +32,6 @@ const cardLabel = {
 } as const;
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
-// Sub-heading for the groups inside the "Add a coupon" card (Setup / Schedule).
-const subLabel = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: "var(--text-muted)",
-  marginBottom: 8,
-} as const;
 
 const TrashIcon = () => (
   <svg
@@ -100,6 +93,7 @@ function CouponItem({
 
   return (
     <tr>
+      <td style={{ fontWeight: 600 }}>{coupon.name ?? "—"}</td>
       <td>
         <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>
           {coupon.code}
@@ -153,6 +147,7 @@ export default function CouponsPage() {
   const [coupons, setCoupons] = useState<CouponWithUsage[]>([]);
   const [loading, setLoading] = useState(true);
   const [code, setCode] = useState("");
+  const [name, setName] = useState("");
   const [type, setType] = useState<"percent" | "fixed">("percent");
   const [value, setValue] = useState("");
   const [minSubtotal, setMinSubtotal] = useState("");
@@ -167,7 +162,11 @@ export default function CouponsPage() {
 
   // Percent entered as % → basis points (×100); fixed entered as ฿ → satang (×100).
   const valueNum = Math.round((parseFloat(value) || 0) * 100);
-  const canAdd = code.trim() !== "" && valueNum > 0 && (type !== "percent" || valueNum <= 10000);
+  const canAdd =
+    name.trim() !== "" &&
+    code.trim() !== "" &&
+    valueNum > 0 &&
+    (type !== "percent" || valueNum <= 10000);
 
   async function load() {
     try {
@@ -190,6 +189,7 @@ export default function CouponsPage() {
     try {
       await addCoupon({
         code: code.trim().toUpperCase(),
+        name: name.trim(),
         type,
         value: valueNum,
         minSubtotalSatang: Math.round((parseFloat(minSubtotal) || 0) * 100),
@@ -202,6 +202,7 @@ export default function CouponsPage() {
       });
       toast("Coupon added", "success");
       setCode("");
+      setName("");
       setValue("");
       setMinSubtotal("");
       setStartDate("");
@@ -230,57 +231,76 @@ export default function CouponsPage() {
       <div style={cardStyle}>
         <div style={cardLabel}>Add a coupon</div>
         <form onSubmit={add} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Section — coupon setup */}
-          <div>
-            <div style={subLabel}>Setup</div>
+          {/* Coupon name — admin-only label (customers never see it), full width. */}
+          <div style={fieldCol}>
+            <span style={fieldLabel}>Coupon name</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name this coupon for your own reference — customers never see it"
+              aria-label="Coupon name"
+              style={{ ...inputS, width: "100%" }}
+            />
+          </div>
+
+          {/* Setup — grouped: (Type · Value)   —wider gap—   (Min spent · Max cap), then a second
+              row of (Code · Quota · Usage for user). */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 36, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                <div style={fieldCol}>
+                  <span style={fieldLabel}>Type</span>
+                  <select
+                    aria-label="Coupon type"
+                    value={type}
+                    onChange={(e) => setType(e.target.value as "percent" | "fixed")}
+                    style={inputS}
+                  >
+                    <option value="percent">Percent off</option>
+                    <option value="fixed">Baht off</option>
+                  </select>
+                </div>
+                <div style={fieldCol}>
+                  <span style={fieldLabel}>{type === "percent" ? "Value (%)" : "Value (฿)"}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={type === "percent" ? 100 : undefined}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder={type === "percent" ? "10" : "50"}
+                    style={{ ...inputS, width: 90 }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                <div style={fieldCol}>
+                  <span style={fieldLabel}>Min spent (฿)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={minSubtotal}
+                    onChange={(e) => setMinSubtotal(e.target.value)}
+                    placeholder="0"
+                    style={{ ...inputS, width: 110 }}
+                  />
+                </div>
+                <div style={fieldCol}>
+                  <span style={fieldLabel}>Max cap (฿)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={maxCap}
+                    onChange={(e) => setMaxCap(e.target.value)}
+                    placeholder="∞"
+                    title="Largest discount this coupon can ever give. Blank = no cap."
+                    style={{ ...inputS, width: 110 }}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div style={fieldCol}>
-                <span style={fieldLabel}>Type</span>
-                <select
-                  aria-label="Coupon type"
-                  value={type}
-                  onChange={(e) => setType(e.target.value as "percent" | "fixed")}
-                  style={inputS}
-                >
-                  <option value="percent">Percent off</option>
-                  <option value="fixed">Baht off</option>
-                </select>
-              </div>
-              <div style={fieldCol}>
-                <span style={fieldLabel}>{type === "percent" ? "Value (%)" : "Value (฿)"}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={type === "percent" ? 100 : undefined}
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  placeholder={type === "percent" ? "10" : "50"}
-                  style={{ ...inputS, width: 90 }}
-                />
-              </div>
-              <div style={fieldCol}>
-                <span style={fieldLabel}>Min spent (฿)</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={minSubtotal}
-                  onChange={(e) => setMinSubtotal(e.target.value)}
-                  placeholder="0"
-                  style={{ ...inputS, width: 110 }}
-                />
-              </div>
-              <div style={fieldCol}>
-                <span style={fieldLabel}>Max cap (฿)</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={maxCap}
-                  onChange={(e) => setMaxCap(e.target.value)}
-                  placeholder="∞"
-                  title="Largest discount this coupon can ever give. Blank = no cap."
-                  style={{ ...inputS, width: 110 }}
-                />
-              </div>
               <div style={fieldCol}>
                 <span style={fieldLabel}>Code</span>
                 <input
@@ -316,48 +336,45 @@ export default function CouponsPage() {
             </div>
           </div>
 
-          {/* Section — schedule (start / end date + time) */}
-          <div>
-            <div style={subLabel}>Schedule (optional)</div>
-            <div style={{ display: "flex", gap: 20, alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div style={fieldCol}>
-                <span style={fieldLabel}>Starts</span>
-                <span style={{ display: "flex", gap: 6 }}>
-                  <input
-                    type="date"
-                    aria-label="Start date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    style={inputS}
-                  />
-                  <input
-                    type="time"
-                    aria-label="Start time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    style={inputS}
-                  />
-                </span>
-              </div>
-              <div style={fieldCol}>
-                <span style={fieldLabel}>Ends</span>
-                <span style={{ display: "flex", gap: 6 }}>
-                  <input
-                    type="date"
-                    aria-label="End date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    style={inputS}
-                  />
-                  <input
-                    type="time"
-                    aria-label="End time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    style={inputS}
-                  />
-                </span>
-              </div>
+          {/* Schedule — start / end date + time (optional; blank = no bound). */}
+          <div style={{ display: "flex", gap: 20, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={fieldCol}>
+              <span style={fieldLabel}>Starts (optional)</span>
+              <span style={{ display: "flex", gap: 6 }}>
+                <input
+                  type="date"
+                  aria-label="Start date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={inputS}
+                />
+                <input
+                  type="time"
+                  aria-label="Start time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  style={inputS}
+                />
+              </span>
+            </div>
+            <div style={fieldCol}>
+              <span style={fieldLabel}>Ends (optional)</span>
+              <span style={{ display: "flex", gap: 6 }}>
+                <input
+                  type="date"
+                  aria-label="End date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={inputS}
+                />
+                <input
+                  type="time"
+                  aria-label="End time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  style={inputS}
+                />
+              </span>
             </div>
           </div>
 
@@ -385,6 +402,7 @@ export default function CouponsPage() {
             <table>
               <thead>
                 <tr>
+                  <th>Name</th>
                   <th>Code</th>
                   <th>Discount</th>
                   <th>Min spent</th>
