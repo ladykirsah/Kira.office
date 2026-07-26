@@ -632,11 +632,21 @@ export async function addCarModel(
 
 export async function deleteCarBrand(id: string): Promise<void> {
   const res = await apiFetch(`/car-fitment/brands/${id}`, { method: "DELETE" });
+  // The API answers 409 while product fitments still name this brand — surface it (don't blank them).
+  if (res.status === 409) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`${err.error ?? "still in use"} — remove it from those fitments first.`);
+  }
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
 export async function deleteCarModel(id: string): Promise<void> {
   const res = await apiFetch(`/car-fitment/models/${id}`, { method: "DELETE" });
+  // The API answers 409 while product fitments still name this model — surface it (don't blank them).
+  if (res.status === 409) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`${err.error ?? "still in use"} — remove it from those fitments first.`);
+  }
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 

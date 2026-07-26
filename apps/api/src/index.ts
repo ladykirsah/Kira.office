@@ -3316,6 +3316,51 @@ export async function countProductsUsingAttribute(
   return Number(row?.n ?? 0);
 }
 
+/**
+ * How many product fitments still reference this attribute. The complement of
+ * {@link countProductsUsingAttribute}: car_brands / car_models are referenced by product_fitments
+ * BY NAME (free text, see setProductFitments), not by a product FK. Deleting an in-use one would
+ * orphan those fitments the same silent way (no enforced FK in D1), so a delete must refuse.
+ *
+ * A model's name is unique only within its brand, so a car_model match is scoped by brand + model
+ * (a legacy model with no parent brand matches on model name alone). Returns 0 for other tables.
+ */
+export async function countFitmentsUsingAttribute(
+  db: D1Database,
+  table: string,
+  id: string,
+): Promise<number> {
+  if (table === "car_brands") {
+    const brand = await db
+      .prepare("SELECT name FROM car_brands WHERE id = ?")
+      .bind(id)
+      .first<{ name: string }>();
+    if (!brand?.name) return 0; // already gone → nothing can reference it
+    const row = await db
+      .prepare("SELECT COUNT(*) AS n FROM product_fitments WHERE car_brand = ?")
+      .bind(brand.name)
+      .first<{ n: number }>();
+    return Number(row?.n ?? 0);
+  }
+  if (table === "car_models") {
+    const model = await db
+      .prepare(
+        "SELECT m.name AS name, b.name AS brandName FROM car_models m LEFT JOIN car_brands b ON b.id = m.car_brand_id WHERE m.id = ?",
+      )
+      .bind(id)
+      .first<{ name: string; brandName: string | null }>();
+    if (!model?.name) return 0;
+    const row = await db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM product_fitments WHERE car_model = ? AND (? IS NULL OR car_brand = ?)",
+      )
+      .bind(model.name, model.brandName, model.brandName)
+      .first<{ n: number }>();
+    return Number(row?.n ?? 0);
+  }
+  return 0;
+}
+
 /** Remove an option. Callers must first ensure no product references it (see the DELETE route). */
 export async function deleteAttribute(db: D1Database, table: string, id: string): Promise<void> {
   await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
@@ -4746,8 +4791,11 @@ const worker = {
       if (!table) return json({ error: "unknown attribute kind" }, 404);
       // Deleting an in-use brand/type/system would silently blank it on every product (no enforced
       // FK in D1). Refuse with a count so the admin reassigns those products first — reassign, then
-      // delete. The admin client turns this 409 into a helpful message.
-      const inUse = await countProductsUsingAttribute(env.DB, table, attrDel[2]!);
+      // delete. The admin client turns this 409 into a helpful message. Car brands/models are
+      // referenced by fitments (by name) rather than a product FK, so check that path too.
+      const inUse =
+        (await countProductsUsingAttribute(env.DB, table, attrDel[2]!)) ||
+        (await countFitmentsUsingAttribute(env.DB, table, attrDel[2]!));
       if (inUse > 0) return json({ error: `still used by ${inUse} product(s)`, count: inUse }, 409);
       await deleteAttribute(env.DB, table, attrDel[2]!);
       return json({ ok: true });
@@ -4836,11 +4884,19 @@ const worker = {
     }
     const cfBrandDel = url.pathname.match(/^\/car-fitment\/brands\/([^/]+)$/);
     if (cfBrandDel && request.method === "DELETE") {
+      // A car brand deletes its models too (cascade) — refuse while any fitment still names it,
+      // or those fitments would be silently orphaned. The admin client turns this 409 into a message.
+      const inUse = await countFitmentsUsingAttribute(env.DB, "car_brands", cfBrandDel[1]!);
+      if (inUse > 0) return json({ error: `still used by ${inUse} fitment(s)`, count: inUse }, 409);
       await deleteCarBrand(env.DB, cfBrandDel[1]!);
       return json({ ok: true });
     }
     const cfModelDel = url.pathname.match(/^\/car-fitment\/models\/([^/]+)$/);
     if (cfModelDel && request.method === "DELETE") {
+      // Fitments name the model (not a product FK), so refuse while any still do — otherwise the
+      // model vanishes and those fitments show a blank vehicle. Reassign, then delete.
+      const inUse = await countFitmentsUsingAttribute(env.DB, "car_models", cfModelDel[1]!);
+      if (inUse > 0) return json({ error: `still used by ${inUse} fitment(s)`, count: inUse }, 409);
       await deleteAttribute(env.DB, "car_models", cfModelDel[1]!);
       return json({ ok: true });
     }
