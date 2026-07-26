@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { lookupBarcode } from "@/lib/api";
+import { lookupBarcode, holdStock, type HoldLineResult } from "@/lib/api";
+import { inputS } from "@/lib/inputStyles";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
 import { useToast } from "../ToastProvider";
@@ -31,7 +32,7 @@ const MODES: {
     icon: "⏸️",
     title: "On hold",
     desc: "Move stock to or from the hold.",
-    ready: false,
+    ready: true,
   },
   {
     key: "fill",
@@ -79,6 +80,8 @@ export default function ScanPage() {
         <AddMode />
       ) : mode === "view" ? (
         <ViewMode />
+      ) : mode === "hold" ? (
+        <HoldMode />
       ) : (
         <ComingSoon title={MODES.find((m) => m.key === mode)?.title ?? ""} />
       )}
@@ -197,6 +200,203 @@ function ViewMode() {
       <p className="muted" style={{ fontSize: 13 }}>
         Scanning opens the product in view mode.
       </p>
+    </div>
+  );
+}
+
+interface HoldRow {
+  variantId: string;
+  name: string;
+  productRef: string;
+  takeAway: string;
+  bringBack: string;
+  result?: HoldLineResult;
+}
+
+const numCell = { ...inputS, width: 78 } as const;
+
+/**
+ * On hold — a stock BUCKET, not a reservation. Scan several parts, then per row say how many to take
+ * away (on hand ↓, on hold ↑) or bring back (on hand ↑, on hold ↓), and submit once. Held stock stops
+ * counting as sellable everywhere — AirPlus, POS, the products table — because a hold is recorded as
+ * a negative ledger movement.
+ *
+ * Take-away defaults to 1 (the usual reason you scan here) and bring-back to 0: defaulting BOTH to 1
+ * would cancel out and silently do nothing.
+ */
+function HoldMode() {
+  const toast = useToast();
+  const [rows, setRows] = useState<HoldRow[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function add(code: string) {
+    try {
+      const found = await lookupBarcode(code);
+      if (!found) {
+        toast(`No product found for ${code}`, "error");
+        return;
+      }
+      setRows((prev) =>
+        // Re-scanning a part already in the list must not wipe amounts already typed for it.
+        prev.some((r) => r.variantId === found.variantId)
+          ? prev
+          : [
+              ...prev,
+              {
+                variantId: found.variantId,
+                name: found.name,
+                productRef: found.productRef,
+                takeAway: "1",
+                bringBack: "0",
+              },
+            ],
+      );
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  }
+
+  const setQty = (variantId: string, field: "takeAway" | "bringBack", value: string) =>
+    setRows((prev) =>
+      prev.map((r) =>
+        r.variantId === variantId ? { ...r, [field]: value, result: undefined } : r,
+      ),
+    );
+
+  const toCount = (s: string) => Math.max(0, Math.round(parseFloat(s) || 0));
+
+  async function submit() {
+    const lines = rows.map((r) => ({
+      productVariantId: r.variantId,
+      takeAway: toCount(r.takeAway),
+      bringBack: toCount(r.bringBack),
+    }));
+    if (lines.every((l) => l.takeAway === 0 && l.bringBack === 0)) {
+      toast("Nothing to move — set an amount first", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const results = await holdStock(lines);
+      setRows((prev) =>
+        prev.map((r) => ({ ...r, result: results.find((x) => x.variantId === r.variantId) })),
+      );
+      const moved = results.filter((r) => r.applied).length;
+      const rejected = results.filter((r) => !r.applied && r.reason !== "no change").length;
+      toast(
+        rejected ? `${moved} moved, ${rejected} rejected` : `${moved} moved`,
+        rejected ? "error" : "success",
+      );
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ maxWidth: 460 }}>
+        <ScanInput
+          onScan={add}
+          buttonLabel="Add"
+          placeholder="Scan parts to move…"
+          disabled={busy}
+        />
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Scan one or more parts. Stock on hold is paused — it is not sold on AirPlus or at the
+          counter until it is brought back.
+        </p>
+      ) : (
+        <>
+          <div style={{ ...card, display: "grid", gap: 4 }}>
+            {rows.map((r, i) => (
+              <div
+                key={r.variantId}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-end",
+                  flexWrap: "wrap",
+                  paddingTop: 10,
+                  borderTop: i === 0 ? undefined : "1px solid var(--border)",
+                }}
+              >
+                <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={r.name}
+                  >
+                    {r.name}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {r.productRef}
+                  </div>
+                </div>
+                <label style={{ display: "grid", gap: 3 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>
+                    Take away
+                  </span>
+                  <input
+                    value={r.takeAway}
+                    onChange={(e) => setQty(r.variantId, "takeAway", e.target.value)}
+                    inputMode="numeric"
+                    aria-label={`Take away ${r.name}`}
+                    style={numCell}
+                  />
+                </label>
+                <label style={{ display: "grid", gap: 3 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>
+                    Bring back
+                  </span>
+                  <input
+                    value={r.bringBack}
+                    onChange={(e) => setQty(r.variantId, "bringBack", e.target.value)}
+                    inputMode="numeric"
+                    aria-label={`Bring back ${r.name}`}
+                    style={numCell}
+                  />
+                </label>
+                <div style={{ fontSize: 12, flex: "1 1 150px" }}>
+                  {r.result ? (
+                    r.result.applied ? (
+                      <span style={{ color: "var(--ok)" }}>
+                        on hand {r.result.sellableAfter} · on hold {r.result.heldAfter}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--danger)" }}>{r.result.reason}</span>
+                    )
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRows((p) => p.filter((x) => x.variantId !== r.variantId))}
+                  disabled={busy}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="btn-primary" onClick={submit} disabled={busy}>
+              Submit
+            </button>
+            <button type="button" onClick={() => setRows([])} disabled={busy}>
+              Clear
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

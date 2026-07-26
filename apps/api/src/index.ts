@@ -23,6 +23,7 @@ import {
   type ShopProfile,
   anonymizeStorefrontCustomer,
   retryRead,
+  planHoldMovement,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -693,6 +694,11 @@ export class StockLedger extends DurableObject<Env> {
 
   async applyAdjustment(adj: StockAdjustment): Promise<AdjustmentResult> {
     return applyAdjustmentToDb(this.env.DB, adj);
+  }
+
+  /** Scan here › On hold — move stock between sellable and the hold bucket. */
+  async applyHold(lines: HoldLine[]): Promise<HoldLineResult[]> {
+    return applyHoldToDb(this.env.DB, lines);
   }
 
   async refundSale(saleId: string): Promise<RefundResult> {
@@ -1574,6 +1580,133 @@ export async function applyAdjustmentToDb(
     )
     .run();
   return { variantId: adj.productVariantId, quantityAfter: after, applied: true };
+}
+
+export interface HoldLine {
+  productVariantId: string;
+  /** Box 1 — move this many from sellable into the hold. */
+  takeAway: number;
+  /** Box 2 — move this many from the hold back into sellable. */
+  bringBack: number;
+}
+
+export interface HoldLineResult {
+  variantId: string;
+  applied: boolean;
+  reason?: string;
+  /** Sellable after this line — the number every availability query reads. */
+  sellableAfter: number;
+  heldAfter: number;
+}
+
+/**
+ * Net quantity currently on hold for a variant. Take-aways are stored as NEGATIVE deltas and
+ * bring-backs as POSITIVE ones, so the net still-held amount is the negated sum of those two types.
+ */
+async function readHeldForVariant(db: D1Database, variantId: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COALESCE(SUM(quantity_delta), 0) AS net FROM stock_ledger_entries
+       WHERE product_variant_id = ? AND movement_type IN ('hold', 'unhold')`,
+    )
+    .bind(variantId)
+    .first<{ net: number }>();
+  // Held deltas are negative in the ledger, so the net still-held is their negated sum. Guard the
+  // zero case so a variant with no holds reports +0, never -0.
+  const rawSum = Number(row?.net ?? 0);
+  return rawSum === 0 ? 0 : -rawSum;
+}
+
+/**
+ * Move stock between "sellable" and "on hold" for one or more variants (Scan here › On hold).
+ *
+ * Holds are ordinary ledger movements with a NEGATIVE delta, so the unfiltered SUM(quantity_delta)
+ * that every availability query already computes automatically stops counting held stock as
+ * sellable — no availability query has to know holds exist, which is what keeps this from
+ * re-introducing the oversell class of bug. Bring-backs are the positive mirror.
+ *
+ * Each line is planned against a read taken inside this write path (never a client-side number) and
+ * lines are independent — one bad quantity doesn't discard the rest of a scanned batch. Runs through
+ * the StockLedger Durable Object so holds serialize against sales and adjustments.
+ */
+export async function applyHoldToDb(db: D1Database, lines: HoldLine[]): Promise<HoldLineResult[]> {
+  const results: HoldLineResult[] = [];
+  for (const line of lines) {
+    const row = await db
+      .prepare(
+        "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+      )
+      .bind(line.productVariantId)
+      .first<{ onHand: number }>();
+    const sellable = Number(row?.onHand ?? 0);
+    const held = await readHeldForVariant(db, line.productVariantId);
+
+    const plan = planHoldMovement({
+      sellable,
+      held,
+      takeAway: line.takeAway,
+      bringBack: line.bringBack,
+    });
+    if (!plan.ok) {
+      results.push({
+        variantId: line.productVariantId,
+        applied: false,
+        reason: plan.error ?? "invalid amounts",
+        sellableAfter: sellable,
+        heldAfter: held,
+      });
+      continue;
+    }
+    if (plan.holdDelta === 0 && plan.unholdDelta === 0) {
+      results.push({
+        variantId: line.productVariantId,
+        applied: false,
+        reason: "no change",
+        sellableAfter: sellable,
+        heldAfter: held,
+      });
+      continue;
+    }
+
+    // quantity_after threads the running ledger sum, so each entry records the sellable it produced.
+    const now = Date.now();
+    const statements: D1PreparedStatement[] = [];
+    let running = sellable;
+    const entry = (movementType: string, delta: number, after: number) =>
+      db
+        .prepare(
+          `INSERT INTO stock_ledger_entries
+             (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type, reason, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          line.productVariantId,
+          movementType,
+          delta,
+          after,
+          "manual",
+          movementType === "hold" ? "put on hold" : "brought back from hold",
+          now,
+        );
+    if (plan.holdDelta !== 0) {
+      running += plan.holdDelta;
+      statements.push(entry("hold", plan.holdDelta, running));
+    }
+    if (plan.unholdDelta !== 0) {
+      running += plan.unholdDelta;
+      statements.push(entry("unhold", plan.unholdDelta, running));
+    }
+    await db.batch(statements);
+
+    results.push({
+      variantId: line.productVariantId,
+      applied: true,
+      sellableAfter: plan.sellableAfter,
+      heldAfter: plan.heldAfter,
+    });
+  }
+  return results;
 }
 
 export interface RefundResult {
@@ -2602,7 +2735,10 @@ export interface ProductDetail {
   };
   variantId: string | null;
   barcode: string | null;
+  /** Sellable stock. Held stock is already excluded (holds are negative ledger deltas). */
   onHand: number;
+  /** Net quantity currently on hold — paused, not for sale. */
+  held: number;
   fitments: Fitment[];
   pricing: {
     itemCostSatang: number;
@@ -2662,6 +2798,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
       .first<{ onHand: number }>();
     onHand = Number(row?.onHand ?? 0);
   }
+  const held = variant ? await readHeldForVariant(db, variant.id) : 0;
   const { results: images } = await db
     .prepare(
       "SELECT id, image_key AS imageKey, sort_order AS sortOrder, is_cover AS isCover FROM product_images WHERE product_id = ? ORDER BY sort_order",
@@ -2679,6 +2816,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
     variantId: variant?.id ?? null,
     barcode: variant?.barcode ?? null,
     onHand,
+    held,
     fitments,
     pricing,
     images,
@@ -4217,6 +4355,26 @@ const worker = {
           reason: body.reason,
         }),
       );
+    }
+
+    // Holds get their own endpoint rather than a movementType on /stock/adjust: the manual endpoint
+    // deliberately refuses non-manual movement types, and hold/unhold carry their own invariants.
+    if (url.pathname === "/stock/hold" && request.method === "POST") {
+      const body = await readJson<{ lines?: HoldLine[] }>(request);
+      const lines = Array.isArray(body?.lines) ? body.lines : [];
+      if (lines.length === 0) return json({ error: "lines[] is required" }, 400);
+      const malformed = lines.some(
+        (l) =>
+          !l?.productVariantId || typeof l.takeAway !== "number" || typeof l.bringBack !== "number",
+      );
+      if (malformed) {
+        return json(
+          { error: "each line needs productVariantId and numeric takeAway / bringBack" },
+          400,
+        );
+      }
+      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      return json({ results: await stub.applyHold(lines) });
     }
 
     const refundMatch = url.pathname.match(/^\/sales\/([^/]+)\/refund$/);
