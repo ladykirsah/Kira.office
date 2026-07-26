@@ -42,8 +42,8 @@ function ConsentPill({ at, label }: { at: number | null; label: string }) {
         borderRadius: 999,
         fontSize: 12,
         border: "1px solid var(--border)",
-        background: given ? "var(--ok-bg, #e8f5e9)" : "transparent",
-        color: given ? "var(--ok-fg, #1b5e20)" : "var(--muted)",
+        background: given ? "color-mix(in srgb, var(--ok) 16%, transparent)" : "transparent",
+        color: given ? "var(--ok)" : "var(--text-muted)",
       }}
       title={given ? `${label}: ${dateTime(at)}` : `${label}: no record`}
     >
@@ -193,7 +193,7 @@ function Detail({
       </TableFrame>
 
       <h3 style={{ margin: "24px 0 10px" }}>PDPA erasure</h3>
-      <div style={{ ...frame, borderColor: erased ? "var(--border)" : "var(--danger, #c62828)" }}>
+      <div style={{ ...frame, borderColor: erased ? "var(--border)" : "var(--danger)" }}>
         {erased ? (
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
             Erased on {dateTime(c.anonymizedAt)}. Their orders were kept — the law requires us to

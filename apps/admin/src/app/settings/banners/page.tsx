@@ -506,7 +506,7 @@ function AddBannerForm({
       )}
 
       {error && (
-        <p role="alert" style={{ color: "var(--danger, #bf3c1d)", fontSize: 12, margin: 0 }}>
+        <p role="alert" style={{ color: "var(--danger)", fontSize: 12, margin: 0 }}>
           {error}
         </p>
       )}

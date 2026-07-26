@@ -49,8 +49,8 @@ export function BusinessTabs({
               fontWeight: 600,
               fontSize: 14,
               cursor: disabled ? "not-allowed" : "pointer",
-              border: `1px solid ${active ? "var(--accent, #bf3c1d)" : "var(--border)"}`,
-              background: active ? "var(--accent, #bf3c1d)" : "var(--surface)",
+              border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+              background: active ? "var(--primary)" : "var(--surface)",
               color: active ? "#fff" : "var(--text)",
               opacity: dimInactive && !active ? 0.5 : 1,
             }}
