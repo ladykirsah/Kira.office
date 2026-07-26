@@ -78,7 +78,7 @@ export default function PaymentPage() {
         setSlipVerifyEnabled(v.slipVerifyEnabled);
       })
       .catch((e) => setError((e as Error).message));
-  }, []);
+  }, [reloadShop]);
 
   async function refreshPayments() {
     const v = await fetchPayments();
