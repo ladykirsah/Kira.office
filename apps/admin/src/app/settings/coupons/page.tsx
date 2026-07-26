@@ -13,6 +13,7 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
+import { dateTimeToMs } from "@/lib/couponSchedule";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -31,11 +32,13 @@ const cardLabel = {
 } as const;
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
-
-// datetime-local value ↔ epoch ms; "" ↔ null (no window bound).
-function inputToMs(v: string): number | null {
-  return v ? new Date(v).getTime() : null;
-}
+// Sub-heading for the groups inside the "Add a coupon" card (Setup / Schedule).
+const subLabel = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--text-muted)",
+  marginBottom: 8,
+} as const;
 
 const TrashIcon = () => (
   <svg
@@ -153,8 +156,10 @@ export default function CouponsPage() {
   const [type, setType] = useState<"percent" | "fixed">("percent");
   const [value, setValue] = useState("");
   const [minSubtotal, setMinSubtotal] = useState("");
-  const [starts, setStarts] = useState("");
-  const [ends, setEnds] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [maxUses, setMaxUses] = useState("");
   const [perCustomer, setPerCustomer] = useState("1");
   const [maxCap, setMaxCap] = useState("");
@@ -188,8 +193,8 @@ export default function CouponsPage() {
         type,
         value: valueNum,
         minSubtotalSatang: Math.round((parseFloat(minSubtotal) || 0) * 100),
-        startsAt: inputToMs(starts),
-        endsAt: inputToMs(ends),
+        startsAt: dateTimeToMs(startDate, startTime),
+        endsAt: dateTimeToMs(endDate, endTime),
         maxUses: maxUses.trim() ? Math.max(1, Math.round(parseFloat(maxUses))) : null,
         maxUsesPerCustomer: Math.max(1, Math.round(parseFloat(perCustomer) || 1)),
         // Blank = uncapped, so an empty box must send null rather than a 0 that would zero every discount.
@@ -199,8 +204,10 @@ export default function CouponsPage() {
       setCode("");
       setValue("");
       setMinSubtotal("");
-      setStarts("");
-      setEnds("");
+      setStartDate("");
+      setStartTime("");
+      setEndDate("");
+      setEndTime("");
       setMaxUses("");
       setPerCustomer("1");
       setMaxCap("");
@@ -222,108 +229,143 @@ export default function CouponsPage() {
       {/* Frame 1 — add a coupon */}
       <div style={cardStyle}>
         <div style={cardLabel}>Add a coupon</div>
-        <form
-          onSubmit={add}
-          style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}
-        >
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Code</span>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="WELCOME10"
-              style={{ ...inputS, width: 130, textTransform: "uppercase" }}
-            />
+        <form onSubmit={add} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Section — coupon setup */}
+          <div>
+            <div style={subLabel}>Setup</div>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Type</span>
+                <select
+                  aria-label="Coupon type"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as "percent" | "fixed")}
+                  style={inputS}
+                >
+                  <option value="percent">Percent off</option>
+                  <option value="fixed">Baht off</option>
+                </select>
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>{type === "percent" ? "Value (%)" : "Value (฿)"}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={type === "percent" ? 100 : undefined}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={type === "percent" ? "10" : "50"}
+                  style={{ ...inputS, width: 90 }}
+                />
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Min spent (฿)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={minSubtotal}
+                  onChange={(e) => setMinSubtotal(e.target.value)}
+                  placeholder="0"
+                  style={{ ...inputS, width: 110 }}
+                />
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Max cap (฿)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={maxCap}
+                  onChange={(e) => setMaxCap(e.target.value)}
+                  placeholder="∞"
+                  title="Largest discount this coupon can ever give. Blank = no cap."
+                  style={{ ...inputS, width: 110 }}
+                />
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Code</span>
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="WELCOME10"
+                  style={{ ...inputS, width: 130, textTransform: "uppercase" }}
+                />
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Quota</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={maxUses}
+                  onChange={(e) => setMaxUses(e.target.value)}
+                  placeholder="∞"
+                  title="Total redemptions allowed across all customers. Blank = unlimited."
+                  style={{ ...inputS, width: 74 }}
+                />
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Usage for user</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={perCustomer}
+                  onChange={(e) => setPerCustomer(e.target.value)}
+                  title="How many times one customer may use this coupon."
+                  style={{ ...inputS, width: 74 }}
+                />
+              </div>
+            </div>
           </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Type</span>
-            <select
-              aria-label="Coupon type"
-              value={type}
-              onChange={(e) => setType(e.target.value as "percent" | "fixed")}
-              style={inputS}
-            >
-              <option value="percent">Percent off</option>
-              <option value="fixed">Baht off</option>
-            </select>
+
+          {/* Section — schedule (start / end date + time) */}
+          <div>
+            <div style={subLabel}>Schedule (optional)</div>
+            <div style={{ display: "flex", gap: 20, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Starts</span>
+                <span style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="date"
+                    aria-label="Start date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    style={inputS}
+                  />
+                  <input
+                    type="time"
+                    aria-label="Start time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    style={inputS}
+                  />
+                </span>
+              </div>
+              <div style={fieldCol}>
+                <span style={fieldLabel}>Ends</span>
+                <span style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="date"
+                    aria-label="End date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    style={inputS}
+                  />
+                  <input
+                    type="time"
+                    aria-label="End time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    style={inputS}
+                  />
+                </span>
+              </div>
+            </div>
           </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>{type === "percent" ? "Value (%)" : "Value (฿)"}</span>
-            <input
-              type="number"
-              min={0}
-              max={type === "percent" ? 100 : undefined}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={type === "percent" ? "10" : "50"}
-              style={{ ...inputS, width: 90 }}
-            />
+
+          <div>
+            <button type="submit" className="btn-primary btn-sm" disabled={busy || !canAdd}>
+              Add
+            </button>
           </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Min subtotal (฿)</span>
-            <input
-              type="number"
-              min={0}
-              value={minSubtotal}
-              onChange={(e) => setMinSubtotal(e.target.value)}
-              placeholder="0"
-              style={{ ...inputS, width: 110 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Max cap (฿)</span>
-            <input
-              type="number"
-              min={0}
-              value={maxCap}
-              onChange={(e) => setMaxCap(e.target.value)}
-              placeholder="∞"
-              title="Largest discount this coupon can ever give. Blank = no cap."
-              style={{ ...inputS, width: 110 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Starts (optional)</span>
-            <input
-              type="datetime-local"
-              value={starts}
-              onChange={(e) => setStarts(e.target.value)}
-              style={inputS}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Ends (optional)</span>
-            <input
-              type="datetime-local"
-              value={ends}
-              onChange={(e) => setEnds(e.target.value)}
-              style={inputS}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Max uses</span>
-            <input
-              type="number"
-              min={1}
-              value={maxUses}
-              onChange={(e) => setMaxUses(e.target.value)}
-              placeholder="∞"
-              style={{ ...inputS, width: 74 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Per customer</span>
-            <input
-              type="number"
-              min={1}
-              value={perCustomer}
-              onChange={(e) => setPerCustomer(e.target.value)}
-              style={{ ...inputS, width: 74 }}
-            />
-          </div>
-          <button type="submit" className="btn-primary btn-sm" disabled={busy || !canAdd}>
-            Add
-          </button>
         </form>
       </div>
 
@@ -345,10 +387,10 @@ export default function CouponsPage() {
                 <tr>
                   <th>Code</th>
                   <th>Discount</th>
-                  <th>Min subtotal</th>
+                  <th>Min spent</th>
                   <th>Window</th>
                   <th>Used</th>
-                  <th>Per customer</th>
+                  <th>Usage for user</th>
                   <th>Active</th>
                   <th aria-label="Actions" />
                 </tr>
