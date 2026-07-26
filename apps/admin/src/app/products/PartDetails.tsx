@@ -3,6 +3,11 @@
 import type { CSSProperties } from "react";
 import type { Attributes } from "@/lib/api";
 import { inputL } from "@/lib/inputStyles";
+import {
+  categoryNamesForSystem,
+  systemChangePatch,
+  categoryPickPatch,
+} from "@/lib/categoryCascade";
 import { Combobox } from "./Combobox";
 import { BarcodePreview } from "./BarcodePreview";
 
@@ -85,7 +90,7 @@ export function PartDetails({
           Match car system
           <Combobox
             value={value.usage}
-            onChange={(v) => onChange({ usage: v })}
+            onChange={(v) => onChange(systemChangePatch(attributes, v, value.type))}
             options={names(attributes?.usages)}
             placeholder="e.g. A/C"
           />
@@ -94,14 +99,15 @@ export function PartDetails({
           Part name
           <Combobox
             value={value.type}
-            onChange={(v) => onChange({ type: v })}
-            options={names(attributes?.types)}
+            onChange={(v) => onChange(categoryPickPatch(attributes, v, value.usage))}
+            options={categoryNamesForSystem(attributes, value.usage)}
             placeholder="e.g. Evaporator"
           />
         </label>
       </div>
       <small className="muted">
-        Category: {composed || "—"} · pick from the list or type a new value to add it.
+        Category: {composed || "—"} · pick the car system first — the part list filters to it (or
+        type a new value to add it under that system).
       </small>
 
       {/* The Product ID is the single identifier — type it, or scan the part's barcode (which encodes

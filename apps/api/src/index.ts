@@ -3300,6 +3300,7 @@ export async function addAttribute(
   db: D1Database,
   table: string,
   name: string,
+  opts?: { usageId?: string | null },
 ): Promise<AttrOption> {
   const n = name.trim();
   if (!n) throw new Error("name is required");
@@ -3309,10 +3310,22 @@ export async function addAttribute(
     .first<AttrOption>();
   if (existing) return existing;
   const optionId = crypto.randomUUID();
-  await db
-    .prepare(`INSERT INTO ${table} (id, name, sort_order, created_at) VALUES (?, ?, 0, ?)`)
-    .bind(optionId, n, Date.now())
-    .run();
+  // Product categories carry a car-system link (migration 0064); one created here — e.g. typed fresh
+  // on Add product — inherits the selected system. Existing rows return above untouched: their system
+  // is owned by Settings → Part attributes. Other tables have no usage_id column.
+  if (table === "product_types" && opts?.usageId) {
+    await db
+      .prepare(
+        `INSERT INTO product_types (id, name, sort_order, usage_id, created_at) VALUES (?, ?, 0, ?, ?)`,
+      )
+      .bind(optionId, n, opts.usageId, Date.now())
+      .run();
+  } else {
+    await db
+      .prepare(`INSERT INTO ${table} (id, name, sort_order, created_at) VALUES (?, ?, 0, ?)`)
+      .bind(optionId, n, Date.now())
+      .run();
+  }
   return { id: optionId, name: n };
 }
 
@@ -3493,10 +3506,11 @@ export async function resolveAttribute(
   db: D1Database,
   table: string,
   name: string | null | undefined,
+  opts?: { usageId?: string | null },
 ): Promise<string | null> {
   const n = (name ?? "").trim();
   if (!n) return null;
-  return (await addAttribute(db, table, n)).id;
+  return (await addAttribute(db, table, n, opts)).id;
 }
 
 /** A car model plus its service notes, as returned in the fitment tree. */
@@ -5051,7 +5065,9 @@ const worker = {
       }
       const brandId = await resolveAttribute(env.DB, "brands", body.brandName);
       const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
-      const typeId = await resolveAttribute(env.DB, "product_types", body.typeName);
+      // Product categories are a subset of car systems (migration 0064): a brand-new category typed on
+      // Add product is created under the selected system. An existing category keeps its own system.
+      const typeId = await resolveAttribute(env.DB, "product_types", body.typeName, { usageId });
       const category =
         [body.brandName, body.usageName, body.typeName]
           .map((s) => s?.trim())
@@ -5107,10 +5123,11 @@ const worker = {
         return json({ error: "name and status are required" }, 400);
       }
       // Creatable dropdowns: resolve typed/selected names to option ids (creating new ones), and
-      // compose a human-readable category (brand · system · part) for the list/search view.
+      // compose a human-readable category (brand · system · part) for the list/search view. A new
+      // category inherits the selected car system (migration 0064); existing ones keep theirs.
       const brandId = await resolveAttribute(env.DB, "brands", body.brandName);
       const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
-      const typeId = await resolveAttribute(env.DB, "product_types", body.typeName);
+      const typeId = await resolveAttribute(env.DB, "product_types", body.typeName, { usageId });
       const category =
         [body.brandName, body.usageName, body.typeName]
           .map((s) => s?.trim())

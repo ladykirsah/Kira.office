@@ -3509,6 +3509,22 @@ describe("part attributes (brand / car system / part name)", () => {
     expect(await resolveAttribute(db, "brands", "   ")).toBeNull();
   });
 
+  it("addAttribute sets usage_id when creating a NEW product_types row under a car system", async () => {
+    const { db, runs } = makeDb({ attrOption: null });
+    const out = await addAttribute(db, "product_types", "Evaporator", { usageId: "u-ac" });
+    expect(out.name).toBe("Evaporator");
+    const ins = runs.find((r) => r.sql.includes("INSERT INTO product_types"));
+    expect(ins).toBeTruthy();
+    expect(ins!.binds).toContain("u-ac");
+  });
+
+  it("addAttribute leaves an EXISTING category's usage_id untouched (Settings owns it)", async () => {
+    const { db, runs } = makeDb({ attrOption: { id: "t1", name: "Evaporator" } });
+    const out = await addAttribute(db, "product_types", "evaporator", { usageId: "u-other" });
+    expect(out).toEqual({ id: "t1", name: "Evaporator" });
+    expect(runs.some((r) => r.sql.includes("INSERT INTO product_types"))).toBe(false);
+  });
+
   it("GET /attributes returns the lists", async () => {
     const { env } = makeDb({ brands: [{ id: "b1", name: "DENSO" }] });
     const res = await worker.fetch!(new Request("https://x/attributes"), env, ctx);
