@@ -23,7 +23,10 @@ export interface ProductRow {
   itemCostSatang: number;
   onlineCommissionBp: number;
   taxOnCost: number;
+  /** Sellable stock (held already excluded). */
   onHand: number;
+  /** Net quantity on hold (paused, not for sale). */
+  held: number;
 }
 
 export async function fetchProducts(): Promise<ProductRow[]> {

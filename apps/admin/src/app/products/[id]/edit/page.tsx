@@ -301,7 +301,9 @@ export default function EditProductPage() {
                   style={{ ...inputS, width: 140 }}
                 />
                 <small className="muted">
-                  now {detail.onHand ?? 0} · change logged as adjustment
+                  now {detail.onHand ?? 0} sellable
+                  {detail.held > 0 ? ` · ${detail.held} on hold, separate` : ""} · change logged as
+                  adjustment
                 </small>
               </label>
               <label style={field}>

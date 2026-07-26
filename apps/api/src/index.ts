@@ -683,26 +683,32 @@ export async function applyOnlineSaleToDb(
  * one at a time, so oversell races can't occur. See docs/CLOUDFLARE_ARCHITECTURE.md.
  */
 export class StockLedger extends DurableObject<Env> {
+  // Every stock mutation is a read-then-write over D1 (SUM the ledger, then INSERT). The runtime's
+  // automatic input gate only serializes DO *storage*, NOT env.DB (D1), so two concurrent RPCs could
+  // otherwise interleave their reads and each write against the same stale sum — an oversell race.
+  // blockConcurrencyWhile blocks delivery of every other event until the callback resolves, making
+  // this DO the genuine single serialized writer its contract promises. Reads route through it too,
+  // so an availability read can't slip between a mutation's own read and write.
   async applySync(sales: SyncSale[]): Promise<SyncResult> {
-    return applySyncToDb(this.env.DB, sales);
+    return this.ctx.blockConcurrencyWhile(() => applySyncToDb(this.env.DB, sales));
   }
 
   /** AirPlus storefront checkout calls this via a cross-Worker DO binding (script_name). */
   async applyOnlineSale(orderId: string, lines: OnlineSaleLine[]): Promise<OnlineSaleApplyResult> {
-    return applyOnlineSaleToDb(this.env.DB, orderId, lines);
+    return this.ctx.blockConcurrencyWhile(() => applyOnlineSaleToDb(this.env.DB, orderId, lines));
   }
 
   async applyAdjustment(adj: StockAdjustment): Promise<AdjustmentResult> {
-    return applyAdjustmentToDb(this.env.DB, adj);
+    return this.ctx.blockConcurrencyWhile(() => applyAdjustmentToDb(this.env.DB, adj));
   }
 
   /** Scan here › On hold — move stock between sellable and the hold bucket. */
   async applyHold(lines: HoldLine[]): Promise<HoldLineResult[]> {
-    return applyHoldToDb(this.env.DB, lines);
+    return this.ctx.blockConcurrencyWhile(() => applyHoldToDb(this.env.DB, lines));
   }
 
   async refundSale(saleId: string): Promise<RefundResult> {
-    return refundSaleToDb(this.env.DB, saleId);
+    return this.ctx.blockConcurrencyWhile(() => refundSaleToDb(this.env.DB, saleId));
   }
 }
 
@@ -1859,7 +1865,13 @@ async function listProducts(env: Env): Promise<Response> {
             COALESCE(
               (SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id),
               0
-            ) AS onHand
+            ) AS onHand,
+            -- Net held (paused, not sellable): holds are negative deltas, so negate their sum.
+            -COALESCE(
+              (SELECT SUM(quantity_delta) FROM stock_ledger_entries
+                 WHERE product_variant_id = v.id AND movement_type IN ('hold', 'unhold')),
+              0
+            ) AS held
      FROM products p
      LEFT JOIN brands b ON b.id = p.brand_id
      LEFT JOIN product_types t ON t.id = p.type_id

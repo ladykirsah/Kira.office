@@ -28,6 +28,8 @@ const MOVEMENT_LABELS: Record<string, string> = {
   refund: "Refund / return",
   damaged_lost: "Damaged / lost",
   transfer: "Transfer",
+  hold: "Put on hold",
+  unhold: "Brought back from hold",
   reconciliation: "Reconciliation",
 };
 
