@@ -2,8 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { lookupBarcode, holdStock, adjustStock, type HoldLineResult } from "@/lib/api";
+import {
+  lookupBarcode,
+  holdStock,
+  adjustStock,
+  getProductDetail,
+  saveDraft,
+  type HoldLineResult,
+} from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
+import { formatBaht } from "@/lib/format";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
 import { useToast } from "../ToastProvider";
@@ -41,7 +49,7 @@ const MODES: {
     desc: "Receive stock into on hand.",
     ready: true,
   },
-  { key: "pos", icon: "🧾", title: "POS", desc: "Scan items to build a bill.", ready: false },
+  { key: "pos", icon: "🧾", title: "POS", desc: "Scan items to build a bill.", ready: true },
 ];
 
 const card = {
@@ -84,6 +92,8 @@ export default function ScanPage() {
         <HoldMode />
       ) : mode === "fill" ? (
         <FillMode />
+      ) : mode === "pos" ? (
+        <PosMode />
       ) : (
         <ComingSoon title={MODES.find((m) => m.key === mode)?.title ?? ""} />
       )}
@@ -577,6 +587,186 @@ function FillMode() {
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="btn-primary" onClick={submit} disabled={busy}>
               Submit
+            </button>
+            <button type="button" onClick={() => setRows([])} disabled={busy}>
+              Clear
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface PosRow {
+  variantId: string;
+  name: string;
+  productRef: string;
+  unitPriceSatang: number;
+  unitCostSatang: number;
+  qty: string;
+}
+
+/**
+ * POS — scan several parts into a matched, priced list, then Create bill hands off to /pos with the
+ * cart already filled (via a parked draft opened at /pos?draft=<id>). Prices are the on-site B2C
+ * price; the owner reviews and finalizes in /pos (which re-prices server-side at checkout), so this
+ * page never takes money itself.
+ */
+function PosMode() {
+  const router = useRouter();
+  const toast = useToast();
+  const [rows, setRows] = useState<PosRow[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const toCount = (s: string) => Math.max(0, Math.round(parseFloat(s) || 0));
+
+  async function add(code: string) {
+    setBusy(true);
+    try {
+      const found = await lookupBarcode(code);
+      if (!found) {
+        toast(`No product found for ${code}`, "error");
+        return;
+      }
+      // Price comes from the product's own pricing, so it isn't capped by the products-list limit.
+      const detail = await getProductDetail(found.productId).catch(() => null);
+      setRows((prev) => {
+        // Re-scanning an item already in the cart bumps its quantity — the usual till behaviour.
+        if (prev.some((r) => r.variantId === found.variantId)) {
+          return prev.map((r) =>
+            r.variantId === found.variantId ? { ...r, qty: String(toCount(r.qty) + 1) } : r,
+          );
+        }
+        return [
+          ...prev,
+          {
+            variantId: found.variantId,
+            name: found.name,
+            productRef: found.productRef,
+            unitPriceSatang: detail?.pricing?.targetPriceSatang ?? 0,
+            unitCostSatang: detail?.pricing?.itemCostSatang ?? 0,
+            qty: "1",
+          },
+        ];
+      });
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const setQty = (variantId: string, value: string) =>
+    setRows((prev) => prev.map((r) => (r.variantId === variantId ? { ...r, qty: value } : r)));
+
+  const totalSatang = rows.reduce((sum, r) => sum + r.unitPriceSatang * toCount(r.qty), 0);
+
+  async function createBill() {
+    const lines = rows
+      .map((r) => ({
+        productVariantId: r.variantId,
+        lineType: "part" as const,
+        description: r.name,
+        barcodeValue: r.productRef,
+        quantity: toCount(r.qty),
+        unitPriceSatang: r.unitPriceSatang,
+        unitCostSatang: r.unitCostSatang,
+      }))
+      .filter((l) => l.quantity > 0);
+    if (lines.length === 0) {
+      toast("Scan at least one item first", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const draftId = crypto.randomUUID();
+      await saveDraft({ draftId, stage: "draft", saleType: "parts", lines });
+      router.push(`/pos?draft=${draftId}`);
+    } catch (err) {
+      toast((err as Error).message, "error");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ maxWidth: 460 }}>
+        <ScanInput
+          onScan={add}
+          buttonLabel="Add"
+          placeholder="Scan items to bill…"
+          disabled={busy}
+        />
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Scan the parts to sell. Create bill opens the till with them already in the cart, ready to
+          finalize.
+        </p>
+      ) : (
+        <>
+          <div style={{ ...card, display: "grid", gap: 4 }}>
+            {rows.map((r, i) => (
+              <div
+                key={r.variantId}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-end",
+                  flexWrap: "wrap",
+                  paddingTop: 10,
+                  borderTop: i === 0 ? undefined : "1px solid var(--border)",
+                }}
+              >
+                <div style={{ minWidth: 0, flex: "1 1 180px" }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={r.name}
+                  >
+                    {r.name}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {r.productRef} · {formatBaht(r.unitPriceSatang)}
+                  </div>
+                </div>
+                <label style={{ display: "grid", gap: 3 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>
+                    Qty
+                  </span>
+                  <input
+                    value={r.qty}
+                    onChange={(e) => setQty(r.variantId, e.target.value)}
+                    inputMode="numeric"
+                    aria-label={`Quantity ${r.name}`}
+                    style={numCell}
+                  />
+                </label>
+                <div style={{ width: 90, textAlign: "right", fontWeight: 600 }}>
+                  {formatBaht(r.unitPriceSatang * toCount(r.qty))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRows((p) => p.filter((x) => x.variantId !== r.variantId))}
+                  disabled={busy}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700 }}>Total {formatBaht(totalSatang)}</span>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn-primary" onClick={createBill} disabled={busy}>
+              Create bill
             </button>
             <button type="button" onClick={() => setRows([])} disabled={busy}>
               Clear

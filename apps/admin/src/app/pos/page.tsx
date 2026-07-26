@@ -1247,6 +1247,29 @@ export default function PosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Direct hand-off from Scan here › POS: /pos?draft=<id> auto-opens that parked draft into the cart
+  // (identical to clicking it in the reopen tray — reopenDraft replaces the working cart). The query
+  // is cleared afterwards so a refresh doesn't re-open it. Runs after the reprint/local-restore mount
+  // effects, so reopenDraft wins.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("draft");
+    if (!id) return;
+    (async () => {
+      try {
+        const match = (await listDrafts()).find((d) => d.id === id);
+        if (match) reopenDraft(match);
+        else toast("Those scanned items are no longer available.", "error");
+      } catch {
+        toast("Couldn't open the scanned items.", "error");
+      } finally {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("draft");
+        window.history.replaceState({}, "", url);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const subtotalSatang = cartTotalSatang(lines);
   const discountSatang = discountSatangOf(subtotalSatang, discountKind, discountValue);
   const totalSatang = subtotalSatang - discountSatang;
