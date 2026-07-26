@@ -59,6 +59,7 @@ import worker, {
   normalizePlate,
   validateSyncLine,
   writeAuditLog,
+  countFitmentsUsingAttribute,
   type Env,
 } from "./index";
 import { CUSTOMER_CODE_PREFIX, generateCustomerCode, isCustomerCode } from "@l-shopee/core";
@@ -102,6 +103,12 @@ function makeDb(canned: {
   fitments?: unknown[];
   attrOption?: unknown | null;
   attrInUseCount?: number;
+  /** deleteAttribute guard (fitment-referenced kinds): how many product_fitments still name the row. */
+  fitmentInUseCount?: number;
+  /** deleteAttribute guard (car_models): the model row looked up (name + parent brand) before counting. */
+  carModelRow?: { name: string; brandName: string | null } | null;
+  /** deleteAttribute guard (car_brands): the brand row looked up (name) before counting. */
+  carBrandRow?: { name: string } | null;
   stock?: unknown[];
   movements?: unknown[];
   stockOnHand?: number;
@@ -226,6 +233,13 @@ function makeDb(canned: {
       async first<T = unknown>(): Promise<T | null> {
         if (sql.includes("COUNT(*) AS n FROM products WHERE"))
           return { n: canned.attrInUseCount ?? 0 } as T;
+        // deleteAttribute guard for fitment-referenced kinds (car_models / car_brands): the name
+        // lookup, then the fitment count. Match before the broader product_fitments / car_* branches.
+        if (sql.includes("COUNT(*) AS n FROM product_fitments WHERE"))
+          return { n: canned.fitmentInUseCount ?? 0 } as T;
+        if (sql.includes("FROM car_models m")) return (canned.carModelRow ?? null) as T | null;
+        if (sql.includes("SELECT name FROM car_brands WHERE"))
+          return (canned.carBrandRow ?? null) as T | null;
         if (sql.includes("FROM stock_ledger_entries WHERE source_type"))
           return (canned.onlineSaleLedgerRow ?? null) as T | null;
         if (sql.includes("FROM payments WHERE slip_ref"))
@@ -3516,6 +3530,99 @@ describe("part attributes (brand / car system / part name)", () => {
     expect(prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM brands"))).toBe(
       true,
     );
+  });
+
+  // Car brands/models are referenced by product_fitments BY NAME (not a product FK), so #69's
+  // countProductsUsingAttribute returns 0 for them and they were left unguarded — deleting an
+  // in-use car model still orphaned those fitments. Guard them the same block-style way.
+  it("DELETE /car-fitment/models/:id > 409 when a product fitment still names the model", async () => {
+    const { db, env } = makeDb({
+      carModelRow: { name: "City", brandName: "Honda" },
+      fitmentInUseCount: 2,
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/car-fitment/models/cm-city", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { count: number }).toMatchObject({ count: 2 });
+    expect(
+      prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM car_models")),
+    ).toBe(false);
+  });
+
+  it("DELETE /car-fitment/models/:id > 200 and deletes when no fitment names it", async () => {
+    const { db, env } = makeDb({
+      carModelRow: { name: "City", brandName: "Honda" },
+      fitmentInUseCount: 0,
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/car-fitment/models/cm-city", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(
+      prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM car_models")),
+    ).toBe(true);
+  });
+
+  it("DELETE /car-fitment/brands/:id > 409 when a product fitment still names the brand", async () => {
+    const { db, env } = makeDb({ carBrandRow: { name: "Honda" }, fitmentInUseCount: 1 });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/car-fitment/brands/cb-honda", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { count: number }).toMatchObject({ count: 1 });
+    expect(
+      prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM car_brands")),
+    ).toBe(false);
+  });
+
+  it("countFitmentsUsingAttribute > car_models: looks up name+brand, then counts fitments scoped by brand", async () => {
+    const { db } = makeDb({
+      carModelRow: { name: "City", brandName: "Honda" },
+      fitmentInUseCount: 2,
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    expect(await countFitmentsUsingAttribute(db, "car_models", "cm-city")).toBe(2);
+    // A same-named model under another make must not count — the fitment count is brand-scoped.
+    const countSql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("product_fitments"));
+    expect(countSql).toContain("car_model = ?");
+    expect(countSql).toContain("car_brand = ?");
+  });
+
+  it("countFitmentsUsingAttribute > car_brands counts fitments by name; other tables return 0", async () => {
+    const { db } = makeDb({ carBrandRow: { name: "Honda" }, fitmentInUseCount: 5 });
+    expect(await countFitmentsUsingAttribute(db, "car_brands", "cb-honda")).toBe(5);
+    // brands/product_types/usage_categories are product-referenced, not fitment-referenced → 0 here.
+    expect(await countFitmentsUsingAttribute(db, "brands", "br1")).toBe(0);
+  });
+
+  it("DELETE /attributes/car_model/:id > 409 when a fitment names it (route also guards car kinds)", async () => {
+    const { db, env } = makeDb({
+      carModelRow: { name: "City", brandName: "Honda" },
+      fitmentInUseCount: 4,
+    });
+    const prepare = vi.spyOn(db, "prepare");
+    const res = await worker.fetch!(
+      new Request("https://x/attributes/car_model/cm-city", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { count: number }).toMatchObject({ count: 4 });
+    expect(
+      prepare.mock.calls.some((c) => (c[0] as string).includes("DELETE FROM car_models")),
+    ).toBe(false);
   });
 });
 
