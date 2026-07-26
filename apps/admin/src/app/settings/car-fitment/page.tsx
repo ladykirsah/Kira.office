@@ -15,6 +15,7 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { CoverPicker, BilingualNames } from "../AttributeManager";
 import { ConfirmButton } from "../../ConfirmButton";
+import { ConfirmDialog } from "../../ConfirmDialog";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
 
@@ -48,6 +49,10 @@ export default function CarFitmentPage() {
   const [newModel, setNewModel] = useState("");
   const [newModelFrom, setNewModelFrom] = useState("");
   const [newModelTo, setNewModelTo] = useState("");
+  // Set when a model delete is refused because product fitments still use it (warn-then-allow).
+  const [modelForce, setModelForce] = useState<{ id: string; name: string; count: number } | null>(
+    null,
+  );
   const toast = useToast();
 
   async function load(selectId?: string) {
@@ -75,6 +80,34 @@ export default function CarFitmentPage() {
       await fn();
       await load(selectId);
       if (ok) toast(ok, "success");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  }
+
+  /** Delete a model. If product fitments still reference it, warn (with the count) before forcing. */
+  async function removeModel(model: CarModelNode) {
+    try {
+      const res = await deleteCarModel(model.id);
+      if (!res.deleted) {
+        setModelForce({ id: model.id, name: model.name, count: res.count });
+        return;
+      }
+      await load(selectedId ?? undefined);
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  }
+
+  /** The owner confirmed the warning — delete the model anyway, orphaning those fitments. */
+  async function forceRemoveModel() {
+    if (!modelForce) return;
+    const { id, name } = modelForce;
+    setModelForce(null);
+    try {
+      await deleteCarModel(id, { force: true });
+      await load(selectedId ?? undefined);
+      toast(`ลบรุ่น “${name}” แล้ว`, "success");
     } catch (err) {
       toast((err as Error).message, "error");
     }
@@ -272,7 +305,7 @@ export default function CarFitmentPage() {
                                 <ModelInfoView
                                   model={m}
                                   onEdit={() => setEditMode(true)}
-                                  onRemove={() => run(() => deleteCarModel(m.id), selected.id)}
+                                  onRemove={() => removeModel(m)}
                                 />
                               </>
                             ))}
@@ -328,6 +361,19 @@ export default function CarFitmentPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={modelForce !== null}
+        title="ยังมีสินค้าใช้อยู่"
+        message={
+          modelForce
+            ? `รุ่น “${modelForce.name}” มีสินค้าระบุความเข้ากันได้อยู่ ${modelForce.count} รายการ — ถ้าลบ ข้อมูลรุ่นในสินค้าเหล่านั้นจะค้างอยู่ ต้องการลบต่อไปหรือไม่?`
+            : ""
+        }
+        confirmLabel="ลบเลย"
+        onConfirm={forceRemoveModel}
+        onCancel={() => setModelForce(null)}
+      />
     </main>
   );
 }

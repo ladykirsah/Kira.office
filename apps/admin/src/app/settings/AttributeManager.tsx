@@ -21,6 +21,7 @@ import {
 import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
 import { ConfirmButton, XIcon } from "../ConfirmButton";
+import { ConfirmDialog } from "../ConfirmDialog";
 
 export interface AttrKindConfig {
   kind: AttrKind;
@@ -587,8 +588,23 @@ export function AttributeManager({
   const [data, setData] = useState<Attributes | null>(null);
   const [warranties, setWarranties] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
+  // Set when a delete is refused because products still use the row — the owner then confirms
+  // (warn-then-allow) to force it, at which point those products render blank until re-set.
+  const [forcePrompt, setForcePrompt] = useState<{
+    kind: AttrKind;
+    id: string;
+    name: string;
+    count: number;
+  } | null>(null);
   const toast = useToast();
   const wantsWarranty = kinds.some((k) => k.warranty);
+
+  /** Look up a row's display name (for the in-use warning) from the loaded lists. */
+  function attrName(kind: AttrKind, id: string): string {
+    const cfg = kinds.find((k) => k.kind === kind);
+    const list = cfg && data ? data[cfg.listKey] : [];
+    return list.find((o) => o.id === id)?.name ?? "";
+  }
 
   const load = useCallback(async () => {
     try {
@@ -654,8 +670,27 @@ export function AttributeManager({
 
   async function del(kind: AttrKind, id: string) {
     try {
-      await deleteAttribute(kind, id);
+      const res = await deleteAttribute(kind, id);
+      // Still in use → don't delete yet; warn with the count and let the owner confirm.
+      if (!res.deleted) {
+        setForcePrompt({ kind, id, name: attrName(kind, id), count: res.count });
+        return;
+      }
       await load();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  }
+
+  /** The owner confirmed the warning — delete anyway, orphaning the referencing products. */
+  async function forceDelete() {
+    if (!forcePrompt) return;
+    const { kind, id, name } = forcePrompt;
+    setForcePrompt(null);
+    try {
+      await deleteAttribute(kind, id, { force: true });
+      await load();
+      toast(`ลบ “${name}” แล้ว`, "success");
     } catch (err) {
       toast((err as Error).message, "error");
     }
@@ -664,6 +699,19 @@ export function AttributeManager({
   return (
     <main>
       <PageHeader title={title} subtitle={subtitle} />
+
+      <ConfirmDialog
+        open={forcePrompt !== null}
+        title="ยังมีสินค้าใช้อยู่"
+        message={
+          forcePrompt
+            ? `“${forcePrompt.name}” มีสินค้าใช้อยู่ ${forcePrompt.count} รายการ — ถ้าลบ สินค้าเหล่านั้นจะไม่แสดงค่านี้จนกว่าจะตั้งใหม่ ต้องการลบต่อไปหรือไม่?`
+            : ""
+        }
+        confirmLabel="ลบเลย"
+        onConfirm={forceDelete}
+        onCancel={() => setForcePrompt(null)}
+      />
 
       {loading ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />

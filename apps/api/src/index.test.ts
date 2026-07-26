@@ -59,6 +59,8 @@ import worker, {
   normalizePlate,
   validateSyncLine,
   writeAuditLog,
+  deleteAttribute,
+  countAttributeUsage,
   type Env,
 } from "./index";
 import { CUSTOMER_CODE_PREFIX, generateCustomerCode, isCustomerCode } from "@l-shopee/core";
@@ -139,6 +141,12 @@ function makeDb(canned: {
   variantById?: { id: string } | null;
   affiliateItems?: unknown[];
   affiliateItemById?: { id: string; imageKey: string | null } | null;
+  /** deleteAttribute guard: how many products / fitments still reference the row being deleted. */
+  attrUsageCount?: number;
+  /** deleteAttribute guard (name-referenced kinds): the car model row looked up before counting. */
+  carModelRow?: { name: string; brandName: string | null } | null;
+  /** deleteAttribute guard (name-referenced kinds): the car brand row looked up before counting. */
+  carBrandRow?: { name: string } | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -209,6 +217,16 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        // deleteAttribute usage guard. Match these BEFORE the broader product/fitment branches:
+        // id-referenced kinds count products; name-referenced kinds first look up the row's name.
+        if (
+          sql.includes("AS n FROM products WHERE") ||
+          sql.includes("AS n FROM product_fitments WHERE")
+        )
+          return { n: canned.attrUsageCount ?? 0 } as T;
+        if (sql.includes("FROM car_models m")) return (canned.carModelRow ?? null) as T | null;
+        if (sql.includes("SELECT name FROM car_brands WHERE"))
+          return (canned.carBrandRow ?? null) as T | null;
         if (sql.includes("FROM stock_ledger_entries WHERE source_type"))
           return (canned.onlineSaleLedgerRow ?? null) as T | null;
         if (sql.includes("FROM payments WHERE slip_ref"))
@@ -3246,6 +3264,87 @@ describe("part attributes (brand / car system / part name)", () => {
     );
     expect(res.status).toBe(201);
     expect(((await res.json()) as { name: string }).name).toBe("Bosch");
+  });
+
+  describe("deleteAttribute usage guard", () => {
+    it("refuses to delete an id-referenced attribute still used by products, returning the count", async () => {
+      const { db, runs } = makeDb({ attrUsageCount: 3 });
+      const out = await deleteAttribute(db, "brands", "b1");
+      expect(out).toEqual({ deleted: false, count: 3 });
+      // The row must survive — a dangling brand_id renders a blank cell in listProducts.
+      expect(runs.some((r) => r.sql.includes("DELETE FROM brands"))).toBe(false);
+    });
+
+    it("deletes an unreferenced attribute", async () => {
+      const { db, runs } = makeDb({ attrUsageCount: 0 });
+      const out = await deleteAttribute(db, "brands", "b1");
+      expect(out).toEqual({ deleted: true, count: 0 });
+      expect(runs.some((r) => r.sql.includes("DELETE FROM brands"))).toBe(true);
+    });
+
+    it("force-deletes even when still in use (owner confirmed warn-then-allow)", async () => {
+      const { db, runs } = makeDb({ attrUsageCount: 3 });
+      const out = await deleteAttribute(db, "brands", "b1", true);
+      expect(out.deleted).toBe(true);
+      expect(runs.some((r) => r.sql.includes("DELETE FROM brands"))).toBe(true);
+    });
+
+    it("car_models: looks up the model's name/brand, then counts fitments scoped by brand", async () => {
+      const { db } = makeDb({
+        carModelRow: { name: "City", brandName: "Honda" },
+        attrUsageCount: 2,
+      });
+      const prepare = vi.spyOn(db, "prepare");
+      // Non-zero result proves the two-step path ran: model row found → fitment count executed.
+      expect(await countAttributeUsage(db, "car_models", "cm-city")).toBe(2);
+      // The fitment count must be scoped to the brand — a same-named model under another make
+      // (model names are unique only within a brand) must not inflate the count.
+      const countSql = prepare.mock.calls
+        .map((c) => c[0])
+        .find((s) => s.includes("product_fitments"));
+      expect(countSql).toContain("car_model = ?");
+      expect(countSql).toContain("car_brand = ?");
+    });
+  });
+
+  describe("attribute delete routes", () => {
+    it("DELETE /attributes/brand/:id > 409 with the in-use count when products still reference it", async () => {
+      const { env, runs } = makeDb({ attrUsageCount: 3 });
+      const res = await worker.fetch!(
+        new Request("https://x/attributes/brand/b1", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()) as { count: number }).toMatchObject({ count: 3 });
+      expect(runs.some((r) => r.sql.includes("DELETE FROM brands"))).toBe(false);
+    });
+
+    it("DELETE /attributes/brand/:id?force=1 > deletes despite usage", async () => {
+      const { env, runs } = makeDb({ attrUsageCount: 3 });
+      const res = await worker.fetch!(
+        new Request("https://x/attributes/brand/b1?force=1", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(runs.some((r) => r.sql.includes("DELETE FROM brands"))).toBe(true);
+    });
+
+    it("DELETE /car-fitment/models/:id > 409 when a product fitment still uses the model", async () => {
+      const { env, runs } = makeDb({
+        carModelRow: { name: "City", brandName: "Honda" },
+        attrUsageCount: 1,
+      });
+      const res = await worker.fetch!(
+        new Request("https://x/car-fitment/models/cm-city", { method: "DELETE" }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()) as { count: number }).toMatchObject({ count: 1 });
+      expect(runs.some((r) => r.sql.includes("DELETE FROM car_models"))).toBe(false);
+    });
   });
 });
 

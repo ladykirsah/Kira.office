@@ -182,9 +182,31 @@ export async function addAttribute(
   return (await res.json()) as AttrOption;
 }
 
-export async function deleteAttribute(kind: AttrKind, id: string): Promise<void> {
-  const res = await apiFetch(`/attributes/${kind}/${id}`, { method: "DELETE" });
+/** Outcome of a delete that may be blocked by in-use references. `deleted:false` → the API
+ *  returned 409 with the number of products/fitments still using the row; retry with force. */
+export interface AttrDeleteResult {
+  deleted: boolean;
+  count: number;
+}
+
+/**
+ * Delete a managed attribute row. The API answers 409 with an in-use count when products still
+ * reference it (a dangling id would render a blank brand/category/system). We surface that as a
+ * result the caller can warn on, then re-issue with `{ force: true }` to delete anyway.
+ */
+export async function deleteAttribute(
+  kind: AttrKind,
+  id: string,
+  opts?: { force?: boolean },
+): Promise<AttrDeleteResult> {
+  const qs = opts?.force ? "?force=1" : "";
+  const res = await apiFetch(`/attributes/${kind}/${id}${qs}`, { method: "DELETE" });
+  if (res.status === 409) {
+    const body = (await res.json().catch(() => ({}))) as { count?: number };
+    return { deleted: false, count: Number(body.count ?? 0) };
+  }
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+  return { deleted: true, count: 0 };
 }
 
 /**
@@ -631,9 +653,20 @@ export async function deleteCarBrand(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
 }
 
-export async function deleteCarModel(id: string): Promise<void> {
-  const res = await apiFetch(`/car-fitment/models/${id}`, { method: "DELETE" });
+/** Delete a car model. Like deleteAttribute, the API answers 409 with the in-use fitment count;
+ *  retry with `{ force: true }` to delete anyway. */
+export async function deleteCarModel(
+  id: string,
+  opts?: { force?: boolean },
+): Promise<AttrDeleteResult> {
+  const qs = opts?.force ? "?force=1" : "";
+  const res = await apiFetch(`/car-fitment/models/${id}${qs}`, { method: "DELETE" });
+  if (res.status === 409) {
+    const body = (await res.json().catch(() => ({}))) as { count?: number };
+    return { deleted: false, count: Number(body.count ?? 0) };
+  }
   if (!res.ok) throw new Error(`Delete failed (HTTP ${res.status})`);
+  return { deleted: true, count: 0 };
 }
 
 export async function updateCarModel(id: string, info: CarModelInfo): Promise<void> {

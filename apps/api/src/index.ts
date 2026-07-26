@@ -3084,8 +3084,83 @@ export async function setAttributeNames(
 }
 
 /** Remove an option. Products still referencing it simply show a blank value. */
-export async function deleteAttribute(db: D1Database, table: string, id: string): Promise<void> {
+/**
+ * How many real rows still point at an attribute row — so a delete can warn before orphaning them.
+ * D1 does not enforce the declared foreign keys, so nothing stops a delete from leaving dangling
+ * references; listProducts / getProductDetail LEFT JOIN on these and would render a blank cell.
+ *
+ * Two reference shapes, both keyed off the whitelisted `table` (never request input, so the
+ * interpolated table/column literals below are safe):
+ *   - products.brand_id / type_id / usage_id hold the attribute's **id**.
+ *   - product_fitments.car_brand / car_model hold the attribute's free-text **name** (see
+ *     setProductFitments). Model names are unique only within a brand, so a model match is scoped
+ *     by brand + model to avoid counting a same-named model under a different make.
+ */
+export async function countAttributeUsage(
+  db: D1Database,
+  table: string,
+  id: string,
+): Promise<number> {
+  const PRODUCT_COLUMN: Record<string, string> = {
+    brands: "brand_id",
+    product_types: "type_id",
+    usage_categories: "usage_id",
+  };
+  const idColumn = PRODUCT_COLUMN[table];
+  if (idColumn) {
+    const row = await db
+      .prepare(`SELECT COUNT(*) AS n FROM products WHERE ${idColumn} = ?`)
+      .bind(id)
+      .first<{ n: number }>();
+    return Number(row?.n ?? 0);
+  }
+  if (table === "car_brands") {
+    const brand = await db
+      .prepare("SELECT name FROM car_brands WHERE id = ?")
+      .bind(id)
+      .first<{ name: string }>();
+    if (!brand?.name) return 0; // already gone → nothing can reference it
+    const row = await db
+      .prepare("SELECT COUNT(*) AS n FROM product_fitments WHERE car_brand = ?")
+      .bind(brand.name)
+      .first<{ n: number }>();
+    return Number(row?.n ?? 0);
+  }
+  if (table === "car_models") {
+    const model = await db
+      .prepare(
+        "SELECT m.name AS name, b.name AS brandName FROM car_models m LEFT JOIN car_brands b ON b.id = m.car_brand_id WHERE m.id = ?",
+      )
+      .bind(id)
+      .first<{ name: string; brandName: string | null }>();
+    if (!model?.name) return 0;
+    // A model with no parent brand (legacy flat rows) matches on model name alone.
+    const row = await db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM product_fitments WHERE car_model = ? AND (? IS NULL OR car_brand = ?)",
+      )
+      .bind(model.name, model.brandName, model.brandName)
+      .first<{ n: number }>();
+    return Number(row?.n ?? 0);
+  }
+  return 0; // unknown table (shouldn't happen — table comes from the ATTR_TABLE whitelist)
+}
+
+/**
+ * Delete a managed attribute row. Refuses when products / fitments still reference it, returning
+ * the in-use count instead so the caller can warn; pass `force` to delete anyway (the owner chose
+ * warn-then-allow). Mirrors deleteCoupon's { deleted, ... } contract.
+ */
+export async function deleteAttribute(
+  db: D1Database,
+  table: string,
+  id: string,
+  force = false,
+): Promise<{ deleted: boolean; count: number }> {
+  const count = force ? 0 : await countAttributeUsage(db, table, id);
+  if (count > 0) return { deleted: false, count };
   await db.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+  return { deleted: true, count: 0 };
 }
 
 export interface ServiceRow {
@@ -4511,7 +4586,11 @@ const worker = {
     if (attrDel && request.method === "DELETE") {
       const table = ATTR_TABLE[attrDel[1]!];
       if (!table) return json({ error: "unknown attribute kind" }, 404);
-      await deleteAttribute(env.DB, table, attrDel[2]!);
+      const force = url.searchParams.get("force") === "1";
+      const out = await deleteAttribute(env.DB, table, attrDel[2]!, force);
+      // Still referenced and not forced → 409 with the count. The admin client turns this into a
+      // "N products use this — delete anyway?" confirm that re-issues the DELETE with ?force=1.
+      if (!out.deleted) return json({ error: "attribute in use", count: out.count }, 409);
       return json({ ok: true });
     }
     // Thai / English display names (migration 0060). PATCH, not PUT: this edits only the two
@@ -4603,7 +4682,10 @@ const worker = {
     }
     const cfModelDel = url.pathname.match(/^\/car-fitment\/models\/([^/]+)$/);
     if (cfModelDel && request.method === "DELETE") {
-      await deleteAttribute(env.DB, "car_models", cfModelDel[1]!);
+      const force = url.searchParams.get("force") === "1";
+      const out = await deleteAttribute(env.DB, "car_models", cfModelDel[1]!, force);
+      // In use by a product fitment (matched on the model's name) and not forced → warn with count.
+      if (!out.deleted) return json({ error: "model in use", count: out.count }, 409);
       return json({ ok: true });
     }
     const cfModelUpd = url.pathname.match(/^\/car-fitment\/models\/([^/]+)$/);
