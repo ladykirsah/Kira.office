@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { lookupBarcode, holdStock, type HoldLineResult } from "@/lib/api";
+import { lookupBarcode, holdStock, adjustStock, type HoldLineResult } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
@@ -39,7 +39,7 @@ const MODES: {
     icon: "📥",
     title: "Fill stock",
     desc: "Receive stock into on hand.",
-    ready: false,
+    ready: true,
   },
   { key: "pos", icon: "🧾", title: "POS", desc: "Scan items to build a bill.", ready: false },
 ];
@@ -82,6 +82,8 @@ export default function ScanPage() {
         <ViewMode />
       ) : mode === "hold" ? (
         <HoldMode />
+      ) : mode === "fill" ? (
+        <FillMode />
       ) : (
         <ComingSoon title={MODES.find((m) => m.key === mode)?.title ?? ""} />
       )}
@@ -387,6 +389,191 @@ function HoldMode() {
             ))}
           </div>
 
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="btn-primary" onClick={submit} disabled={busy}>
+              Submit
+            </button>
+            <button type="button" onClick={() => setRows([])} disabled={busy}>
+              Clear
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface FillRow {
+  variantId: string;
+  name: string;
+  productRef: string;
+  qty: string;
+  result?: { applied: boolean; quantityAfter: number; reason?: string };
+}
+
+/**
+ * Fill stock — receive scanned parts into sellable on-hand. Scan several, set how many of each
+ * arrived (default 1), and Submit writes a 'receive' ledger movement per line (the inverse of a
+ * write-off). No hold interaction — moving stock to/from the hold is the On hold mode's job.
+ */
+function FillMode() {
+  const toast = useToast();
+  const [rows, setRows] = useState<FillRow[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function add(code: string) {
+    try {
+      const found = await lookupBarcode(code);
+      if (!found) {
+        toast(`No product found for ${code}`, "error");
+        return;
+      }
+      setRows((prev) =>
+        prev.some((r) => r.variantId === found.variantId)
+          ? prev
+          : [
+              ...prev,
+              {
+                variantId: found.variantId,
+                name: found.name,
+                productRef: found.productRef,
+                qty: "1",
+              },
+            ],
+      );
+    } catch (err) {
+      toast((err as Error).message, "error");
+    }
+  }
+
+  const setQty = (variantId: string, value: string) =>
+    setRows((prev) =>
+      prev.map((r) => (r.variantId === variantId ? { ...r, qty: value, result: undefined } : r)),
+    );
+
+  const toCount = (s: string) => Math.max(0, Math.round(parseFloat(s) || 0));
+
+  async function submit() {
+    const lines = rows.map((r) => ({ row: r, qty: toCount(r.qty) }));
+    if (lines.every((l) => l.qty === 0)) {
+      toast("Enter how many arrived first", "error");
+      return;
+    }
+    setBusy(true);
+    let received = 0;
+    let failed = 0;
+    // Sequential so the per-line result maps cleanly; the ledger DO serializes the writes anyway.
+    for (const { row, qty } of lines) {
+      if (qty === 0) continue;
+      try {
+        const res = await adjustStock({
+          productVariantId: row.variantId,
+          quantityDelta: qty,
+          movementType: "receive",
+          reason: "received via Scan here",
+        });
+        setRows((prev) =>
+          prev.map((r) => (r.variantId === row.variantId ? { ...r, result: res } : r)),
+        );
+        if (res.applied) received++;
+        else failed++;
+      } catch (err) {
+        const reason = (err as Error).message;
+        setRows((prev) =>
+          prev.map((r) =>
+            r.variantId === row.variantId
+              ? { ...r, result: { applied: false, quantityAfter: 0, reason } }
+              : r,
+          ),
+        );
+        failed++;
+      }
+    }
+    setBusy(false);
+    toast(
+      failed ? `${received} received, ${failed} failed` : `${received} received`,
+      failed ? "error" : "success",
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ maxWidth: 460 }}>
+        <ScanInput
+          onScan={add}
+          buttonLabel="Add"
+          placeholder="Scan parts you received…"
+          disabled={busy}
+        />
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Scan the parts that arrived, set how many of each, then Submit to add them to on-hand
+          stock.
+        </p>
+      ) : (
+        <>
+          <div style={{ ...card, display: "grid", gap: 4 }}>
+            {rows.map((r, i) => (
+              <div
+                key={r.variantId}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-end",
+                  flexWrap: "wrap",
+                  paddingTop: 10,
+                  borderTop: i === 0 ? undefined : "1px solid var(--border)",
+                }}
+              >
+                <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={r.name}
+                  >
+                    {r.name}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {r.productRef}
+                  </div>
+                </div>
+                <label style={{ display: "grid", gap: 3 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>
+                    Received
+                  </span>
+                  <input
+                    value={r.qty}
+                    onChange={(e) => setQty(r.variantId, e.target.value)}
+                    inputMode="numeric"
+                    aria-label={`Received ${r.name}`}
+                    style={numCell}
+                  />
+                </label>
+                <div style={{ fontSize: 12, flex: "1 1 130px" }}>
+                  {r.result ? (
+                    r.result.applied ? (
+                      <span style={{ color: "var(--ok)" }}>on hand {r.result.quantityAfter}</span>
+                    ) : (
+                      <span style={{ color: "var(--danger)" }}>{r.result.reason}</span>
+                    )
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRows((p) => p.filter((x) => x.variantId !== r.variantId))}
+                  disabled={busy}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="btn-primary" onClick={submit} disabled={busy}>
               Submit
