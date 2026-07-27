@@ -13,6 +13,7 @@ import {
   setShopName,
   type SheetLabel,
 } from "./labelPdf";
+import { LABEL_SIZES, sizeHint, buildLabelItem, type LabelSizeKey } from "@/lib/labelForm";
 
 export interface StudioProduct {
   id: string;
@@ -26,26 +27,6 @@ export interface StudioProduct {
   carBrands: string[];
   barcode: string | null;
 }
-
-/** Sort/filter dimensions (same set as the products table). */
-const DIMENSIONS = [
-  {
-    key: "brand",
-    label: "Part brand",
-    values: (p: StudioProduct) => (p.brandName ? [p.brandName] : []),
-  },
-  {
-    key: "usage",
-    label: "Match system",
-    values: (p: StudioProduct) => (p.usageName ? [p.usageName] : []),
-  },
-  {
-    key: "type",
-    label: "Part name",
-    values: (p: StudioProduct) => (p.typeName ? [p.typeName] : []),
-  },
-  { key: "car", label: "Car brand", values: (p: StudioProduct) => p.carBrands },
-] as const;
 
 interface LabelItem {
   product: StudioProduct;
@@ -308,6 +289,51 @@ function LabelCard({
   );
 }
 
+/** Live single-label preview for the compose form — reuses the real PDF renderer. */
+function AddPreview({
+  product,
+  size,
+  showBarcode,
+}: {
+  product: StudioProduct | null;
+  size: LabelSizeKey;
+  showBarcode: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!canvasRef.current || !product) return;
+    const { w, h } = LABEL_SIZES[size];
+    const p = {
+      code: product.code,
+      name: product.name,
+      tags: product.tags,
+      barcode: product.barcode ?? "",
+    };
+    drawLabel(canvasRef.current, p, w, effectiveHeightMm(p, w, h, showBarcode), showBarcode);
+  }, [product, size, showBarcode]);
+
+  if (!product)
+    return (
+      <div
+        style={{
+          border: "1px dashed var(--border)",
+          borderRadius: 10,
+          padding: "16px 18px",
+          color: "var(--text-faint)",
+          fontSize: 13,
+        }}
+      >
+        Pick a product to preview the label.
+      </div>
+    );
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ width: 150, height: "auto", border: "1px solid var(--border)", borderRadius: 6 }}
+    />
+  );
+}
+
 export function LabelStudio({
   products,
   shopName = "",
@@ -320,45 +346,40 @@ export function LabelStudio({
   const [paper, setPaper] = useState<Paper>("A4");
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [query, setQuery] = useState("");
-  const [sortBy, setSortBy] = useState<string>("");
-  const [filterVal, setFilterVal] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<LabelItem[]>([]);
+
+  // "Add a label" compose form — pick a product, choose its size / barcode / amount, then Add.
+  const [formProduct, setFormProduct] = useState<StudioProduct | null>(null);
+  const [formSize, setFormSize] = useState<LabelSizeKey>("M");
+  const [formBarcode, setFormBarcode] = useState(true);
+  const [formAmount, setFormAmount] = useState("24");
 
   const q = query.trim().toLowerCase();
   const chosen = new Set(items.map((it) => it.product.id));
 
-  // Linked Sort by + Filter (same behaviour as the products table) applied to the add-results.
-  const dim = DIMENSIONS.find((d) => d.key === sortBy);
-  const filterOptions = dim
-    ? Array.from(new Set(products.flatMap((p) => dim.values(p)))).sort((a, b) => a.localeCompare(b))
+  const matched = q
+    ? products.filter((p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
     : [];
+  const results = open && q ? matched.slice(0, 12) : [];
 
-  let matched = products;
-  if (q)
-    matched = matched.filter(
-      (p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q),
-    );
-  if (dim && filterVal) matched = matched.filter((p) => dim.values(p).includes(filterVal));
-  if (dim) {
-    const key = (p: StudioProduct) => {
-      const vals = dim.values(p);
-      return vals.length ? [...vals].sort()[0] : "";
-    };
-    matched = [...matched].sort((a, b) => {
-      const ka = key(a);
-      const kb = key(b);
-      if (!ka || !kb) return ka ? -1 : kb ? 1 : 0;
-      return ka.localeCompare(kb);
-    });
-  }
-  const results = open && (q || filterVal) ? matched.slice(0, 12) : [];
-
-  const addProduct = (p: StudioProduct) => {
+  // Pick a product into the form (not added yet — size / barcode / amount are chosen first).
+  const pickProduct = (p: StudioProduct) => {
     if (!p.barcode || chosen.has(p.id)) return;
-    setItems((xs) => [...xs, { product: p, w: 50, h: 30, amount: 24, showBarcode: true }]);
+    setFormProduct(p);
     setQuery("");
     setOpen(false);
+  };
+
+  // Add the composed label to the sheet, keeping size / barcode / amount for the next one.
+  const addToSheet = () => {
+    if (!formProduct || chosen.has(formProduct.id)) return;
+    // parseFloat (not parseInt) so buildLabelItem's rounding owns the whole-number rule.
+    setItems((xs) => [
+      ...xs,
+      buildLabelItem(formProduct, formSize, formBarcode, parseFloat(formAmount)),
+    ]);
+    setFormProduct(null);
   };
   const patchItem = (id: string, patch: Partial<LabelItem>) =>
     setItems((xs) => xs.map((it) => (it.product.id === id ? { ...it, ...patch } : it)));
@@ -405,118 +426,222 @@ export function LabelStudio({
         subtitle="Add the products you need, set each label’s size and quantity, then download one PDF with all of them."
       />
 
-      {/* Row 1 — full-option product search */}
+      {/* Add-a-label compose form — pick a product, its size / barcode / amount, then Add. */}
       <div
-        style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 16 }}
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          padding: 16,
+          background: "var(--surface)",
+          marginTop: 16,
+        }}
       >
-        <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 420 }}>
-          <input
-            className="tbar-input"
-            placeholder="Search a product to add…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            style={{ ...inputS, width: "100%", color: "var(--text)", fontWeight: 500 }}
-          />
-          {results.length > 0 && (
+        <div style={{ fontWeight: 600, marginBottom: 14 }}>Add a label</div>
+
+        {/* Product */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+          <span style={fieldLabel}>Product</span>
+          {formProduct ? (
             <div
               style={{
-                position: "absolute",
-                zIndex: 5,
-                left: 0,
-                right: 0,
-                marginTop: 4,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "6px 8px",
+                border: "1px solid var(--primary-soft)",
+                background: "var(--primary-faint)",
                 borderRadius: 10,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
-                overflow: "hidden",
-                maxHeight: 360,
-                overflowY: "auto",
               }}
             >
-              {results.map((p) => {
-                const added = chosen.has(p.id);
-                const disabled = !p.barcode || added;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => addProduct(p)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      width: "100%",
-                      minHeight: 0,
-                      padding: "8px 12px",
-                      border: "none",
-                      borderRadius: 0,
-                      background: "transparent",
-                      textAlign: "left",
-                      opacity: disabled ? 0.5 : 1,
-                    }}
-                  >
-                    <Cover p={p} size={32} />
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
-                      <span className="muted" style={{ fontSize: 12 }}>
-                        {p.code}
-                        {!p.barcode ? " · no barcode" : added ? " · added" : ""}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
+              <Cover p={formProduct} size={32} />
+              <span style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    display: "block",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {formProduct.name}
+                </span>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {formProduct.code}
+                </span>
+              </span>
+              <button
+                type="button"
+                aria-label="Change product"
+                title="Change product"
+                onClick={() => setFormProduct(null)}
+                className="icon-btn"
+                style={{ marginLeft: "auto", color: "var(--danger)" }}
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div style={{ position: "relative", maxWidth: 480 }}>
+              <input
+                className="tbar-input"
+                placeholder="Search a product…  (code or name)"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                style={{ ...inputS, width: "100%", color: "var(--text)", fontWeight: 500 }}
+              />
+              {results.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    zIndex: 5,
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+                    overflow: "hidden",
+                    maxHeight: 360,
+                    overflowY: "auto",
+                  }}
+                >
+                  {results.map((p) => {
+                    const added = chosen.has(p.id);
+                    const disabled = !p.barcode || added;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => pickProduct(p)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          width: "100%",
+                          minHeight: 0,
+                          padding: "8px 12px",
+                          border: "none",
+                          borderRadius: 0,
+                          background: "transparent",
+                          textAlign: "left",
+                          opacity: disabled ? 0.5 : 1,
+                        }}
+                      >
+                        <Cover p={p} size={32} />
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, display: "block" }}>{p.name}</span>
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            {p.code}
+                            {!p.barcode ? " · no barcode" : added ? " · added" : ""}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
-        <select
-          aria-label="Sort by"
-          value={sortBy}
-          onChange={(e) => {
-            setSortBy(e.target.value);
-            setFilterVal("");
-            setOpen(true);
-          }}
+
+        {/* Size · barcode · amount */}
+        <div
           style={{
-            ...inputS,
-            color: sortBy ? "var(--text)" : "var(--text-faint)",
-            fontWeight: sortBy ? 500 : 400,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 26,
+            alignItems: "flex-start",
+            marginBottom: 16,
           }}
         >
-          <option value="">Sort by…</option>
-          {DIMENSIONS.map((d) => (
-            <option key={d.key} value={d.key}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Filter"
-          value={filterVal}
-          onChange={(e) => {
-            setFilterVal(e.target.value);
-            setOpen(true);
-          }}
-          disabled={!dim}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabel}>
+              Label size{" "}
+              <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>
+                · placeholder sizes
+              </span>
+            </span>
+            <Seg
+              value={formSize}
+              onChange={setFormSize}
+              options={[
+                ["S", "S"],
+                ["M", "M"],
+                ["L", "L"],
+              ]}
+            />
+            <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{sizeHint(formSize)}</span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabel}>Barcode</span>
+            <label
+              style={{
+                display: "flex",
+                gap: 9,
+                alignItems: "center",
+                cursor: "pointer",
+                height: 34,
+              }}
+            >
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={formBarcode}
+                  onChange={(e) => setFormBarcode(e.target.checked)}
+                />
+                <span className="slider" />
+              </span>
+              <span className="muted" style={{ fontSize: 13 }}>
+                {formBarcode ? "Shown" : "Hidden"}
+              </span>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabel}>Amount</span>
+            <input
+              type="number"
+              min={1}
+              value={formAmount}
+              onChange={(e) => setFormAmount(e.target.value)}
+              style={{ ...inputS, width: 96, minHeight: 34, textAlign: "center" }}
+            />
+          </div>
+        </div>
+
+        {/* Preview · add */}
+        <div
           style={{
-            ...inputS,
-            color: filterVal ? "var(--text)" : "var(--text-faint)",
-            fontWeight: filterVal ? 500 : 400,
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+            borderTop: "1px solid var(--border)",
+            paddingTop: 16,
           }}
         >
-          <option value="">{dim ? `All ${dim.label.toLowerCase()}` : "Filter…"}</option>
-          {filterOptions.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabel}>Preview</span>
+            <AddPreview product={formProduct} size={formSize} showBarcode={formBarcode} />
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={!formProduct}
+            onClick={addToSheet}
+          >
+            Add to sheet
+          </button>
+        </div>
       </div>
 
       {/* Row 2 — selected cards (col 1) · paper/download/preview (col 2, after first product) */}
@@ -539,7 +664,7 @@ export function LabelStudio({
           }}
         >
           {items.length === 0 ? (
-            <p className="muted">No products yet — search above to add labels to the sheet.</p>
+            <p className="muted">No labels yet — add one above to start the sheet.</p>
           ) : (
             items.map((it) => (
               <LabelCard
