@@ -13,7 +13,7 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
-import { dateTimeToMs, msToDateInput, msToTimeInput, compactWindow } from "@/lib/couponSchedule";
+import { dateTimeToMs, msToDateInput, msToTimeInput, isCouponExpired } from "@/lib/couponSchedule";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -45,11 +45,9 @@ function valueLabel(c: CouponWithUsage): string {
   return c.type === "percent" ? `${c.value / 100}%` : formatBahtTrim(c.value);
 }
 
-function windowLabel(startsAt: number | null, endsAt: number | null): string {
-  if (startsAt == null && endsAt == null) return "Always";
-  const from = startsAt != null ? formatUpdatedAt(startsAt) : "…";
-  const to = endsAt != null ? formatUpdatedAt(endsAt) : "…";
-  return `${from} → ${to}`;
+/** Full local date+time for the detail grid, or "—" when the bound is unset. */
+function fullDate(ms: number | null): string {
+  return ms != null ? formatUpdatedAt(ms) : "—";
 }
 
 function Chevron({ open }: { open: boolean }) {
@@ -315,7 +313,24 @@ function CouponEditor({
   );
 }
 
-/** View mode — the full, untruncated detail + Edit / Delete. */
+const detailCol = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  flex: 1,
+  minWidth: 150,
+} as const;
+
+function DetailField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={fieldCol}>
+      <span style={detailLabel}>{label}</span>
+      <span style={{ fontSize: 14 }}>{children}</span>
+    </div>
+  );
+}
+
+/** View mode — the full detail in three columns + Edit / Delete. */
 function CouponView({
   coupon,
   onEdit,
@@ -325,38 +340,39 @@ function CouponView({
   onEdit: () => void;
   onDelete: () => void | Promise<void>;
 }) {
-  const rows: [string, ReactNode][] = [
-    [
-      "Code",
-      <span key="code" style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>
-        {coupon.code}
-      </span>,
-    ],
-    ["Discount", valueLabel(coupon)],
-    ["Min spent", coupon.minSubtotalSatang > 0 ? formatBahtTrim(coupon.minSubtotalSatang) : "—"],
-    ["Max cap", coupon.maxDiscountSatang != null ? formatBahtTrim(coupon.maxDiscountSatang) : "—"],
-    ["Window", windowLabel(coupon.startsAt, coupon.endsAt)],
-    ["Quota", coupon.maxUses ?? "∞"],
-    ["Usage for user", coupon.maxUsesPerCustomer],
-    ["Used", `${coupon.redemptions} / ${coupon.maxUses ?? "∞"}`],
-    ["Created", formatUpdatedAt(coupon.createdAt)],
-    ["Status", coupon.status === "active" ? "Active" : "Disabled"],
-  ];
+  const status = isCouponExpired(coupon.endsAt, Date.now())
+    ? "Expired"
+    : coupon.status === "active"
+      ? "Active"
+      : "Disabled";
   return (
     <>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))",
-          gap: "10px 20px",
-        }}
-      >
-        {rows.map(([label, val]) => (
-          <div key={label} style={fieldCol}>
-            <span style={detailLabel}>{label}</span>
-            <span style={{ fontSize: 14 }}>{val}</span>
-          </div>
-        ))}
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        <div style={detailCol}>
+          <DetailField label="Code">
+            <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>
+              {coupon.code}
+            </span>
+          </DetailField>
+          <DetailField label="Discount">{valueLabel(coupon)}</DetailField>
+          <DetailField label="Min spent">
+            {coupon.minSubtotalSatang > 0 ? formatBahtTrim(coupon.minSubtotalSatang) : "—"}
+          </DetailField>
+          <DetailField label="Max cap">
+            {coupon.maxDiscountSatang != null ? formatBahtTrim(coupon.maxDiscountSatang) : "—"}
+          </DetailField>
+        </div>
+        <div style={detailCol}>
+          <DetailField label="Quota">{coupon.maxUses ?? "∞"}</DetailField>
+          <DetailField label="Usage for user">{coupon.maxUsesPerCustomer}</DetailField>
+          <DetailField label="Used">{`${coupon.redemptions} / ${coupon.maxUses ?? "∞"}`}</DetailField>
+        </div>
+        <div style={detailCol}>
+          <DetailField label="Status">{status}</DetailField>
+          <DetailField label="Created">{formatUpdatedAt(coupon.createdAt)}</DetailField>
+          <DetailField label="Start date">{fullDate(coupon.startsAt)}</DetailField>
+          <DetailField label="End date">{fullDate(coupon.endsAt)}</DetailField>
+        </div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         <button type="button" className="btn-sm" onClick={onEdit}>
@@ -375,7 +391,7 @@ function CouponView({
   );
 }
 
-/** One coupon: a compact row (name · discount · period · active) that expands to view / edit. */
+/** One coupon: a compact row (name · discount · active) that expands to view / edit. */
 function CouponRow({
   coupon,
   onChanged,
@@ -386,6 +402,8 @@ function CouponRow({
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Expired coupons can't be re-enabled — the toggle shows off + disabled.
+  const expired = isCouponExpired(coupon.endsAt, Date.now());
 
   async function toggleActive(active: boolean) {
     try {
@@ -444,14 +462,22 @@ function CouponRow({
             {coupon.name ?? "—"}
           </span>
           <span className="pill soft">{valueLabel(coupon)}</span>
-          <span style={{ fontSize: 13, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {compactWindow(coupon.startsAt, coupon.endsAt)}
-          </span>
         </button>
-        <span className="switch" title={coupon.status === "active" ? "Active" : "Disabled"}>
+        <span
+          className="switch"
+          title={
+            expired
+              ? "Expired — past its end date"
+              : coupon.status === "active"
+                ? "Active"
+                : "Disabled"
+          }
+          style={{ opacity: expired ? 0.45 : 1, cursor: expired ? "not-allowed" : undefined }}
+        >
           <input
             type="checkbox"
-            checked={coupon.status === "active"}
+            checked={!expired && coupon.status === "active"}
+            disabled={expired}
             aria-label={`Coupon ${coupon.code} active`}
             onChange={(e) => toggleActive(e.target.checked)}
           />

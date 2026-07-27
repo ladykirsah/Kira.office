@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dateTimeToMs, msToDateInput, msToTimeInput, compactWindow } from "./couponSchedule";
+import { dateTimeToMs, msToDateInput, msToTimeInput, isCouponExpired } from "./couponSchedule";
 
 /**
  * The coupon form splits each window bound into a date box + a time box (owner request). This helper
@@ -47,20 +47,19 @@ describe("msToDateInput / msToTimeInput (seed the edit form from a saved bound)"
   });
 });
 
-describe("compactWindow (period shown on the collapsed row)", () => {
-  const apr1 = dateTimeToMs("2026-04-01", "00:00")!;
-  const apr30 = dateTimeToMs("2026-04-30", "23:59")!;
+describe("isCouponExpired (drives the disabled Active toggle)", () => {
+  const now = dateTimeToMs("2026-04-15", "12:00")!;
 
-  it("no bounds > Always", () => {
-    expect(compactWindow(null, null)).toBe("Always");
+  it("no end bound > never expired", () => {
+    expect(isCouponExpired(null, now)).toBe(false);
   });
-  it("start only > From <date>", () => {
-    expect(compactWindow(apr1, null)).toBe("From 1 Apr 2026");
+  it("end in the future > not expired", () => {
+    expect(isCouponExpired(dateTimeToMs("2026-04-30", "00:00"), now)).toBe(false);
   });
-  it("end only > Until <date>", () => {
-    expect(compactWindow(null, apr30)).toBe("Until 30 Apr 2026");
+  it("end in the past > expired", () => {
+    expect(isCouponExpired(dateTimeToMs("2026-04-01", "00:00"), now)).toBe(true);
   });
-  it("both > <start> → <end>", () => {
-    expect(compactWindow(apr1, apr30)).toBe("1 Apr 2026 → 30 Apr 2026");
+  it("end exactly now > expired (inclusive, matches validateCoupon)", () => {
+    expect(isCouponExpired(now, now)).toBe(true);
   });
 });
