@@ -355,7 +355,8 @@ function AddBannerForm({
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
-  const [liveTime, setLiveTime] = useState(false);
+  // Default ON = shown forever (no schedule). Turn OFF to set a start/end window.
+  const [alwaysLive, setAlwaysLive] = useState(true);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -378,7 +379,7 @@ function AddBannerForm({
     setBusy(true);
     try {
       const { startsAt, endsAt } = liveWindow(
-        liveTime,
+        alwaysLive,
         dateTimeToMs(startDate, startTime),
         dateTimeToMs(endDate, endTime),
       );
@@ -394,7 +395,7 @@ function AddBannerForm({
       toast(`เพิ่ม${SLOT_LABELS[slot]}แล้ว ✓`, "success");
       setFile(null);
       setLinkUrl("");
-      setLiveTime(false);
+      setAlwaysLive(true);
       setStartDate("");
       setStartTime("");
       setEndDate("");
@@ -470,23 +471,23 @@ function AddBannerForm({
           <span className="switch">
             <input
               type="checkbox"
-              checked={liveTime}
+              checked={alwaysLive}
               disabled={busy}
               aria-label="Live time"
-              onChange={(e) => setLiveTime(e.target.checked)}
+              onChange={(e) => setAlwaysLive(e.target.checked)}
             />
             <span className="slider" />
           </span>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Live time</span>
         </label>
         <span className="muted" style={{ fontSize: 12 }}>
-          {liveTime
-            ? "Shows only between the two dates below."
-            : "Off — goes live now and stays until you change it."}
+          {alwaysLive
+            ? "On — shown forever, until you turn it off."
+            : "Off — shows only between the start/end dates below."}
         </span>
       </div>
 
-      {liveTime && (
+      {!alwaysLive && (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <DateTimeField
             label="Starts"
