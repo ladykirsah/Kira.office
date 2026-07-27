@@ -1001,11 +1001,21 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
   describe("coupons", () => {
     it("GET /coupons > lists coupons with their redemption counts", async () => {
-      const coupon = { id: "c1", code: "SAVE10", type: "percent", value: 1000, redemptions: 3 };
+      const coupon = {
+        id: "c1",
+        code: "SAVE10",
+        name: "Save 10",
+        type: "percent",
+        value: 1000,
+        redemptions: 3,
+      };
       const { env } = makeDb({ coupons: [coupon] });
       const res = await worker.fetch!(new Request("https://x/coupons"), env, ctx);
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ coupons: [coupon] });
+      // The admin list must carry the coupon `name` (migration 0065) back to the table.
+      const body = (await res.json()) as { coupons: { name?: string }[] };
+      expect(body).toEqual({ coupons: [coupon] });
+      expect(body.coupons[0]!.name).toBe("Save 10");
     });
 
     it("POST /coupons > trims + uppercases the code before storing it", async () => {
@@ -1013,7 +1023,12 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       const res = await worker.fetch!(
         new Request("https://x/coupons", {
           method: "POST",
-          body: JSON.stringify({ code: "  save10 ", type: "percent", value: 1000 }),
+          body: JSON.stringify({
+            code: "  save10 ",
+            name: "Save 10",
+            type: "percent",
+            value: 1000,
+          }),
         }),
         env,
         ctx,
@@ -1029,7 +1044,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       const res = await worker.fetch!(
         new Request("https://x/coupons", {
           method: "POST",
-          body: JSON.stringify({ code: "save10", type: "percent", value: 1000 }),
+          body: JSON.stringify({ code: "save10", name: "Save 10", type: "percent", value: 1000 }),
         }),
         env,
         ctx,
@@ -1047,9 +1062,72 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
             ctx,
           )
         ).status;
-      expect(await bad({ type: "percent", value: 1000 })).toBe(400);
-      expect(await bad({ code: "X", type: "bogus", value: 1000 })).toBe(400);
-      expect(await bad({ code: "X", type: "fixed", value: 0 })).toBe(400);
+      expect(await bad({ name: "N", type: "percent", value: 1000 })).toBe(400); // no code
+      // name present so these reach the type/value guards (not short-circuited by the name check).
+      expect(await bad({ code: "X", name: "N", type: "bogus", value: 1000 })).toBe(400);
+      expect(await bad({ code: "X", name: "N", type: "fixed", value: 0 })).toBe(400);
+    });
+
+    it("POST /coupons > stores the admin name", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons", {
+          method: "POST",
+          body: JSON.stringify({
+            code: "SAVE10",
+            name: "Songkran promo",
+            type: "percent",
+            value: 1000,
+          }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      expect(insert?.binds).toContain("Songkran promo");
+    });
+
+    it("POST /coupons > 400 when the name is missing or blank", async () => {
+      const bad = async (body: unknown) =>
+        (
+          await worker.fetch!(
+            new Request("https://x/coupons", { method: "POST", body: JSON.stringify(body) }),
+            makeDb({ couponByCode: null }).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad({ code: "X", type: "fixed", value: 100 })).toBe(400); // no name
+      expect(await bad({ code: "X", name: "   ", type: "fixed", value: 100 })).toBe(400); // blank
+    });
+
+    it("PATCH /coupons/:id > updates the admin name (trimmed)", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", {
+          method: "PATCH",
+          body: JSON.stringify({ name: "  Renamed Promo  " }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      const update = runs.find((r) => r.sql.includes("UPDATE coupons SET"));
+      expect(update?.sql).toContain("name = ?");
+      expect(update?.binds).toContain("Renamed Promo");
+    });
+
+    it("PATCH /coupons/:id > 400 for a blank name", async () => {
+      const { env } = makeDb({ couponByCode: null });
+      const res = await worker.fetch!(
+        new Request("https://x/coupons/c1", {
+          method: "PATCH",
+          body: JSON.stringify({ name: "   " }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
     });
 
     it("PATCH /coupons/:id > uppercases a new code", async () => {

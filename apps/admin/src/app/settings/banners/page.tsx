@@ -13,7 +13,9 @@ import {
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
+import { DateTimeField } from "../../DateTimeField";
 import { inputS } from "@/lib/inputStyles";
+import { dateTimeToMs, msToDateInput, msToTimeInput } from "@/lib/dateTime";
 import {
   liveWindow,
   SLOT_LIMIT,
@@ -52,17 +54,6 @@ const SLOT_HINT: Record<BannerRow["slot"], string> = {
     "A single wide band lower down the home page. Same wide shape; add as many as you like and they stack.",
 };
 
-// datetime-local value ("2026-07-10T14:30") ↔ epoch ms; "" ↔ null (no window bound).
-function msToInput(ms: number | null): string {
-  if (ms == null) return "";
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function inputToMs(v: string): number | null {
-  return v ? new Date(v).getTime() : null;
-}
-
 const TrashIcon = () => (
   <svg
     width="16"
@@ -91,16 +82,18 @@ function BannerItem({
   const fileRef = useRef<HTMLInputElement>(null);
   const [linkUrl, setLinkUrl] = useState(banner.linkUrl ?? "");
   const [sort, setSort] = useState(String(banner.sortOrder));
-  const [starts, setStarts] = useState(msToInput(banner.startsAt));
-  const [ends, setEnds] = useState(msToInput(banner.endsAt));
+  const [startDate, setStartDate] = useState(msToDateInput(banner.startsAt));
+  const [startTime, setStartTime] = useState(msToTimeInput(banner.startsAt));
+  const [endDate, setEndDate] = useState(msToDateInput(banner.endsAt));
+  const [endTime, setEndTime] = useState(msToTimeInput(banner.endsAt));
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const sortNum = Math.round(parseFloat(sort) || 0);
   const dirty =
     linkUrl.trim() !== (banner.linkUrl ?? "") ||
     sortNum !== banner.sortOrder ||
-    inputToMs(starts) !== banner.startsAt ||
-    inputToMs(ends) !== banner.endsAt;
+    dateTimeToMs(startDate, startTime) !== banner.startsAt ||
+    dateTimeToMs(endDate, endTime) !== banner.endsAt;
 
   async function save() {
     setBusy(true);
@@ -108,8 +101,8 @@ function BannerItem({
       await updateBanner(banner.id, {
         linkUrl: linkUrl.trim() || null,
         sortOrder: sortNum,
-        startsAt: inputToMs(starts),
-        endsAt: inputToMs(ends),
+        startsAt: dateTimeToMs(startDate, startTime),
+        endsAt: dateTimeToMs(endDate, endTime),
       });
       toast("Banner saved", "success");
       setEditing(false);
@@ -125,8 +118,10 @@ function BannerItem({
   function cancelEdit() {
     setLinkUrl(banner.linkUrl ?? "");
     setSort(String(banner.sortOrder));
-    setStarts(msToInput(banner.startsAt));
-    setEnds(msToInput(banner.endsAt));
+    setStartDate(msToDateInput(banner.startsAt));
+    setStartTime(msToTimeInput(banner.startsAt));
+    setEndDate(msToDateInput(banner.endsAt));
+    setEndTime(msToTimeInput(banner.endsAt));
     setEditing(false);
   }
 
@@ -238,24 +233,25 @@ function BannerItem({
               style={{ ...inputS, width: 64 }}
             />
           </td>
-          <td style={{ whiteSpace: "nowrap" }}>
-            <input
-              type="datetime-local"
-              value={starts}
-              onChange={(e) => setStarts(e.target.value)}
-              aria-label="Starts at"
-              style={inputS}
-            />
-            <span className="muted" style={{ margin: "0 6px" }}>
-              –
-            </span>
-            <input
-              type="datetime-local"
-              value={ends}
-              onChange={(e) => setEnds(e.target.value)}
-              aria-label="Ends at"
-              style={inputS}
-            />
+          <td>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <DateTimeField
+                label="Starts"
+                base="Edit banner start"
+                date={startDate}
+                time={startTime}
+                onDate={setStartDate}
+                onTime={setStartTime}
+              />
+              <DateTimeField
+                label="Ends"
+                base="Edit banner end"
+                date={endDate}
+                time={endTime}
+                onDate={setEndDate}
+                onTime={setEndTime}
+              />
+            </div>
           </td>
         </>
       ) : (
@@ -359,9 +355,12 @@ function AddBannerForm({
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
-  const [liveTime, setLiveTime] = useState(false);
-  const [starts, setStarts] = useState("");
-  const [ends, setEnds] = useState("");
+  // Default ON = shown forever (no schedule). Turn OFF to set a start/end window.
+  const [alwaysLive, setAlwaysLive] = useState(true);
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -379,7 +378,11 @@ function AddBannerForm({
     setError(null);
     setBusy(true);
     try {
-      const { startsAt, endsAt } = liveWindow(liveTime, starts, ends);
+      const { startsAt, endsAt } = liveWindow(
+        alwaysLive,
+        dateTimeToMs(startDate, startTime),
+        dateTimeToMs(endDate, endTime),
+      );
       // Sort to the end of this slot; order is edited per row afterwards.
       const { id } = await addBanner({
         slot,
@@ -392,9 +395,11 @@ function AddBannerForm({
       toast(`เพิ่ม${SLOT_LABELS[slot]}แล้ว ✓`, "success");
       setFile(null);
       setLinkUrl("");
-      setLiveTime(false);
-      setStarts("");
-      setEnds("");
+      setAlwaysLive(true);
+      setStartDate("");
+      setStartTime("");
+      setEndDate("");
+      setEndTime("");
       if (fileRef.current) fileRef.current.value = "";
       await onAdded();
     } catch (e2) {
@@ -466,42 +471,40 @@ function AddBannerForm({
           <span className="switch">
             <input
               type="checkbox"
-              checked={liveTime}
+              checked={alwaysLive}
               disabled={busy}
               aria-label="Live time"
-              onChange={(e) => setLiveTime(e.target.checked)}
+              onChange={(e) => setAlwaysLive(e.target.checked)}
             />
             <span className="slider" />
           </span>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Live time</span>
         </label>
         <span className="muted" style={{ fontSize: 12 }}>
-          {liveTime
-            ? "Shows only between the two dates below."
-            : "Off — goes live now and stays until you change it."}
+          {alwaysLive
+            ? "On — shown forever, until you turn it off."
+            : "Off — shows only between the start/end dates below."}
         </span>
       </div>
 
-      {liveTime && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Starts</span>
-            <input
-              type="datetime-local"
-              value={starts}
-              onChange={(e) => setStarts(e.target.value)}
-              style={inputS}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Ends</span>
-            <input
-              type="datetime-local"
-              value={ends}
-              onChange={(e) => setEnds(e.target.value)}
-              style={inputS}
-            />
-          </div>
+      {!alwaysLive && (
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <DateTimeField
+            label="Starts"
+            base="New banner start"
+            date={startDate}
+            time={startTime}
+            onDate={setStartDate}
+            onTime={setStartTime}
+          />
+          <DateTimeField
+            label="Ends"
+            base="New banner end"
+            date={endDate}
+            time={endTime}
+            onDate={setEndDate}
+            onTime={setEndTime}
+          />
         </div>
       )}
 

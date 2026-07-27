@@ -3962,6 +3962,8 @@ export async function deleteBanner(db: D1Database, bucket: R2Bucket, id: string)
 export interface CouponAdminRow {
   id: string;
   code: string;
+  /** Admin-only human label (migration 0065); never shown to customers. */
+  name: string | null;
   type: string;
   value: number;
   minSubtotalSatang: number;
@@ -3978,7 +3980,7 @@ export interface CouponAdminRow {
 export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT c.id, c.code, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
+      `SELECT c.id, c.code, c.name AS name, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
               c.starts_at AS startsAt, c.ends_at AS endsAt, c.max_uses AS maxUses,
               c.max_uses_per_customer AS maxUsesPerCustomer,
               c.max_discount_satang AS maxDiscountSatang, c.status, c.created_at AS createdAt,
@@ -3991,6 +3993,7 @@ export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]
 
 export interface CouponCreate {
   code: string; // route trims + uppercases before calling
+  name: string; // admin-only label; route trims + requires it before calling
   type: "fixed" | "percent";
   value: number; // satang (fixed) or basis points (percent) — matches the coupons CHECK
   minSubtotalSatang?: number;
@@ -4015,13 +4018,14 @@ export async function createCoupon(
   const id = crypto.randomUUID();
   await db
     .prepare(
-      `INSERT INTO coupons (id, code, type, value, min_subtotal_satang, starts_at, ends_at,
+      `INSERT INTO coupons (id, code, name, type, value, min_subtotal_satang, starts_at, ends_at,
                             max_uses, max_uses_per_customer, max_discount_satang, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     )
     .bind(
       id,
       input.code,
+      input.name.trim(),
       input.type,
       input.value,
       Math.max(0, Math.round(Number(input.minSubtotalSatang) || 0)),
@@ -4038,6 +4042,7 @@ export async function createCoupon(
 
 export interface CouponPatch {
   code?: string; // route trims + uppercases + dedupes before calling
+  name?: string; // route trims + requires non-empty before calling
   type?: "fixed" | "percent";
   value?: number;
   minSubtotalSatang?: number;
@@ -4058,6 +4063,7 @@ export async function updateCoupon(db: D1Database, id: string, patch: CouponPatc
     binds.push(value);
   };
   if (patch.code !== undefined) set("code", patch.code);
+  if (patch.name !== undefined) set("name", patch.name.trim());
   if (patch.type !== undefined) set("type", patch.type);
   if (patch.value !== undefined) set("value", patch.value);
   if (patch.minSubtotalSatang !== undefined)
@@ -5306,11 +5312,13 @@ const worker = {
       if (!body) return json({ error: "invalid JSON body" }, 400);
       const code = body.code?.trim().toUpperCase();
       if (!code) return json({ error: "code is required" }, 400);
+      const name = body.name?.trim();
+      if (!name) return json({ error: "name is required" }, 400);
       if (!isCouponType(body.type)) return json({ error: "type must be fixed or percent" }, 400);
       if (!isPositiveInt(body.value)) {
         return json({ error: "value must be a positive integer (satang, or basis points)" }, 400);
       }
-      const created = await createCoupon(env.DB, { ...(body as CouponCreate), code });
+      const created = await createCoupon(env.DB, { ...(body as CouponCreate), code, name });
       if ("duplicate" in created) return json({ error: `coupon code ${code} already exists` }, 409);
       return json(created, 201);
     }
@@ -5338,6 +5346,11 @@ const worker = {
           .first<{ id: string }>();
         if (clash) return json({ error: `coupon code ${code} already exists` }, 409);
         patch.code = code;
+      }
+      if (patch.name !== undefined) {
+        const trimmed = patch.name.trim();
+        if (!trimmed) return json({ error: "name is required" }, 400);
+        patch.name = trimmed;
       }
       await updateCoupon(env.DB, id, patch);
       return json({ ok: true });

@@ -13,7 +13,6 @@ import {
 } from "@/lib/api";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
-import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
 
 // Card frame shared by the sections (same look as the Service Setup page).
@@ -42,22 +41,129 @@ const SOURCE_LABELS: Record<AffiliateItemRow["source"], string> = {
 
 const isHttps = (url: string) => /^https:\/\/.+/.test(url.trim());
 
-const TrashIcon = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M3 6h18" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </svg>
-);
+/**
+ * Per-row "Actions ▾" dropdown — same pattern/classes as the products table's ActionsMenu.
+ * Edit runs the row's inline title-edit; Delete asks for an inline confirm. Closes on
+ * outside-click / Escape.
+ */
+function RowActions({
+  onEdit,
+  onDelete,
+  label,
+}: {
+  onEdit: () => void;
+  onDelete: () => void | Promise<void>;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  function close() {
+    setOpen(false);
+    setArmed(false);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  async function confirmDelete() {
+    setBusy(true);
+    try {
+      await onDelete();
+    } finally {
+      setBusy(false);
+      close();
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="actions-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        Actions
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .12s" }}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="actions-menu" role="menu">
+          <button
+            type="button"
+            className="actions-item"
+            role="menuitem"
+            onClick={() => {
+              close();
+              onEdit();
+            }}
+          >
+            Edit
+          </button>
+          {armed ? (
+            <div className="actions-confirm">
+              <span className="muted" style={{ fontSize: 12 }}>
+                Delete “{label}”?
+              </span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  disabled={busy}
+                  onClick={confirmDelete}
+                >
+                  Delete
+                </button>
+                <button type="button" disabled={busy} onClick={() => setArmed(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="actions-item danger"
+              role="menuitem"
+              onClick={() => setArmed(true)}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AffiliateItem({
   item,
@@ -69,6 +175,25 @@ function AffiliateItem({
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(item.title);
+  const [imgHover, setImgHover] = useState(false);
+
+  async function saveTitle() {
+    const t = titleDraft.trim();
+    if (!t) return;
+    setBusy(true);
+    try {
+      await updateAffiliateItem(item.id, { title: t });
+      toast("Title updated", "success");
+      setEditing(false);
+      await onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function toggle(active: boolean) {
     try {
@@ -106,12 +231,23 @@ function AffiliateItem({
 
   return (
     <tr>
-      {/* 60px thumb (or a muted "none" frame until an image is uploaded) */}
+      {/* 60px thumb doubles as the upload control — click it to add or change the image. */}
       <td>
-        <div
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => fileRef.current?.click()}
+          onMouseEnter={() => setImgHover(true)}
+          onMouseLeave={() => setImgHover(false)}
+          title={item.imageKey ? "Click to change the image" : "Click to upload an image"}
+          aria-label={
+            item.imageKey ? `Change image for ${item.title}` : `Upload image for ${item.title}`
+          }
           style={{
+            position: "relative",
             width: 60,
             height: 60,
+            padding: 0,
             border: "1px solid var(--border)",
             borderRadius: 6,
             background: "#fff",
@@ -119,6 +255,7 @@ function AffiliateItem({
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
+            cursor: busy ? "default" : "pointer",
           }}
         >
           {item.imageKey ? (
@@ -128,12 +265,37 @@ function AffiliateItem({
               style={{ maxWidth: "100%", maxHeight: "100%" }}
             />
           ) : (
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>none</span>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>＋ image</span>
           )}
-        </div>
+          {item.imageKey && imgHover && !busy && (
+            <span
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(0,0,0,0.45)",
+                color: "#fff",
+                fontSize: 11,
+              }}
+            >
+              Change
+            </span>
+          )}
+        </button>
       </td>
       <td>
-        <div style={{ fontWeight: 600 }}>{item.title}</div>
+        {editing ? (
+          <input
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            aria-label={`Edit title for ${item.title}`}
+            style={{ ...inputS, width: 220 }}
+          />
+        ) : (
+          <div style={{ fontWeight: 600 }}>{item.title}</div>
+        )}
         <a
           href={item.targetUrl}
           target="_blank"
@@ -177,22 +339,38 @@ function AffiliateItem({
             style={{ display: "none" }}
             onChange={(e) => upload(e.target.files?.[0])}
           />
-          <button
-            type="button"
-            className="btn-soft btn-sm"
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-          >
-            Upload
-          </button>
-          <ConfirmButton
-            className="icon-btn"
-            ariaLabel={`Delete ${item.title}`}
-            confirmLabel="Remove?"
-            onConfirm={del}
-          >
-            <TrashIcon />
-          </ConfirmButton>
+          {editing ? (
+            <>
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                disabled={busy || titleDraft.trim() === ""}
+                onClick={saveTitle}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  setTitleDraft(item.title);
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <RowActions
+              onEdit={() => {
+                setTitleDraft(item.title);
+                setEditing(true);
+              }}
+              onDelete={del}
+              label={item.title}
+            />
+          )}
         </div>
       </td>
     </tr>
@@ -331,7 +509,7 @@ export default function AffiliateItemsPage() {
             </select>
           </div>
           <div style={fieldCol}>
-            <span style={fieldLabel}>Sort</span>
+            <span style={fieldLabel}>Sold</span>
             <input
               type="number"
               value={sort}
@@ -405,7 +583,7 @@ export default function AffiliateItemsPage() {
                   <th>Item</th>
                   <th>Source</th>
                   <th>Price text</th>
-                  <th>Sort</th>
+                  <th>Sold</th>
                   <th>Clicks</th>
                   <th>Active</th>
                   <th aria-label="Actions" />

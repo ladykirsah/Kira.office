@@ -1368,6 +1368,8 @@ export async function deleteBanner(id: string): Promise<void> {
 export interface CouponRow {
   id: string;
   code: string;
+  /** Admin-only label (migration 0065); never shown to customers. */
+  name: string | null;
   type: "fixed" | "percent";
   value: number; // fixed → satang off; percent → basis points (1000 = 10%)
   minSubtotalSatang: number;
@@ -1390,6 +1392,7 @@ export async function fetchCoupons(): Promise<CouponWithUsage[]> {
 
 export async function addCoupon(input: {
   code: string;
+  name: string;
   type: "fixed" | "percent";
   value: number;
   minSubtotalSatang?: number;
@@ -1415,6 +1418,7 @@ export async function updateCoupon(
   id: string,
   fields: Partial<{
     code: string;
+    name: string;
     type: "fixed" | "percent";
     value: number;
     minSubtotalSatang: number;

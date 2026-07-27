@@ -39,16 +39,15 @@ export function slotCountLabel(slot: BannerSlot, count: number): string {
 /**
  * The scheduling window a banner should be saved with.
  *
- * "Live time" OFF means BOTH bounds are null — the banner runs until the owner changes it. That is
- * deliberately not a far-future end date: a real date would silently expire the banner one day,
- * which is exactly the surprise the toggle exists to avoid.
+ * "Live time" ON (always-live) means BOTH bounds are null — the banner runs forever, until the owner
+ * changes it. That is deliberately not a far-future end date: a real date would silently expire the
+ * banner one day. Turning it OFF is what schedules a start/end window.
  */
 export function liveWindow(
-  liveTimeOn: boolean,
-  startsInput: string,
-  endsInput: string,
+  alwaysLive: boolean,
+  startsAt: number | null,
+  endsAt: number | null,
 ): { startsAt: number | null; endsAt: number | null } {
-  if (!liveTimeOn) return { startsAt: null, endsAt: null };
-  const toMs = (v: string): number | null => (v ? new Date(v).getTime() : null);
-  return { startsAt: toMs(startsInput), endsAt: toMs(endsInput) };
+  if (alwaysLive) return { startsAt: null, endsAt: null };
+  return { startsAt, endsAt };
 }
