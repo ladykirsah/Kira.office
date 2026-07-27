@@ -12,8 +12,9 @@ import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
+import { DateTimeField } from "../../DateTimeField";
 import { inputS } from "@/lib/inputStyles";
-import { dateTimeToMs, msToDateInput, msToTimeInput, isCouponExpired } from "@/lib/couponSchedule";
+import { dateTimeToMs, msToDateInput, msToTimeInput, isCouponExpired } from "@/lib/dateTime";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -70,51 +71,6 @@ function Chevron({ open }: { open: boolean }) {
     >
       <path d="M9 18l6-6-6-6" />
     </svg>
-  );
-}
-
-/**
- * A date + time pair for one window bound. The time box is DISABLED until a date is chosen — so you
- * can't leave a time with no date (which would silently drop the bound). The time VALUE is preserved
- * when the date is cleared (only greyed out), so clearing a date to re-pick it never loses the time.
- */
-function DateTimeField({
-  label,
-  base,
-  date,
-  time,
-  onDate,
-  onTime,
-}: {
-  label: string;
-  base: string;
-  date: string;
-  time: string;
-  onDate: (v: string) => void;
-  onTime: (v: string) => void;
-}) {
-  return (
-    <div style={fieldCol}>
-      <span style={fieldLabel}>{label}</span>
-      <span style={{ display: "flex", gap: 6 }}>
-        <input
-          type="date"
-          aria-label={`${base} date`}
-          value={date}
-          onChange={(e) => onDate(e.target.value)}
-          style={inputS}
-        />
-        <input
-          type="time"
-          aria-label={`${base} time`}
-          value={time}
-          disabled={!date}
-          title={date ? undefined : "Pick a date first"}
-          onChange={(e) => onTime(e.target.value)}
-          style={{ ...inputS, opacity: date ? 1 : 0.55 }}
-        />
-      </span>
-    </div>
   );
 }
 

@@ -45,10 +45,9 @@ export function slotCountLabel(slot: BannerSlot, count: number): string {
  */
 export function liveWindow(
   liveTimeOn: boolean,
-  startsInput: string,
-  endsInput: string,
+  startsAt: number | null,
+  endsAt: number | null,
 ): { startsAt: number | null; endsAt: number | null } {
   if (!liveTimeOn) return { startsAt: null, endsAt: null };
-  const toMs = (v: string): number | null => (v ? new Date(v).getTime() : null);
-  return { startsAt: toMs(startsInput), endsAt: toMs(endsInput) };
+  return { startsAt, endsAt };
 }

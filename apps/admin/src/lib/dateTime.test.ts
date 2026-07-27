@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dateTimeToMs, msToDateInput, msToTimeInput, isCouponExpired } from "./couponSchedule";
+import { dateTimeToMs, msToDateInput, msToTimeInput, isCouponExpired } from "./dateTime";
 
 /**
  * The coupon form splits each window bound into a date box + a time box (owner request). This helper

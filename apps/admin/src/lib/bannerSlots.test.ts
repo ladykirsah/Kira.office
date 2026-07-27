@@ -40,23 +40,18 @@ describe("slotCountLabel", () => {
 describe("liveWindow", () => {
   it("given Live time OFF > no window at all, so the banner runs until changed", () => {
     // This is the owner's "live until the next change" — both bounds null, not a far-future date.
-    expect(liveWindow(false, "2026-08-01T09:00", "2026-08-31T09:00")).toEqual({
-      startsAt: null,
-      endsAt: null,
-    });
+    expect(liveWindow(false, 111, 222)).toEqual({ startsAt: null, endsAt: null });
   });
 
-  it("given Live time ON > converts both bounds to epoch ms", () => {
-    const w = liveWindow(true, "2026-08-01T09:00", "2026-08-31T09:00");
-    expect(w.startsAt).toBe(new Date("2026-08-01T09:00").getTime());
-    expect(w.endsAt).toBe(new Date("2026-08-31T09:00").getTime());
+  it("given Live time ON > passes the resolved bounds through", () => {
+    expect(liveWindow(true, 111, 222)).toEqual({ startsAt: 111, endsAt: 222 });
   });
 
   it("given Live time ON with only a start > open-ended run from that date", () => {
-    expect(liveWindow(true, "2026-08-01T09:00", "").endsAt).toBeNull();
+    expect(liveWindow(true, 111, null)).toEqual({ startsAt: 111, endsAt: null });
   });
 
   it("given Live time ON with neither date > behaves like OFF rather than erroring", () => {
-    expect(liveWindow(true, "", "")).toEqual({ startsAt: null, endsAt: null });
+    expect(liveWindow(true, null, null)).toEqual({ startsAt: null, endsAt: null });
   });
 });

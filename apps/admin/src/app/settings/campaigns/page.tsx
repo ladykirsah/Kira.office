@@ -16,7 +16,9 @@ import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
+import { DateTimeField } from "../../DateTimeField";
 import { inputS } from "@/lib/inputStyles";
+import { dateTimeToMs } from "@/lib/dateTime";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -35,11 +37,6 @@ const cardLabel = {
 } as const;
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
-
-// datetime-local value ↔ epoch ms; "" ↔ null.
-function inputToMs(v: string): number | null {
-  return v ? new Date(v).getTime() : null;
-}
 
 const TrashIcon = () => (
   <svg
@@ -368,12 +365,14 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
-  const [starts, setStarts] = useState("");
-  const [ends, setEnds] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const startsMs = inputToMs(starts);
-  const endsMs = inputToMs(ends);
+  const startsMs = dateTimeToMs(startDate, startTime);
+  const endsMs = dateTimeToMs(endDate, endTime);
   const canAdd = name.trim() !== "" && startsMs != null && endsMs != null && endsMs > startsMs;
 
   async function load() {
@@ -398,8 +397,10 @@ export default function CampaignsPage() {
       await addCampaign({ name: name.trim(), startsAt: startsMs, endsAt: endsMs });
       toast("Campaign added — now add its products", "success");
       setName("");
-      setStarts("");
-      setEnds("");
+      setStartDate("");
+      setStartTime("");
+      setEndDate("");
+      setEndTime("");
       await load();
     } catch (e2) {
       toast((e2 as Error).message, "error");
@@ -431,24 +432,22 @@ export default function CampaignsPage() {
               style={{ ...inputS, minWidth: 0 }}
             />
           </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Starts</span>
-            <input
-              type="datetime-local"
-              value={starts}
-              onChange={(e) => setStarts(e.target.value)}
-              style={inputS}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Ends</span>
-            <input
-              type="datetime-local"
-              value={ends}
-              onChange={(e) => setEnds(e.target.value)}
-              style={inputS}
-            />
-          </div>
+          <DateTimeField
+            label="Starts"
+            base="Start"
+            date={startDate}
+            time={startTime}
+            onDate={setStartDate}
+            onTime={setStartTime}
+          />
+          <DateTimeField
+            label="Ends"
+            base="End"
+            date={endDate}
+            time={endTime}
+            onDate={setEndDate}
+            onTime={setEndTime}
+          />
           <button type="submit" className="btn-primary" disabled={busy || !canAdd}>
             Add
           </button>
