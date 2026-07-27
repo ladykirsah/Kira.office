@@ -69,6 +69,24 @@ function AffiliateItem({
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(item.title);
+
+  async function saveTitle() {
+    const t = titleDraft.trim();
+    if (!t) return;
+    setBusy(true);
+    try {
+      await updateAffiliateItem(item.id, { title: t });
+      toast("Title updated", "success");
+      setEditing(false);
+      await onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function toggle(active: boolean) {
     try {
@@ -133,7 +151,16 @@ function AffiliateItem({
         </div>
       </td>
       <td>
-        <div style={{ fontWeight: 600 }}>{item.title}</div>
+        {editing ? (
+          <input
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            aria-label={`Edit title for ${item.title}`}
+            style={{ ...inputS, width: 220 }}
+          />
+        ) : (
+          <div style={{ fontWeight: 600 }}>{item.title}</div>
+        )}
         <a
           href={item.targetUrl}
           target="_blank"
@@ -177,13 +204,48 @@ function AffiliateItem({
             style={{ display: "none" }}
             onChange={(e) => upload(e.target.files?.[0])}
           />
+          {editing ? (
+            <>
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                disabled={busy || titleDraft.trim() === ""}
+                onClick={saveTitle}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  setTitleDraft(item.title);
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn-sm"
+              disabled={busy}
+              onClick={() => {
+                setTitleDraft(item.title);
+                setEditing(true);
+              }}
+            >
+              Edit
+            </button>
+          )}
           <button
             type="button"
             className="btn-soft btn-sm"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
           >
-            Upload
+            {item.imageKey ? "Change image" : "Upload image"}
           </button>
           <ConfirmButton
             className="icon-btn"
