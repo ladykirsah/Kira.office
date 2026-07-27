@@ -414,7 +414,7 @@ export default function AffiliateItemsPage() {
             </select>
           </div>
           <div style={fieldCol}>
-            <span style={fieldLabel}>Sort</span>
+            <span style={fieldLabel}>Sold</span>
             <input
               type="number"
               value={sort}
@@ -488,7 +488,7 @@ export default function AffiliateItemsPage() {
                   <th>Item</th>
                   <th>Source</th>
                   <th>Price text</th>
-                  <th>Sort</th>
+                  <th>Sold</th>
                   <th>Clicks</th>
                   <th>Active</th>
                   <th aria-label="Actions" />
