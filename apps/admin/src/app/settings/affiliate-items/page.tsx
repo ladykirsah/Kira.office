@@ -71,6 +71,7 @@ function AffiliateItem({
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(item.title);
+  const [imgHover, setImgHover] = useState(false);
 
   async function saveTitle() {
     const t = titleDraft.trim();
@@ -124,12 +125,23 @@ function AffiliateItem({
 
   return (
     <tr>
-      {/* 60px thumb (or a muted "none" frame until an image is uploaded) */}
+      {/* 60px thumb doubles as the upload control — click it to add or change the image. */}
       <td>
-        <div
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => fileRef.current?.click()}
+          onMouseEnter={() => setImgHover(true)}
+          onMouseLeave={() => setImgHover(false)}
+          title={item.imageKey ? "Click to change the image" : "Click to upload an image"}
+          aria-label={
+            item.imageKey ? `Change image for ${item.title}` : `Upload image for ${item.title}`
+          }
           style={{
+            position: "relative",
             width: 60,
             height: 60,
+            padding: 0,
             border: "1px solid var(--border)",
             borderRadius: 6,
             background: "#fff",
@@ -137,6 +149,7 @@ function AffiliateItem({
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
+            cursor: busy ? "default" : "pointer",
           }}
         >
           {item.imageKey ? (
@@ -146,9 +159,25 @@ function AffiliateItem({
               style={{ maxWidth: "100%", maxHeight: "100%" }}
             />
           ) : (
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>none</span>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>＋ image</span>
           )}
-        </div>
+          {item.imageKey && imgHover && !busy && (
+            <span
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(0,0,0,0.45)",
+                color: "#fff",
+                fontSize: 11,
+              }}
+            >
+              Change
+            </span>
+          )}
+        </button>
       </td>
       <td>
         {editing ? (
@@ -239,14 +268,6 @@ function AffiliateItem({
               Edit
             </button>
           )}
-          <button
-            type="button"
-            className="btn-soft btn-sm"
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-          >
-            {item.imageKey ? "Change image" : "Upload image"}
-          </button>
           <ConfirmButton
             className="icon-btn"
             ariaLabel={`Delete ${item.title}`}
