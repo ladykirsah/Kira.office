@@ -114,6 +114,15 @@ export function wrapLines(
   return lines;
 }
 
+/** File name for a single saved label image, e.g. "label-261470-0290-full-L.png". */
+export function labelFileName(code: string, version: LabelVersion, size: LabelSize): string {
+  const safe = (code ?? "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return ["label", safe, version, size].filter(Boolean).join("-") + ".png";
+}
+
 /**
  * Turn the compose-form state into a sheet item: the product plus the version, the picked size and
  * the printed width/height it resolves to, and how many copies to print.

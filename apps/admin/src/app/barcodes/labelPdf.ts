@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import JsBarcode from "jsbarcode";
 import { chooseBarcodeFormat } from "@/lib/barcode";
-import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
+import { pageDimensions, planFittedSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 import { wrapLines, type LabelVersion } from "@/lib/labelForm";
 
 export interface LabelProduct {
@@ -35,6 +35,9 @@ const PAD_Y = 30;
 const INK = "#16181c";
 const MUTED = "#8b9199";
 const LINE = "#d6dae0";
+/** Cutting-guide border: light gray, thin — visible to cut along, quiet on the label. */
+const FRAME = "#c9ced6";
+const FRAME_W = 2;
 const HEAD_FONT = 17;
 const HEAD_LINE = HEAD_FONT * 1.6; // 27.2 — the header row's line box
 const NAME_FONT = 34;
@@ -156,6 +159,11 @@ export function drawLabel(
   ctx.save();
   ctx.scale(W / tpl.w, H / tpl.h);
 
+  // Cutting guide: a hairline on the label's own border, so the sheet can be cut label by label.
+  ctx.strokeStyle = FRAME;
+  ctx.lineWidth = FRAME_W;
+  ctx.strokeRect(FRAME_W / 2, FRAME_W / 2, tpl.w - FRAME_W, tpl.h - FRAME_W);
+
   const right = tpl.w - PAD_X;
   const headMid = PAD_Y + HEAD_LINE / 2;
   drawBrandType(ctx, product, headMid);
@@ -238,9 +246,30 @@ export interface SheetLabel extends LabelProduct {
   amount: number;
 }
 
-/** Labels tile edge to edge — the sheet is cut with a guillotine, so no gap between them. */
-const SHEET_MARGIN = 8;
-const SHEET_GAP = 0;
+/**
+ * Save one label on its own as a PNG — the same artwork the sheet prints, at print resolution, for
+ * reusing outside the sheet (sending it to someone, printing a single tag).
+ */
+export function downloadLabelPng(
+  product: LabelProduct,
+  version: LabelVersion,
+  wMm: number,
+  hMm: number,
+  fileName: string,
+): void {
+  const canvas = document.createElement("canvas");
+  drawLabel(canvas, product, version, wMm, hMm);
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    // Give the browser a tick to start the download before dropping the object URL.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, "image/png");
+}
 
 /** Build and download one PDF holding several products' labels, each at its own size and count. */
 export function downloadLabelSheet(opts: {
@@ -250,18 +279,16 @@ export function downloadLabelSheet(opts: {
 }): void {
   const { paper, orientation, items } = opts;
   const page = pageDimensions(paper, orientation);
-  const plan = planSheet({
+  const plan = planFittedSheet({
     items: items.map((i) => ({ w: i.w, h: i.h, amount: i.amount })),
     page,
-    margin: SHEET_MARGIN,
-    gap: SHEET_GAP,
   });
   if (!plan.placements.length) return;
 
-  // Render each product's label image once, then stamp it at every placement.
-  const images = items.map((it) => {
+  // Render each product's label image once, at the size it actually prints.
+  const images = items.map((it, i) => {
     const c = document.createElement("canvas");
-    drawLabel(c, it, it.version, it.w, it.h);
+    drawLabel(c, it, it.version, plan.printed[i].w, plan.printed[i].h);
     return c.toDataURL("image/png");
   });
 
@@ -272,8 +299,8 @@ export function downloadLabelSheet(opts: {
       doc.addPage();
       cur++;
     }
-    const it = items[pl.index];
-    doc.addImage(images[pl.index], "PNG", pl.x, pl.y, it.w, it.h);
+    const size = plan.printed[pl.index];
+    doc.addImage(images[pl.index], "PNG", pl.x, pl.y, size.w, size.h);
   }
   const tag = items.length === 1 ? items[0].code || "labels" : `${items.length}-products`;
   doc.save(`labels-${tag}.pdf`);
@@ -289,17 +316,15 @@ export function renderSheetPreview(
   container.replaceChildren();
   const { paper, orientation, items } = opts;
   const page = pageDimensions(paper, orientation);
-  const plan = planSheet({
+  const plan = planFittedSheet({
     items: items.map((i) => ({ w: i.w, h: i.h, amount: i.amount })),
     page,
-    margin: SHEET_MARGIN,
-    gap: SHEET_GAP,
   });
   if (!plan.placements.length) return;
 
-  const labelImages = items.map((it) => {
+  const labelImages = items.map((it, i) => {
     const c = document.createElement("canvas");
-    drawLabel(c, it, it.version, it.w, it.h);
+    drawLabel(c, it, it.version, plan.printed[i].w, plan.printed[i].h);
     return c;
   });
 
@@ -315,8 +340,8 @@ export function renderSheetPreview(
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const pl of plan.placements) {
         if (pl.page !== pg) continue;
-        const it = items[pl.index];
-        ctx.drawImage(labelImages[pl.index], pl.x * pv, pl.y * pv, it.w * pv, it.h * pv);
+        const size = plan.printed[pl.index];
+        ctx.drawImage(labelImages[pl.index], pl.x * pv, pl.y * pv, size.w * pv, size.h * pv);
       }
     }
     container.appendChild(canvas);

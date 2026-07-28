@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildLabelItem, fitmentLines, labelDimensions, sizeHint, wrapLines } from "./labelForm";
+import {
+  buildLabelItem,
+  fitmentLines,
+  labelDimensions,
+  labelFileName,
+  sizeHint,
+  wrapLines,
+} from "./labelForm";
 
 /** Stand-in for canvas text measuring: every character is 10 wide. */
 const measure = (s: string) => [...s].length * 10;
@@ -96,6 +103,21 @@ describe("wrapLines", () => {
 
   it("given text that fits > returns it as one line", () => {
     expect(wrapLines(measure, "Radiator", 100, 2)).toEqual(["Radiator"]);
+  });
+});
+
+describe("labelFileName", () => {
+  it("names the file after the product code, version and size", () => {
+    expect(labelFileName("261470-0290", "full", "L")).toBe("label-261470-0290-full-L.png");
+    expect(labelFileName("447220-4052", "minimal", "S")).toBe("label-447220-4052-minimal-S.png");
+  });
+
+  it("given a code with spaces or slashes > keeps the name filesystem-safe", () => {
+    expect(labelFileName("SKN CREAM/50", "full", "L")).toBe("label-SKN-CREAM-50-full-L.png");
+  });
+
+  it("given no code > still returns a usable name", () => {
+    expect(labelFileName("", "minimal", "S")).toBe("label-minimal-S.png");
   });
 });
 
