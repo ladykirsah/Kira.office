@@ -1145,7 +1145,7 @@ a.card:hover {
    survives down to a 510 + 232 = 742px window. Below that it is replaced by <MobileNav>: a
    bottom bar with the four daily pages, plus ☰ opening the full grouped menu as a drawer. */
 .mnav-burger,
-.mnav-title,
+.mnav-brand,
 .mnav-tabs,
 .mnav-drawer,
 .mnav-scrim {
@@ -1167,32 +1167,37 @@ a.card:hover {
     padding-bottom: 78px;
   }
 
+  /* Soft coral tile holding the list glyph — the one control on the bar. */
   .mnav-burger {
     display: grid;
     place-items: center;
-    gap: 3.5px;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     min-height: 0;
     padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--surface);
+    border: none;
+    border-radius: 10px;
+    background: var(--primary-soft);
+    color: var(--primary);
     flex-shrink: 0;
   }
-  .mnav-burger span {
-    width: 15px;
-    height: 2px;
-    background: var(--text);
-    border-radius: 2px;
+  .mnav-burger:hover:not(:disabled) {
+    background: var(--primary-soft);
   }
-  .mnav-title {
+  /* Centred on the bar itself, so it doesn't drift with the widths either side of it. */
+  .mnav-brand {
     display: block;
-    font-weight: 600;
-    font-size: 16px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.01em;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  }
+  .mnav-brand:hover {
+    text-decoration: none;
   }
 
   .mnav-scrim {

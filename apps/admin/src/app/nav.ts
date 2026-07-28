@@ -87,12 +87,6 @@ export function activeHref(path: string): string | undefined {
     .sort((a, b) => b.length - a.length)[0];
 }
 
-/** Name of the page you're on, shown beside ☰ on the phone. */
-export function pageTitle(path: string): string {
-  const href = activeHref(path);
-  return (href && byHref.get(href)?.label) || "Kira.office";
-}
-
 /** Scroll movement smaller than this is ignored, so the bar doesn't flicker. */
 const SCROLL_THRESHOLD = 8;
 /** Within this distance of the top the bar is always shown, whatever the direction. */

@@ -3,7 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible, pageTitle } from "./nav";
+import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
+
+/** Menu glyph: a list — a dot and a line per row, i.e. the pages behind it. */
+const MenuIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
+    <circle cx="4.5" cy="7" r="1.2" fill="currentColor" stroke="none" />
+    <path d="M9 7h11" />
+    <circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <path d="M9 12h11" />
+    <circle cx="4.5" cy="17" r="1.2" fill="currentColor" stroke="none" />
+    <path d="M9 17h11" />
+  </svg>
+);
 
 /**
  * The phone navigation (hidden by CSS above 741px, where the sidebar takes over):
@@ -62,11 +83,11 @@ export function MobileNav() {
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        <span aria-hidden />
-        <span aria-hidden />
-        <span aria-hidden />
+        <MenuIcon />
       </button>
-      <span className="mnav-title">{pageTitle(path)}</span>
+      <Link className="mnav-brand" href="/">
+        Kira.office
+      </Link>
 
       {open && (
         <>

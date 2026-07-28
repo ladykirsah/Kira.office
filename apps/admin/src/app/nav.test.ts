@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible, pageTitle } from "./nav";
+import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
 
 const allHrefs = NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href));
 
@@ -29,18 +29,6 @@ describe("activeHref", () => {
 
   it("given an unknown path > marks nothing", () => {
     expect(activeHref("/nowhere")).toBeUndefined();
-  });
-});
-
-describe("pageTitle", () => {
-  it("names the page you're on, for the phone top bar", () => {
-    expect(pageTitle("/barcodes")).toBe("Barcodes");
-    expect(pageTitle("/customers/1กก-1234")).toBe("Customers");
-  });
-
-  it("falls back to the app name off-menu", () => {
-    expect(pageTitle("/")).toBe("Kira.office");
-    expect(pageTitle("/nowhere")).toBe("Kira.office");
   });
 });
 
