@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
+import { MobileNav } from "./MobileNav";
 import { ThemeToggle } from "./ThemeToggle";
 import { ToastProvider } from "./ToastProvider";
 import { DevApiBanner } from "./DevApiBanner";
@@ -23,7 +24,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Sidebar />
             <div className="main">
               <header className="topbar">
-                <span className="muted">Shopee Thailand back office</span>
+                <MobileNav />
+                <span className="muted topbar-tagline">Shopee Thailand back office</span>
                 <ThemeToggle />
               </header>
               <div className="content">
