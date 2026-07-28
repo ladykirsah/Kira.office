@@ -1,0 +1,104 @@
+/**
+ * The one description of the admin's navigation — used by the desktop sidebar and by the phone
+ * menu (bottom bar + drawer), so the two can never drift apart.
+ */
+
+export interface NavLink {
+  href: string;
+  icon: string;
+  label: string;
+  /** Shorter label for the phone's bottom bar, where a slot is ~97px wide. */
+  short?: string;
+}
+
+export interface NavGroup {
+  section: string;
+  links: NavLink[];
+}
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    section: "Catalog",
+    links: [
+      { href: "/scan", icon: "📷", label: "Scan here", short: "Scan" },
+      { href: "/products", icon: "📦", label: "Products" },
+      { href: "/products/new", icon: "➕", label: "Add product" },
+      { href: "/barcodes", icon: "🏷️", label: "Barcodes" },
+      { href: "/import", icon: "⬆️", label: "Import" },
+    ],
+  },
+  {
+    section: "Sell",
+    links: [
+      { href: "/pos", icon: "🛒", label: "Point of Sale", short: "POS" },
+      { href: "/payment", icon: "💸", label: "Payment" },
+      { href: "/customers", icon: "👥", label: "Customers" },
+    ],
+  },
+  {
+    section: "Inventory",
+    links: [{ href: "/stock", icon: "📊", label: "Stock movements" }],
+  },
+  {
+    section: "Orders & money",
+    links: [
+      { href: "/orders", icon: "🧾", label: "Orders" },
+      { href: "/sales", icon: "💰", label: "Sales" },
+      { href: "/affiliate", icon: "🤝", label: "Affiliate" },
+    ],
+  },
+  {
+    section: "Settings",
+    links: [
+      { href: "/settings/shop", icon: "🏪", label: "Shop info" },
+      // Warranty used to be its own entry; it now lives on the Product categories card here, so a
+      // category is created complete (title + photo + warranty) in one place.
+      { href: "/settings/attributes", icon: "🧩", label: "Part attributes" },
+      { href: "/settings/services", icon: "🔧", label: "Service Setup" },
+      { href: "/settings/car-fitment", icon: "🚗", label: "Car fitment" },
+      { href: "/settings/banners", icon: "🖼️", label: "Banners" },
+      { href: "/settings/coupons", icon: "🎟️", label: "Coupons" },
+      { href: "/settings/campaigns", icon: "⚡", label: "Flash sales" },
+      { href: "/settings/affiliate-items", icon: "🤝", label: "Affiliate tools" },
+      { href: "/terms", icon: "📝", label: "Terms" },
+    ],
+  },
+];
+
+const byHref = new Map(NAV_GROUPS.flatMap((g) => g.links).map((l) => [l.href, l]));
+
+/**
+ * The four pages that get a permanent slot in the phone's bottom bar, in the owner's order
+ * (2026-07-29): what they reach for every day standing at the counter. Everything else is one tap
+ * away behind ☰ — there is deliberately no "More" tab.
+ */
+export const PRIMARY_TABS: NavLink[] = ["/scan", "/customers", "/pos", "/payment"].map(
+  (href) => byHref.get(href) as NavLink,
+);
+
+/**
+ * Which menu link the current path belongs to. The most specific match wins, so a sub-route
+ * (/customers/1กก) highlights its parent without a shorter sibling (/products vs /products/new)
+ * also lighting up.
+ */
+export function activeHref(path: string): string | undefined {
+  return [...byHref.keys()]
+    .filter((h) => path === h || path.startsWith(`${h}/`))
+    .sort((a, b) => b.length - a.length)[0];
+}
+
+/** Scroll movement smaller than this is ignored, so the bar doesn't flicker. */
+const SCROLL_THRESHOLD = 8;
+/** Within this distance of the top the bar is always shown, whatever the direction. */
+const TOP_ZONE = 24;
+
+/**
+ * Whether the bottom bar should be visible after a scroll: hidden while scrolling down a long
+ * list, back the moment you scroll up, and always present near the top of the page.
+ */
+export function nextBarVisible(prev: { y: number; visible: boolean }, y: number): boolean {
+  if (y <= TOP_ZONE) return true;
+  if (y > prev.y + SCROLL_THRESHOLD) return false;
+  if (y < prev.y - SCROLL_THRESHOLD) return true;
+  return prev.visible;
+}

@@ -1139,30 +1139,131 @@ a.card:hover {
   width: 100%;
 }
 
-/* Responsive: sidebar becomes a horizontal bar (tablet/phone at the counter) */
-@media (max-width: 760px) {
+/* ── Phone navigation ────────────────────────────────────────────────────────────────────────
+   The threshold is set by the content area, not the window: the vertical sidebar is 232px
+   (--sidebar-w) and the content must never be narrower than 510px beside it, so the sidebar
+   survives down to a 510 + 232 = 742px window. Below that it is replaced by <MobileNav>: a
+   bottom bar with the four daily pages, plus ☰ opening the full grouped menu as a drawer. */
+.mnav-burger,
+.mnav-brand,
+.mnav-tabs,
+.mnav-drawer,
+.mnav-scrim {
+  display: none;
+}
+
+@media (max-width: 741px) {
   .app-shell {
     flex-direction: column;
   }
-  .sidebar {
-    width: auto;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-  }
-  .nav-section-label {
+  /* The sidebar's content lives in the drawer down here. */
+  .sidebar,
+  .topbar-tagline {
     display: none;
-  }
-  .brand {
-    width: 100%;
   }
   .content {
     padding: 16px;
+    /* Clear the bottom bar (62px) so the last row is never trapped under it. */
+    padding-bottom: 78px;
+  }
+
+  /* Drawn exactly like the theme toggle it shares the bar with — same surface, border and
+     radius — so the two controls read as a pair with the brand centred between them. */
+  .mnav-burger {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    flex-shrink: 0;
+  }
+  /* Centred on the bar itself, so it doesn't drift with the widths either side of it. */
+  .mnav-brand {
+    display: block;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .mnav-brand:hover {
+    text-decoration: none;
+  }
+
+  .mnav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 24, 40, 0.34);
+    z-index: 40;
+  }
+  .mnav-drawer {
+    display: block;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(280px, 82vw);
+    padding: 12px 10px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 41;
+    animation: mnav-slide-in 0.18s ease-out;
+  }
+  @keyframes mnav-slide-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+
+  .mnav-tabs {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 62px;
+    align-items: center;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 30;
+    transition: transform 0.2s ease;
+  }
+  .mnav-tabs.hidden {
+    transform: translateY(100%);
+  }
+  .mnav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 100%;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .mnav-tab .em {
+    font-size: 21px;
+    line-height: 1;
+  }
+  .mnav-tab.active {
+    color: var(--primary);
+    font-weight: 700;
+  }
+  .mnav-tab:active {
+    background: var(--hover);
   }
 }
 
