@@ -43,6 +43,38 @@ export function planLabelGrid(args: {
   return { cols, rows, perPage: cols * rows };
 }
 
+/**
+ * Outer margin kept clear on every sheet. Lasers reserve ~4.2 mm on every edge and inkjets can
+ * reserve 10–15 mm at the bottom, so 8 mm keeps the last row well clear of both — and it costs
+ * nothing: a label only loses ~1 mm of width, and the rows per page are unchanged.
+ */
+export const SHEET_MARGIN = 8;
+
+/**
+ * How much a label may be scaled DOWN to win another column. The label keeps its exact
+ * proportions — it only gets a little smaller, never stretched.
+ */
+export const MAX_SHRINK = 0.1;
+
+/**
+ * Fit a label across the page: the most columns it can make if it may shrink by at most
+ * MAX_SHRINK, scaling width and height together. A label is never enlarged to fill the row, and
+ * one wider than the page is scaled down to fit.
+ */
+export function fitColumns(args: {
+  naturalW: number;
+  naturalH: number;
+  usableW: number;
+  maxShrink?: number;
+}): { cols: number; w: number; h: number } {
+  const { naturalW, naturalH, usableW, maxShrink = MAX_SHRINK } = args;
+  if (naturalW <= 0 || naturalH <= 0 || usableW <= 0) return { cols: 0, w: 0, h: 0 };
+  const smallest = naturalW * (1 - maxShrink);
+  const cols = Math.max(1, Math.floor(usableW / smallest));
+  const w = Math.min(naturalW, usableW / cols);
+  return { cols, w, h: naturalH * (w / naturalW) };
+}
+
 export interface SheetItem {
   w: number;
   h: number;
@@ -100,4 +132,35 @@ export function planSheet(args: {
   }
 
   return { pages: placements.length ? pageNum + 1 : 0, placements };
+}
+
+export interface FittedSheetPlan extends SheetPlan {
+  /** The size each item actually prints at, after fitting it across the page. */
+  printed: { w: number; h: number }[];
+}
+
+/**
+ * Plan a sheet that uses the paper: every label is first fitted across the page width (shrunk a
+ * little if that wins a column), then tiled edge to edge. The one planner behind both the PDF and
+ * the on-screen count, so they can never disagree.
+ */
+export function planFittedSheet(args: {
+  items: SheetItem[];
+  page: PageSize;
+  margin?: number;
+  maxShrink?: number;
+}): FittedSheetPlan {
+  const { items, page, margin = SHEET_MARGIN, maxShrink } = args;
+  const usableW = page.width - 2 * margin;
+  const printed = items.map((it) => {
+    const { w, h } = fitColumns({ naturalW: it.w, naturalH: it.h, usableW, maxShrink });
+    return { w, h };
+  });
+  const plan = planSheet({
+    items: items.map((it, i) => ({ ...printed[i], amount: it.amount })),
+    page,
+    margin,
+    gap: 0,
+  });
+  return { ...plan, printed };
 }

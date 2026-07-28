@@ -1132,10 +1132,11 @@ a.card:hover {
   top: 0;
   z-index: 5;
 }
+/* Fluid at any window width — pages use the whole screen rather than stopping at a fixed size.
+   Prose stays readable via the per-element max-widths (e.g. .muted's 52ch), not a page-wide cap. */
 .content {
   padding: 24px;
   width: 100%;
-  max-width: 1080px;
 }
 
 /* Responsive: sidebar becomes a horizontal bar (tablet/phone at the counter) */

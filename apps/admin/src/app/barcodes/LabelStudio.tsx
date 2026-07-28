@@ -3,14 +3,21 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { apiBase, getProductDetail } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
-import { pageDimensions, planSheet, type Orientation, type Paper } from "@/lib/labelGrid";
+import { pageDimensions, planFittedSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 import { PageHeader } from "../PageHeader";
-import { drawLabel, downloadLabelSheet, renderSheetPreview, setShopName } from "./labelPdf";
+import {
+  drawLabel,
+  downloadLabelPng,
+  downloadLabelSheet,
+  renderSheetPreview,
+  setShopName,
+} from "./labelPdf";
 import type { SheetLabel } from "./labelPdf";
 import {
   buildLabelItem,
   fitmentLines,
   labelDimensions,
+  labelFileName,
   sizeHint,
   type LabelSize,
   type LabelVersion,
@@ -87,6 +94,25 @@ function Seg<T extends string>({
     </div>
   );
 }
+
+/** Download glyph, drawn in the admin's icon style (15px, 24-grid, currentColor). */
+const DownloadIcon = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3v12" />
+    <path d="m7 10 5 5 5-5" />
+    <path d="M4 19h16" />
+  </svg>
+);
 
 function Cover({ p, size }: { p: StudioProduct; size: number }) {
   return p.imageKey ? (
@@ -232,6 +258,23 @@ export function LabelStudio({
     );
   const removeItem = (key: number) => setItems((xs) => xs.filter((it) => it.key !== key));
 
+  /** Save one row's label on its own, as the PNG the sheet would print. */
+  const saveLabelPng = (it: LabelItem) =>
+    downloadLabelPng(
+      {
+        code: it.product.code,
+        name: it.product.name,
+        brandName: it.product.brandName,
+        typeName: it.product.typeName,
+        barcode: it.product.barcode ?? "",
+        fitment: it.fitment,
+      },
+      it.version,
+      it.w,
+      it.h,
+      labelFileName(it.product.code, it.version, it.size),
+    );
+
   const labels: SheetLabel[] = items.map((it) => ({
     code: it.product.code,
     name: it.product.name,
@@ -245,11 +288,9 @@ export function LabelStudio({
     amount: it.amount,
   }));
 
-  const plan = planSheet({
+  const plan = planFittedSheet({
     items: labels.map((it) => ({ w: it.w, h: it.h, amount: it.amount })),
     page: pageDimensions(paper, orientation),
-    margin: 8,
-    gap: 0,
   });
   const totalLabels = items.reduce((n, it) => n + it.amount, 0);
 
@@ -640,16 +681,27 @@ export function LabelStudio({
                           </span>
                         </td>
                         <td>
-                          <button
-                            type="button"
-                            aria-label="Remove"
-                            title="Remove"
-                            onClick={() => removeItem(it.key)}
-                            className="icon-btn"
-                            style={{ color: "var(--danger)" }}
-                          >
-                            ✕
-                          </button>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                            <button
+                              type="button"
+                              aria-label={`Save ${it.product.name} label as PNG`}
+                              title="Save this label as a PNG"
+                              onClick={() => saveLabelPng(it)}
+                              className="icon-btn"
+                            >
+                              <DownloadIcon />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Remove"
+                              title="Remove"
+                              onClick={() => removeItem(it.key)}
+                              className="icon-btn"
+                              style={{ color: "var(--danger)" }}
+                            >
+                              ✕
+                            </button>
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -682,8 +734,9 @@ export function LabelStudio({
         {items.length > 0 && (
           <section
             style={{
-              flex: "0 1 372px",
+              flex: "1 1 372px",
               minWidth: 300,
+              maxWidth: 520,
               border: "1px solid var(--border)",
               borderRadius: 12,
               padding: 18,
