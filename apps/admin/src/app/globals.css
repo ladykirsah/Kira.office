@@ -1167,7 +1167,8 @@ a.card:hover {
     padding-bottom: 78px;
   }
 
-  /* Soft coral tile holding the list glyph — the one control on the bar. */
+  /* Drawn exactly like the theme toggle it shares the bar with — same surface, border and
+     radius — so the two controls read as a pair with the brand centred between them. */
   .mnav-burger {
     display: grid;
     place-items: center;
@@ -1175,14 +1176,11 @@ a.card:hover {
     height: 36px;
     min-height: 0;
     padding: 0;
-    border: none;
+    border: 1px solid var(--border);
     border-radius: 10px;
-    background: var(--primary-soft);
-    color: var(--primary);
+    background: var(--surface);
+    color: var(--text);
     flex-shrink: 0;
-  }
-  .mnav-burger:hover:not(:disabled) {
-    background: var(--primary-soft);
   }
   /* Centred on the bar itself, so it doesn't drift with the widths either side of it. */
   .mnav-brand {
