@@ -1,6 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { buildCheckoutCustomerUpsert, finalizeParkedDraft } from "./checkout";
+import { buildCheckoutCustomerUpsert, finalizeParkedDraft, quoteNumberForExport } from "./checkout";
 import type { OpenDraft } from "./api";
+
+describe("quoteNumberForExport", () => {
+  const now = Date.UTC(2026, 6, 29, 3, 0, 0); // 29 Jul 2026, local Bangkok morning
+
+  it("given the bill has no quotation number yet > issues the next one", () => {
+    expect(quoteNumberForExport(null, "QT202607-29004", now)).toBe("QT202607-29005");
+  });
+
+  it("given the bill was already exported > reuses its number, burning none", () => {
+    // Saving PDF then PNG then PDF again must stay one entry, not three.
+    expect(quoteNumberForExport("QT202607-29005", "QT202607-29009", now)).toBe("QT202607-29005");
+  });
+
+  it("given no quotation has ever been issued > starts the day's series", () => {
+    expect(quoteNumberForExport(null, null, now)).toBe("QT202607-29001");
+  });
+});
 
 describe("buildCheckoutCustomerUpsert", () => {
   it("builds a plate+province upsert, trimming both", () => {
@@ -14,8 +31,43 @@ describe("buildCheckoutCustomerUpsert", () => {
     expect(buildCheckoutCustomerUpsert({ plate: "   ", province: "สุรินทร์" })).toBeNull();
   });
 
-  it("returns null when no province was entered (nothing to enrich)", () => {
+  it("returns null when the plate is all there is (nothing to enrich)", () => {
     expect(buildCheckoutCustomerUpsert({ plate: "6ฉฉ2345", province: "  " })).toBeNull();
+  });
+
+  it("saves the new customer's name and numbers, even with no province", () => {
+    expect(
+      buildCheckoutCustomerUpsert({
+        plate: "6ฉฉ2345",
+        province: "",
+        customerName: " สมชาย ",
+        phones: [" 081-234-5678 ", "", "02-111-2222"],
+      }),
+    ).toEqual({
+      licensePlate: "6ฉฉ2345",
+      customerName: "สมชาย",
+      phone: "081-234-5678, 02-111-2222",
+    });
+  });
+
+  it("saves the car onto the plate, so it prefills next visit", () => {
+    expect(
+      buildCheckoutCustomerUpsert({
+        plate: "6ฉฉ2345",
+        province: "",
+        carModel: " Toyota Vigo 2012 ",
+      }),
+    ).toEqual({ licensePlate: "6ฉฉ2345", carModel: "Toyota Vigo 2012" });
+  });
+
+  it("leaves out the fields that were not filled in", () => {
+    const out = buildCheckoutCustomerUpsert({
+      plate: "6ฉฉ2345",
+      province: "สุรินทร์",
+      customerName: "  ",
+      phones: ["  "],
+    });
+    expect(out).toEqual({ licensePlate: "6ฉฉ2345", plateProvince: "สุรินทร์" });
   });
 });
 

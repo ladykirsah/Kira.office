@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   lookupBarcode,
   fetchProducts,
@@ -15,16 +16,27 @@ import {
   deleteDraft,
   getOnsiteSale,
   saveCustomer,
+  getCustomerDetail,
   EMPTY_SHOP_INFO,
   type ProductRow,
   type ServiceRow,
   type ShopInfo,
   type CarBrandTree,
   type OpenDraft,
+  type CustomerDetail,
 } from "@/lib/api";
 import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
-import { buildCheckoutCustomerUpsert, finalizeParkedDraft } from "@/lib/checkout";
+import {
+  buildCheckoutCustomerUpsert,
+  finalizeParkedDraft,
+  quoteNumberForExport,
+} from "@/lib/checkout";
 import { THAI_PROVINCES } from "@/lib/provinces";
+import { parseSavedCar } from "@/lib/vehicle";
+import { buildQueuedSale, type PaymentTaken } from "@/lib/saleBuilder";
+import { stashHandoff, readSettlement, clearSettlement } from "@/lib/paymentHandoff";
+import { syncSale } from "@/lib/saleSync";
+import { billFileName, saveBillPdf, saveBillPng } from "@/lib/billFile";
 import JsBarcode from "jsbarcode";
 import { formatBaht, formatBahtTrim } from "@/lib/format";
 import { productDisplayName } from "@/lib/productLabel";
@@ -34,20 +46,11 @@ import {
   lineTotalSatang,
   cartTotalSatang,
   discountSatangOf,
-  distributeDiscount,
   type DiscountKind,
 } from "@/lib/posCart";
 import { inputL, inputS } from "@/lib/inputStyles";
 import { ServiceSelect } from "./ServiceSelect";
-import {
-  flushOutbox,
-  formatSyncFailureMessage,
-  isSyncSuccess,
-  type OutboxStore,
-  type QueuedSale,
-  type SyncResponse,
-} from "@/lib/outbox";
-import { apiFetch } from "@/lib/apiFetch";
+import { flushOutbox, type OutboxStore } from "@/lib/outbox";
 import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
 
@@ -72,22 +75,6 @@ interface SaleLine {
   b2bPriceSatang?: number; // wholesale price
   tier?: PriceTier; // per-line B2C/B2B choice
   unitCostSatang?: number; // product cost — sent to the server for gross-profit
-}
-
-async function syncSale(sale: QueuedSale): Promise<{ ok: boolean; message?: string }> {
-  const res = await apiFetch("/sync", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ sales: [sale] }),
-  });
-  if (!res.ok) {
-    return { ok: false, message: `Server error (HTTP ${res.status})` };
-  }
-  const body = (await res.json()) as SyncResponse;
-  if (!isSyncSuccess(body)) {
-    return { ok: false, message: formatSyncFailureMessage(body) };
-  }
-  return { ok: true };
 }
 
 const card: CSSProperties = {
@@ -202,6 +189,134 @@ function StepHead({ n, label }: { n: number; label: string }) {
       }}
     >
       {label}
+    </div>
+  );
+}
+
+/**
+ * The bill's save actions, gathered behind one button: two real file downloads and parking the
+ * bill for later. Keeping them in a menu leaves the money action as the only thing competing for
+ * attention in the panel.
+ */
+function SaveMenu({
+  disabled,
+  onPdf,
+  onPng,
+  onDraft,
+}: {
+  disabled: boolean;
+  onPdf: () => void;
+  onPng: () => void;
+  onDraft: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  // Close on an outside click or Escape, like every other overlay here.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const item: CSSProperties = {
+    display: "flex",
+    gap: 9,
+    alignItems: "flex-start",
+    width: "100%",
+    padding: "9px 10px",
+    minHeight: 0,
+    border: "none",
+    borderRadius: 8,
+    background: "transparent",
+    textAlign: "left",
+    fontSize: 14,
+  };
+  const sub: CSSProperties = { display: "block", fontSize: 11.5, color: "var(--text-faint)" };
+
+  return (
+    // A small button, not a full-width one: the money action below is the only thing that should
+    // read as primary in this panel.
+    <div ref={wrap} style={{ position: "relative", alignSelf: "flex-start" }}>
+      <button
+        type="button"
+        className="btn-soft"
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+        style={{ width: 132 }}
+      >
+        Save ▾
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: "absolute",
+            zIndex: 6,
+            left: 0,
+            width: 232,
+            marginTop: 6,
+            padding: 6,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            boxShadow: "0 10px 28px rgba(16,24,40,0.14)",
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            style={item}
+            onClick={() => {
+              setOpen(false);
+              onPdf();
+            }}
+          >
+            📄
+            <span>
+              Create PDF<span style={sub}>downloads the bill as a PDF file</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            style={item}
+            onClick={() => {
+              setOpen(false);
+              onPng();
+            }}
+          >
+            🖼️
+            <span>
+              Save PNG<span style={sub}>downloads it as an image, ready to send</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            style={item}
+            onClick={() => {
+              setOpen(false);
+              onDraft();
+            }}
+          >
+            📝
+            <span>
+              Save draft<span style={sub}>park it and finish later</span>
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1026,6 +1141,17 @@ export default function PosPage() {
   const [mileage, setMileage] = useState("");
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
+  // Customer behind the plate. `known` is null until a plate has been looked up: the New-customer
+  // block only appears once we know the plate is genuinely new, never while still checking.
+  const router = useRouter();
+  const billRef = useRef<HTMLDivElement>(null);
+  // Quotation number this bill was filed under when first exported — reused by later exports so a
+  // customer's history keeps one entry per bill, not one per saved file.
+  const [exportQuoteNo, setExportQuoteNo] = useState<string | null>(null);
+  const [known, setKnown] = useState<CustomerDetail | null | undefined>(undefined);
+  const [customerName, setCustomerName] = useState("");
+  const [phones, setPhones] = useState<string[]>([""]);
+
   // Server-parked drafts/quotations: a stable id for the current cart, the one currently reopened
   // (deleted once it finalizes to a bill), the reopen tray, and the QT quotation counter.
   const [draftId, setDraftId] = useState(() => crypto.randomUUID());
@@ -1317,6 +1443,39 @@ export default function PosPage() {
     .filter(Boolean)
     .join(" ");
 
+  // Match the plate against the customer book as it's typed. A plate we already know keeps the
+  // current flow (and prefills its saved car); only a genuinely new one opens the New customer
+  // block — so `known` stays undefined ("still checking") until the answer is in.
+  useEffect(() => {
+    const key = plate.trim();
+    if (!key) {
+      setKnown(undefined);
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      getCustomerDetail(key)
+        .then((detail) => {
+          if (!live) return;
+          setKnown(detail.customer ? detail : null);
+          // Prefill the car we saved for this plate, but never overwrite what staff already picked.
+          const car = parseSavedCar(detail.customer?.carModel ?? detail.vehicle, carFitment);
+          if (car && !carBrandId) {
+            setCarBrandId(car.brandId);
+            setCarModelId(car.modelId);
+            setCarYear(car.year);
+          }
+        })
+        // Lookup is a convenience: offline or a failed call just means no prefill, never a blocked sale.
+        .catch(() => live && setKnown(undefined));
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plate, carFitment]);
+
   function addProductLine(p: ProductRow, barcodeValue?: string) {
     // The item name carries its brand inline ("Compressor · Denso"); no brand → just the name.
     // Brand moves out of the detail chips so it isn't shown twice.
@@ -1482,34 +1641,29 @@ export default function PosPage() {
 
   // Save the whole order — parts (deduct stock) and services (labour lines) plus the sale type,
   // plate and note — to the sales ledger. Offline-safe via the outbox; the server dedupes on uuid.
-  async function saveSale(saleNo: string): Promise<boolean> {
-    // A sale counts as a repair when it has a vehicle/plate or any service line; else it's parts.
-    const isRepair = !!(vehicleLabel || plate.trim() || lines.some((l) => l.kind === "service"));
-    // Spread the bill discount across the lines so the server's per-line discount + profit is exact.
-    const perLineDiscount = distributeDiscount(
-      lines.map((l) => l.unitPriceSatang * l.quantity),
-      discountSatang,
+  async function saveSale(saleNo: string, payment?: PaymentTaken): Promise<boolean> {
+    // One shared builder for POS and the payment step — the money payload can't fork.
+    const sale = buildQueuedSale(
+      {
+        saleNumber: saleNo,
+        plate,
+        vehicle: vehicleLabel,
+        note,
+        discountSatang,
+        lines: lines.map((l) => ({
+          kind: l.kind,
+          name: l.name,
+          productVariantId: l.productVariantId,
+          barcodeValue: l.barcodeValue,
+          quantity: l.quantity,
+          unitPriceSatang: l.unitPriceSatang,
+          unitCostSatang: l.unitCostSatang,
+        })),
+      },
+      payment ?? { paymentMethod: "cash" },
+      () => crypto.randomUUID(),
+      Date.now(),
     );
-    const sale: QueuedSale = {
-      clientUuid: crypto.randomUUID(),
-      saleNumber: saleNo || undefined,
-      paymentMethod: "cash",
-      saleType: isRepair ? "repair" : "parts",
-      licensePlate: plate.trim() || undefined,
-      vehicle: vehicleLabel || undefined,
-      notes: note.trim() || undefined,
-      lines: lines.map((l, i) => ({
-        productVariantId: l.kind === "part" ? (l.productVariantId ?? null) : null,
-        lineType: l.kind,
-        description: l.name,
-        barcodeValue: l.barcodeValue,
-        quantity: l.quantity,
-        unitPriceSatang: l.unitPriceSatang,
-        unitCostSatang: l.unitCostSatang,
-        discountSatang: perLineDiscount[i] || undefined,
-      })),
-      queuedAt: Date.now(),
-    };
     try {
       const result = await syncSale(sale);
       if (result.ok) return true;
@@ -1523,35 +1677,149 @@ export default function PosPage() {
     }
   }
 
+  /**
+   * Save the bill as a real file — a download, not the print dialog. The capture is of the bill
+   * exactly as shown, so a saved copy can never disagree with what the customer was handed.
+   */
+  async function saveBillAs(kind: "pdf" | "png") {
+    const node = billRef.current;
+    if (!node) return;
+    const name = billFileName(kind, {
+      saleNumber: reprint ? (reprint.saleNumber ?? "") : nextSalesId(lastSaleId, Date.now()),
+      plate: plate.trim(),
+    });
+    try {
+      if (kind === "pdf") await saveBillPdf(node, name);
+      else await saveBillPng(node, name);
+    } catch {
+      toast("Could not save the file", "error");
+      return;
+    }
+    await fileBillInHistory();
+  }
+
+  // Back from the payment step with money taken: complete the sale here, where the bill number,
+  // the customer record, the parked quotation, the print and the cart reset are all handled.
+  useEffect(() => {
+    const settled = readSettlement(sessionStorage);
+    if (!settled || lines.length === 0 || busy) return;
+    clearSettlement(sessionStorage);
+    void checkout(
+      { paymentMethod: settled.paymentMethod, receivedBy: settled.receivedBy },
+      settled.draftId,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines.length]);
+
+  /**
+   * Hand this bill to the payment step. The bill is filed as a quotation first (so it exists in the
+   * customer's history and can be reopened anywhere), then stashed client-side and handed over —
+   * client-side because the shop must still be able to take cash with no network.
+   *
+   * Nothing is sold here: stock and revenue move only when payment is confirmed.
+   */
+  async function goToPayment() {
+    if (lines.length === 0) return;
+    await fileBillInHistory();
+    stashHandoff(
+      {
+        draftId,
+        saleNumber: nextSalesId(lastSaleId, Date.now()),
+        quotationNumber: exportQuoteNo,
+        plate: plate.trim(),
+        vehicle: vehicleLabel,
+        note: note.trim(),
+        discountSatang,
+        totalSatang,
+        lines: lines.map((l) => ({
+          kind: l.kind,
+          name: l.name,
+          productVariantId: l.productVariantId,
+          barcodeValue: l.barcodeValue,
+          quantity: l.quantity,
+          unitPriceSatang: l.unitPriceSatang,
+          unitCostSatang: l.unitCostSatang,
+        })),
+      },
+      sessionStorage,
+    );
+    router.push("/payment");
+  }
+
+  /**
+   * File the saved bill under the plate as a QUOTATION: it shows in the customer's history but
+   * counts no revenue and moves no stock — nothing is sold until payment. Keyed on the cart's
+   * stable draftId, so exporting again updates that same entry instead of adding another.
+   *
+   * Best-effort: the file is already in the customer's hands, so a failed save (offline) must not
+   * look like the export failed.
+   */
+  async function fileBillInHistory() {
+    if (lines.length === 0) return;
+    const qtNo = quoteNumberForExport(exportQuoteNo, lastQuoteId, Date.now());
+    try {
+      await saveDraft(buildDraftInput("quotation", qtNo));
+      setExportQuoteNo(qtNo);
+      setLastQuoteId(qtNo);
+      setActiveDraftId(draftId);
+      await reloadDrafts();
+      toast(`Saved ✓ filed as ${qtNo}`, "success");
+    } catch {
+      toast("File saved, but couldn't add it to the customer's history (offline?).", "error");
+    }
+  }
+
   function printBill() {
     window.print();
   }
 
-  async function checkout() {
+  async function checkout(
+    payment: PaymentTaken = { paymentMethod: "cash" },
+    // The parked quotation to close. Coming back from the payment step is a full page load, so the
+    // in-memory activeDraftId is gone — the settlement carries the id instead. Without this the
+    // paid bill stays in the drafts tray, reopenable and chargeable a second time.
+    parkedDraftId?: string,
+  ) {
     if (lines.length === 0) return;
     setBusy(true);
     try {
       // The bill already shows this pending number; only advance the counter once the server accepts
       // the sale, so a rejected checkout reuses the same number and none get burned.
       const saleNo = nextSalesId(lastSaleId, Date.now());
-      const ok = await saveSale(saleNo);
+      const ok = await saveSale(saleNo, payment);
       if (!ok) return;
-      // Persist the plate's province onto the plate-keyed customer (COALESCE-safe upsert). Best-effort:
-      // the sale already succeeded, so a customer-save hiccup must not fail the checkout.
-      const customer = buildCheckoutCustomerUpsert({ plate, province });
+      // Persist what the counter typed onto the plate-keyed customer (COALESCE-safe upsert): the
+      // plate's province, and for a new plate the name, numbers and car. Best-effort — the sale
+      // already succeeded, so a customer-save hiccup must not fail the checkout.
+      const customer = buildCheckoutCustomerUpsert({
+        plate,
+        province,
+        customerName,
+        phones,
+        carModel: vehicleLabel,
+      });
       if (customer) await saveCustomer(customer).catch(() => {});
       printBill(); // prints saleNo — the counter hasn't advanced yet
       localStorage.setItem(LAST_SALE_ID_KEY, saleNo);
       setLastSaleId(saleNo);
       // Finalizing a reopened draft/quotation converts it to this bill — delete it server-side AND
       // drop it from the open-drafts tray, so it can't be reopened and checked out again (dup sale).
-      await finalizeParkedDraft({ activeDraftId, deleteDraft, setDrafts, setActiveDraftId });
+      await finalizeParkedDraft({
+        activeDraftId: parkedDraftId ?? activeDraftId,
+        deleteDraft,
+        setDrafts,
+        setActiveDraftId,
+      });
       setDraftId(crypto.randomUUID()); // the next cart is a fresh draft
       toast("Sale saved ✓", "success");
       setLines([]);
       setPlate("");
       setProvince("");
       setMileage("");
+      setKnown(undefined);
+      setCustomerName("");
+      setPhones([""]);
+      setExportQuoteNo(null);
       setNote("");
       setCarBrandId("");
       setCarModelId("");
@@ -1644,6 +1912,9 @@ export default function PosPage() {
     setCarYear("");
     setDraftId(d.id);
     setActiveDraftId(d.id);
+    // Adopt the number it was already filed under, so saving it again updates that same history
+    // entry rather than issuing a second quotation for one bill.
+    setExportQuoteNo(d.stage === "quotation" ? (d.saleNumber ?? null) : null);
     toast("Draft reopened.", "success");
   }
 
@@ -1963,6 +2234,62 @@ export default function PosPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* New customer — only for a plate the customer book doesn't know yet. Everything
+                    here is optional: an empty block saves exactly what a plate-only bill saves. */}
+                {known === null && (
+                  <div
+                    style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}
+                  >
+                    <div style={{ ...fieldLabel, display: "flex", alignItems: "center", gap: 8 }}>
+                      New customer
+                      <span className="pill soft">new plate</span>
+                    </div>
+                    <input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Customer name"
+                      aria-label="Customer name"
+                      style={{ width: "100%", marginBottom: 8 }}
+                    />
+                    {phones.map((ph, i) => (
+                      <div
+                        key={i}
+                        style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}
+                      >
+                        <input
+                          value={ph}
+                          onChange={(e) =>
+                            setPhones((xs) => xs.map((p, j) => (j === i ? e.target.value : p)))
+                          }
+                          placeholder={i === 0 ? "Phone number" : "Another number"}
+                          aria-label={i === 0 ? "Phone number" : `Phone number ${i + 1}`}
+                          inputMode="tel"
+                          style={{ flex: 1, minWidth: 0 }}
+                        />
+                        {phones.length > 1 && (
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label="Remove this number"
+                            title="Remove"
+                            onClick={() => setPhones((xs) => xs.filter((_, j) => j !== i))}
+                            style={{ color: "var(--danger)" }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn-soft btn-sm"
+                      onClick={() => setPhones((xs) => [...xs, ""])}
+                    >
+                      + Add number
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2247,7 +2574,7 @@ export default function PosPage() {
         {/* ---- RIGHT: bill (preview + note + actions only) ---- */}
         {/* Frozen alongside the timeline — clears the 56px topbar (+16 gap). */}
         <div className="pos-col-right" style={{ position: "sticky", top: 72 }}>
-          <div className="bill-print">
+          <div className="bill-print" ref={billRef}>
             <BillDoc
               billStyle={billStyle}
               docType={docType}
@@ -2315,26 +2642,12 @@ export default function PosPage() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    className="btn-soft"
-                    onClick={printBill}
-                    disabled={lines.length === 0}
-                    style={{ flex: 1 }}
-                  >
-                    Create PDF
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-soft"
-                    onClick={saveDraftNow}
-                    disabled={busy || lines.length === 0}
-                    style={{ flex: 1 }}
-                  >
-                    Save draft
-                  </button>
-                </div>
+                <SaveMenu
+                  disabled={busy || lines.length === 0}
+                  onPdf={() => void saveBillAs("pdf")}
+                  onPng={() => void saveBillAs("png")}
+                  onDraft={saveDraftNow}
+                />
                 {docType === "quotation" ? (
                   <button
                     type="button"
@@ -2349,11 +2662,11 @@ export default function PosPage() {
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={checkout}
+                    onClick={() => void goToPayment()}
                     disabled={busy || lines.length === 0}
                     style={{ width: "100%" }}
                   >
-                    Save File
+                    Go to payment →
                   </button>
                 )}
               </div>
