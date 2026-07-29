@@ -1,5 +1,6 @@
 import type { AffiliateItemRow } from "@/lib/db";
 import { imgUrl } from "@/lib/img";
+import { interestBadge } from "@/lib/affiliateInterest";
 
 /** Partner marketplace label + CTA colour class, keyed by AffiliateItemRow.source. */
 const SOURCE: Record<string, { label: string; cls: string }> = {
@@ -19,6 +20,7 @@ const SOURCE: Record<string, { label: string; cls: string }> = {
 export function AffiliateCard({ item }: { item: AffiliateItemRow }) {
   const src = SOURCE[item.source];
   const platform = src?.label;
+  const interest = interestBadge(item.clicks);
   const ctaCls = src ? src.cls : "rec-cta--generic";
   const ctaLabel = platform ? `ซื้อบน ${platform} ↗` : "ไปที่ร้านค้า ↗";
   const priceLabel = platform
@@ -51,6 +53,7 @@ export function AffiliateCard({ item }: { item: AffiliateItemRow }) {
             <div className="rec-price">{item.priceText}</div>
           </>
         ) : null}
+        {interest ? <div className="rec-interest">{interest}</div> : null}
         <span className={`rec-cta ${ctaCls}`}>{ctaLabel}</span>
       </div>
     </a>

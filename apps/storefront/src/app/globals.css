@@ -2162,6 +2162,13 @@ textarea {
   letter-spacing: -0.01em;
   line-height: 1.1;
 }
+/* Real outbound-click count — quiet social proof, never louder than the title or the price */
+.rec-interest {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--gray-mid);
+  line-height: 1.3;
+}
 /* CTA — matches ProductCard's add-to-cart button size/shape, filled in the platform colour */
 .rec-cta {
   margin-top: auto;
@@ -2191,6 +2198,98 @@ textarea {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+/* ===== /tools category shelves =====
+ * Chip bar filters the page in place; each category below shows EXACTLY two rows and sends the
+ * remainder to its own page via ดูทั้งหมด. The column count is fixed per band rather than
+ * auto-filled, because "two rows" is only true if the server-side cap (SECTION_CARDS = 10) divides
+ * evenly by the columns on screen. */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  transition: opacity 0.12s ease;
+}
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+.chip {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-lite);
+  background: var(--white);
+  color: var(--gray-dark);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--gray-mid);
+}
+.chip--on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--white);
+}
+.chip-n {
+  color: var(--gray-mid);
+  font-weight: 500;
+  margin-left: 5px;
+}
+.chip--on .chip-n {
+  color: rgba(255, 255, 255, 0.75);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chip-row {
+    transition: none;
+  }
+}
+
+/* 5 × 2 = the full SECTION_CARDS cap; card lands at ~200px, the same size as every other shelf. */
+.tool-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.tool-grid > .rec-card {
+  flex: initial; /* .rec-card is a flex item on the home rail; here the grid sizes it */
+}
+/* Tablet: 4 × 2 = 8, so cards 9 and 10 would open a third row. Drop them — they are one tap away
+   under ดูทั้งหมด, and a ragged half-row reads as a bug. */
+@media (max-width: 899px) {
+  .tool-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .tool-grid > :nth-child(n + 9) {
+    display: none;
+  }
+}
+/* Phone: one swipe rail per category — no vertical wall of cards. */
+@media (max-width: 719px) {
+  .tool-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+    scrollbar-width: none;
+  }
+  .tool-grid::-webkit-scrollbar {
+    display: none;
+  }
+  .tool-grid > .rec-card {
+    flex: 0 0 150px;
+    scroll-snap-align: start;
+  }
+  .tool-grid > :nth-child(n + 9) {
+    display: flex;
+  }
 }
 
 /* ---- muted helper text ---- */
