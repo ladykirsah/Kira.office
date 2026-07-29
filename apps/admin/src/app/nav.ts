@@ -24,7 +24,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/products", icon: "📦", label: "Products" },
       { href: "/products/new", icon: "➕", label: "Add product" },
       { href: "/barcodes", icon: "🏷️", label: "Barcodes" },
-      { href: "/import", icon: "⬆️", label: "Import" },
+      // /import (product CSV) is deliberately NOT listed: it only carries product_ref, name and
+      // description, so every row still needs opening by hand — the owner adds products through
+      // Add product instead (2026-07-29). The page still works if a bulk supplier list ever needs
+      // loading; it just no longer competes for room in the daily menu.
     ],
   },
   {
@@ -44,7 +47,10 @@ export const NAV_GROUPS: NavGroup[] = [
     links: [
       { href: "/orders", icon: "🧾", label: "Orders" },
       { href: "/sales", icon: "💰", label: "Sales" },
-      { href: "/affiliate", icon: "🤝", label: "Affiliate" },
+      // There is no "Affiliate income" page any more. It was a stub that always printed ฿0: Shopee
+      // pays affiliate commission through their own portal and there is no API into it, so the
+      // figure could never become real. The honest number we DO own — outbound clicks — already
+      // lives on Settings → Affiliate tools (2026-07-29).
     ],
   },
   {
