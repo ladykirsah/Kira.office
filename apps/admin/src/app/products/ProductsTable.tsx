@@ -11,7 +11,7 @@ import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 
-type Tab = "all" | "listed" | "offshopee" | "draft" | "low" | "out";
+type Tab = "all" | "airplus" | "paused" | "draft" | "low" | "out";
 
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
@@ -38,17 +38,19 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [frozen, setFrozen] = useState(false);
 
-  const listed = products.filter((p) => p.shopeeListed);
+  // Shopee tabs are gone — there is no Shopee API (owner, 2026-07-29). The status that matters is
+  // AirPlus: the storefront shows a product only while status = 'active'.
+  const onAirPlus = products.filter((p) => p.status === "active");
+  const paused = products.filter((p) => p.status !== "active" && p.status !== "draft");
   const drafts = products.filter((p) => p.status === "draft");
-  const offShopee = products.filter((p) => !p.shopeeListed && p.status !== "draft");
   const outOfStock = products.filter((p) => p.onHand <= 0);
   const lowStock = products.filter((p) => stockStatus(p.onHand) === "low");
 
   const byTab =
-    tab === "listed"
-      ? listed
-      : tab === "offshopee"
-        ? offShopee
+    tab === "airplus"
+      ? onAirPlus
+      : tab === "paused"
+        ? paused
         : tab === "draft"
           ? drafts
           : tab === "low"
@@ -103,9 +105,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
     <>
       <div className="tabs">
         <TabBtn id="all" label="All" n={products.length} />
-        <TabBtn id="listed" label="On Shopee" n={listed.length} />
-        <TabBtn id="offshopee" label="Off Shopee" n={offShopee.length} />
-        <TabBtn id="draft" label="Not listed" n={drafts.length} />
+        <TabBtn id="airplus" label="On AirPlus" n={onAirPlus.length} />
+        <TabBtn id="paused" label="Paused" n={paused.length} />
+        <TabBtn id="draft" label="Draft" n={drafts.length} />
         <TabBtn id="low" label="Low stock" n={lowStock.length} />
         <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
       </div>

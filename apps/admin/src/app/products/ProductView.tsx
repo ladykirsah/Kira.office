@@ -152,12 +152,12 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
 
   // Profits from the saved pricing (view mode).
   const vTC = pr ? totalCostSatang(pr.itemCostSatang, Boolean(pr.taxOnCost)) : 0;
-  const vOnlineProfit = pr
-    ? profitSatang(
-        pr.onlinePriceSatang,
-        vTC,
-        commissionFeeSatang(pr.onlinePriceSatang, pr.onlineCommissionBp),
-      )
+  // AirPlus is the owner's own shop — no marketplace commission. The commission belongs to Shopee
+  // ("AC on Sales"), which is what it always measured.
+  const vOnlineProfit = pr ? profitSatang(pr.onlinePriceSatang, vTC, 0) : 0;
+  const vShopee = n0(pr?.shopeePriceSatang);
+  const vShopeeProfit = pr
+    ? profitSatang(vShopee, vTC, commissionFeeSatang(vShopee, pr.onlineCommissionBp))
     : 0;
   const vB2cProfit = pr ? profitSatang(pr.targetPriceSatang, vTC, 0) : 0;
   const vB2bProfit = pr ? profitSatang(pr.b2bPriceSatang, vTC, 0) : 0;
@@ -289,13 +289,10 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
         >
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Pricing</div>
           {[
-            {
-              label: "Online · default",
-              price: n0(pr?.onlinePriceSatang),
-              profit: vOnlineProfit,
-            },
-            { label: "On-site · B2C", price: n0(pr?.targetPriceSatang), profit: vB2cProfit },
-            { label: "On-site · B2B", price: n0(pr?.b2bPriceSatang), profit: vB2bProfit },
+            { label: "Den Air Service", price: n0(pr?.targetPriceSatang), profit: vB2cProfit },
+            { label: "B2B", price: n0(pr?.b2bPriceSatang), profit: vB2bProfit },
+            { label: "AirPlus", price: n0(pr?.onlinePriceSatang), profit: vOnlineProfit },
+            { label: "AC on Sales", price: vShopee, profit: vShopeeProfit },
           ].map((t) => (
             <div
               key={t.label}

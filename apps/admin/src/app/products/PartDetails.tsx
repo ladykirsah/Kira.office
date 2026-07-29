@@ -28,20 +28,15 @@ export function PartDetails({
   attributes,
   productRef,
   onProductRefChange,
-  shopeeItemId,
-  onShopeeItemIdChange,
   shopeeActive,
   onShopeeActiveChange,
   refWarning,
-  shopeeWarning,
 }: {
   value: PartForm;
   onChange: (patch: Partial<PartForm>) => void;
   attributes: Attributes | null;
   productRef: string;
   onProductRefChange: (v: string) => void;
-  shopeeItemId: string;
-  onShopeeItemIdChange: (v: string) => void;
   /** "Active on Shopee" (= live/listed on Shopee). Rendered only when a handler is supplied. */
   shopeeActive?: boolean;
   onShopeeActiveChange?: (v: boolean) => void;
@@ -141,16 +136,8 @@ export function PartDetails({
         {productRef.trim() ? <BarcodePreview value={productRef.trim()} /> : null}
       </div>
 
-      <label style={field}>
-        Shopee ID (link)
-        <input
-          value={shopeeItemId}
-          onChange={(e) => onShopeeItemIdChange(e.target.value)}
-          placeholder="Shopee item id"
-          style={inputL}
-        />
-        {warn(shopeeWarning)}
-      </label>
+      {/* Shopee ID is not shown any more — there is no Shopee API to link to (owner, 2026-07-29).
+          The value is still carried through save so existing ids are preserved, not wiped. */}
 
       {/* "Active on Shopee" lives with the Shopee ID: it means the product is live/listed on Shopee.
           Turning it on also makes the product active on-site; off leaves the on-site status as-is. */}

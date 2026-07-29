@@ -84,6 +84,7 @@ export default function NewProductPage() {
     b2cThb: "",
     b2bThb: "",
     onlineThb: "",
+    shopeeThb: "",
     onlineCommPct: "",
   });
   const [attributes, setAttributes] = useState<Attributes | null>(null);
@@ -136,7 +137,6 @@ export default function NewProductPage() {
     setPricing((prev) => ({ ...prev, ...patch }));
 
   const refWarn = useIdentifierCheck("ref", productRef);
-  const shopeeWarn = useIdentifierCheck("shopee", shopeeItemId);
 
   /** The whole product as one atomic-save payload. `id` (once auto-save owns a row) targets that row
    *  so a mid-typing Product-ID rename updates it instead of spawning a second draft. */
@@ -163,6 +163,7 @@ export default function NewProductPage() {
         itemCostSatang: toSatang(pricing.costThb),
         targetPriceSatang: toSatang(pricing.b2cThb),
         onlinePriceSatang: toSatang(pricing.onlineThb),
+        shopeePriceSatang: toSatang(pricing.shopeeThb),
         b2bPriceSatang: toSatang(pricing.b2bThb),
         onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
         taxOnCost: pricing.taxOnCost,
@@ -464,10 +465,7 @@ export default function NewProductPage() {
             attributes={attributes}
             productRef={productRef}
             onProductRefChange={setProductRef}
-            shopeeItemId={shopeeItemId}
-            onShopeeItemIdChange={setShopeeItemId}
             refWarning={refWarn}
-            shopeeWarning={shopeeWarn}
           />
         </div>
 

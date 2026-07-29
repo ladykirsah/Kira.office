@@ -26,6 +26,7 @@ export interface ClearedProductFields {
     b2cThb: string;
     b2bThb: string;
     onlineThb: string;
+    shopeeThb: string;
     onlineCommPct: string;
   };
 }
@@ -48,6 +49,7 @@ export function clearedProductFields(): ClearedProductFields {
       b2cThb: "",
       b2bThb: "",
       onlineThb: "",
+      shopeeThb: "",
       onlineCommPct: "",
     },
   };

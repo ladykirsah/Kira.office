@@ -10,6 +10,7 @@ export interface PricingForm {
   b2cThb: string;
   b2bThb: string;
   onlineThb: string;
+  shopeeThb: string;
   onlineCommPct: string;
 }
 
@@ -55,9 +56,13 @@ export function PricingFields({
   const b2c = toSatang(form.b2cThb);
   const b2b = toSatang(form.b2bThb);
   const online = toSatang(form.onlineThb);
+  const shopee = toSatang(form.shopeeThb);
   const commBp = Math.round((parseFloat(form.onlineCommPct) || 0) * 100);
   const fee = commissionFeeSatang(online, commBp);
-  const onlineProfit = profitSatang(online, tc, fee);
+  // Commission is a marketplace fee, so it belongs to Shopee (AC on Sales) — AirPlus is the
+  // owner's own shop and pays none.
+  const shopeeProfit = profitSatang(shopee, tc, fee);
+  const onlineProfit = profitSatang(online, tc, 0);
   const b2cProfit = profitSatang(b2c, tc, 0);
   const b2bProfit = profitSatang(b2b, tc, 0);
 
@@ -137,34 +142,8 @@ export function PricingFields({
             </tr>
           </thead>
           <tbody>
-            <tr className="on">
-              <td>Online · default</td>
-              <td>
-                <input
-                  value={form.onlineThb}
-                  onChange={(e) => update({ onlineThb: e.target.value })}
-                  style={numStyle}
-                />
-              </td>
-              <td>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <input
-                    value={form.onlineCommPct}
-                    onChange={(e) => update({ onlineCommPct: e.target.value })}
-                    style={{ ...inputS, width: 56 }}
-                  />
-                  <span className="muted">%</span>
-                </span>
-              </td>
-              <td>
-                <Profit value={onlineProfit} show={online > 0} />
-              </td>
-              <td>
-                <MarginBar profit={onlineProfit} price={online} />
-              </td>
-            </tr>
             <tr>
-              <td>On-site · B2C</td>
+              <td>Den Air Service</td>
               <td>
                 <input
                   value={form.b2cThb}
@@ -181,7 +160,7 @@ export function PricingFields({
               </td>
             </tr>
             <tr>
-              <td>On-site · B2B</td>
+              <td>B2B</td>
               <td>
                 <input
                   value={form.b2bThb}
@@ -195,6 +174,52 @@ export function PricingFields({
               </td>
               <td>
                 <MarginBar profit={b2bProfit} price={b2b} />
+              </td>
+            </tr>
+            {/* AirPlus is the storefront's live price — it sells from this column. */}
+            <tr className="on">
+              <td>AirPlus</td>
+              <td>
+                <input
+                  value={form.onlineThb}
+                  onChange={(e) => update({ onlineThb: e.target.value })}
+                  style={numStyle}
+                />
+              </td>
+              <td className="muted">—</td>
+              <td>
+                <Profit value={onlineProfit} show={online > 0} />
+              </td>
+              <td>
+                <MarginBar profit={onlineProfit} price={online} />
+              </td>
+            </tr>
+            {/* AC on Sales = the Shopee shop. No API, so this is a reference the owner keeps by
+                hand — and the marketplace commission belongs here. */}
+            <tr>
+              <td>AC on Sales</td>
+              <td>
+                <input
+                  value={form.shopeeThb}
+                  onChange={(e) => update({ shopeeThb: e.target.value })}
+                  style={numStyle}
+                />
+              </td>
+              <td>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    value={form.onlineCommPct}
+                    onChange={(e) => update({ onlineCommPct: e.target.value })}
+                    style={{ ...inputS, width: 56 }}
+                  />
+                  <span className="muted">%</span>
+                </span>
+              </td>
+              <td>
+                <Profit value={shopeeProfit} show={shopee > 0} />
+              </td>
+              <td>
+                <MarginBar profit={shopeeProfit} price={shopee} />
               </td>
             </tr>
           </tbody>
