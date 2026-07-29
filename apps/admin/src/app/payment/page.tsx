@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   fetchShopInfo,
   fetchPayments,
@@ -18,6 +19,8 @@ import { ConfirmButton } from "../ConfirmButton";
 import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
 import { useToast } from "../ToastProvider";
+import { clearHandoff, readHandoff, stashSettlement, type BillHandoff } from "@/lib/paymentHandoff";
+import { type PaymentTaken } from "@/lib/saleBuilder";
 
 const card: React.CSSProperties = {
   background: "var(--surface)",
@@ -53,6 +56,19 @@ export default function PaymentPage() {
   const [showRecent, setShowRecent] = useState(false); // Section 2 is internal — hidden by default
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A bill handed over from the counter (client-side, so cash still works with no network).
+  const [bill, setBill] = useState<BillHandoff | null>(null);
+  const [receivedBy, setReceivedBy] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const handed = readHandoff(sessionStorage);
+    setBill(handed);
+    // Prefill the QR amount so staff never retype (or mistype) what the bill says.
+    if (handed) setAmount((handed.totalSatang / 100).toFixed(2));
+    // The person at this counter usually stays the same all day.
+    setReceivedBy(localStorage.getItem("pos:cashier:v1") ?? "");
+  }, []);
 
   const reloadShop = useCallback(async () => {
     setError(null);
@@ -99,6 +115,31 @@ export default function PaymentPage() {
     setQr({ method, amountSatang });
   }
 
+  /**
+   * Record HOW the money arrived and hand it straight back to the counter. The payment step
+   * deliberately does not complete the sale: POS advances the bill number, files the customer,
+   * closes the parked quotation, prints and clears the cart — doing any of that in two places is
+   * how duplicate bill numbers and double sales happen.
+   */
+  function settle(payment: PaymentTaken): void {
+    if (!bill) return;
+    const receiver = (payment.receivedBy ?? "").trim();
+    if (payment.paymentMethod === "cash" && receiver) {
+      localStorage.setItem("pos:cashier:v1", receiver);
+    }
+    stashSettlement(
+      {
+        draftId: bill.draftId,
+        paymentMethod: payment.paymentMethod,
+        receivedBy: receiver || undefined,
+      },
+      sessionStorage,
+    );
+    clearHandoff(sessionStorage);
+    setBill(null);
+    router.push("/pos");
+  }
+
   async function approve() {
     if (!qr) return;
     setBusy(true);
@@ -115,6 +156,8 @@ export default function PaymentPage() {
       setQr(null);
       setAmount("");
       await refreshPayments(); // keep the (hidden) list fresh
+      // A bill was handed over from the counter — the PromptPay payment just confirmed completes it.
+      if (bill) settle({ paymentMethod: "promptpay" });
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -158,6 +201,64 @@ export default function PaymentPage() {
         title="Payment"
         subtitle="Den Air Service · take a PromptPay payment: pick the receiving account, enter the amount, create the QR, let the customer scan, then approve once their banking app confirms."
       />
+
+      {/* A bill handed over from the counter: what is owed, and the two ways to settle it.
+          PromptPay uses the QR flow below (amount prefilled); cash is confirmed right here. */}
+      {bill && (
+        <div
+          style={{
+            ...card,
+            marginBottom: 16,
+            borderColor: "var(--primary-soft)",
+            background: "var(--primary-faint)",
+          }}
+        >
+          <div
+            style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}
+          >
+            <div>
+              <div style={fieldLabel}>Bill from the counter</div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginTop: 2 }}>{bill.saleNumber}</div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {[bill.plate, bill.vehicle].filter(Boolean).join(" · ") || "Walk-in"}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={fieldLabel}>Amount due</div>
+              <div style={{ fontWeight: 700, fontSize: 24 }}>
+                {formatBahtTrim(bill.totalSatang)}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--primary-soft)", margin: "14px 0" }} />
+
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px" }}>
+              <div style={fieldLabel}>Cash — received by</div>
+              <input
+                value={receivedBy}
+                onChange={(e) => setReceivedBy(e.target.value)}
+                placeholder="Staff name"
+                aria-label="Cash received by"
+                style={{ ...inputL, width: "100%", marginTop: 4 }}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={busy}
+              onClick={() => settle({ paymentMethod: "cash", receivedBy })}
+            >
+              Confirm cash payment
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
+            For PromptPay, create the QR below — approving it completes this bill. Nothing is sold
+            until one of these is confirmed.
+          </p>
+        </div>
+      )}
 
       {/* A shop-info failure used to REPLACE this whole page, taking the payments list and slip
           verification down with it — even though neither depends on shop info. It is now a banner
