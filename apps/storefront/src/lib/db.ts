@@ -554,16 +554,46 @@ export interface AffiliateItemRow {
   imageKey: string | null;
   priceText: string | null;
   source: string;
+  /** outbound clicks so far — the card's social proof (see lib/affiliateInterest) */
+  clicks: number;
 }
 
 export async function listAffiliateItems(db: D1Database, limit = 24): Promise<AffiliateItemRow[]> {
   const rows = await db
     .prepare(
-      `SELECT id, title, image_key AS imageKey, price_text AS priceText, source
-       FROM affiliate_items WHERE status = 'active'
-       ORDER BY sort_order, created_at DESC LIMIT ${Math.min(limit, 50)}`,
+      `SELECT a.id, a.title, a.image_key AS imageKey, a.price_text AS priceText, a.source,
+              (SELECT COUNT(*) FROM affiliate_clicks k WHERE k.item_id = a.id) AS clicks
+       FROM affiliate_items a WHERE a.status = 'active'
+       ORDER BY a.pinned DESC, a.sort_order, a.created_at DESC LIMIT ${Math.min(limit, 50)}`,
     )
     .all<AffiliateItemRow>();
+  return rows.results ?? [];
+}
+
+/** A tool card carrying the category it is filed under — what /tools groups by. */
+export interface AffiliateFiledRow extends AffiliateItemRow {
+  categoryName: string | null;
+}
+
+/**
+ * Every active tool card WITH its category, for the /tools shelf.
+ *
+ * Ordered by clicks so the busiest card leads its section (and, via groupToolsByCategory, the
+ * busiest category leads the page). Unfiled cards come back too — dropping them is the grouping
+ * layer's job, so the same query can serve a page that shows them if that call is ever reversed.
+ */
+export async function listFiledAffiliateItems(db: D1Database): Promise<AffiliateFiledRow[]> {
+  const rows = await db
+    .prepare(
+      `SELECT a.id, a.title, a.image_key AS imageKey, a.price_text AS priceText, a.source,
+              c.name AS categoryName,
+              (SELECT COUNT(*) FROM affiliate_clicks k WHERE k.item_id = a.id) AS clicks
+       FROM affiliate_items a
+       LEFT JOIN affiliate_categories c ON c.id = a.category_id
+       WHERE a.status = 'active'
+       ORDER BY clicks DESC, a.sort_order, a.created_at DESC`,
+    )
+    .all<AffiliateFiledRow>();
   return rows.results ?? [];
 }
 
