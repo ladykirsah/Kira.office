@@ -11,10 +11,17 @@ describe("generateCustomerCode", () => {
     expect(generateCustomerCode()).toMatch(/^AP-[0-9A-F]{8}$/);
   });
 
-  it("given many accounts > never repeats a code", () => {
-    const codes = new Set(Array.from({ length: 5000 }, () => generateCustomerCode()));
+  it("given many accounts > draws from the whole 32-bit space, so repeats are vanishingly rare", () => {
+    // NOT `toBe(SAMPLE)`. The generator is 4 random bytes; it has never promised zero collisions —
+    // the UNIQUE index on the column is what makes one fail loudly (see generateCustomerCode).
+    // Demanding a perfect sample asserted something the code does not guarantee, and 5000 draws
+    // from 2^32 collide 0.29% of the time (~1 CI run in 344). It duly broke a deploy on 2026-07-29.
+    // Allowing a single duplicate drops that to ~1 in 236,000 runs while keeping the real teeth:
+    // a generator drawing from a narrower space than it claims still fails this by a mile.
+    const SAMPLE = 5000;
+    const codes = new Set(Array.from({ length: SAMPLE }, () => generateCustomerCode()));
 
-    expect(codes.size).toBe(5000);
+    expect(codes.size).toBeGreaterThanOrEqual(SAMPLE - 1);
   });
 
   it("uses an alphabet with no letters that can be misread as digits", () => {
