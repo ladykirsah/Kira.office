@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { groupAffiliateItems, nextSortOrder } from "@/lib/affiliateGroups";
 import {
   fetchAffiliateItems,
+  fetchAffiliateCategories,
+  addAffiliateCategory,
+  type AffiliateCategory,
   addAffiliateItem,
   updateAffiliateItem,
   uploadAffiliateItemImage,
@@ -31,6 +35,18 @@ const cardLabel = {
   marginBottom: 12,
 } as const;
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
+/** Cards the AirPlus homepage shelf can show — keep in step with listAffiliateItems(db, 6). */
+const HOMEPAGE_SLOTS = 6;
+
+const groupHeadStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+  color: "var(--text-muted)",
+  background: "var(--bg)",
+  padding: "10px 12px",
+};
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
 
 const SOURCE_LABELS: Record<AffiliateItemRow["source"], string> = {
@@ -204,6 +220,16 @@ function AffiliateItem({
     }
   }
 
+  /** Pin/unpin this card on the AirPlus homepage shelf (pinned cards lead it, six at most). */
+  async function togglePinned(next: boolean) {
+    try {
+      await updateAffiliateItem(item.id, { pinned: next });
+      await onChanged();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  }
+
   async function upload(file: File | undefined) {
     if (!file) return;
     setBusy(true);
@@ -286,32 +312,46 @@ function AffiliateItem({
         </button>
       </td>
       <td>
-        {editing ? (
-          <input
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            aria-label={`Edit title for ${item.title}`}
-            style={{ ...inputS, width: 220 }}
-          />
-        ) : (
-          <div style={{ fontWeight: 600 }}>{item.title}</div>
-        )}
-        <a
-          href={item.targetUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            fontSize: 12,
-            display: "inline-block",
-            maxWidth: 260,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            verticalAlign: "bottom",
-          }}
-        >
-          {item.targetUrl}
-        </a>
+        {/* Title · category · link, stacked with an even 2px between them. */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+          {editing ? (
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              aria-label={`Edit title for ${item.title}`}
+              style={{ ...inputS, width: 220 }}
+            />
+          ) : (
+            <div style={{ fontWeight: 600 }}>{item.title}</div>
+          )}
+          {/* Category sits with the card it belongs to — same size as the link, in muted ink so the
+              title still leads and the outbound URL stays the only coloured thing in the cell. */}
+          {/* No category = the storefront hides the card entirely (owner's rule). Say so on the row
+              — an invisible card with no warning is the worst version of that decision. */}
+          {item.categoryName ? (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{item.categoryName}</div>
+          ) : (
+            <span className="pill warn" style={{ fontSize: 11 }}>
+              ยังไม่จัดหมวด · ไม่แสดงบนหน้าร้าน
+            </span>
+          )}
+          <a
+            href={item.targetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 12,
+              display: "inline-block",
+              maxWidth: 260,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              verticalAlign: "bottom",
+            }}
+          >
+            {item.targetUrl}
+          </a>
+        </div>
       </td>
       <td>
         <span className="pill off">{SOURCE_LABELS[item.source]}</span>
@@ -319,6 +359,17 @@ function AffiliateItem({
       <td>{item.priceText || <span className="muted">—</span>}</td>
       <td>{item.sortOrder}</td>
       <td>{item.clicks}</td>
+      <td>
+        <span className="switch">
+          <input
+            type="checkbox"
+            checked={!!item.pinned}
+            aria-label={`${item.title} on homepage`}
+            onChange={(e) => togglePinned(e.target.checked)}
+          />
+          <span className="slider" />
+        </span>
+      </td>
       <td>
         <span className="switch">
           <input
@@ -385,17 +436,21 @@ export default function AffiliateItemsPage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [priceText, setPriceText] = useState("");
   const [source, setSource] = useState<AffiliateItemRow["source"]>("shopee");
-  const [sort, setSort] = useState("0");
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<AffiliateCategory[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [newCategory, setNewCategory] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const urlOk = isHttps(targetUrl);
 
   async function load() {
     try {
-      setItems(await fetchAffiliateItems());
+      const [rows, cats] = await Promise.all([fetchAffiliateItems(), fetchAffiliateCategories()]);
+      setItems(rows);
+      setCategories(cats);
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -428,7 +483,8 @@ export default function AffiliateItemsPage() {
         targetUrl: targetUrl.trim(),
         priceText: priceText.trim() || undefined,
         source,
-        sortOrder: Math.round(parseFloat(sort) || 0),
+        sortOrder: nextSortOrder(items),
+        categoryId: categoryId || null,
       });
       // Picture goes up in the SAME submit. Previously the item was created imageless and the
       // owner had to find a second upload control in the table below — the same two-step flow
@@ -438,7 +494,6 @@ export default function AffiliateItemsPage() {
       setTitle("");
       setTargetUrl("");
       setPriceText("");
-      setSort("0");
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
       await load();
@@ -453,6 +508,26 @@ export default function AffiliateItemsPage() {
   }
 
   const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt);
+  const groups = groupAffiliateItems(sorted);
+  const pinnedTotal = items.filter((i) => i.pinned).length;
+
+  /** Create a category from the form and select it — it becomes a dropdown choice from then on. */
+  async function createCategory() {
+    const name = newCategory.trim();
+    if (!name) return;
+    setBusy(true);
+    try {
+      const cat = await addAffiliateCategory(name);
+      setCategories(await fetchAffiliateCategories());
+      setCategoryId(cat.id);
+      setNewCategory("");
+      toast(`สร้างหมวด “${cat.name}” แล้ว ✓`, "success");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <main>
@@ -464,95 +539,125 @@ export default function AffiliateItemsPage() {
       {/* Frame 1 — add an item */}
       <div style={cardStyle}>
         <div style={cardLabel}>Add an item</div>
-        <form
-          onSubmit={add}
-          style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}
-        >
-          <div style={{ ...fieldCol, flex: "1 1 170px" }}>
-            <span style={fieldLabel}>Title</span>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Manifold gauge set"
-              style={{ ...inputS, minWidth: 0 }}
-            />
-          </div>
-          <div style={{ ...fieldCol, flex: "1 1 220px" }}>
-            <span style={fieldLabel}>Target URL (https)</span>
-            <input
-              value={targetUrl}
-              onChange={(e) => setTargetUrl(e.target.value)}
-              placeholder="https://s.shopee.co.th/…"
-              style={{ ...inputS, minWidth: 0 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Price text</span>
-            <input
-              value={priceText}
-              onChange={(e) => setPriceText(e.target.value)}
-              placeholder="e.g. ~฿1,290"
-              style={{ ...inputS, width: 110 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Source</span>
-            <select
-              aria-label="Source"
-              value={source}
-              onChange={(e) => setSource(e.target.value as AffiliateItemRow["source"])}
-              style={inputS}
-            >
-              <option value="shopee">Shopee</option>
-              <option value="lazada">Lazada</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Sold</span>
-            <input
-              type="number"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              style={{ ...inputS, width: 64 }}
-            />
-          </div>
-          <div style={fieldCol}>
-            <span style={fieldLabel}>Picture</span>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              hidden
-              onChange={(e) => {
-                setFile(e.target.files?.[0] ?? null);
-                setAddError(null);
-              }}
-            />
+        <form onSubmit={add} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Row 1 — filing: which group this card belongs to. 16px clear of row 2 (8 of that is
+              the form's own row gap), so the category settings read as a separate part. */}
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "flex-end",
+              flexWrap: "wrap",
+              marginBottom: 8,
+            }}
+          >
+            <div style={fieldCol}>
+              <span style={fieldLabel}>Category</span>
+              <select
+                aria-label="Category"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                style={{ ...inputS, width: 170 }}
+              >
+                <option value="">— none —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={fieldCol}>
+              <span style={fieldLabel}>New category</span>
+              <input
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="e.g. Gauges"
+                aria-label="New category name"
+                style={{ ...inputS, width: 170 }}
+              />
+            </div>
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
-              style={{
-                ...inputS,
-                maxWidth: 170,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              className="btn-soft btn-sm"
+              disabled={busy || !newCategory.trim()}
+              onClick={() => void createCategory()}
             >
-              {file ? `🖼 ${file.name}` : "＋ Choose…"}
+              Create
             </button>
           </div>
-          <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-            Add
-          </button>
+
+          {/* Row 2 — what the card is and where it goes. */}
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ ...fieldCol, flex: "1 1 220px" }}>
+              <span style={fieldLabel}>Title</span>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Manifold gauge set"
+                style={{ ...inputS, minWidth: 0 }}
+              />
+            </div>
+            <div style={{ ...fieldCol, flex: "1 1 260px" }}>
+              <span style={fieldLabel}>Target URL (https)</span>
+              <input
+                value={targetUrl}
+                onChange={(e) => setTargetUrl(e.target.value)}
+                placeholder="https://s.shopee.co.th/…"
+                style={{ ...inputS, minWidth: 0 }}
+              />
+            </div>
+            <div style={fieldCol}>
+              <span style={fieldLabel}>Source</span>
+              <select
+                aria-label="Source"
+                value={source}
+                onChange={(e) => setSource(e.target.value as AffiliateItemRow["source"])}
+                style={{ ...inputS, width: 130 }}
+              >
+                <option value="shopee">Shopee</option>
+                <option value="lazada">Lazada</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row 3 — how it looks, and the action. Pinning to the homepage happens in the list
+              below, once the card exists (owner, 2026-07-29). */}
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={fieldCol}>
+              <span style={fieldLabel}>Picture</span>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                className="btn-sm"
+                onClick={() => fileRef.current?.click()}
+                style={{ whiteSpace: "nowrap" }}
+              >
+                ＋ {file ? file.name.slice(0, 18) : "Choose…"}
+              </button>
+            </div>
+            <div style={fieldCol}>
+              <span style={fieldLabel}>Price text</span>
+              <input
+                value={priceText}
+                onChange={(e) => setPriceText(e.target.value)}
+                placeholder="e.g. ~฿1,290"
+                style={{ ...inputS, width: 130 }}
+              />
+            </div>
+            <button type="submit" className="btn-primary btn-sm" disabled={busy}>
+              Add
+            </button>
+          </div>
         </form>
-        {/* Live hint while typing; addError is what a rejected SUBMIT reports. */}
-        {targetUrl.trim() !== "" && !urlOk && (
-          <p style={{ fontSize: 12, color: "var(--danger)", marginTop: 6, marginBottom: 0 }}>
-            The target URL must start with https://
-          </p>
-        )}
+
         {addError && (
           <p
             role="alert"
@@ -565,7 +670,18 @@ export default function AffiliateItemsPage() {
 
       {/* Frame 2 — items table */}
       <div style={{ ...cardStyle, marginTop: 16 }}>
-        <div style={cardLabel}>Items</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={cardLabel}>Items</span>
+          {/* The homepage shelf shows six. Pinning a seventh silently changes nothing, so say so. */}
+          {pinnedTotal > 0 && (
+            <span className="muted" style={{ fontSize: 12 }}>
+              {pinnedTotal} pinned
+              {pinnedTotal > HOMEPAGE_SLOTS
+                ? ` — the homepage shows the first ${HOMEPAGE_SLOTS}`
+                : ` · homepage shows up to ${HOMEPAGE_SLOTS}`}
+            </span>
+          )}
+        </div>
         {loading ? (
           <p className="muted" style={{ fontSize: 13 }}>
             Loading…
@@ -582,16 +698,30 @@ export default function AffiliateItemsPage() {
                   <th>Image</th>
                   <th>Item</th>
                   <th>Source</th>
-                  <th>Price text</th>
-                  <th>Sold</th>
+                  <th>Price</th>
+                  <th>Order</th>
                   <th>Clicks</th>
+                  <th>Homepage</th>
                   <th>Active</th>
                   <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((it) => (
-                  <AffiliateItem key={it.id} item={it} onChanged={load} />
+                {groups.map((g) => (
+                  <Fragment key={g.name}>
+                    <tr>
+                      <td colSpan={9} style={groupHeadStyle}>
+                        {g.name}
+                        <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
+                          {g.items.length} item{g.items.length === 1 ? "" : "s"}
+                          {g.pinnedCount > 0 ? ` · ${g.pinnedCount} on homepage` : ""}
+                        </span>
+                      </td>
+                    </tr>
+                    {g.items.map((it) => (
+                      <AffiliateItem key={it.id} item={it} onChanged={load} />
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

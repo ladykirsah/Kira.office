@@ -1576,9 +1576,39 @@ export interface AffiliateItemRow {
   sortOrder: number;
   status: "active" | "disabled";
   createdAt: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  /** 1 = shown on the AirPlus homepage shelf (pinned cards lead it, six at most). */
+  pinned: number;
 }
 
 export type AffiliateItemWithStats = AffiliateItemRow & { clicks: number };
+
+export interface AffiliateCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+export async function fetchAffiliateCategories(): Promise<AffiliateCategory[]> {
+  const res = await apiFetch(`/affiliate-categories`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load categories (HTTP ${res.status})`);
+  return ((await res.json()) as { categories: AffiliateCategory[] }).categories;
+}
+
+/** Create a category (or return the existing one with that name — never a duplicate group). */
+export async function addAffiliateCategory(name: string): Promise<{ id: string; name: string }> {
+  const res = await apiFetch(`/affiliate-categories`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Create category failed (HTTP ${res.status})`);
+  }
+  return (await res.json()) as { id: string; name: string };
+}
 
 export async function fetchAffiliateItems(): Promise<AffiliateItemWithStats[]> {
   const res = await apiFetch(`/affiliate-items`, { cache: "no-store" });
@@ -1592,6 +1622,8 @@ export async function addAffiliateItem(input: {
   priceText?: string;
   source?: "shopee" | "lazada" | "other";
   sortOrder?: number;
+  categoryId?: string | null;
+  pinned?: boolean;
 }): Promise<{ id: string }> {
   const res = await apiFetch(`/affiliate-items`, {
     method: "POST",
@@ -1614,6 +1646,8 @@ export async function updateAffiliateItem(
     source: "shopee" | "lazada" | "other";
     sortOrder: number;
     status: "active" | "disabled";
+    categoryId: string | null;
+    pinned: boolean;
   }>,
 ): Promise<void> {
   const res = await apiFetch(`/affiliate-items/${encodeURIComponent(id)}`, {

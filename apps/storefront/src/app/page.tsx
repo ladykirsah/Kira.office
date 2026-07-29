@@ -49,7 +49,7 @@ export default async function Home() {
       bestSellers(db, { limit: 5 }),
       listCatalog(db, { limit: 8 }),
       activeBanners(db, "promo"),
-      listAffiliateItems(db, 8),
+      listAffiliateItems(db, 6),
     ]);
 
   // onSaleOnly returns campaign candidates; keep only ones the core resolver actually discounts

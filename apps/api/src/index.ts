@@ -2183,6 +2183,7 @@ export const BACKUP_TABLES = [
   "campaign_prices",
   "banners",
   "affiliate_items",
+  "affiliate_categories",
   "affiliate_clicks",
 ];
 
@@ -4309,6 +4310,9 @@ export interface AffiliateItemAdminRow {
   status: string;
   createdAt: number;
   clicks: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  pinned: number;
 }
 
 /** Every affiliate card with its lifetime click count, in storefront display order. */
@@ -4317,9 +4321,12 @@ export async function listAffiliateItemsAdmin(db: D1Database): Promise<Affiliate
     .prepare(
       `SELECT a.id, a.title, a.image_key AS imageKey, a.price_text AS priceText, a.source,
               a.target_url AS targetUrl, a.sort_order AS sortOrder, a.status,
-              a.created_at AS createdAt,
+              a.created_at AS createdAt, a.category_id AS categoryId, c.name AS categoryName,
+              a.pinned,
               (SELECT COUNT(*) FROM affiliate_clicks k WHERE k.item_id = a.id) AS clicks
-       FROM affiliate_items a ORDER BY a.sort_order, a.created_at DESC`,
+       FROM affiliate_items a
+       LEFT JOIN affiliate_categories c ON c.id = a.category_id
+       ORDER BY a.sort_order, a.created_at DESC`,
     )
     .all<AffiliateItemAdminRow>();
   return results ?? [];
@@ -4331,6 +4338,8 @@ export interface AffiliateItemCreate {
   priceText?: string | null;
   source?: AffiliateSource;
   sortOrder?: number;
+  categoryId?: string | null;
+  pinned?: boolean;
 }
 
 /** Create an affiliate card (image uploaded separately). Returns the id. */
@@ -4342,8 +4351,8 @@ export async function createAffiliateItem(
   await db
     .prepare(
       `INSERT INTO affiliate_items (id, title, price_text, source, target_url, sort_order, status,
-                                    created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+                                    created_at, category_id, pinned)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
     )
     .bind(
       id,
@@ -4353,6 +4362,8 @@ export async function createAffiliateItem(
       input.targetUrl.trim(),
       Math.round(Number(input.sortOrder) || 0),
       Date.now(),
+      input.categoryId ?? null,
+      input.pinned ? 1 : 0,
     )
     .run();
   return id;
@@ -4365,6 +4376,8 @@ export interface AffiliateItemPatch {
   source?: AffiliateSource;
   sortOrder?: number;
   status?: "active" | "disabled";
+  categoryId?: string | null;
+  pinned?: boolean;
 }
 
 /** Update only the provided affiliate-card fields — an absent key leaves that column untouched. */
@@ -4385,6 +4398,8 @@ export async function updateAffiliateItem(
   if (patch.source !== undefined) set("source", patch.source);
   if (patch.sortOrder !== undefined) set("sort_order", Math.round(Number(patch.sortOrder) || 0));
   if (patch.status !== undefined) set("status", patch.status);
+  if (patch.categoryId !== undefined) set("category_id", patch.categoryId || null);
+  if (patch.pinned !== undefined) set("pinned", patch.pinned ? 1 : 0);
   if (sets.length === 0) return;
   await db
     .prepare(`UPDATE affiliate_items SET ${sets.join(", ")} WHERE id = ?`)
@@ -5435,6 +5450,34 @@ const worker = {
     // Product picker behind the campaign editor's "Add product" box.
     if (url.pathname === "/variant-search" && request.method === "GET") {
       return json({ variants: await searchVariants(env.DB, url.searchParams.get("q") ?? "") });
+    }
+
+    // Affiliate categories — a managed list so the same shelf can't collect "Gauges" and "gauge".
+    if (url.pathname === "/affiliate-categories" && request.method === "GET") {
+      const { results } = await env.DB.prepare(
+        "SELECT id, name, sort_order AS sortOrder FROM affiliate_categories ORDER BY sort_order, name",
+      ).all();
+      return json({ categories: results ?? [] });
+    }
+    if (url.pathname === "/affiliate-categories" && request.method === "POST") {
+      const body = await readJson<{ name?: string }>(request);
+      const name = body?.name?.trim();
+      if (!name) return json({ error: "name is required" }, 400);
+      // Creating a name that already exists returns the existing one — typing "Gauges" twice must
+      // never split the shelf into two identical groups.
+      const existing = await env.DB.prepare(
+        "SELECT id, name FROM affiliate_categories WHERE name = ? COLLATE NOCASE",
+      )
+        .bind(name)
+        .first<{ id: string; name: string }>();
+      if (existing) return json(existing);
+      const id = crypto.randomUUID();
+      await env.DB.prepare(
+        "INSERT INTO affiliate_categories (id, name, sort_order, created_at) VALUES (?, ?, 0, ?)",
+      )
+        .bind(id, name, Date.now())
+        .run();
+      return json({ id, name }, 201);
     }
 
     if (url.pathname === "/affiliate-items" && request.method === "GET") {
