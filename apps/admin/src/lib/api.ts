@@ -717,6 +717,7 @@ export interface ProductDetail {
     itemCostSatang: number;
     targetPriceSatang: number;
     onlinePriceSatang: number;
+    shopeePriceSatang?: number;
     b2bPriceSatang: number;
     onlineCommissionBp: number;
     taxOnCost: number;
@@ -753,6 +754,7 @@ export interface FullProductInput {
     itemCostSatang: number;
     targetPriceSatang: number;
     onlinePriceSatang: number;
+    shopeePriceSatang?: number;
     b2bPriceSatang: number;
     onlineCommissionBp: number;
     taxOnCost: boolean;
@@ -837,6 +839,7 @@ export async function setProductPricing(
     itemCostSatang: number;
     targetPriceSatang: number;
     onlinePriceSatang: number;
+    shopeePriceSatang?: number;
     b2bPriceSatang: number;
     onlineCommissionBp: number;
     taxOnCost: boolean;

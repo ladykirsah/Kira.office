@@ -1396,7 +1396,7 @@ export async function saveFullProduct(
     stmts.push(
       db
         .prepare(
-          "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, shopee_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(
           crypto.randomUUID(),
@@ -1404,6 +1404,7 @@ export async function saveFullProduct(
           p.itemCostSatang,
           p.targetPriceSatang,
           p.onlinePriceSatang,
+          p.shopeePriceSatang ?? 0,
           p.b2bPriceSatang,
           p.onlineCommissionBp,
           p.taxOnCost ? 1 : 0,
@@ -3003,7 +3004,8 @@ export interface ProductDetail {
   pricing: {
     itemCostSatang: number;
     targetPriceSatang: number; // on-site B2C price
-    onlinePriceSatang: number; // online default price
+    onlinePriceSatang: number; // AirPlus storefront price (what the shop sells at)
+    shopeePriceSatang?: number; // "AC on Sales" reference price — no Shopee API, kept by hand
     b2bPriceSatang: number; // on-site B2B price
     onlineCommissionBp: number; // Shopee commission, basis points
     taxOnCost: number; // 1 = add 7% VAT to the cost base
@@ -3043,7 +3045,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
     pricing =
       (await db
         .prepare(
-          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang, online_price_satang AS onlinePriceSatang, b2b_price_satang AS b2bPriceSatang, online_commission_bp AS onlineCommissionBp, tax_on_cost AS taxOnCost FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
+          "SELECT item_cost_satang AS itemCostSatang, target_price_satang AS targetPriceSatang, online_price_satang AS onlinePriceSatang, shopee_price_satang AS shopeePriceSatang, b2b_price_satang AS b2bPriceSatang, online_commission_bp AS onlineCommissionBp, tax_on_cost AS taxOnCost FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1",
         )
         .bind(variant.id)
         .first<NonNullable<ProductDetail["pricing"]>>()) ?? null;
@@ -3762,7 +3764,8 @@ export async function archiveProduct(db: D1Database, id: string): Promise<void> 
 export interface VariantPricing {
   itemCostSatang: number;
   targetPriceSatang: number; // on-site B2C price
-  onlinePriceSatang: number; // online default price
+  onlinePriceSatang: number; // AirPlus storefront price (what the shop sells at)
+  shopeePriceSatang?: number; // "AC on Sales" reference price — no Shopee API, kept by hand
   b2bPriceSatang: number; // on-site B2B price
   onlineCommissionBp: number; // Shopee commission, basis points
   taxOnCost: boolean; // add 7% VAT to the cost base
@@ -3778,7 +3781,7 @@ export async function setVariantPricing(
     db.prepare("DELETE FROM pricing_profiles WHERE product_variant_id = ?").bind(variantId),
     db
       .prepare(
-        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang, shopee_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         crypto.randomUUID(),
@@ -3786,6 +3789,7 @@ export async function setVariantPricing(
         p.itemCostSatang,
         p.targetPriceSatang,
         p.onlinePriceSatang,
+        p.shopeePriceSatang ?? 0,
         p.b2bPriceSatang,
         p.onlineCommissionBp,
         p.taxOnCost ? 1 : 0,
@@ -5024,6 +5028,7 @@ const worker = {
         itemCostSatang?: number;
         targetPriceSatang?: number;
         onlinePriceSatang?: number;
+        shopeePriceSatang?: number;
         b2bPriceSatang?: number;
         onlineCommissionBp?: number;
         taxOnCost?: boolean;
@@ -5036,6 +5041,7 @@ const worker = {
         itemCostSatang: body.itemCostSatang ?? 0,
         targetPriceSatang: body.targetPriceSatang ?? 0,
         onlinePriceSatang: body.onlinePriceSatang ?? 0,
+        shopeePriceSatang: body.shopeePriceSatang ?? 0,
         b2bPriceSatang: body.b2bPriceSatang ?? 0,
         onlineCommissionBp: body.onlineCommissionBp ?? 0,
         taxOnCost: body.taxOnCost ?? false,

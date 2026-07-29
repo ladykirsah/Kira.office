@@ -63,6 +63,7 @@ export default function EditProductPage() {
     b2cThb: "",
     b2bThb: "",
     onlineThb: "",
+    shopeeThb: "",
     onlineCommPct: "",
   });
   const updatePricing = (patch: Partial<PricingForm>) =>
@@ -91,6 +92,7 @@ export default function EditProductPage() {
       b2cThb: d.pricing ? thb(d.pricing.targetPriceSatang) : "",
       b2bThb: d.pricing ? thb(d.pricing.b2bPriceSatang) : "",
       onlineThb: d.pricing ? thb(d.pricing.onlinePriceSatang) : "",
+      shopeeThb: d.pricing?.shopeePriceSatang ? thb(d.pricing.shopeePriceSatang) : "",
       onlineCommPct:
         d.pricing && d.pricing.onlineCommissionBp
           ? (d.pricing.onlineCommissionBp / 100).toString()
@@ -161,6 +163,7 @@ export default function EditProductPage() {
           itemCostSatang: toSatang(pricing.costThb),
           targetPriceSatang: toSatang(pricing.b2cThb),
           onlinePriceSatang: toSatang(pricing.onlineThb),
+          shopeePriceSatang: toSatang(pricing.shopeeThb),
           b2bPriceSatang: toSatang(pricing.b2bThb),
           onlineCommissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
           taxOnCost: pricing.taxOnCost,
@@ -352,8 +355,6 @@ export default function EditProductPage() {
                 attributes={attributes}
                 productRef={productRef}
                 onProductRefChange={setProductRef}
-                shopeeItemId={shopeeItemId}
-                onShopeeItemIdChange={setShopeeItemId}
                 shopeeActive={shopeeActive}
                 onShopeeActiveChange={setShopeeActive}
               />

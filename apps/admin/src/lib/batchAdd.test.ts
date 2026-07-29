@@ -15,6 +15,7 @@ describe("clearedProductFields > per-product reset for Save & add next", () => {
       b2cThb: "",
       b2bThb: "",
       onlineThb: "",
+      shopeeThb: "",
       onlineCommPct: "",
     });
   });
