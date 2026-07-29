@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 import worker, {
   addBarcodeToProduct,
   applyAdjustmentToDb,
@@ -37,6 +38,7 @@ import worker, {
   importCustomerVisits,
   importProducts,
   importShopeeOrders,
+  listOrders,
   listPayments,
   parseMoneyToSatang,
   parseOrderDateMs,
@@ -4318,5 +4320,148 @@ describe("applyOnlineSaleToDb (AirPlus order stock deduction)", () => {
     const { db } = makeDb({ available: [{ variantId: "var-1", available: 5 }] });
     const out = await applyOnlineSaleToDb(db, "order-1", LINES);
     expect(out.conflicts).toEqual([{ productVariantId: "var-2", requested: 1, available: 0 }]);
+  });
+});
+
+describe("listOrders > storefront_customers join", () => {
+  // Run against a REAL sqlite built from the REAL migrations, not the SQL-substring mock: the thing
+  // that can break here is join semantics, and a mock that matches on `sql.includes(...)` would
+  // happily return canned rows for an INNER JOIN that silently drops every imported Shopee order.
+  const migrationsDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../packages/db/migrations",
+  );
+
+  /** A migrated in-memory D1: replays every migration in apply order. */
+  function migratedDb(): DatabaseSync {
+    const db = new DatabaseSync(":memory:");
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort(); // zero-padded prefixes → lexical order is apply order
+    for (const file of files) db.exec(readFileSync(join(migrationsDir, file), "utf8"));
+    return db;
+  }
+
+  /** The slice of the D1 API the orders path uses: prepare → bind → all/run. */
+  function asD1(db: DatabaseSync): D1Database {
+    const make = (sql: string) => {
+      let binds: unknown[] = [];
+      const stmt = {
+        bind(...args: unknown[]) {
+          binds = args;
+          return stmt;
+        },
+        async all<T = unknown>(): Promise<{ results: T[] }> {
+          return { results: db.prepare(sql).all(...(binds as never[])) as T[] };
+        },
+        async run() {
+          return db.prepare(sql).run(...(binds as never[]));
+        },
+      };
+      return stmt;
+    };
+    return { prepare: (sql: string) => make(sql) } as unknown as D1Database;
+  }
+
+  const NOW = 1_760_000_000_000; // fixed clock — orders stay well inside the 48h expiry window
+
+  function seed(db: DatabaseSync) {
+    db.prepare(
+      `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at, customer_code)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run("cus-1", "0810000001", "สมชาย ใจดี", NOW, NOW, "AP-8F2C41A9");
+
+    const insertOrder = db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 grand_total_satang, order_created_at, imported_at,
+                                 buyer_username, storefront_customer_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    // The fixture is built so the JOIN KEY is load-bearing: the linked orders carry a buyer_username
+    // that does NOT equal the customer's name, and the unlinked order carries one that DOES. A join
+    // written against buyer_username instead of storefront_customer_id therefore gets both cases
+    // exactly backwards, and cannot pass by coincidence.
+
+    // An AirPlus order placed by a registered customer — matched only by id.
+    insertOrder.run(
+      "ord-linked",
+      "airplus",
+      "AP-1",
+      "new",
+      "paid",
+      285_000,
+      NOW,
+      NOW,
+      "somchai99", // a handle, not the customer's name
+      "cus-1",
+    );
+    // A CSV-imported Shopee order with no storefront account — but whose buyer_username happens to
+    // read exactly like the registered customer's name. It must NOT pick up that customer's code.
+    insertOrder.run(
+      "ord-unlinked",
+      "shopee",
+      "SP-1",
+      "completed",
+      "paid",
+      450_000,
+      NOW,
+      NOW,
+      "สมชาย ใจดี",
+      null,
+    );
+    // A second AirPlus order for the SAME customer — proves one customer row cannot fan a single
+    // order into duplicates, and that two orders can share a code.
+    insertOrder.run(
+      "ord-linked-2",
+      "airplus",
+      "AP-2",
+      "shipped",
+      "cod",
+      189_500,
+      NOW,
+      NOW,
+      "somchai99",
+      "cus-1",
+    );
+    // NOTE: there is deliberately no "dangling storefront_customer_id" case — sales_orders carries
+    // a FK to storefront_customers(id), so sqlite/D1 reject that row outright. The unlinked (NULL)
+    // case above is the only way an order can lack a customer.
+  }
+
+  async function listed() {
+    const db = migratedDb();
+    seed(db);
+    const res = await listOrders({ DB: asD1(db) } as unknown as Env);
+    const body = (await res.json()) as { orders: { id: string; customerCode: string | null }[] };
+    return body.orders;
+  }
+
+  it("given an order linked to a customer > returns that customer's code", async () => {
+    const orders = await listed();
+    expect(orders.find((o) => o.id === "ord-linked")?.customerCode).toBe("AP-8F2C41A9");
+  });
+
+  it("given an order with no linked customer > keeps the order and reports a null code", async () => {
+    // The regression this guards: an INNER JOIN here would erase every imported Shopee order from
+    // the admin list, and the page would look merely "empty" rather than broken.
+    const orders = await listed();
+    const unlinked = orders.find((o) => o.id === "ord-unlinked");
+    expect(unlinked).toBeDefined();
+    expect(unlinked?.customerCode).toBeNull();
+  });
+
+  it("given two orders sharing one customer > both carry the code and neither duplicates", async () => {
+    const orders = await listed();
+    expect(
+      orders
+        .filter((o) => o.customerCode === "AP-8F2C41A9")
+        .map((o) => o.id)
+        .sort(),
+    ).toEqual(["ord-linked", "ord-linked-2"]);
+  });
+
+  it("returns every order exactly once (the join must not fan rows out)", async () => {
+    const orders = await listed();
+    expect(orders.map((o) => o.id).sort()).toEqual(["ord-linked", "ord-linked-2", "ord-unlinked"]);
   });
 });

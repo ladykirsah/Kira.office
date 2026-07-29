@@ -24,6 +24,13 @@ import {
   anonymizeStorefrontCustomer,
   retryRead,
   planHoldMovement,
+  computeCreditFromOrders,
+  computeEffectiveTier,
+  isOrderStatus,
+  isPaymentStatus,
+  isCreditEvent,
+  EXPIRY_MS,
+  type CustomerTier,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2204,17 +2211,21 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
   return key;
 }
 
-/** Imported sales orders (Shopee CSV bridge), newest first. */
-async function listOrders(env: Env): Promise<Response> {
+/** Imported sales orders (Shopee CSV bridge), newest first. Lazily expires stale unpaid orders. */
+export async function listOrders(env: Env): Promise<Response> {
+  await expireUnpaidOrders(env.DB);
   const { results } = await env.DB.prepare(
-    `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
-            payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
-            fee_total_satang AS feeTotalSatang, shipping_fee_satang AS shippingFeeSatang,
-            order_created_at AS orderCreatedAt,
-            imported_at AS importedAt, buyer_username AS buyerUsername,
-            sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
-            carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
-     FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
+    `SELECT o.id, o.channel, o.external_order_id AS externalOrderId, o.order_status AS orderStatus,
+            o.payment_status AS paymentStatus, o.grand_total_satang AS grandTotalSatang,
+            o.fee_total_satang AS feeTotalSatang, o.shipping_fee_satang AS shippingFeeSatang,
+            o.order_created_at AS orderCreatedAt,
+            o.imported_at AS importedAt, o.buyer_username AS buyerUsername,
+            o.sales_satang AS salesSatang, o.fee_bp AS feeBp, o.ship_time_ms AS shipTimeMs,
+            o.carrier, o.tracking_no AS trackingNo, o.profit_satang AS profitSatang,
+            c.customer_code AS customerCode
+     FROM sales_orders o
+     LEFT JOIN storefront_customers c ON c.id = o.storefront_customer_id
+     ORDER BY o.imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });
 }
@@ -2238,6 +2249,8 @@ export interface OrderRow {
   carrier: string | null;
   trackingNo: string | null;
   profitSatang: number | null;
+  /** Human-readable code of the linked storefront customer ("AP-…"); null for unlinked/imported orders. */
+  customerCode: string | null;
 }
 
 /** Fulfillment fields the admin may edit. A key that is present with an empty string clears (NULL). */
@@ -2266,7 +2279,8 @@ export async function updateOrder(
               fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
-              carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
+              carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
+              storefront_customer_id AS storefrontCustomerId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(id)
@@ -2294,7 +2308,57 @@ export async function updateOrder(
     )
     .bind(next.orderStatus, next.paymentStatus, next.carrier, next.trackingNo, next.shipTimeMs, id)
     .run();
+
+  const customerId = (row as OrderRow & { storefrontCustomerId?: string | null })
+    .storefrontCustomerId;
+  if (
+    customerId &&
+    next.orderStatus &&
+    isOrderStatus(next.orderStatus) &&
+    isCreditEvent(next.orderStatus)
+  ) {
+    await recalculateCustomerCredit(db, customerId);
+  }
+
   return next;
+}
+
+/**
+ * Expire AirPlus orders still at new+pending after 48 hours. Returns the count of expired orders.
+ * Each affected customer's credit is recalculated.
+ */
+export async function expireUnpaidOrders(
+  db: D1Database,
+  now: number = Date.now(),
+): Promise<number> {
+  const cutoff = now - EXPIRY_MS;
+  const { results: stale } = await db
+    .prepare(
+      `SELECT id, storefront_customer_id AS customerId
+       FROM sales_orders
+       WHERE channel = 'airplus' AND order_status = 'new' AND payment_status = 'pending'
+         AND order_created_at <= ?`,
+    )
+    .bind(cutoff)
+    .all<{ id: string; customerId: string | null }>();
+
+  if (!stale?.length) return 0;
+
+  await db
+    .prepare(
+      `UPDATE sales_orders SET order_status = 'expired', payment_status = 'expired'
+       WHERE channel = 'airplus' AND order_status = 'new' AND payment_status = 'pending'
+         AND order_created_at <= ?`,
+    )
+    .bind(cutoff)
+    .run();
+
+  const customerIds = new Set(stale.map((o) => o.customerId).filter(Boolean) as string[]);
+  for (const cid of customerIds) {
+    await recalculateCustomerCredit(db, cid, now);
+  }
+
+  return stale.length;
 }
 
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
@@ -2713,6 +2777,8 @@ export async function searchStorefrontCustomers(db: D1Database, q: string): Prom
     .prepare(
       `SELECT c.id, c.name, c.phone, c.email, c.status,
               c.customer_code AS customerCode,
+              c.credit_score AS creditScore,
+              c.tier,
               c.created_at AS createdAt,
               c.last_login_at AS lastLoginAt,
               c.phone_verified_at AS phoneVerifiedAt,
@@ -2748,6 +2814,11 @@ export async function getStorefrontCustomerDetail(db: D1Database, id: string): P
     .prepare(
       `SELECT c.id, c.name, c.phone, c.email, c.status,
               c.customer_code AS customerCode,
+              c.credit_score AS creditScore,
+              c.tier,
+              c.tier_locked_until AS tierLockedUntil,
+              c.tier_override AS tierOverride,
+              c.tier_override_reason AS tierOverrideReason,
               c.created_at AS createdAt,
               c.updated_at AS updatedAt,
               c.last_login_at AS lastLoginAt,
@@ -2773,6 +2844,129 @@ export async function getStorefrontCustomerDetail(db: D1Database, id: string): P
     .bind(id)
     .all();
   return { customer: customer ?? null, orders: orders.results ?? [] };
+}
+
+/**
+ * Recompute a customer's credit_score and tier from their full order history. Called automatically
+ * when an AirPlus order reaches a terminal status, and available as an explicit admin action.
+ */
+export async function recalculateCustomerCredit(
+  db: D1Database,
+  customerId: string,
+  now: number = Date.now(),
+): Promise<{ credit: number; tier: CustomerTier } | null> {
+  const customer = await db
+    .prepare(`SELECT id, tier_override, tier_locked_until FROM storefront_customers WHERE id = ?`)
+    .bind(customerId)
+    .first<{ id: string; tier_override: string | null; tier_locked_until: number | null }>();
+  if (!customer) return null;
+
+  const { results: orders } = await db
+    .prepare(
+      `SELECT order_status AS orderStatus, payment_status AS paymentStatus
+       FROM sales_orders
+       WHERE storefront_customer_id = ? AND channel = 'airplus'`,
+    )
+    .bind(customerId)
+    .all<{ orderStatus: string | null; paymentStatus: string | null }>();
+
+  const credit = computeCreditFromOrders(orders ?? []);
+
+  const DAY = 86_400_000;
+  const d90 = now - 90 * DAY;
+  const d60 = now - 60 * DAY;
+  const monthStart = new Date(now);
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const { results: loyaltyRows } = await db
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN 1 ELSE 0 END) AS earn_orders,
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS earn_spent,
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN 1 ELSE 0 END) AS hold_orders,
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS hold_spent,
+         SUM(CASE WHEN order_created_at >= ? AND (order_status = 'expired' OR (order_status = 'cancelled' AND payment_status IN ('pending','cod_denied'))) THEN 1 ELSE 0 END) AS month_incompletes
+       FROM sales_orders
+       WHERE storefront_customer_id = ? AND channel = 'airplus'`,
+    )
+    .bind(d90, d90, d60, d60, monthStart.getTime(), customerId)
+    .all<{
+      earn_orders: number;
+      earn_spent: number;
+      hold_orders: number;
+      hold_spent: number;
+      month_incompletes: number;
+    }>();
+
+  const stats = loyaltyRows?.[0] ?? {
+    earn_orders: 0,
+    earn_spent: 0,
+    hold_orders: 0,
+    hold_spent: 0,
+    month_incompletes: 0,
+  };
+
+  if (customer.tier_override === "block") {
+    await db
+      .prepare(
+        `UPDATE storefront_customers SET credit_score = ?, tier = 'block', updated_at = ? WHERE id = ?`,
+      )
+      .bind(credit, now, customerId)
+      .run();
+    return { credit, tier: "block" };
+  }
+
+  const prepaidSinceLock =
+    customer.tier_locked_until != null
+      ? ((
+          await db
+            .prepare(
+              `SELECT COUNT(*) AS n FROM sales_orders
+               WHERE storefront_customer_id = ? AND channel = 'airplus'
+                 AND order_status = 'delivered' AND payment_status = 'paid'
+                 AND order_created_at >= ?`,
+            )
+            .bind(customerId, customer.tier_locked_until)
+            .first<{ n: number }>()
+        )?.n ?? 0)
+      : 0;
+
+  const tier = computeEffectiveTier({
+    credit,
+    earn: {
+      completedOrdersInWindow: stats.earn_orders,
+      totalSpentSatangInWindow: stats.earn_spent,
+    },
+    hold: {
+      completedOrdersInWindow: stats.hold_orders,
+      totalSpentSatangInWindow: stats.hold_spent,
+    },
+    incompletesThisMonth: stats.month_incompletes,
+    adminBlocked: customer.tier_override === "block",
+    badRecovery:
+      customer.tier_locked_until != null
+        ? {
+            badLockedUntil: customer.tier_locked_until,
+            prepaidCompletionsSinceLock: prepaidSinceLock,
+            now,
+          }
+        : undefined,
+  });
+
+  const tierLockedUntil =
+    tier === "bad" && customer.tier_locked_until == null
+      ? now + 90 * DAY
+      : customer.tier_locked_until;
+
+  await db
+    .prepare(
+      `UPDATE storefront_customers SET credit_score = ?, tier = ?, tier_locked_until = ?, updated_at = ? WHERE id = ?`,
+    )
+    .bind(credit, tier, tierLockedUntil, now, customerId)
+    .run();
+
+  return { credit, tier };
 }
 
 /**
@@ -4567,6 +4761,12 @@ const worker = {
       return json(await getStorefrontCustomerDetail(env.DB, decodeURIComponent(sfGet[1]!)));
     }
 
+    const sfRecalc = url.pathname.match(/^\/storefront-customers\/([^/]+)\/recalculate-credit$/);
+    if (sfRecalc && request.method === "POST") {
+      const result = await recalculateCustomerCredit(env.DB, decodeURIComponent(sfRecalc[1]!));
+      return result ? json(result) : json({ error: "customer not found" }, 404);
+    }
+
     // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).
     if (url.pathname === "/payments" && request.method === "GET") {
       return json({
@@ -5589,6 +5789,9 @@ const worker = {
   ): Promise<void> {
     const key = await runDailyBackup(env, controller.scheduledTime);
     console.log(`backup: wrote ${key}`);
+
+    const expired = await expireUnpaidOrders(env.DB, controller.scheduledTime);
+    if (expired > 0) console.log(`expired ${expired} unpaid orders`);
   },
 } satisfies ExportedHandler<Env>;
 

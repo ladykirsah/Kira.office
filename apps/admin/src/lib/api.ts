@@ -894,6 +894,7 @@ export interface OrderRow {
   profitSatang?: number | null;
   carrier?: string | null; // shipping carrier (AirPlus)
   trackingNo?: string | null; // parcel tracking number (AirPlus)
+  customerCode?: string | null; // linked storefront customer's code ("AP-…"); null when unlinked
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {

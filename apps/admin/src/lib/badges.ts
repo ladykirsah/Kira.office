@@ -95,3 +95,49 @@ export function airplusStatusBadge(raw: string | null): { pill: PillClass; label
     return { pill: "good", label: "Done" };
   return { pill: "off", label: s || "—" };
 }
+
+/** Map an English order_status constant to a pill class. */
+export function orderStatusBadge(status: string | null): { pill: PillClass; label: string } {
+  switch (status) {
+    case "new":
+      return { pill: "warn", label: "New" };
+    case "confirmed":
+      return { pill: "good", label: "Confirmed" };
+    case "packing":
+      return { pill: "good", label: "Packing" };
+    case "shipped":
+      return { pill: "info", label: "Shipped" };
+    case "delivered":
+      return { pill: "good", label: "Delivered" };
+    case "cancelled":
+      return { pill: "bad", label: "Cancelled" };
+    case "expired":
+      return { pill: "bad", label: "Expired" };
+    default:
+      return { pill: "off", label: status || "—" };
+  }
+}
+
+/** Map an English payment_status constant to a pill class. */
+export function paymentStatusBadge(status: string | null): { pill: PillClass; label: string } {
+  switch (status) {
+    case "pending":
+      return { pill: "off", label: "Pending" };
+    case "paid":
+      return { pill: "good", label: "Paid" };
+    case "cod":
+      return { pill: "soft", label: "COD" };
+    case "cod_confirmed":
+      return { pill: "good", label: "COD Approved" };
+    case "cod_collected":
+      return { pill: "good", label: "COD Collected" };
+    case "cod_denied":
+      return { pill: "bad", label: "COD Denied" };
+    case "expired":
+      return { pill: "bad", label: "Expired" };
+    case "refunded":
+      return { pill: "off", label: "Refunded" };
+    default:
+      return { pill: "off", label: status || "—" };
+  }
+}
