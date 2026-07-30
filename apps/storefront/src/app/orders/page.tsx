@@ -46,8 +46,6 @@ interface Step {
   title: string;
   detail: string | null;
   state: StepState;
-  /** override the state-derived dot color (step ① uses the accent) */
-  dotColor?: string;
 }
 
 function buildSteps(o: LookupResult): Step[] {
@@ -82,7 +80,6 @@ function buildSteps(o: LookupResult): Step[] {
       title: "สั่งซื้อแล้ว",
       detail: o.createdAt ? formatDateTime(o.createdAt) : null,
       state: "done",
-      dotColor: "var(--accent)",
     },
     isCod
       ? { title: "ชำระเงิน", detail: "เก็บเงินปลายทาง (จ่ายตอนรับของ)", state: "done" }
@@ -115,7 +112,6 @@ function buildSteps(o: LookupResult): Step[] {
           // value straight to the customer, which after 0069 would have been an English token.
           detail: ord ? orderStatusLabel(ord) : null,
           state: "done",
-          dotColor: "var(--danger)",
         }
       : completed
         ? { title: "สำเร็จ", detail: "ได้รับสินค้าเรียบร้อย", state: "done" }
@@ -124,13 +120,16 @@ function buildSteps(o: LookupResult): Step[] {
 }
 
 function TimelineStep({ step, last }: { step: Step; last: boolean }) {
+  // The owner's rule (30 Jul 2026): gray = not happened yet, RED = the stage we are on now,
+  // BLACK = already passed. Nothing overrides it — a single rule read straight down the timeline is
+  // what makes "where am I" answerable at a glance, and a fourth colour anywhere breaks that.
+  // --text rather than a literal black so it inverts correctly in dark mode.
   const dotColor =
-    step.dotColor ??
-    (step.state === "done"
-      ? "var(--ok)"
+    step.state === "done"
+      ? "var(--text)"
       : step.state === "current"
-        ? "var(--warn)"
-        : "var(--border)");
+        ? "var(--accent)"
+        : "var(--border)";
   return (
     <div style={{ display: "flex", gap: 14 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -162,7 +161,9 @@ function TimelineStep({ step, last }: { step: Step; last: boolean }) {
             style={{
               fontSize: 13,
               marginTop: 2,
-              color: step.state === "current" ? "var(--warn)" : "var(--text-muted)",
+              // Matches the dot: the current stage is signalled in ONE colour, not gold text under
+              // a red dot. Revert this line alone if the detail should stay neutral.
+              color: step.state === "current" ? "var(--accent)" : "var(--text-muted)",
             }}
           >
             {step.detail}
