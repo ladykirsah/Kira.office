@@ -82,7 +82,11 @@ export function SlipUpload({
       }
       const confirmed = body.status === "confirmed";
       setPhase({ kind: "done", confirmed, message: body.message ?? "ส่งสลิปเรียบร้อย" });
-      if (confirmed) onConfirmed?.();
+      // Refresh on BOTH outcomes, not just auto-confirmation. In manual-review mode (which is what
+      // runs today — SlipOK is not configured) the response is "received", and the order really did
+      // move to `verifying`. Only refreshing on "confirmed" left the timeline showing the stale
+      // ยังไม่ชำระเงิน, so a customer who had just paid was still told they had not.
+      if (confirmed || body.status === "received") onConfirmed?.();
     } catch {
       setPhase({ kind: "error", message: "ไม่สามารถเชื่อมต่อได้ กรุณาลองใหม่อีกครั้ง" });
     }
