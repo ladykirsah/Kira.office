@@ -25,7 +25,18 @@ describe("ORDER_STATUSES", () => {
       "delivered",
       "cancelled",
       "expired",
+      // Admin-set, not reached by any automatic transition: a parcel that came back undelivered,
+      // and a customer-initiated return or claim.
+      "delivery_failed",
+      "returned",
     ]);
+  });
+
+  it("neither admin-set state moves a customer's credit on its own", () => {
+    // A failed delivery may be the carrier's fault and a return may be our own wrong-item error, so
+    // neither is scored until the returns flow (Step 6) decides who was at fault.
+    expect(isCreditEvent("delivery_failed")).toBe(false);
+    expect(isCreditEvent("returned")).toBe(false);
   });
 });
 

@@ -1,7 +1,19 @@
 import { creditScoreFromEvents, type CreditEvent } from "./customerTier";
 
 export type OrderStatus =
-  "new" | "confirmed" | "packing" | "shipped" | "delivered" | "cancelled" | "expired";
+  | "new"
+  | "confirmed"
+  | "packing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "expired"
+  // Set by hand from the admin, never by an automatic transition. `delivery_failed` is a parcel that
+  // came back undelivered; `returned` is the customer contacting us to send something back — wrong
+  // item sent, or a claim. Both surface via operationalStatus (fail / return) on the orders page.
+  // No migration needed: sales_orders.order_status is plain TEXT with no CHECK constraint.
+  | "delivery_failed"
+  | "returned";
 
 export type PaymentStatus =
   | "pending"
@@ -21,6 +33,8 @@ export const ORDER_STATUSES: readonly OrderStatus[] = [
   "delivered",
   "cancelled",
   "expired",
+  "delivery_failed",
+  "returned",
 ];
 
 export const PAYMENT_STATUSES: readonly PaymentStatus[] = [
@@ -42,6 +56,8 @@ const ORDER_LABELS: Record<OrderStatus, string> = {
   delivered: "สำเร็จ",
   cancelled: "ยกเลิก",
   expired: "หมดอายุ",
+  delivery_failed: "จัดส่งไม่สำเร็จ",
+  returned: "คืนสินค้า",
 };
 
 const PAYMENT_LABELS: Record<PaymentStatus, string> = {

@@ -3,10 +3,11 @@
 import { useState } from "react";
 import type { OrderRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
-import { orderStatusBadge, paymentStatusBadge } from "@/lib/badges";
+import { operationalStatusBadge, paymentStatusBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { dateRange, type DatePreset } from "@/lib/dateRange";
+import { OPERATIONAL_STATUSES, operationalStatus, operationalStatusLabel } from "@l-shopee/core";
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
 type Tab = "all" | "unpaid" | "toship" | "shipped" | "completed" | "unfinished";
@@ -77,22 +78,19 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
   const now = Date.now();
   const airplus = orders.filter((o) => o.channel === "airplus");
 
-  // Summary counts (all-time, not affected by date/tab)
-  const codApproval = airplus.filter(
-    (o) => o.paymentStatus === "cod" && o.orderStatus === "new",
-  ).length;
-  const toBeShipped = airplus.filter(
-    (o) =>
-      (o.paymentStatus === "paid" || o.paymentStatus === "cod_confirmed") &&
-      o.orderStatus !== "shipped" &&
-      o.orderStatus !== "delivered" &&
-      o.orderStatus !== "cancelled" &&
-      o.orderStatus !== "expired",
-  ).length;
-  const inTransit = airplus.filter((o) => o.orderStatus === "shipped").length;
-  const returns = airplus.filter(
-    (o) => o.orderStatus === "cancelled" && o.paymentStatus === "refunded",
-  ).length;
+  // Summary counts (all-time, not affected by date/tab). Same derived status as the column and the
+  // tabs — the Returns card used to look for cancelled+refunded, which is not what a return is and
+  // would have missed every real one.
+  const countOf = (...want: string[]) =>
+    airplus.filter((o) => {
+      const s = operationalStatus(o.orderStatus, o.paymentStatus);
+      return s != null && want.includes(s);
+    }).length;
+
+  const codApproval = countOf("cod_pending");
+  const toBeShipped = countOf("to_ship");
+  const inTransit = countOf("in_transit");
+  const returns = countOf("return");
 
   // Date filter
   const { start: rangeStart, end: rangeEnd } = dateRange(datePreset, now, customFrom, customTo);
@@ -101,58 +99,45 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
     return t >= rangeStart && t <= rangeEnd;
   });
 
-  // Tab filter
+  // Tab filter, keyed off the SAME derived status the Status column shows. Previously each tab
+  // repeated its own multi-condition predicate, which meant a new order_status (delivery_failed,
+  // returned) showed as Fail/Return in the column while the Unfinished tab silently ignored it and
+  // under-counted. One source of truth removes that whole class of drift.
   const filterByTab = (list: OrderRow[], t: Tab) => {
+    const is = (o: OrderRow, ...want: string[]) => {
+      const s = operationalStatus(o.orderStatus, o.paymentStatus);
+      return s != null && want.includes(s);
+    };
     switch (t) {
       case "unpaid":
-        return list.filter((o) => o.orderStatus === "new" && o.paymentStatus === "pending");
+        return list.filter((o) => is(o, "unpaid"));
       case "toship":
-        return list.filter(
-          (o) =>
-            (o.paymentStatus === "paid" || o.paymentStatus === "cod_confirmed") &&
-            o.orderStatus !== "shipped" &&
-            o.orderStatus !== "delivered" &&
-            o.orderStatus !== "cancelled" &&
-            o.orderStatus !== "expired",
-        );
+        return list.filter((o) => is(o, "to_ship"));
       case "shipped":
-        return list.filter((o) => o.orderStatus === "shipped");
+        return list.filter((o) => is(o, "in_transit"));
       case "completed":
-        return list.filter((o) => o.orderStatus === "delivered");
+        return list.filter((o) => is(o, "complete"));
       case "unfinished":
-        return list.filter(
-          (o) =>
-            o.orderStatus === "cancelled" ||
-            o.orderStatus === "expired" ||
-            o.paymentStatus === "cod_denied" ||
-            o.paymentStatus === "expired",
-        );
+        // Everything that ended badly: cancel, COD denied, payment expired, failed delivery — plus
+        // returns and claims.
+        return list.filter((o) => is(o, "fail", "return"));
       default:
         return list;
     }
   };
 
-  // Summary card filter (overrides tab when active)
+  // Summary card filter (overrides tab when active). Each card maps to one operational status, so
+  // clicking a card cannot show a different set from the number printed on it.
+  const CARD_STATUS: Record<Exclude<SummaryFilter, null>, string> = {
+    cod: "cod_pending",
+    toship: "to_ship",
+    shipped: "in_transit",
+    returns: "return",
+  };
   const bySummary = (list: OrderRow[]) => {
-    switch (summaryFilter) {
-      case "cod":
-        return list.filter((o) => o.paymentStatus === "cod" && o.orderStatus === "new");
-      case "toship":
-        return list.filter(
-          (o) =>
-            (o.paymentStatus === "paid" || o.paymentStatus === "cod_confirmed") &&
-            o.orderStatus !== "shipped" &&
-            o.orderStatus !== "delivered" &&
-            o.orderStatus !== "cancelled" &&
-            o.orderStatus !== "expired",
-        );
-      case "shipped":
-        return list.filter((o) => o.orderStatus === "shipped");
-      case "returns":
-        return list.filter((o) => o.orderStatus === "cancelled" && o.paymentStatus === "refunded");
-      default:
-        return list;
-    }
+    if (!summaryFilter) return list;
+    const want = CARD_STATUS[summaryFilter];
+    return list.filter((o) => operationalStatus(o.orderStatus, o.paymentStatus) === want);
   };
 
   let view = summaryFilter ? bySummary(dateFiltered) : filterByTab(dateFiltered, tab);
@@ -174,9 +159,15 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
     view = [...view].sort((a, b) => (a.paymentStatus ?? "").localeCompare(b.paymentStatus ?? ""));
   }
 
-  // Filter dropdown
+  // Filter dropdown. Status options are the seven operational states, so match on the DERIVED value
+  // — comparing against o.orderStatus would never hit "unpaid" or "cod_pending", which are not
+  // order_status values at all.
   if (filterVal) {
-    view = view.filter((o) => o.orderStatus === filterVal || o.paymentStatus === filterVal);
+    view = view.filter(
+      (o) =>
+        operationalStatus(o.orderStatus, o.paymentStatus) === filterVal ||
+        o.paymentStatus === filterVal,
+    );
   }
 
   // Tab counts (date-filtered)
@@ -314,20 +305,21 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
               }}
             >
               <option value="">Filter...</option>
-              <optgroup label="Order status">
-                <option value="new">New</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="packing">Packing</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="expired">Expired</option>
+              {/* Offer the same seven the Status column shows — filtering by a raw order_status the
+                  column never displays would be filtering by an invisible field. */}
+              <optgroup label="Status">
+                {OPERATIONAL_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {operationalStatusLabel(s)}
+                  </option>
+                ))}
               </optgroup>
               <optgroup label="Payment">
                 <option value="pending">Pending</option>
                 <option value="paid">Paid</option>
                 <option value="cod">COD</option>
                 <option value="cod_confirmed">COD Approved</option>
+                <option value="cod_collected">COD Collected</option>
                 <option value="cod_denied">COD Denied</option>
                 <option value="refunded">Refunded</option>
               </optgroup>
@@ -392,7 +384,10 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
               </thead>
               <tbody>
                 {view.map((o) => {
-                  const osBadge = orderStatusBadge(o.orderStatus);
+                  // Status shows the owner's seven operational states, which need BOTH axes: a
+                  // new+pending order waits on the customer, new+cod waits on the owner's COD
+                  // approval, and both have order_status 'new'.
+                  const osBadge = operationalStatusBadge(o.orderStatus, o.paymentStatus);
                   const psBadge = paymentStatusBadge(o.paymentStatus);
                   return (
                     <tr key={o.id}>

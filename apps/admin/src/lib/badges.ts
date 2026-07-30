@@ -1,6 +1,8 @@
 // Maps sale/order/payment statuses to the themed `.pill` variants in globals.css, plus a couple
 // of label helpers. Pure + unit-tested so the tables can render consistent, dark-mode-aware badges.
 
+import { operationalStatus, operationalStatusLabel } from "@l-shopee/core";
+
 export type PillClass = "good" | "warn" | "bad" | "off" | "soft" | "info";
 
 /** A completed sale is good; a refunded one is muted; anything mid-flight is amber. */
@@ -94,6 +96,33 @@ export function airplusStatusBadge(raw: string | null): { pill: PillClass; label
   if (s.includes("done") || s.includes("arrived") || s.includes("สำเร็จ"))
     return { pill: "good", label: "Done" };
   return { pill: "off", label: s || "—" };
+}
+
+/**
+ * The /orders Status column: the owner's seven operational states, not the raw order_status column.
+ * `operationalStatus` in core does the deriving (it needs BOTH axes — new+pending and new+cod are
+ * different situations with the same order_status); this only picks the colour.
+ */
+export function operationalStatusBadge(
+  orderStatus: string | null,
+  paymentStatus: string | null,
+): { pill: PillClass; label: string } {
+  const s = operationalStatus(orderStatus, paymentStatus);
+  // Colour is gray by default, on purpose (owner, 30 Jul 2026). Only three states earn a colour, and
+  // each one is a state that needs the owner to DO something: approve a COD, pack a parcel, handle a
+  // return. Colouring the rest — unpaid, in transit, complete, fail — would spend attention on
+  // states where nothing is waiting on them, and a column where everything is coloured highlights
+  // nothing. Keep this list short; add a colour only when a new state demands action.
+  if (s == null) {
+    // Unknown or pre-0069 Thai data: show the raw value rather than guess at one of the seven.
+    return { pill: "off", label: orderStatus || "—" };
+  }
+  const COLOURED: Partial<Record<typeof s, PillClass>> = {
+    cod_pending: "warn", // yellow — waiting on the owner's COD decision
+    to_ship: "info", // blue — waiting to be packed and sent
+    return: "bad", // red — goods came back, needs handling
+  };
+  return { pill: COLOURED[s] ?? "off", label: operationalStatusLabel(s) };
 }
 
 /** Map an English order_status constant to a pill class. */
