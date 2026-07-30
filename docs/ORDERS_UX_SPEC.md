@@ -66,7 +66,7 @@ Shopee's layout, left column top to bottom, with our intended content:
 | 5 | Shipping info | parcel no., carrier, tracking chip, recipient + phone, parcel timeline | same |
 | 6 | Buyer | avatar, name, follow/chat | **replaced** — see §3.1 |
 | 7 | Items | image, name, variant, SKU, unit price, qty, net | same |
-| 8 | Money | marketplace fee ladder | **replaced** — see §3.2 |
+| 8 | Money | marketplace fee ladder | **replaced** — two books, see §3.2 |
 | 9 | Adjustments | transfer adjustments + empty state | not applicable (no escrow) |
 | 10 | Net / buyer paid | `ยอดเงินสุทธิ` / `การชำระเงินของผู้ซื้อ` | grand total + how they paid |
 
@@ -98,10 +98,42 @@ Consequence for the list: Shopee's completed-order action is `ให้คะแ
 rate buyers manually — `delivered` already feeds `creditEventFromOrder` automatically. So **our
 completed rows need no action**, and that column should be empty rather than invent one.
 
-### 3.2 Our money block has no marketplace fees
+### 3.2 Our money block has no marketplace fees — and it is two books, not one ladder
 
 Shopee's ladder is commission, payment transaction fee, escrow ad top-up, shipping subsidy. None
-apply. Ours: subtotal → coupon discount → shipping fee → grand total, then cost and profit.
+apply.
+
+**Superseded 30 Jul 2026.** This section previously specified a single ladder — subtotal → coupon
+discount → shipping fee → grand total, then cost and profit — and that is what shipped first. The
+owner rejected it, for a reason worth recording: their profit formula described *what we receive*,
+while the line was labelled **Total**, which everyone reads as *what the customer was charged*. One
+word, two different numbers.
+
+The block is now two panels:
+
+| What the customer was charged | What we kept |
+|---|---|
+| Subtotal | Goods after discount |
+| − Coupon discount | − Item cost |
+| + Shipping | − Shipping on us |
+| **= Customer paid** | **= Profit** |
+
+Two rules hold this together, and breaking either one moves a number the owner reads daily:
+
+1. **Shipping is not counted twice, and the pairings must not be swapped.** A base that already
+   contains the customer's fee (Customer paid) must deduct the carrier's **full** charge. A base that
+   excludes it (Goods after discount) must deduct only the **shortfall** — real charge minus what the
+   customer paid. Both reach the same profit; mixing them is wrong by exactly the fee. The right-hand
+   panel uses the second pairing, so the customer's pass-through stays out of our margin entirely.
+2. **Profit is derived, never read from `profit_satang`.** That column is written once at checkout and
+   deliberately excludes shipping, so it is stale from the moment a parcel is dropped off. The
+   derivation lives in `orderMoney` in `packages/core`, which both `/orders` and `/orders/:id` read, so
+   the two pages cannot disagree.
+
+A shipping panel sits below with the owner's four figures — auto calculated, offered to customer (only
+on shared-fee orders), charged to customer, on us — plus the **real charge**, without which "on us" has
+no arithmetic behind it. Migration 0073 adds the three columns; `carrier` and `tracking_no` already
+existed from 0030.
 
 ### 3.3 COD approval is ours alone
 

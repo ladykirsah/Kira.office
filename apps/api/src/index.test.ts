@@ -75,6 +75,7 @@ import {
   generateCustomerCode,
   isCustomerCode,
   isOrderHistoryEvent,
+  operationalStatus,
 } from "@l-shopee/core";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
@@ -4763,7 +4764,7 @@ describe("updateOrder > timeline", () => {
        VALUES ('sp1', 'shopee', 'SP-1', 'completed', 'paid', ?, ?)`,
     ).run(NOW, NOW);
     const out = await updateOrder(asD1(db), "sp1", { paymentStatus: "refunded" }, "s@x.com", NOW);
-    expect(out).toBeNull();
+    expect(out).toEqual({ ok: false, code: 404, reason: "not found" });
     expect(history(db)).toEqual([]);
   });
 });
@@ -5547,5 +5548,351 @@ describe("updateOrder > staff note", () => {
     await updateOrder(asD1(db), "o1", { staffNote: "just a note" }, "o@x.com", NOW);
     const n = db.prepare(`SELECT COUNT(*) n FROM order_status_history`).get() as { n: number };
     expect(n.n).toBe(0);
+  });
+});
+
+describe("order shipping breakdown (migration 0073 + the drop-off write)", () => {
+  /**
+   * The owner's brief, 30 Jul 2026: /orders/:id shows four shipping figures — what our calculator
+   * quoted, what we offered on a shared-fee order, what the customer paid, and what landed on us —
+   * and the real carrier charge is typed in after the parcel is dropped off.
+   *
+   * Real sqlite because the risk is relational and positional: updateOrder is read-first with an
+   * explicit column list and a positional bind list, so a new money column can be silently dropped
+   * from the SELECT or bound in the wrong slot and still type-check.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded(
+    opts: {
+      orderStatus?: string | null;
+      paymentStatus?: string | null;
+      auto?: number;
+      offer?: number | null;
+      real?: number | null;
+      profit?: number | null;
+    } = {},
+  ) {
+    const {
+      orderStatus = "packing",
+      paymentStatus = "paid",
+      auto = 5_000,
+      offer = null,
+      real = null,
+      profit = 140_000,
+    } = opts;
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์ Denso',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+          shipping_auto_satang, shipping_offer_satang, shipping_real_satang,
+          order_created_at, imported_at, buyer_username)
+       VALUES ('o1','airplus','AP-1',?,?,450000,20000,5000,435000,?,?,?,?,?,?,'somchai99')`,
+    ).run(orderStatus, paymentStatus, profit, auto, offer, real, NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,225000,145000,450000,?)`,
+    ).run(NOW);
+    return db;
+  }
+
+  const feesOf = (db: DatabaseSync) =>
+    db
+      .prepare(
+        `SELECT shipping_auto_satang a, shipping_offer_satang o, shipping_real_satang r,
+                shipping_fee_satang c, carrier, tracking_no t, order_status s
+         FROM sales_orders WHERE id='o1'`,
+      )
+      .get() as Record<string, unknown>;
+
+  it("migration 0073 backfills the auto fee from what the customer was charged", async () => {
+    // Every order that exists today was charged exactly what we quoted, so that IS the true
+    // historical value. A plain 0 default would report every past parcel as having been quoted free,
+    // and the quote-gap report would then show a fictional shortfall on all of them.
+    //
+    // Applied in two halves against one database, because the order matters: the row has to exist
+    // BEFORE 0073 runs for the backfill to have anything to do. migratedDb() applies everything up
+    // front, so it cannot see this.
+    const db = new DatabaseSync(":memory:");
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    const cut = files.findIndex((f) => f.startsWith("0073_"));
+    expect(cut).toBeGreaterThan(0);
+    for (const f of files.slice(0, cut)) db.exec(readFileSync(join(migrationsDir, f), "utf8"));
+
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, subtotal_satang, discount_total_satang,
+          shipping_fee_satang, grand_total_satang, imported_at)
+       VALUES ('legacy','airplus','AP-OLD',100000,0,7500,107500,?)`,
+    ).run(NOW);
+
+    for (const f of files.slice(cut)) db.exec(readFileSync(join(migrationsDir, f), "utf8"));
+
+    const row = db
+      .prepare(
+        `SELECT shipping_auto_satang a, shipping_offer_satang o, shipping_real_satang r
+         FROM sales_orders WHERE id='legacy'`,
+      )
+      .get() as { a: number; o: number | null; r: number | null };
+    expect(row.a).toBe(7500);
+    // The other two stay unknown: we never offered a shared fee on a past order, and nobody typed in
+    // what Flash charged. Defaulting either to 0 would invent a measurement.
+    expect(row.o).toBeNull();
+    expect(row.r).toBeNull();
+  });
+
+  it("getOrderDetail returns all three new shipping figures", async () => {
+    const d = await getOrderDetail(
+      asD1(seeded({ auto: 26_000, offer: 12_000, real: 27_500 })),
+      "o1",
+    );
+    expect(d!.order.shippingAutoSatang).toBe(26_000);
+    expect(d!.order.shippingOfferSatang).toBe(12_000);
+    expect(d!.order.shippingRealSatang).toBe(27_500);
+  });
+
+  it("a normal order has no offered fee, which is what marks it as not shared-fee", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.order.shippingOfferSatang).toBeNull();
+  });
+
+  it("getOrderDetail derives both money books so the page never computes them itself", async () => {
+    const d = await getOrderDetail(asD1(seeded({ real: 9_000 })), "o1");
+    expect(d!.money.customerPaidSatang).toBe(435_000);
+    expect(d!.money.goodsAfterDiscountSatang).toBe(430_000);
+    expect(d!.money.itemCostSatang).toBe(290_000);
+    expect(d!.money.shippingShortfallSatang).toBe(4_000);
+    expect(d!.money.profitSatang).toBe(136_000);
+  });
+
+  it("before drop-off the shortfall is unknown, not zero", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.money.shippingShortfallSatang).toBeNull();
+    expect(d!.money.profitSatang).toBe(140_000);
+  });
+
+  it("derived profit ignores the stale stored profit_satang", async () => {
+    // profit_satang says 140,000 because checkout excludes shipping. Once a ฿90 parcel is recorded
+    // against a ฿50 charge the truth is 136,000, and the page must show the truth.
+    const db = seeded({ real: 9_000, profit: 140_000 });
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.order.profitSatang).toBe(140_000);
+    expect(d!.money.profitSatang).toBe(136_000);
+  });
+
+  it("unmatched SKUs > derived profit stays null rather than claiming the whole order", async () => {
+    const d = await getOrderDetail(asD1(seeded({ real: 9_000, profit: null })), "o1");
+    expect(d!.money.profitSatang).toBeNull();
+    expect(d!.money.shippingShortfallSatang).toBe(4_000);
+  });
+
+  it("recording a drop-off persists carrier, tracking and the real charge together", async () => {
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      {
+        carrier: "Flash Express",
+        trackingNo: "TH26104508613",
+        shippingRealSatang: 9_000,
+        orderStatus: "shipped",
+      },
+      "o@x.com",
+      NOW,
+    );
+    const f = feesOf(db);
+    expect(f.carrier).toBe("Flash Express");
+    expect(f.t).toBe("TH26104508613");
+    expect(f.r).toBe(9_000);
+    expect(f.s).toBe("shipped");
+  });
+
+  it("the drop-off leaves To ship, which needs order_status shipped", async () => {
+    // to_ship is DERIVED from the payment axis, so a write that only sets carrier and tracking
+    // leaves the order reading "To ship" forever and the form never disappears.
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      {
+        carrier: "Flash Express",
+        trackingNo: "TH1",
+        shippingRealSatang: 9_000,
+        orderStatus: "shipped",
+      },
+      "o@x.com",
+      NOW,
+    );
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(operationalStatus(d!.order.orderStatus, d!.order.paymentStatus)).toBe("in_transit");
+  });
+
+  it("the drop-off writes exactly one timeline entry, for the shipping", async () => {
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      {
+        carrier: "Flash Express",
+        trackingNo: "TH1",
+        shippingRealSatang: 9_000,
+        orderStatus: "shipped",
+      },
+      "o@x.com",
+      NOW,
+    );
+    const rows = db.prepare(`SELECT event FROM order_status_history WHERE order_id='o1'`).all() as {
+      event: string;
+    }[];
+    expect(rows.map((r) => r.event)).toEqual(["shipped"]);
+  });
+
+  it("a real charge on an unpaid order is refused", async () => {
+    // Nonsense that would land straight in the owner's profit figure: nobody hands a carrier a
+    // parcel for an order that has not been paid for.
+    const db = seeded({ paymentStatus: "pending", orderStatus: "new" });
+    const out = await updateOrder(asD1(db), "o1", { shippingRealSatang: 9_000 }, "o@x.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(!out.ok && out.code).toBe(409);
+    expect(feesOf(db).r).toBeNull();
+  });
+
+  it("a real charge on a COD order awaiting approval is refused", async () => {
+    // COD not yet approved by the owner. cod_confirmed is the value that means "we will send it".
+    const db = seeded({ paymentStatus: "cod", orderStatus: "new" });
+    const out = await updateOrder(asD1(db), "o1", { shippingRealSatang: 9_000 }, "o@x.com", NOW);
+    expect(!out.ok && out.code).toBe(409);
+    expect(feesOf(db).r).toBeNull();
+  });
+
+  it("a refused drop-off writes nothing at all, not even the carrier alongside it", async () => {
+    const db = seeded({ paymentStatus: "pending", orderStatus: "new" });
+    await updateOrder(
+      asD1(db),
+      "o1",
+      { carrier: "Flash Express", trackingNo: "TH1", shippingRealSatang: 9_000 },
+      "o@x.com",
+      NOW,
+    );
+    const f = feesOf(db);
+    expect([f.carrier, f.t, f.r]).toEqual([null, null, null]);
+  });
+
+  it("a COD-confirmed order may record a drop-off — the money is settled enough to send", async () => {
+    const db = seeded({ paymentStatus: "cod_confirmed" });
+    await updateOrder(asD1(db), "o1", { shippingRealSatang: 9_000 }, "o@x.com", NOW);
+    expect(feesOf(db).r).toBe(9_000);
+  });
+
+  it("the real charge can still be corrected after the parcel has shipped", async () => {
+    // A typo at the counter must be fixable; gating on to_ship itself would freeze the wrong number
+    // in place forever.
+    const db = seeded({ orderStatus: "shipped", real: 9_000 });
+    await updateOrder(asD1(db), "o1", { shippingRealSatang: 8_500 }, "o@x.com", NOW);
+    expect(feesOf(db).r).toBe(8_500);
+  });
+
+  it("the offered fee is patchable, by hand, until the auto-apply rule exists", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { shippingOfferSatang: 12_000 }, "o@x.com", NOW);
+    expect(feesOf(db).o).toBe(12_000);
+  });
+
+  it("a patch that does not mention the fees leaves every one of them alone", async () => {
+    // updateOrder is read-first with a positional UPDATE; this is the shape that silently wiped the
+    // staff note before, so it is worth pinning for money too.
+    const db = seeded({ auto: 26_000, offer: 12_000, real: 27_500 });
+    await updateOrder(asD1(db), "o1", { staffNote: "unrelated" }, "o@x.com", NOW);
+    const f = feesOf(db);
+    expect([f.a, f.o, f.r]).toEqual([26_000, 12_000, 27_500]);
+  });
+
+  it("the PATCH response carries the shipping fee it was previously dropping", async () => {
+    // OrderRow declares shippingFeeSatang as required but updateOrder's SELECT omitted it, so every
+    // PATCH response shipped `undefined` while typed as a number. The derivation needs it.
+    const db = seeded();
+    const out = await updateOrder(asD1(db), "o1", { carrier: "Flash Express" }, "o@x.com", NOW);
+    expect(out.ok && out.order.shippingFeeSatang).toBe(5_000);
+  });
+
+  it("clearing the real charge with null puts the order back to not-measured", async () => {
+    const db = seeded({ real: 9_000 });
+    await updateOrder(asD1(db), "o1", { shippingRealSatang: null }, "o@x.com", NOW);
+    expect(feesOf(db).r).toBeNull();
+  });
+});
+
+describe("getOrderDetail > product brand on each line", () => {
+  /**
+   * The owner asked for the brand on every line of the shipping label (30 Jul 2026) — a parcel of
+   * "คอมเพรสเซอร์ Denso 10PA17C" is easier to check against a receipt when DENSO is printed next to
+   * it. products.brand_id is nullable and points at `brands`, so this needs a LEFT JOIN: an INNER one
+   * would drop every line whose product has no brand set, and the label would go out short an item.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded() {
+    const db = migratedDb();
+    // Migration 0005 already seeds the part brands and brands.name is UNIQUE, so use the real DENSO
+    // row rather than inserting a second one — which is also closer to production.
+    const denso = db.prepare(`SELECT id FROM brands WHERE name = 'DENSO'`).get() as
+      { id: string } | undefined;
+    expect(denso?.id).toBeTruthy();
+    db.prepare(
+      `INSERT INTO products (id, name, brand_id, created_at)
+       VALUES ('p1','คอมเพรสเซอร์ Denso 10PA17C',?,?)`,
+    ).run(denso!.id, NOW);
+    // Deliberately no brand_id — the case an INNER JOIN would silently delete.
+    db.prepare(
+      `INSERT INTO products (id, name, brand_id, created_at)
+       VALUES ('p2','น้ำยาแอร์ R134a',NULL,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at)
+       VALUES ('v1','p1','SKU-1',?), ('v2','p2','SKU-2',?)`,
+    ).run(NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, imported_at)
+       VALUES ('o1','airplus','AP-1','packing','paid',100000,0,5000,105000,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,50000,30000,100000,?), ('l2','o1','v2',2,25000,15000,50000,?)`,
+    ).run(NOW, NOW + 1);
+    return db;
+  }
+
+  it("returns the brand name for a line whose product has one", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines[0]!.brand).toBe("DENSO");
+  });
+
+  it("given a product with no brand set > null, and the line is still returned", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines).toHaveLength(2);
+    expect(d!.lines[1]!.name).toBe("น้ำยาแอร์ R134a");
+    expect(d!.lines[1]!.brand).toBeNull();
+  });
+
+  it("adding the brand join does not fan the order out into duplicate lines", async () => {
+    // brands is one row per product, but a join written against the wrong key would multiply lines
+    // and the label would list the same item twice.
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines.map((l) => l.id)).toEqual(["l1", "l2"]);
   });
 });

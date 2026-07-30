@@ -7,14 +7,21 @@ import { operationalStatusBadge, paymentStatusBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { dateRange, type DatePreset } from "@/lib/dateRange";
-import { ORDER_TAB_STATUSES } from "@/lib/orderTabs";
+import { ORDER_TAB_LABELS, ORDER_TAB_STATUSES } from "@/lib/orderTabs";
+import {
+  ORDER_SUMMARY_CARDS,
+  cardIsWholeTab,
+  orderSummaryCardLabel,
+  type OrderSummaryCard,
+} from "@/lib/orderSummaryCards";
 import { OPERATIONAL_STATUSES, operationalStatus, operationalStatusLabel } from "@l-shopee/core";
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
 import type { OrderTab } from "@/lib/orderTabs";
 
 type Tab = "all" | OrderTab;
-type SummaryFilter = "cod" | "toship" | "shipped" | "returns" | null;
+/** Derived from the card table so the two can never list different keys. */
+type SummaryFilter = OrderSummaryCard["key"] | null;
 
 function orderDate(o: OrderRow): number {
   return o.orderCreatedAt ?? o.importedAt;
@@ -81,19 +88,14 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
   const now = Date.now();
   const airplus = orders.filter((o) => o.channel === "airplus");
 
-  // Summary counts (all-time, not affected by date/tab). Same derived status as the column and the
-  // tabs — the Returns card used to look for cancelled+refunded, which is not what a return is and
-  // would have missed every real one.
+  // Summary counts, deliberately ALL-TIME and unaffected by the date range or the tab: they answer
+  // "what is outstanding", and a parcel ordered three days ago still needs sending. Clicking a card
+  // widens the date range to match, so the number and the table it opens always agree.
   const countOf = (...want: string[]) =>
     airplus.filter((o) => {
       const s = operationalStatus(o.orderStatus, o.paymentStatus);
       return s != null && want.includes(s);
     }).length;
-
-  const codApproval = countOf("cod_pending");
-  const toBeShipped = countOf("to_ship");
-  const inTransit = countOf("in_transit");
-  const returns = countOf("return");
 
   // Date filter
   const { start: rangeStart, end: rangeEnd } = dateRange(datePreset, now, customFrom, customTo);
@@ -115,18 +117,14 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
     return list.filter((o) => is(o, ...ORDER_TAB_STATUSES[t]));
   };
 
-  // Summary card filter (overrides tab when active). Each card maps to one operational status, so
-  // clicking a card cannot show a different set from the number printed on it.
-  const CARD_STATUS: Record<Exclude<SummaryFilter, null>, string> = {
-    cod: "cod_pending",
-    toship: "to_ship",
-    shipped: "in_transit",
-    returns: "return",
-  };
+  // Summary card filter (overrides tab when active). Each card maps to one operational status — the
+  // same status the Filter dropdown offers — so clicking a card cannot show a different set from the
+  // number printed on it. The mapping and its labels live in lib/orderSummaryCards, with tests
+  // holding the owner's rule that a card matching a tab's label IS that tab.
   const bySummary = (list: OrderRow[]) => {
-    if (!summaryFilter) return list;
-    const want = CARD_STATUS[summaryFilter];
-    return list.filter((o) => operationalStatus(o.orderStatus, o.paymentStatus) === want);
+    const card = ORDER_SUMMARY_CARDS.find((c) => c.key === summaryFilter);
+    if (!card) return list;
+    return list.filter((o) => operationalStatus(o.orderStatus, o.paymentStatus) === card.status);
   };
 
   let view = summaryFilter ? bySummary(dateFiltered) : filterByTab(dateFiltered, tab);
@@ -162,7 +160,11 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
   // Tab counts (date-filtered)
   const tabCount = (t: Tab) => filterByTab(dateFiltered, t).length;
 
-  const TabBtn = ({ id, label }: { id: Tab; label: string }) => (
+  // Label from the same table the summary cards read, so "same label ⇒ same page" is enforced by
+  // there being one label. "All" is not a status filter, so it is the only one written here.
+  const tabLabel = (id: Tab) => (id === "all" ? "All" : ORDER_TAB_LABELS[id]);
+
+  const TabBtn = ({ id }: { id: Tab }) => (
     <button
       className={tab === id && !summaryFilter ? "tab active" : "tab"}
       onClick={() => {
@@ -170,37 +172,61 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
         setSummaryFilter(null);
       }}
     >
-      {label} ({tabCount(id)})
+      {tabLabel(id)} ({tabCount(id)})
     </button>
   );
 
-  const toggleSummary = (key: SummaryFilter) => {
-    if (summaryFilter === key) {
+  /**
+   * A card is a shortcut, so clicking it has to actually show the orders it counted.
+   *
+   * Two things make that true. It lands on the tab that contains the status — for To ship and In
+   * transit that IS the tab, and for the two slices it is the tab they sit inside, so deselecting the
+   * card leaves you somewhere sensible instead of back on whatever tab you came from. And it widens
+   * the date range: the counts are all-time on purpose (a parcel ordered three days ago still needs
+   * sending), so with the default Today range a card reading 1 would open an empty table.
+   */
+  const toggleSummary = (card: OrderSummaryCard) => {
+    if (summaryFilter === card.key) {
       setSummaryFilter(null);
-    } else {
-      setSummaryFilter(key);
+      return;
     }
+    setSummaryFilter(cardIsWholeTab(card) ? null : card.key);
+    setTab(card.tab);
+    setDatePreset("all");
   };
 
-  const SCard = ({
-    label,
-    value,
-    color,
-    filterKey,
-  }: {
-    label: string;
-    value: number;
-    color: string;
-    filterKey: SummaryFilter;
-  }) => (
-    <div
-      style={summaryFilter === filterKey ? summaryCardActive : summaryCard}
-      onClick={() => toggleSummary(filterKey)}
-    >
-      <div style={summaryLabel}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 2, color }}>{value}</div>
-    </div>
-  );
+  const SCard = ({ card, value }: { card: OrderSummaryCard; value: number }) => {
+    // A whole-tab card has no separate filter to be "on" — being on its tab IS being on it.
+    const active = cardIsWholeTab(card)
+      ? tab === card.tab && !summaryFilter
+      : summaryFilter === card.key;
+    return (
+      <div
+        style={active ? summaryCardActive : summaryCard}
+        onClick={() => toggleSummary(card)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleSummary(card);
+          }
+        }}
+      >
+        <div style={summaryLabel}>{orderSummaryCardLabel(card)}</div>
+        <div
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            marginTop: 2,
+            color: value > 0 ? card.activeColor : "var(--text-faint)",
+          }}
+        >
+          {value}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -213,41 +239,23 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
           marginBottom: 20,
         }}
       >
-        <SCard
-          label="COD approval"
-          value={codApproval}
-          color={codApproval > 0 ? "var(--warn)" : "var(--text-faint)"}
-          filterKey="cod"
-        />
-        <SCard
-          label="To be shipped"
-          value={toBeShipped}
-          color={toBeShipped > 0 ? "#2563eb" : "var(--text-faint)"}
-          filterKey="toship"
-        />
-        <SCard
-          label="In transit"
-          value={inTransit}
-          color={inTransit > 0 ? "#2563eb" : "var(--text-faint)"}
-          filterKey="shipped"
-        />
-        <SCard
-          label="Returns"
-          value={returns}
-          color={returns > 0 ? "var(--danger)" : "var(--text-faint)"}
-          filterKey="returns"
-        />
+        {/* Rendered from the card table rather than four hand-written blocks, so a card's label,
+            its status and the tab it opens cannot be edited apart from each other. */}
+        {ORDER_SUMMARY_CARDS.map((card) => (
+          <SCard key={card.key} card={card} value={countOf(card.status)} />
+        ))}
       </div>
 
       {/* Tabs — same as ProductsTable */}
       <div className="tabs">
-        <TabBtn id="all" label="All" />
-        <TabBtn id="unpaid" label="Unpaid" />
-        <TabBtn id="toship" label="To ship" />
-        {/* Label matches the Status pill and the summary card; the `shipped` id stays internal. */}
-        <TabBtn id="shipped" label="In transit" />
-        <TabBtn id="completed" label="Completed" />
-        <TabBtn id="unfinished" label="Unfinished" />
+        {/* Labels come from ORDER_TAB_LABELS; the `shipped` id stays internal while it reads
+            "In transit", matching the Status pill and the summary card. */}
+        <TabBtn id="all" />
+        <TabBtn id="unpaid" />
+        <TabBtn id="toship" />
+        <TabBtn id="shipped" />
+        <TabBtn id="completed" />
+        <TabBtn id="unfinished" />
       </div>
 
       {/* Frame — same as ProductsTable */}

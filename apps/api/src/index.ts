@@ -38,6 +38,10 @@ import {
   isCreditEvent,
   EXPIRY_MS,
   type CustomerTier,
+  orderMoney,
+  type OrderMoney,
+  canRecordDropOff,
+  normalizePaymentStatus,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2417,9 +2421,20 @@ export interface OrderDetail {
     paymentStatus: string | null;
     subtotalSatang: number;
     discountTotalSatang: number;
+    /** What we billed the customer for delivery. */
     shippingFeeSatang: number;
+    /** What our own Flash calculator quoted at checkout — kept so the quote can be audited. */
+    shippingAutoSatang: number;
+    /** What we offered on a shared-fee order. Null means a normal order, and that is the marker. */
+    shippingOfferSatang: number | null;
+    /** What the carrier actually charged. Null until a drop-off is recorded. */
+    shippingRealSatang: number | null;
     grandTotalSatang: number;
-    /** Null until the order's SKUs are matched to Kira products. Owner-visible by choice. */
+    /**
+     * The stale checkout snapshot, kept for anything still reading the column. Prefer
+     * `money.profitSatang`, which accounts for shipping we absorb. Null until the order's SKUs are
+     * matched to Kira products.
+     */
     profitSatang: number | null;
     orderCreatedAt: number | null;
     importedAt: number;
@@ -2448,10 +2463,18 @@ export interface OrderDetail {
     province: string | null;
     postalCode: string | null;
   } | null;
+  /**
+   * The two books the detail page renders — what the customer was charged, and what we kept.
+   * Derived here rather than in the client so /orders and /orders/:id can never disagree, and
+   * derived rather than stored because the carrier's real charge arrives long after checkout.
+   */
+  money: OrderMoney;
   lines: {
     id: string;
     variantId: string;
     name: string | null;
+    /** Part brand (DENSO, Valeo…). Null when the product has none set. */
+    brand: string | null;
     sku: string | null;
     imageKey: string | null;
     quantity: number;
@@ -2500,7 +2523,11 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
       `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
               payment_status AS paymentStatus, subtotal_satang AS subtotalSatang,
               discount_total_satang AS discountTotalSatang,
-              shipping_fee_satang AS shippingFeeSatang, grand_total_satang AS grandTotalSatang,
+              shipping_fee_satang AS shippingFeeSatang,
+              shipping_auto_satang AS shippingAutoSatang,
+              shipping_offer_satang AS shippingOfferSatang,
+              shipping_real_satang AS shippingRealSatang,
+              grand_total_satang AS grandTotalSatang,
               profit_satang AS profitSatang, order_created_at AS orderCreatedAt,
               imported_at AS importedAt, buyer_username AS buyerUsername, carrier,
               tracking_no AS trackingNo, ship_time_ms AS shipTimeMs, staff_note AS staffNote,
@@ -2545,12 +2572,16 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
 
   const { results: lines } = await db
     .prepare(
-      `SELECT l.id, l.product_variant_id AS variantId, p.name, v.sku, p.image_key AS imageKey,
+      // LEFT JOIN on brands, not INNER: products.brand_id is nullable, and an inner join would drop
+      // every unbranded line — the shipping label would then go out missing an item.
+      `SELECT l.id, l.product_variant_id AS variantId, p.name, b.name AS brand, v.sku,
+              p.image_key AS imageKey,
               l.quantity, l.unit_price_satang AS unitPriceSatang,
               l.unit_cost_satang AS unitCostSatang, l.line_total_satang AS lineTotalSatang
        FROM sales_order_lines l
        LEFT JOIN product_variants v ON v.id = l.product_variant_id
        LEFT JOIN products p ON p.id = v.product_id
+       LEFT JOIN brands b ON b.id = p.brand_id
        WHERE l.sales_order_id = ?
        ORDER BY l.created_at, l.id`,
     )
@@ -2595,6 +2626,15 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
     order: orderFields,
     customer,
     address,
+    money: orderMoney({
+      subtotalSatang: orderFields.subtotalSatang,
+      discountTotalSatang: orderFields.discountTotalSatang,
+      grandTotalSatang: orderFields.grandTotalSatang,
+      shippingChargedSatang: orderFields.shippingFeeSatang,
+      shippingRealSatang: orderFields.shippingRealSatang,
+      lines: lines ?? [],
+      storedProfitSatang: orderFields.profitSatang,
+    }),
     lines: lines ?? [],
     timeline: timeline ?? [],
     claims,
@@ -2629,6 +2669,9 @@ export interface OrderRow {
   grandTotalSatang: number;
   feeTotalSatang: number;
   shippingFeeSatang: number;
+  shippingAutoSatang: number;
+  shippingOfferSatang: number | null;
+  shippingRealSatang: number | null;
   orderCreatedAt: number | null;
   importedAt: number;
   buyerUsername: string | null;
@@ -2652,7 +2695,21 @@ export interface OrderPatch {
   trackingNo?: string | null;
   /** The single staff note box on /orders/:id. Empty string clears it. */
   staffNote?: string | null;
+  /**
+   * What the carrier actually charged, typed in from the drop-off receipt. Null clears it back to
+   * not-measured. Refused with 409 unless the order's payment has cleared — see `canRecordDropOff`.
+   */
+  shippingRealSatang?: number | null;
+  /** What we offered on a shared-fee order. Set by hand until the auto-apply rule is decided. */
+  shippingOfferSatang?: number | null;
 }
+
+/**
+ * Three outcomes, not two: the order may not exist (404), the patch may conflict with the order's
+ * own state (409 — a real carrier charge on an order nobody has paid for), or it applies.
+ */
+export type OrderUpdateResult =
+  { ok: true; order: OrderRow } | { ok: false; code: 404 | 409; reason: string };
 
 /**
  * Fulfillment edit for an AirPlus storefront order: statuses, carrier and tracking number. Only
@@ -2706,12 +2763,16 @@ export async function updateOrder(
   patch: OrderPatch,
   actorEmail: string | null = null,
   now: number = Date.now(),
-): Promise<OrderRow | null> {
+): Promise<OrderUpdateResult> {
   const row = await db
     .prepare(
       `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
               payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
-              fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+              fee_total_satang AS feeTotalSatang, shipping_fee_satang AS shippingFeeSatang,
+              shipping_auto_satang AS shippingAutoSatang,
+              shipping_offer_satang AS shippingOfferSatang,
+              shipping_real_satang AS shippingRealSatang,
+              order_created_at AS orderCreatedAt,
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
               carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
@@ -2721,7 +2782,22 @@ export async function updateOrder(
     )
     .bind(id)
     .first<OrderRow>();
-  if (!row) return null;
+  if (!row) return { ok: false, code: 404, reason: "not found" };
+
+  // A carrier charge means a parcel was handed over, which cannot have happened before the money
+  // settled. Refusing here rather than in the route keeps the invariant next to the write, and keeps
+  // a nonsense number out of the profit figure the owner reads daily.
+  if (
+    "shippingRealSatang" in patch &&
+    patch.shippingRealSatang != null &&
+    !canRecordDropOff(normalizePaymentStatus(row.paymentStatus))
+  ) {
+    return {
+      ok: false,
+      code: 409,
+      reason: "this order has not been paid for, so no drop-off can be recorded",
+    };
+  }
 
   const norm = (v: string | null | undefined): string | null => {
     const s = typeof v === "string" ? v.trim() : "";
@@ -2733,6 +2809,8 @@ export async function updateOrder(
   if ("carrier" in patch) next.carrier = norm(patch.carrier);
   if ("trackingNo" in patch) next.trackingNo = norm(patch.trackingNo);
   if ("staffNote" in patch) next.staffNote = norm(patch.staffNote);
+  if ("shippingRealSatang" in patch) next.shippingRealSatang = patch.shippingRealSatang ?? null;
+  if ("shippingOfferSatang" in patch) next.shippingOfferSatang = patch.shippingOfferSatang ?? null;
   if ("trackingNo" in patch && next.trackingNo && row.shipTimeMs == null) {
     next.shipTimeMs = Date.now();
   }
@@ -2740,7 +2818,7 @@ export async function updateOrder(
   await db
     .prepare(
       `UPDATE sales_orders SET order_status = ?, payment_status = ?, carrier = ?, tracking_no = ?,
-              ship_time_ms = ?, staff_note = ?
+              ship_time_ms = ?, staff_note = ?, shipping_real_satang = ?, shipping_offer_satang = ?
        WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(
@@ -2750,6 +2828,8 @@ export async function updateOrder(
       next.trackingNo,
       next.shipTimeMs,
       next.staffNote ?? null,
+      next.shippingRealSatang,
+      next.shippingOfferSatang,
       id,
     )
     .run();
@@ -2782,7 +2862,7 @@ export async function updateOrder(
     await recalculateCustomerCredit(db, customerId);
   }
 
-  return next;
+  return { ok: true, order: next };
 }
 
 /**
@@ -5974,8 +6054,8 @@ const worker = {
       const body = await readJson<OrderPatch>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
       // userEmail comes from the Access gate above, and becomes the timeline entry's actor.
-      const order = await updateOrder(env.DB, orderById[1]!, body, userEmail);
-      return order ? json({ order }) : json({ error: "not found" }, 404);
+      const out = await updateOrder(env.DB, orderById[1]!, body, userEmail);
+      return out.ok ? json({ order: out.order }) : json({ error: out.reason }, out.code);
     }
 
     // ── AirPlus merchandising admin: banners / coupons / campaigns / affiliate cards ────────────

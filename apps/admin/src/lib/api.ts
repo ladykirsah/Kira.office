@@ -1693,8 +1693,16 @@ export interface OrderDetail {
     paymentStatus: string | null;
     subtotalSatang: number;
     discountTotalSatang: number;
+    /** What we billed the customer for delivery. */
     shippingFeeSatang: number;
+    /** What our Flash calculator quoted at checkout. */
+    shippingAutoSatang: number;
+    /** What we offered on a shared-fee order; null means a normal order. */
+    shippingOfferSatang: number | null;
+    /** What the carrier actually charged. Null until a drop-off is recorded. */
+    shippingRealSatang: number | null;
     grandTotalSatang: number;
+    /** The stale checkout snapshot. Render `money.profitSatang` instead. */
     profitSatang: number | null;
     orderCreatedAt: number | null;
     importedAt: number;
@@ -1703,6 +1711,17 @@ export interface OrderDetail {
     trackingNo: string | null;
     shipTimeMs: number | null;
     staffNote: string | null;
+  };
+  /**
+   * The two books, derived by the API. Never recomputed here — one of these numbers being different
+   * on the list page and the detail page is exactly the bug that deriving centrally prevents.
+   */
+  money: {
+    customerPaidSatang: number;
+    goodsAfterDiscountSatang: number;
+    itemCostSatang: number;
+    shippingShortfallSatang: number | null;
+    profitSatang: number | null;
   };
   customer: {
     id: string;
@@ -1726,6 +1745,8 @@ export interface OrderDetail {
     id: string;
     variantId: string;
     name: string | null;
+    /** Part brand (DENSO, Valeo…). Null when the product has none set. */
+    brand: string | null;
     sku: string | null;
     imageKey: string | null;
     quantity: number;
@@ -1774,6 +1795,42 @@ export async function saveOrderStaffNote(id: string, staffNote: string): Promise
     body: JSON.stringify({ staffNote }),
   });
   if (!res.ok) throw new Error(`Failed to save note (HTTP ${res.status})`);
+}
+
+/**
+ * Record a drop-off: carrier, tracking number and what Flash actually charged, in one PATCH.
+ *
+ * `orderStatus: "shipped"` is not optional garnish. "To ship" is DERIVED from the payment axis, so a
+ * write that saves only the three fields leaves the order reading To ship forever and the form never
+ * goes away. This is the write that moves it to In transit and puts one entry on the timeline.
+ */
+export async function saveOrderDropOff(
+  id: string,
+  input: { carrier: string; trackingNo: string; shippingRealSatang: number },
+): Promise<void> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...input, orderStatus: "shipped" }),
+  });
+  if (!res.ok) {
+    // 409 carries the real reason (the order has not been paid for) — surface it verbatim.
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Failed to record drop-off (HTTP ${res.status})`);
+  }
+}
+
+/** Set the shipping fee we offered on a shared-fee order. Null clears it back to a normal order. */
+export async function saveOrderShippingOffer(
+  id: string,
+  shippingOfferSatang: number | null,
+): Promise<void> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ shippingOfferSatang }),
+  });
+  if (!res.ok) throw new Error(`Failed to save offered fee (HTTP ${res.status})`);
 }
 
 export async function createOrderClaim(

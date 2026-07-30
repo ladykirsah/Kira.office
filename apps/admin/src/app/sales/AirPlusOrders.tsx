@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { CARRIERS } from "@l-shopee/core";
 import { updateAirPlusOrder, type OrderRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { airplusStatusBadge } from "@/lib/badges";
@@ -25,7 +26,6 @@ const ORDER_STATUSES = [
   "คืนเงิน",
 ] as const;
 const PAYMENT_STATUSES = ["รอชำระเงิน", "ชำระแล้ว", "เก็บเงินปลายทาง"] as const;
-const CARRIERS = ["Flash Express", "Kerry Express", "J&T Express", "ไปรษณีย์ไทย", "DHL"] as const;
 
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;

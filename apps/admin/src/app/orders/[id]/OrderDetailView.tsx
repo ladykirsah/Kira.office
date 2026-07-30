@@ -10,6 +10,8 @@ import {
   actorFor,
   orderHistoryEventLabel,
   isOrderHistoryEvent,
+  operationalStatus,
+  trackingUrl,
   type ClaimState,
 } from "@l-shopee/core";
 import {
@@ -17,29 +19,15 @@ import {
   saveOrderStaffNote,
   transitionOrderClaim,
   type OrderDetail,
+  type ShopInfo,
 } from "@/lib/api";
+import { LabelActions, ShipmentSection } from "./ShipmentActions";
 import { operationalStatusBadge } from "@/lib/badges";
 import { formatBahtTrim } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { PageHeader } from "../../PageHeader";
-
-const card = {
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: 18,
-  background: "var(--surface)",
-  marginBottom: 16,
-} as const;
-
-const sectionTitle = {
-  fontSize: 12,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-  color: "var(--text-muted)",
-  marginBottom: 10,
-} as const;
+import { card, sectionTitle } from "./cardStyles";
 
 function dt(ms: number | null): string {
   if (!ms) return "—";
@@ -48,22 +36,29 @@ function dt(ms: number | null): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** The double rule that closes a ledger — every figure above it sums into the total below. */
+const totalRule = { borderTop: "1px solid var(--border)", margin: "6px 0" } as const;
+
 /** Money row. `strong` is for the totals the owner reads first. */
 function Row({
   label,
   value,
   strong,
   muted,
+  hint,
 }: {
   label: string;
   value: string;
   strong?: boolean;
   muted?: boolean;
+  /** Why this number is what it is — the arithmetic behind a derived row, in small grey type. */
+  hint?: string;
 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", gap: 12 }}>
       <span style={{ ...tableText.body2, color: muted ? "var(--text-muted)" : "var(--text)" }}>
         {label}
+        {hint && <span style={{ ...tableText.subtitle, display: "block" }}>{hint}</span>}
       </span>
       <span
         style={{
@@ -78,6 +73,42 @@ function Row({
   );
 }
 
+/**
+ * One number, two names. A positive shortfall is delivery we absorbed; a negative one means we
+ * charged more than the carrier billed, which is a real gain and is not clamped away upstream.
+ * "On us −฿20" would read as nonsense, so the sign picks the label instead of the value.
+ */
+function shortfallLabel(shortfallSatang: number | null): string {
+  if (shortfallSatang != null && shortfallSatang < 0) return "Shipping gain";
+  return "Shipping on us";
+}
+
+function shortfallValue(shortfallSatang: number | null): string {
+  // Null is not zero. Zero claims delivery cost us nothing; null admits nobody has been to the
+  // counter yet, which is the normal state of an order waiting to ship.
+  if (shortfallSatang == null) return "—";
+  return `${shortfallSatang < 0 ? "+ " : "− "}${formatBahtTrim(Math.abs(shortfallSatang))}`;
+}
+
+/** Margin against goods after discount — the customer's shipping pass-through is not ours to claim. */
+function marginHint(profitSatang: number | null, goodsSatang: number): string | undefined {
+  if (profitSatang == null || goodsSatang <= 0) return undefined;
+  return `${((profitSatang / goodsSatang) * 100).toFixed(1)}% of goods`;
+}
+
+/**
+ * How far our own quote was from what Flash actually billed. Worth surfacing per order: if the gap
+ * leans one way consistently, the rate card's volumetric divisor is wrong, and these rows are the
+ * evidence for it.
+ */
+function quoteGap(autoSatang: number, realSatang: number | null): string | null {
+  if (realSatang == null) return null;
+  const gap = realSatang - autoSatang;
+  if (gap === 0) return null;
+  const dir = gap > 0 ? "under" : "over";
+  return `Our quote was ${formatBahtTrim(Math.abs(gap))} ${dir} what Flash charged.`;
+}
+
 const TIER_PILL: Record<string, string> = {
   best: "good",
   good: "good",
@@ -86,9 +117,16 @@ const TIER_PILL: Record<string, string> = {
   block: "bad",
 };
 
-export function OrderDetailView({ detail }: { detail: OrderDetail }) {
-  const { order, customer, address, lines, timeline, claims } = detail;
+export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: ShopInfo }) {
+  const { order, customer, address, money, lines, timeline, claims } = detail;
   const status = operationalStatusBadge(order.orderStatus, order.paymentStatus);
+  /**
+   * "To ship" is DERIVED, not a stored status: order_status new, confirmed and packing all read as
+   * To ship once the money has cleared. Gating on the derived value is what makes the drop-off form
+   * appear for all three, and disappear the moment the order becomes shipped.
+   */
+  const isToShip = operationalStatus(order.orderStatus, order.paymentStatus) === "to_ship";
+  const track = trackingUrl(order.carrier, order.trackingNo);
 
   const [note, setNote] = useState(order.staffNote ?? "");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -124,8 +162,6 @@ export function OrderDetailView({ detail }: { detail: OrderDetail }) {
     }
   }
 
-  const cost = lines.reduce((n, l) => n + l.unitCostSatang * l.quantity, 0);
-
   return (
     <main>
       <PageHeader
@@ -147,6 +183,20 @@ export function OrderDetailView({ detail }: { detail: OrderDetail }) {
         <div style={{ ...card, borderColor: "var(--danger)", color: "var(--danger)" }} role="alert">
           {err}
         </div>
+      )}
+
+      {/* Shipment first, full width, while the order is waiting to go out (owner, 30 Jul 2026): the
+          parcel is the only thing that needs doing, so it should not be below the customer's phone
+          number. Once it ships the section disappears and Customer is first again. */}
+      {isToShip && (
+        <ShipmentSection
+          order={order}
+          address={address}
+          lines={lines}
+          shop={shop}
+          status={status}
+          onError={setErr}
+        />
       )}
 
       <div
@@ -219,14 +269,46 @@ export function OrderDetailView({ detail }: { detail: OrderDetail }) {
               <div>
                 <div style={tableText.subtitle}>Tracking</div>
                 <div style={{ ...tableText.body2, fontFamily: "var(--font-mono, monospace)" }}>
-                  {order.trackingNo ?? "—"}
+                  {/* Only ever a link once a drop-off has been recorded — the carrier issues the
+                      number at the counter, so before then there is nothing to link to. */}
+                  {track ? (
+                    <a href={track} target="_blank" rel="noreferrer noopener">
+                      {order.trackingNo}
+                    </a>
+                  ) : (
+                    (order.trackingNo ?? "—")
+                  )}
                 </div>
               </div>
               <div>
                 <div style={tableText.subtitle}>Shipped</div>
                 <div style={tableText.body2}>{dt(order.shipTimeMs)}</div>
               </div>
+              {/* What the carrier actually billed, on the record itself — the card that answers
+                  "what happened to this parcel" should not make you scroll to the money block for
+                  the last figure of the four. */}
+              <div>
+                <div style={tableText.subtitle}>Real charge</div>
+                <div style={tableText.body2}>
+                  {order.shippingRealSatang == null
+                    ? "—"
+                    : formatBahtTrim(order.shippingRealSatang)}
+                </div>
+              </div>
             </div>
+
+            {/* The label has to stay reachable for the whole life of the order, not just while it is
+                waiting to go out — reprints happen. While it IS waiting, the buttons live in the
+                Shipment section at the top instead, so there is never a second pair on screen. */}
+            {!isToShip && (
+              <LabelActions
+                order={order}
+                address={address}
+                lines={lines}
+                shop={shop}
+                onError={setErr}
+              />
+            )}
           </div>
 
           {/* Items */}
@@ -261,27 +343,107 @@ export function OrderDetailView({ detail }: { detail: OrderDetail }) {
             </div>
           </div>
 
-          {/* Money — including cost and profit, per the owner. No marketplace fees: those are a
-              Shopee concept and do not exist on an AirPlus order. */}
-          <div style={card}>
-            <div style={sectionTitle}>Money</div>
-            <Row label="Subtotal" value={formatBahtTrim(order.subtotalSatang)} />
-            {order.discountTotalSatang > 0 && (
+          {/* Money — two books, per the owner's correction of 30 Jul 2026. Their formula described
+              what we RECEIVE while the line was labelled "Total", which everyone reads as what the
+              customer was charged; one word, two different numbers. So: left is an invoice they could
+              hand the customer unedited, right never leaves the back office.
+
+              Both read the API's derived `money`. Nothing is computed here — a figure that this page
+              and /orders could disagree about is exactly what deriving centrally prevents. No
+              marketplace fees either: that is a Shopee concept and does not exist on an AirPlus order. */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: 16,
+            }}
+          >
+            <div style={card}>
+              <div style={sectionTitle}>What the customer was charged</div>
+              <Row label="Subtotal" value={formatBahtTrim(order.subtotalSatang)} />
+              {order.discountTotalSatang > 0 && (
+                <Row
+                  label="Coupon discount"
+                  value={`− ${formatBahtTrim(order.discountTotalSatang)}`}
+                />
+              )}
+              <Row label="Shipping" value={`+ ${formatBahtTrim(order.shippingFeeSatang)}`} />
+              <div style={totalRule} />
+              <Row label="Customer paid" value={formatBahtTrim(money.customerPaidSatang)} strong />
+            </div>
+
+            <div style={card}>
+              <div style={sectionTitle}>What we kept</div>
               <Row
-                label="Coupon discount"
-                value={`− ${formatBahtTrim(order.discountTotalSatang)}`}
+                label="Goods after discount"
+                value={formatBahtTrim(money.goodsAfterDiscountSatang)}
+              />
+              <Row label="Item cost" value={`− ${formatBahtTrim(money.itemCostSatang)}`} muted />
+              {/* The shortfall, NOT the full carrier charge: this panel starts from goods after
+                  discount, which excludes the fee the customer paid. Deducting the whole ฿90 here
+                  would drop their contribution and read profit low by exactly that fee. */}
+              <Row
+                label={shortfallLabel(money.shippingShortfallSatang)}
+                value={shortfallValue(money.shippingShortfallSatang)}
+                hint={
+                  money.shippingShortfallSatang == null
+                    ? "no drop-off recorded yet"
+                    : `${formatBahtTrim(order.shippingRealSatang ?? 0)} real − ${formatBahtTrim(order.shippingFeeSatang)} charged`
+                }
+                muted
+              />
+              <div style={totalRule} />
+              <Row
+                label="Profit"
+                value={money.profitSatang == null ? "—" : formatBahtTrim(money.profitSatang)}
+                hint={marginHint(money.profitSatang, money.goodsAfterDiscountSatang)}
+                strong
+              />
+            </div>
+          </div>
+
+          {/* Shipping money — the owner's four figures (auto cal / offered / charged / on us) plus the
+              real charge, without which "On us" is a number with no arithmetic behind it. */}
+          <div style={card}>
+            <div style={sectionTitle}>Shipping fee</div>
+            <Row
+              label="Auto calculated"
+              value={formatBahtTrim(order.shippingAutoSatang)}
+              hint="what our Flash rate card quoted at checkout"
+              muted
+            />
+            {/* Only on a shared-fee order. A null offered fee IS the marker for a normal one, which is
+                why there is no separate flag to disagree with. */}
+            {order.shippingOfferSatang != null && (
+              <Row
+                label="Offered to customer"
+                value={formatBahtTrim(order.shippingOfferSatang)}
+                hint="shared-fee order"
               />
             )}
-            <Row label="Shipping" value={formatBahtTrim(order.shippingFeeSatang)} />
-            <div style={{ borderTop: "1px solid var(--border)", margin: "6px 0" }} />
-            <Row label="Total" value={formatBahtTrim(order.grandTotalSatang)} strong />
-            <div style={{ borderTop: "1px solid var(--border)", margin: "6px 0" }} />
-            <Row label="Item cost" value={formatBahtTrim(cost)} muted />
+            <Row label="Charged to customer" value={formatBahtTrim(order.shippingFeeSatang)} />
             <Row
-              label="Profit"
-              value={order.profitSatang == null ? "—" : formatBahtTrim(order.profitSatang)}
+              label="Real charge"
+              value={
+                order.shippingRealSatang == null ? "—" : formatBahtTrim(order.shippingRealSatang)
+              }
+              hint={
+                order.shippingRealSatang == null
+                  ? "recorded at drop-off"
+                  : (order.carrier ?? "carrier not recorded")
+              }
+            />
+            <div style={totalRule} />
+            <Row
+              label={shortfallLabel(money.shippingShortfallSatang)}
+              value={shortfallValue(money.shippingShortfallSatang)}
               strong
             />
+            {quoteGap(order.shippingAutoSatang, order.shippingRealSatang) && (
+              <div style={{ ...tableText.subtitle, marginTop: 8, color: "var(--warn)" }}>
+                {quoteGap(order.shippingAutoSatang, order.shippingRealSatang)}
+              </div>
+            )}
           </div>
 
           <ClaimsSection
