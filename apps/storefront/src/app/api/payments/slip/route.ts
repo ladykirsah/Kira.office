@@ -70,11 +70,42 @@ export async function POST(req: Request): Promise<Response> {
 
     const env = await getEnv();
     if (!slipVerificationConfigured(env)) {
-      // Manual-review mode: keep the payload for the owner, stay pending.
-      await db
-        .prepare(`UPDATE payments SET note = ? WHERE id = ?`)
-        .bind(JSON.stringify({ slipQr: qrData, submittedAt: Date.now() }), payment.id)
-        .run();
+      // Manual-review mode (this is what runs today — SlipOK is not configured). Keep the payload
+      // for the owner AND move the order to `verifying`.
+      //
+      // The order move is the important half: without it a customer who paid and uploaded a slip
+      // still read payment_status = 'pending', which is indistinguishable from never having paid —
+      // so expireUnpaidOrders (which matches new + pending) auto-cancelled them at 48h and docked
+      // their credit for it. `verifying` is outside that predicate, so the clock stops the moment
+      // the slip arrives.
+      const submittedAt = Date.now();
+      await db.batch([
+        db
+          .prepare(`UPDATE payments SET note = ? WHERE id = ?`)
+          .bind(JSON.stringify({ slipQr: qrData, submittedAt }), payment.id),
+        db
+          .prepare(
+            // Guarded so a slip re-upload cannot drag an already-confirmed order backwards. Accepts
+            // both the stored values a live row can have: 'รอชำระเงิน' before migration 0069, and
+            // 'pending' after it.
+            `UPDATE sales_orders SET payment_status = 'verifying'
+             WHERE id = ? AND channel = 'airplus' AND payment_status IN ('pending', 'รอชำระเงิน')`,
+          )
+          .bind(order.id),
+        db
+          .prepare(
+            `INSERT INTO order_status_history
+               (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+             VALUES (?, ?, ?, 'verifying', 'updated', NULL, ?, ?)`,
+          )
+          .bind(
+            crypto.randomUUID(),
+            order.id,
+            order.orderStatus,
+            "slip submitted, awaiting manual review",
+            submittedAt,
+          ),
+      ]);
       return Response.json({
         status: "received",
         message: "ได้รับสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้โดยเร็วที่สุด",

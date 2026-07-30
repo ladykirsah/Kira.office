@@ -117,10 +117,13 @@ export function operationalStatusBadge(
     // Unknown or pre-0069 Thai data: show the raw value rather than guess at one of the seven.
     return { pill: "off", label: orderStatus || "—" };
   }
+  // Exactly the three the owner named, and no more. `verifying` and `claim_pending` are also
+  // waiting-on-us states and arguably deserve a colour by the same logic, but the owner specified
+  // three, so extending the palette is their call to make, not one to assume.
   const COLOURED: Partial<Record<typeof s, PillClass>> = {
     cod_pending: "warn", // yellow — waiting on the owner's COD decision
     to_ship: "info", // blue — waiting to be packed and sent
-    return: "bad", // red — goods came back, needs handling
+    return: "bad", // red — ตีกลับ, the parcel came back and needs handling
   };
   return { pill: COLOURED[s] ?? "off", label: operationalStatusLabel(s) };
 }

@@ -125,8 +125,8 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
       label: "To ship",
     }));
 
-  it("Return is red — goods came back and need handling", () =>
-    expect(operationalStatusBadge("returned", "refunded")).toEqual({
+  it("Return is red — ตีกลับ, the parcel came back and needs handling", () =>
+    expect(operationalStatusBadge("delivery_failed", "paid")).toEqual({
       pill: "bad",
       label: "Return",
     }));
@@ -136,10 +136,12 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
     expect(operationalStatusBadge("shipped", "paid")).toEqual({ pill: "off", label: "In transit" });
     expect(operationalStatusBadge("delivered", "paid")).toEqual({ pill: "off", label: "Complete" });
     expect(operationalStatusBadge("cancelled", "pending")).toEqual({ pill: "off", label: "Fail" });
-    expect(operationalStatusBadge("delivery_failed", "paid")).toEqual({
+    expect(operationalStatusBadge("new", "verifying")).toEqual({ pill: "off", label: "Pending" });
+    expect(operationalStatusBadge("claim_pending", "paid")).toEqual({
       pill: "off",
-      label: "Fail",
+      label: "Claim pending",
     });
+    expect(operationalStatusBadge("claimed", "refunded")).toEqual({ pill: "off", label: "Refund" });
   });
 
   it("exactly three of the seven are coloured", () => {
@@ -147,12 +149,18 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
       // Drive each status through a representative (orderStatus, paymentStatus) pair.
       const pairs: Record<string, [string, string]> = {
         unpaid: ["new", "pending"],
+        verifying: ["new", "verifying"],
         cod_pending: ["new", "cod"],
+        cod_reject: ["new", "cod_denied"],
         to_ship: ["confirmed", "paid"],
         in_transit: ["shipped", "paid"],
         complete: ["delivered", "paid"],
+        return: ["delivery_failed", "paid"],
+        claim_pending: ["claim_pending", "paid"],
+        claimed: ["claimed", "paid"],
+        refunded: ["claimed", "refunded"],
+        claim_rejected: ["claim_rejected", "paid"],
         fail: ["cancelled", "pending"],
-        return: ["returned", "refunded"],
       };
       const [os, ps] = pairs[s]!;
       return operationalStatusBadge(os, ps).pill !== "off";

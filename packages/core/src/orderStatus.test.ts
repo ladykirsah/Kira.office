@@ -25,18 +25,22 @@ describe("ORDER_STATUSES", () => {
       "delivered",
       "cancelled",
       "expired",
-      // Admin-set, not reached by any automatic transition: a parcel that came back undelivered,
-      // and a customer-initiated return or claim.
+      // Admin-set, never reached by an automatic transition: a parcel that came back undelivered,
+      // then the claim lifecycle (a customer send-back IS a claim).
       "delivery_failed",
-      "returned",
+      "claim_pending",
+      "claimed",
+      "claim_rejected",
     ]);
   });
 
-  it("neither admin-set state moves a customer's credit on its own", () => {
-    // A failed delivery may be the carrier's fault and a return may be our own wrong-item error, so
-    // neither is scored until the returns flow (Step 6) decides who was at fault.
+  it("no admin-set state moves a customer's credit on its own", () => {
+    // A bounced parcel may be the carrier's fault and a claim may be our own wrong-item error, so
+    // none of these is scored until a human decides who was at fault.
     expect(isCreditEvent("delivery_failed")).toBe(false);
-    expect(isCreditEvent("returned")).toBe(false);
+    expect(isCreditEvent("claim_pending")).toBe(false);
+    expect(isCreditEvent("claimed")).toBe(false);
+    expect(isCreditEvent("claim_rejected")).toBe(false);
   });
 });
 
@@ -44,6 +48,7 @@ describe("PAYMENT_STATUSES", () => {
   it("contains the full AirPlus payment lifecycle", () => {
     expect(PAYMENT_STATUSES).toEqual([
       "pending",
+      "verifying",
       "paid",
       "cod",
       "cod_confirmed",
@@ -69,7 +74,7 @@ describe("orderStatusLabel", () => {
 
 describe("paymentStatusLabel", () => {
   it("given each status > returns a Thai display label", () => {
-    expect(paymentStatusLabel("pending")).toBe("รอชำระเงิน");
+    expect(paymentStatusLabel("pending")).toBe("ยังไม่ชำระเงิน");
     expect(paymentStatusLabel("paid")).toBe("ชำระแล้ว");
     expect(paymentStatusLabel("cod")).toBe("เก็บเงินปลายทาง");
     expect(paymentStatusLabel("cod_confirmed")).toBe("COD อนุมัติ");
@@ -284,5 +289,46 @@ describe("isOrderExpirable", () => {
         now,
       ),
     ).toBe(false);
+  });
+});
+
+describe("verifying — the slip-under-review state", () => {
+  /**
+   * THE BUG this state exists to kill: SlipOK is not configured, so the slip route runs in
+   * manual-review mode — it stores the slip on payments.note, leaves payments.status 'pending', and
+   * never touches the order. So a customer who PAID and uploaded a slip looked exactly like one who
+   * never paid, and the 48h sweep (which matches new+pending) auto-expired them AND docked their
+   * credit for it.
+   */
+  it("is a real payment status", () => {
+    expect(PAYMENT_STATUSES).toContain("verifying");
+  });
+
+  it("has a Thai label the owner chose", () => {
+    expect(paymentStatusLabel("verifying")).toBe("กำลังตรวจสอบ");
+  });
+
+  it("is NOT expirable — the customer already paid, the clock must stop", () => {
+    expect(
+      isOrderExpirable(
+        { orderStatus: "new", paymentStatus: "verifying", orderCreatedAt: 0 },
+        EXPIRY_MS * 10,
+      ),
+    ).toBe(false);
+  });
+
+  it("an unpaid order at the same age IS still expirable", () => {
+    // Guards the fix from being a blanket "never expire anything".
+    expect(
+      isOrderExpirable(
+        { orderStatus: "new", paymentStatus: "pending", orderCreatedAt: 0 },
+        EXPIRY_MS * 10,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not move the customer's credit on its own", () => {
+    // Being under review is not an outcome — nothing is owed or forfeited yet.
+    expect(creditEventFromOrder("new", "verifying")).toBeNull();
   });
 });

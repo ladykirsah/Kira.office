@@ -7,10 +7,13 @@ import { operationalStatusBadge, paymentStatusBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { dateRange, type DatePreset } from "@/lib/dateRange";
+import { ORDER_TAB_STATUSES } from "@/lib/orderTabs";
 import { OPERATIONAL_STATUSES, operationalStatus, operationalStatusLabel } from "@l-shopee/core";
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
-type Tab = "all" | "unpaid" | "toship" | "shipped" | "completed" | "unfinished";
+import type { OrderTab } from "@/lib/orderTabs";
+
+type Tab = "all" | OrderTab;
 type SummaryFilter = "cod" | "toship" | "shipped" | "returns" | null;
 
 function orderDate(o: OrderRow): number {
@@ -108,22 +111,8 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
       const s = operationalStatus(o.orderStatus, o.paymentStatus);
       return s != null && want.includes(s);
     };
-    switch (t) {
-      case "unpaid":
-        return list.filter((o) => is(o, "unpaid"));
-      case "toship":
-        return list.filter((o) => is(o, "to_ship"));
-      case "shipped":
-        return list.filter((o) => is(o, "in_transit"));
-      case "completed":
-        return list.filter((o) => is(o, "complete"));
-      case "unfinished":
-        // Everything that ended badly: cancel, COD denied, payment expired, failed delivery — plus
-        // returns and claims.
-        return list.filter((o) => is(o, "fail", "return"));
-      default:
-        return list;
-    }
+    if (t === "all") return list;
+    return list.filter((o) => is(o, ...ORDER_TAB_STATUSES[t]));
   };
 
   // Summary card filter (overrides tab when active). Each card maps to one operational status, so

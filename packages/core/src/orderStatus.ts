@@ -13,10 +13,20 @@ export type OrderStatus =
   // item sent, or a claim. Both surface via operationalStatus (fail / return) on the orders page.
   // No migration needed: sales_orders.order_status is plain TEXT with no CHECK constraint.
   | "delivery_failed"
-  | "returned";
+  // Claim lifecycle. A customer send-back IS a claim (wrong item sent, or defective), so there is no
+  // separate "returned" status — ตีกลับ is `delivery_failed`, a parcel that never arrived.
+  // `claimed` + payment_status 'refunded' is the money-back resolution; `claimed` alone is the
+  // exchange. Detail (mechanic, addresses, replacement tracking) lives in order_claims.
+  | "claim_pending"
+  | "claimed"
+  | "claim_rejected";
 
 export type PaymentStatus =
   | "pending"
+  // Slip uploaded, awaiting a human (or SlipOK) to confirm it. Distinct from `pending` on purpose:
+  // the customer HAS paid, so the 48h expiry clock must not touch them. Without this state a
+  // slip-submitted order was indistinguishable from an unpaid one and got auto-expired at 48h.
+  | "verifying"
   | "paid"
   | "cod"
   | "cod_confirmed"
@@ -34,11 +44,14 @@ export const ORDER_STATUSES: readonly OrderStatus[] = [
   "cancelled",
   "expired",
   "delivery_failed",
-  "returned",
+  "claim_pending",
+  "claimed",
+  "claim_rejected",
 ];
 
 export const PAYMENT_STATUSES: readonly PaymentStatus[] = [
   "pending",
+  "verifying",
   "paid",
   "cod",
   "cod_confirmed",
@@ -56,12 +69,15 @@ const ORDER_LABELS: Record<OrderStatus, string> = {
   delivered: "สำเร็จ",
   cancelled: "ยกเลิก",
   expired: "หมดอายุ",
-  delivery_failed: "จัดส่งไม่สำเร็จ",
-  returned: "คืนสินค้า",
+  delivery_failed: "ตีกลับ",
+  claim_pending: "รอการอนุมัติจากช่าง",
+  claimed: "เคลม",
+  claim_rejected: "ปฏิเสธการเคลม",
 };
 
 const PAYMENT_LABELS: Record<PaymentStatus, string> = {
-  pending: "รอชำระเงิน",
+  pending: "ยังไม่ชำระเงิน",
+  verifying: "กำลังตรวจสอบ",
   paid: "ชำระแล้ว",
   cod: "เก็บเงินปลายทาง",
   cod_confirmed: "COD อนุมัติ",

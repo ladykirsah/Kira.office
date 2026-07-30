@@ -3,151 +3,190 @@ import {
   OPERATIONAL_STATUSES,
   operationalStatus,
   operationalStatusLabel,
+  operationalStatusLabelTh,
   type OperationalStatus,
 } from "./operationalStatus";
 
 /**
- * The Status column on /orders shows the ONE state the owner cares about operationally, which is not
- * the same thing as the `order_status` column: an order sitting at new+pending is waiting on the
- * customer to pay, while new+cod is waiting on the owner to approve COD. Both have order_status
- * 'new', so rendering that column directly told the owner "New" for two situations needing opposite
- * actions. This function is the mapping, and the seven values are the owner's own vocabulary.
+ * The owner's own flow, dictated 30 Jul 2026: checkout > pay > delivery > done.
  *
- * Decided by the owner 30 Jul 2026: "fail" absorbs every way an order can end without the customer
- * getting the goods — cancelled, COD denied, payment window expired, delivery failed.
+ * This is NOT `sales_orders.order_status`. That column alone cannot answer "what do I do next" —
+ * new+pending waits on the customer, new+cod waits on the OWNER to approve COD, and new+verifying
+ * means they already paid and are waiting on us. All three have order_status 'new'.
+ *
+ * Labels are English because Kira.office is English today; the Thai is kept alongside so the
+ * bilingual switch the owner plans is a toggle, not a rewrite.
  */
-describe("operationalStatus > waiting on money", () => {
-  it("given new + pending > is unpaid (waiting on the customer's transfer)", () => {
+describe("operationalStatus > payment stage", () => {
+  it("checkout, nothing paid > unpaid", () => {
     expect(operationalStatus("new", "pending")).toBe("unpaid");
   });
 
-  it("given new + cod > is cod_pending (waiting on the OWNER to approve COD)", () => {
-    // The bug this exists to kill: both this and the row above used to read "New".
-    expect(operationalStatus("new", "cod")).toBe("cod_pending");
+  it("slip uploaded, not yet checked > verifying", () => {
+    // The customer HAS paid. Distinct from unpaid because the 48h clock must not touch them.
+    expect(operationalStatus("new", "verifying")).toBe("verifying");
   });
 
-  it("distinguishes the two 'new' orders from each other", () => {
-    expect(operationalStatus("new", "pending")).not.toBe(operationalStatus("new", "cod"));
-  });
-});
-
-describe("operationalStatus > ready to move", () => {
-  it("given paid but not yet shipped > is to_ship", () => {
+  it("payment approved > to_ship", () => {
     expect(operationalStatus("new", "paid")).toBe("to_ship");
     expect(operationalStatus("confirmed", "paid")).toBe("to_ship");
     expect(operationalStatus("packing", "paid")).toBe("to_ship");
   });
 
-  it("given COD approved but not yet shipped > is also to_ship", () => {
-    expect(operationalStatus("confirmed", "cod_confirmed")).toBe("to_ship");
-    expect(operationalStatus("packing", "cod_confirmed")).toBe("to_ship");
+  it("COD auto-approved on good credit > to_ship, skipping COD pending entirely", () => {
+    // checkout stores cod_confirmed when codApproval(tier) === 'auto', so nothing is pending.
+    expect(operationalStatus("new", "cod_confirmed")).toBe("to_ship");
+  });
+
+  it("COD needing a human on watch credit > cod_pending", () => {
+    expect(operationalStatus("new", "cod")).toBe("cod_pending");
+  });
+
+  it("COD denied by the admin > cod_reject, NOT fail", () => {
+    // The customer still gets a choice (PromptPay or cancel), so this is a decision point, not death.
+    expect(operationalStatus("new", "cod_denied")).toBe("cod_reject");
+  });
+
+  it("48h passed unpaid > fail", () => {
+    expect(operationalStatus("expired", "expired")).toBe("fail");
+  });
+
+  it("cancelled > fail", () => {
+    expect(operationalStatus("cancelled", "pending")).toBe("fail");
+    expect(operationalStatus("cancelled", "paid")).toBe("fail");
+  });
+
+  it("distinguishes all three 'new' orders from one another", () => {
+    const three = [
+      operationalStatus("new", "pending"),
+      operationalStatus("new", "verifying"),
+      operationalStatus("new", "cod"),
+    ];
+    expect(new Set(three).size).toBe(3);
   });
 });
 
-describe("operationalStatus > on its way and done", () => {
-  it("given shipped > is in_transit", () => {
+describe("operationalStatus > delivery stage", () => {
+  it("shipping info entered > in_transit", () => {
     expect(operationalStatus("shipped", "paid")).toBe("in_transit");
     expect(operationalStatus("shipped", "cod_confirmed")).toBe("in_transit");
   });
 
-  it("given delivered > is complete", () => {
+  it("customer received it > complete", () => {
     expect(operationalStatus("delivered", "paid")).toBe("complete");
   });
 
-  it("given delivered on COD > is complete once the cash is collected", () => {
+  it("COD cash collected on delivery > complete", () => {
     expect(operationalStatus("delivered", "cod_collected")).toBe("complete");
   });
-});
 
-describe("operationalStatus > fail absorbs every way it ended without delivery", () => {
-  it("given cancelled > is fail", () => {
-    expect(operationalStatus("cancelled", "paid")).toBe("fail");
-    expect(operationalStatus("cancelled", "pending")).toBe("fail");
+  it("parcel never arrived and came back > return (ตีกลับ)", () => {
+    expect(operationalStatus("delivery_failed", "paid")).toBe("return");
   });
 
-  it("given the payment window expired > is fail", () => {
-    expect(operationalStatus("expired", "expired")).toBe("fail");
-  });
-
-  it("given COD was denied > is fail", () => {
-    expect(operationalStatus("new", "cod_denied")).toBe("fail");
-  });
-
-  it("given a failed delivery > is fail", () => {
-    expect(operationalStatus("delivery_failed", "paid")).toBe("fail");
+  it("a bounced parcel is NOT fail — the money is still live", () => {
+    expect(operationalStatus("delivery_failed", "paid")).not.toBe("fail");
   });
 });
 
-describe("operationalStatus > returns", () => {
-  it("given returned > is return, which covers claims too", () => {
-    expect(operationalStatus("returned", "paid")).toBe("return");
+describe("operationalStatus > claim stage", () => {
+  it("customer claims a wrong or defective item > claim_pending", () => {
+    expect(operationalStatus("claim_pending", "paid")).toBe("claim_pending");
   });
 
-  it("given a returned order already refunded > still reads return, not fail", () => {
-    // The money coming back does not change what happened: the goods went out and came back.
-    expect(operationalStatus("returned", "refunded")).toBe("return");
+  it("mechanic approved, exchanging for a new product > claimed", () => {
+    expect(operationalStatus("claimed", "paid")).toBe("claimed");
   });
 
-  it("return outranks a cancelled order status", () => {
-    // A return is recorded on an order that was delivered; if both are somehow set, the return is
-    // the more specific and more recent truth.
-    expect(operationalStatus("returned", "refunded")).not.toBe("fail");
+  it("mechanic approved and money returned instead > refunded", () => {
+    // Same order status; the money axis decides which of the two resolutions happened.
+    expect(operationalStatus("claimed", "refunded")).toBe("refunded");
+  });
+
+  it("mechanic found no fault > claim_rejected", () => {
+    expect(operationalStatus("claim_rejected", "paid")).toBe("claim_rejected");
+  });
+
+  it("a claim outranks the delivery that preceded it", () => {
+    // The order WAS delivered; the claim is the newer and more useful truth.
+    expect(operationalStatus("claim_pending", "paid")).not.toBe("complete");
   });
 });
 
-describe("operationalStatus > precedence between the axes", () => {
-  it("a refund on a delivered order does not make it complete", () => {
+describe("operationalStatus > precedence", () => {
+  it("a refund on a cancelled order is fail, not refunded", () => {
+    // `refunded` is reserved for a claim resolution. A cancelled order that got its money back is
+    // still just a failed order.
     expect(operationalStatus("cancelled", "refunded")).toBe("fail");
   });
 
   it("COD denied outranks the order still sitting at new", () => {
-    expect(operationalStatus("new", "cod_denied")).toBe("fail");
+    expect(operationalStatus("new", "cod_denied")).toBe("cod_reject");
   });
 
   it("shipping outranks the payment axis", () => {
-    // Once it is moving, "in transit" is what the owner needs to see, whatever payment says.
     expect(operationalStatus("shipped", "cod_confirmed")).toBe("in_transit");
+  });
+
+  it("verifying does not masquerade as paid", () => {
+    expect(operationalStatus("new", "verifying")).not.toBe("to_ship");
   });
 });
 
 describe("operationalStatus > unknown and legacy data", () => {
-  it("given null statuses > returns null rather than guessing", () => {
+  it("null statuses > null rather than a guess", () => {
     expect(operationalStatus(null, null)).toBeNull();
   });
 
-  it("given a leftover Thai status > returns null rather than mislabelling it", () => {
-    // Migration 0069 converts these, but it has not run on prod yet.
+  it("leftover Thai from before migration 0069 > null rather than a mislabel", () => {
     expect(operationalStatus("ใหม่", "รอชำระเงิน")).toBeNull();
+  });
+
+  it("the retired `returned` status still reads as a return, not as To ship", () => {
+    // `returned` was replaced — a customer send-back is a CLAIM, and ตีกลับ is delivery_failed. It is
+    // kept as an alias because without it a stray row falls through to the payment axis and, being
+    // paid, would claim to be "To ship" — telling the owner to post a parcel that already came back.
+    expect(operationalStatus("returned", "paid")).toBe("return");
+  });
+
+  it("an order status nobody recognises, with cleared payment > to_ship", () => {
+    // Deliberate: an unknown fulfilment state with the money settled is genuinely ready to send.
+    expect(operationalStatus("some_future_state", "paid")).toBe("to_ship");
   });
 });
 
-describe("operationalStatusLabel", () => {
-  it("labels all seven the way the owner named them", () => {
-    expect(operationalStatusLabel("unpaid")).toBe("Unpaid");
-    expect(operationalStatusLabel("cod_pending")).toBe("COD pending");
-    expect(operationalStatusLabel("to_ship")).toBe("To ship");
-    expect(operationalStatusLabel("in_transit")).toBe("In transit");
-    expect(operationalStatusLabel("complete")).toBe("Complete");
-    expect(operationalStatusLabel("fail")).toBe("Fail");
-    expect(operationalStatusLabel("return")).toBe("Return");
-  });
+describe("operationalStatus > labels", () => {
+  const EXPECTED: [OperationalStatus, string, string][] = [
+    ["unpaid", "Unpaid", "ยังไม่ชำระเงิน"],
+    ["verifying", "Pending", "กำลังตรวจสอบ"],
+    ["cod_pending", "COD pending", "รอการอนุมัติ"],
+    ["cod_reject", "COD reject", "ปฏิเสธเก็บเงินปลายทาง"],
+    ["to_ship", "To ship", "เตรียมจัดส่ง"],
+    ["in_transit", "In transit", "กำลังจัดส่ง"],
+    ["complete", "Complete", "สำเร็จ"],
+    ["return", "Return", "ตีกลับ"],
+    ["claim_pending", "Claim pending", "รอการอนุมัติจากช่าง"],
+    ["claimed", "Claimed", "เคลม"],
+    ["refunded", "Refund", "คืนเงิน"],
+    ["claim_rejected", "Claim rejected", "ปฏิเสธการเคลม"],
+    ["fail", "Fail", "ไม่สำเร็จ"],
+  ];
 
-  it("covers every listed status", () => {
-    for (const s of OPERATIONAL_STATUSES) {
-      expect(operationalStatusLabel(s).length).toBeGreaterThan(0);
+  it("every status has the owner's English and Thai wording", () => {
+    for (const [s, en, th] of EXPECTED) {
+      expect(operationalStatusLabel(s)).toBe(en);
+      expect(operationalStatusLabelTh(s)).toBe(th);
     }
   });
 
-  it("lists exactly the owner's seven, in their order", () => {
-    const expected: OperationalStatus[] = [
-      "unpaid",
-      "cod_pending",
-      "to_ship",
-      "in_transit",
-      "complete",
-      "fail",
-      "return",
-    ];
-    expect([...OPERATIONAL_STATUSES]).toEqual(expected);
+  it("lists all thirteen in flow order — payment, then delivery, then claim", () => {
+    expect([...OPERATIONAL_STATUSES]).toEqual(EXPECTED.map(([s]) => s));
+  });
+
+  it("no status is missing a label", () => {
+    for (const s of OPERATIONAL_STATUSES) {
+      expect(operationalStatusLabel(s).length).toBeGreaterThan(0);
+      expect(operationalStatusLabelTh(s).length).toBeGreaterThan(0);
+    }
   });
 });
