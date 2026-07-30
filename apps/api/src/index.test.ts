@@ -67,6 +67,7 @@ import worker, {
   type Env,
 } from "./index";
 import {
+  CLAIM_STATES,
   CUSTOMER_CODE_PREFIX,
   generateCustomerCode,
   isCustomerCode,
@@ -4824,5 +4825,163 @@ describe("expireUnpaidOrders > timeline", () => {
     db.prepare(`DELETE FROM order_status_history`).run();
     expect(await expireUnpaidOrders(asD1(db), NOW)).toBe(0);
     expect(history(db)).toEqual([]);
+  });
+});
+
+describe("migration 0071 > order_claims", () => {
+  /**
+   * The CHECK constraints are the point of testing this against real sqlite: they are what stop the
+   * free-text problem that already bit this codebase once (the admin's Sales tab writes arbitrary
+   * strings into order_status). If a CHECK is wrong or missing, nothing else notices until a claim
+   * holds a state the state machine cannot read.
+   */
+  function seeded() {
+    const db = migratedDb();
+    // sales_order_lines.product_variant_id is NOT NULL and references product_variants, which in
+    // turn references products — so a claim fixture needs the whole chain, not just the order.
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1', 'Coil', ?)`).run(
+      SQLITE_NOW,
+    );
+    const variant = db.prepare(
+      `INSERT INTO product_variants (id, product_id, created_at) VALUES (?, 'p1', ?)`,
+    );
+    variant.run("v1", SQLITE_NOW);
+    variant.run("v2", SQLITE_NOW);
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 order_created_at, imported_at)
+       VALUES ('o1', 'airplus', 'AP-1', 'delivered', 'paid', ?, ?)`,
+    ).run(SQLITE_NOW, SQLITE_NOW);
+    const line = db.prepare(
+      `INSERT INTO sales_order_lines (id, sales_order_id, product_variant_id, quantity,
+                                      unit_price_satang, line_total_satang, created_at)
+       VALUES (?, 'o1', ?, ?, ?, ?, ?)`,
+    );
+    line.run("l1", "v1", 2, 100000, 200000, SQLITE_NOW);
+    line.run("l2", "v2", 1, 50000, 50000, SQLITE_NOW);
+    return db;
+  }
+
+  const insertClaim = (db: DatabaseSync, over: Record<string, unknown> = {}) => {
+    const row = {
+      id: "c1",
+      sales_order_id: "o1",
+      kind: "defect",
+      state: "requested",
+      ...over,
+    } as Record<string, unknown>;
+    return db
+      .prepare(
+        `INSERT INTO order_claims (id, sales_order_id, kind, state, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        row.id as string,
+        row.sales_order_id as string,
+        row.kind as string,
+        row.state as string,
+        SQLITE_NOW,
+        SQLITE_NOW,
+      );
+  };
+
+  it("accepts a claim in the opening state", () => {
+    const db = seeded();
+    expect(() => insertClaim(db)).not.toThrow();
+  });
+
+  it("accepts every state the core state machine knows", () => {
+    for (const s of CLAIM_STATES) {
+      const db = seeded();
+      expect(() => insertClaim(db, { state: s })).not.toThrow();
+    }
+  });
+
+  it("refuses a state the state machine does not know", () => {
+    const db = seeded();
+    expect(() => insertClaim(db, { state: "approved_maybe" })).toThrow(/CHECK/i);
+  });
+
+  it("refuses a reason that is neither a wrong item nor a defect", () => {
+    const db = seeded();
+    expect(() => insertClaim(db, { kind: "changed_mind" })).toThrow(/CHECK/i);
+  });
+
+  it("refuses a claim against an order that does not exist", () => {
+    const db = seeded();
+    expect(() => insertClaim(db, { sales_order_id: "nope" })).toThrow(/FOREIGN KEY/i);
+  });
+
+  it("refuses a negative refund", () => {
+    const db = seeded();
+    insertClaim(db);
+    expect(() =>
+      db.prepare(`UPDATE order_claims SET refund_satang = -1 WHERE id = 'c1'`).run(),
+    ).toThrow(/CHECK/i);
+  });
+
+  it("allows a partial refund, which the owner's policy requires", () => {
+    const db = seeded();
+    insertClaim(db);
+    expect(() =>
+      db
+        .prepare(
+          `UPDATE order_claims SET resolution = 'refund', refund_satang = 120000 WHERE id = 'c1'`,
+        )
+        .run(),
+    ).not.toThrow();
+  });
+
+  it("refuses a resolution that is neither exchange nor refund", () => {
+    const db = seeded();
+    insertClaim(db);
+    expect(() =>
+      db.prepare(`UPDATE order_claims SET resolution = 'store_credit' WHERE id = 'c1'`).run(),
+    ).toThrow(/CHECK/i);
+  });
+
+  it("lets one claim cover a single line OR several — the owner said both", () => {
+    const db = seeded();
+    insertClaim(db);
+    const line = db.prepare(
+      `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity) VALUES (?, 'c1', ?, ?)`,
+    );
+    expect(() => line.run("cl1", "l1", 2)).not.toThrow();
+    expect(() => line.run("cl2", "l2", 1)).not.toThrow();
+    const n = db.prepare(`SELECT COUNT(*) AS n FROM order_claim_lines`).all() as { n: number }[];
+    expect(n[0]!.n).toBe(2);
+  });
+
+  it("refuses the same order line twice on one claim", () => {
+    const db = seeded();
+    insertClaim(db);
+    db.prepare(
+      `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity) VALUES ('cl1','c1','l1',1)`,
+    ).run();
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity) VALUES ('cl2','c1','l1',1)`,
+        )
+        .run(),
+    ).toThrow(/UNIQUE/i);
+  });
+
+  it("refuses a zero or negative claimed quantity", () => {
+    const db = seeded();
+    insertClaim(db);
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity) VALUES ('cl1','c1','l1',0)`,
+        )
+        .run(),
+    ).toThrow(/CHECK/i);
+  });
+
+  it("lets the same order be claimed more than once — a replacement can itself fail", () => {
+    const db = seeded();
+    insertClaim(db, { id: "c1" });
+    expect(() => insertClaim(db, { id: "c2" })).not.toThrow();
   });
 });

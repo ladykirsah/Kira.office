@@ -37,3 +37,4 @@ export * from "./customerTier";
 export * from "./orderStatus";
 export * from "./orderHistory";
 export * from "./operationalStatus";
+export * from "./claimState";

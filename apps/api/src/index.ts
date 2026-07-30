@@ -2166,6 +2166,10 @@ export const BACKUP_TABLES = [
   // The order timeline (0070). Unrecoverable if lost: it is the only record of who approved a COD
   // or when a parcel shipped, and nothing else stores the previous value of a status.
   "order_status_history",
+  // Claims (0071). Holds the mechanic's verdict and the refund amount — evidence for money that
+  // left the till, and there is no second copy anywhere.
+  "order_claims",
+  "order_claim_lines",
   // Hand-curated reference data the editor writes: shop settings, per-variant tax, back-office
   // users, gallery keys, the managed dropdown lists, the car-fitment taxonomy, the labour price
   // list, and the gated Shopee/T&C tables. Tiny to dump; re-typing any of it is days of work.
