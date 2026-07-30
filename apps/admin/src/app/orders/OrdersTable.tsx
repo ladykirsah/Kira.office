@@ -6,49 +6,11 @@ import { formatBahtTrim } from "@/lib/format";
 import { orderStatusBadge, paymentStatusBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
+import { dateRange, type DatePreset } from "@/lib/dateRange";
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
 type Tab = "all" | "unpaid" | "toship" | "shipped" | "completed" | "unfinished";
 type SummaryFilter = "cod" | "toship" | "shipped" | "returns" | null;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-type DatePreset = "today" | "7d" | "30d" | "month" | "lastmonth" | "custom" | "all";
-
-function dateRange(
-  preset: DatePreset,
-  now: number,
-  customFrom: string,
-  customTo: string,
-): { start: number; end: number } {
-  const dayStart = now - (now % DAY_MS);
-  const d = new Date(now);
-
-  switch (preset) {
-    case "today":
-      return { start: dayStart, end: now };
-    case "7d":
-      return { start: now - 7 * DAY_MS, end: now };
-    case "30d":
-      return { start: now - 30 * DAY_MS, end: now };
-    case "month": {
-      const s = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-      return { start: s, end: now };
-    }
-    case "lastmonth": {
-      const s = new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime();
-      const e = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-      return { start: s, end: e };
-    }
-    case "custom": {
-      const s = customFrom ? new Date(customFrom).getTime() : 0;
-      const e = customTo ? new Date(customTo).getTime() + DAY_MS : now;
-      return { start: s, end: e };
-    }
-    default:
-      return { start: 0, end: now };
-  }
-}
 
 function orderDate(o: OrderRow): number {
   return o.orderCreatedAt ?? o.importedAt;

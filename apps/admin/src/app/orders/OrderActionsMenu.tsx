@@ -66,7 +66,7 @@ export function OrderActionsMenu({ orderId }: { orderId: string }) {
         aria-expanded={open}
         onClick={toggle}
       >
-        Action
+        Actions
         <svg
           width="12"
           height="12"
