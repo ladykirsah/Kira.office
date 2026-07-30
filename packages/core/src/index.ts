@@ -38,3 +38,4 @@ export * from "./orderStatus";
 export * from "./orderHistory";
 export * from "./operationalStatus";
 export * from "./claimState";
+export * from "./legacyStatus";

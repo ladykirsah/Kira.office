@@ -10,6 +10,7 @@ import {
   resolveEffectivePrice,
   shopKey,
   validateCoupon,
+  type PaymentStatus,
 } from "@l-shopee/core";
 import { getSession, guardMutation } from "@/lib/auth";
 import {
@@ -518,7 +519,11 @@ export async function POST(req: Request): Promise<Response> {
 
     // 9) (Address +) order + lines (+ payment) in ONE atomic D1 batch. The coupon redemption is
     //    written above (8b) with its own concurrency guard.
-    const paymentStatus = body.paymentMethod === "cod" ? "เก็บเงินปลายทาง" : "รอชำระเงิน";
+    // English constants, matching packages/core/src/orderStatus.ts. These used to be the Thai
+    // literals migration 0069 exists to retire, so every new order landed pre-0069 no matter how
+    // many times the migration ran. Readers normalize either language (core/legacyStatus), so the
+    // deploy and the migration no longer have to be sequenced.
+    const paymentStatus: PaymentStatus = body.paymentMethod === "cod" ? "cod" : "pending";
     const statements = [
       ...(addressInsert ? [addressInsert] : []),
       db
@@ -528,7 +533,7 @@ export async function POST(req: Request): Promise<Response> {
              shipping_fee_satang, grand_total_satang, order_created_at, imported_at, import_source,
              buyer_username, sales_satang, fee_bp, profit_satang, storefront_customer_id,
              shipping_address_id)
-           VALUES (?, 'airplus', ?, 'ใหม่', ?, ?, ?, 0, 0, ?, ?, ?, ?, 'api', ?, ?, 0, ?, ?, ?)`,
+           VALUES (?, 'airplus', ?, 'new', ?, ?, ?, 0, 0, ?, ?, ?, ?, 'api', ?, ?, 0, ?, ?, ?)`,
         )
         .bind(
           orderId,
@@ -577,7 +582,7 @@ export async function POST(req: Request): Promise<Response> {
         .bind(
           crypto.randomUUID(),
           orderId,
-          "ใหม่",
+          "new",
           paymentStatus,
           `placed via storefront checkout (${body.paymentMethod === "cod" ? "COD" : "transfer"})`,
           now,

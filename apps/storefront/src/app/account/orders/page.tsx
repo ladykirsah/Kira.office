@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  normalizeOrderStatus,
+  normalizePaymentStatus,
+  operationalStatus,
+  operationalStatusLabelTh,
+} from "@l-shopee/core";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { baht, formatDateTime } from "@/lib/format";
@@ -35,15 +41,44 @@ interface OrderLineRow {
   currentPriceSatang: number;
 }
 
+/**
+ * The order-history pill. Derived from BOTH status axes via operationalStatus, so it can finally tell
+ * an unpaid order from a paid-and-packing one — the old version read only orderStatus and showed both
+ * as the same grey รอดำเนินการ, giving the customer no pay-now signal on this page at all.
+ *
+ * It also normalizes first. The old version matched Thai substrings, so after migration 0069 every
+ * order would have fallen through to that same grey pill: delivered, cancelled and brand-new all
+ * looking identical.
+ */
 function statusPill(o: OrderRow): { cls: "good" | "warn" | "bad" | "soft"; label: string } {
-  const s = o.orderStatus ?? "";
-  if (s.includes("ยกเลิก") || s.includes("คืน")) return { cls: "bad", label: s };
-  if (s.includes("สำเร็จ")) return { cls: "good", label: s };
-  if (o.carrier || o.trackingNo || s.includes("จัดส่ง")) {
+  const state = operationalStatus(
+    normalizeOrderStatus(o.orderStatus),
+    normalizePaymentStatus(o.paymentStatus),
+  );
+
+  // While a parcel is moving, the carrier and tracking are more useful to the customer than the word.
+  if (state === "in_transit") {
     const detail = [o.carrier, o.trackingNo].filter(Boolean).join(" · ");
-    return { cls: "warn", label: detail || s || "กำลังจัดส่ง" };
+    return { cls: "warn", label: detail || operationalStatusLabelTh("in_transit") };
   }
-  return { cls: "soft", label: "รอดำเนินการ" };
+
+  if (state === null) return { cls: "soft", label: "รอดำเนินการ" };
+
+  const CLS: Record<string, "good" | "warn" | "bad" | "soft"> = {
+    complete: "good",
+    claimed: "good",
+    unpaid: "warn",
+    verifying: "warn",
+    cod_pending: "warn",
+    to_ship: "warn",
+    claim_pending: "warn",
+    fail: "bad",
+    return: "bad",
+    cod_reject: "bad",
+    refunded: "bad",
+    claim_rejected: "bad",
+  };
+  return { cls: CLS[state] ?? "soft", label: operationalStatusLabelTh(state) };
 }
 
 export default async function AccountOrdersPage() {

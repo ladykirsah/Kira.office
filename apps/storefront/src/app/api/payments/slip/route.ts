@@ -131,7 +131,7 @@ export async function POST(req: Request): Promise<Response> {
            WHERE id = ?`,
         )
         .bind(verified.ref, now, verified.note, payment.id),
-      db.prepare(`UPDATE sales_orders SET payment_status = 'ชำระแล้ว' WHERE id = ?`).bind(order.id),
+      db.prepare(`UPDATE sales_orders SET payment_status = 'paid' WHERE id = ?`).bind(order.id),
       // Timeline entry, in the same batch as the status it describes. Like checkout, this route
       // writes to D1 directly and never passes through the API's audit wrapper, so without this a
       // slip-confirmed payment would leave no trace on the order page. Null actor: the customer
@@ -140,7 +140,7 @@ export async function POST(req: Request): Promise<Response> {
         .prepare(
           `INSERT INTO order_status_history
              (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
-           VALUES (?, ?, ?, 'ชำระแล้ว', 'paid', NULL, ?, ?)`,
+           VALUES (?, ?, ?, 'paid', 'paid', NULL, ?, ?)`,
         )
         .bind(
           crypto.randomUUID(),

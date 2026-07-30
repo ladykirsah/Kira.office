@@ -2,6 +2,12 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  normalizeOrderStatus,
+  normalizePaymentStatus,
+  orderStatusLabel,
+  paymentStatusLabel,
+} from "@l-shopee/core";
 import { SlipUpload } from "@/components/SlipUpload";
 import { baht, formatDateTime, normalizePhone } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
@@ -45,15 +51,22 @@ interface Step {
 }
 
 function buildSteps(o: LookupResult): Step[] {
-  const paymentStatus = (o.paymentStatus ?? "").trim();
-  const isCod = paymentStatus === "เก็บเงินปลายทาง";
-  const isAwaitingPayment = paymentStatus === "รอชำระเงิน";
+  // Normalize first: the column may hold Thai (pre-migration-0069) or English. Substring matching on
+  // Thai was how a FAILED delivery (จัดส่งไม่สำเร็จ) matched `includes("สำเร็จ")` and told the customer
+  // their order had arrived — the exact bug this removes.
+  const pay = normalizePaymentStatus(o.paymentStatus);
+  const ord = normalizeOrderStatus(o.orderStatus);
+
+  const isCod = pay === "cod" || pay === "cod_confirmed" || pay === "cod_collected";
+  const isAwaitingPayment = pay === "pending";
+  const isVerifying = pay === "verifying";
+  const refunded = pay === "refunded";
+
   const shipped = Boolean(o.carrier || o.trackingNo || o.shipTimeMs);
-  const statusLower = (o.orderStatus ?? "").toLowerCase();
-  const completed = statusLower.includes("สำเร็จ") || statusLower.includes("done");
-  const preparing = statusLower.includes("เตรียม"); // paid & packing — not yet handed to a carrier
-  const refunded = statusLower.includes("คืน");
-  const cancelled = statusLower.includes("ยกเลิก") || refunded;
+  const completed = ord === "delivered";
+  const preparing = ord === "packing" || ord === "confirmed"; // paid, not yet with a carrier
+  const bounced = ord === "delivery_failed";
+  const cancelled = ord === "cancelled" || ord === "expired";
 
   const shipDetail = shipped
     ? [
@@ -74,8 +87,20 @@ function buildSteps(o: LookupResult): Step[] {
     isCod
       ? { title: "ชำระเงิน", detail: "เก็บเงินปลายทาง (จ่ายตอนรับของ)", state: "done" }
       : isAwaitingPayment
-        ? { title: "ชำระเงิน", detail: "รอชำระเงิน", state: "current" }
-        : { title: "ชำระเงิน", detail: paymentStatus || "ชำระแล้ว", state: "done" },
+        ? { title: "ชำระเงิน", detail: "ยังไม่ชำระเงิน", state: "current" }
+        : isVerifying
+          ? // The slip is in and we are checking it. Previously this state did not exist, so a
+            // customer who had paid saw "ยังไม่ชำระเงิน" and was chased for money they had sent.
+            { title: "ชำระเงิน", detail: "กำลังตรวจสอบการชำระเงิน", state: "current" }
+          : {
+              title: "ชำระเงิน",
+              // Only claim paid when the status actually says so. The old fallback treated ANY
+              // unrecognised value as paid and showed it in green, so an English constant after
+              // migration 0069 would have told an unpaid customer they were settled.
+              detail: pay ? paymentStatusLabel(pay) : null,
+              // Only `paid` reaches here as settled — every COD variant was caught by isCod above.
+              state: pay === "paid" ? "done" : "pending",
+            },
     shipped
       ? { title: "จัดส่ง", detail: shipDetail, state: "done" }
       : cancelled
@@ -83,10 +108,12 @@ function buildSteps(o: LookupResult): Step[] {
         : preparing
           ? { title: "จัดส่ง", detail: "กำลังเตรียมจัดส่ง", state: "current" }
           : { title: "จัดส่ง", detail: "รอจัดส่ง", state: "pending" },
-    cancelled
+    cancelled || bounced
       ? {
-          title: refunded ? "คืนเงินแล้ว" : "ยกเลิกคำสั่งซื้อ",
-          detail: o.orderStatus ?? null,
+          title: refunded ? "คืนเงินแล้ว" : bounced ? "ตีกลับ" : "ยกเลิกคำสั่งซื้อ",
+          // Show the Thai label for the state, never the raw column — that used to leak the stored
+          // value straight to the customer, which after 0069 would have been an English token.
+          detail: ord ? orderStatusLabel(ord) : null,
           state: "done",
           dotColor: "var(--danger)",
         }
@@ -365,7 +392,10 @@ function OrdersContent() {
             {steps.map((step, i) => (
               <TimelineStep key={step.title} step={step} last={i === steps.length - 1} />
             ))}
-            {result.paymentStatus?.trim() === "รอชำระเงิน" && (
+            {/* Normalized, so this survives migration 0069 in either direction. Before, it matched
+                the Thai literal exactly — an English 'pending' would have hidden the upload and left
+                an unpaid customer with no way to send their slip at all. */}
+            {normalizePaymentStatus(result.paymentStatus) === "pending" && (
               <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                 <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
                   โอนแล้ว? แนบสลิปเพื่อยืนยันการชำระเงิน
