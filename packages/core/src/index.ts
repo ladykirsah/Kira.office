@@ -39,3 +39,6 @@ export * from "./orderHistory";
 export * from "./operationalStatus";
 export * from "./claimState";
 export * from "./legacyStatus";
+export * from "./orderMoney";
+
+export * from "./carriers";

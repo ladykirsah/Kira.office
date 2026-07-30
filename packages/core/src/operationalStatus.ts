@@ -91,6 +91,20 @@ export function operationalStatusLabelTh(s: OperationalStatus): string {
 const CLEARED = new Set(["paid", "cod_confirmed", "cod_collected"]);
 
 /**
+ * Could this parcel plausibly have been handed to a carrier yet?
+ *
+ * Gates recording a drop-off — a real carrier charge against an order nobody has paid for is
+ * nonsense, and it would land in the owner's profit figure. Deliberately keyed on the money axis
+ * rather than on `to_ship` itself, so a typo in the amount can still be corrected after the parcel
+ * has shipped; payment stays cleared for the rest of the order's life.
+ *
+ * Expects an already-normalized value — see `normalizePaymentStatus` in legacyStatus.
+ */
+export function canRecordDropOff(paymentStatus: string | null): boolean {
+  return paymentStatus != null && CLEARED.has(paymentStatus);
+}
+
+/**
  * Which of the thirteen an order is in, or null when the data cannot say — a null status, a Thai
  * value from before migration 0069, or a status we have retired. Null is deliberate: mislabelling an
  * order is worse than admitting we do not know.

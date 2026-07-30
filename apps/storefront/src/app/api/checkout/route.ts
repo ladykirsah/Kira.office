@@ -528,12 +528,17 @@ export async function POST(req: Request): Promise<Response> {
       ...(addressInsert ? [addressInsert] : []),
       db
         .prepare(
+          // shipping_auto_satang and shipping_fee_satang are the same number here, and that is not
+          // redundancy: the first is what our rate card QUOTED, the second is what we CHARGED. They
+          // are equal on a normal order and diverge the moment the owner absorbs part of a heavy
+          // parcel's fee. The quote has to be written now or it is gone — sales_order_lines keeps no
+          // weight and no dimensions, so nothing downstream can recompute it.
           `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
              subtotal_satang, discount_total_satang, tax_total_satang, fee_total_satang,
-             shipping_fee_satang, grand_total_satang, order_created_at, imported_at, import_source,
-             buyer_username, sales_satang, fee_bp, profit_satang, storefront_customer_id,
-             shipping_address_id)
-           VALUES (?, 'airplus', ?, 'new', ?, ?, ?, 0, 0, ?, ?, ?, ?, 'api', ?, ?, 0, ?, ?, ?)`,
+             shipping_fee_satang, shipping_auto_satang, grand_total_satang, order_created_at,
+             imported_at, import_source, buyer_username, sales_satang, fee_bp, profit_satang,
+             storefront_customer_id, shipping_address_id)
+           VALUES (?, 'airplus', ?, 'new', ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, 'api', ?, ?, 0, ?, ?, ?)`,
         )
         .bind(
           orderId,
@@ -541,6 +546,7 @@ export async function POST(req: Request): Promise<Response> {
           paymentStatus,
           subtotal,
           discount,
+          shipping,
           shipping,
           grand,
           now,

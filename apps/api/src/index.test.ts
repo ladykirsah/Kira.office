@@ -11,11 +11,13 @@ import worker, {
   archiveProduct,
   BACKUP_TABLES,
   buildCorsHeaders,
+  createClaim,
   createProduct,
   deleteGalleryImage,
   ean13CheckDigit,
   entityFromPath,
   expireUnpaidOrders,
+  getOrderDetail,
   getProductDetail,
   applyHoldToDb,
   setVariantPricing,
@@ -31,6 +33,7 @@ import worker, {
   listCarFitment,
   addCarModel,
   updateCarModel,
+  transitionClaim,
   updateOrder,
   updateProduct,
   normalizeWarrantyDays,
@@ -72,6 +75,7 @@ import {
   generateCustomerCode,
   isCustomerCode,
   isOrderHistoryEvent,
+  operationalStatus,
 } from "@l-shopee/core";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
@@ -4371,10 +4375,30 @@ function asD1(db: DatabaseSync): D1Database {
       async run() {
         return db.prepare(sql).run(...(binds as never[]));
       },
+      /** The bound statement, so batch() can replay it inside a transaction. */
+      __exec() {
+        return db.prepare(sql).run(...(binds as never[]));
+      },
     };
     return stmt;
   };
-  return { prepare: (sql: string) => make(sql) } as unknown as D1Database;
+  return {
+    prepare: (sql: string) => make(sql),
+    // D1's batch is atomic, and code under test relies on that — createClaim writes the claim, its
+    // lines, the order status and the timeline row together so a rejected line cannot leave a
+    // half-built claim behind. A harness that just looped would pass while hiding that.
+    async batch(stmts: { __exec: () => unknown }[]) {
+      db.exec("BEGIN");
+      try {
+        const out = stmts.map((s) => s.__exec());
+        db.exec("COMMIT");
+        return out;
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+    },
+  } as unknown as D1Database;
 }
 
 /** Fixed clock — seeded orders stay well inside the 48h expiry window. */
@@ -4740,7 +4764,7 @@ describe("updateOrder > timeline", () => {
        VALUES ('sp1', 'shopee', 'SP-1', 'completed', 'paid', ?, ?)`,
     ).run(NOW, NOW);
     const out = await updateOrder(asD1(db), "sp1", { paymentStatus: "refunded" }, "s@x.com", NOW);
-    expect(out).toBeNull();
+    expect(out).toEqual({ ok: false, code: 404, reason: "not found" });
     expect(history(db)).toEqual([]);
   });
 });
@@ -4983,5 +5007,892 @@ describe("migration 0071 > order_claims", () => {
     const db = seeded();
     insertClaim(db, { id: "c1" });
     expect(() => insertClaim(db, { id: "c2" })).not.toThrow();
+  });
+});
+
+describe("getOrderDetail (the /orders/:id read model)", () => {
+  /**
+   * One query set behind the whole detail page. Tested against real sqlite because the risk here is
+   * relational, not arithmetic: an order with no customer, no address, no lines or no claims must
+   * still render rather than throw, and the claim/timeline lists must not fan the order out.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded(opts: { withCustomer?: boolean; withClaim?: boolean } = {}) {
+    const { withCustomer = true, withClaim = false } = opts;
+    const db = migratedDb();
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอยล์ร้อน Vios',?)`).run(
+      NOW,
+    );
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+    ).run(NOW);
+
+    if (withCustomer) {
+      db.prepare(
+        `INSERT INTO storefront_customers
+           (id, phone, name, created_at, updated_at, customer_code, credit_score, tier)
+         VALUES ('c1','0810000001','สมชาย ใจดี',?,?,'AP-8F2C41A9',4,'good')`,
+      ).run(NOW, NOW);
+    }
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+          order_created_at, imported_at, buyer_username, storefront_customer_id, staff_note)
+       VALUES ('o1','airplus','AP-1','packing','paid',200000,10000,5000,195000,60000,?,?,
+               'somchai99',?,'ลูกค้าขอเลื่อนส่ง')`,
+    ).run(NOW, NOW, withCustomer ? "c1" : null);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,100000,70000,200000,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO order_status_history
+         (id, order_id, order_status, payment_status, event, actor_email, created_at)
+       VALUES ('h1','o1','new','pending','created',NULL,?), ('h2','o1','packing','paid','paid','s@x.com',?)`,
+    ).run(NOW, NOW + 1000);
+
+    if (withClaim) {
+      db.prepare(
+        `INSERT INTO order_claims (id, sales_order_id, kind, state, created_at, updated_at)
+         VALUES ('cl1','o1','defect','received',?,?)`,
+      ).run(NOW, NOW);
+      db.prepare(
+        `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity)
+         VALUES ('cll1','cl1','l1',1)`,
+      ).run();
+    }
+    return db;
+  }
+
+  it("returns the order with its money figures, profit included", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d).not.toBeNull();
+    expect(d!.order.grandTotalSatang).toBe(195000);
+    expect(d!.order.discountTotalSatang).toBe(10000);
+    expect(d!.order.shippingFeeSatang).toBe(5000);
+    expect(d!.order.profitSatang).toBe(60000);
+  });
+
+  it("returns the staff note", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.order.staffNote).toBe("ลูกค้าขอเลื่อนส่ง");
+  });
+
+  it("returns the customer WITH tier and credit, which the orders list does not carry", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.customer).not.toBeNull();
+    expect(d!.customer!.customerCode).toBe("AP-8F2C41A9");
+    expect(d!.customer!.tier).toBe("good");
+    expect(d!.customer!.creditScore).toBe(4);
+  });
+
+  it("given an order with no linked customer > returns null customer, not an error", async () => {
+    // Imported orders and any legacy row have no storefront account.
+    const d = await getOrderDetail(asD1(seeded({ withCustomer: false })), "o1");
+    expect(d).not.toBeNull();
+    expect(d!.customer).toBeNull();
+  });
+
+  it("returns the line items with product name and sku", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines).toHaveLength(1);
+    expect(d!.lines[0]!.name).toBe("คอยล์ร้อน Vios");
+    expect(d!.lines[0]!.sku).toBe("SKU-1");
+    expect(d!.lines[0]!.quantity).toBe(2);
+  });
+
+  it("returns the timeline newest-first, matching the Shopee reference", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.timeline.map((t) => t.event)).toEqual(["paid", "created"]);
+  });
+
+  it("returns claims with the lines they cover", async () => {
+    const d = await getOrderDetail(asD1(seeded({ withClaim: true })), "o1");
+    expect(d!.claims).toHaveLength(1);
+    expect(d!.claims[0]!.state).toBe("received");
+    expect(d!.claims[0]!.lines.map((l) => l.salesOrderLineId)).toEqual(["l1"]);
+  });
+
+  it("given no claims > returns an empty array, never null", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.claims).toEqual([]);
+  });
+
+  it("the claim and timeline lists do not duplicate the order", async () => {
+    // The bug this guards: joining lines/timeline/claims in one query fans the order row out.
+    const d = await getOrderDetail(asD1(seeded({ withClaim: true })), "o1");
+    expect(d!.order.id).toBe("o1");
+    expect(d!.lines).toHaveLength(1);
+    expect(d!.timeline).toHaveLength(2);
+  });
+
+  it("given an id that does not exist > returns null", async () => {
+    expect(await getOrderDetail(asD1(seeded()), "nope")).toBeNull();
+  });
+
+  it("given a Shopee order > returns null; this page is AirPlus-only", async () => {
+    const db = seeded();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, imported_at)
+       VALUES ('sp1','shopee','SP-1',?)`,
+    ).run(NOW);
+    expect(await getOrderDetail(asD1(db), "sp1")).toBeNull();
+  });
+});
+
+describe("transitionClaim (the claim gates, server-side)", () => {
+  /**
+   * The UI only offers legal moves, but the UI is not the guard — a stale tab or a hand-rolled
+   * request must not be able to jump a gate. So the API re-checks canTransition/actorFor itself.
+   * The gate that matters most: nothing reaches a replacement delivery without a mechanic passing
+   * it, and nothing is cancelled once we are physically holding the customer's product.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded(state = "requested") {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
+       VALUES ('o1','airplus','AP-1','delivered','paid',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO order_claims (id, sales_order_id, kind, state, created_at, updated_at)
+       VALUES ('cl1','o1','defect',?,?,?)`,
+    ).run(state, NOW, NOW);
+    return db;
+  }
+
+  const stateOf = (db: DatabaseSync) =>
+    (db.prepare(`SELECT state FROM order_claims WHERE id='cl1'`).get() as { state: string }).state;
+
+  it("allows a legal admin move and records who made it", async () => {
+    const db = seeded("requested");
+    const out = await transitionClaim(asD1(db), "cl1", "approved", "owner@airplusauto.com", NOW);
+    expect(out.ok).toBe(true);
+    expect(stateOf(db)).toBe("approved");
+  });
+
+  it("REFUSES skipping the mechanic to ship a replacement", async () => {
+    const db = seeded("received");
+    const out = await transitionClaim(asD1(db), "cl1", "shipped", "owner@airplusauto.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(stateOf(db)).toBe("received");
+  });
+
+  it("REFUSES a mechanic verdict on goods that never arrived", async () => {
+    const db = seeded("requested");
+    const out = await transitionClaim(asD1(db), "cl1", "mechanic_approved", "mech@x.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(stateOf(db)).toBe("requested");
+  });
+
+  it("REFUSES cancelling once we hold the customer's product", async () => {
+    const db = seeded("received");
+    const out = await transitionClaim(asD1(db), "cl1", "cancelled", "owner@airplusauto.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(stateOf(db)).toBe("received");
+  });
+
+  it("refuses to leave a terminal state", async () => {
+    const db = seeded("done");
+    const out = await transitionClaim(asD1(db), "cl1", "shipped", "owner@airplusauto.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(stateOf(db)).toBe("done");
+  });
+
+  it("refuses an invented state outright", async () => {
+    const db = seeded("requested");
+    const out = await transitionClaim(asD1(db), "cl1", "approved_maybe", "o@x.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(stateOf(db)).toBe("requested");
+  });
+
+  it("stamps the mechanic's verdict on the claim, not the admin fields", async () => {
+    const db = seeded("received");
+    await transitionClaim(asD1(db), "cl1", "mechanic_approved", "mech@airplusauto.com", NOW);
+    const row = db
+      .prepare(
+        `SELECT mechanic_name, mechanic_decided_at, admin_email FROM order_claims WHERE id='cl1'`,
+      )
+      .get() as {
+      mechanic_name: string | null;
+      mechanic_decided_at: number | null;
+      admin_email: string | null;
+    };
+    expect(row.mechanic_name).toBe("mech@airplusauto.com");
+    expect(row.mechanic_decided_at).toBe(NOW);
+    expect(row.admin_email).toBeNull();
+  });
+
+  it("stamps the admin's decision on the admin fields, not the mechanic's", async () => {
+    const db = seeded("requested");
+    await transitionClaim(asD1(db), "cl1", "approved", "owner@airplusauto.com", NOW);
+    const row = db
+      .prepare(
+        `SELECT admin_email, admin_decided_at, mechanic_name FROM order_claims WHERE id='cl1'`,
+      )
+      .get() as {
+      admin_email: string | null;
+      admin_decided_at: number | null;
+      mechanic_name: string | null;
+    };
+    expect(row.admin_email).toBe("owner@airplusauto.com");
+    expect(row.admin_decided_at).toBe(NOW);
+    expect(row.mechanic_name).toBeNull();
+  });
+
+  it("mirrors the claim onto the order's status so /orders reflects it", async () => {
+    const db = seeded("received");
+    await transitionClaim(asD1(db), "cl1", "mechanic_approved", "mech@x.com", NOW);
+    const o = db.prepare(`SELECT order_status FROM sales_orders WHERE id='o1'`).get() as {
+      order_status: string;
+    };
+    expect(o.order_status).toBe("claimed");
+  });
+
+  it("an admin-cancelled claim leaves no mark on the order", async () => {
+    const db = seeded("requested");
+    await transitionClaim(asD1(db), "cl1", "cancelled", "owner@airplusauto.com", NOW);
+    const o = db.prepare(`SELECT order_status FROM sales_orders WHERE id='o1'`).get() as {
+      order_status: string;
+    };
+    // Nothing shipped, no verdict reached — the order is still simply delivered.
+    expect(o.order_status).toBe("delivered");
+  });
+
+  it("given a claim id that does not exist > fails without throwing", async () => {
+    const db = seeded();
+    const out = await transitionClaim(asD1(db), "nope", "approved", "o@x.com", NOW);
+    expect(out.ok).toBe(false);
+  });
+});
+
+describe("createClaim (admin raises a claim on the customer's behalf)", () => {
+  /**
+   * The owner's flow starts with the customer making contact — by phone or LINE — so the admin
+   * raises the claim. The validation here is what stops a phone call turning into corrupt data:
+   * claiming lines from someone else's order, claiming more units than were ever bought, or
+   * claiming goods the customer has not received yet.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded(orderStatus = "delivered") {
+    const db = migratedDb();
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','Coil',?)`).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, created_at) VALUES ('v1','p1',?), ('v2','p1',?)`,
+    ).run(NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
+       VALUES ('o1','airplus','AP-1',?,'paid',?), ('o2','airplus','AP-2','delivered','paid',?)`,
+    ).run(orderStatus, NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, line_total_satang, created_at)
+       VALUES ('l1','o1','v1',3,100000,300000,?), ('l2','o1','v2',1,50000,50000,?),
+              ('lx','o2','v1',1,100000,100000,?)`,
+    ).run(NOW, NOW, NOW);
+    return db;
+  }
+
+  const claimsIn = (db: DatabaseSync) =>
+    db.prepare(`SELECT id, kind, state FROM order_claims`).all() as {
+      id: string;
+      kind: string;
+      state: string;
+    }[];
+
+  it("creates a claim that opens at `requested`, awaiting the admin's own contact", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "คอยล์รั่ว", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "owner@airplusauto.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+    expect(claimsIn(db)[0]!.state).toBe("requested");
+    expect(claimsIn(db)[0]!.kind).toBe("defect");
+  });
+
+  it("records the claimed lines and quantities", async () => {
+    const db = seeded();
+    await createClaim(
+      asD1(db),
+      "o1",
+      {
+        kind: "wrong_item",
+        reasonNote: "ส่งผิดรุ่น",
+        lines: [
+          { salesOrderLineId: "l1", quantity: 2 },
+          { salesOrderLineId: "l2", quantity: 1 },
+        ],
+      },
+      "owner@airplusauto.com",
+      NOW,
+    );
+    const rows = db
+      .prepare(`SELECT sales_order_line_id AS l, quantity FROM order_claim_lines ORDER BY l`)
+      .all() as { l: string; quantity: number }[];
+    expect(rows).toEqual([
+      { l: "l1", quantity: 2 },
+      { l: "l2", quantity: 1 },
+    ]);
+  });
+
+  it("moves the order to claim_pending so /orders shows it", async () => {
+    const db = seeded();
+    await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    const o = db.prepare(`SELECT order_status FROM sales_orders WHERE id='o1'`).get() as {
+      order_status: string;
+    };
+    expect(o.order_status).toBe("claim_pending");
+  });
+
+  it("REFUSES a line belonging to a different order", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "lx", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+    expect(claimsIn(db)).toEqual([]);
+  });
+
+  it("REFUSES claiming more units than were bought", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 4 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+    expect(claimsIn(db)).toEqual([]);
+  });
+
+  it("allows claiming exactly the quantity bought", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 3 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+  });
+
+  it("REFUSES a claim on goods the customer has not received", async () => {
+    // Nothing has been delivered, so there is nothing to be defective or wrongly sent.
+    for (const s of ["new", "packing", "shipped"]) {
+      const db = seeded(s);
+      const out = await createClaim(
+        asD1(db),
+        "o1",
+        { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+        "o@x.com",
+        NOW,
+      );
+      expect(out.ok).toBe(false);
+      expect(claimsIn(db)).toEqual([]);
+    }
+  });
+
+  it("ALLOWS a second claim after a replacement itself fails", async () => {
+    // The owner's words: a replacement can itself fail. So `claimed` must still accept a new claim.
+    const db = seeded("claimed");
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      {
+        kind: "defect",
+        reasonNote: "อันใหม่ก็เสีย",
+        lines: [{ salesOrderLineId: "l1", quantity: 1 }],
+      },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+  });
+
+  it("REFUSES an empty line list — a claim must say what it covers", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+
+  it("REFUSES a reason that is neither a wrong item nor a defect", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "changed_mind", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+
+  it("REFUSES the same line twice in one claim", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      {
+        kind: "defect",
+        reasonNote: "x",
+        lines: [
+          { salesOrderLineId: "l1", quantity: 1 },
+          { salesOrderLineId: "l1", quantity: 1 },
+        ],
+      },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+
+  it("records who raised it and writes a timeline entry", async () => {
+    const db = seeded();
+    await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "owner@airplusauto.com",
+      NOW,
+    );
+    const c = db.prepare(`SELECT admin_email FROM order_claims`).get() as { admin_email: string };
+    expect(c.admin_email).toBe("owner@airplusauto.com");
+    const h = db
+      .prepare(`SELECT COUNT(*) n FROM order_status_history WHERE order_id='o1'`)
+      .get() as { n: number };
+    expect(h.n).toBeGreaterThan(0);
+  });
+
+  it("given an order that does not exist > fails without throwing", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "nope",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+});
+
+describe("updateOrder > staff note", () => {
+  const NOW = SQLITE_NOW;
+  function seeded() {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
+       VALUES ('o1','airplus','AP-1','packing','paid',?)`,
+    ).run(NOW);
+    db.prepare(`DELETE FROM order_status_history`).run();
+    return db;
+  }
+  const noteOf = (db: DatabaseSync) =>
+    (
+      db.prepare(`SELECT staff_note FROM sales_orders WHERE id='o1'`).get() as {
+        staff_note: string | null;
+      }
+    ).staff_note;
+
+  it("saves a note", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "ลูกค้าขอเลื่อนส่ง" }, "o@x.com", NOW);
+    expect(noteOf(db)).toBe("ลูกค้าขอเลื่อนส่ง");
+  });
+
+  it("clears a note when emptied", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "x" }, "o@x.com", NOW);
+    await updateOrder(asD1(db), "o1", { staffNote: "" }, "o@x.com", NOW);
+    expect(noteOf(db)).toBeNull();
+  });
+
+  it("leaves the note alone when the patch does not mention it", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "keep me" }, "o@x.com", NOW);
+    await updateOrder(asD1(db), "o1", { carrier: "Flash Express" }, "o@x.com", NOW);
+    expect(noteOf(db)).toBe("keep me");
+  });
+
+  it("writing a note is NOT a timeline event", async () => {
+    // A note is a scratchpad, not a state change. Logging it would bury real transitions.
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "just a note" }, "o@x.com", NOW);
+    const n = db.prepare(`SELECT COUNT(*) n FROM order_status_history`).get() as { n: number };
+    expect(n.n).toBe(0);
+  });
+});
+
+describe("order shipping breakdown (migration 0073 + the drop-off write)", () => {
+  /**
+   * The owner's brief, 30 Jul 2026: /orders/:id shows four shipping figures — what our calculator
+   * quoted, what we offered on a shared-fee order, what the customer paid, and what landed on us —
+   * and the real carrier charge is typed in after the parcel is dropped off.
+   *
+   * Real sqlite because the risk is relational and positional: updateOrder is read-first with an
+   * explicit column list and a positional bind list, so a new money column can be silently dropped
+   * from the SELECT or bound in the wrong slot and still type-check.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded(
+    opts: {
+      orderStatus?: string | null;
+      paymentStatus?: string | null;
+      auto?: number;
+      offer?: number | null;
+      real?: number | null;
+      profit?: number | null;
+    } = {},
+  ) {
+    const {
+      orderStatus = "packing",
+      paymentStatus = "paid",
+      auto = 5_000,
+      offer = null,
+      real = null,
+      profit = 140_000,
+    } = opts;
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์ Denso',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+          shipping_auto_satang, shipping_offer_satang, shipping_real_satang,
+          order_created_at, imported_at, buyer_username)
+       VALUES ('o1','airplus','AP-1',?,?,450000,20000,5000,435000,?,?,?,?,?,?,'somchai99')`,
+    ).run(orderStatus, paymentStatus, profit, auto, offer, real, NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,225000,145000,450000,?)`,
+    ).run(NOW);
+    return db;
+  }
+
+  const feesOf = (db: DatabaseSync) =>
+    db
+      .prepare(
+        `SELECT shipping_auto_satang a, shipping_offer_satang o, shipping_real_satang r,
+                shipping_fee_satang c, carrier, tracking_no t, order_status s
+         FROM sales_orders WHERE id='o1'`,
+      )
+      .get() as Record<string, unknown>;
+
+  it("migration 0073 backfills the auto fee from what the customer was charged", async () => {
+    // Every order that exists today was charged exactly what we quoted, so that IS the true
+    // historical value. A plain 0 default would report every past parcel as having been quoted free,
+    // and the quote-gap report would then show a fictional shortfall on all of them.
+    //
+    // Applied in two halves against one database, because the order matters: the row has to exist
+    // BEFORE 0073 runs for the backfill to have anything to do. migratedDb() applies everything up
+    // front, so it cannot see this.
+    const db = new DatabaseSync(":memory:");
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    const cut = files.findIndex((f) => f.startsWith("0073_"));
+    expect(cut).toBeGreaterThan(0);
+    for (const f of files.slice(0, cut)) db.exec(readFileSync(join(migrationsDir, f), "utf8"));
+
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, subtotal_satang, discount_total_satang,
+          shipping_fee_satang, grand_total_satang, imported_at)
+       VALUES ('legacy','airplus','AP-OLD',100000,0,7500,107500,?)`,
+    ).run(NOW);
+
+    for (const f of files.slice(cut)) db.exec(readFileSync(join(migrationsDir, f), "utf8"));
+
+    const row = db
+      .prepare(
+        `SELECT shipping_auto_satang a, shipping_offer_satang o, shipping_real_satang r
+         FROM sales_orders WHERE id='legacy'`,
+      )
+      .get() as { a: number; o: number | null; r: number | null };
+    expect(row.a).toBe(7500);
+    // The other two stay unknown: we never offered a shared fee on a past order, and nobody typed in
+    // what Flash charged. Defaulting either to 0 would invent a measurement.
+    expect(row.o).toBeNull();
+    expect(row.r).toBeNull();
+  });
+
+  it("getOrderDetail returns all three new shipping figures", async () => {
+    const d = await getOrderDetail(
+      asD1(seeded({ auto: 26_000, offer: 12_000, real: 27_500 })),
+      "o1",
+    );
+    expect(d!.order.shippingAutoSatang).toBe(26_000);
+    expect(d!.order.shippingOfferSatang).toBe(12_000);
+    expect(d!.order.shippingRealSatang).toBe(27_500);
+  });
+
+  it("a normal order has no offered fee, which is what marks it as not shared-fee", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.order.shippingOfferSatang).toBeNull();
+  });
+
+  it("getOrderDetail derives both money books so the page never computes them itself", async () => {
+    const d = await getOrderDetail(asD1(seeded({ real: 9_000 })), "o1");
+    expect(d!.money.customerPaidSatang).toBe(435_000);
+    expect(d!.money.goodsAfterDiscountSatang).toBe(430_000);
+    expect(d!.money.itemCostSatang).toBe(290_000);
+    expect(d!.money.shippingShortfallSatang).toBe(4_000);
+    expect(d!.money.profitSatang).toBe(136_000);
+  });
+
+  it("before drop-off the shortfall is unknown, not zero", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.money.shippingShortfallSatang).toBeNull();
+    expect(d!.money.profitSatang).toBe(140_000);
+  });
+
+  it("derived profit ignores the stale stored profit_satang", async () => {
+    // profit_satang says 140,000 because checkout excludes shipping. Once a ฿90 parcel is recorded
+    // against a ฿50 charge the truth is 136,000, and the page must show the truth.
+    const db = seeded({ real: 9_000, profit: 140_000 });
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.order.profitSatang).toBe(140_000);
+    expect(d!.money.profitSatang).toBe(136_000);
+  });
+
+  it("unmatched SKUs > derived profit stays null rather than claiming the whole order", async () => {
+    const d = await getOrderDetail(asD1(seeded({ real: 9_000, profit: null })), "o1");
+    expect(d!.money.profitSatang).toBeNull();
+    expect(d!.money.shippingShortfallSatang).toBe(4_000);
+  });
+
+  it("recording a drop-off persists carrier, tracking and the real charge together", async () => {
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      {
+        carrier: "Flash Express",
+        trackingNo: "TH26104508613",
+        shippingRealSatang: 9_000,
+        orderStatus: "shipped",
+      },
+      "o@x.com",
+      NOW,
+    );
+    const f = feesOf(db);
+    expect(f.carrier).toBe("Flash Express");
+    expect(f.t).toBe("TH26104508613");
+    expect(f.r).toBe(9_000);
+    expect(f.s).toBe("shipped");
+  });
+
+  it("the drop-off leaves To ship, which needs order_status shipped", async () => {
+    // to_ship is DERIVED from the payment axis, so a write that only sets carrier and tracking
+    // leaves the order reading "To ship" forever and the form never disappears.
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      {
+        carrier: "Flash Express",
+        trackingNo: "TH1",
+        shippingRealSatang: 9_000,
+        orderStatus: "shipped",
+      },
+      "o@x.com",
+      NOW,
+    );
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(operationalStatus(d!.order.orderStatus, d!.order.paymentStatus)).toBe("in_transit");
+  });
+
+  it("the drop-off writes exactly one timeline entry, for the shipping", async () => {
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      {
+        carrier: "Flash Express",
+        trackingNo: "TH1",
+        shippingRealSatang: 9_000,
+        orderStatus: "shipped",
+      },
+      "o@x.com",
+      NOW,
+    );
+    const rows = db.prepare(`SELECT event FROM order_status_history WHERE order_id='o1'`).all() as {
+      event: string;
+    }[];
+    expect(rows.map((r) => r.event)).toEqual(["shipped"]);
+  });
+
+  it("a real charge on an unpaid order is refused", async () => {
+    // Nonsense that would land straight in the owner's profit figure: nobody hands a carrier a
+    // parcel for an order that has not been paid for.
+    const db = seeded({ paymentStatus: "pending", orderStatus: "new" });
+    const out = await updateOrder(asD1(db), "o1", { shippingRealSatang: 9_000 }, "o@x.com", NOW);
+    expect(out.ok).toBe(false);
+    expect(!out.ok && out.code).toBe(409);
+    expect(feesOf(db).r).toBeNull();
+  });
+
+  it("a real charge on a COD order awaiting approval is refused", async () => {
+    // COD not yet approved by the owner. cod_confirmed is the value that means "we will send it".
+    const db = seeded({ paymentStatus: "cod", orderStatus: "new" });
+    const out = await updateOrder(asD1(db), "o1", { shippingRealSatang: 9_000 }, "o@x.com", NOW);
+    expect(!out.ok && out.code).toBe(409);
+    expect(feesOf(db).r).toBeNull();
+  });
+
+  it("a refused drop-off writes nothing at all, not even the carrier alongside it", async () => {
+    const db = seeded({ paymentStatus: "pending", orderStatus: "new" });
+    await updateOrder(
+      asD1(db),
+      "o1",
+      { carrier: "Flash Express", trackingNo: "TH1", shippingRealSatang: 9_000 },
+      "o@x.com",
+      NOW,
+    );
+    const f = feesOf(db);
+    expect([f.carrier, f.t, f.r]).toEqual([null, null, null]);
+  });
+
+  it("a COD-confirmed order may record a drop-off — the money is settled enough to send", async () => {
+    const db = seeded({ paymentStatus: "cod_confirmed" });
+    await updateOrder(asD1(db), "o1", { shippingRealSatang: 9_000 }, "o@x.com", NOW);
+    expect(feesOf(db).r).toBe(9_000);
+  });
+
+  it("the real charge can still be corrected after the parcel has shipped", async () => {
+    // A typo at the counter must be fixable; gating on to_ship itself would freeze the wrong number
+    // in place forever.
+    const db = seeded({ orderStatus: "shipped", real: 9_000 });
+    await updateOrder(asD1(db), "o1", { shippingRealSatang: 8_500 }, "o@x.com", NOW);
+    expect(feesOf(db).r).toBe(8_500);
+  });
+
+  it("the offered fee is patchable, by hand, until the auto-apply rule exists", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { shippingOfferSatang: 12_000 }, "o@x.com", NOW);
+    expect(feesOf(db).o).toBe(12_000);
+  });
+
+  it("a patch that does not mention the fees leaves every one of them alone", async () => {
+    // updateOrder is read-first with a positional UPDATE; this is the shape that silently wiped the
+    // staff note before, so it is worth pinning for money too.
+    const db = seeded({ auto: 26_000, offer: 12_000, real: 27_500 });
+    await updateOrder(asD1(db), "o1", { staffNote: "unrelated" }, "o@x.com", NOW);
+    const f = feesOf(db);
+    expect([f.a, f.o, f.r]).toEqual([26_000, 12_000, 27_500]);
+  });
+
+  it("the PATCH response carries the shipping fee it was previously dropping", async () => {
+    // OrderRow declares shippingFeeSatang as required but updateOrder's SELECT omitted it, so every
+    // PATCH response shipped `undefined` while typed as a number. The derivation needs it.
+    const db = seeded();
+    const out = await updateOrder(asD1(db), "o1", { carrier: "Flash Express" }, "o@x.com", NOW);
+    expect(out.ok && out.order.shippingFeeSatang).toBe(5_000);
+  });
+
+  it("clearing the real charge with null puts the order back to not-measured", async () => {
+    const db = seeded({ real: 9_000 });
+    await updateOrder(asD1(db), "o1", { shippingRealSatang: null }, "o@x.com", NOW);
+    expect(feesOf(db).r).toBeNull();
+  });
+});
+
+describe("getOrderDetail > product brand on each line", () => {
+  /**
+   * The owner asked for the brand on every line of the shipping label (30 Jul 2026) — a parcel of
+   * "คอมเพรสเซอร์ Denso 10PA17C" is easier to check against a receipt when DENSO is printed next to
+   * it. products.brand_id is nullable and points at `brands`, so this needs a LEFT JOIN: an INNER one
+   * would drop every line whose product has no brand set, and the label would go out short an item.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded() {
+    const db = migratedDb();
+    // Migration 0005 already seeds the part brands and brands.name is UNIQUE, so use the real DENSO
+    // row rather than inserting a second one — which is also closer to production.
+    const denso = db.prepare(`SELECT id FROM brands WHERE name = 'DENSO'`).get() as
+      { id: string } | undefined;
+    expect(denso?.id).toBeTruthy();
+    db.prepare(
+      `INSERT INTO products (id, name, brand_id, created_at)
+       VALUES ('p1','คอมเพรสเซอร์ Denso 10PA17C',?,?)`,
+    ).run(denso!.id, NOW);
+    // Deliberately no brand_id — the case an INNER JOIN would silently delete.
+    db.prepare(
+      `INSERT INTO products (id, name, brand_id, created_at)
+       VALUES ('p2','น้ำยาแอร์ R134a',NULL,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at)
+       VALUES ('v1','p1','SKU-1',?), ('v2','p2','SKU-2',?)`,
+    ).run(NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, imported_at)
+       VALUES ('o1','airplus','AP-1','packing','paid',100000,0,5000,105000,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,50000,30000,100000,?), ('l2','o1','v2',2,25000,15000,50000,?)`,
+    ).run(NOW, NOW + 1);
+    return db;
+  }
+
+  it("returns the brand name for a line whose product has one", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines[0]!.brand).toBe("DENSO");
+  });
+
+  it("given a product with no brand set > null, and the line is still returned", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines).toHaveLength(2);
+    expect(d!.lines[1]!.name).toBe("น้ำยาแอร์ R134a");
+    expect(d!.lines[1]!.brand).toBeNull();
+  });
+
+  it("adding the brand join does not fan the order out into duplicate lines", async () => {
+    // brands is one row per product, but a join written against the wrong key would multiply lines
+    // and the label would list the same item twice.
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.lines.map((l) => l.id)).toEqual(["l1", "l2"]);
   });
 });

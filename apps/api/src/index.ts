@@ -1,5 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  type ClaimResolution,
+  orderStatusForClaim,
+  actorFor,
+  canTransition,
+  isClaimState,
   computeSaleProfit,
   lineTaxSatang,
   partitionByClientUuid,
@@ -33,6 +38,10 @@ import {
   isCreditEvent,
   EXPIRY_MS,
   type CustomerTier,
+  orderMoney,
+  type OrderMoney,
+  canRecordDropOff,
+  normalizePaymentStatus,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -283,6 +292,8 @@ export function entityFromPath(pathname: string): {
   if (service) return { entityType: "service", entityId: service[1] ?? null };
   const order = pathname.match(/^\/orders\/([^/]+)/);
   if (order) return { entityType: "order", entityId: order[1] ?? null };
+  const claim = pathname.match(/^\/claims\/([^/]+)/);
+  if (claim) return { entityType: "claim", entityId: claim[1] ?? null };
   const banner = pathname.match(/^\/banners\/([^/]+)/);
   if (banner) return { entityType: "banner", entityId: banner[1] ?? null };
   const coupon = pathname.match(/^\/coupons\/([^/]+)/);
@@ -2221,6 +2232,415 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
 }
 
 /** Imported sales orders (Shopee CSV bridge), newest first. Lazily expires stale unpaid orders. */
+export interface ClaimCreate {
+  kind: string;
+  reasonNote?: string | null;
+  lines: { salesOrderLineId: string; quantity: number }[];
+}
+
+/** Order statuses a claim can be raised against — the goods must have reached the customer. */
+const CLAIMABLE_ORDER_STATUSES = new Set([
+  "delivered",
+  // A replacement can itself fail, so an order already through the claim flow stays claimable.
+  "claimed",
+  "claim_pending",
+  "claim_rejected",
+]);
+
+/**
+ * Raise a claim on the customer's behalf. The owner's flow starts with the customer making contact
+ * by phone or LINE, so the admin opens it — there is no self-serve claim button on the storefront.
+ *
+ * The validation is what stops a phone call becoming corrupt data: lines from someone else's order,
+ * more units than were ever bought, or goods the customer has not received. All-or-nothing — the
+ * claim, its lines, the order status and the timeline row go in one batch, so a rejected line
+ * cannot leave a half-built claim behind.
+ */
+export async function createClaim(
+  db: D1Database,
+  orderId: string,
+  input: ClaimCreate,
+  actorEmail: string | null,
+  now: number = Date.now(),
+): Promise<{ ok: boolean; claimId?: string; reason?: string }> {
+  if (input.kind !== "wrong_item" && input.kind !== "defect")
+    return { ok: false, reason: "kind must be wrong_item or defect" };
+  if (!Array.isArray(input.lines) || input.lines.length === 0)
+    return { ok: false, reason: "a claim must say which items it covers" };
+
+  const ids = input.lines.map((l) => l.salesOrderLineId);
+  if (new Set(ids).size !== ids.length)
+    return { ok: false, reason: "the same item is listed twice" };
+
+  const order = await db
+    .prepare(
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(orderId)
+    .first<{ id: string; orderStatus: string | null; paymentStatus: string | null }>();
+  if (!order) return { ok: false, reason: "not found" };
+  if (!order.orderStatus || !CLAIMABLE_ORDER_STATUSES.has(order.orderStatus))
+    return { ok: false, reason: "the customer has not received this order yet" };
+
+  // Every claimed line must belong to THIS order, and cannot exceed what was bought.
+  const { results: owned } = await db
+    .prepare(`SELECT id, quantity FROM sales_order_lines WHERE sales_order_id = ?`)
+    .bind(orderId)
+    .all<{ id: string; quantity: number }>();
+  const bought = new Map((owned ?? []).map((l) => [l.id, l.quantity]));
+  for (const l of input.lines) {
+    const max = bought.get(l.salesOrderLineId);
+    if (max === undefined) return { ok: false, reason: "item is not on this order" };
+    if (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > max)
+      return { ok: false, reason: `quantity for ${l.salesOrderLineId} must be 1-${max}` };
+  }
+
+  const claimId = crypto.randomUUID();
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO order_claims
+           (id, sales_order_id, kind, state, reason_note, admin_email, created_at, updated_at)
+         VALUES (?, ?, ?, 'requested', ?, ?, ?, ?)`,
+      )
+      .bind(claimId, orderId, input.kind, input.reasonNote ?? null, actorEmail, now, now),
+    ...input.lines.map((l) =>
+      db
+        .prepare(
+          `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .bind(crypto.randomUUID(), claimId, l.salesOrderLineId, l.quantity),
+    ),
+    db.prepare(`UPDATE sales_orders SET order_status = 'claim_pending' WHERE id = ?`).bind(orderId),
+    db
+      .prepare(
+        `INSERT INTO order_status_history
+           (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+         VALUES (?, ?, 'claim_pending', ?, 'claim_pending', ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        orderId,
+        order.paymentStatus,
+        actorEmail,
+        `claim raised (${input.kind})`,
+        now,
+      ),
+  ];
+  await db.batch(statements);
+  return { ok: true, claimId };
+}
+
+/**
+ * Move a claim to `to`, or refuse.
+ *
+ * The UI only offers legal moves, but the UI is not the guard — a stale tab or a hand-rolled request
+ * must not be able to jump a gate. So the transition table is re-checked here. What that buys:
+ * nothing reaches a replacement delivery without a mechanic having passed it, no mechanic verdict
+ * lands on goods that never arrived, and nothing is cancelled once we are physically holding the
+ * customer's product and owe them either a resolution or their goods back.
+ *
+ * The actor is stamped onto the fields belonging to whoever owns the move — a mechanic's verdict
+ * must never look like an admin's, because a refund traces back to who passed it.
+ */
+export async function transitionClaim(
+  db: D1Database,
+  claimId: string,
+  to: string,
+  actorEmail: string | null,
+  now: number = Date.now(),
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!isClaimState(to)) return { ok: false, reason: "unknown state" };
+
+  const row = await db
+    .prepare(
+      `SELECT id, sales_order_id AS orderId, state, resolution FROM order_claims WHERE id = ?`,
+    )
+    .bind(claimId)
+    .first<{ id: string; orderId: string; state: string; resolution: string | null }>();
+  if (!row) return { ok: false, reason: "not found" };
+  if (!isClaimState(row.state)) return { ok: false, reason: "claim is in an unreadable state" };
+  if (!canTransition(row.state, to)) return { ok: false, reason: `cannot go ${row.state} → ${to}` };
+
+  const actor = actorFor(row.state, to);
+  // Only the field belonging to this actor is touched; the other keeps whatever it already held.
+  const stamp =
+    actor === "mechanic"
+      ? `mechanic_name = ?, mechanic_decided_at = ?`
+      : `admin_email = ?, admin_decided_at = ?`;
+
+  await db
+    .prepare(`UPDATE order_claims SET state = ?, ${stamp}, updated_at = ? WHERE id = ?`)
+    .bind(to, actorEmail, now, now, claimId)
+    .run();
+
+  // Mirror onto the order so /orders reflects the claim. Null means "leave no mark" — an
+  // admin-cancelled claim shipped nothing and reached no verdict, so the order is still delivered.
+  const orderStatus = orderStatusForClaim(to, (row.resolution as ClaimResolution | null) ?? null);
+  if (orderStatus) {
+    const before = await db
+      .prepare(
+        `SELECT order_status AS orderStatus, payment_status AS paymentStatus
+                FROM sales_orders WHERE id = ?`,
+      )
+      .bind(row.orderId)
+      .first<{ orderStatus: string | null; paymentStatus: string | null }>();
+    await db
+      .prepare(`UPDATE sales_orders SET order_status = ? WHERE id = ?`)
+      .bind(orderStatus, row.orderId)
+      .run();
+    const event = historyEventFor(before ?? null, {
+      orderStatus,
+      paymentStatus: before?.paymentStatus ?? null,
+    });
+    if (event) {
+      await appendOrderStatusHistory(db, {
+        orderId: row.orderId,
+        orderStatus,
+        paymentStatus: before?.paymentStatus ?? null,
+        event,
+        actorEmail,
+        note: `claim ${claimId}: ${row.state} → ${to}`,
+        at: now,
+      });
+    }
+  }
+
+  return { ok: true };
+}
+
+/** Everything the /orders/:id detail page renders, in one payload. */
+export interface OrderDetail {
+  order: {
+    id: string;
+    channel: string;
+    externalOrderId: string;
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    subtotalSatang: number;
+    discountTotalSatang: number;
+    /** What we billed the customer for delivery. */
+    shippingFeeSatang: number;
+    /** What our own Flash calculator quoted at checkout — kept so the quote can be audited. */
+    shippingAutoSatang: number;
+    /** What we offered on a shared-fee order. Null means a normal order, and that is the marker. */
+    shippingOfferSatang: number | null;
+    /** What the carrier actually charged. Null until a drop-off is recorded. */
+    shippingRealSatang: number | null;
+    grandTotalSatang: number;
+    /**
+     * The stale checkout snapshot, kept for anything still reading the column. Prefer
+     * `money.profitSatang`, which accounts for shipping we absorb. Null until the order's SKUs are
+     * matched to Kira products.
+     */
+    profitSatang: number | null;
+    orderCreatedAt: number | null;
+    importedAt: number;
+    buyerUsername: string | null;
+    carrier: string | null;
+    trackingNo: string | null;
+    shipTimeMs: number | null;
+    staffNote: string | null;
+  };
+  /** Null for an order with no storefront account — imported and legacy rows have none. */
+  customer: {
+    id: string;
+    customerCode: string | null;
+    name: string | null;
+    phone: string | null;
+    tier: string | null;
+    creditScore: number | null;
+    orderCount: number;
+  } | null;
+  address: {
+    recipientName: string | null;
+    phone: string | null;
+    addressLine1: string | null;
+    subdistrict: string | null;
+    district: string | null;
+    province: string | null;
+    postalCode: string | null;
+  } | null;
+  /**
+   * The two books the detail page renders — what the customer was charged, and what we kept.
+   * Derived here rather than in the client so /orders and /orders/:id can never disagree, and
+   * derived rather than stored because the carrier's real charge arrives long after checkout.
+   */
+  money: OrderMoney;
+  lines: {
+    id: string;
+    variantId: string;
+    name: string | null;
+    /** Part brand (DENSO, Valeo…). Null when the product has none set. */
+    brand: string | null;
+    sku: string | null;
+    imageKey: string | null;
+    quantity: number;
+    unitPriceSatang: number;
+    unitCostSatang: number;
+    lineTotalSatang: number;
+  }[];
+  /** Newest first, matching the Shopee reference the owner supplied. */
+  timeline: {
+    id: string;
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    event: string;
+    actorEmail: string | null;
+    note: string | null;
+    createdAt: number;
+  }[];
+  claims: {
+    id: string;
+    kind: string;
+    state: string;
+    reasonNote: string | null;
+    resolution: string | null;
+    refundSatang: number | null;
+    mechanicName: string | null;
+    mechanicDecidedAt: number | null;
+    adminEmail: string | null;
+    adminDecidedAt: number | null;
+    carrier: string | null;
+    trackingNo: string | null;
+    createdAt: number;
+    lines: { salesOrderLineId: string; quantity: number }[];
+  }[];
+}
+
+/**
+ * The read model behind /orders/:id. AirPlus-only — Shopee orders live on /sales and return null.
+ *
+ * Deliberately several small queries rather than one join: lines, timeline and claims are all
+ * one-to-many, so a single statement would fan the order row out and every money figure would have
+ * to be de-duplicated back out afterwards.
+ */
+export async function getOrderDetail(db: D1Database, id: string): Promise<OrderDetail | null> {
+  const order = await db
+    .prepare(
+      `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
+              payment_status AS paymentStatus, subtotal_satang AS subtotalSatang,
+              discount_total_satang AS discountTotalSatang,
+              shipping_fee_satang AS shippingFeeSatang,
+              shipping_auto_satang AS shippingAutoSatang,
+              shipping_offer_satang AS shippingOfferSatang,
+              shipping_real_satang AS shippingRealSatang,
+              grand_total_satang AS grandTotalSatang,
+              profit_satang AS profitSatang, order_created_at AS orderCreatedAt,
+              imported_at AS importedAt, buyer_username AS buyerUsername, carrier,
+              tracking_no AS trackingNo, ship_time_ms AS shipTimeMs, staff_note AS staffNote,
+              storefront_customer_id AS storefrontCustomerId,
+              shipping_address_id AS shippingAddressId
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(id)
+    .first<
+      OrderDetail["order"] & {
+        storefrontCustomerId: string | null;
+        shippingAddressId: string | null;
+      }
+    >();
+  if (!order) return null;
+
+  const { storefrontCustomerId, shippingAddressId, ...orderFields } = order;
+
+  const customer = storefrontCustomerId
+    ? ((await db
+        .prepare(
+          `SELECT c.id, c.customer_code AS customerCode, c.name, c.phone, c.tier,
+                  c.credit_score AS creditScore,
+                  (SELECT COUNT(*) FROM sales_orders o
+                    WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orderCount
+           FROM storefront_customers c WHERE c.id = ?`,
+        )
+        .bind(storefrontCustomerId)
+        .first<OrderDetail["customer"]>()) ?? null)
+    : null;
+
+  const address = shippingAddressId
+    ? ((await db
+        .prepare(
+          `SELECT recipient_name AS recipientName, phone, address_line1 AS addressLine1,
+                  subdistrict, district, province, postal_code AS postalCode
+           FROM addresses WHERE id = ?`,
+        )
+        .bind(shippingAddressId)
+        .first<OrderDetail["address"]>()) ?? null)
+    : null;
+
+  const { results: lines } = await db
+    .prepare(
+      // LEFT JOIN on brands, not INNER: products.brand_id is nullable, and an inner join would drop
+      // every unbranded line — the shipping label would then go out missing an item.
+      `SELECT l.id, l.product_variant_id AS variantId, p.name, b.name AS brand, v.sku,
+              p.image_key AS imageKey,
+              l.quantity, l.unit_price_satang AS unitPriceSatang,
+              l.unit_cost_satang AS unitCostSatang, l.line_total_satang AS lineTotalSatang
+       FROM sales_order_lines l
+       LEFT JOIN product_variants v ON v.id = l.product_variant_id
+       LEFT JOIN products p ON p.id = v.product_id
+       LEFT JOIN brands b ON b.id = p.brand_id
+       WHERE l.sales_order_id = ?
+       ORDER BY l.created_at, l.id`,
+    )
+    .bind(id)
+    .all<OrderDetail["lines"][number]>();
+
+  const { results: timeline } = await db
+    .prepare(
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus, event,
+              actor_email AS actorEmail, note, created_at AS createdAt
+       FROM order_status_history WHERE order_id = ?
+       ORDER BY created_at DESC, id DESC`,
+    )
+    .bind(id)
+    .all<OrderDetail["timeline"][number]>();
+
+  const { results: claimRows } = await db
+    .prepare(
+      `SELECT id, kind, state, reason_note AS reasonNote, resolution,
+              refund_satang AS refundSatang, mechanic_name AS mechanicName,
+              mechanic_decided_at AS mechanicDecidedAt, admin_email AS adminEmail,
+              admin_decided_at AS adminDecidedAt, carrier, tracking_no AS trackingNo,
+              created_at AS createdAt
+       FROM order_claims WHERE sales_order_id = ? ORDER BY created_at DESC`,
+    )
+    .bind(id)
+    .all<Omit<OrderDetail["claims"][number], "lines">>();
+
+  const claims: OrderDetail["claims"] = [];
+  for (const c of claimRows ?? []) {
+    const { results: cl } = await db
+      .prepare(
+        `SELECT sales_order_line_id AS salesOrderLineId, quantity
+         FROM order_claim_lines WHERE claim_id = ?`,
+      )
+      .bind(c.id)
+      .all<{ salesOrderLineId: string; quantity: number }>();
+    claims.push({ ...c, lines: cl ?? [] });
+  }
+
+  return {
+    order: orderFields,
+    customer,
+    address,
+    money: orderMoney({
+      subtotalSatang: orderFields.subtotalSatang,
+      discountTotalSatang: orderFields.discountTotalSatang,
+      grandTotalSatang: orderFields.grandTotalSatang,
+      shippingChargedSatang: orderFields.shippingFeeSatang,
+      shippingRealSatang: orderFields.shippingRealSatang,
+      lines: lines ?? [],
+      storedProfitSatang: orderFields.profitSatang,
+    }),
+    lines: lines ?? [],
+    timeline: timeline ?? [],
+    claims,
+  };
+}
+
 export async function listOrders(env: Env): Promise<Response> {
   await expireUnpaidOrders(env.DB);
   const { results } = await env.DB.prepare(
@@ -2249,6 +2669,9 @@ export interface OrderRow {
   grandTotalSatang: number;
   feeTotalSatang: number;
   shippingFeeSatang: number;
+  shippingAutoSatang: number;
+  shippingOfferSatang: number | null;
+  shippingRealSatang: number | null;
   orderCreatedAt: number | null;
   importedAt: number;
   buyerUsername: string | null;
@@ -2260,6 +2683,8 @@ export interface OrderRow {
   profitSatang: number | null;
   /** Human-readable code of the linked storefront customer ("AP-…"); null for unlinked/imported orders. */
   customerCode: string | null;
+  /** The single staff note box on /orders/:id. */
+  staffNote?: string | null;
 }
 
 /** Fulfillment fields the admin may edit. A key that is present with an empty string clears (NULL). */
@@ -2268,7 +2693,23 @@ export interface OrderPatch {
   paymentStatus?: string | null;
   carrier?: string | null;
   trackingNo?: string | null;
+  /** The single staff note box on /orders/:id. Empty string clears it. */
+  staffNote?: string | null;
+  /**
+   * What the carrier actually charged, typed in from the drop-off receipt. Null clears it back to
+   * not-measured. Refused with 409 unless the order's payment has cleared — see `canRecordDropOff`.
+   */
+  shippingRealSatang?: number | null;
+  /** What we offered on a shared-fee order. Set by hand until the auto-apply rule is decided. */
+  shippingOfferSatang?: number | null;
 }
+
+/**
+ * Three outcomes, not two: the order may not exist (404), the patch may conflict with the order's
+ * own state (409 — a real carrier charge on an order nobody has paid for), or it applies.
+ */
+export type OrderUpdateResult =
+  { ok: true; order: OrderRow } | { ok: false; code: 404 | 409; reason: string };
 
 /**
  * Fulfillment edit for an AirPlus storefront order: statuses, carrier and tracking number. Only
@@ -2322,21 +2763,41 @@ export async function updateOrder(
   patch: OrderPatch,
   actorEmail: string | null = null,
   now: number = Date.now(),
-): Promise<OrderRow | null> {
+): Promise<OrderUpdateResult> {
   const row = await db
     .prepare(
       `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
               payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
-              fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
+              fee_total_satang AS feeTotalSatang, shipping_fee_satang AS shippingFeeSatang,
+              shipping_auto_satang AS shippingAutoSatang,
+              shipping_offer_satang AS shippingOfferSatang,
+              shipping_real_satang AS shippingRealSatang,
+              order_created_at AS orderCreatedAt,
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
               carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
+              staff_note AS staffNote,
               storefront_customer_id AS storefrontCustomerId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(id)
     .first<OrderRow>();
-  if (!row) return null;
+  if (!row) return { ok: false, code: 404, reason: "not found" };
+
+  // A carrier charge means a parcel was handed over, which cannot have happened before the money
+  // settled. Refusing here rather than in the route keeps the invariant next to the write, and keeps
+  // a nonsense number out of the profit figure the owner reads daily.
+  if (
+    "shippingRealSatang" in patch &&
+    patch.shippingRealSatang != null &&
+    !canRecordDropOff(normalizePaymentStatus(row.paymentStatus))
+  ) {
+    return {
+      ok: false,
+      code: 409,
+      reason: "this order has not been paid for, so no drop-off can be recorded",
+    };
+  }
 
   const norm = (v: string | null | undefined): string | null => {
     const s = typeof v === "string" ? v.trim() : "";
@@ -2347,6 +2808,9 @@ export async function updateOrder(
   if ("paymentStatus" in patch) next.paymentStatus = norm(patch.paymentStatus);
   if ("carrier" in patch) next.carrier = norm(patch.carrier);
   if ("trackingNo" in patch) next.trackingNo = norm(patch.trackingNo);
+  if ("staffNote" in patch) next.staffNote = norm(patch.staffNote);
+  if ("shippingRealSatang" in patch) next.shippingRealSatang = patch.shippingRealSatang ?? null;
+  if ("shippingOfferSatang" in patch) next.shippingOfferSatang = patch.shippingOfferSatang ?? null;
   if ("trackingNo" in patch && next.trackingNo && row.shipTimeMs == null) {
     next.shipTimeMs = Date.now();
   }
@@ -2354,10 +2818,20 @@ export async function updateOrder(
   await db
     .prepare(
       `UPDATE sales_orders SET order_status = ?, payment_status = ?, carrier = ?, tracking_no = ?,
-              ship_time_ms = ?
+              ship_time_ms = ?, staff_note = ?, shipping_real_satang = ?, shipping_offer_satang = ?
        WHERE id = ? AND channel = 'airplus'`,
     )
-    .bind(next.orderStatus, next.paymentStatus, next.carrier, next.trackingNo, next.shipTimeMs, id)
+    .bind(
+      next.orderStatus,
+      next.paymentStatus,
+      next.carrier,
+      next.trackingNo,
+      next.shipTimeMs,
+      next.staffNote ?? null,
+      next.shippingRealSatang,
+      next.shippingOfferSatang,
+      id,
+    )
     .run();
 
   // Timeline entry, but only when a status actually moved — a carrier or tracking correction is not
@@ -2388,7 +2862,7 @@ export async function updateOrder(
     await recalculateCustomerCredit(db, customerId);
   }
 
-  return next;
+  return { ok: true, order: next };
 }
 
 /**
@@ -5548,12 +6022,40 @@ const worker = {
     // tracking here. Only channel='airplus' rows are editable (updateOrder enforces that and
     // returns null → 404 for Shopee/absent orders); auth + audit are handled by the wrapper above.
     const orderById = url.pathname.match(/^\/orders\/([^/]+)$/);
+    if (orderById && request.method === "GET") {
+      const detail = await getOrderDetail(env.DB, orderById[1]!);
+      return detail ? json(detail) : json({ error: "not found" }, 404);
+    }
+
+    // Admin raises a claim on the customer's behalf (they phone or LINE in — there is no self-serve
+    // claim button on the storefront yet). 422 on a refused create: the body parsed fine, the
+    // content is what failed — a line from another order, or more units than were bought.
+    const orderClaims = url.pathname.match(/^\/orders\/([^/]+)\/claims$/);
+    if (orderClaims && request.method === "POST") {
+      const body = await readJson<ClaimCreate>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      const out = await createClaim(env.DB, orderClaims[1]!, body, userEmail);
+      return out.ok
+        ? json({ claimId: out.claimId }, 201)
+        : json({ error: out.reason ?? "refused" }, 422);
+    }
+
+    // Claim gate transitions. 409 rather than 400 on a refused move: the request was well-formed,
+    // it just conflicts with the claim's current state (a stale tab offering a button that was
+    // legal when the page loaded).
+    const claimById = url.pathname.match(/^\/claims\/([^/]+)$/);
+    if (claimById && request.method === "PATCH") {
+      const body = await readJson<{ state?: string }>(request);
+      if (!body?.state) return json({ error: "state is required" }, 400);
+      const out = await transitionClaim(env.DB, claimById[1]!, body.state, userEmail);
+      return out.ok ? json({ ok: true }) : json({ error: out.reason ?? "refused" }, 409);
+    }
     if (orderById && request.method === "PATCH") {
       const body = await readJson<OrderPatch>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
       // userEmail comes from the Access gate above, and becomes the timeline entry's actor.
-      const order = await updateOrder(env.DB, orderById[1]!, body, userEmail);
-      return order ? json({ order }) : json({ error: "not found" }, 404);
+      const out = await updateOrder(env.DB, orderById[1]!, body, userEmail);
+      return out.ok ? json({ order: out.order }) : json({ error: out.reason }, out.code);
     }
 
     // ── AirPlus merchandising admin: banners / coupons / campaigns / affiliate cards ────────────
