@@ -1,5 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  type ClaimResolution,
+  orderStatusForClaim,
+  actorFor,
+  canTransition,
+  isClaimState,
   computeSaleProfit,
   lineTaxSatang,
   partitionByClientUuid,
@@ -283,6 +288,8 @@ export function entityFromPath(pathname: string): {
   if (service) return { entityType: "service", entityId: service[1] ?? null };
   const order = pathname.match(/^\/orders\/([^/]+)/);
   if (order) return { entityType: "order", entityId: order[1] ?? null };
+  const claim = pathname.match(/^\/claims\/([^/]+)/);
+  if (claim) return { entityType: "claim", entityId: claim[1] ?? null };
   const banner = pathname.match(/^\/banners\/([^/]+)/);
   if (banner) return { entityType: "banner", entityId: banner[1] ?? null };
   const coupon = pathname.match(/^\/coupons\/([^/]+)/);
@@ -2221,6 +2228,278 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
 }
 
 /** Imported sales orders (Shopee CSV bridge), newest first. Lazily expires stale unpaid orders. */
+/**
+ * Move a claim to `to`, or refuse.
+ *
+ * The UI only offers legal moves, but the UI is not the guard — a stale tab or a hand-rolled request
+ * must not be able to jump a gate. So the transition table is re-checked here. What that buys:
+ * nothing reaches a replacement delivery without a mechanic having passed it, no mechanic verdict
+ * lands on goods that never arrived, and nothing is cancelled once we are physically holding the
+ * customer's product and owe them either a resolution or their goods back.
+ *
+ * The actor is stamped onto the fields belonging to whoever owns the move — a mechanic's verdict
+ * must never look like an admin's, because a refund traces back to who passed it.
+ */
+export async function transitionClaim(
+  db: D1Database,
+  claimId: string,
+  to: string,
+  actorEmail: string | null,
+  now: number = Date.now(),
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!isClaimState(to)) return { ok: false, reason: "unknown state" };
+
+  const row = await db
+    .prepare(
+      `SELECT id, sales_order_id AS orderId, state, resolution FROM order_claims WHERE id = ?`,
+    )
+    .bind(claimId)
+    .first<{ id: string; orderId: string; state: string; resolution: string | null }>();
+  if (!row) return { ok: false, reason: "not found" };
+  if (!isClaimState(row.state)) return { ok: false, reason: "claim is in an unreadable state" };
+  if (!canTransition(row.state, to)) return { ok: false, reason: `cannot go ${row.state} → ${to}` };
+
+  const actor = actorFor(row.state, to);
+  // Only the field belonging to this actor is touched; the other keeps whatever it already held.
+  const stamp =
+    actor === "mechanic"
+      ? `mechanic_name = ?, mechanic_decided_at = ?`
+      : `admin_email = ?, admin_decided_at = ?`;
+
+  await db
+    .prepare(`UPDATE order_claims SET state = ?, ${stamp}, updated_at = ? WHERE id = ?`)
+    .bind(to, actorEmail, now, now, claimId)
+    .run();
+
+  // Mirror onto the order so /orders reflects the claim. Null means "leave no mark" — an
+  // admin-cancelled claim shipped nothing and reached no verdict, so the order is still delivered.
+  const orderStatus = orderStatusForClaim(to, (row.resolution as ClaimResolution | null) ?? null);
+  if (orderStatus) {
+    const before = await db
+      .prepare(
+        `SELECT order_status AS orderStatus, payment_status AS paymentStatus
+                FROM sales_orders WHERE id = ?`,
+      )
+      .bind(row.orderId)
+      .first<{ orderStatus: string | null; paymentStatus: string | null }>();
+    await db
+      .prepare(`UPDATE sales_orders SET order_status = ? WHERE id = ?`)
+      .bind(orderStatus, row.orderId)
+      .run();
+    const event = historyEventFor(before ?? null, {
+      orderStatus,
+      paymentStatus: before?.paymentStatus ?? null,
+    });
+    if (event) {
+      await appendOrderStatusHistory(db, {
+        orderId: row.orderId,
+        orderStatus,
+        paymentStatus: before?.paymentStatus ?? null,
+        event,
+        actorEmail,
+        note: `claim ${claimId}: ${row.state} → ${to}`,
+        at: now,
+      });
+    }
+  }
+
+  return { ok: true };
+}
+
+/** Everything the /orders/:id detail page renders, in one payload. */
+export interface OrderDetail {
+  order: {
+    id: string;
+    channel: string;
+    externalOrderId: string;
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    subtotalSatang: number;
+    discountTotalSatang: number;
+    shippingFeeSatang: number;
+    grandTotalSatang: number;
+    /** Null until the order's SKUs are matched to Kira products. Owner-visible by choice. */
+    profitSatang: number | null;
+    orderCreatedAt: number | null;
+    importedAt: number;
+    buyerUsername: string | null;
+    carrier: string | null;
+    trackingNo: string | null;
+    shipTimeMs: number | null;
+    staffNote: string | null;
+  };
+  /** Null for an order with no storefront account — imported and legacy rows have none. */
+  customer: {
+    id: string;
+    customerCode: string | null;
+    name: string | null;
+    phone: string | null;
+    tier: string | null;
+    creditScore: number | null;
+    orderCount: number;
+  } | null;
+  address: {
+    recipientName: string | null;
+    phone: string | null;
+    addressLine1: string | null;
+    subdistrict: string | null;
+    district: string | null;
+    province: string | null;
+    postalCode: string | null;
+  } | null;
+  lines: {
+    id: string;
+    variantId: string;
+    name: string | null;
+    sku: string | null;
+    imageKey: string | null;
+    quantity: number;
+    unitPriceSatang: number;
+    unitCostSatang: number;
+    lineTotalSatang: number;
+  }[];
+  /** Newest first, matching the Shopee reference the owner supplied. */
+  timeline: {
+    id: string;
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    event: string;
+    actorEmail: string | null;
+    note: string | null;
+    createdAt: number;
+  }[];
+  claims: {
+    id: string;
+    kind: string;
+    state: string;
+    reasonNote: string | null;
+    resolution: string | null;
+    refundSatang: number | null;
+    mechanicName: string | null;
+    mechanicDecidedAt: number | null;
+    adminEmail: string | null;
+    adminDecidedAt: number | null;
+    carrier: string | null;
+    trackingNo: string | null;
+    createdAt: number;
+    lines: { salesOrderLineId: string; quantity: number }[];
+  }[];
+}
+
+/**
+ * The read model behind /orders/:id. AirPlus-only — Shopee orders live on /sales and return null.
+ *
+ * Deliberately several small queries rather than one join: lines, timeline and claims are all
+ * one-to-many, so a single statement would fan the order row out and every money figure would have
+ * to be de-duplicated back out afterwards.
+ */
+export async function getOrderDetail(db: D1Database, id: string): Promise<OrderDetail | null> {
+  const order = await db
+    .prepare(
+      `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
+              payment_status AS paymentStatus, subtotal_satang AS subtotalSatang,
+              discount_total_satang AS discountTotalSatang,
+              shipping_fee_satang AS shippingFeeSatang, grand_total_satang AS grandTotalSatang,
+              profit_satang AS profitSatang, order_created_at AS orderCreatedAt,
+              imported_at AS importedAt, buyer_username AS buyerUsername, carrier,
+              tracking_no AS trackingNo, ship_time_ms AS shipTimeMs, staff_note AS staffNote,
+              storefront_customer_id AS storefrontCustomerId,
+              shipping_address_id AS shippingAddressId
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(id)
+    .first<
+      OrderDetail["order"] & {
+        storefrontCustomerId: string | null;
+        shippingAddressId: string | null;
+      }
+    >();
+  if (!order) return null;
+
+  const { storefrontCustomerId, shippingAddressId, ...orderFields } = order;
+
+  const customer = storefrontCustomerId
+    ? ((await db
+        .prepare(
+          `SELECT c.id, c.customer_code AS customerCode, c.name, c.phone, c.tier,
+                  c.credit_score AS creditScore,
+                  (SELECT COUNT(*) FROM sales_orders o
+                    WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orderCount
+           FROM storefront_customers c WHERE c.id = ?`,
+        )
+        .bind(storefrontCustomerId)
+        .first<OrderDetail["customer"]>()) ?? null)
+    : null;
+
+  const address = shippingAddressId
+    ? ((await db
+        .prepare(
+          `SELECT recipient_name AS recipientName, phone, address_line1 AS addressLine1,
+                  subdistrict, district, province, postal_code AS postalCode
+           FROM addresses WHERE id = ?`,
+        )
+        .bind(shippingAddressId)
+        .first<OrderDetail["address"]>()) ?? null)
+    : null;
+
+  const { results: lines } = await db
+    .prepare(
+      `SELECT l.id, l.product_variant_id AS variantId, p.name, v.sku, p.image_key AS imageKey,
+              l.quantity, l.unit_price_satang AS unitPriceSatang,
+              l.unit_cost_satang AS unitCostSatang, l.line_total_satang AS lineTotalSatang
+       FROM sales_order_lines l
+       LEFT JOIN product_variants v ON v.id = l.product_variant_id
+       LEFT JOIN products p ON p.id = v.product_id
+       WHERE l.sales_order_id = ?
+       ORDER BY l.created_at, l.id`,
+    )
+    .bind(id)
+    .all<OrderDetail["lines"][number]>();
+
+  const { results: timeline } = await db
+    .prepare(
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus, event,
+              actor_email AS actorEmail, note, created_at AS createdAt
+       FROM order_status_history WHERE order_id = ?
+       ORDER BY created_at DESC, id DESC`,
+    )
+    .bind(id)
+    .all<OrderDetail["timeline"][number]>();
+
+  const { results: claimRows } = await db
+    .prepare(
+      `SELECT id, kind, state, reason_note AS reasonNote, resolution,
+              refund_satang AS refundSatang, mechanic_name AS mechanicName,
+              mechanic_decided_at AS mechanicDecidedAt, admin_email AS adminEmail,
+              admin_decided_at AS adminDecidedAt, carrier, tracking_no AS trackingNo,
+              created_at AS createdAt
+       FROM order_claims WHERE sales_order_id = ? ORDER BY created_at DESC`,
+    )
+    .bind(id)
+    .all<Omit<OrderDetail["claims"][number], "lines">>();
+
+  const claims: OrderDetail["claims"] = [];
+  for (const c of claimRows ?? []) {
+    const { results: cl } = await db
+      .prepare(
+        `SELECT sales_order_line_id AS salesOrderLineId, quantity
+         FROM order_claim_lines WHERE claim_id = ?`,
+      )
+      .bind(c.id)
+      .all<{ salesOrderLineId: string; quantity: number }>();
+    claims.push({ ...c, lines: cl ?? [] });
+  }
+
+  return {
+    order: orderFields,
+    customer,
+    address,
+    lines: lines ?? [],
+    timeline: timeline ?? [],
+    claims,
+  };
+}
+
 export async function listOrders(env: Env): Promise<Response> {
   await expireUnpaidOrders(env.DB);
   const { results } = await env.DB.prepare(
@@ -5548,6 +5827,21 @@ const worker = {
     // tracking here. Only channel='airplus' rows are editable (updateOrder enforces that and
     // returns null → 404 for Shopee/absent orders); auth + audit are handled by the wrapper above.
     const orderById = url.pathname.match(/^\/orders\/([^/]+)$/);
+    if (orderById && request.method === "GET") {
+      const detail = await getOrderDetail(env.DB, orderById[1]!);
+      return detail ? json(detail) : json({ error: "not found" }, 404);
+    }
+
+    // Claim gate transitions. 409 rather than 400 on a refused move: the request was well-formed,
+    // it just conflicts with the claim's current state (a stale tab offering a button that was
+    // legal when the page loaded).
+    const claimById = url.pathname.match(/^\/claims\/([^/]+)$/);
+    if (claimById && request.method === "PATCH") {
+      const body = await readJson<{ state?: string }>(request);
+      if (!body?.state) return json({ error: "state is required" }, 400);
+      const out = await transitionClaim(env.DB, claimById[1]!, body.state, userEmail);
+      return out.ok ? json({ ok: true }) : json({ error: out.reason ?? "refused" }, 409);
+    }
     if (orderById && request.method === "PATCH") {
       const body = await readJson<OrderPatch>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);

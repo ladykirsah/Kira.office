@@ -1,0 +1,11 @@
+-- A single free-text staff note per order, shown top-right on /orders/:id — the owner's answer to
+-- Shopee's "เพิ่มบันทึก" box (chosen over a running thread, 30 Jul 2026).
+--
+-- Deliberately a plain column and not a child table: the owner asked for ONE editable box, so the
+-- semantics are "the current note", not "the history of notes". Editing overwrites, which is the
+-- accepted trade-off — order_status_history already covers the things that must never be lost
+-- (status transitions, who approved a COD, when a parcel shipped).
+--
+-- Nullable with no default: an order without a note has no note, rather than an empty string that
+-- would make "has the owner written anything?" impossible to answer.
+ALTER TABLE `sales_orders` ADD COLUMN `staff_note` text;
