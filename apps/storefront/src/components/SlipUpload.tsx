@@ -123,10 +123,11 @@ export function SlipUpload({
           e.target.value = "";
         }}
       />
+      {/* Primary, filled. This is the action the customer came here to do — an unpaid order is
+          blocked on it, so it should not have been wearing the outlined style of a secondary. */}
       <button
         type="button"
-        className="btn btn-block"
-        style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        className="btn btn-primary btn-block"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
       >
@@ -134,7 +135,7 @@ export function SlipUpload({
           ? "กำลังอ่านสลิป…"
           : phase.kind === "submitting"
             ? "กำลังส่งสลิป…"
-            : "แนบสลิปโอนเงิน"}
+            : "แนบสลิปการโอนเงิน"}
       </button>
       {phase.kind === "error" && (
         <div
