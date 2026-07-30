@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { OPERATIONAL_STATUSES } from "@l-shopee/core";
 import {
+  operationalStatusBadge,
   saleStatusPill,
   paymentPill,
   orderStatusPill,
@@ -105,4 +107,70 @@ describe("airplusStatusBadge (Refund=gray, Cancelled=red — opposite of Shopee)
     expect(airplusStatusBadge("refund")).toEqual({ pill: "off", label: "Refund" }));
   it("cancelled > Cancelled/red", () =>
     expect(airplusStatusBadge("cancelled")).toEqual({ pill: "bad", label: "Cancelled" }));
+});
+
+describe("operationalStatusBadge (the /orders Status column)", () => {
+  /**
+   * Colour is gray by DEFAULT here, which is the opposite of the older badge helpers above. The
+   * owner's rule (30 Jul 2026): only a state that needs them to act earns a colour, because a column
+   * where everything is coloured highlights nothing. These assertions exist so a later "let's make
+   * complete green" cannot quietly undo that.
+   */
+  it("COD pending is yellow — waiting on the owner's COD decision", () =>
+    expect(operationalStatusBadge("new", "cod")).toEqual({ pill: "warn", label: "COD pending" }));
+
+  it("To ship is blue — waiting to be packed and sent", () =>
+    expect(operationalStatusBadge("confirmed", "paid")).toEqual({
+      pill: "info",
+      label: "To ship",
+    }));
+
+  it("Return is red — ตีกลับ, the parcel came back and needs handling", () =>
+    expect(operationalStatusBadge("delivery_failed", "paid")).toEqual({
+      pill: "bad",
+      label: "Return",
+    }));
+
+  it("everything else is gray, because nothing is waiting on the owner", () => {
+    expect(operationalStatusBadge("new", "pending")).toEqual({ pill: "off", label: "Unpaid" });
+    expect(operationalStatusBadge("shipped", "paid")).toEqual({ pill: "off", label: "In transit" });
+    expect(operationalStatusBadge("delivered", "paid")).toEqual({ pill: "off", label: "Complete" });
+    expect(operationalStatusBadge("cancelled", "pending")).toEqual({ pill: "off", label: "Fail" });
+    expect(operationalStatusBadge("new", "verifying")).toEqual({ pill: "off", label: "Pending" });
+    expect(operationalStatusBadge("claim_pending", "paid")).toEqual({
+      pill: "off",
+      label: "Claim pending",
+    });
+    expect(operationalStatusBadge("claimed", "refunded")).toEqual({ pill: "off", label: "Refund" });
+  });
+
+  it("exactly three of the seven are coloured", () => {
+    const coloured = OPERATIONAL_STATUSES.filter((s) => {
+      // Drive each status through a representative (orderStatus, paymentStatus) pair.
+      const pairs: Record<string, [string, string]> = {
+        unpaid: ["new", "pending"],
+        verifying: ["new", "verifying"],
+        cod_pending: ["new", "cod"],
+        cod_reject: ["new", "cod_denied"],
+        to_ship: ["confirmed", "paid"],
+        in_transit: ["shipped", "paid"],
+        complete: ["delivered", "paid"],
+        return: ["delivery_failed", "paid"],
+        claim_pending: ["claim_pending", "paid"],
+        claimed: ["claimed", "paid"],
+        refunded: ["claimed", "refunded"],
+        claim_rejected: ["claim_rejected", "paid"],
+        fail: ["cancelled", "pending"],
+      };
+      const [os, ps] = pairs[s]!;
+      return operationalStatusBadge(os, ps).pill !== "off";
+    });
+    expect([...coloured]).toEqual(["cod_pending", "to_ship", "return"]);
+  });
+
+  it("given pre-0069 Thai data > stays gray and shows the raw value rather than guessing", () =>
+    expect(operationalStatusBadge("ใหม่", "รอชำระเงิน")).toEqual({ pill: "off", label: "ใหม่" }));
+
+  it("given nothing at all > shows a dash", () =>
+    expect(operationalStatusBadge(null, null)).toEqual({ pill: "off", label: "—" }));
 });

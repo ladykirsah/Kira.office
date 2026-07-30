@@ -39,13 +39,16 @@ export async function POST(req: Request): Promise<Response> {
     const db = await getDb();
     const order = await db
       .prepare(
-        `SELECT o.id AS id, o.grand_total_satang AS grand, c.phone AS phone
+        // order_status comes along so the timeline entry below can snapshot BOTH axes truthfully
+        // rather than guessing what the fulfillment side was at the moment payment landed.
+        `SELECT o.id AS id, o.grand_total_satang AS grand, c.phone AS phone,
+                o.order_status AS orderStatus
          FROM sales_orders o
          JOIN storefront_customers c ON c.id = o.storefront_customer_id
          WHERE o.channel = 'airplus' AND o.external_order_id = ?`,
       )
       .bind(ref)
-      .first<{ id: string; grand: number; phone: string }>();
+      .first<{ id: string; grand: number; phone: string; orderStatus: string | null }>();
     // Identical response for wrong-ref and wrong-phone — never reveal someone else's order.
     if (!order || normalizePhone(order.phone) !== phone)
       return Response.json({ error: NOT_FOUND }, { status: 404 });
@@ -67,11 +70,42 @@ export async function POST(req: Request): Promise<Response> {
 
     const env = await getEnv();
     if (!slipVerificationConfigured(env)) {
-      // Manual-review mode: keep the payload for the owner, stay pending.
-      await db
-        .prepare(`UPDATE payments SET note = ? WHERE id = ?`)
-        .bind(JSON.stringify({ slipQr: qrData, submittedAt: Date.now() }), payment.id)
-        .run();
+      // Manual-review mode (this is what runs today — SlipOK is not configured). Keep the payload
+      // for the owner AND move the order to `verifying`.
+      //
+      // The order move is the important half: without it a customer who paid and uploaded a slip
+      // still read payment_status = 'pending', which is indistinguishable from never having paid —
+      // so expireUnpaidOrders (which matches new + pending) auto-cancelled them at 48h and docked
+      // their credit for it. `verifying` is outside that predicate, so the clock stops the moment
+      // the slip arrives.
+      const submittedAt = Date.now();
+      await db.batch([
+        db
+          .prepare(`UPDATE payments SET note = ? WHERE id = ?`)
+          .bind(JSON.stringify({ slipQr: qrData, submittedAt }), payment.id),
+        db
+          .prepare(
+            // Guarded so a slip re-upload cannot drag an already-confirmed order backwards. Accepts
+            // both the stored values a live row can have: 'รอชำระเงิน' before migration 0069, and
+            // 'pending' after it.
+            `UPDATE sales_orders SET payment_status = 'verifying'
+             WHERE id = ? AND channel = 'airplus' AND payment_status IN ('pending', 'รอชำระเงิน')`,
+          )
+          .bind(order.id),
+        db
+          .prepare(
+            `INSERT INTO order_status_history
+               (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+             VALUES (?, ?, ?, 'verifying', 'updated', NULL, ?, ?)`,
+          )
+          .bind(
+            crypto.randomUUID(),
+            order.id,
+            order.orderStatus,
+            "slip submitted, awaiting manual review",
+            submittedAt,
+          ),
+      ]);
       return Response.json({
         status: "received",
         message: "ได้รับสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้โดยเร็วที่สุด",
@@ -97,7 +131,24 @@ export async function POST(req: Request): Promise<Response> {
            WHERE id = ?`,
         )
         .bind(verified.ref, now, verified.note, payment.id),
-      db.prepare(`UPDATE sales_orders SET payment_status = 'ชำระแล้ว' WHERE id = ?`).bind(order.id),
+      db.prepare(`UPDATE sales_orders SET payment_status = 'paid' WHERE id = ?`).bind(order.id),
+      // Timeline entry, in the same batch as the status it describes. Like checkout, this route
+      // writes to D1 directly and never passes through the API's audit wrapper, so without this a
+      // slip-confirmed payment would leave no trace on the order page. Null actor: the customer
+      // uploaded the slip; verification was automatic.
+      db
+        .prepare(
+          `INSERT INTO order_status_history
+             (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+           VALUES (?, ?, ?, 'paid', 'paid', NULL, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          order.id,
+          order.orderStatus,
+          `confirmed by slip ${verified.ref}`,
+          now,
+        ),
     ]);
     return Response.json({ status: "confirmed", message: "ยืนยันการชำระเงินเรียบร้อยแล้ว" });
   } catch (err) {

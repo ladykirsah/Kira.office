@@ -82,7 +82,11 @@ export function SlipUpload({
       }
       const confirmed = body.status === "confirmed";
       setPhase({ kind: "done", confirmed, message: body.message ?? "ส่งสลิปเรียบร้อย" });
-      if (confirmed) onConfirmed?.();
+      // Refresh on BOTH outcomes, not just auto-confirmation. In manual-review mode (which is what
+      // runs today — SlipOK is not configured) the response is "received", and the order really did
+      // move to `verifying`. Only refreshing on "confirmed" left the timeline showing the stale
+      // ยังไม่ชำระเงิน, so a customer who had just paid was still told they had not.
+      if (confirmed || body.status === "received") onConfirmed?.();
     } catch {
       setPhase({ kind: "error", message: "ไม่สามารถเชื่อมต่อได้ กรุณาลองใหม่อีกครั้ง" });
     }
@@ -123,10 +127,11 @@ export function SlipUpload({
           e.target.value = "";
         }}
       />
+      {/* Primary, filled. This is the action the customer came here to do — an unpaid order is
+          blocked on it, so it should not have been wearing the outlined style of a secondary. */}
       <button
         type="button"
-        className="btn btn-block"
-        style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        className="btn btn-primary btn-block"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
       >
@@ -134,7 +139,7 @@ export function SlipUpload({
           ? "กำลังอ่านสลิป…"
           : phase.kind === "submitting"
             ? "กำลังส่งสลิป…"
-            : "แนบสลิปโอนเงิน"}
+            : "แนบสลิปการโอนเงิน"}
       </button>
       {phase.kind === "error" && (
         <div

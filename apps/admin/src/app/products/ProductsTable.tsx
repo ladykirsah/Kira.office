@@ -162,24 +162,25 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               </option>
             ))}
           </select>
-          <select
-            aria-label="Filter"
-            value={filterVal}
-            onChange={(e) => setFilterVal(e.target.value)}
-            disabled={!dim}
-            style={{
-              ...inputS,
-              color: filterVal ? "var(--text)" : "var(--text-faint)",
-              fontWeight: filterVal ? 500 : 400,
-            }}
-          >
-            <option value="">{dim ? `All ${dim.label.toLowerCase()}` : "Filter…"}</option>
-            {filterOptions.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
+          {dim && (
+            <select
+              aria-label="Filter"
+              value={filterVal}
+              onChange={(e) => setFilterVal(e.target.value)}
+              style={{
+                ...inputS,
+                color: filterVal ? "var(--text)" : "var(--text-faint)",
+                fontWeight: filterVal ? 500 : 400,
+              }}
+            >
+              <option value="">{`All ${dim.label.toLowerCase()}`}</option>
+              {filterOptions.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {view.length === 0 ? (

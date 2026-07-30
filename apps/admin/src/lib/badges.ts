@@ -1,6 +1,8 @@
 // Maps sale/order/payment statuses to the themed `.pill` variants in globals.css, plus a couple
 // of label helpers. Pure + unit-tested so the tables can render consistent, dark-mode-aware badges.
 
+import { operationalStatus, operationalStatusLabel } from "@l-shopee/core";
+
 export type PillClass = "good" | "warn" | "bad" | "off" | "soft" | "info";
 
 /** A completed sale is good; a refunded one is muted; anything mid-flight is amber. */
@@ -94,4 +96,80 @@ export function airplusStatusBadge(raw: string | null): { pill: PillClass; label
   if (s.includes("done") || s.includes("arrived") || s.includes("สำเร็จ"))
     return { pill: "good", label: "Done" };
   return { pill: "off", label: s || "—" };
+}
+
+/**
+ * The /orders Status column: the owner's seven operational states, not the raw order_status column.
+ * `operationalStatus` in core does the deriving (it needs BOTH axes — new+pending and new+cod are
+ * different situations with the same order_status); this only picks the colour.
+ */
+export function operationalStatusBadge(
+  orderStatus: string | null,
+  paymentStatus: string | null,
+): { pill: PillClass; label: string } {
+  const s = operationalStatus(orderStatus, paymentStatus);
+  // Colour is gray by default, on purpose (owner, 30 Jul 2026). Only three states earn a colour, and
+  // each one is a state that needs the owner to DO something: approve a COD, pack a parcel, handle a
+  // return. Colouring the rest — unpaid, in transit, complete, fail — would spend attention on
+  // states where nothing is waiting on them, and a column where everything is coloured highlights
+  // nothing. Keep this list short; add a colour only when a new state demands action.
+  if (s == null) {
+    // Unknown or pre-0069 Thai data: show the raw value rather than guess at one of the seven.
+    return { pill: "off", label: orderStatus || "—" };
+  }
+  // Exactly the three the owner named, and no more. `verifying` and `claim_pending` are also
+  // waiting-on-us states and arguably deserve a colour by the same logic, but the owner specified
+  // three, so extending the palette is their call to make, not one to assume.
+  const COLOURED: Partial<Record<typeof s, PillClass>> = {
+    cod_pending: "warn", // yellow — waiting on the owner's COD decision
+    to_ship: "info", // blue — waiting to be packed and sent
+    return: "bad", // red — ตีกลับ, the parcel came back and needs handling
+  };
+  return { pill: COLOURED[s] ?? "off", label: operationalStatusLabel(s) };
+}
+
+/** Map an English order_status constant to a pill class. */
+export function orderStatusBadge(status: string | null): { pill: PillClass; label: string } {
+  switch (status) {
+    case "new":
+      return { pill: "warn", label: "New" };
+    case "confirmed":
+      return { pill: "good", label: "Confirmed" };
+    case "packing":
+      return { pill: "good", label: "Packing" };
+    case "shipped":
+      return { pill: "info", label: "Shipped" };
+    case "delivered":
+      return { pill: "good", label: "Delivered" };
+    case "cancelled":
+      return { pill: "bad", label: "Cancelled" };
+    case "expired":
+      return { pill: "bad", label: "Expired" };
+    default:
+      return { pill: "off", label: status || "—" };
+  }
+}
+
+/** Map an English payment_status constant to a pill class. */
+export function paymentStatusBadge(status: string | null): { pill: PillClass; label: string } {
+  switch (status) {
+    case "pending":
+      return { pill: "off", label: "Pending" };
+    case "paid":
+      return { pill: "good", label: "Paid" };
+    case "cod":
+      return { pill: "soft", label: "COD" };
+    case "cod_confirmed":
+      return { pill: "good", label: "COD Approved" };
+    case "cod_collected":
+      return { pill: "good", label: "COD Collected" };
+    case "cod_denied":
+      return { pill: "bad", label: "COD Denied" };
+    case "expired":
+      return { pill: "bad", label: "Expired" };
+    case "refunded":
+      return { pill: "off", label: "Refunded" };
+    default:
+      return { pill: "off", label: status || "—" };
+  }
 }

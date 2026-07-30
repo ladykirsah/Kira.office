@@ -24,6 +24,15 @@ import {
   anonymizeStorefrontCustomer,
   retryRead,
   planHoldMovement,
+  computeCreditFromOrders,
+  computeEffectiveTier,
+  historyEventFor,
+  type OrderHistoryEvent,
+  isOrderStatus,
+  isPaymentStatus,
+  isCreditEvent,
+  EXPIRY_MS,
+  type CustomerTier,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2154,6 +2163,13 @@ export const BACKUP_TABLES = [
   "payments",
   "audit_logs",
   "customer_history_entries",
+  // The order timeline (0070). Unrecoverable if lost: it is the only record of who approved a COD
+  // or when a parcel shipped, and nothing else stores the previous value of a status.
+  "order_status_history",
+  // Claims (0071). Holds the mechanic's verdict and the refund amount — evidence for money that
+  // left the till, and there is no second copy anywhere.
+  "order_claims",
+  "order_claim_lines",
   // Hand-curated reference data the editor writes: shop settings, per-variant tax, back-office
   // users, gallery keys, the managed dropdown lists, the car-fitment taxonomy, the labour price
   // list, and the gated Shopee/T&C tables. Tiny to dump; re-typing any of it is days of work.
@@ -2204,17 +2220,21 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
   return key;
 }
 
-/** Imported sales orders (Shopee CSV bridge), newest first. */
-async function listOrders(env: Env): Promise<Response> {
+/** Imported sales orders (Shopee CSV bridge), newest first. Lazily expires stale unpaid orders. */
+export async function listOrders(env: Env): Promise<Response> {
+  await expireUnpaidOrders(env.DB);
   const { results } = await env.DB.prepare(
-    `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
-            payment_status AS paymentStatus, grand_total_satang AS grandTotalSatang,
-            fee_total_satang AS feeTotalSatang, shipping_fee_satang AS shippingFeeSatang,
-            order_created_at AS orderCreatedAt,
-            imported_at AS importedAt, buyer_username AS buyerUsername,
-            sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
-            carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
-     FROM sales_orders ORDER BY imported_at DESC LIMIT 200`,
+    `SELECT o.id, o.channel, o.external_order_id AS externalOrderId, o.order_status AS orderStatus,
+            o.payment_status AS paymentStatus, o.grand_total_satang AS grandTotalSatang,
+            o.fee_total_satang AS feeTotalSatang, o.shipping_fee_satang AS shippingFeeSatang,
+            o.order_created_at AS orderCreatedAt,
+            o.imported_at AS importedAt, o.buyer_username AS buyerUsername,
+            o.sales_satang AS salesSatang, o.fee_bp AS feeBp, o.ship_time_ms AS shipTimeMs,
+            o.carrier, o.tracking_no AS trackingNo, o.profit_satang AS profitSatang,
+            c.customer_code AS customerCode
+     FROM sales_orders o
+     LEFT JOIN storefront_customers c ON c.id = o.storefront_customer_id
+     ORDER BY o.imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });
 }
@@ -2238,6 +2258,8 @@ export interface OrderRow {
   carrier: string | null;
   trackingNo: string | null;
   profitSatang: number | null;
+  /** Human-readable code of the linked storefront customer ("AP-…"); null for unlinked/imported orders. */
+  customerCode: string | null;
 }
 
 /** Fulfillment fields the admin may edit. A key that is present with an empty string clears (NULL). */
@@ -2254,10 +2276,52 @@ export interface OrderPatch {
  * The FIRST time a tracking number is set the row's ship_time_ms is stamped (that's the operational
  * meaning of "it shipped"); later tracking corrections keep the original ship time.
  */
+/** One row of the order timeline that `/orders/:id` renders. */
+export interface OrderHistoryWrite {
+  orderId: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  event: OrderHistoryEvent;
+  /** Cloudflare Access email; null means the system did it (e.g. the 48h sweep). */
+  actorEmail: string | null;
+  note?: string | null;
+  at: number;
+}
+
+/**
+ * Append one entry to an order's timeline. Deliberately separate from writeAuditLog: that is the
+ * compliance record of every request, this is the handful of transitions a human reads on the
+ * order page. See docs/ORDERS_UX_SPEC.md §6 for why both exist.
+ */
+export async function appendOrderStatusHistory(
+  db: D1Database,
+  input: OrderHistoryWrite,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO order_status_history
+         (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      input.orderId,
+      input.orderStatus,
+      input.paymentStatus,
+      input.event,
+      input.actorEmail,
+      input.note ?? null,
+      input.at,
+    )
+    .run();
+}
+
 export async function updateOrder(
   db: D1Database,
   id: string,
   patch: OrderPatch,
+  actorEmail: string | null = null,
+  now: number = Date.now(),
 ): Promise<OrderRow | null> {
   const row = await db
     .prepare(
@@ -2266,7 +2330,8 @@ export async function updateOrder(
               fee_total_satang AS feeTotalSatang, order_created_at AS orderCreatedAt,
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
-              carrier, tracking_no AS trackingNo, profit_satang AS profitSatang
+              carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
+              storefront_customer_id AS storefrontCustomerId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(id)
@@ -2294,7 +2359,88 @@ export async function updateOrder(
     )
     .bind(next.orderStatus, next.paymentStatus, next.carrier, next.trackingNo, next.shipTimeMs, id)
     .run();
+
+  // Timeline entry, but only when a status actually moved — a carrier or tracking correction is not
+  // a timeline event, and writing one for every PATCH would bury the transitions that matter.
+  const event = historyEventFor(
+    { orderStatus: row.orderStatus, paymentStatus: row.paymentStatus },
+    { orderStatus: next.orderStatus, paymentStatus: next.paymentStatus },
+  );
+  if (event) {
+    await appendOrderStatusHistory(db, {
+      orderId: id,
+      orderStatus: next.orderStatus,
+      paymentStatus: next.paymentStatus,
+      event,
+      actorEmail,
+      at: now,
+    });
+  }
+
+  const customerId = (row as OrderRow & { storefrontCustomerId?: string | null })
+    .storefrontCustomerId;
+  if (
+    customerId &&
+    next.orderStatus &&
+    isOrderStatus(next.orderStatus) &&
+    isCreditEvent(next.orderStatus)
+  ) {
+    await recalculateCustomerCredit(db, customerId);
+  }
+
   return next;
+}
+
+/**
+ * Expire AirPlus orders still at new+pending after 48 hours. Returns the count of expired orders.
+ * Each affected customer's credit is recalculated.
+ */
+export async function expireUnpaidOrders(
+  db: D1Database,
+  now: number = Date.now(),
+): Promise<number> {
+  const cutoff = now - EXPIRY_MS;
+  const { results: stale } = await db
+    .prepare(
+      `SELECT id, storefront_customer_id AS customerId
+       FROM sales_orders
+       WHERE channel = 'airplus' AND order_status = 'new' AND payment_status = 'pending'
+         AND order_created_at <= ?`,
+    )
+    .bind(cutoff)
+    .all<{ id: string; customerId: string | null }>();
+
+  if (!stale?.length) return 0;
+
+  await db
+    .prepare(
+      `UPDATE sales_orders SET order_status = 'expired', payment_status = 'expired'
+       WHERE channel = 'airplus' AND order_status = 'new' AND payment_status = 'pending'
+         AND order_created_at <= ?`,
+    )
+    .bind(cutoff)
+    .run();
+
+  // No human triggers this, and it runs inside a GET which the audit wrapper ignores — so these
+  // rows are the only trace an expiry leaves anywhere. Null actor: the system did it.
+  for (const o of stale) {
+    await appendOrderStatusHistory(db, {
+      orderId: o.id,
+      orderStatus: "expired",
+      paymentStatus: "expired",
+      event: "expired",
+      actorEmail: null,
+      note: "auto-expired after 48h unpaid",
+      at: now,
+    });
+  }
+
+  const customerIds = new Set(stale.map((o) => o.customerId).filter(Boolean) as string[]);
+  for (const cid of customerIds) {
+    await recalculateCustomerCredit(db, cid, now);
+  }
+
+  return stale.length;
 }
 
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
@@ -2713,6 +2859,8 @@ export async function searchStorefrontCustomers(db: D1Database, q: string): Prom
     .prepare(
       `SELECT c.id, c.name, c.phone, c.email, c.status,
               c.customer_code AS customerCode,
+              c.credit_score AS creditScore,
+              c.tier,
               c.created_at AS createdAt,
               c.last_login_at AS lastLoginAt,
               c.phone_verified_at AS phoneVerifiedAt,
@@ -2748,6 +2896,11 @@ export async function getStorefrontCustomerDetail(db: D1Database, id: string): P
     .prepare(
       `SELECT c.id, c.name, c.phone, c.email, c.status,
               c.customer_code AS customerCode,
+              c.credit_score AS creditScore,
+              c.tier,
+              c.tier_locked_until AS tierLockedUntil,
+              c.tier_override AS tierOverride,
+              c.tier_override_reason AS tierOverrideReason,
               c.created_at AS createdAt,
               c.updated_at AS updatedAt,
               c.last_login_at AS lastLoginAt,
@@ -2773,6 +2926,129 @@ export async function getStorefrontCustomerDetail(db: D1Database, id: string): P
     .bind(id)
     .all();
   return { customer: customer ?? null, orders: orders.results ?? [] };
+}
+
+/**
+ * Recompute a customer's credit_score and tier from their full order history. Called automatically
+ * when an AirPlus order reaches a terminal status, and available as an explicit admin action.
+ */
+export async function recalculateCustomerCredit(
+  db: D1Database,
+  customerId: string,
+  now: number = Date.now(),
+): Promise<{ credit: number; tier: CustomerTier } | null> {
+  const customer = await db
+    .prepare(`SELECT id, tier_override, tier_locked_until FROM storefront_customers WHERE id = ?`)
+    .bind(customerId)
+    .first<{ id: string; tier_override: string | null; tier_locked_until: number | null }>();
+  if (!customer) return null;
+
+  const { results: orders } = await db
+    .prepare(
+      `SELECT order_status AS orderStatus, payment_status AS paymentStatus
+       FROM sales_orders
+       WHERE storefront_customer_id = ? AND channel = 'airplus'`,
+    )
+    .bind(customerId)
+    .all<{ orderStatus: string | null; paymentStatus: string | null }>();
+
+  const credit = computeCreditFromOrders(orders ?? []);
+
+  const DAY = 86_400_000;
+  const d90 = now - 90 * DAY;
+  const d60 = now - 60 * DAY;
+  const monthStart = new Date(now);
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const { results: loyaltyRows } = await db
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN 1 ELSE 0 END) AS earn_orders,
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS earn_spent,
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN 1 ELSE 0 END) AS hold_orders,
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS hold_spent,
+         SUM(CASE WHEN order_created_at >= ? AND (order_status = 'expired' OR (order_status = 'cancelled' AND payment_status IN ('pending','cod_denied'))) THEN 1 ELSE 0 END) AS month_incompletes
+       FROM sales_orders
+       WHERE storefront_customer_id = ? AND channel = 'airplus'`,
+    )
+    .bind(d90, d90, d60, d60, monthStart.getTime(), customerId)
+    .all<{
+      earn_orders: number;
+      earn_spent: number;
+      hold_orders: number;
+      hold_spent: number;
+      month_incompletes: number;
+    }>();
+
+  const stats = loyaltyRows?.[0] ?? {
+    earn_orders: 0,
+    earn_spent: 0,
+    hold_orders: 0,
+    hold_spent: 0,
+    month_incompletes: 0,
+  };
+
+  if (customer.tier_override === "block") {
+    await db
+      .prepare(
+        `UPDATE storefront_customers SET credit_score = ?, tier = 'block', updated_at = ? WHERE id = ?`,
+      )
+      .bind(credit, now, customerId)
+      .run();
+    return { credit, tier: "block" };
+  }
+
+  const prepaidSinceLock =
+    customer.tier_locked_until != null
+      ? ((
+          await db
+            .prepare(
+              `SELECT COUNT(*) AS n FROM sales_orders
+               WHERE storefront_customer_id = ? AND channel = 'airplus'
+                 AND order_status = 'delivered' AND payment_status = 'paid'
+                 AND order_created_at >= ?`,
+            )
+            .bind(customerId, customer.tier_locked_until)
+            .first<{ n: number }>()
+        )?.n ?? 0)
+      : 0;
+
+  const tier = computeEffectiveTier({
+    credit,
+    earn: {
+      completedOrdersInWindow: stats.earn_orders,
+      totalSpentSatangInWindow: stats.earn_spent,
+    },
+    hold: {
+      completedOrdersInWindow: stats.hold_orders,
+      totalSpentSatangInWindow: stats.hold_spent,
+    },
+    incompletesThisMonth: stats.month_incompletes,
+    adminBlocked: customer.tier_override === "block",
+    badRecovery:
+      customer.tier_locked_until != null
+        ? {
+            badLockedUntil: customer.tier_locked_until,
+            prepaidCompletionsSinceLock: prepaidSinceLock,
+            now,
+          }
+        : undefined,
+  });
+
+  const tierLockedUntil =
+    tier === "bad" && customer.tier_locked_until == null
+      ? now + 90 * DAY
+      : customer.tier_locked_until;
+
+  await db
+    .prepare(
+      `UPDATE storefront_customers SET credit_score = ?, tier = ?, tier_locked_until = ?, updated_at = ? WHERE id = ?`,
+    )
+    .bind(credit, tier, tierLockedUntil, now, customerId)
+    .run();
+
+  return { credit, tier };
 }
 
 /**
@@ -4567,6 +4843,12 @@ const worker = {
       return json(await getStorefrontCustomerDetail(env.DB, decodeURIComponent(sfGet[1]!)));
     }
 
+    const sfRecalc = url.pathname.match(/^\/storefront-customers\/([^/]+)\/recalculate-credit$/);
+    if (sfRecalc && request.method === "POST") {
+      const result = await recalculateCustomerCredit(env.DB, decodeURIComponent(sfRecalc[1]!));
+      return result ? json(result) : json({ error: "customer not found" }, 404);
+    }
+
     // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).
     if (url.pathname === "/payments" && request.method === "GET") {
       return json({
@@ -5269,7 +5551,8 @@ const worker = {
     if (orderById && request.method === "PATCH") {
       const body = await readJson<OrderPatch>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
-      const order = await updateOrder(env.DB, orderById[1]!, body);
+      // userEmail comes from the Access gate above, and becomes the timeline entry's actor.
+      const order = await updateOrder(env.DB, orderById[1]!, body, userEmail);
       return order ? json({ order }) : json({ error: "not found" }, 404);
     }
 
@@ -5589,6 +5872,9 @@ const worker = {
   ): Promise<void> {
     const key = await runDailyBackup(env, controller.scheduledTime);
     console.log(`backup: wrote ${key}`);
+
+    const expired = await expireUnpaidOrders(env.DB, controller.scheduledTime);
+    if (expired > 0) console.log(`expired ${expired} unpaid orders`);
   },
 } satisfies ExportedHandler<Env>;
 
