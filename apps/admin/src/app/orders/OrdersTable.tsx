@@ -255,7 +255,8 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
         <TabBtn id="all" label="All" />
         <TabBtn id="unpaid" label="Unpaid" />
         <TabBtn id="toship" label="To ship" />
-        <TabBtn id="shipped" label="Shipped" />
+        {/* Label matches the Status pill and the summary card; the `shipped` id stays internal. */}
+        <TabBtn id="shipped" label="In transit" />
         <TabBtn id="completed" label="Completed" />
         <TabBtn id="unfinished" label="Unfinished" />
       </div>
