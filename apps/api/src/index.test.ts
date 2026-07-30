@@ -15,6 +15,7 @@ import worker, {
   deleteGalleryImage,
   ean13CheckDigit,
   entityFromPath,
+  expireUnpaidOrders,
   getProductDetail,
   applyHoldToDb,
   setVariantPricing,
@@ -30,6 +31,7 @@ import worker, {
   listCarFitment,
   addCarModel,
   updateCarModel,
+  updateOrder,
   updateProduct,
   normalizeWarrantyDays,
   confirmPaymentWithSlip,
@@ -64,7 +66,12 @@ import worker, {
   countFitmentsUsingAttribute,
   type Env,
 } from "./index";
-import { CUSTOMER_CODE_PREFIX, generateCustomerCode, isCustomerCode } from "@l-shopee/core";
+import {
+  CUSTOMER_CODE_PREFIX,
+  generateCustomerCode,
+  isCustomerCode,
+  isOrderHistoryEvent,
+} from "@l-shopee/core";
 
 // `cloudflare:workers` is a Workers-runtime virtual module that doesn't exist under Node/vitest.
 // Stub its DurableObject base so importing the Worker (which extends it) works in tests.
@@ -4323,47 +4330,57 @@ describe("applyOnlineSaleToDb (AirPlus order stock deduction)", () => {
   });
 });
 
-describe("listOrders > storefront_customers join", () => {
-  // Run against a REAL sqlite built from the REAL migrations, not the SQL-substring mock: the thing
-  // that can break here is join semantics, and a mock that matches on `sql.includes(...)` would
-  // happily return canned rows for an INNER JOIN that silently drops every imported Shopee order.
-  const migrationsDir = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "../../../packages/db/migrations",
-  );
+// ── Real-sqlite harness ──────────────────────────────────────────────────────────────────────────
+// Some things can only be tested against a real database built from the real migrations: join
+// semantics, FK enforcement, and whether a migration's backfill actually populated anything. The
+// `makeDb` mock above matches on `sql.includes(...)` and would happily return canned rows for an
+// INNER JOIN that silently drops every imported Shopee order, so it cannot see those bugs.
 
-  /** A migrated in-memory D1: replays every migration in apply order. */
-  function migratedDb(): DatabaseSync {
-    const db = new DatabaseSync(":memory:");
-    const files = readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
-      .sort(); // zero-padded prefixes → lexical order is apply order
-    for (const file of files) db.exec(readFileSync(join(migrationsDir, file), "utf8"));
-    return db;
-  }
+const migrationsDir = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../packages/db/migrations",
+);
 
-  /** The slice of the D1 API the orders path uses: prepare → bind → all/run. */
-  function asD1(db: DatabaseSync): D1Database {
-    const make = (sql: string) => {
-      let binds: unknown[] = [];
-      const stmt = {
-        bind(...args: unknown[]) {
-          binds = args;
-          return stmt;
-        },
-        async all<T = unknown>(): Promise<{ results: T[] }> {
-          return { results: db.prepare(sql).all(...(binds as never[])) as T[] };
-        },
-        async run() {
-          return db.prepare(sql).run(...(binds as never[]));
-        },
-      };
-      return stmt;
+/** A migrated in-memory D1: replays every migration in apply order. */
+function migratedDb(): DatabaseSync {
+  const db = new DatabaseSync(":memory:");
+  const files = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort(); // zero-padded prefixes → lexical order is apply order
+  for (const file of files) db.exec(readFileSync(join(migrationsDir, file), "utf8"));
+  return db;
+}
+
+/** The slice of the D1 API the orders path uses: prepare → bind → all/run. */
+function asD1(db: DatabaseSync): D1Database {
+  const make = (sql: string) => {
+    let binds: unknown[] = [];
+    const stmt = {
+      bind(...args: unknown[]) {
+        binds = args;
+        return stmt;
+      },
+      async all<T = unknown>(): Promise<{ results: T[] }> {
+        return { results: db.prepare(sql).all(...(binds as never[])) as T[] };
+      },
+      // D1 returns null (not undefined) when a .first() matches nothing.
+      async first<T = unknown>(): Promise<T | null> {
+        return (db.prepare(sql).get(...(binds as never[])) as T | undefined) ?? null;
+      },
+      async run() {
+        return db.prepare(sql).run(...(binds as never[]));
+      },
     };
-    return { prepare: (sql: string) => make(sql) } as unknown as D1Database;
-  }
+    return stmt;
+  };
+  return { prepare: (sql: string) => make(sql) } as unknown as D1Database;
+}
 
-  const NOW = 1_760_000_000_000; // fixed clock — orders stay well inside the 48h expiry window
+/** Fixed clock — seeded orders stay well inside the 48h expiry window. */
+const SQLITE_NOW = 1_760_000_000_000;
+
+describe("listOrders > storefront_customers join", () => {
+  const NOW = SQLITE_NOW;
 
   function seed(db: DatabaseSync) {
     db.prepare(
@@ -4463,5 +4480,349 @@ describe("listOrders > storefront_customers join", () => {
   it("returns every order exactly once (the join must not fan rows out)", async () => {
     const orders = await listed();
     expect(orders.map((o) => o.id).sort()).toEqual(["ord-linked", "ord-linked-2", "ord-unlinked"]);
+  });
+});
+
+describe("migration 0070 > order_status_history", () => {
+  /**
+   * The backfill is the risky half of this migration: it writes one row per existing AirPlus order,
+   * and if its WHERE or its COALESCE is wrong the damage is silent — orders simply open with an
+   * empty or wrongly-dated timeline, which looks like "no history yet" rather than a bug. So this
+   * runs the real migration against real sqlite and checks what actually landed.
+   */
+  function seedOrders(db: DatabaseSync) {
+    const ins = db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 order_created_at, imported_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    // An AirPlus order with its own created-at.
+    ins.run("ap-1", "airplus", "AP-1", "delivered", "paid", SQLITE_NOW, SQLITE_NOW + 5_000);
+    // An AirPlus order with NO order_created_at — the backfill must fall back to imported_at.
+    ins.run("ap-2", "airplus", "AP-2", "new", "pending", null, SQLITE_NOW + 9_000);
+    // A Shopee order, which must be left alone: that channel lives on /sales.
+    ins.run("sp-1", "shopee", "SP-1", "completed", "paid", SQLITE_NOW, SQLITE_NOW);
+    // A legacy AirPlus row with null statuses — must still get a row, recorded faithfully as null.
+    ins.run("ap-legacy", "airplus", "AP-3", null, null, SQLITE_NOW, SQLITE_NOW);
+  }
+
+  /** Applies every migration EXCEPT 0070, so the backfill can be run against seeded data. */
+  function dbBefore0070(): DatabaseSync {
+    const db = new DatabaseSync(":memory:");
+    for (const f of readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql") && !f.startsWith("0070"))
+      .sort()) {
+      db.exec(readFileSync(join(migrationsDir, f), "utf8"));
+    }
+    return db;
+  }
+
+  function apply0070(db: DatabaseSync) {
+    const f = readdirSync(migrationsDir).find((n) => n.startsWith("0070"));
+    db.exec(readFileSync(join(migrationsDir, f!), "utf8"));
+  }
+
+  function backfilled() {
+    const db = dbBefore0070();
+    seedOrders(db);
+    apply0070(db);
+    return db
+      .prepare(
+        `SELECT order_id, order_status, payment_status, event, actor_email, created_at
+           FROM order_status_history ORDER BY order_id`,
+      )
+      .all() as {
+      order_id: string;
+      order_status: string | null;
+      payment_status: string | null;
+      event: string;
+      actor_email: string | null;
+      created_at: number;
+    }[];
+  }
+
+  it("creates the table on a database that already holds orders", () => {
+    expect(() => backfilled()).not.toThrow();
+  });
+
+  it("backfills exactly one row per AirPlus order and none for Shopee", () => {
+    expect(backfilled().map((r) => r.order_id)).toEqual(["ap-1", "ap-2", "ap-legacy"]);
+  });
+
+  it("snapshots the order's current statuses onto its opening row", () => {
+    const ap1 = backfilled().find((r) => r.order_id === "ap-1");
+    expect(ap1?.order_status).toBe("delivered");
+    expect(ap1?.payment_status).toBe("paid");
+  });
+
+  it("dates the row from order_created_at when it exists", () => {
+    expect(backfilled().find((r) => r.order_id === "ap-1")?.created_at).toBe(SQLITE_NOW);
+  });
+
+  it("falls back to imported_at when order_created_at is null", () => {
+    expect(backfilled().find((r) => r.order_id === "ap-2")?.created_at).toBe(SQLITE_NOW + 9_000);
+  });
+
+  it("records a legacy null-status order faithfully rather than inventing a status", () => {
+    const legacy = backfilled().find((r) => r.order_id === "ap-legacy");
+    expect(legacy).toBeDefined();
+    expect(legacy?.order_status).toBeNull();
+    expect(legacy?.payment_status).toBeNull();
+  });
+
+  it("marks backfilled rows as created with no actor, since we do not know who placed them", () => {
+    for (const r of backfilled()) {
+      expect(r.event).toBe("created");
+      expect(r.actor_email).toBeNull();
+    }
+  });
+
+  it("uses the closed event vocabulary from core", () => {
+    for (const r of backfilled()) expect(isOrderHistoryEvent(r.event)).toBe(true);
+  });
+
+  it("gives every row a distinct id", () => {
+    const db = dbBefore0070();
+    seedOrders(db);
+    apply0070(db);
+    const rows = db.prepare(`SELECT COUNT(DISTINCT id) AS n FROM order_status_history`).all() as {
+      n: number;
+    }[];
+    expect(rows[0]!.n).toBe(3);
+  });
+
+  it("enforces the order_id foreign key", () => {
+    const db = migratedDb();
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO order_status_history (id, order_id, event, created_at)
+           VALUES ('h1', 'does-not-exist', 'created', 1)`,
+        )
+        .run(),
+    ).toThrow(/FOREIGN KEY/i);
+  });
+
+  it("requires an event on every row", () => {
+    const db = dbBefore0070();
+    seedOrders(db);
+    apply0070(db);
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO order_status_history (id, order_id, event, created_at)
+           VALUES ('h2', 'ap-1', NULL, 1)`,
+        )
+        .run(),
+    ).toThrow(/NOT NULL/i);
+  });
+});
+
+describe("updateOrder > timeline", () => {
+  /**
+   * A status change has to leave a trace, and an edit that changes no status must NOT — otherwise
+   * every carrier or tracking correction becomes a timeline entry and the history the owner reads
+   * turns into noise. Both halves are asserted here against real sqlite.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded() {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 order_created_at, imported_at)
+       VALUES ('o1', 'airplus', 'AP-1', 'new', 'pending', ?, ?)`,
+    ).run(NOW, NOW);
+    // The backfill already gave it an opening row; clear it so each test reads only its own writes.
+    db.prepare(`DELETE FROM order_status_history`).run();
+    return db;
+  }
+
+  function history(db: DatabaseSync) {
+    return db
+      .prepare(
+        `SELECT order_id, order_status, payment_status, event, actor_email, created_at
+           FROM order_status_history ORDER BY created_at, event`,
+      )
+      .all() as {
+      order_id: string;
+      order_status: string | null;
+      payment_status: string | null;
+      event: string;
+      actor_email: string | null;
+      created_at: number;
+    }[];
+  }
+
+  it("given a payment change > appends one row naming the money event", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { paymentStatus: "paid" }, "staff@airplusauto.com", NOW);
+    const rows = history(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.event).toBe("paid");
+  });
+
+  it("snapshots BOTH statuses on the row, not just the one that moved", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { paymentStatus: "paid" }, "staff@airplusauto.com", NOW);
+    const [row] = history(db);
+    expect(row!.order_status).toBe("new");
+    expect(row!.payment_status).toBe("paid");
+  });
+
+  it("records the Access email of whoever made the change", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { orderStatus: "confirmed" }, "owner@airplusauto.com", NOW);
+    expect(history(db)[0]!.actor_email).toBe("owner@airplusauto.com");
+  });
+
+  it("given no actor (a system write) > records a null actor rather than failing", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { orderStatus: "confirmed" }, null, NOW);
+    expect(history(db)[0]!.actor_email).toBeNull();
+  });
+
+  it("given only a carrier edit > appends NOTHING", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { carrier: "Flash Express" }, "staff@airplusauto.com", NOW);
+    expect(history(db)).toEqual([]);
+  });
+
+  it("given only a tracking-number edit > appends NOTHING", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { trackingNo: "TH123" }, "staff@airplusauto.com", NOW);
+    expect(history(db)).toEqual([]);
+  });
+
+  it("given a status change AND a carrier edit together > appends exactly one row", async () => {
+    const db = seeded();
+    await updateOrder(
+      asD1(db),
+      "o1",
+      { orderStatus: "shipped", carrier: "Flash Express", trackingNo: "TH123" },
+      "staff@airplusauto.com",
+      NOW,
+    );
+    const rows = history(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.event).toBe("shipped");
+  });
+
+  it("stamps the row with the supplied clock", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { paymentStatus: "paid" }, null, NOW + 1234);
+    expect(history(db)[0]!.created_at).toBe(NOW + 1234);
+  });
+
+  it("accumulates one row per change across a whole order lifecycle", async () => {
+    const db = seeded();
+    const d = asD1(db);
+    await updateOrder(d, "o1", { paymentStatus: "paid" }, "s@x.com", NOW + 1);
+    await updateOrder(d, "o1", { orderStatus: "confirmed" }, "s@x.com", NOW + 2);
+    await updateOrder(d, "o1", { orderStatus: "packing" }, "s@x.com", NOW + 3);
+    await updateOrder(d, "o1", { orderStatus: "shipped", trackingNo: "TH1" }, "s@x.com", NOW + 4);
+    await updateOrder(d, "o1", { orderStatus: "delivered" }, "s@x.com", NOW + 5);
+    expect(history(db).map((r) => r.event)).toEqual([
+      "paid",
+      "confirmed",
+      "packing",
+      "shipped",
+      "delivered",
+    ]);
+  });
+
+  it("given a Shopee order > changes nothing and writes no history", async () => {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 order_created_at, imported_at)
+       VALUES ('sp1', 'shopee', 'SP-1', 'completed', 'paid', ?, ?)`,
+    ).run(NOW, NOW);
+    const out = await updateOrder(asD1(db), "sp1", { paymentStatus: "refunded" }, "s@x.com", NOW);
+    expect(out).toBeNull();
+    expect(history(db)).toEqual([]);
+  });
+});
+
+describe("expireUnpaidOrders > timeline", () => {
+  /**
+   * The 48h sweep is the one transition no human triggers, so it is the one most likely to leave the
+   * timeline silent. It runs inside listOrders — a GET — which the API's audit wrapper does not
+   * record either, making this the only trace an expiry leaves anywhere.
+   */
+  const NOW = SQLITE_NOW;
+  const OVER_48H = NOW - (48 * 60 * 60 * 1000 + 1000);
+
+  function seeded() {
+    const db = migratedDb();
+    const ins = db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 order_created_at, imported_at)
+       VALUES (?, 'airplus', ?, ?, ?, ?, ?)`,
+    );
+    ins.run("stale-1", "AP-1", "new", "pending", OVER_48H, OVER_48H);
+    ins.run("stale-2", "AP-2", "new", "pending", OVER_48H, OVER_48H);
+    ins.run("fresh", "AP-3", "new", "pending", NOW, NOW);
+    // COD is excluded from expiry by design — it is not waiting on a transfer.
+    ins.run("cod", "AP-4", "new", "cod", OVER_48H, OVER_48H);
+    db.prepare(`DELETE FROM order_status_history`).run();
+    return db;
+  }
+
+  function history(db: DatabaseSync) {
+    return db
+      .prepare(
+        `SELECT order_id, order_status, payment_status, event, actor_email, created_at
+           FROM order_status_history ORDER BY order_id`,
+      )
+      .all() as {
+      order_id: string;
+      order_status: string | null;
+      payment_status: string | null;
+      event: string;
+      actor_email: string | null;
+      created_at: number;
+    }[];
+  }
+
+  it("appends one expired entry per swept order, and none for the others", async () => {
+    const db = seeded();
+    const n = await expireUnpaidOrders(asD1(db), NOW);
+    expect(n).toBe(2);
+    expect(history(db).map((r) => r.order_id)).toEqual(["stale-1", "stale-2"]);
+  });
+
+  it("names the event expired and snapshots both axes as expired", async () => {
+    const db = seeded();
+    await expireUnpaidOrders(asD1(db), NOW);
+    for (const r of history(db)) {
+      expect(r.event).toBe("expired");
+      expect(r.order_status).toBe("expired");
+      expect(r.payment_status).toBe("expired");
+    }
+  });
+
+  it("records a null actor, because the system did it and no staff member can be blamed", async () => {
+    const db = seeded();
+    await expireUnpaidOrders(asD1(db), NOW);
+    for (const r of history(db)) expect(r.actor_email).toBeNull();
+  });
+
+  it("stamps the sweep's own clock, not the order's created-at", async () => {
+    const db = seeded();
+    await expireUnpaidOrders(asD1(db), NOW);
+    for (const r of history(db)) expect(r.created_at).toBe(NOW);
+  });
+
+  it("given nothing stale > writes no rows at all", async () => {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 order_created_at, imported_at)
+       VALUES ('fresh', 'airplus', 'AP-1', 'new', 'pending', ?, ?)`,
+    ).run(NOW, NOW);
+    db.prepare(`DELETE FROM order_status_history`).run();
+    expect(await expireUnpaidOrders(asD1(db), NOW)).toBe(0);
+    expect(history(db)).toEqual([]);
   });
 });

@@ -39,13 +39,16 @@ export async function POST(req: Request): Promise<Response> {
     const db = await getDb();
     const order = await db
       .prepare(
-        `SELECT o.id AS id, o.grand_total_satang AS grand, c.phone AS phone
+        // order_status comes along so the timeline entry below can snapshot BOTH axes truthfully
+        // rather than guessing what the fulfillment side was at the moment payment landed.
+        `SELECT o.id AS id, o.grand_total_satang AS grand, c.phone AS phone,
+                o.order_status AS orderStatus
          FROM sales_orders o
          JOIN storefront_customers c ON c.id = o.storefront_customer_id
          WHERE o.channel = 'airplus' AND o.external_order_id = ?`,
       )
       .bind(ref)
-      .first<{ id: string; grand: number; phone: string }>();
+      .first<{ id: string; grand: number; phone: string; orderStatus: string | null }>();
     // Identical response for wrong-ref and wrong-phone — never reveal someone else's order.
     if (!order || normalizePhone(order.phone) !== phone)
       return Response.json({ error: NOT_FOUND }, { status: 404 });
@@ -98,6 +101,23 @@ export async function POST(req: Request): Promise<Response> {
         )
         .bind(verified.ref, now, verified.note, payment.id),
       db.prepare(`UPDATE sales_orders SET payment_status = 'ชำระแล้ว' WHERE id = ?`).bind(order.id),
+      // Timeline entry, in the same batch as the status it describes. Like checkout, this route
+      // writes to D1 directly and never passes through the API's audit wrapper, so without this a
+      // slip-confirmed payment would leave no trace on the order page. Null actor: the customer
+      // uploaded the slip; verification was automatic.
+      db
+        .prepare(
+          `INSERT INTO order_status_history
+             (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+           VALUES (?, ?, ?, 'ชำระแล้ว', 'paid', NULL, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          order.id,
+          order.orderStatus,
+          `confirmed by slip ${verified.ref}`,
+          now,
+        ),
     ]);
     return Response.json({ status: "confirmed", message: "ยืนยันการชำระเงินเรียบร้อยแล้ว" });
   } catch (err) {

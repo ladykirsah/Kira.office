@@ -564,6 +564,24 @@ export async function POST(req: Request): Promise<Response> {
             now,
           ),
       ),
+      // Opening entry for the order timeline that admin /orders/:id renders. It goes in this batch
+      // on purpose: an order that exists with no history would render a blank timeline, and this
+      // route bypasses the API's audit wrapper entirely (it writes to D1 directly), so nothing else
+      // would record the creation. actor_email is null — the customer placed it, not a staff member.
+      db
+        .prepare(
+          `INSERT INTO order_status_history
+             (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+           VALUES (?, ?, ?, ?, 'created', NULL, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          orderId,
+          "ใหม่",
+          paymentStatus,
+          `placed via storefront checkout (${body.paymentMethod === "cod" ? "COD" : "transfer"})`,
+          now,
+        ),
     ];
     if (body.paymentMethod !== "cod") {
       statements.push(

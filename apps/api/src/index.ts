@@ -26,6 +26,8 @@ import {
   planHoldMovement,
   computeCreditFromOrders,
   computeEffectiveTier,
+  historyEventFor,
+  type OrderHistoryEvent,
   isOrderStatus,
   isPaymentStatus,
   isCreditEvent,
@@ -2161,6 +2163,9 @@ export const BACKUP_TABLES = [
   "payments",
   "audit_logs",
   "customer_history_entries",
+  // The order timeline (0070). Unrecoverable if lost: it is the only record of who approved a COD
+  // or when a parcel shipped, and nothing else stores the previous value of a status.
+  "order_status_history",
   // Hand-curated reference data the editor writes: shop settings, per-variant tax, back-office
   // users, gallery keys, the managed dropdown lists, the car-fitment taxonomy, the labour price
   // list, and the gated Shopee/T&C tables. Tiny to dump; re-typing any of it is days of work.
@@ -2267,10 +2272,52 @@ export interface OrderPatch {
  * The FIRST time a tracking number is set the row's ship_time_ms is stamped (that's the operational
  * meaning of "it shipped"); later tracking corrections keep the original ship time.
  */
+/** One row of the order timeline that `/orders/:id` renders. */
+export interface OrderHistoryWrite {
+  orderId: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+  event: OrderHistoryEvent;
+  /** Cloudflare Access email; null means the system did it (e.g. the 48h sweep). */
+  actorEmail: string | null;
+  note?: string | null;
+  at: number;
+}
+
+/**
+ * Append one entry to an order's timeline. Deliberately separate from writeAuditLog: that is the
+ * compliance record of every request, this is the handful of transitions a human reads on the
+ * order page. See docs/ORDERS_UX_SPEC.md §6 for why both exist.
+ */
+export async function appendOrderStatusHistory(
+  db: D1Database,
+  input: OrderHistoryWrite,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO order_status_history
+         (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      input.orderId,
+      input.orderStatus,
+      input.paymentStatus,
+      input.event,
+      input.actorEmail,
+      input.note ?? null,
+      input.at,
+    )
+    .run();
+}
+
 export async function updateOrder(
   db: D1Database,
   id: string,
   patch: OrderPatch,
+  actorEmail: string | null = null,
+  now: number = Date.now(),
 ): Promise<OrderRow | null> {
   const row = await db
     .prepare(
@@ -2308,6 +2355,23 @@ export async function updateOrder(
     )
     .bind(next.orderStatus, next.paymentStatus, next.carrier, next.trackingNo, next.shipTimeMs, id)
     .run();
+
+  // Timeline entry, but only when a status actually moved — a carrier or tracking correction is not
+  // a timeline event, and writing one for every PATCH would bury the transitions that matter.
+  const event = historyEventFor(
+    { orderStatus: row.orderStatus, paymentStatus: row.paymentStatus },
+    { orderStatus: next.orderStatus, paymentStatus: next.paymentStatus },
+  );
+  if (event) {
+    await appendOrderStatusHistory(db, {
+      orderId: id,
+      orderStatus: next.orderStatus,
+      paymentStatus: next.paymentStatus,
+      event,
+      actorEmail,
+      at: now,
+    });
+  }
 
   const customerId = (row as OrderRow & { storefrontCustomerId?: string | null })
     .storefrontCustomerId;
@@ -2352,6 +2416,20 @@ export async function expireUnpaidOrders(
     )
     .bind(cutoff)
     .run();
+
+  // No human triggers this, and it runs inside a GET which the audit wrapper ignores — so these
+  // rows are the only trace an expiry leaves anywhere. Null actor: the system did it.
+  for (const o of stale) {
+    await appendOrderStatusHistory(db, {
+      orderId: o.id,
+      orderStatus: "expired",
+      paymentStatus: "expired",
+      event: "expired",
+      actorEmail: null,
+      note: "auto-expired after 48h unpaid",
+      at: now,
+    });
+  }
 
   const customerIds = new Set(stale.map((o) => o.customerId).filter(Boolean) as string[]);
   for (const cid of customerIds) {
@@ -5469,7 +5547,8 @@ const worker = {
     if (orderById && request.method === "PATCH") {
       const body = await readJson<OrderPatch>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
-      const order = await updateOrder(env.DB, orderById[1]!, body);
+      // userEmail comes from the Access gate above, and becomes the timeline entry's actor.
+      const order = await updateOrder(env.DB, orderById[1]!, body, userEmail);
       return order ? json({ order }) : json({ error: "not found" }, 404);
     }
 

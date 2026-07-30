@@ -35,3 +35,4 @@ export * from "./taxonomyNames";
 export * from "./adminUrlForApiHost";
 export * from "./customerTier";
 export * from "./orderStatus";
+export * from "./orderHistory";
