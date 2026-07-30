@@ -1682,3 +1682,128 @@ export async function deleteAffiliateItem(id: string): Promise<void> {
   const res = await apiFetch(`/affiliate-items/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete item failed (HTTP ${res.status})`);
 }
+
+/** One order's full detail — the payload behind /orders/:id. Mirrors OrderDetail in apps/api. */
+export interface OrderDetail {
+  order: {
+    id: string;
+    channel: string;
+    externalOrderId: string;
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    subtotalSatang: number;
+    discountTotalSatang: number;
+    shippingFeeSatang: number;
+    grandTotalSatang: number;
+    profitSatang: number | null;
+    orderCreatedAt: number | null;
+    importedAt: number;
+    buyerUsername: string | null;
+    carrier: string | null;
+    trackingNo: string | null;
+    shipTimeMs: number | null;
+    staffNote: string | null;
+  };
+  customer: {
+    id: string;
+    customerCode: string | null;
+    name: string | null;
+    phone: string | null;
+    tier: string | null;
+    creditScore: number | null;
+    orderCount: number;
+  } | null;
+  address: {
+    recipientName: string | null;
+    phone: string | null;
+    addressLine1: string | null;
+    subdistrict: string | null;
+    district: string | null;
+    province: string | null;
+    postalCode: string | null;
+  } | null;
+  lines: {
+    id: string;
+    variantId: string;
+    name: string | null;
+    sku: string | null;
+    imageKey: string | null;
+    quantity: number;
+    unitPriceSatang: number;
+    unitCostSatang: number;
+    lineTotalSatang: number;
+  }[];
+  timeline: {
+    id: string;
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    event: string;
+    actorEmail: string | null;
+    note: string | null;
+    createdAt: number;
+  }[];
+  claims: {
+    id: string;
+    kind: string;
+    state: string;
+    reasonNote: string | null;
+    resolution: string | null;
+    refundSatang: number | null;
+    mechanicName: string | null;
+    mechanicDecidedAt: number | null;
+    adminEmail: string | null;
+    adminDecidedAt: number | null;
+    carrier: string | null;
+    trackingNo: string | null;
+    createdAt: number;
+    lines: { salesOrderLineId: string; quantity: number }[];
+  }[];
+}
+
+export async function fetchOrderDetail(id: string): Promise<OrderDetail | null> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to load order (HTTP ${res.status})`);
+  return (await res.json()) as OrderDetail;
+}
+
+export async function saveOrderStaffNote(id: string, staffNote: string): Promise<void> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ staffNote }),
+  });
+  if (!res.ok) throw new Error(`Failed to save note (HTTP ${res.status})`);
+}
+
+export async function createOrderClaim(
+  orderId: string,
+  input: {
+    kind: "wrong_item" | "defect";
+    reasonNote: string | null;
+    lines: { salesOrderLineId: string; quantity: number }[];
+  },
+): Promise<string> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(orderId)}/claims`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const body = (await res.json()) as { claimId?: string; error?: string };
+  // 422 carries the real reason (a line from another order, too many units) — surface it verbatim
+  // rather than a generic failure, because the operator can act on it.
+  if (!res.ok) throw new Error(body.error ?? `Failed to raise claim (HTTP ${res.status})`);
+  return body.claimId!;
+}
+
+export async function transitionOrderClaim(claimId: string, state: string): Promise<void> {
+  const res = await apiFetch(`/claims/${encodeURIComponent(claimId)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ state }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Failed to update claim (HTTP ${res.status})`);
+  }
+}

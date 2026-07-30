@@ -16,6 +16,11 @@ export type OrderHistoryEvent =
   | "delivered"
   | "cancelled"
   | "expired"
+  // Claim lifecycle. Present here so a raised claim or a mechanic verdict reads as itself on the
+  // timeline instead of falling through to the generic "updated".
+  | "claim_pending"
+  | "claimed"
+  | "claim_rejected"
   | "updated";
 
 export const ORDER_HISTORY_EVENTS: readonly OrderHistoryEvent[] = [
@@ -31,6 +36,9 @@ export const ORDER_HISTORY_EVENTS: readonly OrderHistoryEvent[] = [
   "delivered",
   "cancelled",
   "expired",
+  "claim_pending",
+  "claimed",
+  "claim_rejected",
   "updated",
 ];
 
@@ -49,6 +57,9 @@ const EVENT_LABELS: Record<OrderHistoryEvent, string> = {
   delivered: "ได้รับสินค้าแล้ว",
   cancelled: "ยกเลิกคำสั่งซื้อ",
   expired: "หมดเวลาชำระเงิน",
+  claim_pending: "แจ้งเคลม รอตรวจสอบ",
+  claimed: "ช่างอนุมัติการเคลม",
+  claim_rejected: "ช่างปฏิเสธการเคลม",
   updated: "อัปเดตคำสั่งซื้อ",
 };
 
@@ -83,6 +94,9 @@ const ORDER_EVENTS: Record<string, OrderHistoryEvent> = {
   delivered: "delivered",
   cancelled: "cancelled",
   expired: "expired",
+  claim_pending: "claim_pending",
+  claimed: "claimed",
+  claim_rejected: "claim_rejected",
 };
 
 /**

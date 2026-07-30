@@ -2228,6 +2228,107 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
 }
 
 /** Imported sales orders (Shopee CSV bridge), newest first. Lazily expires stale unpaid orders. */
+export interface ClaimCreate {
+  kind: string;
+  reasonNote?: string | null;
+  lines: { salesOrderLineId: string; quantity: number }[];
+}
+
+/** Order statuses a claim can be raised against — the goods must have reached the customer. */
+const CLAIMABLE_ORDER_STATUSES = new Set([
+  "delivered",
+  // A replacement can itself fail, so an order already through the claim flow stays claimable.
+  "claimed",
+  "claim_pending",
+  "claim_rejected",
+]);
+
+/**
+ * Raise a claim on the customer's behalf. The owner's flow starts with the customer making contact
+ * by phone or LINE, so the admin opens it — there is no self-serve claim button on the storefront.
+ *
+ * The validation is what stops a phone call becoming corrupt data: lines from someone else's order,
+ * more units than were ever bought, or goods the customer has not received. All-or-nothing — the
+ * claim, its lines, the order status and the timeline row go in one batch, so a rejected line
+ * cannot leave a half-built claim behind.
+ */
+export async function createClaim(
+  db: D1Database,
+  orderId: string,
+  input: ClaimCreate,
+  actorEmail: string | null,
+  now: number = Date.now(),
+): Promise<{ ok: boolean; claimId?: string; reason?: string }> {
+  if (input.kind !== "wrong_item" && input.kind !== "defect")
+    return { ok: false, reason: "kind must be wrong_item or defect" };
+  if (!Array.isArray(input.lines) || input.lines.length === 0)
+    return { ok: false, reason: "a claim must say which items it covers" };
+
+  const ids = input.lines.map((l) => l.salesOrderLineId);
+  if (new Set(ids).size !== ids.length)
+    return { ok: false, reason: "the same item is listed twice" };
+
+  const order = await db
+    .prepare(
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(orderId)
+    .first<{ id: string; orderStatus: string | null; paymentStatus: string | null }>();
+  if (!order) return { ok: false, reason: "not found" };
+  if (!order.orderStatus || !CLAIMABLE_ORDER_STATUSES.has(order.orderStatus))
+    return { ok: false, reason: "the customer has not received this order yet" };
+
+  // Every claimed line must belong to THIS order, and cannot exceed what was bought.
+  const { results: owned } = await db
+    .prepare(`SELECT id, quantity FROM sales_order_lines WHERE sales_order_id = ?`)
+    .bind(orderId)
+    .all<{ id: string; quantity: number }>();
+  const bought = new Map((owned ?? []).map((l) => [l.id, l.quantity]));
+  for (const l of input.lines) {
+    const max = bought.get(l.salesOrderLineId);
+    if (max === undefined) return { ok: false, reason: "item is not on this order" };
+    if (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > max)
+      return { ok: false, reason: `quantity for ${l.salesOrderLineId} must be 1-${max}` };
+  }
+
+  const claimId = crypto.randomUUID();
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO order_claims
+           (id, sales_order_id, kind, state, reason_note, admin_email, created_at, updated_at)
+         VALUES (?, ?, ?, 'requested', ?, ?, ?, ?)`,
+      )
+      .bind(claimId, orderId, input.kind, input.reasonNote ?? null, actorEmail, now, now),
+    ...input.lines.map((l) =>
+      db
+        .prepare(
+          `INSERT INTO order_claim_lines (id, claim_id, sales_order_line_id, quantity)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .bind(crypto.randomUUID(), claimId, l.salesOrderLineId, l.quantity),
+    ),
+    db.prepare(`UPDATE sales_orders SET order_status = 'claim_pending' WHERE id = ?`).bind(orderId),
+    db
+      .prepare(
+        `INSERT INTO order_status_history
+           (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+         VALUES (?, ?, 'claim_pending', ?, 'claim_pending', ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        orderId,
+        order.paymentStatus,
+        actorEmail,
+        `claim raised (${input.kind})`,
+        now,
+      ),
+  ];
+  await db.batch(statements);
+  return { ok: true, claimId };
+}
+
 /**
  * Move a claim to `to`, or refuse.
  *
@@ -2539,6 +2640,8 @@ export interface OrderRow {
   profitSatang: number | null;
   /** Human-readable code of the linked storefront customer ("AP-…"); null for unlinked/imported orders. */
   customerCode: string | null;
+  /** The single staff note box on /orders/:id. */
+  staffNote?: string | null;
 }
 
 /** Fulfillment fields the admin may edit. A key that is present with an empty string clears (NULL). */
@@ -2547,6 +2650,8 @@ export interface OrderPatch {
   paymentStatus?: string | null;
   carrier?: string | null;
   trackingNo?: string | null;
+  /** The single staff note box on /orders/:id. Empty string clears it. */
+  staffNote?: string | null;
 }
 
 /**
@@ -2610,6 +2715,7 @@ export async function updateOrder(
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
               carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
+              staff_note AS staffNote,
               storefront_customer_id AS storefrontCustomerId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
@@ -2626,6 +2732,7 @@ export async function updateOrder(
   if ("paymentStatus" in patch) next.paymentStatus = norm(patch.paymentStatus);
   if ("carrier" in patch) next.carrier = norm(patch.carrier);
   if ("trackingNo" in patch) next.trackingNo = norm(patch.trackingNo);
+  if ("staffNote" in patch) next.staffNote = norm(patch.staffNote);
   if ("trackingNo" in patch && next.trackingNo && row.shipTimeMs == null) {
     next.shipTimeMs = Date.now();
   }
@@ -2633,10 +2740,18 @@ export async function updateOrder(
   await db
     .prepare(
       `UPDATE sales_orders SET order_status = ?, payment_status = ?, carrier = ?, tracking_no = ?,
-              ship_time_ms = ?
+              ship_time_ms = ?, staff_note = ?
        WHERE id = ? AND channel = 'airplus'`,
     )
-    .bind(next.orderStatus, next.paymentStatus, next.carrier, next.trackingNo, next.shipTimeMs, id)
+    .bind(
+      next.orderStatus,
+      next.paymentStatus,
+      next.carrier,
+      next.trackingNo,
+      next.shipTimeMs,
+      next.staffNote ?? null,
+      id,
+    )
     .run();
 
   // Timeline entry, but only when a status actually moved — a carrier or tracking correction is not
@@ -5830,6 +5945,19 @@ const worker = {
     if (orderById && request.method === "GET") {
       const detail = await getOrderDetail(env.DB, orderById[1]!);
       return detail ? json(detail) : json({ error: "not found" }, 404);
+    }
+
+    // Admin raises a claim on the customer's behalf (they phone or LINE in — there is no self-serve
+    // claim button on the storefront yet). 422 on a refused create: the body parsed fine, the
+    // content is what failed — a line from another order, or more units than were bought.
+    const orderClaims = url.pathname.match(/^\/orders\/([^/]+)\/claims$/);
+    if (orderClaims && request.method === "POST") {
+      const body = await readJson<ClaimCreate>(request);
+      if (!body) return json({ error: "invalid JSON body" }, 400);
+      const out = await createClaim(env.DB, orderClaims[1]!, body, userEmail);
+      return out.ok
+        ? json({ claimId: out.claimId }, 201)
+        : json({ error: out.reason ?? "refused" }, 422);
     }
 
     // Claim gate transitions. 409 rather than 400 on a refused move: the request was well-formed,

@@ -219,3 +219,45 @@ describe("isOrderHistoryEvent", () => {
     }
   });
 });
+
+describe("historyEventFor > claim transitions", () => {
+  /**
+   * The claim states reached the timeline as raw strings because they were never added to the closed
+   * vocabulary — createClaim wrote 'claim_pending' directly, and a mechanic approval fell through to
+   * the generic 'updated'. Both showed the operator an untranslated token or the wrong words, which
+   * is exactly what the closed vocabulary exists to prevent.
+   */
+  it("a claim being raised is its own event", () => {
+    expect(
+      historyEventFor(
+        { orderStatus: "delivered", paymentStatus: "paid" },
+        { orderStatus: "claim_pending", paymentStatus: "paid" },
+      ),
+    ).toBe("claim_pending");
+  });
+
+  it("a mechanic approval is its own event, not a generic update", () => {
+    expect(
+      historyEventFor(
+        { orderStatus: "claim_pending", paymentStatus: "paid" },
+        { orderStatus: "claimed", paymentStatus: "paid" },
+      ),
+    ).toBe("claimed");
+  });
+
+  it("a mechanic rejection is its own event", () => {
+    expect(
+      historyEventFor(
+        { orderStatus: "claim_pending", paymentStatus: "paid" },
+        { orderStatus: "claim_rejected", paymentStatus: "paid" },
+      ),
+    ).toBe("claim_rejected");
+  });
+
+  it("every claim event has a Thai label and passes the type guard", () => {
+    for (const e of ["claim_pending", "claimed", "claim_rejected"]) {
+      expect(isOrderHistoryEvent(e)).toBe(true);
+      expect(orderHistoryEventLabel(e as OrderHistoryEvent).length).toBeGreaterThan(0);
+    }
+  });
+});

@@ -11,6 +11,7 @@ import worker, {
   archiveProduct,
   BACKUP_TABLES,
   buildCorsHeaders,
+  createClaim,
   createProduct,
   deleteGalleryImage,
   ean13CheckDigit,
@@ -4373,10 +4374,30 @@ function asD1(db: DatabaseSync): D1Database {
       async run() {
         return db.prepare(sql).run(...(binds as never[]));
       },
+      /** The bound statement, so batch() can replay it inside a transaction. */
+      __exec() {
+        return db.prepare(sql).run(...(binds as never[]));
+      },
     };
     return stmt;
   };
-  return { prepare: (sql: string) => make(sql) } as unknown as D1Database;
+  return {
+    prepare: (sql: string) => make(sql),
+    // D1's batch is atomic, and code under test relies on that — createClaim writes the claim, its
+    // lines, the order status and the timeline row together so a rejected line cannot leave a
+    // half-built claim behind. A harness that just looped would pass while hiding that.
+    async batch(stmts: { __exec: () => unknown }[]) {
+      db.exec("BEGIN");
+      try {
+        const out = stmts.map((s) => s.__exec());
+        db.exec("COMMIT");
+        return out;
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+    },
+  } as unknown as D1Database;
 }
 
 /** Fixed clock — seeded orders stay well inside the 48h expiry window. */
@@ -5246,5 +5267,285 @@ describe("transitionClaim (the claim gates, server-side)", () => {
     const db = seeded();
     const out = await transitionClaim(asD1(db), "nope", "approved", "o@x.com", NOW);
     expect(out.ok).toBe(false);
+  });
+});
+
+describe("createClaim (admin raises a claim on the customer's behalf)", () => {
+  /**
+   * The owner's flow starts with the customer making contact — by phone or LINE — so the admin
+   * raises the claim. The validation here is what stops a phone call turning into corrupt data:
+   * claiming lines from someone else's order, claiming more units than were ever bought, or
+   * claiming goods the customer has not received yet.
+   */
+  const NOW = SQLITE_NOW;
+
+  function seeded(orderStatus = "delivered") {
+    const db = migratedDb();
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','Coil',?)`).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, created_at) VALUES ('v1','p1',?), ('v2','p1',?)`,
+    ).run(NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
+       VALUES ('o1','airplus','AP-1',?,'paid',?), ('o2','airplus','AP-2','delivered','paid',?)`,
+    ).run(orderStatus, NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, line_total_satang, created_at)
+       VALUES ('l1','o1','v1',3,100000,300000,?), ('l2','o1','v2',1,50000,50000,?),
+              ('lx','o2','v1',1,100000,100000,?)`,
+    ).run(NOW, NOW, NOW);
+    return db;
+  }
+
+  const claimsIn = (db: DatabaseSync) =>
+    db.prepare(`SELECT id, kind, state FROM order_claims`).all() as {
+      id: string;
+      kind: string;
+      state: string;
+    }[];
+
+  it("creates a claim that opens at `requested`, awaiting the admin's own contact", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "คอยล์รั่ว", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "owner@airplusauto.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+    expect(claimsIn(db)[0]!.state).toBe("requested");
+    expect(claimsIn(db)[0]!.kind).toBe("defect");
+  });
+
+  it("records the claimed lines and quantities", async () => {
+    const db = seeded();
+    await createClaim(
+      asD1(db),
+      "o1",
+      {
+        kind: "wrong_item",
+        reasonNote: "ส่งผิดรุ่น",
+        lines: [
+          { salesOrderLineId: "l1", quantity: 2 },
+          { salesOrderLineId: "l2", quantity: 1 },
+        ],
+      },
+      "owner@airplusauto.com",
+      NOW,
+    );
+    const rows = db
+      .prepare(`SELECT sales_order_line_id AS l, quantity FROM order_claim_lines ORDER BY l`)
+      .all() as { l: string; quantity: number }[];
+    expect(rows).toEqual([
+      { l: "l1", quantity: 2 },
+      { l: "l2", quantity: 1 },
+    ]);
+  });
+
+  it("moves the order to claim_pending so /orders shows it", async () => {
+    const db = seeded();
+    await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    const o = db.prepare(`SELECT order_status FROM sales_orders WHERE id='o1'`).get() as {
+      order_status: string;
+    };
+    expect(o.order_status).toBe("claim_pending");
+  });
+
+  it("REFUSES a line belonging to a different order", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "lx", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+    expect(claimsIn(db)).toEqual([]);
+  });
+
+  it("REFUSES claiming more units than were bought", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 4 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+    expect(claimsIn(db)).toEqual([]);
+  });
+
+  it("allows claiming exactly the quantity bought", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 3 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+  });
+
+  it("REFUSES a claim on goods the customer has not received", async () => {
+    // Nothing has been delivered, so there is nothing to be defective or wrongly sent.
+    for (const s of ["new", "packing", "shipped"]) {
+      const db = seeded(s);
+      const out = await createClaim(
+        asD1(db),
+        "o1",
+        { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+        "o@x.com",
+        NOW,
+      );
+      expect(out.ok).toBe(false);
+      expect(claimsIn(db)).toEqual([]);
+    }
+  });
+
+  it("ALLOWS a second claim after a replacement itself fails", async () => {
+    // The owner's words: a replacement can itself fail. So `claimed` must still accept a new claim.
+    const db = seeded("claimed");
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      {
+        kind: "defect",
+        reasonNote: "อันใหม่ก็เสีย",
+        lines: [{ salesOrderLineId: "l1", quantity: 1 }],
+      },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+  });
+
+  it("REFUSES an empty line list — a claim must say what it covers", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+
+  it("REFUSES a reason that is neither a wrong item nor a defect", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "changed_mind", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+
+  it("REFUSES the same line twice in one claim", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "o1",
+      {
+        kind: "defect",
+        reasonNote: "x",
+        lines: [
+          { salesOrderLineId: "l1", quantity: 1 },
+          { salesOrderLineId: "l1", quantity: 1 },
+        ],
+      },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+
+  it("records who raised it and writes a timeline entry", async () => {
+    const db = seeded();
+    await createClaim(
+      asD1(db),
+      "o1",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "owner@airplusauto.com",
+      NOW,
+    );
+    const c = db.prepare(`SELECT admin_email FROM order_claims`).get() as { admin_email: string };
+    expect(c.admin_email).toBe("owner@airplusauto.com");
+    const h = db
+      .prepare(`SELECT COUNT(*) n FROM order_status_history WHERE order_id='o1'`)
+      .get() as { n: number };
+    expect(h.n).toBeGreaterThan(0);
+  });
+
+  it("given an order that does not exist > fails without throwing", async () => {
+    const db = seeded();
+    const out = await createClaim(
+      asD1(db),
+      "nope",
+      { kind: "defect", reasonNote: "x", lines: [{ salesOrderLineId: "l1", quantity: 1 }] },
+      "o@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(false);
+  });
+});
+
+describe("updateOrder > staff note", () => {
+  const NOW = SQLITE_NOW;
+  function seeded() {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
+       VALUES ('o1','airplus','AP-1','packing','paid',?)`,
+    ).run(NOW);
+    db.prepare(`DELETE FROM order_status_history`).run();
+    return db;
+  }
+  const noteOf = (db: DatabaseSync) =>
+    (
+      db.prepare(`SELECT staff_note FROM sales_orders WHERE id='o1'`).get() as {
+        staff_note: string | null;
+      }
+    ).staff_note;
+
+  it("saves a note", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "ลูกค้าขอเลื่อนส่ง" }, "o@x.com", NOW);
+    expect(noteOf(db)).toBe("ลูกค้าขอเลื่อนส่ง");
+  });
+
+  it("clears a note when emptied", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "x" }, "o@x.com", NOW);
+    await updateOrder(asD1(db), "o1", { staffNote: "" }, "o@x.com", NOW);
+    expect(noteOf(db)).toBeNull();
+  });
+
+  it("leaves the note alone when the patch does not mention it", async () => {
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "keep me" }, "o@x.com", NOW);
+    await updateOrder(asD1(db), "o1", { carrier: "Flash Express" }, "o@x.com", NOW);
+    expect(noteOf(db)).toBe("keep me");
+  });
+
+  it("writing a note is NOT a timeline event", async () => {
+    // A note is a scratchpad, not a state change. Logging it would bury real transitions.
+    const db = seeded();
+    await updateOrder(asD1(db), "o1", { staffNote: "just a note" }, "o@x.com", NOW);
+    const n = db.prepare(`SELECT COUNT(*) n FROM order_status_history`).get() as { n: number };
+    expect(n.n).toBe(0);
   });
 });
