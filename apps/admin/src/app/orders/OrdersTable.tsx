@@ -390,9 +390,22 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
                   return (
                     <tr key={o.id}>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        <div style={{ fontWeight: 700, ...tableText.body2 }}>
+                        {/* The order code links to the detail page, same target as the row's View
+                            action — mirrors the product-name link on the Products table. */}
+                        <a
+                          href={`/orders/${o.id}`}
+                          title={o.externalOrderId}
+                          style={{
+                            fontWeight: 700,
+                            ...tableText.body2,
+                            display: "block",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
                           {o.externalOrderId}
-                        </div>
+                        </a>
                         <div style={tableText.subtitle}>{formatDate(orderDate(o))}</div>
                       </td>
                       <td>

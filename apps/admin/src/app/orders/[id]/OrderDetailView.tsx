@@ -10,7 +10,6 @@ import {
   codApproval,
   operationalStatus,
   orderStages,
-  trackingUrl,
   type ClaimState,
   type CustomerTier,
   type OrderStage,
@@ -22,8 +21,10 @@ import {
   type OrderDetail,
   type ShopInfo,
 } from "@/lib/api";
-import { LabelActions, ShipmentSection } from "./ShipmentActions";
+import { ShipmentSection } from "./ShipmentActions";
 import { PaymentReviewSection } from "./PaymentReview";
+import { CodApprovalSection } from "./CodApproval";
+import { CopyButton } from "../../products/CopyButton";
 import { DocumentsCard } from "./documents";
 import { operationalStatusBadge } from "@/lib/badges";
 import { formatBahtTrim } from "@/lib/format";
@@ -181,13 +182,18 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
   const status = operationalStatusBadge(order.orderStatus, order.paymentStatus);
   // "Verifying" is Zone A too: a slip is waiting on a confirm/reject decision.
   const isVerifying = operationalStatus(order.orderStatus, order.paymentStatus) === "verifying";
+  // "COD pending" is Zone A: a watch-tier COD order awaits the staff approve/deny decision.
+  const isCodPending = operationalStatus(order.orderStatus, order.paymentStatus) === "cod_pending";
   /**
    * "To ship" is DERIVED, not a stored status: order_status new, confirmed and packing all read as
    * To ship once the money has cleared. Gating on the derived value is what makes the drop-off form
    * appear for all three, and disappear the moment the order becomes shipped.
    */
   const isToShip = operationalStatus(order.orderStatus, order.paymentStatus) === "to_ship";
-  const track = trackingUrl(order.carrier, order.trackingNo);
+  // Payment method, derived (no separate column): COD orders collect on delivery, everything else is
+  // a bank transfer / PromptPay slip.
+  const isCod = ["cod", "cod_confirmed", "cod_collected"].includes(order.paymentStatus ?? "");
+  const paymentMethod = isCod ? "เก็บเงินปลายทาง" : "โอนเงิน / สลิป";
 
   /**
    * The timeline as a progress stepper (owner, 31 Jul): oldest → newest, dated from history, with the
@@ -282,6 +288,8 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         />
       )}
 
+      {isCodPending && <CodApprovalSection order={order} status={status} onError={setErr} />}
+
       <div
         style={{
           display: "grid",
@@ -322,7 +330,8 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             )}
           </div>
 
-          {/* Shipping */}
+          {/* Shipping — three sections 16px apart: address, payment method, carrier. The label
+              buttons used to live here; they moved to Documents, which carries them at every stage. */}
           <div style={card}>
             <div style={sectionTitle}>Shipping</div>
             {address ? (
@@ -345,24 +354,29 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             ) : (
               <div style={tableText.subtitle}>No address on this order</div>
             )}
-            <div style={{ marginTop: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
+
+            <div style={{ marginTop: 16 }}>
+              <div style={tableText.subtitle}>Payment method</div>
+              <div style={tableText.body2}>{paymentMethod}</div>
+            </div>
+
+            <div style={{ marginTop: 16, display: "flex", gap: 24, flexWrap: "wrap" }}>
               <div>
                 <div style={tableText.subtitle}>Carrier</div>
                 <div style={tableText.body2}>{order.carrier ?? "—"}</div>
               </div>
               <div>
-                <div style={tableText.subtitle}>Tracking</div>
-                <div style={{ ...tableText.body2, fontFamily: "var(--font-mono, monospace)" }}>
-                  {/* Only ever a link once a drop-off has been recorded — the carrier issues the
-                      number at the counter, so before then there is nothing to link to. */}
-                  {track ? (
-                    <a href={track} target="_blank" rel="noreferrer noopener">
-                      {order.trackingNo}
-                    </a>
-                  ) : (
-                    (order.trackingNo ?? "—")
-                  )}
-                </div>
+                <div style={tableText.subtitle}>Tracking no.</div>
+                {order.trackingNo ? (
+                  <div
+                    style={{ ...tableText.body2, display: "flex", alignItems: "center", gap: 4 }}
+                  >
+                    {order.trackingNo}
+                    <CopyButton value={order.trackingNo} label="tracking number" />
+                  </div>
+                ) : (
+                  <div style={tableText.body2}>—</div>
+                )}
               </div>
               <div>
                 <div style={tableText.subtitle}>Shipped</div>
@@ -380,19 +394,6 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                 </div>
               </div>
             </div>
-
-            {/* The label has to stay reachable for the whole life of the order, not just while it is
-                waiting to go out — reprints happen. While it IS waiting, the buttons live in the
-                Shipment section at the top instead, so there is never a second pair on screen. */}
-            {!isToShip && (
-              <LabelActions
-                order={order}
-                address={address}
-                lines={lines}
-                shop={shop}
-                onError={setErr}
-              />
-            )}
           </div>
 
           {/* Items */}

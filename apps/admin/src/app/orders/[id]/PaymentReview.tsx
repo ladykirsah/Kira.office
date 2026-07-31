@@ -24,6 +24,7 @@ export function PaymentReviewSection({
   onError: (message: string) => void;
 }) {
   const [reason, setReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState<null | "confirm" | "reject">(null);
   const slipKey = order.slipImageKey;
 
@@ -86,37 +87,52 @@ export function PaymentReviewSection({
 
         <div style={card}>
           <div style={sectionTitle}>ผลการตรวจสอบ</div>
-          <button
-            type="button"
-            className="btn-primary btn-sm"
-            disabled={busy !== null}
-            onClick={() => void decide("confirm")}
-          >
-            {busy === "confirm" ? "กำลังยืนยัน…" : "ยืนยันการชำระเงิน"}
-          </button>
+          {/* The two choices together. Reject is a two-step: it just opens the reason box below,
+              so a slip is never rejected in one careless click. */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              disabled={busy !== null}
+              onClick={() => void decide("confirm")}
+            >
+              {busy === "confirm" ? "กำลังยืนยัน…" : "ยืนยันการชำระเงิน"}
+            </button>
+            <button
+              type="button"
+              className="btn-soft btn-sm"
+              disabled={busy !== null}
+              onClick={() => setRejecting((r) => !r)}
+            >
+              ปฏิเสธ
+            </button>
+          </div>
 
-          <div style={{ ...tableText.subtitle, marginTop: 14, marginBottom: 4 }}>
-            เหตุผลที่ปฏิเสธ (จำเป็น)
-          </div>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={2}
-            placeholder="เช่น ยอดไม่ตรง, สลิปไม่ชัด…"
-            style={{ width: "100%", ...inputS, minHeight: 52 }}
-          />
-          <button
-            type="button"
-            className="btn-soft btn-sm"
-            disabled={busy !== null || !reason.trim()}
-            onClick={() => void decide("reject")}
-            style={{ marginTop: 8 }}
-          >
-            {busy === "reject" ? "กำลังปฏิเสธ…" : "ปฏิเสธสลิป"}
-          </button>
-          <div style={{ ...tableText.subtitle, marginTop: 8 }}>
-            ปฏิเสธแล้วคำสั่งซื้อจะกลับไปที่ “รอชำระเงิน” และให้เวลาลูกค้าใหม่ 48 ชม.
-          </div>
+          {rejecting && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ ...tableText.subtitle, marginBottom: 4 }}>เหตุผลที่ปฏิเสธ (จำเป็น)</div>
+              <textarea
+                autoFocus
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                placeholder="เช่น ยอดไม่ตรง, สลิปไม่ชัด…"
+                style={{ width: "100%", ...inputS, minHeight: 52 }}
+              />
+              <button
+                type="button"
+                className="btn-danger btn-sm"
+                disabled={busy !== null || !reason.trim()}
+                onClick={() => void decide("reject")}
+                style={{ marginTop: 8 }}
+              >
+                {busy === "reject" ? "กำลังปฏิเสธ…" : "ยืนยันการปฏิเสธ"}
+              </button>
+              <div style={{ ...tableText.subtitle, marginTop: 8 }}>
+                ปฏิเสธแล้วคำสั่งซื้อจะกลับไปที่ “รอชำระเงิน” และให้เวลาลูกค้าใหม่ 48 ชม.
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

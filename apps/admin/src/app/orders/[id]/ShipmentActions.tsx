@@ -156,24 +156,6 @@ export function ShipmentSection({ order, address, lines, shop, status, onError }
 }
 
 /**
- * Label export with no drop-off form — for an order that has already shipped. Lives inside the
- * Shipping card so the label stays reachable at any point in the order's life, which is the whole
- * reason this is a separate export.
- */
-export function LabelActions({ order, address, lines, shop, onError }: ShipmentProps) {
-  const { labelRef, busyFile, saveFile } = useLabelExport(order.externalOrderId, onError);
-
-  return (
-    <div style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
-      <LabelButtons busyFile={busyFile} saveFile={saveFile} />
-      <div style={{ position: "absolute", left: -99999, top: 0 }} aria-hidden="true">
-        <ShippingLabel ref={labelRef} order={order} address={address} lines={lines} shop={shop} />
-      </div>
-    </div>
-  );
-}
-
-/**
  * The shipping-label row for the Documents section: View (preview in a modal) + Save (PDF). The label
  * is generated, not stored, so it is always available. An off-screen copy is always mounted so Save
  * captures a laid-out node whether or not the preview is open (html2canvas can't rasterise a hidden
