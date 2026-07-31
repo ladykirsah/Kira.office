@@ -10,6 +10,7 @@ import {
 } from "@l-shopee/core";
 import { SlipUpload } from "@/components/SlipUpload";
 import { CodRejectedActions } from "@/components/CodRejectedActions";
+import { RefundRequest } from "@/components/RefundRequest";
 import { baht, formatDateTime, normalizePhone } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
@@ -38,6 +39,14 @@ interface LookupResult {
   carrier: string | null;
   trackingNo: string | null;
   customerName: string | null;
+  /** Bounced-order refund state — a boolean (never the account itself) + the refunded timestamp. */
+  hasRefundBank: boolean;
+  refundedAt: number | null;
+  /** Per-stage timestamps (from history) — each stage's date/time first subtitle line. */
+  paidAt: number | null;
+  bouncedAt: number | null;
+  deliveredAt: number | null;
+  cancelledAt: number | null;
   lines: LookupLine[];
 }
 
@@ -45,7 +54,12 @@ type StepState = "done" | "current" | "pending";
 
 interface Step {
   title: string;
+  /** Date/time for this stage — the default FIRST subtitle line (null = no date to show). */
+  at: number | null;
+  /** The stage's detail — the line under the date. */
   detail: string | null;
+  /** Carrier + tracking number, rendered "carrier · number" with a copy control on the number. */
+  tracking: { carrier: string | null; trackingNo: string } | null;
   state: StepState;
 }
 
@@ -67,70 +81,191 @@ function buildSteps(o: LookupResult): Step[] {
   const bounced = ord === "delivery_failed";
   const cancelled = ord === "cancelled" || ord === "expired";
 
-  const shipDetail = shipped
-    ? [
-        [o.carrier, o.trackingNo].filter(Boolean).join(" · ") || null,
-        o.shipTimeMs ? formatDateTime(o.shipTimeMs) : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : null;
-
-  return [
-    {
-      title: "สั่งซื้อแล้ว",
-      detail: o.createdAt ? formatDateTime(o.createdAt) : null,
-      state: "done",
-    },
-    isCod
-      ? { title: "ชำระเงิน", detail: "เก็บเงินปลายทาง (จ่ายตอนรับของ)", state: "done" }
-      : isAwaitingPayment
-        ? { title: "ชำระเงิน", detail: "ยังไม่ชำระเงิน", state: "current" }
-        : isVerifying
-          ? // The slip is in and we are checking it. Previously this state did not exist, so a
-            // customer who had paid saw "ยังไม่ชำระเงิน" and was chased for money they had sent.
-            { title: "ชำระเงิน", detail: "กำลังตรวจสอบการชำระเงิน", state: "current" }
-          : {
-              title: "ชำระเงิน",
-              // Only claim paid when the status actually says so. The old fallback treated ANY
-              // unrecognised value as paid and showed it in green, so an English constant after
-              // migration 0069 would have told an unpaid customer they were settled.
-              detail: pay ? paymentStatusLabel(pay) : null,
-              // Only `paid` reaches here as settled — every COD variant was caught by isCod above.
-              state: pay === "paid" ? "done" : "pending",
-            },
-    shipped
-      ? { title: "จัดส่ง", detail: shipDetail, state: "done" }
-      : cancelled
-        ? { title: "จัดส่ง", detail: null, state: "pending" }
-        : preparing
-          ? { title: "จัดส่ง", detail: "กำลังเตรียมจัดส่ง", state: "current" }
-          : { title: "จัดส่ง", detail: "รอจัดส่ง", state: "pending" },
-    cancelled || bounced
-      ? {
-          title: refunded ? "คืนเงินแล้ว" : bounced ? "ตีกลับ" : "ยกเลิกคำสั่งซื้อ",
-          // Show the Thai label for the state, never the raw column — that used to leak the stored
-          // value straight to the customer, which after 0069 would have been an English token.
-          detail: ord ? orderStatusLabel(ord) : null,
-          state: "done",
-        }
-      : completed
-        ? { title: "สำเร็จ", detail: "ได้รับสินค้าเรียบร้อย", state: "done" }
-        : { title: "สำเร็จ", detail: null, state: "pending" },
+  const steps: Step[] = [
+    { title: "สั่งซื้อแล้ว", at: o.createdAt, detail: null, tracking: null, state: "done" },
   ];
+
+  // ── payment. A PASSED stage stays BLACK even after a later refund (the refund shows in the bounce
+  //    stage); only a genuinely unpaid / verifying order is current, and nothing else is grey. ──
+  if (isCod) {
+    steps.push({
+      title: "ชำระเงิน",
+      at: null,
+      detail: "เก็บเงินปลายทาง (จ่ายตอนรับของ)",
+      tracking: null,
+      state: "done",
+    });
+  } else if (isAwaitingPayment) {
+    steps.push({
+      title: "ชำระเงิน",
+      at: null,
+      detail: "ยังไม่ชำระเงิน",
+      tracking: null,
+      state: "current",
+    });
+  } else if (isVerifying) {
+    // The slip is in and we are checking it — a paid customer must never read "ยังไม่ชำระเงิน".
+    steps.push({
+      title: "ชำระเงิน",
+      at: null,
+      detail: "กำลังตรวจสอบการชำระเงิน",
+      tracking: null,
+      state: "current",
+    });
+  } else if (pay === "paid" || refunded) {
+    steps.push({
+      title: "ชำระเงิน",
+      at: o.paidAt,
+      detail: "ชำระแล้ว",
+      tracking: null,
+      state: "done",
+    });
+  } else {
+    // Only claim paid when the status says so — an unrecognised value is not "settled".
+    steps.push({
+      title: "ชำระเงิน",
+      at: null,
+      detail: pay ? paymentStatusLabel(pay) : null,
+      tracking: null,
+      state: "pending",
+    });
+  }
+
+  // ── shipping. Date on line 1; "carrier · tracking" (tracking copiable) on line 2. ──
+  if (shipped) {
+    steps.push({
+      title: "จัดส่ง",
+      at: o.shipTimeMs,
+      detail: o.trackingNo ? null : o.carrier,
+      tracking: o.trackingNo ? { carrier: o.carrier, trackingNo: o.trackingNo } : null,
+      state: "done",
+    });
+  } else if (cancelled) {
+    steps.push({ title: "จัดส่ง", at: null, detail: null, tracking: null, state: "pending" });
+  } else if (preparing) {
+    steps.push({
+      title: "จัดส่ง",
+      at: null,
+      detail: "กำลังเตรียมจัดส่ง",
+      tracking: null,
+      state: "current",
+    });
+  } else {
+    steps.push({ title: "จัดส่ง", at: null, detail: "รอจัดส่ง", tracking: null, state: "pending" });
+  }
+
+  // ── outcome ──
+  if (bounced) {
+    // The bounce IS the stage; the refund progresses in its subtitle. Red while we still owe the
+    // customer money, black once it has been paid back.
+    const progress = refunded
+      ? "คืนเงินแล้ว"
+      : o.hasRefundBank
+        ? "รอรับเงินใน 2–3 วันทำการ"
+        : "รอลูกค้าส่งเลขบัญชี";
+    steps.push({
+      title: "ตีกลับ",
+      at: o.bouncedAt,
+      detail: progress,
+      tracking: null,
+      state: refunded ? "done" : "current",
+    });
+  } else if (cancelled) {
+    steps.push({
+      title: "ยกเลิกคำสั่งซื้อ",
+      at: o.cancelledAt,
+      detail: ord ? orderStatusLabel(ord) : null,
+      tracking: null,
+      state: "done",
+    });
+  } else if (completed) {
+    steps.push({
+      title: "สำเร็จ",
+      at: o.deliveredAt,
+      detail: "ได้รับสินค้าเรียบร้อย",
+      tracking: null,
+      state: "done",
+    });
+  } else {
+    steps.push({ title: "สำเร็จ", at: null, detail: null, tracking: null, state: "pending" });
+  }
+
+  return steps;
+}
+
+/** A copy control for a tracking number — an icon that briefly ticks when the number is copied. */
+function CopyIconButton({ text }: { text: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label="คัดลอกเลขพัสดุ"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setOk(true);
+          setTimeout(() => setOk(false), 1200);
+        } catch {
+          /* clipboard may be blocked; the number is still on screen to copy by hand */
+        }
+      }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        background: "none",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        color: ok ? "var(--ok)" : "var(--text-muted)",
+      }}
+    >
+      {ok ? (
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      ) : (
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 function TimelineStep({ step, last }: { step: Step; last: boolean }) {
-  // The owner's rule (30 Jul 2026): gray = not happened yet, RED = the stage we are on now,
-  // BLACK = already passed. Nothing overrides it — a single rule read straight down the timeline is
-  // what makes "where am I" answerable at a glance, and a fourth colour anywhere breaks that.
-  // --text rather than a literal black so it inverts correctly in dark mode.
+  // The owner's rule (30 Jul 2026): gray = not happened yet, RED = the stage we are on now, BLACK =
+  // already passed. One rule read straight down the timeline is what makes "where am I" answerable at
+  // a glance. --text (not literal black) so it inverts correctly in dark mode.
   const dotColor =
     step.state === "done"
       ? "var(--text)"
       : step.state === "current"
         ? "var(--accent)"
         : "var(--border)";
+  // Subtitles match the dot: the current stage is signalled in ONE colour, not gold under a red dot.
+  const subColor = step.state === "current" ? "var(--accent)" : "var(--text-muted)";
+  const sub = { fontSize: 13, marginTop: 2, color: subColor } as const;
   return (
     <div style={{ display: "flex", gap: 14 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -151,23 +286,19 @@ function TimelineStep({ step, last }: { step: Step; last: boolean }) {
       <div style={{ paddingBottom: last ? 2 : 22 }}>
         <div
           className="t-h4"
-          style={{
-            color: step.state === "pending" ? "var(--text-muted)" : "var(--text)",
-          }}
+          style={{ color: step.state === "pending" ? "var(--text-muted)" : "var(--text)" }}
         >
           {step.title}
         </div>
-        {step.detail && (
-          <div
-            style={{
-              fontSize: 13,
-              marginTop: 2,
-              // Matches the dot: the current stage is signalled in ONE colour, not gold text under
-              // a red dot. Revert this line alone if the detail should stay neutral.
-              color: step.state === "current" ? "var(--accent)" : "var(--text-muted)",
-            }}
-          >
-            {step.detail}
+        {/* Date/time is the default first subtitle line for every stage that has one. */}
+        {step.at != null && <div style={sub}>{formatDateTime(step.at)}</div>}
+        {step.detail && <div style={sub}>{step.detail}</div>}
+        {step.tracking && (
+          <div style={{ ...sub, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span>
+              {[step.tracking.carrier, step.tracking.trackingNo].filter(Boolean).join(" · ")}
+            </span>
+            <CopyIconButton text={step.tracking.trackingNo} />
           </div>
         )}
       </div>
@@ -413,6 +544,17 @@ function OrdersContent() {
               <CodRejectedActions
                 orderRef={result.ref}
                 phone={phoneInput}
+                onChanged={() => void lookup(result.ref, phoneInput)}
+              />
+            )}
+            {/* A bounced parcel we were paid for: submit a bank account → wait → see the refund slip.
+                The component picks its state (form / waiting / refunded evidence) from the props. */}
+            {normalizeOrderStatus(result.orderStatus) === "delivery_failed" && (
+              <RefundRequest
+                orderRef={result.ref}
+                phone={phoneInput}
+                hasBank={result.hasRefundBank}
+                refunded={normalizePaymentStatus(result.paymentStatus) === "refunded"}
                 onChanged={() => void lookup(result.ref, phoneInput)}
               />
             )}
