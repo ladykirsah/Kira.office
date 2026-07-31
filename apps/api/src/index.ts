@@ -42,6 +42,9 @@ import {
   type OrderMoney,
   classifyRefundAction,
   type RefundAction,
+  viewerRole,
+  canReviewClaim,
+  type ViewerRole,
   canRecordDropOff,
   normalizePaymentStatus,
   privateFileAccess,
@@ -69,6 +72,12 @@ export interface Env {
    * users table + roles land, this is the `owner` role. Serve slips to no one else — they are bank PII.
    */
   SUPER_ADMIN_EMAILS?: string;
+  /**
+   * Comma/space-separated emails for the MECHANIC role — reviews defect claims (approve/reject) but
+   * NOT payments/COD. Same lightweight email-list pattern as SUPER_ADMIN_EMAILS; the fuller per-staff
+   * RBAC (users table) is a later phase. Unset ⇒ no mechanics (claims stay super-admin-only in prod).
+   */
+  MECHANIC_EMAILS?: string;
   /** Comma-separated browser origins allowed to call this API with credentials (admin UI). */
   ALLOWED_CORS_ORIGINS?: string;
 }
@@ -2361,6 +2370,7 @@ export async function transitionClaim(
   to: string,
   actorEmail: string | null,
   now: number = Date.now(),
+  opts: { note?: string | null; assignee?: string | null } = {},
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!isClaimState(to)) return { ok: false, reason: "unknown state" };
 
@@ -2381,14 +2391,32 @@ export async function transitionClaim(
       ? `mechanic_name = ?, mechanic_decided_at = ?`
       : `admin_email = ?, admin_decided_at = ?`;
 
+  // The rejecting reviewer's reason (shown to the customer) lands on admin_note; the "who's in charge"
+  // pick lands on assignee_name. Each is written only when supplied, so a plain transition never
+  // clears a reason or an assignee set earlier.
+  const sets = [`state = ?`, stamp, `updated_at = ?`];
+  const binds: unknown[] = [to, actorEmail, now, now];
+  if (opts.note != null) {
+    sets.push(`admin_note = ?`);
+    binds.push(opts.note);
+  }
+  if (opts.assignee != null) {
+    sets.push(`assignee_name = ?`);
+    binds.push(opts.assignee);
+  }
+  binds.push(claimId);
   await db
-    .prepare(`UPDATE order_claims SET state = ?, ${stamp}, updated_at = ? WHERE id = ?`)
-    .bind(to, actorEmail, now, now, claimId)
+    .prepare(`UPDATE order_claims SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds)
     .run();
 
-  // Mirror onto the order so /orders reflects the claim. Null means "leave no mark" — an
-  // admin-cancelled claim shipped nothing and reached no verdict, so the order is still delivered.
-  const orderStatus = orderStatusForClaim(to, (row.resolution as ClaimResolution | null) ?? null);
+  // Mirror onto the order so /orders reflects the claim. A rejected (cancelled) claim returns the
+  // order to `delivered`: raising the claim moved it to claim_pending, and orderStatusForClaim yields
+  // null for cancelled — so without this the order would stick on "Claim pending" after a rejection.
+  const orderStatus =
+    to === "cancelled"
+      ? "delivered"
+      : orderStatusForClaim(to, (row.resolution as ClaimResolution | null) ?? null);
   if (orderStatus) {
     const before = await db
       .prepare(
@@ -2529,6 +2557,10 @@ export interface OrderDetail {
     mechanicDecidedAt: number | null;
     adminEmail: string | null;
     adminDecidedAt: number | null;
+    /** The rejecting reviewer's reason (admin_note), shown to the customer on a rejected claim. */
+    adminNote: string | null;
+    /** Who is in charge of this claim (assignee_name), picked from the mechanic list. */
+    assigneeName: string | null;
     carrier: string | null;
     trackingNo: string | null;
     createdAt: number;
@@ -2656,7 +2688,8 @@ export async function getOrderDetail(
       `SELECT id, kind, state, reason_note AS reasonNote, resolution,
               refund_satang AS refundSatang, mechanic_name AS mechanicName,
               mechanic_decided_at AS mechanicDecidedAt, admin_email AS adminEmail,
-              admin_decided_at AS adminDecidedAt, carrier, tracking_no AS trackingNo,
+              admin_decided_at AS adminDecidedAt, admin_note AS adminNote,
+              assignee_name AS assigneeName, carrier, tracking_no AS trackingNo,
               created_at AS createdAt, photo_keys AS photoKeys
        FROM order_claims WHERE sales_order_id = ? ORDER BY created_at DESC`,
     )
@@ -6330,7 +6363,18 @@ const worker = {
         detail.order.refundAccountNo = null;
         detail.order.refundAccountName = null;
       }
-      return json({ ...detail, viewerIsSuperAdmin });
+      // The viewer's role gates the Zone-A actions client-side (claim = super-admin + mechanic;
+      // payment/COD = super-admin + admin); the mechanic list populates the claim assignee dropdown.
+      const role: ViewerRole = viewerRole(userEmail, {
+        superAdminEmails: env.SUPER_ADMIN_EMAILS,
+        mechanicEmails: env.MECHANIC_EMAILS,
+        accessConfigured: !!env.ACCESS_AUD,
+      });
+      const mechanics = (env.MECHANIC_EMAILS ?? "")
+        .split(/[,\s]+/)
+        .map((m) => m.trim())
+        .filter(Boolean);
+      return json({ ...detail, viewerIsSuperAdmin, viewerRole: role, mechanics });
     }
 
     // Confirm or reject a slip awaiting review (verifying). Any admin may decide; 409 if the order is
@@ -6394,9 +6438,20 @@ const worker = {
     // legal when the page loaded).
     const claimById = url.pathname.match(/^\/claims\/([^/]+)$/);
     if (claimById && request.method === "PATCH") {
-      const body = await readJson<{ state?: string }>(request);
+      // Claims are the mechanic's and super-admin's call — never a plain admin's.
+      const role = viewerRole(userEmail, {
+        superAdminEmails: env.SUPER_ADMIN_EMAILS,
+        mechanicEmails: env.MECHANIC_EMAILS,
+        accessConfigured: !!env.ACCESS_AUD,
+      });
+      if (!canReviewClaim(role))
+        return json({ error: "claims are handled by a mechanic or super-admin" }, 403);
+      const body = await readJson<{ state?: string; reason?: string; assignee?: string }>(request);
       if (!body?.state) return json({ error: "state is required" }, 400);
-      const out = await transitionClaim(env.DB, claimById[1]!, body.state, userEmail);
+      const out = await transitionClaim(env.DB, claimById[1]!, body.state, userEmail, Date.now(), {
+        note: typeof body.reason === "string" ? body.reason.trim() || null : null,
+        assignee: typeof body.assignee === "string" ? body.assignee.trim() || null : null,
+      });
       return out.ok ? json({ ok: true }) : json({ error: out.reason ?? "refused" }, 409);
     }
     if (orderById && request.method === "PATCH") {

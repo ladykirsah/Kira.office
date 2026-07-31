@@ -47,3 +47,41 @@ export function privateFileAccess(key: string, ctx: AccessContext): PrivateFileA
   if (/^slip\//.test(key)) return isSuperAdmin(ctx.email, ctx) ? "ok" : "forbidden";
   return "not_allowed";
 }
+
+/**
+ * The three back-office roles for Zone-A gating, resolved from email lists — the SAME lightweight
+ * pattern as `isSuperAdmin`, NOT the dormant users-table AppRole system. Distinct because the actions
+ * split by who does the work: a mechanic assesses a defect claim; a mechanic does NOT approve payments.
+ *
+ *   super_admin — SUPER_ADMIN_EMAILS. Sees everything.
+ *   mechanic    — MECHANIC_EMAILS. Reviews claims; NOT payments/COD.
+ *   admin       — every other Access-authenticated back-office user. Reviews payments/COD; NOT claims.
+ *
+ * Local dev (Access off) resolves to super_admin so a developer can exercise every Zone-A block.
+ */
+export type ViewerRole = "super_admin" | "mechanic" | "admin";
+
+export interface RoleContext {
+  superAdminEmails?: string | null;
+  /** Comma/space-separated mechanic emails (env.MECHANIC_EMAILS). */
+  mechanicEmails?: string | null;
+  accessConfigured: boolean;
+}
+
+export function viewerRole(email: string | null, ctx: RoleContext): ViewerRole {
+  if (!ctx.accessConfigured) return "super_admin"; // local dev: Access off ⇒ full access
+  const e = (email ?? "").trim().toLowerCase();
+  if (e && parseEmails(ctx.superAdminEmails).has(e)) return "super_admin"; // super wins over mechanic
+  if (e && parseEmails(ctx.mechanicEmails).has(e)) return "mechanic";
+  return "admin";
+}
+
+/** Claim approve/reject — the mechanic's call, and the super-admin's. Never a plain admin. */
+export function canReviewClaim(role: ViewerRole): boolean {
+  return role === "super_admin" || role === "mechanic";
+}
+
+/** Payment-slip + COD approval — super-admin and admin, but never a mechanic. */
+export function canReviewPayment(role: ViewerRole): boolean {
+  return role === "super_admin" || role === "admin";
+}
