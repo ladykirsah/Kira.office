@@ -1857,6 +1857,25 @@ export async function reviewOrderPayment(
   }
 }
 
+/**
+ * Staff decision on a COD order awaiting approval (watch-tier — best/good auto-approve at checkout).
+ * Approve settles it as cod_confirmed (→ To ship); deny marks it cod_denied (→ the customer changes
+ * payment or cancels). Reuses PATCH /orders/:id, which writes the cod_approved / cod_denied timeline
+ * entry.
+ */
+export async function decideCod(id: string, decision: "approve" | "deny"): Promise<void> {
+  const paymentStatus = decision === "approve" ? "cod_confirmed" : "cod_denied";
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ paymentStatus }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `COD decision failed (HTTP ${res.status})`);
+  }
+}
+
 /** Set the shipping fee we offered on a shared-fee order. Null clears it back to a normal order. */
 export async function saveOrderShippingOffer(
   id: string,

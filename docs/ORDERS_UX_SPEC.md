@@ -112,8 +112,8 @@ rule "red = active only").
 | --- | --- | --- |
 | `to_ship` | Shipment: Save label + Record drop-off (inline) | **built** |
 | `unpaid` | Await / record payment | to design |
-| `verifying` | Review the slip → confirm / reject | to design (slip stored; see gating below) |
-| `cod_pending` | Approve / deny COD → dedicated page (§3.3, §4) | to design |
+| `verifying` | Review the slip → confirm / reject (two-step reject, required reason) | **built** |
+| `cod_pending` | Approve / deny COD — inline block, one click each (watch-tier staff decision) | **built** |
 | `cod_reject` | Re-offer prepaid or cancel | to design |
 | `in_transit` | Tracking + mark delivered / report a problem | to design |
 | `return` | Handle the bounced parcel: re-ship or refund | to design |
