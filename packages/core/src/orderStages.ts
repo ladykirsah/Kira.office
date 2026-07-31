@@ -104,14 +104,20 @@ export function orderStages(
     : isCod
       ? "อนุมัติเก็บเงินปลายทาง"
       : "ชำระเงินแล้ว";
-  const payAt = atOf(isCod ? "cod_approved" : "paid") ?? atOf("paid");
-  // COD approval note: auto-approved (best/good tier) says so; a staff approval names the approver.
+  const payAt =
+    op === "cod_reject"
+      ? atOf("cod_denied")
+      : (atOf(isCod ? "cod_approved" : "paid") ?? atOf("paid"));
+  // Note (third line): a rejected COD waits on the customer to re-choose; an approved COD says who
+  // approved it (auto for best/good tier, or the staff approver).
   const payNote =
-    isCod && !paymentPending
-      ? opts.codAutoApproved
-        ? "อนุมัติอัตโนมัติ"
-        : `อนุมัติโดย ${APPROVER}`
-      : undefined;
+    op === "cod_reject"
+      ? "รอลูกค้าตรวจสอบ"
+      : isCod && !paymentPending
+        ? opts.codAutoApproved
+          ? "อนุมัติอัตโนมัติ"
+          : `อนุมัติโดย ${APPROVER}`
+        : undefined;
   add("payment", payLabel, paymentPending ? "current" : "done", payAt, payNote);
 
   if (paymentPending) {

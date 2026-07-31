@@ -82,6 +82,17 @@ describe("orderStages", () => {
     expect(pay?.note).toBeUndefined();
   });
 
+  it("COD rejected > current, dated from the denial, waiting on the customer", () => {
+    const s = orderStages("new", "cod_denied", [{ event: "cod_denied", at: 5000 }]);
+    const pay = s.find((x) => x.key === "payment");
+    expect(pay).toMatchObject({
+      label: "ปฏิเสธเก็บเงินปลายทาง",
+      state: "current",
+      at: 5000,
+      note: "รอลูกค้าตรวจสอบ",
+    });
+  });
+
   it("unpaid > payment is current and the rest are upcoming", () => {
     const s = orderStages("new", "pending");
     expect(current(s)?.label).toBe("รอชำระเงิน");
