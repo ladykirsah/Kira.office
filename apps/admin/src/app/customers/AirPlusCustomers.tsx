@@ -118,8 +118,11 @@ function Detail({
 
   return (
     <main>
-      <BackLink onClick={onBack}>All AirPlus customers</BackLink>
-      <PageHeader title={c.name || "(no name yet)"} subtitle={c.phone} />
+      <PageHeader
+        title={c.name || "(no name yet)"}
+        subtitle={c.phone}
+        below={<BackLink onClick={onBack}>All AirPlus customers</BackLink>}
+      />
 
       <div style={{ ...frame, marginBottom: 16 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>

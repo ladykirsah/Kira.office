@@ -19,16 +19,20 @@ const NOT_FOUND = "ไม่พบคำสั่งซื้อ กรุณา
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    let raw: unknown;
+    // multipart now, not JSON: the slip IMAGE is kept as evidence (owner, 31 Jul), so the request
+    // carries the file alongside the QR text the client already decoded. The image is optional — a
+    // decode-only client, or a missing R2 binding, still verifies exactly as before.
+    let form: FormData;
     try {
-      raw = await req.json();
+      form = await req.formData();
     } catch {
       return Response.json({ error: "คำขอไม่ถูกต้อง" }, { status: 400 });
     }
-    const b = (raw ?? {}) as Record<string, unknown>;
-    const ref = typeof b.ref === "string" ? b.ref.trim().toUpperCase() : "";
-    const phone = normalizePhone(typeof b.phone === "string" ? b.phone : "");
-    const qrData = typeof b.qrData === "string" ? b.qrData.trim() : "";
+    const str = (k: string) => (typeof form.get(k) === "string" ? (form.get(k) as string) : "");
+    const ref = str("ref").trim().toUpperCase();
+    const phone = normalizePhone(str("phone"));
+    const qrData = str("qrData").trim();
+    const slipFile = form.get("slip");
     if (!ref || !phone) return Response.json({ error: NOT_FOUND }, { status: 404 });
     if (!looksLikeSlipQr(qrData))
       return Response.json(
@@ -69,6 +73,28 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: "คำสั่งซื้อนี้ยืนยันการชำระเงินแล้ว" }, { status: 409 });
 
     const env = await getEnv();
+
+    // Keep the uploaded slip as back-office evidence. Namespace `slip/` is served super-admin-only
+    // via apps/api's private /file route — a bank slip is financial PII, never public. Best-effort:
+    // if there is no image or no bucket binding, verification below is unaffected. A dedicated,
+    // unconditional UPDATE records the key so a re-upload after `verifying` still refreshes it.
+    let slipImageKey: string | null = null;
+    if (env.IMAGES && slipFile instanceof File && slipFile.size > 0) {
+      slipImageKey = `slip/${order.id}/${crypto.randomUUID()}.jpg`;
+      await env.IMAGES.put(slipImageKey, await slipFile.arrayBuffer(), {
+        httpMetadata: { contentType: slipFile.type || "image/jpeg" },
+      });
+    }
+    const recordSlipKey = slipImageKey
+      ? [
+          db
+            .prepare(
+              `UPDATE sales_orders SET slip_image_key = ? WHERE id = ? AND channel = 'airplus'`,
+            )
+            .bind(slipImageKey, order.id),
+        ]
+      : [];
+
     if (!slipVerificationConfigured(env)) {
       // Manual-review mode (this is what runs today — SlipOK is not configured). Keep the payload
       // for the owner AND move the order to `verifying`.
@@ -105,6 +131,7 @@ export async function POST(req: Request): Promise<Response> {
             "slip submitted, awaiting manual review",
             submittedAt,
           ),
+        ...recordSlipKey,
       ]);
       return Response.json({
         status: "received",
@@ -149,6 +176,7 @@ export async function POST(req: Request): Promise<Response> {
           `confirmed by slip ${verified.ref}`,
           now,
         ),
+      ...recordSlipKey,
     ]);
     return Response.json({ status: "confirmed", message: "ยืนยันการชำระเงินเรียบร้อยแล้ว" });
   } catch (err) {

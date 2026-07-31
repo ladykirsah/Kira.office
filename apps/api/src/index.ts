@@ -42,6 +42,8 @@ import {
   type OrderMoney,
   canRecordDropOff,
   normalizePaymentStatus,
+  privateFileAccess,
+  isSuperAdmin,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -59,6 +61,12 @@ export interface Env {
   /** SlipOK slip-verification credentials — set both to enable Payment auto-confirm. */
   SLIPOK_API_KEY?: string;
   SLIPOK_BRANCH_ID?: string;
+  /**
+   * Comma/space-separated emails allowed to view payment-slip evidence (super-admin). Checked against
+   * the Access-verified email. Unset + Access on ⇒ nobody; Access off (local dev) ⇒ everyone. Until a
+   * users table + roles land, this is the `owner` role. Serve slips to no one else — they are bank PII.
+   */
+  SUPER_ADMIN_EMAILS?: string;
   /** Comma-separated browser origins allowed to call this API with credentials (admin UI). */
   ALLOWED_CORS_ORIGINS?: string;
 }
@@ -2443,6 +2451,8 @@ export interface OrderDetail {
     trackingNo: string | null;
     shipTimeMs: number | null;
     staffNote: string | null;
+    /** R2 key of the customer's uploaded bank slip (namespace `slip/`), or null. Super-admin-only. */
+    slipImageKey: string | null;
   };
   /** Null for an order with no storefront account — imported and legacy rows have none. */
   customer: {
@@ -2506,8 +2516,26 @@ export interface OrderDetail {
     carrier: string | null;
     trackingNo: string | null;
     createdAt: number;
+    /** R2 keys of the claim's evidence photos (namespace `claim/`), served via GET /file/:key. */
+    photoKeys: string[];
     lines: { salesOrderLineId: string; quantity: number }[];
   }[];
+}
+
+/**
+ * order_claims.photo_keys is a JSON array of R2 keys (or null). Parse defensively: a malformed value
+ * must never break the whole order read — an unreadable evidence list just shows as no photos.
+ */
+function parsePhotoKeys(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v)
+      ? v.filter((k): k is string => typeof k === "string" && k.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -2531,6 +2559,7 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
               profit_satang AS profitSatang, order_created_at AS orderCreatedAt,
               imported_at AS importedAt, buyer_username AS buyerUsername, carrier,
               tracking_no AS trackingNo, ship_time_ms AS shipTimeMs, staff_note AS staffNote,
+              slip_image_key AS slipImageKey,
               storefront_customer_id AS storefrontCustomerId,
               shipping_address_id AS shippingAddressId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
@@ -2604,11 +2633,13 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
               refund_satang AS refundSatang, mechanic_name AS mechanicName,
               mechanic_decided_at AS mechanicDecidedAt, admin_email AS adminEmail,
               admin_decided_at AS adminDecidedAt, carrier, tracking_no AS trackingNo,
-              created_at AS createdAt
+              created_at AS createdAt, photo_keys AS photoKeys
        FROM order_claims WHERE sales_order_id = ? ORDER BY created_at DESC`,
     )
     .bind(id)
-    .all<Omit<OrderDetail["claims"][number], "lines">>();
+    .all<
+      Omit<OrderDetail["claims"][number], "lines" | "photoKeys"> & { photoKeys: string | null }
+    >();
 
   const claims: OrderDetail["claims"] = [];
   for (const c of claimRows ?? []) {
@@ -2619,7 +2650,8 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
       )
       .bind(c.id)
       .all<{ salesOrderLineId: string; quantity: number }>();
-    claims.push({ ...c, lines: cl ?? [] });
+    const { photoKeys: rawPhotoKeys, ...rest } = c;
+    claims.push({ ...rest, photoKeys: parsePhotoKeys(rawPhotoKeys), lines: cl ?? [] });
   }
 
   return {
@@ -2865,6 +2897,77 @@ export async function updateOrder(
   return { ok: true, order: next };
 }
 
+export type ReviewPaymentResult =
+  { ok: true; paymentStatus: string } | { ok: false; code: 400 | 404 | 409; reason: string };
+
+/**
+ * Confirm or reject a bank-transfer slip that is awaiting review (`verifying`). The DECISION is open
+ * to any admin; seeing the slip image is gated separately (super-admin, via /file). Confirm settles
+ * the order (→ paid, so it becomes To ship); reject sends it back to pending with a FRESH 48h window
+ * and a mandatory reason on the timeline, so the customer can re-pay or the shop can cancel.
+ */
+export async function reviewOrderPayment(
+  db: D1Database,
+  id: string,
+  decision: "confirm" | "reject",
+  reason: string | null,
+  actorEmail: string | null = null,
+  now: number = Date.now(),
+): Promise<ReviewPaymentResult> {
+  const order = await db
+    .prepare(
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(id)
+    .first<{ id: string; orderStatus: string | null; paymentStatus: string | null }>();
+  if (!order) return { ok: false, code: 404, reason: "not found" };
+  // Only a slip actually awaiting review can be decided here — never re-open a settled order.
+  if (order.paymentStatus !== "verifying")
+    return { ok: false, code: 409, reason: "this order is not awaiting slip review" };
+
+  if (decision === "reject") {
+    const note = (reason ?? "").trim();
+    if (!note) return { ok: false, code: 400, reason: "a reason is required to reject a slip" };
+    await db
+      .prepare(
+        `UPDATE sales_orders SET payment_status = 'pending', payment_expires_at = ? WHERE id = ?`,
+      )
+      .bind(now + EXPIRY_MS, id)
+      .run();
+    await appendOrderStatusHistory(db, {
+      orderId: id,
+      orderStatus: order.orderStatus,
+      paymentStatus: "pending",
+      event: "updated",
+      actorEmail,
+      note: `สลิปถูกปฏิเสธ: ${note}`,
+      at: now,
+    });
+    return { ok: true, paymentStatus: "pending" };
+  }
+
+  // confirm — settle the order and mark any pending payment row confirmed, so the ledger agrees.
+  await db.prepare(`UPDATE sales_orders SET payment_status = 'paid' WHERE id = ?`).bind(id).run();
+  await db
+    .prepare(
+      `UPDATE payments SET status = 'confirmed', confirmed_at = ?
+       WHERE sales_order_id = ? AND status != 'confirmed'`,
+    )
+    .bind(now, id)
+    .run();
+  await appendOrderStatusHistory(db, {
+    orderId: id,
+    orderStatus: order.orderStatus,
+    paymentStatus: "paid",
+    event: "paid",
+    actorEmail,
+    note: "slip confirmed by admin",
+    at: now,
+  });
+  return { ok: true, paymentStatus: "paid" };
+}
+
 /**
  * Expire AirPlus orders still at new+pending after 48 hours. Returns the count of expired orders.
  * Each affected customer's credit is recalculated.
@@ -2873,15 +2976,17 @@ export async function expireUnpaidOrders(
   db: D1Database,
   now: number = Date.now(),
 ): Promise<number> {
-  const cutoff = now - EXPIRY_MS;
+  // The deadline is payment_expires_at when set (a slip rejection restarts the window from the
+  // moment of rejection), else the original order_created_at + 48h. COALESCE keeps every existing
+  // order — which has a null window — expiring exactly as before.
   const { results: stale } = await db
     .prepare(
       `SELECT id, storefront_customer_id AS customerId
        FROM sales_orders
        WHERE channel = 'airplus' AND order_status = 'new' AND payment_status = 'pending'
-         AND order_created_at <= ?`,
+         AND COALESCE(payment_expires_at, order_created_at + ?) <= ?`,
     )
-    .bind(cutoff)
+    .bind(EXPIRY_MS, now)
     .all<{ id: string; customerId: string | null }>();
 
   if (!stale?.length) return 0;
@@ -2890,9 +2995,9 @@ export async function expireUnpaidOrders(
     .prepare(
       `UPDATE sales_orders SET order_status = 'expired', payment_status = 'expired'
        WHERE channel = 'airplus' AND order_status = 'new' AND payment_status = 'pending'
-         AND order_created_at <= ?`,
+         AND COALESCE(payment_expires_at, order_created_at + ?) <= ?`,
     )
-    .bind(cutoff)
+    .bind(EXPIRY_MS, now)
     .run();
 
   // No human triggers this, and it runs inside a GET which the audit wrapper ignores — so these
@@ -6000,6 +6105,32 @@ const worker = {
       });
     }
 
+    // Private order evidence — NOT /img (which is auth-exempt): this route ran through requireAccess
+    // above. Claim photos are readable by any admin; a payment slip is super-admin-only (bank PII).
+    // The namespace allow-list means a guessed key can never reach a product image or a backup.
+    if (url.pathname.startsWith("/file/") && request.method === "GET") {
+      const key = decodeURIComponent(url.pathname.slice("/file/".length));
+      const verdict = privateFileAccess(key, {
+        email: userEmail,
+        superAdminEmails: env.SUPER_ADMIN_EMAILS,
+        accessConfigured: !!env.ACCESS_AUD,
+      });
+      if (verdict === "not_allowed")
+        return new Response("Not found", { status: 404, headers: responseHeaders });
+      if (verdict === "forbidden")
+        return new Response("Forbidden", { status: 403, headers: responseHeaders });
+      const obj = await retryRead(() => env.IMAGES.get(key));
+      if (!obj) return new Response("Not found", { status: 404, headers: responseHeaders });
+      return new Response(obj.body, {
+        headers: {
+          ...responseHeaders,
+          "content-type": obj.httpMetadata?.contentType ?? "application/octet-stream",
+          // Private: never let a shared cache hold a customer's bank slip.
+          "cache-control": "private, no-store",
+        },
+      });
+    }
+
     if (url.pathname === "/products" && request.method === "POST") {
       const body = await readJson<Partial<CreateProductInput>>(request);
       if (!body?.productRef || !body?.name) {
@@ -6024,7 +6155,34 @@ const worker = {
     const orderById = url.pathname.match(/^\/orders\/([^/]+)$/);
     if (orderById && request.method === "GET") {
       const detail = await getOrderDetail(env.DB, orderById[1]!);
-      return detail ? json(detail) : json({ error: "not found" }, 404);
+      if (!detail) return json({ error: "not found" }, 404);
+      // The page needs to know whether THIS viewer may see slip images (super-admin), to gate the
+      // slip preview + Documents actions. The decision itself (confirm/reject) is open to any admin.
+      const viewerIsSuperAdmin = isSuperAdmin(userEmail, {
+        superAdminEmails: env.SUPER_ADMIN_EMAILS,
+        accessConfigured: !!env.ACCESS_AUD,
+      });
+      return json({ ...detail, viewerIsSuperAdmin });
+    }
+
+    // Confirm or reject a slip awaiting review (verifying). Any admin may decide; 409 if the order is
+    // not awaiting review, 400 if a reject omits its required reason.
+    const orderReview = url.pathname.match(/^\/orders\/([^/]+)\/review-payment$/);
+    if (orderReview && request.method === "POST") {
+      const body = await readJson<{ decision?: string; reason?: string }>(request);
+      const decision = body?.decision;
+      if (decision !== "confirm" && decision !== "reject")
+        return json({ error: "decision must be 'confirm' or 'reject'" }, 400);
+      const out = await reviewOrderPayment(
+        env.DB,
+        orderReview[1]!,
+        decision,
+        body?.reason ?? null,
+        userEmail,
+      );
+      return out.ok
+        ? json({ ok: true, paymentStatus: out.paymentStatus })
+        : json({ error: out.reason }, out.code);
     }
 
     // Admin raises a claim on the customer's behalf (they phone or LINE in — there is no self-serve
