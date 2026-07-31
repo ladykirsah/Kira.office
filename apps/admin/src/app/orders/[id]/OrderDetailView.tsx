@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   CLAIM_STATES,
   claimStateLabel,
   isClaimState,
   nextClaimStates,
   actorFor,
-  orderHistoryEventLabel,
-  isOrderHistoryEvent,
+  codApproval,
   operationalStatus,
+  orderStages,
   trackingUrl,
   type ClaimState,
+  type CustomerTier,
+  type OrderStage,
 } from "@l-shopee/core";
 import {
   createOrderClaim,
@@ -22,11 +23,14 @@ import {
   type ShopInfo,
 } from "@/lib/api";
 import { LabelActions, ShipmentSection } from "./ShipmentActions";
+import { PaymentReviewSection } from "./PaymentReview";
+import { DocumentsCard } from "./documents";
 import { operationalStatusBadge } from "@/lib/badges";
 import { formatBahtTrim } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { PageHeader } from "../../PageHeader";
+import { BackLink } from "../../BackLink";
 import { card, sectionTitle } from "./cardStyles";
 
 function dt(ms: number | null): string {
@@ -38,6 +42,61 @@ function dt(ms: number | null): string {
 
 /** The double rule that closes a ledger — every figure above it sums into the total below. */
 const totalRule = { borderTop: "1px solid var(--border)", margin: "6px 0" } as const;
+
+/**
+ * One step in the timeline stepper. Red (--primary) is reserved for the single "you are here" dot —
+ * the current step, ringed so it reads at a glance. Passed steps render in the foreground colour
+ * (black in light mode) with a black spine; upcoming steps are hollow and muted. Spraying red across
+ * every done step over-uses the accent, so done is black and only current is red.
+ */
+function StepRow({ stage, last }: { stage: OrderStage; last: boolean }) {
+  const done = stage.state === "done";
+  const current = stage.state === "current";
+  const reached = done || current;
+  return (
+    <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <span
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            marginTop: 5,
+            flexShrink: 0,
+            background: current ? "var(--primary)" : done ? "var(--text)" : "transparent",
+            border: reached ? "none" : "2px solid var(--border)",
+            boxShadow: current
+              ? "0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent)"
+              : "none",
+          }}
+        />
+        {!last && (
+          <span
+            style={{
+              width: 2,
+              flex: 1,
+              minHeight: 16,
+              background: done ? "var(--text)" : "var(--border)",
+            }}
+          />
+        )}
+      </div>
+      <div style={{ paddingBottom: last ? 0 : 14 }}>
+        <div
+          style={{
+            ...tableText.body2,
+            fontWeight: reached ? 600 : 500,
+            color: reached ? undefined : "var(--text-muted)",
+          }}
+        >
+          {stage.label}
+        </div>
+        {stage.at != null && <div style={tableText.subtitle}>{dt(stage.at)}</div>}
+        {stage.note && <div style={tableText.subtitle}>{stage.note}</div>}
+      </div>
+    </div>
+  );
+}
 
 /** Money row. `strong` is for the totals the owner reads first. */
 function Row({
@@ -118,8 +177,10 @@ const TIER_PILL: Record<string, string> = {
 };
 
 export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: ShopInfo }) {
-  const { order, customer, address, money, lines, timeline, claims } = detail;
+  const { order, customer, address, money, lines, timeline, claims, viewerIsSuperAdmin } = detail;
   const status = operationalStatusBadge(order.orderStatus, order.paymentStatus);
+  // "Verifying" is Zone A too: a slip is waiting on a confirm/reject decision.
+  const isVerifying = operationalStatus(order.orderStatus, order.paymentStatus) === "verifying";
   /**
    * "To ship" is DERIVED, not a stored status: order_status new, confirmed and packing all read as
    * To ship once the money has cleared. Gating on the derived value is what makes the drop-off form
@@ -127,6 +188,23 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
    */
   const isToShip = operationalStatus(order.orderStatus, order.paymentStatus) === "to_ship";
   const track = trackingUrl(order.carrier, order.trackingNo);
+
+  /**
+   * The timeline as a progress stepper (owner, 31 Jul): oldest → newest, dated from history, with the
+   * dot on the current status. Labels/states are derived in core so the stepper always agrees with
+   * the pill; history only supplies the timestamps.
+   */
+  // COD on a best/good customer is approved automatically at checkout — the timeline says so instead
+  // of naming an approver. Unknown tiers fall through codApproval to "blocked" (not auto), so safe.
+  const codAutoApproved = customer?.tier
+    ? codApproval(customer.tier as CustomerTier) === "auto"
+    : false;
+  const stages = orderStages(
+    order.orderStatus,
+    order.paymentStatus,
+    timeline.map((t) => ({ event: t.event, at: t.createdAt })),
+    { codAutoApproved },
+  );
 
   const [note, setNote] = useState(order.staffNote ?? "");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -172,11 +250,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             <span className={`pill ${status.pill}`}>{status.label}</span>
           </>
         }
-        action={
-          <Link href="/orders" className="btn-soft btn-sm">
-            ← All orders
-          </Link>
-        }
+        below={<BackLink href="/orders">All orders</BackLink>}
       />
 
       {err && (
@@ -194,6 +268,15 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
           address={address}
           lines={lines}
           shop={shop}
+          status={status}
+          onError={setErr}
+        />
+      )}
+
+      {isVerifying && (
+        <PaymentReviewSection
+          order={order}
+          viewerIsSuperAdmin={viewerIsSuperAdmin}
           status={status}
           onError={setErr}
         />
@@ -228,8 +311,9 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                     credit {customer.creditScore ?? 0} · {customer.orderCount} orders
                   </span>
                 </div>
-                <div style={{ ...tableText.body2, marginTop: 4 }}>{customer.name ?? "—"}</div>
-                <div style={tableText.subtitle}>{customer.phone ?? "—"}</div>
+                <div style={{ ...tableText.body2, marginTop: 4 }}>
+                  {customer.name ?? "—"} · {customer.phone ?? "—"}
+                </div>
               </>
             ) : (
               <div style={tableText.subtitle}>
@@ -480,44 +564,23 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             </button>
           </div>
 
-          {/* Newest first, matching the Shopee reference the owner supplied. */}
+          {/* The order's files — label, slip, claim evidence — each with View + Save. */}
+          <DocumentsCard
+            order={order}
+            address={address}
+            lines={lines}
+            shop={shop}
+            claims={claims}
+            viewerIsSuperAdmin={viewerIsSuperAdmin}
+            onError={setErr}
+          />
+
+          {/* Progress stepper: oldest → newest, dot on the current status (owner, 31 Jul). */}
           <div style={card}>
             <div style={sectionTitle}>Timeline</div>
-            {timeline.length === 0 ? (
-              <div style={tableText.subtitle}>No history yet.</div>
-            ) : (
-              timeline.map((t, i) => (
-                <div key={t.id} style={{ display: "flex", gap: 10 }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <span
-                      style={{
-                        width: 9,
-                        height: 9,
-                        borderRadius: "50%",
-                        background: i === 0 ? "var(--primary)" : "var(--border)",
-                        marginTop: 6,
-                        flexShrink: 0,
-                      }}
-                    />
-                    {i < timeline.length - 1 && (
-                      <span
-                        style={{ width: 2, flex: 1, minHeight: 16, background: "var(--border)" }}
-                      />
-                    )}
-                  </div>
-                  <div style={{ paddingBottom: 14 }}>
-                    <div style={{ ...tableText.body2, fontWeight: 600 }}>
-                      {isOrderHistoryEvent(t.event) ? orderHistoryEventLabel(t.event) : t.event}
-                    </div>
-                    <div style={tableText.subtitle}>
-                      {dt(t.createdAt)}
-                      {t.actorEmail ? ` · ${t.actorEmail}` : " · system"}
-                    </div>
-                    {t.note && <div style={tableText.subtitle}>{t.note}</div>}
-                  </div>
-                </div>
-              ))
-            )}
+            {stages.map((s, i) => (
+              <StepRow key={s.key} stage={s} last={i === stages.length - 1} />
+            ))}
           </div>
         </div>
       </div>

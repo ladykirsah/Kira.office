@@ -30,6 +30,9 @@
   ],
   // Same KV as apps/api — read-only use here (shop:paymentMethods → PromptPay target for checkout).
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
+  // Same image bucket as apps/api. Used here only to store uploaded bank slips under `slip/`, which
+  // the back office reads (super-admin-only) via apps/api's private /file route.
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
   // Cross-Worker binding to the StockLedger DO deployed by the api Worker (apps/api).
   // No `migrations` block here — DO class migrations are owned by apps/api's wrangler.jsonc.
   // `script_name` must be the api Worker's real script id: `kiraoffice`, NO HYPHEN (see the long
@@ -67,6 +70,8 @@
         },
       ],
       "kv_namespaces": [{ "binding": "KV", "id": "c876509fba5c40608e1c0f1abf5d4502" }],
+      // Bindings are NOT inherited per environment — repeat the image bucket (staging copy).
+      "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images-staging" }],
       // script_name is NOT inherited per environment — must be repeated with the staging Worker name.
       "durable_objects": {
         "bindings": [

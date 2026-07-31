@@ -1092,6 +1092,16 @@ export function imageUrl(key: string): string {
   return `${apiBase}/img/${key}`;
 }
 
+/**
+ * URL for a PRIVATE order file (claim photo, payment slip). Unlike {@link imageUrl}, this goes
+ * through the same-origin /api/worker proxy so the browser sends the Cloudflare Access session and
+ * the API's requireAccess (and super-admin gate for slips) can authorise it. The public /img route
+ * would bypass auth entirely, which must never happen for bank slips.
+ */
+export function privateFileUrl(key: string): string {
+  return `/api/worker/file/${key}`;
+}
+
 export interface StockRow {
   variantId: string;
   sku: string | null;
@@ -1711,6 +1721,8 @@ export interface OrderDetail {
     trackingNo: string | null;
     shipTimeMs: number | null;
     staffNote: string | null;
+    /** R2 key of the customer's uploaded bank slip, served super-admin-only via the private route. */
+    slipImageKey: string | null;
   };
   /**
    * The two books, derived by the API. Never recomputed here — one of these numbers being different
@@ -1777,8 +1789,12 @@ export interface OrderDetail {
     carrier: string | null;
     trackingNo: string | null;
     createdAt: number;
+    /** R2 keys of the claim's evidence photos, served via the private /file route. */
+    photoKeys: string[];
     lines: { salesOrderLineId: string; quantity: number }[];
   }[];
+  /** Whether THIS admin may see slip images (super-admin). Gates the slip preview + Documents actions. */
+  viewerIsSuperAdmin: boolean;
 }
 
 export async function fetchOrderDetail(id: string): Promise<OrderDetail | null> {
@@ -1817,6 +1833,27 @@ export async function saveOrderDropOff(
     // 409 carries the real reason (the order has not been paid for) — surface it verbatim.
     const err = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error ?? `Failed to record drop-off (HTTP ${res.status})`);
+  }
+}
+
+/**
+ * Confirm or reject a bank-transfer slip awaiting review. Confirm settles the order (→ To ship);
+ * reject sends it back to pending with a fresh 48h window and requires a reason. Any admin may call
+ * this — seeing the slip image is gated separately (super-admin).
+ */
+export async function reviewOrderPayment(
+  id: string,
+  decision: "confirm" | "reject",
+  reason?: string,
+): Promise<void> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}/review-payment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ decision, reason }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Payment review failed (HTTP ${res.status})`);
   }
 }
 

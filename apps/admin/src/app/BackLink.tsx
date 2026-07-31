@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 /** Text-style back link (no fill/border), used under a PageHeader title via its `below` slot. */
@@ -30,10 +31,12 @@ export function BackLink({
 }) {
   const content = <>← {children}</>;
   if (href) {
+    // next/link, not a raw <a>: keep back navigation client-side so it doesn't throw away the
+    // already-loaded admin bundle on a full document reload.
     return (
-      <a href={href} style={style}>
+      <Link href={href} style={style}>
         {content}
-      </a>
+      </Link>
     );
   }
   return (

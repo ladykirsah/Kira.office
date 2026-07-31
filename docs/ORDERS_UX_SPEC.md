@@ -85,6 +85,59 @@ It needs a status-history table we do **not** have yet (see §5).
 
 ---
 
+## 2.1 Layout standard — DECIDED (owner, 31 Jul 2026)
+
+`/orders/:id` has **two zones, always in this order**. This supersedes the §2 anatomy where they
+conflict (notably: there is **no status banner** — status lives in the page header).
+
+**Zone A — the primary action (top, full-width).** The single operation the order needs *right now*,
+decided by its operational status, pinned full-width above everything. It is status-specific, not a
+fixed bar: it appears only while its status is current and **disappears once the status advances**
+(e.g. Shipment is gone the moment the parcel ships, and the info grid rises to the top). Money-moving
+decisions still get their own page per §4 — for those the block is a prominent CTA into that page;
+simpler actions (drop-off, mark delivered) are inline.
+
+**Zone B — order info (below, two-column grid).** Constant regardless of status:
+
+- **Left:** Customer · Shipping · Items · money (What the customer was charged / What we kept /
+  Shipping fee) · Claims.
+- **Right:** Note · Documents · Timeline.
+
+Red (`--primary`) marks only the one active element in Zone A, never every control (see the design
+rule "red = active only").
+
+**Primary action per operational status** — the block that belongs in Zone A:
+
+| Status | Zone A primary action | State |
+| --- | --- | --- |
+| `to_ship` | Shipment: Save label + Record drop-off (inline) | **built** |
+| `unpaid` | Await / record payment | to design |
+| `verifying` | Review the slip → confirm / reject | to design (slip stored; see gating below) |
+| `cod_pending` | Approve / deny COD → dedicated page (§3.3, §4) | to design |
+| `cod_reject` | Re-offer prepaid or cancel | to design |
+| `in_transit` | Tracking + mark delivered / report a problem | to design |
+| `return` | Handle the bounced parcel: re-ship or refund | to design |
+| `claim_pending` | Mechanic review: approve / reject → dedicated page (§3.4, §4) | to design |
+| `claimed` | Fulfil the resolution: refund or replace | to design |
+| `complete` · `refunded` · `claim_rejected` · `fail` | none — terminal | n/a |
+
+Reference implementation: `OrderDetailView` renders `ShipmentSection` full-width when
+`operationalStatus(...) === "to_ship"`, then the two-column grid. Every other status should follow
+the same shape, swapping in its own Zone A block.
+
+**Payment-slip gating (owner, 31 Jul 2026).** Two tiers, because a bank slip is financial PII:
+
+- **Approve / reject the payment** — any admin (admin + super-admin). This is the operational
+  decision and cannot bottleneck on one person.
+- **View the slip image** — super-admin only, everywhere it appears (the Documents row *and* inside
+  the `verifying` review block). A regular admin clears the payment without ever seeing the slip.
+
+`verifying` reject → a **hold** state (new): the order is parked (no 48h auto-expire) awaiting the
+customer, who on AirPlus can **change payment** (re-upload / new method) or **cancel** — that
+customer-facing half is a storefront follow-up.
+
+---
+
 ## 3. Where our workflow diverges
 
 ### 3.1 We have a customer credit system; Shopee has none

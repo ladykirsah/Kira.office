@@ -17,6 +17,7 @@ import worker, {
   ean13CheckDigit,
   entityFromPath,
   expireUnpaidOrders,
+  reviewOrderPayment,
   getOrderDetail,
   getProductDetail,
   applyHoldToDb,
@@ -5142,6 +5143,34 @@ describe("getOrderDetail (the /orders/:id read model)", () => {
     ).run(NOW);
     expect(await getOrderDetail(asD1(db), "sp1")).toBeNull();
   });
+
+  it("surfaces the stored slip image key (migration 0074, super-admin evidence)", async () => {
+    const db = seeded();
+    db.prepare(`UPDATE sales_orders SET slip_image_key = 'slip/o1/a.jpg' WHERE id='o1'`).run();
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.order.slipImageKey).toBe("slip/o1/a.jpg");
+  });
+
+  it("given no slip uploaded > slipImageKey is null", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.order.slipImageKey).toBeNull();
+  });
+
+  it("parses claim photo_keys JSON into an array of keys", async () => {
+    const db = seeded({ withClaim: true });
+    db.prepare(`UPDATE order_claims SET photo_keys = ? WHERE id='cl1'`).run(
+      JSON.stringify(["claim/cl1/1.jpg", "claim/cl1/2.jpg"]),
+    );
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.claims[0]!.photoKeys).toEqual(["claim/cl1/1.jpg", "claim/cl1/2.jpg"]);
+  });
+
+  it("given a claim with malformed or absent photo_keys > photoKeys is an empty array", async () => {
+    const db = seeded({ withClaim: true });
+    db.prepare(`UPDATE order_claims SET photo_keys = 'not json' WHERE id='cl1'`).run();
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.claims[0]!.photoKeys).toEqual([]);
+  });
 });
 
 describe("transitionClaim (the claim gates, server-side)", () => {
@@ -5894,5 +5923,155 @@ describe("getOrderDetail > product brand on each line", () => {
     // and the label would list the same item twice.
     const d = await getOrderDetail(asD1(seeded()), "o1");
     expect(d!.lines.map((l) => l.id)).toEqual(["l1", "l2"]);
+  });
+});
+
+describe("GET /file/:key — private order evidence serving", () => {
+  /** IMAGES double that serves a fixed set of objects. */
+  function bucketWith(objects: Record<string, string>): R2Bucket {
+    return {
+      get: async (key: string) =>
+        key in objects ? { body: objects[key], httpMetadata: { contentType: "image/png" } } : null,
+    } as unknown as R2Bucket;
+  }
+  // Access unset here = local-dev fail-open, same as the rest of the API. The super-admin ENFORCEMENT
+  // (slip 403 for a non-super email) is unit-tested in packages/core/src/access.test.ts, because
+  // reaching this route as an authenticated non-super user needs a real Access JWT.
+  const env = (objects: Record<string, string>) =>
+    ({ IMAGES: bucketWith(objects) }) as unknown as Env;
+
+  it("serves a claim photo from the claim/ namespace", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/file/claim/o1/1.png"),
+      env({ "claim/o1/1.png": "PNGBYTES" }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(await res.text()).toBe("PNGBYTES");
+  });
+
+  it("serves a slip when Access is off (local dev fail-open)", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/file/slip/o1/1.png"),
+      env({ "slip/o1/1.png": "SLIP" }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("never serves a private file with a shared-cacheable header", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/file/slip/o1/1.png"),
+      env({ "slip/o1/1.png": "SLIP" }),
+      ctx,
+    );
+    expect(res.headers.get("cache-control")).toContain("no-store");
+  });
+
+  it("404s for a key outside the allow-listed namespaces (no key can reach other objects)", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/file/products/leak.png"),
+      env({ "products/leak.png": "SECRET" }),
+      ctx,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("404s when the object is genuinely absent", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/file/claim/o1/missing.png"),
+      env({}),
+      ctx,
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("reviewOrderPayment (confirm / reject a slip awaiting review)", () => {
+  const NOW = SQLITE_NOW;
+  const DAY = 24 * 60 * 60 * 1000;
+  const EXPIRY = 48 * 60 * 60 * 1000;
+
+  function seeded(paymentStatus = "verifying", createdAt = NOW) {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+          order_created_at, imported_at, buyer_username)
+       VALUES ('o1','airplus','AP-1','new',?,100000,0,4000,104000,30000,?,?,'u1')`,
+    ).run(paymentStatus, createdAt, createdAt);
+    db.prepare(
+      `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status, created_at, sales_order_id)
+       VALUES ('pay1','โอนเงิน','0899999999',104000,'pending',?,'o1')`,
+    ).run(NOW);
+    return db;
+  }
+  const order = (db: DatabaseSync) =>
+    db
+      .prepare(`SELECT payment_status p, payment_expires_at e FROM sales_orders WHERE id='o1'`)
+      .get() as { p: string; e: number | null };
+  const history = (db: DatabaseSync) =>
+    db
+      .prepare(
+        `SELECT event, note FROM order_status_history WHERE order_id='o1' ORDER BY created_at`,
+      )
+      .all() as { event: string; note: string | null }[];
+
+  it("confirm > order becomes paid, payment row confirmed, timeline gets a paid entry", async () => {
+    const db = seeded();
+    const out = await reviewOrderPayment(asD1(db), "o1", "confirm", null, "admin@x.com", NOW);
+    expect(out).toEqual({ ok: true, paymentStatus: "paid" });
+    expect(order(db).p).toBe("paid");
+    expect(
+      (db.prepare(`SELECT status FROM payments WHERE id='pay1'`).get() as { status: string })
+        .status,
+    ).toBe("confirmed");
+    expect(history(db).some((h) => h.event === "paid")).toBe(true);
+  });
+
+  it("reject with a reason > back to pending with a fresh 48h window and the reason on the timeline", async () => {
+    const db = seeded();
+    const out = await reviewOrderPayment(asD1(db), "o1", "reject", "ยอดไม่ตรง", "admin@x.com", NOW);
+    expect(out).toEqual({ ok: true, paymentStatus: "pending" });
+    const o = order(db);
+    expect(o.p).toBe("pending");
+    expect(o.e).toBe(NOW + EXPIRY);
+    expect(
+      history(db).some((h) => h.event === "updated" && (h.note ?? "").includes("ยอดไม่ตรง")),
+    ).toBe(true);
+  });
+
+  it("reject without a reason > 400, and the order is untouched", async () => {
+    const db = seeded();
+    const out = await reviewOrderPayment(asD1(db), "o1", "reject", "   ", "admin@x.com", NOW);
+    expect(out).toMatchObject({ ok: false, code: 400 });
+    expect(order(db).p).toBe("verifying");
+  });
+
+  it("an order not awaiting review > 409", async () => {
+    const db = seeded("paid");
+    const out = await reviewOrderPayment(asD1(db), "o1", "confirm", null, "admin@x.com", NOW);
+    expect(out).toMatchObject({ ok: false, code: 409 });
+  });
+
+  it("a missing order > 404", async () => {
+    const out = await reviewOrderPayment(asD1(seeded()), "nope", "confirm", null, "a@x.com", NOW);
+    expect(out).toMatchObject({ ok: false, code: 404 });
+  });
+
+  it("expireUnpaidOrders honours the fresh window: a rejected order does not expire until it lapses", async () => {
+    // Placed 3 days ago (long past the original 48h), rejected just now → fresh window protects it.
+    const db = seeded("verifying", NOW - 3 * DAY);
+    await reviewOrderPayment(asD1(db), "o1", "reject", "รอลูกค้าโอนใหม่", "a@x.com", NOW);
+    expect(await expireUnpaidOrders(asD1(db), NOW)).toBe(0);
+    // …but once the fresh window lapses, it expires like any unpaid order.
+    expect(await expireUnpaidOrders(asD1(db), NOW + EXPIRY + 1)).toBe(1);
+  });
+
+  it("expireUnpaidOrders still expires an ordinary old unpaid order (null window = created + 48h)", async () => {
+    const db = seeded("pending", NOW - 3 * DAY);
+    expect(await expireUnpaidOrders(asD1(db), NOW)).toBe(1);
   });
 });

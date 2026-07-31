@@ -48,6 +48,9 @@
   // },
   // Secrets (set via `wrangler secret put`, never vars): ACCESS_TEAM_DOMAIN, ACCESS_AUD, SLIPOK_API_KEY, SLIPOK_BRANCH_ID
   // Optional var: ALLOWED_CORS_ORIGINS (comma-separated; defaults include localhost:3000 + app.homeseeker.me)
+  // SUPER_ADMIN_EMAILS (set via `wrangler secret put`; comma/space-separated): who may view payment-slip
+  //   evidence via GET /file/slip/*. Unset + Access ON = nobody. Local dev (Access off) = everyone.
+  //   Set this in prod or slips are viewable by no one. (Future: the `owner` role once a users table lands.)
   // Custom domain on the homeseeker.me zone (same Cloudflare account). wrangler deploy provisions
   // the DNS record + cert. Requires the deploy token (CLOUDFLARE_API_TOKEN) to have zone
   // DNS/Workers-routes edit.

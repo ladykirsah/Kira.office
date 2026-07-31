@@ -1,5 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { D1Database, KVNamespace, DurableObjectNamespace } from "@cloudflare/workers-types";
+import type {
+  D1Database,
+  KVNamespace,
+  DurableObjectNamespace,
+  R2Bucket,
+} from "@cloudflare/workers-types";
 import type { CategoryRow } from "./groupBySystem";
 
 /**
@@ -10,6 +15,8 @@ import type { CategoryRow } from "./groupBySystem";
 export interface StorefrontEnv {
   DB: D1Database;
   KV: KVNamespace;
+  /** Shared image bucket (same as apps/api). Holds uploaded bank slips under `slip/`. */
+  IMAGES?: R2Bucket;
   /** Cross-Worker binding to apps/api's StockLedger DO. Unresolvable in local `next dev`. */
   STOCK_LEDGER?: DurableObjectNamespace;
   /** SlipOK slip-verification secrets (this worker's own copies; unset = manual-review mode). */

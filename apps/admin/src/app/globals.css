@@ -203,6 +203,31 @@ input[type="number"]::-webkit-inner-spin-button {
   font-size: 14px;
 }
 
+/* Links styled as buttons (e.g. an Edit link). The box above is on the `button` element only, so an
+   <a class="btn-primary"> got the colour but none of the shape — a cramped rectangle. Give anchors
+   the same box; colour + border-colour still come from the modifier class. */
+a.btn-primary,
+a.btn-soft,
+a.btn-danger,
+a.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border-width: 1px;
+  border-style: solid;
+  font-weight: 500;
+  font-size: 14px;
+  text-decoration: none;
+}
+a.btn-soft,
+a.btn-sm {
+  min-height: 32px;
+  padding: 6px 14px;
+}
+
 /* Tables */
 table {
   border-collapse: collapse;
