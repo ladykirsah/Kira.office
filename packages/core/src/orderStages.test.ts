@@ -93,6 +93,27 @@ describe("orderStages", () => {
     });
   });
 
+  it("cancelled after a COD rejection > keeps the COD-refusal step, then ยกเลิก by the customer", () => {
+    const s = orderStages("cancelled", "cod_denied", [
+      { event: "created", at: 1000 },
+      { event: "cod_denied", at: 5000 },
+      { event: "cancelled", at: 9000 },
+    ]);
+    expect(s.map((x) => x.label)).toEqual([
+      "สั่งซื้อสินค้า",
+      "ปฏิเสธเก็บเงินปลายทาง",
+      "ยกเลิกคำสั่งซื้อ",
+    ]);
+    expect(s.find((x) => x.key === "cod_reject")).toMatchObject({ state: "done", at: 5000 });
+    expect(current(s)).toMatchObject({ key: "cancelled", at: 9000, note: "ยกเลิกโดยลูกค้า" });
+  });
+
+  it("a plain cancellation (no COD rejection) > just ยกเลิกคำสั่งซื้อ, no COD step", () => {
+    const s = orderStages("cancelled", "pending", [{ event: "cancelled", at: 9000 }]);
+    expect(s.map((x) => x.label)).toEqual(["สั่งซื้อสินค้า", "ยกเลิกคำสั่งซื้อ"]);
+    expect(current(s)?.note).toBeUndefined();
+  });
+
   it("unpaid > payment is current and the rest are upcoming", () => {
     const s = orderStages("new", "pending");
     expect(current(s)?.label).toBe("รอชำระเงิน");
