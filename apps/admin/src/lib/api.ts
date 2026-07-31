@@ -1723,6 +1723,17 @@ export interface OrderDetail {
     staffNote: string | null;
     /** R2 key of the customer's uploaded bank slip, served super-admin-only via the private route. */
     slipImageKey: string | null;
+    /** Customer payout account for a failed-delivery refund. Bank no + name are super-admin-only (null
+     *  for other admins); null until the customer submits them on the storefront. */
+    refundBankName: string | null;
+    refundAccountNo: string | null;
+    refundAccountName: string | null;
+    /** Full refund amount (= grand total) + when/who, once we have paid the customer back. */
+    refundSatang: number | null;
+    refundedAt: number | null;
+    refundActorEmail: string | null;
+    /** R2 key of OUR outgoing transfer slip, served via the private /file route. */
+    refundSlipImageKey: string | null;
   };
   /**
    * The two books, derived by the API. Never recomputed here — one of these numbers being different
@@ -1735,6 +1746,8 @@ export interface OrderDetail {
     shippingShortfallSatang: number | null;
     profitSatang: number | null;
   };
+  /** Whether this bounced order needs a refund action now, is already refunded, or is out of scope. */
+  refundAction: "needs_refund" | "refunded" | "none";
   customer: {
     id: string;
     customerCode: string | null;
@@ -1873,6 +1886,23 @@ export async function decideCod(id: string, decision: "approve" | "deny"): Promi
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error ?? `COD decision failed (HTTP ${res.status})`);
+  }
+}
+
+/**
+ * Record a full refund of a bounced (delivery_failed) order: uploads OUR outgoing transfer slip as
+ * the request body and marks the order refunded (restock + timeline handled server-side). Super-admin
+ * only — the API enforces it and returns 403 otherwise.
+ */
+export async function recordRefund(id: string, slip: File): Promise<void> {
+  const res = await apiFetch(`/orders/${encodeURIComponent(id)}/refund`, {
+    method: "POST",
+    headers: { "content-type": slip.type || "image/jpeg" },
+    body: slip,
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Refund failed (HTTP ${res.status})`);
   }
 }
 

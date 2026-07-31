@@ -32,6 +32,12 @@ export interface OrderMoneyFacts {
    * profit may be claimed. Its value is the stale checkout figure this function exists to replace.
    */
   storedProfitSatang: number | null;
+  /**
+   * Money returned to the customer, satang. Absent or 0 = not refunded. For a failed-delivery
+   * refund it is the full grand total and the goods are restocked — so the sale unwinds and the
+   * only cost we cannot recover is the carrier charge. Profit then reads as that shipping loss.
+   */
+  refundedSatang?: number;
 }
 
 export interface OrderMoney {
@@ -58,14 +64,22 @@ export function orderMoney(facts: OrderMoneyFacts): OrderMoney {
       ? null
       : facts.shippingRealSatang - facts.shippingChargedSatang;
 
+  // A refund unwinds the sale: the money goes back and the bounced goods are restocked, so their
+  // cost is recovered and drops out. What remains is the carrier charge we already paid and cannot
+  // claw back. Because item cost is no longer in play, this holds even when it was never known.
+  const refundedSatang = facts.refundedSatang ?? 0;
+  const profitSatang =
+    refundedSatang > 0
+      ? facts.grandTotalSatang - refundedSatang - (facts.shippingRealSatang ?? 0)
+      : facts.storedProfitSatang == null
+        ? null
+        : goodsAfterDiscountSatang - itemCostSatang - (shippingShortfallSatang ?? 0);
+
   return {
     customerPaidSatang: facts.grandTotalSatang,
     goodsAfterDiscountSatang,
     itemCostSatang,
     shippingShortfallSatang,
-    profitSatang:
-      facts.storedProfitSatang == null
-        ? null
-        : goodsAfterDiscountSatang - itemCostSatang - (shippingShortfallSatang ?? 0),
+    profitSatang,
   };
 }

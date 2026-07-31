@@ -41,6 +41,9 @@ export type PrivateFileAccess = "ok" | "forbidden" | "not_allowed";
  */
 export function privateFileAccess(key: string, ctx: AccessContext): PrivateFileAccess {
   if (/^claim\//.test(key)) return "ok";
+  // Our OUTGOING refund transfer slip — proof we paid the customer back, not their bank PII, and shown
+  // to the customer too. Any admin, like claim evidence. (Checked before slip/ so the hyphen is safe.)
+  if (/^refund-slip\//.test(key)) return "ok";
   if (/^slip\//.test(key)) return isSuperAdmin(ctx.email, ctx) ? "ok" : "forbidden";
   return "not_allowed";
 }

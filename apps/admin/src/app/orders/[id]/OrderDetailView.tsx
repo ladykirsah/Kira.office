@@ -24,6 +24,7 @@ import {
 import { ShipmentSection } from "./ShipmentActions";
 import { PaymentReviewSection } from "./PaymentReview";
 import { CodApprovalSection } from "./CodApproval";
+import { RefundSection } from "./RefundSection";
 import { CopyButton } from "../../products/CopyButton";
 import { DocumentsCard } from "./documents";
 import { operationalStatusBadge } from "@/lib/badges";
@@ -178,7 +179,17 @@ const TIER_PILL: Record<string, string> = {
 };
 
 export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: ShopInfo }) {
-  const { order, customer, address, money, lines, timeline, claims, viewerIsSuperAdmin } = detail;
+  const {
+    order,
+    customer,
+    address,
+    money,
+    lines,
+    timeline,
+    claims,
+    viewerIsSuperAdmin,
+    refundAction,
+  } = detail;
   const status = operationalStatusBadge(order.orderStatus, order.paymentStatus);
   // "Verifying" is Zone A too: a slip is waiting on a confirm/reject decision.
   const isVerifying = operationalStatus(order.orderStatus, order.paymentStatus) === "verifying";
@@ -289,6 +300,18 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
       )}
 
       {isCodPending && <CodApprovalSection order={order} status={status} onError={setErr} />}
+
+      {/* A bounced parcel we were paid for: Zone A is the refund — the customer's payout account (super
+          admin) plus the slip upload, or the evidence once it is done. Every other return is LINE OA. */}
+      {(refundAction === "needs_refund" || refundAction === "refunded") && (
+        <RefundSection
+          order={order}
+          refundAction={refundAction}
+          viewerIsSuperAdmin={viewerIsSuperAdmin}
+          status={status}
+          onError={setErr}
+        />
+      )}
 
       <div
         style={{
