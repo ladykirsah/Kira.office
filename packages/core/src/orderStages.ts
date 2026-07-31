@@ -81,6 +81,14 @@ export function orderStages(
   // Terminal: cancelled / expired. The flow stops; no upcoming steps.
   if (op === "fail") {
     const cancelled = orderStatus === "cancelled";
+    // A COD-rejected order the customer then chose to cancel keeps that COD-refusal step in the
+    // story, so the cancelled order still reads as having gone through a COD rejection first.
+    const codDeniedAt = atOf("cod_denied");
+    if (cancelled && codDeniedAt != null) {
+      add("cod_reject", "ปฏิเสธเก็บเงินปลายทาง", "done", codDeniedAt);
+      add("cancelled", "ยกเลิกคำสั่งซื้อ", "current", atOf("cancelled"), "ยกเลิกโดยลูกค้า");
+      return stages;
+    }
     add(
       cancelled ? "cancelled" : "expired",
       cancelled ? "ยกเลิกคำสั่งซื้อ" : "หมดอายุ (ไม่ชำระใน 48 ชม.)",

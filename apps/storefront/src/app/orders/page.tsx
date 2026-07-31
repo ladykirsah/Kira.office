@@ -9,6 +9,7 @@ import {
   paymentStatusLabel,
 } from "@l-shopee/core";
 import { SlipUpload } from "@/components/SlipUpload";
+import { CodRejectedActions } from "@/components/CodRejectedActions";
 import { baht, formatDateTime, normalizePhone } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
@@ -407,6 +408,13 @@ function OrdersContent() {
                   onConfirmed={() => void lookup(result.ref, phoneInput)}
                 />
               </div>
+            )}
+            {normalizePaymentStatus(result.paymentStatus) === "cod_denied" && (
+              <CodRejectedActions
+                orderRef={result.ref}
+                phone={phoneInput}
+                onChanged={() => void lookup(result.ref, phoneInput)}
+              />
             )}
           </div>
 
