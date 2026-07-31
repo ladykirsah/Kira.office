@@ -106,21 +106,36 @@ export function ClaimReviewSection({
           </div>
           {claim.photoKeys.length > 0 && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-              {claim.photoKeys.map((k) => (
-                <a key={k} href={privateFileUrl(k)} target="_blank" rel="noreferrer">
-                  <img
+              {claim.photoKeys.map((k) =>
+                /\.(mp4|mov|webm|m4v)$/i.test(k) ? (
+                  <video
+                    key={k}
                     src={privateFileUrl(k)}
-                    alt="หลักฐานการเคลม"
+                    controls
                     style={{
-                      width: 84,
+                      width: 140,
                       height: 84,
-                      objectFit: "cover",
                       borderRadius: 8,
                       border: "1px solid var(--border)",
+                      background: "#000",
                     }}
                   />
-                </a>
-              ))}
+                ) : (
+                  <a key={k} href={privateFileUrl(k)} target="_blank" rel="noreferrer">
+                    <img
+                      src={privateFileUrl(k)}
+                      alt="หลักฐานการเคลม"
+                      style={{
+                        width: 84,
+                        height: 84,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                      }}
+                    />
+                  </a>
+                ),
+              )}
             </div>
           )}
         </div>

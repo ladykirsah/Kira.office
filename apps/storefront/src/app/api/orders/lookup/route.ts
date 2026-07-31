@@ -109,6 +109,15 @@ export async function GET(request: Request): Promise<Response> {
       (r) => r.orderStatus === "cancelled" || r.orderStatus === "expired",
     );
 
+    // The latest claim's state + (if rejected) the reason — drives the claim area on the order page.
+    const claim = await db
+      .prepare(
+        `SELECT state, admin_note AS adminNote FROM order_claims
+         WHERE sales_order_id = ? ORDER BY created_at DESC LIMIT 1`,
+      )
+      .bind(order.id)
+      .first<{ state: string; adminNote: string | null }>();
+
     return Response.json({
       ref: order.externalOrderId,
       orderStatus: order.orderStatus,
@@ -126,6 +135,9 @@ export async function GET(request: Request): Promise<Response> {
       bouncedAt,
       deliveredAt,
       cancelledAt,
+      // Claim state + the reject reason (admin_note) — never the internal evidence keys.
+      claimState: claim?.state ?? null,
+      claimReason: claim?.adminNote ?? null,
       lines: lines.results ?? [],
     });
   } catch {

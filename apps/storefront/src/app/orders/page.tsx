@@ -11,6 +11,8 @@ import {
 import { SlipUpload } from "@/components/SlipUpload";
 import { CodRejectedActions } from "@/components/CodRejectedActions";
 import { RefundRequest } from "@/components/RefundRequest";
+import { ClaimRequest } from "@/components/ClaimRequest";
+import { LINE_OA_URL } from "@/lib/links";
 import { baht, formatDateTime, normalizePhone } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
@@ -47,6 +49,9 @@ interface LookupResult {
   bouncedAt: number | null;
   deliveredAt: number | null;
   cancelledAt: number | null;
+  /** Latest claim state + the reject reason (when rejected) — drives the claim area. */
+  claimState: string | null;
+  claimReason: string | null;
   lines: LookupLine[];
 }
 
@@ -306,6 +311,61 @@ function TimelineStep({ step, last }: { step: Step; last: boolean }) {
   );
 }
 
+/** The defect-claim area on the order page: the submit form, an in-review note, or a rejection with
+ *  the reason + a LINE contact link. Hidden entirely on orders the customer never received. */
+function ClaimArea({
+  result,
+  phone,
+  onChanged,
+}: {
+  result: LookupResult;
+  phone: string;
+  onChanged: () => void;
+}) {
+  const ord = normalizeOrderStatus(result.orderStatus);
+  const claimable = ord === "delivered" || ord === "claimed" || ord === "claim_rejected";
+  const cs = result.claimState;
+  const active = cs != null && cs !== "cancelled" && cs !== "done";
+  const note = { marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" } as const;
+
+  if (cs === "cancelled") {
+    return (
+      <div style={note}>
+        <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 6px" }}>การเคลมถูกปฏิเสธ</p>
+        {result.claimReason && (
+          <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
+            เหตุผล: {result.claimReason}
+          </p>
+        )}
+        <a className="btn" href={LINE_OA_URL} target="_blank" rel="noreferrer">
+          ติดต่อเราทาง LINE
+        </a>
+      </div>
+    );
+  }
+  if (active) {
+    return (
+      <div style={note}>
+        <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>อยู่ระหว่างตรวจสอบการเคลม</p>
+        <p className="muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
+          ทีมงานกำลังตรวจสอบ จะแจ้งผลให้ทราบ
+        </p>
+      </div>
+    );
+  }
+  if (cs === "done") {
+    return (
+      <div style={note}>
+        <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>เคลมเสร็จสิ้น</p>
+      </div>
+    );
+  }
+  if (claimable) {
+    return <ClaimRequest orderRef={result.ref} phone={phone} onChanged={onChanged} />;
+  }
+  return null;
+}
+
 function LineThumb({ imageKey, name }: { imageKey: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
   if (!imageKey || failed) {
@@ -558,6 +618,13 @@ function OrdersContent() {
                 onChanged={() => void lookup(result.ref, phoneInput)}
               />
             )}
+            {/* Defect claim: file one on a delivered order, watch it in review, or see a rejection with
+                the reason + how to reach us. Hidden on orders that never reached the customer. */}
+            <ClaimArea
+              result={result}
+              phone={phoneInput}
+              onChanged={() => void lookup(result.ref, phoneInput)}
+            />
           </div>
 
           {/* ---- order lines ---- */}
