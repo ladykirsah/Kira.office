@@ -194,3 +194,26 @@ describe("orderMoney > edge values", () => {
     expect(m.profitSatang).toBe(-74_000);
   });
 });
+
+describe("orderMoney > a fully refunded failed delivery", () => {
+  // ตีกลับ: the parcel bounced, we refund the customer in full, and the goods come back into stock.
+  // The sale unwinds — revenue returned, goods restocked — so the only cost we cannot recover is the
+  // carrier charge already paid. Profit must read as that shipping loss, never the stale full margin.
+  const refunded: OrderMoneyFacts = { ...SIGNED_OFF, refundedSatang: 435_000 };
+
+  it("full refund, goods restocked > profit is the sunk carrier charge as a loss", () => {
+    // 435,000 in, 435,000 back out → customer nets zero; the carrier billed 9,000 we can't recover.
+    expect(orderMoney(refunded).profitSatang).toBe(-9_000);
+  });
+
+  it("no refund > profit is unchanged", () => {
+    expect(orderMoney(SIGNED_OFF).profitSatang).toBe(136_000);
+  });
+
+  it("item cost never matched, but a full refund still shows the shipping loss", () => {
+    // The bounce cost does not need the cost snapshot: the goods are back in stock, so their cost is
+    // irrelevant to what the failed delivery cost us. Only the unrecoverable carrier charge remains.
+    const m = orderMoney({ ...refunded, storedProfitSatang: null });
+    expect(m.profitSatang).toBe(-9_000);
+  });
+});

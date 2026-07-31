@@ -18,6 +18,7 @@ import worker, {
   entityFromPath,
   expireUnpaidOrders,
   reviewOrderPayment,
+  recordRefund,
   getOrderDetail,
   getProductDetail,
   applyHoldToDb,
@@ -5008,6 +5009,133 @@ describe("migration 0071 > order_claims", () => {
     const db = seeded();
     insertClaim(db, { id: "c1" });
     expect(() => insertClaim(db, { id: "c2" })).not.toThrow();
+  });
+});
+
+describe("recordRefund (failed-delivery refund)", () => {
+  const NOW = SQLITE_NOW;
+
+  /** A paid parcel that bounced, with two units on one line and a real carrier charge of ฿75. */
+  function bounced(over: { orderStatus?: string; paymentStatus?: string } = {}) {
+    const { orderStatus = "delivery_failed", paymentStatus = "paid" } = over;
+    const db = migratedDb();
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอยล์เย็น',?)`).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, shipping_real_satang, grand_total_satang,
+          profit_satang, order_created_at, imported_at)
+       VALUES ('o1','airplus','AP-1',?,?,200000,10000,5000,7500,195000,60000,?,?)`,
+    ).run(orderStatus, paymentStatus, NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,100000,70000,200000,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO order_status_history
+         (id, order_id, order_status, payment_status, event, actor_email, created_at)
+       VALUES ('h1','o1','delivery_failed','paid','updated',NULL,?)`,
+    ).run(NOW);
+    return db;
+  }
+
+  const orderRow = (db: DatabaseSync) =>
+    db
+      .prepare(
+        `SELECT payment_status AS paymentStatus, refund_satang AS refundSatang,
+                refunded_at AS refundedAt, refund_actor_email AS refundActorEmail,
+                refund_slip_image_key AS refundSlipImageKey FROM sales_orders WHERE id='o1'`,
+      )
+      .get() as Record<string, unknown>;
+
+  it("records a full refund: refunded status, amount = grand total, actor + slip stored", async () => {
+    const db = bounced();
+    const out = await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
+    expect(out.ok).toBe(true);
+    const row = orderRow(db);
+    expect(row.paymentStatus).toBe("refunded");
+    expect(row.refundSatang).toBe(195000);
+    expect(row.refundedAt).toBe(NOW);
+    expect(row.refundActorEmail).toBe("boss@x.com");
+    expect(row.refundSlipImageKey).toBe("refund-slip/o1/x.jpg");
+  });
+
+  it("restocks the bounced goods with a refund_return entry", async () => {
+    const db = bounced();
+    await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
+    const restock = db
+      .prepare(
+        `SELECT movement_type AS movementType, quantity_delta AS quantityDelta
+         FROM stock_ledger_entries WHERE product_variant_id='v1'`,
+      )
+      .get() as { movementType: string; quantityDelta: number };
+    expect(restock.movementType).toBe("refund_return");
+    expect(restock.quantityDelta).toBe(2);
+  });
+
+  it("appends a 'refunded' timeline step", async () => {
+    const db = bounced();
+    await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
+    const events = (
+      db.prepare(`SELECT event FROM order_status_history WHERE order_id='o1'`).all() as {
+        event: string;
+      }[]
+    ).map((r) => r.event);
+    expect(events).toContain("refunded");
+  });
+
+  it("the read model then shows profit as the shipping loss and the action as refunded", async () => {
+    const db = bounced();
+    await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
+    const d = await getOrderDetail(asD1(db), "o1", NOW);
+    expect(d!.money.profitSatang).toBe(-7500); // 195000 in, 195000 back out, ฿75 carrier eaten
+    expect(d!.money.customerPaidSatang).toBe(195000);
+    expect(d!.refundAction).toBe("refunded");
+  });
+
+  it("before a refund, a fresh bounce reads as needs_refund", async () => {
+    const d = await getOrderDetail(asD1(bounced()), "o1", NOW);
+    expect(d!.refundAction).toBe("needs_refund");
+    expect(d!.money.profitSatang).toBe(47500); // 190000 goods − 140000 cost − 2500 shortfall (real 7500 − charged 5000)
+  });
+
+  it("is idempotent: a second refund is refused, not double-posted", async () => {
+    const db = bounced();
+    await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
+    const again = await recordRefund(asD1(db), "o1", "refund-slip/o1/y.jpg", "boss@x.com", NOW);
+    expect(again).toEqual({ ok: false, code: 409, reason: "this order has already been refunded" });
+  });
+
+  it("refuses an order that did not fail delivery", async () => {
+    const out = await recordRefund(
+      asD1(bounced({ orderStatus: "delivered" })),
+      "o1",
+      "k",
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(409);
+  });
+
+  it("refuses a bounce we were never paid for", async () => {
+    const out = await recordRefund(
+      asD1(bounced({ paymentStatus: "cod_denied" })),
+      "o1",
+      "k",
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(409);
+  });
+
+  it("requires a refund slip", async () => {
+    const out = await recordRefund(asD1(bounced()), "o1", "", "boss@x.com", NOW);
+    expect(out).toEqual({ ok: false, code: 400, reason: "a refund slip is required" });
   });
 });
 

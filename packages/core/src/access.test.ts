@@ -71,6 +71,14 @@ describe("privateFileAccess", () => {
     expect(privateFileAccess("slip/o1/1.jpg", { email: null, accessConfigured: false })).toBe("ok");
   });
 
+  it("refund slip (our outgoing transfer proof) > any authenticated admin may read it", () => {
+    // Not customer bank PII — it is proof WE paid the customer back, and the customer sees it too on
+    // their order page. So it reads like claim evidence: any admin, not super-admin-gated.
+    expect(privateFileAccess("refund-slip/o1/1.jpg", { email: "staff@x.com", ...superCtx })).toBe(
+      "ok",
+    );
+  });
+
   it("any other namespace > refused outright (no key can reach it)", () => {
     for (const key of ["products/x.jpg", "backups/db.json", "", "slipmalicious/x", "claimant/x"]) {
       expect(privateFileAccess(key, { email: "boss@x.com", ...superCtx })).toBe("not_allowed");

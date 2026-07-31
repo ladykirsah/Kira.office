@@ -40,6 +40,8 @@ import {
   type CustomerTier,
   orderMoney,
   type OrderMoney,
+  classifyRefundAction,
+  type RefundAction,
   canRecordDropOff,
   normalizePaymentStatus,
   privateFileAccess,
@@ -2453,6 +2455,18 @@ export interface OrderDetail {
     staffNote: string | null;
     /** R2 key of the customer's uploaded bank slip (namespace `slip/`), or null. Super-admin-only. */
     slipImageKey: string | null;
+    /** Customer payout account for a failed-delivery refund. account no + name are financial PII,
+     *  redacted here for non-super-admins; null until the customer submits them on the storefront. */
+    refundBankName: string | null;
+    refundAccountNo: string | null;
+    refundAccountName: string | null;
+    /** Amount refunded (= grand total; failed delivery is always a full refund), and when/who. Null
+     *  until we have paid the customer back. */
+    refundSatang: number | null;
+    refundedAt: number | null;
+    refundActorEmail: string | null;
+    /** R2 key of OUR outgoing transfer slip (namespace `refund-slip/`), shown to the customer too. */
+    refundSlipImageKey: string | null;
   };
   /** Null for an order with no storefront account — imported and legacy rows have none. */
   customer: {
@@ -2479,6 +2493,8 @@ export interface OrderDetail {
    * derived rather than stored because the carrier's real charge arrives long after checkout.
    */
   money: OrderMoney;
+  /** Whether this bounced order needs a refund action now, is already refunded, or is out of scope. */
+  refundAction: RefundAction;
   lines: {
     id: string;
     variantId: string;
@@ -2545,7 +2561,11 @@ function parsePhotoKeys(raw: string | null): string[] {
  * one-to-many, so a single statement would fan the order row out and every money figure would have
  * to be de-duplicated back out afterwards.
  */
-export async function getOrderDetail(db: D1Database, id: string): Promise<OrderDetail | null> {
+export async function getOrderDetail(
+  db: D1Database,
+  id: string,
+  now: number = Date.now(),
+): Promise<OrderDetail | null> {
   const order = await db
     .prepare(
       `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
@@ -2560,6 +2580,10 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
               imported_at AS importedAt, buyer_username AS buyerUsername, carrier,
               tracking_no AS trackingNo, ship_time_ms AS shipTimeMs, staff_note AS staffNote,
               slip_image_key AS slipImageKey,
+              refund_bank_name AS refundBankName, refund_account_no AS refundAccountNo,
+              refund_account_name AS refundAccountName, refund_satang AS refundSatang,
+              refunded_at AS refundedAt, refund_actor_email AS refundActorEmail,
+              refund_slip_image_key AS refundSlipImageKey,
               storefront_customer_id AS storefrontCustomerId,
               shipping_address_id AS shippingAddressId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
@@ -2654,6 +2678,11 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
     claims.push({ ...rest, photoKeys: parsePhotoKeys(rawPhotoKeys), lines: cl ?? [] });
   }
 
+  // The parcel-bounce timestamp anchors the 1-year refund window. Timeline is newest-first, so the
+  // first delivery_failed row is the most recent bounce.
+  const failedAt =
+    (timeline ?? []).find((t) => t.orderStatus === "delivery_failed")?.createdAt ?? null;
+
   return {
     order: orderFields,
     customer,
@@ -2666,7 +2695,18 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
       shippingRealSatang: orderFields.shippingRealSatang,
       lines: lines ?? [],
       storedProfitSatang: orderFields.profitSatang,
+      // A recorded refund unwinds the sale in the two books: profit becomes the shipping we ate.
+      refundedSatang: orderFields.refundSatang ?? 0,
     }),
+    refundAction: classifyRefundAction(
+      {
+        orderStatus: orderFields.orderStatus ?? "",
+        paymentStatus: orderFields.paymentStatus,
+        refundedAt: orderFields.refundedAt,
+        failedAt,
+      },
+      now,
+    ),
     lines: lines ?? [],
     timeline: timeline ?? [],
     claims,
@@ -2966,6 +3006,127 @@ export async function reviewOrderPayment(
     at: now,
   });
   return { ok: true, paymentStatus: "paid" };
+}
+
+export interface RecordRefundResult {
+  ok: boolean;
+  code?: number;
+  reason?: string;
+}
+
+/**
+ * Record that we refunded a bounced (delivery_failed) order IN FULL. The bank transfer itself is done
+ * by hand off-system within 2-3 business days; this only writes what happened and unwinds the sale:
+ *
+ *  - restocks the bounced goods (they physically came back) via a refund_return ledger entry, so
+ *    on-hand stays honest and the refund is cost-neutral except for the carrier charge;
+ *  - sets refund_satang = grand total (a failed delivery is always a full refund), refunded_at, the
+ *    actor, and the outgoing slip key, and flips payment_status to 'refunded' — which makes orderMoney
+ *    read profit as the shipping loss, not the stale margin;
+ *  - appends a 'refunded' timeline step.
+ *
+ * Super-admin only (bank PII + money out), enforced at the route. Idempotent: a second call 409s
+ * rather than posting a second restock and a second reversal.
+ */
+export async function recordRefund(
+  db: D1Database,
+  id: string,
+  slipImageKey: string,
+  actorEmail: string | null = null,
+  now: number = Date.now(),
+): Promise<RecordRefundResult> {
+  const order = await db
+    .prepare(
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus,
+              grand_total_satang AS grandTotalSatang, refunded_at AS refundedAt
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(id)
+    .first<{
+      id: string;
+      orderStatus: string | null;
+      paymentStatus: string | null;
+      grandTotalSatang: number;
+      refundedAt: number | null;
+    }>();
+  if (!order) return { ok: false, code: 404, reason: "not found" };
+  if (order.refundedAt != null)
+    return { ok: false, code: 409, reason: "this order has already been refunded" };
+  // Only a bounced order whose money we actually hold is refundable here; every other return/claim is
+  // handled off-system via LINE OA. The 1-year window only silences the reminder — it never blocks a
+  // refund the owner chooses to make — so it is not part of this guard.
+  if (
+    order.orderStatus !== "delivery_failed" ||
+    !["paid", "cod_collected"].includes(order.paymentStatus ?? "")
+  )
+    return {
+      ok: false,
+      code: 409,
+      reason: "only a paid, failed-delivery order can be refunded here",
+    };
+  if (!slipImageKey) return { ok: false, code: 400, reason: "a refund slip is required" };
+
+  // Restock the returned goods. On-hand is read once per variant then threaded as a running total, so
+  // two lines of the same variant stack rather than each restocking off the same pre-batch read.
+  const { results: lines } = await db
+    .prepare(
+      `SELECT product_variant_id AS variantId, quantity FROM sales_order_lines WHERE sales_order_id = ?`,
+    )
+    .bind(id)
+    .all<{ variantId: string | null; quantity: number }>();
+
+  const statements: D1PreparedStatement[] = [];
+  const onHand: Record<string, number> = {};
+  for (const line of lines ?? []) {
+    if (!line.variantId) continue;
+    const vid = line.variantId;
+    if (!(vid in onHand)) {
+      const row = await db
+        .prepare(
+          "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+        )
+        .bind(vid)
+        .first<{ onHand: number }>();
+      onHand[vid] = Number(row?.onHand ?? 0);
+    }
+    const after = onHand[vid]! + line.quantity;
+    onHand[vid] = after;
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO stock_ledger_entries (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type, source_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          vid,
+          "refund_return",
+          line.quantity,
+          after,
+          "sales_order",
+          id,
+          now,
+        ),
+    );
+  }
+  statements.push(
+    db
+      .prepare(
+        `UPDATE sales_orders SET payment_status = 'refunded', refund_satang = ?, refunded_at = ?,
+               refund_actor_email = ?, refund_slip_image_key = ? WHERE id = ?`,
+      )
+      .bind(order.grandTotalSatang, now, actorEmail, slipImageKey, id),
+  );
+  await db.batch(statements);
+  await appendOrderStatusHistory(db, {
+    orderId: id,
+    orderStatus: order.orderStatus,
+    paymentStatus: "refunded",
+    event: "refunded",
+    actorEmail,
+    note: "คืนเงินแล้ว (ตีกลับ)",
+    at: now,
+  });
+  return { ok: true };
 }
 
 /**
@@ -6162,6 +6323,13 @@ const worker = {
         superAdminEmails: env.SUPER_ADMIN_EMAILS,
         accessConfigured: !!env.ACCESS_AUD,
       });
+      // The customer's refund payout account is financial PII: never send the number or holder name to
+      // an admin who is not a super-admin. (Slip images are separately gated by the /file route.)
+      if (!viewerIsSuperAdmin) {
+        detail.order.refundBankName = null;
+        detail.order.refundAccountNo = null;
+        detail.order.refundAccountName = null;
+      }
       return json({ ...detail, viewerIsSuperAdmin });
     }
 
@@ -6183,6 +6351,29 @@ const worker = {
       return out.ok
         ? json({ ok: true, paymentStatus: out.paymentStatus })
         : json({ error: out.reason }, out.code);
+    }
+
+    // Record a full refund of a bounced (delivery_failed) order. Super-admin only — it exposes the
+    // customer's bank PII and moves money out. Multipart: the required outgoing transfer slip is the
+    // proof, stored under refund-slip/ and shown back to the customer. 409 if the order is not a paid
+    // failed delivery or is already refunded, 400 if the slip image is missing.
+    const orderRefund = url.pathname.match(/^\/orders\/([^/]+)\/refund$/);
+    if (orderRefund && request.method === "POST") {
+      if (
+        !isSuperAdmin(userEmail, {
+          superAdminEmails: env.SUPER_ADMIN_EMAILS,
+          accessConfigured: !!env.ACCESS_AUD,
+        })
+      )
+        return json({ error: "super-admin only" }, 403);
+      const bytes = await request.arrayBuffer();
+      const contentType = request.headers.get("content-type") ?? "";
+      if (!bytes.byteLength || !contentType.startsWith("image/"))
+        return json({ error: "a refund slip image is required" }, 400);
+      const key = `refund-slip/${orderRefund[1]!}/${crypto.randomUUID()}.jpg`;
+      await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+      const out = await recordRefund(env.DB, orderRefund[1]!, key, userEmail);
+      return out.ok ? json({ ok: true }) : json({ error: out.reason }, out.code);
     }
 
     // Admin raises a claim on the customer's behalf (they phone or LINE in — there is no self-serve
