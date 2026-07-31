@@ -193,9 +193,9 @@ export function ShippingLabelDoc({
               type="button"
               className="icon-btn"
               disabled={busyFile !== null}
-              onClick={() => saveFile("pdf")}
-              aria-label="Save"
-              title={busyFile === "pdf" ? "Saving…" : "Save PDF"}
+              onClick={() => saveFile("png")}
+              aria-label="Save PNG"
+              title={busyFile === "png" ? "Saving…" : "Save PNG"}
             >
               <Icon name="save" />
             </button>
