@@ -5333,6 +5333,39 @@ describe("transitionClaim (the claim gates, server-side)", () => {
     expect(stateOf(db)).toBe("approved");
   });
 
+  it("reject (requested → cancelled) records the reason + assignee and frees the order to delivered", async () => {
+    const db = migratedDb();
+    // A pending claim holds the order on claim_pending; rejecting it must return it to delivered so
+    // the order does not stick on "Claim pending" forever.
+    db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
+       VALUES ('o1','airplus','AP-1','claim_pending','paid',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO order_claims (id, sales_order_id, kind, state, created_at, updated_at)
+       VALUES ('cl1','o1','defect','requested',?,?)`,
+    ).run(NOW, NOW);
+    const out = await transitionClaim(asD1(db), "cl1", "cancelled", "boss@x.com", NOW, {
+      note: "ไม่พบความชำรุด",
+      assignee: "mech@x.com",
+    });
+    expect(out.ok).toBe(true);
+    const claim = db
+      .prepare(
+        `SELECT state, admin_note AS note, assignee_name AS assignee FROM order_claims WHERE id='cl1'`,
+      )
+      .get() as { state: string; note: string; assignee: string };
+    expect(claim).toMatchObject({
+      state: "cancelled",
+      note: "ไม่พบความชำรุด",
+      assignee: "mech@x.com",
+    });
+    const order = db.prepare(`SELECT order_status AS s FROM sales_orders WHERE id='o1'`).get() as {
+      s: string;
+    };
+    expect(order.s).toBe("delivered");
+  });
+
   it("REFUSES skipping the mechanic to ship a replacement", async () => {
     const db = seeded("received");
     const out = await transitionClaim(asD1(db), "cl1", "shipped", "owner@airplusauto.com", NOW);

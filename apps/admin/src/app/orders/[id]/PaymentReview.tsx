@@ -15,11 +15,14 @@ import { card, sectionTitle } from "./cardStyles";
 export function PaymentReviewSection({
   order,
   viewerIsSuperAdmin,
+  canAct,
   status,
   onError,
 }: {
   order: OrderDetail["order"];
   viewerIsSuperAdmin: boolean;
+  /** Payment review is the super-admin's + admin's action; a mechanic sees it read-only. */
+  canAct: boolean;
   status: { pill: string; label: string };
   onError: (message: string) => void;
 }) {
@@ -87,9 +90,10 @@ export function PaymentReviewSection({
 
         <div style={card}>
           <div style={sectionTitle}>ผลการตรวจสอบ</div>
+          {!canAct && <div style={tableText.subtitle}>เฉพาะผู้ดูแลระดับสูงและผู้ดูแล</div>}
           {/* The two choices together. Reject is a two-step: it just opens the reason box below,
               so a slip is never rejected in one careless click. */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: canAct ? "flex" : "none", gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
               className="btn-primary btn-sm"

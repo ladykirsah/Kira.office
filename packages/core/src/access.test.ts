@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { isSuperAdmin, privateFileAccess } from "./access";
+import {
+  isSuperAdmin,
+  privateFileAccess,
+  viewerRole,
+  canReviewClaim,
+  canReviewPayment,
+} from "./access";
 
 describe("isSuperAdmin", () => {
   it("Access off (local dev) > anyone is treated as super-admin", () => {
@@ -83,5 +89,51 @@ describe("privateFileAccess", () => {
     for (const key of ["products/x.jpg", "backups/db.json", "", "slipmalicious/x", "claimant/x"]) {
       expect(privateFileAccess(key, { email: "boss@x.com", ...superCtx })).toBe("not_allowed");
     }
+  });
+});
+
+describe("viewerRole", () => {
+  const ctx = {
+    accessConfigured: true,
+    superAdminEmails: "boss@x.com",
+    mechanicEmails: "mech@x.com, wrench@x.com",
+  };
+
+  it("a super-admin email > super_admin", () => {
+    expect(viewerRole("boss@x.com", ctx)).toBe("super_admin");
+  });
+
+  it("a mechanic email > mechanic", () => {
+    expect(viewerRole("wrench@x.com", ctx)).toBe("mechanic");
+  });
+
+  it("any other authenticated email > admin", () => {
+    expect(viewerRole("staff@x.com", ctx)).toBe("admin");
+  });
+
+  it("super-admin wins when an email is on both lists", () => {
+    expect(viewerRole("boss@x.com", { ...ctx, mechanicEmails: "boss@x.com" })).toBe("super_admin");
+  });
+
+  it("case- and space-insensitive, like the super-admin gate", () => {
+    expect(viewerRole("  Mech@X.com ", ctx)).toBe("mechanic");
+  });
+
+  it("Access off (local dev) > super_admin, so every Zone-A block is exercisable", () => {
+    expect(viewerRole(null, { accessConfigured: false })).toBe("super_admin");
+  });
+});
+
+describe("Zone-A rights by role", () => {
+  it("claim review = super-admin + mechanic only (a plain admin is read-only)", () => {
+    expect(canReviewClaim("super_admin")).toBe(true);
+    expect(canReviewClaim("mechanic")).toBe(true);
+    expect(canReviewClaim("admin")).toBe(false);
+  });
+
+  it("payment / COD review = super-admin + admin, never a mechanic", () => {
+    expect(canReviewPayment("super_admin")).toBe(true);
+    expect(canReviewPayment("admin")).toBe(true);
+    expect(canReviewPayment("mechanic")).toBe(false);
   });
 });

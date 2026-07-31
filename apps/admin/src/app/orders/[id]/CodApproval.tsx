@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { decideCod, type OrderDetail } from "@/lib/api";
+import { tableText } from "@/lib/tableText";
 import { card, sectionTitle } from "./cardStyles";
 
 /**
@@ -12,10 +13,13 @@ import { card, sectionTitle } from "./cardStyles";
  */
 export function CodApprovalSection({
   order,
+  canAct,
   status,
   onError,
 }: {
   order: OrderDetail["order"];
+  /** COD approval is the super-admin's + admin's action; a mechanic sees it read-only. */
+  canAct: boolean;
   status: { pill: string; label: string };
   onError: (message: string) => void;
 }) {
@@ -47,24 +51,28 @@ export function CodApprovalSection({
         <div style={{ ...sectionTitle, marginBottom: 6 }}>อนุมัติเก็บเงินปลายทาง</div>
         <span className={`pill ${status.pill}`}>{status.label}</span>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          className="btn-primary btn-sm"
-          disabled={busy !== null}
-          onClick={() => void decide("approve")}
-        >
-          {busy === "approve" ? "กำลังอนุมัติ…" : "ตกลง"}
-        </button>
-        <button
-          type="button"
-          className="btn-soft btn-sm"
-          disabled={busy !== null}
-          onClick={() => void decide("deny")}
-        >
-          {busy === "deny" ? "กำลังปฏิเสธ…" : "ปฏิเสธ"}
-        </button>
-      </div>
+      {canAct ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            disabled={busy !== null}
+            onClick={() => void decide("approve")}
+          >
+            {busy === "approve" ? "กำลังอนุมัติ…" : "ตกลง"}
+          </button>
+          <button
+            type="button"
+            className="btn-soft btn-sm"
+            disabled={busy !== null}
+            onClick={() => void decide("deny")}
+          >
+            {busy === "deny" ? "กำลังปฏิเสธ…" : "ปฏิเสธ"}
+          </button>
+        </div>
+      ) : (
+        <div style={tableText.subtitle}>เฉพาะผู้ดูแลระดับสูงและผู้ดูแล</div>
+      )}
     </div>
   );
 }

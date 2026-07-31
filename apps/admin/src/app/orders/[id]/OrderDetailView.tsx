@@ -8,6 +8,7 @@ import {
   nextClaimStates,
   actorFor,
   codApproval,
+  canReviewPayment,
   operationalStatus,
   orderStages,
   type ClaimState,
@@ -25,6 +26,7 @@ import { ShipmentSection } from "./ShipmentActions";
 import { PaymentReviewSection } from "./PaymentReview";
 import { CodApprovalSection } from "./CodApproval";
 import { RefundSection } from "./RefundSection";
+import { ClaimReviewSection } from "./ClaimReview";
 import { CopyButton } from "../../products/CopyButton";
 import { DocumentsCard } from "./documents";
 import { operationalStatusBadge } from "@/lib/badges";
@@ -189,12 +191,21 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
     claims,
     viewerIsSuperAdmin,
     refundAction,
+    viewerRole,
+    mechanics,
   } = detail;
   const status = operationalStatusBadge(order.orderStatus, order.paymentStatus);
   // "Verifying" is Zone A too: a slip is waiting on a confirm/reject decision.
   const isVerifying = operationalStatus(order.orderStatus, order.paymentStatus) === "verifying";
   // "COD pending" is Zone A: a watch-tier COD order awaits the staff approve/deny decision.
   const isCodPending = operationalStatus(order.orderStatus, order.paymentStatus) === "cod_pending";
+  // A defect claim awaiting the approve/reject decision gets its own Zone A — the mechanic's and
+  // super-admin's call. Filtered to the newest `requested` claim (approved/rejected ones drop out).
+  const isClaimPending =
+    operationalStatus(order.orderStatus, order.paymentStatus) === "claim_pending";
+  const pendingClaim = claims.find((c) => c.state === "requested") ?? null;
+  // Payment/COD review is the super-admin's + admin's action; a mechanic sees it read-only.
+  const canReviewPay = canReviewPayment(viewerRole);
   /**
    * "To ship" is DERIVED, not a stored status: order_status new, confirmed and packing all read as
    * To ship once the money has cleared. Gating on the derived value is what makes the drop-off form
@@ -294,12 +305,28 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         <PaymentReviewSection
           order={order}
           viewerIsSuperAdmin={viewerIsSuperAdmin}
+          canAct={canReviewPay}
           status={status}
           onError={setErr}
         />
       )}
 
-      {isCodPending && <CodApprovalSection order={order} status={status} onError={setErr} />}
+      {isCodPending && (
+        <CodApprovalSection order={order} canAct={canReviewPay} status={status} onError={setErr} />
+      )}
+
+      {/* A defect claim awaiting approve/reject — Zone A for a mechanic or super-admin (a plain admin
+          sees it read-only). Reject reason is shown to the customer; approve moves it to awaiting-return. */}
+      {isClaimPending && pendingClaim && (
+        <ClaimReviewSection
+          claim={pendingClaim}
+          lines={lines}
+          viewerRole={viewerRole}
+          mechanics={mechanics}
+          status={status}
+          onError={setErr}
+        />
+      )}
 
       {/* A bounced parcel we were paid for: Zone A is the refund — the customer's payout account (super
           admin) plus the slip upload, or the evidence once it is done. Every other return is LINE OA. */}

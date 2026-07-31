@@ -1799,6 +1799,10 @@ export interface OrderDetail {
     mechanicDecidedAt: number | null;
     adminEmail: string | null;
     adminDecidedAt: number | null;
+    /** The rejecting reviewer's reason, shown to the customer on a rejected claim. */
+    adminNote: string | null;
+    /** Who is in charge of this claim, picked from the mechanic list. */
+    assigneeName: string | null;
     carrier: string | null;
     trackingNo: string | null;
     createdAt: number;
@@ -1808,6 +1812,10 @@ export interface OrderDetail {
   }[];
   /** Whether THIS admin may see slip images (super-admin). Gates the slip preview + Documents actions. */
   viewerIsSuperAdmin: boolean;
+  /** This viewer's role — gates the Zone-A actions (claim = super+mechanic; payment/COD = super+admin). */
+  viewerRole: "super_admin" | "mechanic" | "admin";
+  /** The mechanic list (emails), for the claim assignee dropdown. */
+  mechanics: string[];
 }
 
 export async function fetchOrderDetail(id: string): Promise<OrderDetail | null> {
@@ -1939,11 +1947,15 @@ export async function createOrderClaim(
   return body.claimId!;
 }
 
-export async function transitionOrderClaim(claimId: string, state: string): Promise<void> {
+export async function transitionOrderClaim(
+  claimId: string,
+  state: string,
+  opts: { reason?: string; assignee?: string } = {},
+): Promise<void> {
   const res = await apiFetch(`/claims/${encodeURIComponent(claimId)}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ state, ...opts }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
