@@ -22,6 +22,8 @@ interface OrderRow {
   trackingNo: string | null;
   customerName: string | null;
   customerPhone: string | null;
+  refundAccountNo: string | null;
+  refundedAt: number | null;
 }
 
 interface LineRow {
@@ -53,6 +55,7 @@ export async function GET(request: Request): Promise<Response> {
                 o.order_status AS orderStatus, o.payment_status AS paymentStatus,
                 o.grand_total_satang AS grandTotalSatang, o.order_created_at AS orderCreatedAt,
                 o.ship_time_ms AS shipTimeMs, o.carrier AS carrier, o.tracking_no AS trackingNo,
+                o.refund_account_no AS refundAccountNo, o.refunded_at AS refundedAt,
                 c.name AS customerName, c.phone AS customerPhone
          FROM sales_orders o
          LEFT JOIN storefront_customers c ON c.id = o.storefront_customer_id
@@ -81,6 +84,31 @@ export async function GET(request: Request): Promise<Response> {
       .bind(order.id)
       .all<LineRow>();
 
+    // Per-stage timestamps for the tracking timeline (date/time is each stage's first subtitle line).
+    // Read from history like the back office does — the order row alone only carries created + ship.
+    const history = await db
+      .prepare(
+        `SELECT order_status AS orderStatus, payment_status AS paymentStatus, event,
+                created_at AS createdAt
+         FROM order_status_history WHERE order_id = ? ORDER BY created_at ASC`,
+      )
+      .bind(order.id)
+      .all<{
+        orderStatus: string | null;
+        paymentStatus: string | null;
+        event: string;
+        createdAt: number;
+      }>();
+    const hist = history.results ?? [];
+    const firstAt = (pred: (r: (typeof hist)[number]) => boolean): number | null =>
+      hist.find(pred)?.createdAt ?? null;
+    const paidAt = firstAt((r) => r.event === "paid" || r.paymentStatus === "paid");
+    const bouncedAt = firstAt((r) => r.orderStatus === "delivery_failed");
+    const deliveredAt = firstAt((r) => r.orderStatus === "delivered");
+    const cancelledAt = firstAt(
+      (r) => r.orderStatus === "cancelled" || r.orderStatus === "expired",
+    );
+
     return Response.json({
       ref: order.externalOrderId,
       orderStatus: order.orderStatus,
@@ -91,6 +119,13 @@ export async function GET(request: Request): Promise<Response> {
       carrier: order.carrier,
       trackingNo: order.trackingNo,
       customerName: order.customerName,
+      // Refund state for a bounced order — a boolean, never the account number itself back to the page.
+      hasRefundBank: !!order.refundAccountNo,
+      refundedAt: order.refundedAt,
+      paidAt,
+      bouncedAt,
+      deliveredAt,
+      cancelledAt,
       lines: lines.results ?? [],
     });
   } catch {
