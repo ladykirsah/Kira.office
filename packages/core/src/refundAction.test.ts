@@ -41,6 +41,23 @@ describe("classifyRefundAction > when it must NOT fire", () => {
       "none",
     );
   });
+
+  it("a CLAIM refund (refunded but claimed, not bounced) > none — it is not the failed-delivery path", () => {
+    // A claim resolved with money back also sets refundedAt, but the order sits at `claimed`, not
+    // `delivery_failed`. The failed-delivery Zone A ("พัสดุตีกลับ") must NOT claim it — the claim
+    // section shows that refund instead.
+    expect(
+      classifyRefundAction(
+        {
+          orderStatus: "claimed",
+          paymentStatus: "refunded",
+          refundedAt: NOW - 1000,
+          failedAt: null,
+        },
+        NOW,
+      ),
+    ).toBe("none");
+  });
 });
 
 describe("classifyRefundAction > the 1-year forfeiture window", () => {

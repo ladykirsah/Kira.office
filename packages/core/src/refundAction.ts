@@ -30,8 +30,11 @@ const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const CLEARED = new Set(["paid", "cod_collected"]);
 
 export function classifyRefundAction(input: RefundActionInput, now: number): RefundAction {
-  if (input.refundedAt != null) return "refunded";
+  // This classifies the failed-delivery refund ONLY. A claim resolved with money back also sets
+  // refundedAt, but it sits at `claimed`, not `delivery_failed` — the claim section shows that refund,
+  // so gate the "refunded" verdict on the bounce status too, or the wrong Zone A would claim it.
   if (input.orderStatus !== "delivery_failed") return "none";
+  if (input.refundedAt != null) return "refunded";
   if (!CLEARED.has(input.paymentStatus ?? "")) return "none";
   // Forfeit only when we can PROVE a year has passed; an unknown date must not read as expired.
   if (input.failedAt != null && now - input.failedAt >= ONE_YEAR_MS) return "none";

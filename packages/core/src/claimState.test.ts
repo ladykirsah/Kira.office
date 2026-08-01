@@ -66,14 +66,7 @@ describe("isClaimState", () => {
 
 describe("canTransition > the happy path", () => {
   it("walks the owner's flow end to end", () => {
-    const path: ClaimState[] = [
-      "requested",
-      "approved",
-      "received",
-      "mechanic_approved",
-      "shipped",
-      "done",
-    ];
+    const path: ClaimState[] = ["requested", "received", "mechanic_approved", "shipped", "done"];
     for (let i = 0; i < path.length - 1; i++) {
       expect(canTransition(path[i]!, path[i + 1]!)).toBe(true);
     }
@@ -81,8 +74,17 @@ describe("canTransition > the happy path", () => {
 });
 
 describe("canTransition > the gates hold", () => {
-  it("a fresh claim cannot skip the admin gate to await inspection", () => {
-    expect(canTransition("requested", "received")).toBe(false);
+  it("a fresh claim goes straight to received — no pre-approve gate", () => {
+    // The customer ships the item back as soon as they file; the admin's first action is confirming
+    // it arrived. There is no separate "accept the claim" step in front of that.
+    expect(canTransition("requested", "received")).toBe(true);
+    expect(canTransition("requested", "mechanic_approved")).toBe(false);
+  });
+
+  it("a legacy approved claim can still proceed to received", () => {
+    // `approved` is no longer entered by new claims, but any older claim already sitting in it must
+    // not get stuck — it can still move on to received.
+    expect(canTransition("approved", "received")).toBe(true);
   });
 
   it("a claim cannot reach a replacement delivery without the mechanic passing it", () => {
@@ -103,9 +105,26 @@ describe("canTransition > the gates hold", () => {
   });
 });
 
+describe("canTransition > the two resolutions after a mechanic passes", () => {
+  // The customer picks the outcome when they file the claim: money back, or a replacement.
+  it("a refund closes the claim directly — money back, nothing shipped", () => {
+    expect(canTransition("mechanic_approved", "done")).toBe(true);
+  });
+
+  it("a replacement ships first, then closes", () => {
+    expect(canTransition("mechanic_approved", "shipped")).toBe(true);
+    expect(canTransition("shipped", "done")).toBe(true);
+  });
+});
+
 describe("canTransition > cancelling", () => {
-  it("the admin can cancel a claim before anything is shipped", () => {
-    expect(canTransition("requested", "cancelled")).toBe(true);
+  it("a fresh claim has no cancel — the only rejection is the mechanic's verdict", () => {
+    // No pre-approve/close gate any more: a claim runs arrival → inspect → approve/reject. So a
+    // brand-new claim cannot be closed by the admin before it is inspected.
+    expect(canTransition("requested", "cancelled")).toBe(false);
+  });
+
+  it("a legacy approved claim can still be cancelled", () => {
     expect(canTransition("approved", "cancelled")).toBe(true);
   });
 
@@ -145,13 +164,12 @@ describe("canTransition > terminal states are final", () => {
 
 describe("actorFor > who is allowed to make each move", () => {
   it("the admin gate belongs to the admin", () => {
-    expect(actorFor("requested", "approved")).toBe("admin");
-    expect(actorFor("requested", "cancelled")).toBe("admin");
-    expect(actorFor("approved", "cancelled")).toBe("admin");
+    expect(actorFor("requested", "received")).toBe("admin");
+    expect(actorFor("approved", "cancelled")).toBe("admin"); // legacy path
   });
 
   it("logging the parcel's arrival is the admin's job", () => {
-    expect(actorFor("approved", "received")).toBe("admin");
+    expect(actorFor("requested", "received")).toBe("admin");
   });
 
   it("both verdicts on the goods belong to the mechanic", () => {

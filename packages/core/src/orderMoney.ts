@@ -38,6 +38,12 @@ export interface OrderMoneyFacts {
    * only cost we cannot recover is the carrier charge. Profit then reads as that shipping loss.
    */
   refundedSatang?: number;
+  /**
+   * `order_claims.shipping_fee_satang` — what we paid the carrier to send a REPLACEMENT part out on
+   * an exchange claim. A real cost of the claim, subtracted straight from this order's profit.
+   * Absent/0 for refunds and for any order with no replacement shipped.
+   */
+  claimShippingSatang?: number;
 }
 
 export interface OrderMoney {
@@ -68,12 +74,16 @@ export function orderMoney(facts: OrderMoneyFacts): OrderMoney {
   // cost is recovered and drops out. What remains is the carrier charge we already paid and cannot
   // claw back. Because item cost is no longer in play, this holds even when it was never known.
   const refundedSatang = facts.refundedSatang ?? 0;
-  const profitSatang =
+  const base =
     refundedSatang > 0
       ? facts.grandTotalSatang - refundedSatang - (facts.shippingRealSatang ?? 0)
       : facts.storedProfitSatang == null
         ? null
         : goodsAfterDiscountSatang - itemCostSatang - (shippingShortfallSatang ?? 0);
+  // A replacement shipment (exchange claim) is a real cost on top of whatever the base book says, so
+  // it comes off the profit directly. It stays null when the base is null — an unknown cost snapshot
+  // still means no profit may be claimed.
+  const profitSatang = base == null ? null : base - (facts.claimShippingSatang ?? 0);
 
   return {
     customerPaidSatang: facts.grandTotalSatang,

@@ -19,6 +19,8 @@ import worker, {
   expireUnpaidOrders,
   reviewOrderPayment,
   recordRefund,
+  recordClaimRefund,
+  recordClaimReturnShipment,
   getOrderDetail,
   getProductDetail,
   applyHoldToDb,
@@ -5139,6 +5141,258 @@ describe("recordRefund (failed-delivery refund)", () => {
   });
 });
 
+describe("recordClaimRefund (claim resolved with money back)", () => {
+  const NOW = SQLITE_NOW;
+
+  /**
+   * A paid order with a mechanic-approved claim the customer chose to settle in cash. Two units on one
+   * line so the "no restock" guarantee is observable, and the order already sits at `claimed` (which is
+   * what mechanic_approved projects onto the order).
+   */
+  function claimRefund(
+    over: { state?: string; resolution?: string; refundedAt?: number | null } = {},
+  ) {
+    const { state = "mechanic_approved", resolution = "refund", refundedAt = null } = over;
+    const db = migratedDb();
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์',?)`).run(
+      NOW,
+    );
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+          order_created_at, imported_at, refunded_at)
+       VALUES ('o1','airplus','AP-1','claimed','paid',200000,10000,5000,195000,60000,?,?,?)`,
+    ).run(NOW, NOW, refundedAt);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',2,100000,70000,200000,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO order_claims (id, sales_order_id, kind, state, resolution, created_at, updated_at)
+       VALUES ('cl1','o1','defect',?,?,?,?)`,
+    ).run(state, resolution, NOW, NOW);
+    return db;
+  }
+
+  const orderRow = (db: DatabaseSync) =>
+    db
+      .prepare(
+        `SELECT payment_status AS paymentStatus, refund_satang AS refundSatang,
+                refunded_at AS refundedAt, refund_actor_email AS refundActorEmail,
+                refund_slip_image_key AS refundSlipImageKey FROM sales_orders WHERE id='o1'`,
+      )
+      .get() as Record<string, unknown>;
+  const stateOf = (db: DatabaseSync) =>
+    (db.prepare(`SELECT state FROM order_claims WHERE id='cl1'`).get() as { state: string }).state;
+
+  it("records the refund on the order and closes the claim as done", async () => {
+    const db = claimRefund();
+    const out = await recordClaimRefund(
+      asD1(db),
+      "cl1",
+      "refund-slip/cl1/x.jpg",
+      "boss@x.com",
+      NOW,
+    );
+    expect(out.ok).toBe(true);
+    const row = orderRow(db);
+    expect(row.paymentStatus).toBe("refunded");
+    expect(row.refundSatang).toBe(195000); // whole-order claim → the grand total
+    expect(row.refundActorEmail).toBe("boss@x.com");
+    expect(row.refundSlipImageKey).toBe("refund-slip/cl1/x.jpg");
+    expect(stateOf(db)).toBe("done");
+  });
+
+  it("does NOT restock — the returned item is the defective one, not resellable", async () => {
+    const db = claimRefund();
+    await recordClaimRefund(asD1(db), "cl1", "refund-slip/cl1/x.jpg", "boss@x.com", NOW);
+    const n = (
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM stock_ledger_entries WHERE product_variant_id='v1'`)
+        .get() as { n: number }
+    ).n;
+    expect(n).toBe(0);
+  });
+
+  it("the read model then reflects the refund in the money books", async () => {
+    const db = claimRefund();
+    await recordClaimRefund(asD1(db), "cl1", "refund-slip/cl1/x.jpg", "boss@x.com", NOW);
+    const d = await getOrderDetail(asD1(db), "o1", NOW);
+    // 195000 in, 195000 back out, no carrier loss recorded — the defective part is cost-recovered
+    // up the supply chain, so profit nets to zero rather than the stale margin.
+    expect(d!.money.profitSatang).toBe(0);
+    expect(d!.money.customerPaidSatang).toBe(195000);
+  });
+
+  it("appends a 'refunded' timeline step", async () => {
+    const db = claimRefund();
+    await recordClaimRefund(asD1(db), "cl1", "refund-slip/cl1/x.jpg", "boss@x.com", NOW);
+    const events = (
+      db.prepare(`SELECT event FROM order_status_history WHERE order_id='o1'`).all() as {
+        event: string;
+      }[]
+    ).map((r) => r.event);
+    expect(events).toContain("refunded");
+  });
+
+  it("is idempotent: a second refund is refused, not double-posted", async () => {
+    const db = claimRefund();
+    await recordClaimRefund(asD1(db), "cl1", "refund-slip/cl1/x.jpg", "boss@x.com", NOW);
+    const again = await recordClaimRefund(
+      asD1(db),
+      "cl1",
+      "refund-slip/cl1/y.jpg",
+      "boss@x.com",
+      NOW,
+    );
+    expect(again).toEqual({ ok: false, code: 409, reason: "this order has already been refunded" });
+  });
+
+  it("refuses a claim the mechanic has not passed yet", async () => {
+    const out = await recordClaimRefund(
+      asD1(claimRefund({ state: "received" })),
+      "cl1",
+      "k",
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(409);
+    expect(stateOf(claimRefund({ state: "received" }))).toBe("received");
+  });
+
+  it("refuses a claim the customer chose to exchange, not refund", async () => {
+    const out = await recordClaimRefund(
+      asD1(claimRefund({ resolution: "exchange" })),
+      "cl1",
+      "k",
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(409);
+  });
+
+  it("requires a refund slip", async () => {
+    const out = await recordClaimRefund(asD1(claimRefund()), "cl1", "", "boss@x.com", NOW);
+    expect(out).toEqual({ ok: false, code: 400, reason: "a refund slip is required" });
+  });
+
+  it("fails without throwing for an unknown claim", async () => {
+    const out = await recordClaimRefund(asD1(claimRefund()), "nope", "k", "b", NOW);
+    expect(out.ok).toBe(false);
+    expect(out.code).toBe(404);
+  });
+});
+
+describe("recordClaimReturnShipment (ship a rejected claim's product back)", () => {
+  const NOW = SQLITE_NOW;
+
+  /** A paid order with a REJECTED claim (out of T&C / misuse) whose product we still owe back. */
+  function rejected(over: { state?: string; trackingNo?: string | null } = {}) {
+    const { state = "mechanic_rejected", trackingNo = null } = over;
+    const db = migratedDb();
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์',?)`).run(
+      NOW,
+    );
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+          discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+          order_created_at, imported_at)
+       VALUES ('o1','airplus','AP-1','claim_rejected','paid',200000,10000,5000,195000,60000,?,?)`,
+    ).run(NOW, NOW);
+    db.prepare(
+      `INSERT INTO sales_order_lines
+         (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+          line_total_satang, created_at)
+       VALUES ('l1','o1','v1',1,100000,70000,100000,?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO order_claims (id, sales_order_id, kind, state, tracking_no, created_at, updated_at)
+       VALUES ('cl1','o1','defect',?,?,?,?)`,
+    ).run(state, trackingNo, NOW, NOW);
+    return db;
+  }
+
+  const ship = { carrier: "Flash", trackingNo: "TH55", shippingFeeSatang: 9000 };
+  const claimRow = (db: DatabaseSync) =>
+    db
+      .prepare(
+        `SELECT state, carrier, tracking_no AS trackingNo, shipping_fee_satang AS fee,
+                dropped_off_at AS droppedOffAt FROM order_claims WHERE id='cl1'`,
+      )
+      .get() as Record<string, unknown>;
+
+  it("records the return shipment on the claim without changing its rejected state", async () => {
+    const db = rejected();
+    const out = await recordClaimReturnShipment(asD1(db), "cl1", ship, "boss@x.com", NOW);
+    expect(out.ok).toBe(true);
+    const row = claimRow(db);
+    expect(row).toMatchObject({
+      state: "mechanic_rejected",
+      carrier: "Flash",
+      trackingNo: "TH55",
+      fee: 9000,
+    });
+    expect(row.droppedOffAt).toBe(NOW);
+  });
+
+  it("the return fee lands in the money book (profit drops by it)", async () => {
+    const db = rejected();
+    await recordClaimReturnShipment(asD1(db), "cl1", ship, "boss@x.com", NOW);
+    const d = await getOrderDetail(asD1(db), "o1", NOW);
+    // 190,000 goods − 70,000 cost − 9,000 return shipment = 111,000.
+    expect(d!.money.profitSatang).toBe(111_000);
+  });
+
+  it("refuses a claim that was not rejected", async () => {
+    const out = await recordClaimReturnShipment(
+      asD1(rejected({ state: "received" })),
+      "cl1",
+      ship,
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(409);
+  });
+
+  it("is idempotent: a claim already shipped back is refused", async () => {
+    const out = await recordClaimReturnShipment(
+      asD1(rejected({ trackingNo: "TH-OLD" })),
+      "cl1",
+      ship,
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(409);
+  });
+
+  it("requires a carrier and tracking number", async () => {
+    const out = await recordClaimReturnShipment(
+      asD1(rejected()),
+      "cl1",
+      { carrier: "", trackingNo: "", shippingFeeSatang: 0 },
+      "b",
+      NOW,
+    );
+    expect(out.code).toBe(400);
+  });
+
+  it("fails without throwing for an unknown claim", async () => {
+    const out = await recordClaimReturnShipment(asD1(rejected()), "nope", ship, "b", NOW);
+    expect(out.ok).toBe(false);
+    expect(out.code).toBe(404);
+  });
+});
+
 describe("getOrderDetail (the /orders/:id read model)", () => {
   /**
    * One query set behind the whole detail page. Tested against real sqlite because the risk here is
@@ -5328,25 +5582,27 @@ describe("transitionClaim (the claim gates, server-side)", () => {
 
   it("allows a legal admin move and records who made it", async () => {
     const db = seeded("requested");
-    const out = await transitionClaim(asD1(db), "cl1", "approved", "owner@airplusauto.com", NOW);
+    // No pre-approve gate: the admin's first move on a fresh claim is confirming the item arrived.
+    const out = await transitionClaim(asD1(db), "cl1", "received", "owner@airplusauto.com", NOW);
     expect(out.ok).toBe(true);
-    expect(stateOf(db)).toBe("approved");
+    expect(stateOf(db)).toBe("received");
   });
 
-  it("reject (requested → cancelled) records the reason + assignee and frees the order to delivered", async () => {
+  it("cancel (legacy approved → cancelled) records the reason + assignee and frees the order to delivered", async () => {
     const db = migratedDb();
-    // A pending claim holds the order on claim_pending; rejecting it must return it to delivered so
-    // the order does not stick on "Claim pending" forever.
+    // A pending claim holds the order on claim_pending; cancelling it must return it to delivered so
+    // the order does not stick on "Claim pending" forever. (Cancel is now a legacy-only path from the
+    // old `approved` state; fresh claims are rejected by the mechanic instead.)
     db.prepare(
       `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status, imported_at)
        VALUES ('o1','airplus','AP-1','claim_pending','paid',?)`,
     ).run(NOW);
     db.prepare(
       `INSERT INTO order_claims (id, sales_order_id, kind, state, created_at, updated_at)
-       VALUES ('cl1','o1','defect','requested',?,?)`,
+       VALUES ('cl1','o1','defect','approved',?,?)`,
     ).run(NOW, NOW);
     const out = await transitionClaim(asD1(db), "cl1", "cancelled", "boss@x.com", NOW, {
-      note: "ไม่พบความชำรุด",
+      note: "ปิดเคส (เดิม)",
       assignee: "mech@x.com",
     });
     expect(out.ok).toBe(true);
@@ -5357,7 +5613,7 @@ describe("transitionClaim (the claim gates, server-side)", () => {
       .get() as { state: string; note: string; assignee: string };
     expect(claim).toMatchObject({
       state: "cancelled",
-      note: "ไม่พบความชำรุด",
+      note: "ปิดเคส (เดิม)",
       assignee: "mech@x.com",
     });
     const order = db.prepare(`SELECT order_status AS s FROM sales_orders WHERE id='o1'`).get() as {
@@ -5420,7 +5676,7 @@ describe("transitionClaim (the claim gates, server-side)", () => {
 
   it("stamps the admin's decision on the admin fields, not the mechanic's", async () => {
     const db = seeded("requested");
-    await transitionClaim(asD1(db), "cl1", "approved", "owner@airplusauto.com", NOW);
+    await transitionClaim(asD1(db), "cl1", "received", "owner@airplusauto.com", NOW);
     const row = db
       .prepare(
         `SELECT admin_email, admin_decided_at, mechanic_name FROM order_claims WHERE id='cl1'`,
@@ -5444,8 +5700,35 @@ describe("transitionClaim (the claim gates, server-side)", () => {
     expect(o.order_status).toBe("claimed");
   });
 
-  it("an admin-cancelled claim leaves no mark on the order", async () => {
-    const db = seeded("requested");
+  it("the exchange drop-off records the replacement carrier + tracking + shipping fee on the claim", async () => {
+    const db = seeded("mechanic_approved");
+    const out = await transitionClaim(asD1(db), "cl1", "shipped", "owner@airplusauto.com", NOW, {
+      carrier: "Flash",
+      trackingNo: "TH99887766",
+      shippingFeeSatang: 8000,
+    });
+    expect(out.ok).toBe(true);
+    const row = db
+      .prepare(
+        `SELECT state, carrier, tracking_no AS trackingNo, shipping_fee_satang AS fee
+         FROM order_claims WHERE id='cl1'`,
+      )
+      .get() as {
+      state: string;
+      carrier: string | null;
+      trackingNo: string | null;
+      fee: number | null;
+    };
+    expect(row).toMatchObject({
+      state: "shipped",
+      carrier: "Flash",
+      trackingNo: "TH99887766",
+      fee: 8000,
+    });
+  });
+
+  it("a cancelled (legacy) claim leaves no mark on the order", async () => {
+    const db = seeded("approved");
     await transitionClaim(asD1(db), "cl1", "cancelled", "owner@airplusauto.com", NOW);
     const o = db.prepare(`SELECT order_status FROM sales_orders WHERE id='o1'`).get() as {
       order_status: string;

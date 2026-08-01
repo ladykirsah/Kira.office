@@ -217,3 +217,26 @@ describe("orderMoney > a fully refunded failed delivery", () => {
     expect(m.profitSatang).toBe(-9_000);
   });
 });
+
+describe("orderMoney > a claim resolved by shipping a replacement", () => {
+  // Exchange: the customer keeps their money, we send a new part and pay the carrier for it. Per the
+  // owner, only that shipping fee hits the books (the replacement part is supplier-covered); it is a
+  // real cost, so it comes straight off this order's profit.
+  it("subtracts the replacement shipping fee from profit", () => {
+    // Base profit 136,000 − a 120 baht replacement shipment = 124,000.
+    const m = orderMoney({ ...SIGNED_OFF, claimShippingSatang: 12_000 });
+    expect(m.profitSatang).toBe(124_000);
+  });
+
+  it("no replacement shipment > profit is unchanged", () => {
+    expect(orderMoney(SIGNED_OFF).profitSatang).toBe(136_000);
+  });
+
+  it("cannot resurrect profit when item cost is unknown", () => {
+    // No cost snapshot still means no profit is claimed; a claim shipping fee does not change that.
+    expect(
+      orderMoney({ ...SIGNED_OFF, storedProfitSatang: null, claimShippingSatang: 12_000 })
+        .profitSatang,
+    ).toBeNull();
+  });
+});

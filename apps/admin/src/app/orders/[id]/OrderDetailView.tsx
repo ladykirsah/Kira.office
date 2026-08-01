@@ -5,6 +5,7 @@ import {
   CLAIM_STATES,
   claimStateLabel,
   isClaimState,
+  isTerminalClaimState,
   nextClaimStates,
   actorFor,
   codApproval,
@@ -199,11 +200,18 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
   const isVerifying = operationalStatus(order.orderStatus, order.paymentStatus) === "verifying";
   // "COD pending" is Zone A: a watch-tier COD order awaits the staff approve/deny decision.
   const isCodPending = operationalStatus(order.orderStatus, order.paymentStatus) === "cod_pending";
-  // A defect claim awaiting the approve/reject decision gets its own Zone A — the mechanic's and
-  // super-admin's call. Filtered to the newest `requested` claim (approved/rejected ones drop out).
-  const isClaimPending =
-    operationalStatus(order.orderStatus, order.paymentStatus) === "claim_pending";
-  const pendingClaim = claims.find((c) => c.state === "requested") ?? null;
+  // The ACTIVE defect claim (any non-terminal state) is Zone A for its WHOLE life — approve/reject,
+  // receive, mechanic verdict, ship, done. It stays on top until terminal (done/cancelled/rejected),
+  // then drops to the Zone-B Claims card. The mechanic's + super-admin's call; a plain admin: read-only.
+  // A claim stays in Zone A while non-terminal, PLUS a rejected one until we've shipped the product
+  // back (mechanic_rejected is terminal in the machine, but its return shipment still needs doing —
+  // marked done once tracking is recorded).
+  const activeClaim =
+    claims.find(
+      (c) =>
+        isClaimState(c.state) &&
+        (!isTerminalClaimState(c.state) || (c.state === "mechanic_rejected" && !c.trackingNo)),
+    ) ?? null;
   // Payment/COD review is the super-admin's + admin's action; a mechanic sees it read-only.
   const canReviewPay = canReviewPayment(viewerRole);
   /**
@@ -315,13 +323,16 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         <CodApprovalSection order={order} canAct={canReviewPay} status={status} onError={setErr} />
       )}
 
-      {/* A defect claim awaiting approve/reject — Zone A for a mechanic or super-admin (a plain admin
-          sees it read-only). Reject reason is shown to the customer; approve moves it to awaiting-return. */}
-      {isClaimPending && pendingClaim && (
+      {/* The active defect claim — Zone A for its whole life, for a mechanic or super-admin (a plain
+          admin sees it read-only). Each step's action lives here; a deny move shows the customer why. */}
+      {activeClaim && (
         <ClaimReviewSection
-          claim={pendingClaim}
+          claim={activeClaim}
+          order={order}
+          address={address}
           lines={lines}
           viewerRole={viewerRole}
+          viewerIsSuperAdmin={viewerIsSuperAdmin}
           mechanics={mechanics}
           status={status}
           onError={setErr}
@@ -581,9 +592,11 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             )}
           </div>
 
+          {/* Zone B keeps the "Raise a claim" button + any TERMINAL/past claims — the active one is
+              handled full-width in Zone A above, so it is excluded here to avoid a duplicate. */}
           <ClaimsSection
             orderId={order.id}
-            claims={claims}
+            claims={claims.filter((c) => c.id !== activeClaim?.id)}
             lines={lines}
             busyClaim={busyClaim}
             raising={raising}

@@ -1,5 +1,6 @@
-import { getDb } from "@/lib/db";
+import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
+import { shopKey } from "@l-shopee/core";
 
 /**
  * GET /api/orders/lookup?ref=AP-XXXX&phone=08XXXXXXXX
@@ -48,7 +49,7 @@ export async function GET(request: Request): Promise<Response> {
       return Response.json({ error: "กรุณาระบุเลขที่คำสั่งซื้อและเบอร์โทรศัพท์" }, { status: 400 });
     }
 
-    const db = await getDb();
+    const { DB: db, KV } = await getEnv();
     const order = await db
       .prepare(
         `SELECT o.id AS id, o.external_order_id AS externalOrderId,
@@ -109,14 +110,25 @@ export async function GET(request: Request): Promise<Response> {
       (r) => r.orderStatus === "cancelled" || r.orderStatus === "expired",
     );
 
-    // The latest claim's state + (if rejected) the reason — drives the claim area on the order page.
+    // The latest claim — its state + (if rejected) the reason drive the claim area, and the
+    // resolution / decision times / replacement tracking drive the customer's claim sub-timeline.
     const claim = await db
       .prepare(
-        `SELECT state, admin_note AS adminNote FROM order_claims
+        `SELECT state, resolution, admin_note AS adminNote, created_at AS createdAt,
+                mechanic_decided_at AS mechanicDecidedAt, carrier, tracking_no AS trackingNo
+         FROM order_claims
          WHERE sales_order_id = ? ORDER BY created_at DESC LIMIT 1`,
       )
       .bind(order.id)
-      .first<{ state: string; adminNote: string | null }>();
+      .first<{
+        state: string;
+        resolution: string | null;
+        adminNote: string | null;
+        createdAt: number;
+        mechanicDecidedAt: number | null;
+        carrier: string | null;
+        trackingNo: string | null;
+      }>();
 
     return Response.json({
       ref: order.externalOrderId,
@@ -138,6 +150,14 @@ export async function GET(request: Request): Promise<Response> {
       // Claim state + the reject reason (admin_note) — never the internal evidence keys.
       claimState: claim?.state ?? null,
       claimReason: claim?.adminNote ?? null,
+      claimResolution: claim?.resolution ?? null,
+      claimCreatedAt: claim?.createdAt ?? null,
+      claimInspectedAt: claim?.mechanicDecidedAt ?? null,
+      claimCarrier: claim?.carrier ?? null,
+      claimTrackingNo: claim?.trackingNo ?? null,
+      // Where the customer ships the defective item back — AirPlus's own shop address (the SAME value
+      // shown in admin Shop info; the code treats that one address as the returns address too).
+      returnAddress: (await KV.get(shopKey("airplus", "address")))?.trim() || null,
       lines: lines.results ?? [],
     });
   } catch {

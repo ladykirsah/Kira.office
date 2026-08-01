@@ -52,6 +52,14 @@ interface LookupResult {
   /** Latest claim state + the reject reason (when rejected) — drives the claim area. */
   claimState: string | null;
   claimReason: string | null;
+  /** The customer's chosen resolution + stage times + replacement tracking — the claim sub-timeline. */
+  claimResolution: string | null;
+  claimCreatedAt: number | null;
+  claimInspectedAt: number | null;
+  claimCarrier: string | null;
+  claimTrackingNo: string | null;
+  /** AirPlus's return address — where the customer ships the defective item back. */
+  returnAddress: string | null;
   lines: LookupLine[];
 }
 
@@ -311,8 +319,112 @@ function TimelineStep({ step, last }: { step: Step; last: boolean }) {
   );
 }
 
-/** The defect-claim area on the order page: the submit form, an in-review note, or a rejection with
- *  the reason + a LINE contact link. Hidden entirely on orders the customer never received. */
+/** How far a live claim has progressed. cancelled/mechanic_rejected are handled as a rejection, not
+ *  a stage, so they are absent here. */
+const CLAIM_RANK: Record<string, number> = {
+  requested: 0,
+  approved: 1,
+  received: 2,
+  mechanic_approved: 3,
+  shipped: 4,
+  done: 5,
+};
+
+/**
+ * The customer's claim sub-timeline — the same four-beat story the back office tracks, in the same
+ * gray/red/black colours as the main order timeline (grey = not yet, red = where we are, black =
+ * passed): แจ้งเคลม → ส่งของคืน → ตรวจสอบ → คืนเงิน/ส่งของใหม่. The last beat follows the customer's
+ * own choice (refund vs replacement).
+ */
+function buildClaimSteps(o: LookupResult): Step[] {
+  const rank = CLAIM_RANK[o.claimState ?? ""] ?? 0;
+  const isRefund = o.claimResolution === "refund";
+
+  const s2: StepState = rank >= 2 ? "done" : "current";
+  const s3: StepState = rank >= 3 ? "done" : rank === 2 ? "current" : "pending";
+  const s4: StepState = rank >= 4 ? "done" : rank === 3 ? "current" : "pending";
+
+  const finalStep: Step = isRefund
+    ? {
+        title: rank >= 5 ? "คืนเงินแล้ว" : "คืนเงิน",
+        at: rank >= 5 ? o.refundedAt : null,
+        detail: rank === 3 ? "กำลังดำเนินการโอนคืนเข้าบัญชีที่แจ้งไว้" : null,
+        tracking: null,
+        state: s4,
+      }
+    : {
+        title: rank >= 4 ? "จัดส่งสินค้าใหม่แล้ว" : "จัดส่งสินค้าใหม่",
+        at: null,
+        detail: rank === 3 ? "กำลังจัดเตรียมสินค้าใหม่ให้" : null,
+        tracking: o.claimTrackingNo
+          ? { carrier: o.claimCarrier, trackingNo: o.claimTrackingNo }
+          : null,
+        state: s4,
+      };
+
+  return [
+    { title: "แจ้งเคลม", at: o.claimCreatedAt, detail: null, tracking: null, state: "done" },
+    {
+      title: "ส่งสินค้าคืน",
+      at: null,
+      detail: rank < 1 ? "รอทีมงานรับเรื่อง" : rank === 1 ? "กรุณาส่งสินค้ากลับมาตรวจสอบ" : null,
+      tracking: null,
+      state: s2,
+    },
+    {
+      title: "ตรวจสอบสินค้า",
+      at: rank >= 3 ? o.claimInspectedAt : null,
+      detail: null,
+      tracking: null,
+      state: s3,
+    },
+    finalStep,
+  ];
+}
+
+/** OUR claim-refund transfer slip, fetched by POST (phone never lands in a URL) and shown as evidence. */
+function ClaimRefundSlip({ orderRef, phone }: { orderRef: string; phone: string }) {
+  const [slipUrl, setSlipUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let revoked = false;
+    let url: string | null = null;
+    void (async () => {
+      try {
+        const res = await fetch("/api/orders/refund-slip", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ref: orderRef, phone }),
+        });
+        if (!res.ok) return;
+        url = URL.createObjectURL(await res.blob());
+        if (!revoked) setSlipUrl(url);
+      } catch {
+        /* best-effort — the "คืนเงินแล้ว" step stands on its own without the image */
+      }
+    })();
+    return () => {
+      revoked = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [orderRef, phone]);
+  if (!slipUrl) return null;
+  return (
+    <img
+      src={slipUrl}
+      alt="สลิปการคืนเงิน"
+      style={{
+        marginTop: 12,
+        maxWidth: 260,
+        width: "100%",
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+      }}
+    />
+  );
+}
+
+/** The defect-claim area on the order page: the submit form, a live claim sub-timeline, or a rejection
+ *  with the reason + a LINE contact link. Hidden entirely on orders the customer never received. */
 function ClaimArea({
   result,
   phone,
@@ -325,38 +437,73 @@ function ClaimArea({
   const ord = normalizeOrderStatus(result.orderStatus);
   const claimable = ord === "delivered" || ord === "claimed" || ord === "claim_rejected";
   const cs = result.claimState;
-  const active = cs != null && cs !== "cancelled" && cs !== "done";
+  // A rejection — the claim was out of our terms or caused by misuse (mechanic_rejected), or the
+  // legacy admin-cancel. The product is still the customer's, so we ship it back; they see the reason,
+  // the return tracking once it's sent, and a LINE contact for anything the system won't settle.
+  const rejected = cs === "cancelled" || cs === "mechanic_rejected";
+  const live = cs != null && !rejected; // requested … done → the sub-timeline
   const note = { marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" } as const;
 
-  if (cs === "cancelled") {
+  if (rejected) {
+    const returnShipped = cs === "mechanic_rejected" && !!result.claimTrackingNo;
     return (
       <div style={note}>
-        <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 6px" }}>การเคลมถูกปฏิเสธ</p>
+        <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 6px" }}>การเคลมไม่ผ่านการพิจารณา</p>
         {result.claimReason && (
           <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
             เหตุผล: {result.claimReason}
           </p>
         )}
+        {cs === "mechanic_rejected" &&
+          (returnShipped ? (
+            <div style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>ส่งสินค้าคืนแล้ว</p>
+              <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                {[result.claimCarrier, result.claimTrackingNo].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+          ) : (
+            <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
+              เรากำลังจัดส่งสินค้าคืนให้คุณ
+            </p>
+          ))}
         <a className="btn" href={LINE_OA_URL} target="_blank" rel="noreferrer">
           ติดต่อเราทาง LINE
         </a>
       </div>
     );
   }
-  if (active) {
+  if (live) {
+    const steps = buildClaimSteps(result);
+    const isRefundDone = result.claimResolution === "refund" && cs === "done";
+    // Before we've logged the item's arrival, the customer still needs to ship it back — show the
+    // AirPlus return address (for both refund and replacement; the ช่าง inspects it either way).
+    const awaitingReturn = cs === "requested" || cs === "approved";
     return (
       <div style={note}>
-        <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>อยู่ระหว่างตรวจสอบการเคลม</p>
-        <p className="muted" style={{ fontSize: 13, margin: "4px 0 0" }}>
-          ทีมงานกำลังตรวจสอบ จะแจ้งผลให้ทราบ
-        </p>
-      </div>
-    );
-  }
-  if (cs === "done") {
-    return (
-      <div style={note}>
-        <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>เคลมเสร็จสิ้น</p>
+        <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 14px" }}>สถานะการเคลม</p>
+        {awaitingReturn && result.returnAddress && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: "11px 12px",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              background: "var(--surface, transparent)",
+            }}
+          >
+            <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px" }}>
+              ส่งสินค้ากลับมาตรวจสอบที่
+            </p>
+            <p className="muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>
+              {result.returnAddress}
+            </p>
+          </div>
+        )}
+        {steps.map((step, i) => (
+          <TimelineStep key={step.title} step={step} last={i === steps.length - 1} />
+        ))}
+        {isRefundDone && <ClaimRefundSlip orderRef={result.ref} phone={phone} />}
       </div>
     );
   }
