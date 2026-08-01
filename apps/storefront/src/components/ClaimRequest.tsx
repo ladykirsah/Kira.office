@@ -59,8 +59,37 @@ export function ClaimRequest({
   const photoRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
 
+  // How the customer wants it resolved — chosen here, on the form.
+  const [resolution, setResolution] = useState<"refund" | "exchange" | "">("");
+  const [bankName, setBankName] = useState("");
+  const [accountNo, setAccountNo] = useState("");
+  const [accountName, setAccountName] = useState("");
+  // A single switch: ON keeps the order's address, OFF reveals the new-address form.
+  const [useSameAddress, setUseSameAddress] = useState(true);
+  const [addr, setAddr] = useState({
+    recipientName: "",
+    addressPhone: "",
+    addressLine1: "",
+    subdistrict: "",
+    district: "",
+    province: "",
+    postalCode: "",
+  });
+  const setAddrField = (k: keyof typeof addr) => (e: { target: { value: string } }) =>
+    setAddr((a) => ({ ...a, [k]: e.target.value }));
+
+  const bankOk = !!bankName.trim() && !!accountNo.trim() && !!accountName.trim();
+  const newAddrOk = Object.values(addr).every((v) => v.trim());
+  const resolutionOk =
+    resolution === "refund"
+      ? bankOk
+      : resolution === "exchange"
+        ? useSameAddress || newAddrOk
+        : false;
+  const canSubmit = !!reason.trim() && resolutionOk;
+
   async function submit() {
-    if (!reason.trim()) return;
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
     try {
@@ -68,6 +97,23 @@ export function ClaimRequest({
       fd.set("ref", orderRef);
       fd.set("phone", phone);
       fd.set("reason", reason.trim());
+      fd.set("resolution", resolution);
+      if (resolution === "refund") {
+        fd.set("bankName", bankName.trim());
+        fd.set("accountNo", accountNo.trim());
+        fd.set("accountName", accountName.trim());
+      } else if (resolution === "exchange") {
+        fd.set("addressChoice", useSameAddress ? "same" : "new");
+        if (!useSameAddress) {
+          fd.set("recipientName", addr.recipientName.trim());
+          fd.set("addressPhone", addr.addressPhone.trim());
+          fd.set("addressLine1", addr.addressLine1.trim());
+          fd.set("subdistrict", addr.subdistrict.trim());
+          fd.set("district", addr.district.trim());
+          fd.set("province", addr.province.trim());
+          fd.set("postalCode", addr.postalCode.trim());
+        }
+      }
       for (const p of photos) {
         try {
           fd.append("photos", await downscaleToJpeg(p), "photo.jpg");
@@ -91,6 +137,14 @@ export function ClaimRequest({
   }
 
   const wrap = { marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" } as const;
+  const inputStyle = {
+    width: "100%",
+    padding: "9px 11px",
+    fontSize: 14,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    boxSizing: "border-box" as const,
+  };
   const picker = {
     ...box,
     display: "flex",
@@ -239,11 +293,183 @@ export function ClaimRequest({
         )}
       </div>
 
+      {/* how the customer wants it resolved — a multiple-choice form; the choice drives the admin flow */}
+      <p style={{ fontSize: 14, fontWeight: 600, margin: "4px 0 8px" }}>
+        ต้องการให้ดำเนินการอย่างไร
+      </p>
+      <div
+        role="radiogroup"
+        aria-label="วิธีการเคลม"
+        style={{ display: "grid", gap: 8, marginBottom: resolution ? 12 : 4 }}
+      >
+        {(
+          [
+            { key: "refund", title: "รับเงินคืน", desc: "โอนเงินคืนเข้าบัญชีของคุณ" },
+            { key: "exchange", title: "เปลี่ยนสินค้าใหม่", desc: "จัดส่งสินค้าใหม่ให้แทน" },
+          ] as const
+        ).map((opt) => {
+          const on = resolution === opt.key;
+          return (
+            <label
+              key={opt.key}
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
+                padding: "11px 12px",
+                border: `1px solid ${on ? "var(--danger)" : "var(--border)"}`,
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="radio"
+                name="resolution"
+                checked={on}
+                onChange={() => setResolution(opt.key)}
+                style={{ marginTop: 3, accentColor: "var(--danger)" }}
+              />
+              <span>
+                <span style={{ fontSize: 14, fontWeight: 600, display: "block" }}>{opt.title}</span>
+                <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{opt.desc}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {resolution === "refund" && (
+        <div style={{ marginBottom: 12 }}>
+          <p className="muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
+            กรอกบัญชีธนาคารของคุณ เมื่อผ่านการตรวจสอบ เราจะโอนคืนเต็มจำนวนภายใน 2–3 วันทำการ
+          </p>
+          <div style={{ display: "grid", gap: 8 }}>
+            <input
+              style={inputStyle}
+              placeholder="ธนาคาร (เช่น กสิกรไทย)"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+            />
+            <input
+              style={inputStyle}
+              inputMode="numeric"
+              placeholder="เลขที่บัญชี"
+              value={accountNo}
+              onChange={(e) => setAccountNo(e.target.value)}
+            />
+            <input
+              style={inputStyle}
+              placeholder="ชื่อบัญชี"
+              value={accountName}
+              onChange={(e) => setAccountName(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
+      {resolution === "exchange" && (
+        <div style={{ marginBottom: 12 }}>
+          <p className="muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
+            เมื่อผ่านการตรวจสอบ เราจะจัดส่งสินค้าใหม่ให้
+          </p>
+          {/* One switch: ON = ship to the order's address, OFF = fill a new one below. */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "10px 12px",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              marginBottom: useSameAddress ? 0 : 10,
+            }}
+          >
+            <span>
+              <span style={{ fontSize: 14, fontWeight: 600, display: "block" }}>ที่อยู่เดิม</span>
+              <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+                {useSameAddress ? "ส่งไปที่อยู่ตามคำสั่งซื้อ" : "กรอกที่อยู่จัดส่งใหม่ด้านล่าง"}
+              </span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={useSameAddress}
+              aria-label="ใช้ที่อยู่เดิม"
+              onClick={() => setUseSameAddress((v) => !v)}
+              style={{
+                flexShrink: 0,
+                width: 46,
+                height: 28,
+                borderRadius: 999,
+                border: "none",
+                padding: 3,
+                cursor: "pointer",
+                background: useSameAddress ? "var(--danger)" : "var(--border)",
+                display: "flex",
+                justifyContent: useSameAddress ? "flex-end" : "flex-start",
+                transition: "background .15s",
+              }}
+            >
+              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff" }} />
+            </button>
+          </div>
+          {!useSameAddress && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <input
+                style={inputStyle}
+                placeholder="ชื่อผู้รับ"
+                value={addr.recipientName}
+                onChange={setAddrField("recipientName")}
+              />
+              <input
+                style={inputStyle}
+                inputMode="tel"
+                placeholder="เบอร์โทรผู้รับ"
+                value={addr.addressPhone}
+                onChange={setAddrField("addressPhone")}
+              />
+              <input
+                style={inputStyle}
+                placeholder="บ้านเลขที่ ถนน หมู่บ้าน"
+                value={addr.addressLine1}
+                onChange={setAddrField("addressLine1")}
+              />
+              <input
+                style={inputStyle}
+                placeholder="ตำบล / แขวง"
+                value={addr.subdistrict}
+                onChange={setAddrField("subdistrict")}
+              />
+              <input
+                style={inputStyle}
+                placeholder="อำเภอ / เขต"
+                value={addr.district}
+                onChange={setAddrField("district")}
+              />
+              <input
+                style={inputStyle}
+                placeholder="จังหวัด"
+                value={addr.province}
+                onChange={setAddrField("province")}
+              />
+              <input
+                style={inputStyle}
+                inputMode="numeric"
+                placeholder="รหัสไปรษณีย์"
+                value={addr.postalCode}
+                onChange={setAddrField("postalCode")}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8 }}>
         <button
           type="button"
           className="btn btn-primary"
-          disabled={busy || !reason.trim()}
+          disabled={busy || !canSubmit}
           onClick={() => void submit()}
         >
           {busy ? "กำลังส่ง…" : "ส่งเคลม"}

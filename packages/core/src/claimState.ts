@@ -92,10 +92,16 @@ export function isClaimState(v: string): v is ClaimState {
  * them either a resolution or their goods back.
  */
 const TRANSITIONS: Record<ClaimState, Partial<Record<ClaimState, ClaimActor>>> = {
-  requested: { approved: "admin", cancelled: "admin" },
+  // No pre-approve/close gate: the customer ships the item back the moment they file, and the admin's
+  // first action is confirming it arrived (→ received). There is no admin-cancel of a fresh claim —
+  // the only rejection is the mechanic's verdict, at received. `approved` is kept in the machine only
+  // so any legacy claim already sitting in it can still move forward; new claims never enter it.
+  requested: { received: "admin" },
   approved: { received: "admin", cancelled: "admin" },
   received: { mechanic_approved: "mechanic", mechanic_rejected: "mechanic" },
-  mechanic_approved: { shipped: "admin" },
+  // Two resolutions, chosen by the customer at claim time: a refund closes the claim directly (money
+  // back, nothing shipped), a replacement ships first (→ shipped → done).
+  mechanic_approved: { done: "admin", shipped: "admin" },
   shipped: { done: "admin" },
   done: {},
   cancelled: {},

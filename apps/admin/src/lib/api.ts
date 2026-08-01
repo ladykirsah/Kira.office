@@ -1809,6 +1809,19 @@ export interface OrderDetail {
     /** R2 keys of the claim's evidence photos, served via the private /file route. */
     photoKeys: string[];
     lines: { salesOrderLineId: string; quantity: number }[];
+    /**
+     * Where a replacement ships when the customer chose a DIFFERENT address than the order's own.
+     * Null means "same as the order" — the UI falls back to `address`.
+     */
+    replacementAddress: {
+      recipientName: string | null;
+      phone: string | null;
+      addressLine1: string | null;
+      subdistrict: string | null;
+      district: string | null;
+      province: string | null;
+      postalCode: string | null;
+    } | null;
   }[];
   /** Whether THIS admin may see slip images (super-admin). Gates the slip preview + Documents actions. */
   viewerIsSuperAdmin: boolean;
@@ -1950,7 +1963,13 @@ export async function createOrderClaim(
 export async function transitionOrderClaim(
   claimId: string,
   state: string,
-  opts: { reason?: string; assignee?: string } = {},
+  opts: {
+    reason?: string;
+    assignee?: string;
+    carrier?: string;
+    trackingNo?: string;
+    shippingFeeSatang?: number;
+  } = {},
 ): Promise<void> {
   const res = await apiFetch(`/claims/${encodeURIComponent(claimId)}`, {
     method: "PATCH",
@@ -1960,5 +1979,40 @@ export async function transitionOrderClaim(
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `Failed to update claim (HTTP ${res.status})`);
+  }
+}
+
+/**
+ * Record a claim resolved with a refund — the customer chose money back. Uploads OUR outgoing transfer
+ * slip (super-admin only, server-enforced) and closes the claim. Mirrors recordRefund's raw-body POST.
+ */
+export async function recordClaimRefund(claimId: string, slip: File): Promise<void> {
+  const res = await apiFetch(`/claims/${encodeURIComponent(claimId)}/refund`, {
+    method: "POST",
+    headers: { "content-type": slip.type || "image/jpeg" },
+    body: slip,
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Claim refund failed (HTTP ${res.status})`);
+  }
+}
+
+/**
+ * Ship a REJECTED claim's product back to the customer (out of T&C / misuse → no refund/replacement).
+ * Same drop-off shape as the replacement — carrier + tracking + what the carrier charged us.
+ */
+export async function recordClaimReturnShipment(
+  claimId: string,
+  input: { carrier: string; trackingNo: string; shippingFeeSatang: number },
+): Promise<void> {
+  const res = await apiFetch(`/claims/${encodeURIComponent(claimId)}/return-shipment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Return shipment failed (HTTP ${res.status})`);
   }
 }

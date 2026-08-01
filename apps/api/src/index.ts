@@ -2370,7 +2370,13 @@ export async function transitionClaim(
   to: string,
   actorEmail: string | null,
   now: number = Date.now(),
-  opts: { note?: string | null; assignee?: string | null } = {},
+  opts: {
+    note?: string | null;
+    assignee?: string | null;
+    carrier?: string | null;
+    trackingNo?: string | null;
+    shippingFeeSatang?: number | null;
+  } = {},
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!isClaimState(to)) return { ok: false, reason: "unknown state" };
 
@@ -2403,6 +2409,21 @@ export async function transitionClaim(
   if (opts.assignee != null) {
     sets.push(`assignee_name = ?`);
     binds.push(opts.assignee);
+  }
+  // The replacement drop-off (exchange resolution) records the carrier + tracking on the CLAIM, not
+  // the order (the order's own carrier/tracking is the original shipment).
+  if (opts.carrier != null) {
+    sets.push(`carrier = ?`);
+    binds.push(opts.carrier);
+  }
+  if (opts.trackingNo != null) {
+    sets.push(`tracking_no = ?`);
+    binds.push(opts.trackingNo);
+  }
+  // What we paid the carrier to ship the replacement — a claim cost that orderMoney takes off profit.
+  if (opts.shippingFeeSatang != null) {
+    sets.push(`shipping_fee_satang = ?`);
+    binds.push(opts.shippingFeeSatang);
   }
   binds.push(claimId);
   await db
@@ -2563,10 +2584,17 @@ export interface OrderDetail {
     assigneeName: string | null;
     carrier: string | null;
     trackingNo: string | null;
+    /** What we paid the carrier to ship the replacement (exchange). Null for refunds / pre-shipment. */
+    shippingFeeSatang: number | null;
     createdAt: number;
     /** R2 keys of the claim's evidence photos (namespace `claim/`), served via GET /file/:key. */
     photoKeys: string[];
     lines: { salesOrderLineId: string; quantity: number }[];
+    /**
+     * Where a replacement (exchange) ships. Null means the customer chose the order's own shipping
+     * address, so the UI falls back to `address`; a value is a different address they entered.
+     */
+    replacementAddress: OrderDetail["address"];
   }[];
 }
 
@@ -2690,12 +2718,17 @@ export async function getOrderDetail(
               mechanic_decided_at AS mechanicDecidedAt, admin_email AS adminEmail,
               admin_decided_at AS adminDecidedAt, admin_note AS adminNote,
               assignee_name AS assigneeName, carrier, tracking_no AS trackingNo,
-              created_at AS createdAt, photo_keys AS photoKeys
+              shipping_fee_satang AS shippingFeeSatang,
+              created_at AS createdAt, photo_keys AS photoKeys,
+              replacement_address_id AS replacementAddressId
        FROM order_claims WHERE sales_order_id = ? ORDER BY created_at DESC`,
     )
     .bind(id)
     .all<
-      Omit<OrderDetail["claims"][number], "lines" | "photoKeys"> & { photoKeys: string | null }
+      Omit<OrderDetail["claims"][number], "lines" | "photoKeys" | "replacementAddress"> & {
+        photoKeys: string | null;
+        replacementAddressId: string | null;
+      }
     >();
 
   const claims: OrderDetail["claims"] = [];
@@ -2707,8 +2740,25 @@ export async function getOrderDetail(
       )
       .bind(c.id)
       .all<{ salesOrderLineId: string; quantity: number }>();
-    const { photoKeys: rawPhotoKeys, ...rest } = c;
-    claims.push({ ...rest, photoKeys: parsePhotoKeys(rawPhotoKeys), lines: cl ?? [] });
+    // A replacement to a DIFFERENT address than the order's own — resolved for the drop-off form.
+    // Null (the common case) means "same as the order", so the UI reuses `address`.
+    const replacementAddress = c.replacementAddressId
+      ? ((await db
+          .prepare(
+            `SELECT recipient_name AS recipientName, phone, address_line1 AS addressLine1,
+                    subdistrict, district, province, postal_code AS postalCode
+             FROM addresses WHERE id = ?`,
+          )
+          .bind(c.replacementAddressId)
+          .first<OrderDetail["address"]>()) ?? null)
+      : null;
+    const { photoKeys: rawPhotoKeys, replacementAddressId: _drop, ...rest } = c;
+    claims.push({
+      ...rest,
+      photoKeys: parsePhotoKeys(rawPhotoKeys),
+      lines: cl ?? [],
+      replacementAddress,
+    });
   }
 
   // The parcel-bounce timestamp anchors the 1-year refund window. Timeline is newest-first, so the
@@ -2730,6 +2780,8 @@ export async function getOrderDetail(
       storedProfitSatang: orderFields.profitSatang,
       // A recorded refund unwinds the sale in the two books: profit becomes the shipping we ate.
       refundedSatang: orderFields.refundSatang ?? 0,
+      // Any replacement we shipped on an exchange claim cost us its carrier fee — off the profit.
+      claimShippingSatang: claims.reduce((n, c) => n + (c.shippingFeeSatang ?? 0), 0),
     }),
     refundAction: classifyRefundAction(
       {
@@ -3157,6 +3209,140 @@ export async function recordRefund(
     event: "refunded",
     actorEmail,
     note: "คืนเงินแล้ว (ตีกลับ)",
+    at: now,
+  });
+  return { ok: true };
+}
+
+/**
+ * Record a claim RESOLVED WITH A REFUND — the customer chose money back when they filed the claim.
+ * Reuses the order-level refund machinery so the two money books reflect it EXACTLY like a
+ * failed-delivery refund: bank details already sit on the order, this writes refund_satang (the grand
+ * total, matching the whole-order claim model), refunded_at, the actor, the outgoing slip, and flips
+ * payment_status to 'refunded' — which makes orderMoney read profit as the loss.
+ *
+ * Two deliberate differences from recordRefund:
+ *  - NO restock. The returned item is the DEFECTIVE one, not resellable, so on-hand must not rise.
+ *  - It also CLOSES the claim (mechanic_approved → done), because a refund ships nothing.
+ *
+ * The bank transfer is done by hand off-system; this only records it. Gated at the route to
+ * canReviewClaim (super-admin or mechanic). Idempotent via the order's refunded_at guard.
+ */
+export async function recordClaimRefund(
+  db: D1Database,
+  claimId: string,
+  slipImageKey: string,
+  actorEmail: string | null = null,
+  now: number = Date.now(),
+): Promise<RecordRefundResult> {
+  const claim = await db
+    .prepare(
+      `SELECT c.id AS id, c.state AS state, c.resolution AS resolution, c.sales_order_id AS orderId,
+              o.grand_total_satang AS grandTotalSatang, o.refunded_at AS refundedAt
+       FROM order_claims c JOIN sales_orders o ON o.id = c.sales_order_id
+       WHERE c.id = ? AND o.channel = 'airplus'`,
+    )
+    .bind(claimId)
+    .first<{
+      id: string;
+      state: string;
+      resolution: string | null;
+      orderId: string;
+      grandTotalSatang: number;
+      refundedAt: number | null;
+    }>();
+  if (!claim) return { ok: false, code: 404, reason: "not found" };
+  if (claim.refundedAt != null)
+    return { ok: false, code: 409, reason: "this order has already been refunded" };
+  // Only a mechanic-passed claim the customer chose to settle in cash can be refunded here.
+  if (claim.state !== "mechanic_approved" || claim.resolution !== "refund")
+    return { ok: false, code: 409, reason: "this claim is not an approved refund" };
+  if (!slipImageKey) return { ok: false, code: 400, reason: "a refund slip is required" };
+
+  // Money back on the order — the SAME fields the failed-delivery refund writes, so orderMoney reads
+  // the refund in both books. No restock: the item is defective, not resellable.
+  await db
+    .prepare(
+      `UPDATE sales_orders SET payment_status = 'refunded', refund_satang = ?, refunded_at = ?,
+             refund_actor_email = ?, refund_slip_image_key = ? WHERE id = ?`,
+    )
+    .bind(claim.grandTotalSatang, now, actorEmail, slipImageKey, claim.orderId)
+    .run();
+  // Close the claim. mechanic_approved → done keeps order_status at 'claimed', so this appends no
+  // duplicate; the meaningful 'refunded' step is written just below.
+  const moved = await transitionClaim(db, claimId, "done", actorEmail, now);
+  if (!moved.ok)
+    return { ok: false, code: 409, reason: moved.reason ?? "could not close the claim" };
+  await appendOrderStatusHistory(db, {
+    orderId: claim.orderId,
+    orderStatus: "claimed",
+    paymentStatus: "refunded",
+    event: "refunded",
+    actorEmail,
+    note: "คืนเงินเคลมแล้ว",
+    at: now,
+  });
+  return { ok: true };
+}
+
+/**
+ * Record shipping a REJECTED claim's product BACK to the customer. A rejection (out of T&C, or the
+ * customer's own misuse) means no refund and no replacement — the product is still theirs, so we send
+ * it back. Same shape as the replacement drop-off (carrier + tracking + what the carrier charged us),
+ * written onto the claim's us→customer columns; the return fee flows into orderMoney like any claim
+ * shipping. No state change: the claim stays `mechanic_rejected` (the order keeps reading claim_rejected)
+ * and simply gains the shipment, which marks it fully resolved. Idempotent via the tracking guard.
+ */
+export async function recordClaimReturnShipment(
+  db: D1Database,
+  claimId: string,
+  input: { carrier: string; trackingNo: string; shippingFeeSatang: number },
+  actorEmail: string | null = null,
+  now: number = Date.now(),
+): Promise<{ ok: boolean; code?: number; reason?: string }> {
+  const claim = await db
+    .prepare(
+      `SELECT c.state AS state, c.tracking_no AS trackingNo, c.sales_order_id AS orderId,
+              o.payment_status AS paymentStatus
+       FROM order_claims c JOIN sales_orders o ON o.id = c.sales_order_id
+       WHERE c.id = ? AND o.channel = 'airplus'`,
+    )
+    .bind(claimId)
+    .first<{
+      state: string;
+      trackingNo: string | null;
+      orderId: string;
+      paymentStatus: string | null;
+    }>();
+  if (!claim) return { ok: false, code: 404, reason: "not found" };
+  if (claim.state !== "mechanic_rejected")
+    return { ok: false, code: 409, reason: "only a rejected claim ships the product back here" };
+  if (claim.trackingNo)
+    return { ok: false, code: 409, reason: "this claim's return has already been shipped" };
+  if (!input.carrier.trim() || !input.trackingNo.trim())
+    return { ok: false, code: 400, reason: "carrier and tracking number are required" };
+
+  await db
+    .prepare(
+      `UPDATE order_claims SET carrier = ?, tracking_no = ?, shipping_fee_satang = ?,
+             dropped_off_at = ?, updated_at = ? WHERE id = ?`,
+    )
+    .bind(
+      input.carrier.trim(),
+      input.trackingNo.trim(),
+      Math.max(0, Math.round(input.shippingFeeSatang)),
+      now,
+      now,
+      claimId,
+    )
+    .run();
+  await appendOrderStatusHistory(db, {
+    orderId: claim.orderId,
+    orderStatus: "claim_rejected",
+    paymentStatus: claim.paymentStatus,
+    event: "updated",
+    actorEmail,
+    note: "ส่งสินค้าคืนลูกค้าแล้ว (เคลมไม่ผ่านเงื่อนไข)",
     at: now,
   });
   return { ok: true };
@@ -6420,6 +6606,65 @@ const worker = {
       return out.ok ? json({ ok: true }) : json({ error: out.reason }, out.code);
     }
 
+    // Record a claim resolved with a REFUND (customer chose money back). Reuses the order refund
+    // machinery — same refund-slip/ namespace, so the customer sees the transfer slip as evidence, and
+    // the books reflect it via orderMoney. SUPER-ADMIN ONLY, like the failed-delivery refund: the
+    // mechanic's job is the technical verdict, but the money out + the customer's bank PII are the
+    // super-admin's alone. 409 if the claim is not a mechanic-approved refund or the order is already
+    // refunded, 400 if the slip is missing.
+    const claimRefund = url.pathname.match(/^\/claims\/([^/]+)\/refund$/);
+    if (claimRefund && request.method === "POST") {
+      if (
+        !isSuperAdmin(userEmail, {
+          superAdminEmails: env.SUPER_ADMIN_EMAILS,
+          accessConfigured: !!env.ACCESS_AUD,
+        })
+      )
+        return json({ error: "super-admin only" }, 403);
+      const bytes = await request.arrayBuffer();
+      const contentType = request.headers.get("content-type") ?? "";
+      if (!bytes.byteLength || !contentType.startsWith("image/"))
+        return json({ error: "a refund slip image is required" }, 400);
+      const key = `refund-slip/${claimRefund[1]!}/${crypto.randomUUID()}.jpg`;
+      await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+      const out = await recordClaimRefund(env.DB, claimRefund[1]!, key, userEmail);
+      return out.ok ? json({ ok: true }) : json({ error: out.reason }, out.code);
+    }
+
+    // Ship a REJECTED claim's product back to the customer (out of T&C / customer misuse → no refund,
+    // no replacement, it's still theirs). Same drop-off shape as the replacement; a mechanic or
+    // super-admin may do it. 409 if the claim is not a rejection or already shipped back.
+    const claimReturn = url.pathname.match(/^\/claims\/([^/]+)\/return-shipment$/);
+    if (claimReturn && request.method === "POST") {
+      const role = viewerRole(userEmail, {
+        superAdminEmails: env.SUPER_ADMIN_EMAILS,
+        mechanicEmails: env.MECHANIC_EMAILS,
+        accessConfigured: !!env.ACCESS_AUD,
+      });
+      if (!canReviewClaim(role))
+        return json({ error: "claims are handled by a mechanic or super-admin" }, 403);
+      const body = await readJson<{
+        carrier?: string;
+        trackingNo?: string;
+        shippingFeeSatang?: number;
+      }>(request);
+      const fee =
+        typeof body?.shippingFeeSatang === "number" && Number.isFinite(body.shippingFeeSatang)
+          ? body.shippingFeeSatang
+          : 0;
+      const out = await recordClaimReturnShipment(
+        env.DB,
+        claimReturn[1]!,
+        {
+          carrier: body?.carrier ?? "",
+          trackingNo: body?.trackingNo ?? "",
+          shippingFeeSatang: fee,
+        },
+        userEmail,
+      );
+      return out.ok ? json({ ok: true }) : json({ error: out.reason }, out.code);
+    }
+
     // Admin raises a claim on the customer's behalf (they phone or LINE in — there is no self-serve
     // claim button on the storefront yet). 422 on a refused create: the body parsed fine, the
     // content is what failed — a line from another order, or more units than were bought.
@@ -6446,11 +6691,26 @@ const worker = {
       });
       if (!canReviewClaim(role))
         return json({ error: "claims are handled by a mechanic or super-admin" }, 403);
-      const body = await readJson<{ state?: string; reason?: string; assignee?: string }>(request);
+      const body = await readJson<{
+        state?: string;
+        reason?: string;
+        assignee?: string;
+        carrier?: string;
+        trackingNo?: string;
+        shippingFeeSatang?: number;
+      }>(request);
       if (!body?.state) return json({ error: "state is required" }, 400);
+      // Shipping the replacement (exchange resolution) needs the carrier + tracking + what the carrier
+      // charged us; every other move ignores them.
       const out = await transitionClaim(env.DB, claimById[1]!, body.state, userEmail, Date.now(), {
         note: typeof body.reason === "string" ? body.reason.trim() || null : null,
         assignee: typeof body.assignee === "string" ? body.assignee.trim() || null : null,
+        carrier: typeof body.carrier === "string" ? body.carrier.trim() || null : null,
+        trackingNo: typeof body.trackingNo === "string" ? body.trackingNo.trim() || null : null,
+        shippingFeeSatang:
+          typeof body.shippingFeeSatang === "number" && Number.isFinite(body.shippingFeeSatang)
+            ? Math.max(0, Math.round(body.shippingFeeSatang))
+            : null,
       });
       return out.ok ? json({ ok: true }) : json({ error: out.reason ?? "refused" }, 409);
     }
