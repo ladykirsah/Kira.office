@@ -20,13 +20,15 @@ import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { AirPlusOrders } from "./AirPlusOrders";
 
+// Matches the Orders page's date picker (owner request), minus the week presets.
 const PRESETS: { key: RangePreset; label: string }[] = [
+  { key: "all", label: "All time" },
   { key: "today", label: "Today" },
-  { key: "thisWeek", label: "This week" },
-  { key: "lastWeek", label: "Last week" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
   { key: "thisMonth", label: "This month" },
   { key: "lastMonth", label: "Last month" },
-  { key: "custom", label: "Custom" },
+  { key: "custom", label: "Custom..." },
 ];
 
 const card = {

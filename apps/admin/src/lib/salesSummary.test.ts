@@ -189,6 +189,24 @@ describe("rangeFor", () => {
     expect(r.startMs).toBe(ts(2026, 5, 10));
     expect(r.endMs).toBe(ts(2026, 5, 13)); // +1 day so the 12th is fully included
   });
+
+  it("given all > spans from epoch to now (everything)", () => {
+    const r = rangeFor("all", NOW);
+    expect(r.startMs).toBe(0);
+    expect(r.endMs).toBe(NOW);
+  });
+
+  it("given 7d > is the rolling 7 days ending now (Orders-style)", () => {
+    const r = rangeFor("7d", NOW);
+    expect(r.startMs).toBe(NOW - 7 * DAY);
+    expect(r.endMs).toBe(NOW);
+  });
+
+  it("given 30d > is the rolling 30 days ending now (Orders-style)", () => {
+    const r = rangeFor("30d", NOW);
+    expect(r.startMs).toBe(NOW - 30 * DAY);
+    expect(r.endMs).toBe(NOW);
+  });
 });
 
 describe("summarize", () => {
