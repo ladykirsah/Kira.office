@@ -1,30 +1,36 @@
 import { describe, it, expect } from "vitest";
-import { OPERATIONAL_STATUSES, operationalStatusLabel } from "@l-shopee/core";
+import { OPERATIONAL_STATUSES } from "@l-shopee/core";
 import { ORDER_SUMMARY_CARDS, cardIsWholeTab, orderSummaryCardLabel } from "./orderSummaryCards";
 import { ORDER_TAB_LABELS, ORDER_TAB_STATUSES } from "./orderTabs";
 
 /**
- * The owner's rule for the summary frame, 30 Jul 2026:
+ * The owner re-sectioned the summary frame, 2 Aug 2026: a card is now a section that may gather
+ * several operational statuses (Pending = COD pending + Payment pending; Refund = a bounced parcel
+ * plus every claim order), while To ship and In transit stay one status each.
  *
- *   "all summary frame match a status as one of filter feature"
- *   "if they are the same label as the menu bar, they the same page —
- *    summary frame is just shortcut for some often use"
- *
- * These tests hold both halves of it, because the failure they prevent already happened: the cards
- * said "To be shipped" and "COD approval" while the statuses they filtered by were called "To ship"
- * and "COD pending", so a shortcut was labelled differently from the thing it was a shortcut to.
+ * Two invariants keep a section honest, and both failures they guard against have bitten before: a
+ * card must not count an order another card already counts (or the numbers double), and a card must
+ * only count statuses that live in the tab it opens (or clicking it lands on a view that hides them).
  */
 
-describe("order summary cards > every card is one real status", () => {
-  it("each card's status is one of the thirteen operational statuses", () => {
+const byKey = (k: string) => ORDER_SUMMARY_CARDS.find((c) => c.key === k)!;
+
+describe("order summary cards > every status a card counts is real", () => {
+  it("each card counts at least one status, all of them real operational statuses", () => {
     for (const card of ORDER_SUMMARY_CARDS) {
-      expect(OPERATIONAL_STATUSES).toContain(card.status);
+      expect(card.statuses.length).toBeGreaterThan(0);
+      for (const s of card.statuses) expect(OPERATIONAL_STATUSES).toContain(s);
     }
   });
 
-  it("no two cards count the same status", () => {
-    const statuses = ORDER_SUMMARY_CARDS.map((c) => c.status);
-    expect(new Set(statuses).size).toBe(statuses.length);
+  it("no status is counted by two cards, so a count can never double", () => {
+    const seen = new Set<string>();
+    for (const card of ORDER_SUMMARY_CARDS) {
+      for (const s of card.statuses) {
+        expect(seen.has(s)).toBe(false);
+        seen.add(s);
+      }
+    }
   });
 
   it("keys are unique, so the active card can never be ambiguous", () => {
@@ -33,60 +39,62 @@ describe("order summary cards > every card is one real status", () => {
   });
 });
 
-describe("order summary cards > the label comes from the status", () => {
-  it("reads exactly what the Status column and the Filter dropdown read", () => {
-    for (const card of ORDER_SUMMARY_CARDS) {
-      expect(orderSummaryCardLabel(card)).toBe(operationalStatusLabel(card.status));
-    }
+describe("order summary cards > the owner's sections", () => {
+  it("reads Pending · To ship · In transit · Refund, in that order", () => {
+    expect(ORDER_SUMMARY_CARDS.map(orderSummaryCardLabel)).toEqual([
+      "Pending",
+      "To ship",
+      "In transit",
+      "Refund",
+    ]);
   });
 
-  it("every card reads the label the owner asked for", () => {
-    // The owner's order, 2 Aug 2026: COD pending · Payment pending · To ship · Return. Each label is
-    // the status's own — "COD approval" → "COD pending", "To be shipped" → "To ship", and the
-    // Payment-pending card derives its name from `verifying`'s label, not a string typed here.
-    const byKey = (k: string) => ORDER_SUMMARY_CARDS.find((c) => c.key === k)!;
-    expect(orderSummaryCardLabel(byKey("cod"))).toBe("COD pending");
-    expect(orderSummaryCardLabel(byKey("payment"))).toBe("Payment pending");
-    expect(orderSummaryCardLabel(byKey("toship"))).toBe("To ship");
-    expect(orderSummaryCardLabel(byKey("returns"))).toBe("Return");
+  it("Pending gathers COD pending and Payment pending", () => {
+    expect([...byKey("pending").statuses].sort()).toEqual(["cod_pending", "verifying"]);
+  });
+
+  it("Refund gathers the bounced parcel and every claim status, but not fail", () => {
+    expect([...byKey("refund").statuses].sort()).toEqual([
+      "claim_pending",
+      "claim_rejected",
+      "claimed",
+      "refunded",
+      "return",
+    ]);
+    expect(byKey("refund").statuses).not.toContain("fail");
+  });
+
+  it("To ship and In transit each count exactly their one status", () => {
+    expect(byKey("toship").statuses).toEqual(["to_ship"]);
+    expect(byKey("intransit").statuses).toEqual(["in_transit"]);
   });
 });
 
 describe("order summary cards > clicking one cannot land on a view that hides it", () => {
-  it("every card's status lives in the tab that card opens", () => {
-    // The bug this forbids: a card counting 1 that opens a tab whose filter excludes that order, so
-    // the number says 1 and the table says none.
+  it("every status a card counts lives in the tab that card opens", () => {
     for (const card of ORDER_SUMMARY_CARDS) {
-      expect(ORDER_TAB_STATUSES[card.tab]).toContain(card.status);
-    }
-  });
-
-  it("a card whose label matches its tab's label IS that whole tab", () => {
-    // The owner's rule stated precisely: same label ⇒ same page. If a card ever gets a label equal to
-    // a tab's while filtering to less than that tab holds, the two would disagree about what the page
-    // shows, and this fails.
-    for (const card of ORDER_SUMMARY_CARDS) {
-      if (orderSummaryCardLabel(card) === ORDER_TAB_LABELS[card.tab]) {
-        expect(ORDER_TAB_STATUSES[card.tab]).toEqual([card.status]);
-        expect(cardIsWholeTab(card)).toBe(true);
+      for (const s of card.statuses) {
+        expect(ORDER_TAB_STATUSES[card.tab]).toContain(s);
       }
     }
   });
 
-  it("To ship is a whole tab; COD pending, Payment pending and Return are slices", () => {
-    const byKey = (k: string) => ORDER_SUMMARY_CARDS.find((c) => c.key === k)!;
+  it("To ship and In transit are whole tabs; Pending and Refund are slices", () => {
     expect(cardIsWholeTab(byKey("toship"))).toBe(true);
-    // These three sit inside tabs that hold several statuses, so they show LESS than the tab — which
-    // is why they keep their own highlight instead of just selecting the tab. COD pending and Payment
-    // pending are both slices of the one "Unpaid" tab.
-    expect(cardIsWholeTab(byKey("cod"))).toBe(false);
-    expect(cardIsWholeTab(byKey("payment"))).toBe(false);
-    expect(cardIsWholeTab(byKey("returns"))).toBe(false);
+    expect(cardIsWholeTab(byKey("intransit"))).toBe(true);
+    // Both sit inside tabs that hold more than they count, so they show LESS than the tab — which is
+    // why they keep their own highlight instead of just selecting the tab.
+    expect(cardIsWholeTab(byKey("pending"))).toBe(false);
+    expect(cardIsWholeTab(byKey("refund"))).toBe(false);
   });
 
-  it("a slice card's label differs from its tab's label, so the rule stays consistent", () => {
+  it("a whole-tab card's label equals its tab's label; a slice's differs", () => {
+    // The owner's original rule, still true: same label ⇒ same page. A whole-tab card is that tab, so
+    // it may share its name; a slice must not, or the two would disagree about what the page shows.
     for (const card of ORDER_SUMMARY_CARDS) {
-      if (!cardIsWholeTab(card)) {
+      if (cardIsWholeTab(card)) {
+        expect(orderSummaryCardLabel(card)).toBe(ORDER_TAB_LABELS[card.tab]);
+      } else {
         expect(orderSummaryCardLabel(card)).not.toBe(ORDER_TAB_LABELS[card.tab]);
       }
     }
