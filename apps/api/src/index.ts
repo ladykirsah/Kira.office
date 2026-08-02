@@ -2527,6 +2527,9 @@ export interface OrderDetail {
     tier: string | null;
     creditScore: number | null;
     orderCount: number;
+    /** Completed (delivered) vs incomplete (expired / cancelled-unpaid) — the same split credit uses. */
+    completeCount: number;
+    incompleteCount: number;
   } | null;
   address: {
     recipientName: string | null;
@@ -2666,7 +2669,15 @@ export async function getOrderDetail(
           `SELECT c.id, c.customer_code AS customerCode, c.name, c.phone, c.tier,
                   c.credit_score AS creditScore,
                   (SELECT COUNT(*) FROM sales_orders o
-                    WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orderCount
+                    WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orderCount,
+                  (SELECT COUNT(*) FROM sales_orders o
+                    WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus'
+                      AND o.order_status = 'delivered') AS completeCount,
+                  (SELECT COUNT(*) FROM sales_orders o
+                    WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus'
+                      AND (o.order_status = 'expired'
+                           OR (o.order_status = 'cancelled'
+                               AND o.payment_status IN ('pending','cod_denied')))) AS incompleteCount
            FROM storefront_customers c WHERE c.id = ?`,
         )
         .bind(storefrontCustomerId)

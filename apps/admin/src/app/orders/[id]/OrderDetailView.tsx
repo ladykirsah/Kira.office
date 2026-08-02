@@ -352,7 +352,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                     </span>
                   )}
                   <span style={tableText.subtitle}>
-                    credit {customer.creditScore ?? 0} · {customer.orderCount} orders
+                    สำเร็จ {customer.completeCount} · ไม่สำเร็จ {customer.incompleteCount}
                   </span>
                 </div>
                 <div style={{ ...tableText.body2, marginTop: 4 }}>

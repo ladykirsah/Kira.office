@@ -5568,6 +5568,27 @@ describe("getOrderDetail (the /orders/:id read model)", () => {
     expect(d!.customer!.creditScore).toBe(4);
   });
 
+  it("counts complete (delivered) vs incomplete (expired / cancelled-unpaid) orders", async () => {
+    const db = seeded(); // o1 is 'packing' — neither complete nor incomplete
+    const add = (id: string, orderStatus: string, paymentStatus: string) =>
+      db
+        .prepare(
+          `INSERT INTO sales_orders
+             (id, channel, external_order_id, order_status, payment_status, grand_total_satang,
+              order_created_at, imported_at, storefront_customer_id)
+           VALUES (?, 'airplus', ?, ?, ?, 100000, ?, ?, 'c1')`,
+        )
+        .run(id, id, orderStatus, paymentStatus, NOW, NOW);
+    add("o2", "delivered", "paid");
+    add("o3", "delivered", "cod_collected");
+    add("o4", "expired", "expired");
+    add("o5", "cancelled", "pending");
+    add("o6", "cancelled", "refunded"); // product-fault return — counts as neither
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.customer!.completeCount).toBe(2); // o2, o3
+    expect(d!.customer!.incompleteCount).toBe(2); // o4, o5 (o6 excluded)
+  });
+
   it("given an order with no linked customer > returns null customer, not an error", async () => {
     // Imported orders and any legacy row have no storefront account.
     const d = await getOrderDetail(asD1(seeded({ withCustomer: false })), "o1");

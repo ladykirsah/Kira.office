@@ -1763,6 +1763,9 @@ export interface OrderDetail {
     tier: string | null;
     creditScore: number | null;
     orderCount: number;
+    /** Completed (delivered) vs incomplete (expired / cancelled-unpaid) order counts. */
+    completeCount: number;
+    incompleteCount: number;
   } | null;
   address: {
     recipientName: string | null;
