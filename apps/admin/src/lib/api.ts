@@ -1142,6 +1142,32 @@ export async function fetchStockMovements(): Promise<StockMovementRow[]> {
   return data.movements;
 }
 
+/** One product the owner still owes Shopee a stock update for — the dashboard "Update on Shopee" list. */
+export interface ShopeeWorklistItem {
+  productId: string;
+  productRef: string; // Product ID = SKU (the copy value)
+  name: string;
+  onHand: number;
+  deltaSinceSync: number; // net change since last reconciled — negative = reduced
+  lastChangedAt: number;
+}
+
+export async function fetchShopeeWorklist(): Promise<ShopeeWorklistItem[]> {
+  const res = await apiFetch(`/stock/shopee-worklist`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load Shopee worklist (HTTP ${res.status})`);
+  return ((await res.json()) as { items: ShopeeWorklistItem[] }).items;
+}
+
+/** Clear done: mark these products reconciled on Shopee, so they leave the worklist until they move again. */
+export async function markShopeeSynced(productIds: string[]): Promise<void> {
+  const res = await apiFetch(`/stock/shopee-synced`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ productIds }),
+  });
+  if (!res.ok) throw new Error(`Failed to update Shopee sync (HTTP ${res.status})`);
+}
+
 /**
  * Send exactly one of `quantityDelta` (a relative receive/write-off) or `countedOnHand` (a
  * stocktake, whose delta the server derives from its own read of the ledger).
