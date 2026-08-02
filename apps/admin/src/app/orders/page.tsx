@@ -4,7 +4,15 @@ import { OrdersTable } from "./OrdersTable";
 
 export const dynamic = "force-dynamic";
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  // Next 15 hands searchParams in as a promise. `?card=` is the dashboard's deep-link into the summary
+  // frame; read it on the server and pass it down, so OrdersTable never needs useSearchParams.
+  searchParams: Promise<{ card?: string }>;
+}) {
+  const { card } = await searchParams;
+
   let orders;
   try {
     orders = await fetchOrders();
@@ -22,7 +30,7 @@ export default async function OrdersPage() {
   return (
     <main>
       <PageHeader title={`Orders (${airplusCount})`} subtitle="AirPlus order management" />
-      <OrdersTable orders={orders} />
+      <OrdersTable orders={orders} initialCardKey={card ?? null} />
     </main>
   );
 }
