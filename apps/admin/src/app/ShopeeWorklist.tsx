@@ -31,9 +31,9 @@ const idCell = {
   gap: 6,
 } as const;
 
-// The global table cell is padded 12px all round — too tall for a scan-and-tick list. Halve the
-// vertical padding so more rows fit on screen.
-const cellPad = { padding: "6px 12px" } as const;
+// The global table cell is padded 12px all round — too tall for a scan-and-tick list. Tighten the
+// vertical padding to 3px (owner's pick) so many rows fit on screen; keep 12px sides for breathing room.
+const cellPad = { padding: "3px 12px" } as const;
 
 /**
  * The dashboard "Update on Shopee" checklist (Design A). The server hands in the products whose stock
