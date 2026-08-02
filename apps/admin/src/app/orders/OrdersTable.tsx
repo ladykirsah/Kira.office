@@ -255,10 +255,12 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
             "In transit", matching the Status pill and the summary card. */}
         <TabBtn id="all" />
         <TabBtn id="unpaid" />
+        <TabBtn id="pending" />
         <TabBtn id="toship" />
         <TabBtn id="shipped" />
         <TabBtn id="completed" />
-        <TabBtn id="unfinished" />
+        <TabBtn id="cancelfail" />
+        <TabBtn id="refundclaim" />
       </div>
 
       {/* Frame — same as ProductsTable */}
