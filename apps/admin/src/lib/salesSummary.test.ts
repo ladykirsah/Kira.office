@@ -10,6 +10,8 @@ import {
   ordersView,
   growthRatePct,
   sumOrderMoney,
+  expensesInRange,
+  sumExpensesForChannel,
   type SaleLike,
 } from "./salesSummary";
 
@@ -280,5 +282,34 @@ describe("summarize", () => {
     const s = summarize(sales, range);
     expect(s.salesCount).toBe(1);
     expect(s.revenueSatang).toBe(100);
+  });
+});
+
+describe("expensesInRange / sumExpensesForChannel", () => {
+  const exp = (over = {}) => ({
+    channel: "airplus",
+    amountSatang: 10000,
+    occurredAt: ts(2026, 5, 17, 12),
+    ...over,
+  });
+  const range = { startMs: ts(2026, 5, 15), endMs: ts(2026, 5, 22) };
+
+  it("keeps only the matching channel within [startMs, endMs)", () => {
+    const a = exp({ channel: "airplus", amountSatang: 10000 });
+    const b = exp({ channel: "onsite", amountSatang: 5000 });
+    const before = exp({ channel: "airplus", amountSatang: 999, occurredAt: ts(2026, 5, 1) });
+    expect(expensesInRange([a, b, before], "airplus", range)).toEqual([a]);
+    expect(sumExpensesForChannel([a, b, before], "airplus", range)).toBe(10000);
+    expect(sumExpensesForChannel([a, b, before], "onsite", range)).toBe(5000);
+  });
+
+  it("given the half-open boundary > includes startMs, excludes endMs", () => {
+    const atStart = exp({ occurredAt: range.startMs });
+    const atEnd = exp({ occurredAt: range.endMs });
+    expect(sumExpensesForChannel([atStart, atEnd], "airplus", range)).toBe(10000);
+  });
+
+  it("given no expenses > sums to 0", () => {
+    expect(sumExpensesForChannel([], "airplus", range)).toBe(0);
   });
 });

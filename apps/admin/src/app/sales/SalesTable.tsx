@@ -1,14 +1,23 @@
 "use client";
 
-import { type SaleRow } from "@/lib/api";
+import { type SaleRow, type ExpenseRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { saleStatusPill, saleTypeBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { SalesActionsMenu } from "./SalesActionsMenu";
 
+const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
+
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
-export function SalesTable({ sales }: { sales: SaleRow[] }) {
-  if (sales.length === 0) {
+export function SalesTable({
+  sales,
+  expenses = [],
+}: {
+  sales: SaleRow[];
+  /** Den Air expenses in the period — money-out rows with a negative Profit. */
+  expenses?: ExpenseRow[];
+}) {
+  if (sales.length === 0 && expenses.length === 0) {
     return (
       <div className="empty">
         <div className="empty-icon">💰</div>No sales for this view.
@@ -71,6 +80,26 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
               </tr>
             );
           })}
+          {/* Expense rows — money out; the plain Conversion text is the row's identity (Job column),
+              no Total, a negative Profit, and an "Expense" status. */}
+          {expenses.map((e) => (
+            <tr key={e.id}>
+              <td style={{ whiteSpace: "nowrap" }}>
+                <div style={tableText.body2}>{e.conversion}</div>
+              </td>
+              <td>
+                <span className="muted">—</span>
+              </td>
+              <td style={{ color: "var(--danger)" }}>{formatBahtTrim(-e.amountSatang)}</td>
+              <td style={{ whiteSpace: "nowrap" }}>
+                <div style={tableText.body2}>{dateTH(e.occurredAt)}</div>
+              </td>
+              <td>
+                <span className="pill bad">Expense</span>
+              </td>
+              <td />
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

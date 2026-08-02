@@ -1283,6 +1283,44 @@ export async function fetchSales(): Promise<SaleRow[]> {
   return data.sales;
 }
 
+/** A Finance expense — money out tagged to a channel ("onsite" | "airplus"). See migration 0081. */
+export interface ExpenseRow {
+  id: string;
+  channel: string;
+  conversion: string;
+  amountSatang: number;
+  note: string | null;
+  occurredAt: number;
+  createdAt: number;
+}
+
+export async function fetchExpenses(): Promise<ExpenseRow[]> {
+  const res = await apiFetch(`/finance/expenses`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load expenses (HTTP ${res.status})`);
+  const data = (await res.json()) as { expenses: ExpenseRow[] };
+  return data.expenses;
+}
+
+export interface CreateExpenseInput {
+  channel: string;
+  conversion: string;
+  amountSatang: number;
+  note?: string | null;
+  occurredAt: number;
+}
+
+export async function createExpense(input: CreateExpenseInput): Promise<ExpenseRow> {
+  const res = await apiFetch(`/finance/expenses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = (await res.json().catch(() => ({}))) as { expense?: ExpenseRow; error?: string };
+  if (!res.ok || !data.expense)
+    throw new Error(data.error ?? `Failed to save expense (HTTP ${res.status})`);
+  return data.expense;
+}
+
 export interface ImportResult {
   received: number;
   valid: number;

@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
+import {
+  fetchSales,
+  fetchOrders,
+  fetchExpenses,
+  type SaleRow,
+  type OrderRow,
+  type ExpenseRow,
+} from "@/lib/api";
 import { operationalStatus } from "@l-shopee/core";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
@@ -13,12 +20,15 @@ import {
   salesView,
   ordersView,
   growthRatePct,
+  expensesInRange,
+  sumExpensesForChannel,
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { AirPlusOrders } from "./AirPlusOrders";
+import { ExpenseForm } from "./ExpenseForm";
 
 // Matches the Orders page's date picker (owner request), minus the week presets.
 const PRESETS: { key: RangePreset; label: string }[] = [
@@ -63,6 +73,7 @@ const isFinanceOrder = (o: OrderRow): boolean => {
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[] | null>(null);
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [preset, setPreset] = useState<RangePreset>("thisMonth");
   const [customStart, setCustomStart] = useState("");
@@ -77,6 +88,9 @@ export default function SalesPage() {
       .catch((err) => setError((err as Error).message));
     fetchOrders()
       .then(setOrders)
+      .catch((err) => setError((err as Error).message));
+    fetchExpenses()
+      .then(setExpenses)
       .catch((err) => setError((err as Error).message));
   }, []);
 
@@ -115,6 +129,13 @@ export default function SalesPage() {
     (s) => s.createdAt >= range.startMs && s.createdAt < range.endMs,
   );
   const s = summarize(inRange, range);
+
+  // Expenses (money out) tagged to a channel: folded into net Profit and shown as rows in the
+  // channel's table. Not search/type filtered — an expense isn't a sale.
+  const onsiteExpenses = expensesInRange(expenses, "onsite", range);
+  const airplusExpenses = expensesInRange(expenses, "airplus", range);
+  const onsiteExpenseSatang = sumExpensesForChannel(expenses, "onsite", range);
+  const airplusExpenseSatang = sumExpensesForChannel(expenses, "airplus", range);
 
   // Onsite table/info view: period → search + type filter. Feeds the cards + table.
   const onsiteView = salesView(inRange, { search, status: "", type: typeFilter });
@@ -175,21 +196,22 @@ export default function SalesPage() {
       label: "Den Air Service",
       count: s.salesCount,
       revenueSatang: s.revenueSatang,
-      profitSatang: s.grossProfitSatang,
+      profitSatang: s.grossProfitSatang - onsiteExpenseSatang,
     },
     {
       key: "airplus",
       label: "AirPlus",
       count: airplusInRange.length,
       revenueSatang: airplusRangeSales,
-      profitSatang: airplusRangeProfit,
+      profitSatang: airplusRangeProfit - airplusExpenseSatang,
     },
   ];
   const channelTotal = totalChannelSales(channelRows);
 
   // Summary combines both shops (no per-shop filter here). Profit = onsite gross profit + AirPlus
   // profit; growth = combined revenue vs the previous equal-length period.
-  const summaryProfit = s.grossProfitSatang + airplusRangeProfit;
+  const summaryProfit =
+    s.grossProfitSatang + airplusRangeProfit - onsiteExpenseSatang - airplusExpenseSatang;
   const onsitePrevRevenue = summarize(
     (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
     prevRange,
@@ -350,6 +372,9 @@ export default function SalesPage() {
                   </table>
                 </div>
               </div>
+              {/* Record an expense (money out) — channel-first; on submit it lands in that channel's
+                  table and lowers its net Profit above. Placed under the summary table (owner). */}
+              <ExpenseForm onCreated={(e) => setExpenses((prev) => [e, ...prev])} />
             </>
           )}
 
@@ -359,7 +384,10 @@ export default function SalesPage() {
               <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(onsiteSumm.revenueSatang)} />
                 <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
-                <Card label="Profit" value={formatBahtTrim(onsiteSumm.grossProfitSatang)} />
+                <Card
+                  label="Profit"
+                  value={formatBahtTrim(onsiteSumm.grossProfitSatang - onsiteExpenseSatang)}
+                />
                 <Card label="Growth rate" value={fmtGrowth(onsiteGrowth)} />
               </div>
               <div style={frameStyle}>
@@ -367,7 +395,7 @@ export default function SalesPage() {
                   searchPlaceholder: "Search plate / car / bill / amount…",
                   showType: true,
                 })}
-                <SalesTable sales={onsiteView} />
+                <SalesTable sales={onsiteView} expenses={onsiteExpenses} />
               </div>
             </>
           )}
@@ -377,14 +405,14 @@ export default function SalesPage() {
               <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(airplusSales)} />
                 <Card label="Conversions" value={String(airplusView.length)} />
-                <Card label="Profit" value={formatBahtTrim(airplusProfit)} />
+                <Card label="Profit" value={formatBahtTrim(airplusProfit - airplusExpenseSatang)} />
                 <Card label="Growth rate" value={fmtGrowth(airplusGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search order / status / amount…",
                 })}
-                <AirPlusOrders orders={airplusView} />
+                <AirPlusOrders orders={airplusView} expenses={airplusExpenses} />
               </div>
             </>
           )}

@@ -148,8 +148,8 @@ export function totalChannelSales(rows: ChannelSales[]): {
 
 /** The money fields an order row carries; OrderRow (lib/api) is structurally assignable. */
 export interface OrderMoney {
-  salesSatang: number | null;
-  profitSatang: number | null;
+  salesSatang?: number | null;
+  profitSatang?: number | null;
 }
 
 /** Σ sales + Σ profit across order rows (null → 0) — the AirPlus table's Total row. */
@@ -164,6 +164,33 @@ export function sumOrderMoney(orders: OrderMoney[]): {
     }),
     { salesSatang: 0, profitSatang: 0 },
   );
+}
+
+/** A logged expense (money out) tagged to a channel; ExpenseRow (lib/api) is structurally assignable. */
+export interface ExpenseLike {
+  channel: string;
+  amountSatang: number;
+  occurredAt: number;
+}
+
+/** A channel's expenses whose date falls in [startMs, endMs) — the rows its table shows this period. */
+export function expensesInRange<T extends ExpenseLike>(
+  expenses: T[],
+  channel: string,
+  range: Range,
+): T[] {
+  return expenses.filter(
+    (e) => e.channel === channel && e.occurredAt >= range.startMs && e.occurredAt < range.endMs,
+  );
+}
+
+/** Σ amount (satang) of a channel's in-range expenses — subtracted from that channel's Profit. */
+export function sumExpensesForChannel(
+  expenses: ExpenseLike[],
+  channel: string,
+  range: Range,
+): number {
+  return expensesInRange(expenses, channel, range).reduce((s, e) => s + e.amountSatang, 0);
 }
 
 /** Local YYYY-MM-DD for a timestamp — the value shape an <input type="date"> expects. */
