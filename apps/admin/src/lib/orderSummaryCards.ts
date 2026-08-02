@@ -1,46 +1,76 @@
-import { operationalStatusLabel, type OperationalStatus } from "@l-shopee/core";
+import { type OperationalStatus } from "@l-shopee/core";
 import { ORDER_TAB_STATUSES, type OrderTab } from "./orderTabs";
 
 /**
  * The four summary cards above the /orders table.
  *
- * The owner's rule, 30 Jul 2026: **every card is one status**, the same status the Filter dropdown
- * offers and the Status column prints — and where a card's label matches a tab's label, the card and
- * the tab are the same page. So the label is DERIVED from the status, never typed here. Hand-written
- * labels are what let "To be shipped" and "COD approval" drift away from the "To ship" and "COD
- * pending" they were meant to be a shortcut to.
+ * The owner re-sectioned them, 2 Aug 2026: a card is now a **section** that can gather several
+ * operational statuses, not one status apiece. "Pending" is COD pending + Payment pending; "Refund"
+ * is a bounced parcel (ตีกลับ) plus every claim order. "To ship" and "In transit" stay a single
+ * status each. So the label is explicit here rather than derived — a group has no single status to
+ * borrow a name from — and each card carries the *set* of statuses it counts.
  *
- * `tab` is the tab that contains the card's status — never a guess: orderSummaryCards.test.ts proves
- * the status really is in that tab, so a card can never open a view that excludes what it counted.
+ * Two rules the tests still hold, because they are what keep a shortcut honest:
+ *   - the sets are disjoint, so no order is counted by two cards and the numbers never double;
+ *   - every status a card counts lives in the tab that card opens, so clicking a card can never land
+ *     on a view that hides what it counted.
  */
 export interface OrderSummaryCard {
-  key: "cod" | "payment" | "toship" | "returns";
-  status: OperationalStatus;
+  key: "pending" | "toship" | "intransit" | "refund";
+  /** What the card says. Explicit because a multi-status section has no single status label to use. */
+  label: string;
+  /** The operational statuses this card counts. One for a single-status card, several for a group. */
+  statuses: readonly OperationalStatus[];
+  /** The tab this card opens — always one that contains every status in `statuses`. */
   tab: OrderTab;
   /** Colour for a non-zero count. Zero always reads faint — nothing is waiting, so nothing shouts. */
   activeColor: string;
 }
 
 export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
-  { key: "cod", status: "cod_pending", tab: "unpaid", activeColor: "var(--warn)" },
-  { key: "payment", status: "verifying", tab: "unpaid", activeColor: "var(--warn)" },
-  { key: "toship", status: "to_ship", tab: "toship", activeColor: "#2563eb" },
-  { key: "returns", status: "return", tab: "unfinished", activeColor: "var(--danger)" },
+  // Waiting on a payment decision — a slip to review (verifying) or a COD to approve.
+  {
+    key: "pending",
+    label: "Pending",
+    statuses: ["cod_pending", "verifying"],
+    tab: "unpaid",
+    activeColor: "var(--warn)",
+  },
+  { key: "toship", label: "To ship", statuses: ["to_ship"], tab: "toship", activeColor: "#2563eb" },
+  {
+    key: "intransit",
+    label: "In transit",
+    statuses: ["in_transit"],
+    tab: "shipped",
+    activeColor: "#2563eb",
+  },
+  // A paid parcel that bounced back, plus the whole claim lifecycle (pending → claimed → refunded /
+  // rejected). Everything money might have to flow back out of — the one bucket `fail` stays out of.
+  {
+    key: "refund",
+    label: "Refund",
+    statuses: ["return", "claim_pending", "claimed", "refunded", "claim_rejected"],
+    tab: "unfinished",
+    activeColor: "var(--danger)",
+  },
 ];
 
-/** What the card says — the status's own label, so it can never disagree with the column or the tab. */
+/** What the card says — its explicit section name. */
 export function orderSummaryCardLabel(card: OrderSummaryCard): string {
-  return operationalStatusLabel(card.status);
+  return card.label;
 }
 
 /**
  * Is this card simply a shortcut to its whole tab, rather than a narrower slice of it?
  *
- * True when the tab holds exactly this one status — To ship. False for COD pending, Payment pending
- * and Return, which are single statuses inside tabs that hold several, so clicking them shows less
- * than the tab does.
+ * True when the card's statuses are exactly the tab's statuses — To ship and In transit, each the
+ * sole occupant of its tab. False for Pending (a slice of Unpaid) and Refund (Unfinished minus
+ * `fail`), which show less than the tab, so clicking them keeps their own highlight.
  */
 export function cardIsWholeTab(card: OrderSummaryCard): boolean {
-  const statuses = ORDER_TAB_STATUSES[card.tab];
-  return statuses.length === 1 && statuses[0] === card.status;
+  const tabStatuses = ORDER_TAB_STATUSES[card.tab];
+  return (
+    tabStatuses.length === card.statuses.length &&
+    tabStatuses.every((s) => card.statuses.includes(s))
+  );
 }

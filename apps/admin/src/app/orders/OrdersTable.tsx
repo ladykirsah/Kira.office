@@ -117,14 +117,17 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
     return list.filter((o) => is(o, ...ORDER_TAB_STATUSES[t]));
   };
 
-  // Summary card filter (overrides tab when active). Each card maps to one operational status — the
-  // same status the Filter dropdown offers — so clicking a card cannot show a different set from the
-  // number printed on it. The mapping and its labels live in lib/orderSummaryCards, with tests
-  // holding the owner's rule that a card matching a tab's label IS that tab.
+  // Summary card filter (overrides tab when active). A card counts a SET of statuses — Pending groups
+  // two, Refund several — and clicking it shows exactly that set, so the table can never disagree with
+  // the number printed on the card. The sets live in lib/orderSummaryCards, where tests hold them
+  // disjoint and inside the tab each card opens.
   const bySummary = (list: OrderRow[]) => {
     const card = ORDER_SUMMARY_CARDS.find((c) => c.key === summaryFilter);
     if (!card) return list;
-    return list.filter((o) => operationalStatus(o.orderStatus, o.paymentStatus) === card.status);
+    return list.filter((o) => {
+      const s = operationalStatus(o.orderStatus, o.paymentStatus);
+      return s != null && card.statuses.includes(s);
+    });
   };
 
   let view = summaryFilter ? bySummary(dateFiltered) : filterByTab(dateFiltered, tab);
@@ -240,9 +243,9 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
         }}
       >
         {/* Rendered from the card table rather than four hand-written blocks, so a card's label,
-            its status and the tab it opens cannot be edited apart from each other. */}
+            the statuses it counts and the tab it opens cannot be edited apart from each other. */}
         {ORDER_SUMMARY_CARDS.map((card) => (
-          <SCard key={card.key} card={card} value={countOf(card.status)} />
+          <SCard key={card.key} card={card} value={countOf(...card.statuses)} />
         ))}
       </div>
 
