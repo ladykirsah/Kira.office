@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
@@ -57,7 +57,6 @@ export default function SalesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
-  const [shopFilter, setShopFilter] = useState(""); // Summary tab only: "" | "onsite" | "airplus"
 
   useEffect(() => {
     fetchSales()
@@ -162,12 +161,6 @@ export default function SalesPage() {
   ];
   const channelTotal = totalChannelSales(channelRows);
 
-  // Summary shop filter (Den Air Service / AirPlus): narrow the roll-up and its total to one shop.
-  const shownChannelRows = shopFilter
-    ? channelRows.filter((r) => r.key === shopFilter)
-    : channelRows;
-  const shownChannelTotal = totalChannelSales(shownChannelRows);
-
   const Card = ({ label, value }: { label: string; value: string }) => (
     <div style={card}>
       <div style={{ color: "var(--text-muted)", fontSize: 13 }}>{label}</div>
@@ -202,7 +195,6 @@ export default function SalesPage() {
     searchPlaceholder?: string;
     statuses?: string[];
     showType?: boolean;
-    extra?: ReactNode;
   }) => (
     <>
       <div style={toolbarStyle}>
@@ -242,7 +234,6 @@ export default function SalesPage() {
             <option value="repair">Service</option>
           </select>
         )}
-        {opts.extra}
         <select
           aria-label="Date range"
           value={preset}
@@ -303,27 +294,11 @@ export default function SalesPage() {
           {tab === "summary" && (
             <>
               <div style={cardsRow}>
-                <Card
-                  label="Total revenue"
-                  value={formatBahtTrim(shownChannelTotal.revenueSatang)}
-                />
-                <Card label="Total conversions" value={String(shownChannelTotal.count)} />
+                <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
+                <Card label="Total conversions" value={String(channelTotal.count)} />
               </div>
               <div style={frameStyle}>
-                {toolbar({
-                  extra: (
-                    <select
-                      aria-label="Shop"
-                      value={shopFilter}
-                      onChange={(e) => setShopFilter(e.target.value)}
-                      style={{ ...inputS, color: shopFilter ? "var(--text)" : "var(--text-faint)" }}
-                    >
-                      <option value="">All shops</option>
-                      <option value="onsite">Den Air Service</option>
-                      <option value="airplus">AirPlus</option>
-                    </select>
-                  ),
-                })}
+                {toolbar({})}
                 <div style={{ overflowX: "auto" }}>
                   <table>
                     <thead>
@@ -334,7 +309,7 @@ export default function SalesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {shownChannelRows.map((r) => (
+                      {channelRows.map((r) => (
                         <tr key={r.key}>
                           <td>{r.label}</td>
                           <td style={right}>{r.count}</td>
@@ -343,8 +318,8 @@ export default function SalesPage() {
                       ))}
                       <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
                         <td>Total</td>
-                        <td style={right}>{shownChannelTotal.count}</td>
-                        <td style={right}>{formatBahtTrim(shownChannelTotal.revenueSatang)}</td>
+                        <td style={right}>{channelTotal.count}</td>
+                        <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
                       </tr>
                     </tbody>
                   </table>
