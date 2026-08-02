@@ -190,7 +190,17 @@ export function AirPlusOrders({
   }
   return (
     <TableFrame>
-      <table>
+      <table style={{ tableLayout: "fixed", minWidth: 900 }}>
+        {/* Same grid as the Den Air Service table (SalesTable) so the two Finance tabs share one
+            column layout: Order ID gets 30% like Job, the other five split the rest evenly. */}
+        <colgroup>
+          <col style={{ width: "30%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+        </colgroup>
         <thead>
           <tr>
             <th>Order ID</th>
@@ -198,7 +208,7 @@ export function AirPlusOrders({
             <th>Profit</th>
             <th>Date</th>
             <th>Status</th>
-            <th aria-label="Actions" />
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -240,7 +250,7 @@ export function AirPlusOrders({
                   <td>
                     <span className={`pill ${badge.pill}`}>{badge.label}</span>
                   </td>
-                  <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+                  <td style={{ whiteSpace: "nowrap" }}>
                     <button
                       type="button"
                       className="btn-sm"
