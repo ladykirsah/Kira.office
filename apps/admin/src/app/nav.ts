@@ -46,7 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
     section: "Orders & money",
     links: [
       { href: "/orders", icon: "🧾", label: "Orders" },
-      { href: "/sales", icon: "💰", label: "Sales" },
+      { href: "/sales", icon: "💰", label: "Finance" },
       // There is no "Affiliate income" page any more. It was a stub that always printed ฿0: Shopee
       // pays affiliate commission through their own portal and there is no API into it, so the
       // figure could never become real. The honest number we DO own — outbound clicks — already

@@ -79,7 +79,7 @@ export default function SalesPage() {
   if (error) {
     return (
       <main>
-        <h1>Sales</h1>
+        <h1>Finance</h1>
         <p style={{ color: "var(--danger)" }}>Could not load sales: {error}</p>
       </main>
     );
@@ -319,7 +319,7 @@ export default function SalesPage() {
 
   return (
     <main>
-      <PageHeader title="Sales" subtitle="Product sales by channel." />
+      <PageHeader title="Finance" subtitle="Product sales by channel." />
 
       <div className="tabs">
         <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />
