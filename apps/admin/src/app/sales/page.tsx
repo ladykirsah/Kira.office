@@ -125,13 +125,13 @@ export default function SalesPage() {
     onsiteSumm.revenueSatang,
     summarize(prevView, prevRange).revenueSatang,
   );
-  // No "+"; negatives shown accounting-style, e.g. -5% → "(5%)".
-  const growthLabel =
-    onsiteGrowth === null
+  // Format any growth %: no "+"; negatives shown accounting-style, e.g. -5% → "(5%)".
+  const fmtGrowth = (pct: number | null) =>
+    pct === null
       ? "—"
-      : Math.round(onsiteGrowth) < 0
-        ? `(${Math.abs(Math.round(onsiteGrowth))}%)`
-        : `${Math.round(onsiteGrowth)}%`;
+      : Math.round(pct) < 0
+        ? `(${Math.abs(Math.round(pct))}%)`
+        : `${Math.round(pct)}%`;
 
   // AirPlus tab (own single-seller site: no commission, Sales = payout, real profit).
   const airplusInRange = (orders ?? []).filter(
@@ -146,6 +146,20 @@ export default function SalesPage() {
   );
   const airplusSales = airplusView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
   const airplusProfit = airplusView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
+  // AirPlus growth: this period's revenue vs the previous equal-length period, same filter.
+  const airplusPrevInRange = (orders ?? []).filter(
+    (o) =>
+      o.channel === "airplus" &&
+      orderDate(o) >= prevRange.startMs &&
+      orderDate(o) < prevRange.endMs,
+  );
+  const airplusPrevView = ordersView(airplusPrevInRange, { search, status: "" }).filter(
+    (o) => statusFilter === "" || airplusStatusBadge(o.orderStatus).label === statusFilter,
+  );
+  const airplusGrowth = growthRatePct(
+    airplusSales,
+    airplusPrevView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0),
+  );
 
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
@@ -163,6 +177,20 @@ export default function SalesPage() {
     },
   ];
   const channelTotal = totalChannelSales(channelRows);
+
+  // Summary combines both shops (no per-shop filter here). Profit = onsite gross profit + AirPlus
+  // profit; growth = combined revenue vs the previous equal-length period.
+  const airplusRangeProfit = airplusInRange.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
+  const summaryProfit = s.grossProfitSatang + airplusRangeProfit;
+  const onsitePrevRevenue = summarize(
+    (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
+    prevRange,
+  ).revenueSatang;
+  const airplusPrevRevenue = airplusPrevInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
+  const summaryGrowth = growthRatePct(
+    channelTotal.revenueSatang,
+    onsitePrevRevenue + airplusPrevRevenue,
+  );
 
   const Card = ({ label, value }: { label: string; value: string }) => (
     <div style={card}>
@@ -297,8 +325,10 @@ export default function SalesPage() {
           {tab === "summary" && (
             <>
               <div style={cardsRow}>
-                <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
-                <Card label="Total conversions" value={String(channelTotal.count)} />
+                <Card label="Revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
+                <Card label="Conversions" value={String(channelTotal.count)} />
+                <Card label="Profit" value={formatBahtTrim(summaryProfit)} />
+                <Card label="Growth rate" value={fmtGrowth(summaryGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({})}
@@ -338,7 +368,7 @@ export default function SalesPage() {
                 <Card label="Revenue" value={formatBahtTrim(onsiteSumm.revenueSatang)} />
                 <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
                 <Card label="Profit" value={formatBahtTrim(onsiteSumm.grossProfitSatang)} />
-                <Card label="Growth rate" value={growthLabel} />
+                <Card label="Growth rate" value={fmtGrowth(onsiteGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({
@@ -355,8 +385,9 @@ export default function SalesPage() {
             <>
               <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(airplusSales)} />
-                <Card label="Orders" value={String(airplusView.length)} />
+                <Card label="Conversions" value={String(airplusView.length)} />
                 <Card label="Profit" value={formatBahtTrim(airplusProfit)} />
+                <Card label="Growth rate" value={fmtGrowth(airplusGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({
