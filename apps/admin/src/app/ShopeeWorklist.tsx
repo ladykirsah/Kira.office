@@ -21,7 +21,7 @@ const footStyle = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 10,
-  padding: "11px 16px",
+  padding: "8px 12px",
   borderTop: "1px solid var(--border)",
 } as const;
 
@@ -30,6 +30,10 @@ const idCell = {
   alignItems: "center",
   gap: 6,
 } as const;
+
+// The global table cell is padded 12px all round — too tall for a scan-and-tick list. Halve the
+// vertical padding so more rows fit on screen.
+const cellPad = { padding: "6px 12px" } as const;
 
 /**
  * The dashboard "Update on Shopee" checklist (Design A). The server hands in the products whose stock
@@ -85,10 +89,10 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
         <table>
           <thead>
             <tr>
-              <th>Product</th>
-              <th>Product ID</th>
-              <th style={{ textAlign: "right" }}>Reduce</th>
-              <th style={{ textAlign: "center", width: 60 }}>Done</th>
+              <th style={cellPad}>Product</th>
+              <th style={cellPad}>Product ID</th>
+              <th style={{ ...cellPad, textAlign: "right" }}>Reduce</th>
+              <th style={{ ...cellPad, textAlign: "center", width: 60 }}>Done</th>
             </tr>
           </thead>
           <tbody>
@@ -98,22 +102,22 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
                 <tr key={r.productId} style={isDone ? { opacity: 0.5 } : undefined}>
                   <td
                     style={{
+                      ...cellPad,
                       fontWeight: 600,
                       textDecoration: isDone ? "line-through" : undefined,
                     }}
                   >
                     {r.name}
                   </td>
-                  <td>
+                  <td style={cellPad}>
                     <span style={idCell}>
-                      <code style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-                        {r.productRef}
-                      </code>
+                      {r.productRef}
                       <CopyButton value={r.productRef} label={`Product ID ${r.productRef}`} />
                     </span>
                   </td>
                   <td
                     style={{
+                      ...cellPad,
                       textAlign: "right",
                       fontWeight: 700,
                       fontVariantNumeric: "tabular-nums",
@@ -122,7 +126,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
                   >
                     {reduceLabel(r.deltaSinceSync)}
                   </td>
-                  <td style={{ textAlign: "center" }}>
+                  <td style={{ ...cellPad, textAlign: "center" }}>
                     <input
                       type="checkbox"
                       checked={isDone}
