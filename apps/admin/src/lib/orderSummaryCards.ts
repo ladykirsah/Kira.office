@@ -5,7 +5,7 @@ import { ORDER_TAB_STATUSES, type OrderTab } from "./orderTabs";
  * The four summary cards above the /orders table.
  *
  * The owner re-sectioned them, 2 Aug 2026: a card is now a **section** that can gather several
- * operational statuses, not one status apiece. "Pending" is COD pending + Payment pending; "Refund"
+ * operational statuses, not one status apiece. "Pending" is COD pending + BC pending; "Refund"
  * is a bounced parcel (ตีกลับ) plus every claim order. "To ship" and "In transit" stay a single
  * status each. So the label is explicit here rather than derived — a group has no single status to
  * borrow a name from — and each card carries the *set* of statuses it counts.

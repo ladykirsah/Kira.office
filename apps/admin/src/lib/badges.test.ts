@@ -138,7 +138,7 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
     expect(operationalStatusBadge("cancelled", "pending")).toEqual({ pill: "off", label: "Fail" });
     expect(operationalStatusBadge("new", "verifying")).toEqual({
       pill: "off",
-      label: "Payment pending",
+      label: "BC pending",
     });
     expect(operationalStatusBadge("claim_pending", "paid")).toEqual({
       pill: "off",
