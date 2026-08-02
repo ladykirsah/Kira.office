@@ -2068,6 +2068,65 @@ async function listStockMovements(env: Env): Promise<Response> {
   return json({ movements: results });
 }
 
+/** One product the owner still owes Shopee a stock update for. */
+export interface ShopeeWorklistItem {
+  productId: string; // products.id — what "Clear done" stamps
+  productRef: string; // the Kira product code = Product ID = SKU (the copy value)
+  name: string;
+  onHand: number; // current on-hand across the product's variants (ledger invariant: SUM of deltas)
+  deltaSinceSync: number; // net stock change since last reconciled — negative = reduced
+  lastChangedAt: number; // ms of the most recent counting change since sync
+}
+
+/**
+ * The dashboard "Update on Shopee" worklist: products the owner lists on Shopee whose stock has moved
+ * since they last reconciled it there. `online_sale` is excluded — a Shopee order already decremented
+ * Shopee's own count, so it needs no manual update. On-hand is the whole-ledger SUM (the invariant),
+ * while the "reduce" delta only counts movements newer than shopee_synced_at, so a product drops off
+ * the list the moment Clear stamps that column — and stays off until it moves again. Net-zero changes
+ * (a sale then an equal restock) are filtered out: the Shopee number would be unchanged.
+ */
+export async function shopeeSyncWorklist(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare(
+    `SELECT p.id AS productId, p.product_ref AS productRef, p.name AS name,
+            SUM(e.quantity_delta) AS onHand,
+            SUM(CASE WHEN e.created_at > COALESCE(p.shopee_synced_at, 0)
+                          AND e.movement_type <> 'online_sale'
+                     THEN e.quantity_delta ELSE 0 END) AS deltaSinceSync,
+            MAX(CASE WHEN e.created_at > COALESCE(p.shopee_synced_at, 0)
+                          AND e.movement_type <> 'online_sale'
+                     THEN e.created_at END) AS lastChangedAt
+     FROM products p
+     JOIN product_variants v ON v.product_id = p.id
+     JOIN stock_ledger_entries e ON e.product_variant_id = v.id
+     WHERE p.status <> 'archived' AND p.shopee_listed = 1
+     GROUP BY p.id
+     ORDER BY lastChangedAt DESC`,
+  ).all<ShopeeWorklistItem>();
+  const items = (results ?? []).filter((r) => Number(r.deltaSinceSync) !== 0);
+  return json({ items });
+}
+
+/**
+ * Clear done: stamp shopee_synced_at = now on the given products, so their already-counted movements
+ * stop qualifying and they leave the worklist. Guarded to shopee_listed rows — the worklist only ever
+ * shows those, and it keeps a stray id from writing a sync time onto an off-Shopee product.
+ */
+export async function markShopeeSynced(
+  env: Env,
+  productIds: string[],
+  nowMs: number,
+): Promise<Response> {
+  if (productIds.length === 0) return json({ ok: true, updated: 0 });
+  const placeholders = productIds.map(() => "?").join(",");
+  await env.DB.prepare(
+    `UPDATE products SET shopee_synced_at = ? WHERE id IN (${placeholders}) AND shopee_listed = 1`,
+  )
+    .bind(nowMs, ...productIds)
+    .run();
+  return json({ ok: true, updated: productIds.length });
+}
+
 const DEFAULT_TERMS_TEMPLATE = [
   "เงื่อนไขและข้อตกลงสินค้า {{product_name}}",
   "ราคา {{price}} บาท (รวมภาษีมูลค่าเพิ่ม)",
@@ -5863,6 +5922,19 @@ const worker = {
 
     if (url.pathname === "/stock/movements" && request.method === "GET") {
       return listStockMovements(env);
+    }
+
+    // The dashboard "Update on Shopee" worklist: what still needs reconciling, and the Clear that
+    // marks products done. POST body: { productIds: string[] }.
+    if (url.pathname === "/stock/shopee-worklist" && request.method === "GET") {
+      return shopeeSyncWorklist(env);
+    }
+    if (url.pathname === "/stock/shopee-synced" && request.method === "POST") {
+      const body = await readJson<{ productIds?: string[] }>(request);
+      const ids = Array.isArray(body?.productIds)
+        ? body!.productIds.filter((x) => typeof x === "string")
+        : [];
+      return markShopeeSynced(env, ids, Date.now());
     }
 
     if (url.pathname === "/terms/template" && request.method === "GET") {

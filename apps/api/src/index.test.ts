@@ -49,6 +49,8 @@ import worker, {
   importProducts,
   importShopeeOrders,
   listOrders,
+  shopeeSyncWorklist,
+  markShopeeSynced,
   listPayments,
   parseMoneyToSatang,
   parseOrderDateMs,
@@ -6633,5 +6635,104 @@ describe("reviewOrderPayment (confirm / reject a slip awaiting review)", () => {
   it("expireUnpaidOrders still expires an ordinary old unpaid order (null window = created + 48h)", async () => {
     const db = seeded("pending", NOW - 3 * DAY);
     expect(await expireUnpaidOrders(asD1(db), NOW)).toBe(1);
+  });
+});
+
+describe("shopeeSyncWorklist + markShopeeSynced", () => {
+  const T = SQLITE_NOW;
+  const envOf = (db: DatabaseSync) => ({ DB: asD1(db) }) as unknown as Env;
+
+  // Build a scenario that exercises every rule the worklist has to hold: on-Shopee vs off-Shopee,
+  // movements before vs after the last sync, a Shopee sale (online_sale) that must NOT count, and a
+  // net-zero change that must NOT show.
+  async function scenario() {
+    const db = migratedDb();
+    const D1 = asD1(db);
+    const move = (variantId: string, type: string, delta: number, after: number, at: number) =>
+      db
+        .prepare(
+          `INSERT INTO stock_ledger_entries (id, product_variant_id, movement_type, quantity_delta, quantity_after, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(crypto.randomUUID(), variantId, type, delta, after, at);
+    const list = (productId: string, syncedAt: number | null) =>
+      db
+        .prepare(`UPDATE products SET shopee_listed = 1, shopee_synced_at = ? WHERE id = ?`)
+        .run(syncedAt, productId);
+
+    // A — on Shopee, synced before its only sale → a clean −3, opening balance already reconciled.
+    const a = await createProduct(D1, { productRef: "A-001", name: "แอร์ A" });
+    list(a.productId, T - 500);
+    move(a.variantId!, "opening_balance", 10, 10, T - 1000);
+    move(a.variantId!, "onsite_sale", -3, 7, T);
+
+    // B — on Shopee, a pre-sync sale that must be ignored, a post-sync write-off that must count (−1).
+    const b = await createProduct(D1, { productRef: "B-002", name: "แอร์ B" });
+    list(b.productId, T - 500);
+    move(b.variantId!, "opening_balance", 8, 8, T - 1000);
+    move(b.variantId!, "onsite_sale", -5, 3, T - 800); // before sync — already reconciled
+    move(b.variantId!, "write_off", -1, 2, T + 100); // after sync — counts
+
+    // C — on Shopee, but the only change is a Shopee order (online_sale): Shopee already knows. Skip.
+    const c = await createProduct(D1, { productRef: "C-003", name: "แอร์ C" });
+    list(c.productId, null);
+    move(c.variantId!, "online_sale", -4, 6, T);
+
+    // D — NOT on Shopee. A real change, but nothing to update on Shopee. Skip.
+    const d = await createProduct(D1, { productRef: "D-004", name: "แอร์ D" });
+    move(d.variantId!, "onsite_sale", -1, 5, T); // shopee_listed stays 0
+
+    // E — on Shopee, but a sale then an equal restock net to zero: the Shopee number is unchanged.
+    const e = await createProduct(D1, { productRef: "E-005", name: "แอร์ E" });
+    list(e.productId, T - 500);
+    move(e.variantId!, "onsite_sale", -2, 4, T);
+    move(e.variantId!, "receive", 2, 6, T + 100);
+
+    return { db, ids: { a: a.productId, b: b.productId, d: d.productId } };
+  }
+
+  async function worklist(db: DatabaseSync) {
+    const res = await shopeeSyncWorklist(envOf(db));
+    return (await res.json()) as {
+      items: { productId: string; productRef: string; deltaSinceSync: number; onHand: number }[];
+    };
+  }
+
+  it("lists only on-Shopee products whose stock changed since sync (not online_sale, not net-zero, not off-Shopee)", async () => {
+    const { db } = await scenario();
+    const refs = (await worklist(db)).items.map((i) => i.productRef).sort();
+    expect(refs).toEqual(["A-001", "B-002"]);
+  });
+
+  it("counts only the movements after the last sync, and reports whole-ledger on-hand", async () => {
+    const { db } = await scenario();
+    const items = (await worklist(db)).items;
+    const a = items.find((i) => i.productRef === "A-001")!;
+    const b = items.find((i) => i.productRef === "B-002")!;
+    expect(a.deltaSinceSync).toBe(-3);
+    expect(a.onHand).toBe(7); // 10 − 3, the SUM over all movements
+    expect(b.deltaSinceSync).toBe(-1); // the pre-sync −5 is excluded
+    expect(b.onHand).toBe(2); // 8 − 5 − 1
+  });
+
+  it("Clear stamps shopee_synced_at so the cleared product drops off and stays off", async () => {
+    const { db, ids } = await scenario();
+    await markShopeeSynced(envOf(db), [ids.a], T + 9999);
+    const refs = (await worklist(db)).items.map((i) => i.productRef).sort();
+    expect(refs).toEqual(["B-002"]); // A cleared; B untouched
+  });
+
+  it("Clear refuses to stamp a product that is not on Shopee", async () => {
+    const { db, ids } = await scenario();
+    await markShopeeSynced(envOf(db), [ids.d], T + 9999);
+    const synced = db
+      .prepare(`SELECT shopee_synced_at AS s FROM products WHERE id = ?`)
+      .get(ids.d) as { s: number | null };
+    expect(synced.s).toBeNull();
+  });
+
+  it("an empty Clear is a no-op", async () => {
+    const { db } = await scenario();
+    const res = await markShopeeSynced(envOf(db), [], T);
+    expect((await res.json()) as { updated: number }).toEqual({ ok: true, updated: 0 });
   });
 });
