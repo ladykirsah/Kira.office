@@ -40,11 +40,15 @@ describe("order summary cards > the label comes from the status", () => {
     }
   });
 
-  it("the two the owner renamed now match their status", () => {
-    // These are the actual corrections: "COD approval" → "COD pending", "To be shipped" → "To ship".
+  it("every card reads the label the owner asked for", () => {
+    // The owner's order, 2 Aug 2026: COD pending · Payment pending · To ship · Return. Each label is
+    // the status's own — "COD approval" → "COD pending", "To be shipped" → "To ship", and the
+    // Payment-pending card derives its name from `verifying`'s label, not a string typed here.
     const byKey = (k: string) => ORDER_SUMMARY_CARDS.find((c) => c.key === k)!;
     expect(orderSummaryCardLabel(byKey("cod"))).toBe("COD pending");
+    expect(orderSummaryCardLabel(byKey("payment"))).toBe("Payment pending");
     expect(orderSummaryCardLabel(byKey("toship"))).toBe("To ship");
+    expect(orderSummaryCardLabel(byKey("returns"))).toBe("Return");
   });
 });
 
@@ -69,13 +73,14 @@ describe("order summary cards > clicking one cannot land on a view that hides it
     }
   });
 
-  it("To ship and In transit are whole tabs; COD pending and Return are slices", () => {
+  it("To ship is a whole tab; COD pending, Payment pending and Return are slices", () => {
     const byKey = (k: string) => ORDER_SUMMARY_CARDS.find((c) => c.key === k)!;
     expect(cardIsWholeTab(byKey("toship"))).toBe(true);
-    expect(cardIsWholeTab(byKey("shipped"))).toBe(true);
-    // Both sit inside tabs that hold several statuses, so they show LESS than the tab — which is why
-    // they keep their own highlight instead of just selecting the tab.
+    // These three sit inside tabs that hold several statuses, so they show LESS than the tab — which
+    // is why they keep their own highlight instead of just selecting the tab. COD pending and Payment
+    // pending are both slices of the one "Unpaid" tab.
     expect(cardIsWholeTab(byKey("cod"))).toBe(false);
+    expect(cardIsWholeTab(byKey("payment"))).toBe(false);
     expect(cardIsWholeTab(byKey("returns"))).toBe(false);
   });
 

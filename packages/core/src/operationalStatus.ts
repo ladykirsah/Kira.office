@@ -49,7 +49,7 @@ export const OPERATIONAL_STATUSES: readonly OperationalStatus[] = [
 
 const EN: Record<OperationalStatus, string> = {
   unpaid: "Unpaid",
-  verifying: "Pending",
+  verifying: "Payment pending",
   cod_pending: "COD pending",
   cod_reject: "COD reject",
   to_ship: "To ship",

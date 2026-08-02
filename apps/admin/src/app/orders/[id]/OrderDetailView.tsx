@@ -71,7 +71,9 @@ function StepRow({ stage, last }: { stage: OrderStage; last: boolean }) {
               width: 2,
               flex: 1,
               minHeight: 16,
-              background: done ? "var(--text)" : "var(--border)",
+              // Connector spines are always grey; the dot alone carries the state (red = current,
+              // black = passed, hollow = upcoming).
+              background: "var(--border)",
             }}
           />
         )}

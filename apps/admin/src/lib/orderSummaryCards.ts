@@ -14,7 +14,7 @@ import { ORDER_TAB_STATUSES, type OrderTab } from "./orderTabs";
  * the status really is in that tab, so a card can never open a view that excludes what it counted.
  */
 export interface OrderSummaryCard {
-  key: "cod" | "toship" | "shipped" | "returns";
+  key: "cod" | "payment" | "toship" | "returns";
   status: OperationalStatus;
   tab: OrderTab;
   /** Colour for a non-zero count. Zero always reads faint — nothing is waiting, so nothing shouts. */
@@ -23,8 +23,8 @@ export interface OrderSummaryCard {
 
 export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
   { key: "cod", status: "cod_pending", tab: "unpaid", activeColor: "var(--warn)" },
+  { key: "payment", status: "verifying", tab: "unpaid", activeColor: "var(--warn)" },
   { key: "toship", status: "to_ship", tab: "toship", activeColor: "#2563eb" },
-  { key: "shipped", status: "in_transit", tab: "shipped", activeColor: "#2563eb" },
   { key: "returns", status: "return", tab: "unfinished", activeColor: "var(--danger)" },
 ];
 
@@ -36,9 +36,9 @@ export function orderSummaryCardLabel(card: OrderSummaryCard): string {
 /**
  * Is this card simply a shortcut to its whole tab, rather than a narrower slice of it?
  *
- * True when the tab holds exactly this one status — To ship and In transit. False for COD pending and
- * Return, which are single statuses inside tabs that hold several, so clicking them shows less than
- * the tab does.
+ * True when the tab holds exactly this one status — To ship. False for COD pending, Payment pending
+ * and Return, which are single statuses inside tabs that hold several, so clicking them shows less
+ * than the tab does.
  */
 export function cardIsWholeTab(card: OrderSummaryCard): boolean {
   const statuses = ORDER_TAB_STATUSES[card.tab];
