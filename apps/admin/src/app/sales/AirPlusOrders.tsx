@@ -240,12 +240,9 @@ export function AirPlusOrders({
                       <span className="muted">—</span>
                     )}
                   </td>
-                  {/* Ordered date + shipped date */}
+                  {/* Ordered date */}
                   <td style={{ whiteSpace: "nowrap" }}>
                     <div style={tableText.body2}>{dateTH(o.orderCreatedAt ?? o.importedAt)}</div>
-                    <div style={tableText.subtitle}>
-                      {o.shipTimeMs ? `→ ${dateTH(o.shipTimeMs)}` : "—"}
-                    </div>
                   </td>
                   <td>
                     <span className={`pill ${badge.pill}`}>{badge.label}</span>
