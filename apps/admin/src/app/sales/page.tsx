@@ -16,10 +16,9 @@ import {
   type ChannelSales,
 } from "@/lib/salesSummary";
 import { onsiteSalesToCsv, onlineOrdersToCsv } from "@/lib/salesCsv";
-import { shopeeStatusBadge, airplusStatusBadge } from "@/lib/badges";
+import { airplusStatusBadge } from "@/lib/badges";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
-import { OnlineOrders } from "./OnlineOrders";
 import { AirPlusOrders } from "./AirPlusOrders";
 
 const PRESETS: { key: RangePreset; label: string }[] = [
@@ -41,7 +40,7 @@ const card = {
 
 const right = { textAlign: "right" } as const;
 
-type SalesTab = "summary" | "onsite" | "shopee" | "airplus";
+type SalesTab = "summary" | "onsite" | "airplus";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -132,24 +131,6 @@ export default function SalesPage() {
         ? `(${Math.abs(Math.round(onsiteGrowth))}%)`
         : `${Math.round(onsiteGrowth)}%`;
 
-  const shopeeInRange = (orders ?? []).filter(
-    (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
-  );
-  const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
-  // Shopee tab view: search + order-status filter over the period (cards + table reflect it).
-  // Status filters on the short mapped label (Complete/Shipped/…), not the verbose raw status.
-  const shopeeStatuses = Array.from(
-    new Set(shopeeInRange.map((o) => shopeeStatusBadge(o.orderStatus).label)),
-  ).sort();
-  const shopeeView = ordersView(shopeeInRange, { search, status: "" }).filter(
-    (o) => statusFilter === "" || shopeeStatusBadge(o.orderStatus).label === statusFilter,
-  );
-  const shopeeViewTotal = shopeeView.reduce((sum, o) => sum + o.grandTotalSatang, 0);
-  const shopeeViewFees = shopeeView.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
-  // Profit is only known once order lines are matched to Kira costs — "—" until then.
-  const shopeeHasProfit = shopeeView.some((o) => o.profitSatang != null);
-  const shopeeViewProfit = shopeeView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
-
   // AirPlus tab (own single-seller site: no commission, Sales = payout, real profit).
   const airplusInRange = (orders ?? []).filter(
     (o) => o.channel === "airplus" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
@@ -166,8 +147,12 @@ export default function SalesPage() {
 
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
-    { key: "onsite", label: "Onsite", count: s.salesCount, revenueSatang: s.revenueSatang },
-    { key: "shopee", label: "Shopee", count: shopeeInRange.length, revenueSatang: shopeeTotal },
+    {
+      key: "onsite",
+      label: "Den Air Service",
+      count: s.salesCount,
+      revenueSatang: s.revenueSatang,
+    },
     {
       key: "airplus",
       label: "AirPlus",
@@ -323,8 +308,7 @@ export default function SalesPage() {
 
       <div className="tabs">
         <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />
-        <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
-        <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
+        <TabBtn id="onsite" label={`Den Air Service (${s.salesCount})`} />
         <TabBtn id="airplus" label={`AirPlus (${airplusInRange.length})`} />
       </div>
 
@@ -389,28 +373,6 @@ export default function SalesPage() {
                   showType: true,
                 })}
                 <SalesTable sales={onsiteView} />
-              </div>
-            </>
-          )}
-
-          {tab === "shopee" && (
-            <>
-              <div style={cardsRow}>
-                <Card label="Revenue" value={formatBahtTrim(shopeeViewTotal)} />
-                <Card label="Orders" value={String(shopeeView.length)} />
-                <Card
-                  label="Profit"
-                  value={shopeeHasProfit ? formatBahtTrim(shopeeViewProfit) : "—"}
-                />
-                <Card label="Fees" value={formatBahtTrim(shopeeViewFees)} />
-              </div>
-              {csvLink(() => download(onlineOrdersToCsv(shopeeView), "shopee-orders.csv"))}
-              <div style={frameStyle}>
-                {toolbar({
-                  searchPlaceholder: "Search order / status / amount…",
-                  statuses: shopeeStatuses,
-                })}
-                <OnlineOrders orders={shopeeView} />
               </div>
             </>
           )}
