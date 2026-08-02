@@ -495,78 +495,81 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
               <Row label="Customer paid" value={formatBahtTrim(money.customerPaidSatang)} strong />
             </div>
 
+            {/* Shipping money — the owner's four figures (auto cal / offered / charged / on us) plus
+                the real charge, without which "On us" is a number with no arithmetic behind it. Sits
+                beside "What the customer was charged" — the two money-in panels share the top row. */}
             <div style={card}>
-              <div style={sectionTitle}>What we kept</div>
+              <div style={sectionTitle}>Shipping fee</div>
               <Row
-                label="Goods after discount"
-                value={formatBahtTrim(money.goodsAfterDiscountSatang)}
-              />
-              <Row label="Item cost" value={`− ${formatBahtTrim(money.itemCostSatang)}`} muted />
-              {/* The shortfall, NOT the full carrier charge: this panel starts from goods after
-                  discount, which excludes the fee the customer paid. Deducting the whole ฿90 here
-                  would drop their contribution and read profit low by exactly that fee. */}
-              <Row
-                label={shortfallLabel(money.shippingShortfallSatang)}
-                value={shortfallValue(money.shippingShortfallSatang)}
-                hint={
-                  money.shippingShortfallSatang == null
-                    ? "no drop-off recorded yet"
-                    : `${formatBahtTrim(order.shippingRealSatang ?? 0)} real − ${formatBahtTrim(order.shippingFeeSatang)} charged`
-                }
+                label="Auto calculated"
+                value={formatBahtTrim(order.shippingAutoSatang)}
+                hint="what our Flash rate card quoted at checkout"
                 muted
+              />
+              {/* Only on a shared-fee order. A null offered fee IS the marker for a normal one, which
+                  is why there is no separate flag to disagree with. */}
+              {order.shippingOfferSatang != null && (
+                <Row
+                  label="Offered to customer"
+                  value={formatBahtTrim(order.shippingOfferSatang)}
+                  hint="shared-fee order"
+                />
+              )}
+              <Row label="Charged to customer" value={formatBahtTrim(order.shippingFeeSatang)} />
+              <Row
+                label="Real charge"
+                value={
+                  order.shippingRealSatang == null ? "—" : formatBahtTrim(order.shippingRealSatang)
+                }
+                hint={
+                  order.shippingRealSatang == null
+                    ? "recorded at drop-off"
+                    : (order.carrier ?? "carrier not recorded")
+                }
               />
               <div style={totalRule} />
               <Row
-                label="Profit"
-                value={money.profitSatang == null ? "—" : formatBahtTrim(money.profitSatang)}
-                hint={marginHint(money.profitSatang, money.goodsAfterDiscountSatang)}
+                label={shortfallLabel(money.shippingShortfallSatang)}
+                value={shortfallValue(money.shippingShortfallSatang)}
                 strong
               />
+              {quoteGap(order.shippingAutoSatang, order.shippingRealSatang) && (
+                <div style={{ ...tableText.subtitle, marginTop: 8, color: "var(--warn)" }}>
+                  {quoteGap(order.shippingAutoSatang, order.shippingRealSatang)}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Shipping money — the owner's four figures (auto cal / offered / charged / on us) plus the
-              real charge, without which "On us" is a number with no arithmetic behind it. */}
+          {/* What we kept — full width below the top row; its goods → cost → shipping shortfall →
+              profit statement runs longer than a single column, so it gets the whole width. */}
           <div style={card}>
-            <div style={sectionTitle}>Shipping fee</div>
+            <div style={sectionTitle}>What we kept</div>
             <Row
-              label="Auto calculated"
-              value={formatBahtTrim(order.shippingAutoSatang)}
-              hint="what our Flash rate card quoted at checkout"
-              muted
+              label="Goods after discount"
+              value={formatBahtTrim(money.goodsAfterDiscountSatang)}
             />
-            {/* Only on a shared-fee order. A null offered fee IS the marker for a normal one, which is
-                why there is no separate flag to disagree with. */}
-            {order.shippingOfferSatang != null && (
-              <Row
-                label="Offered to customer"
-                value={formatBahtTrim(order.shippingOfferSatang)}
-                hint="shared-fee order"
-              />
-            )}
-            <Row label="Charged to customer" value={formatBahtTrim(order.shippingFeeSatang)} />
-            <Row
-              label="Real charge"
-              value={
-                order.shippingRealSatang == null ? "—" : formatBahtTrim(order.shippingRealSatang)
-              }
-              hint={
-                order.shippingRealSatang == null
-                  ? "recorded at drop-off"
-                  : (order.carrier ?? "carrier not recorded")
-              }
-            />
-            <div style={totalRule} />
+            <Row label="Item cost" value={`− ${formatBahtTrim(money.itemCostSatang)}`} muted />
+            {/* The shortfall, NOT the full carrier charge: this panel starts from goods after
+                discount, which excludes the fee the customer paid. Deducting the whole ฿90 here
+                would drop their contribution and read profit low by exactly that fee. */}
             <Row
               label={shortfallLabel(money.shippingShortfallSatang)}
               value={shortfallValue(money.shippingShortfallSatang)}
+              hint={
+                money.shippingShortfallSatang == null
+                  ? "no drop-off recorded yet"
+                  : `${formatBahtTrim(order.shippingRealSatang ?? 0)} real − ${formatBahtTrim(order.shippingFeeSatang)} charged`
+              }
+              muted
+            />
+            <div style={totalRule} />
+            <Row
+              label="Profit"
+              value={money.profitSatang == null ? "—" : formatBahtTrim(money.profitSatang)}
+              hint={marginHint(money.profitSatang, money.goodsAfterDiscountSatang)}
               strong
             />
-            {quoteGap(order.shippingAutoSatang, order.shippingRealSatang) && (
-              <div style={{ ...tableText.subtitle, marginTop: 8, color: "var(--warn)" }}>
-                {quoteGap(order.shippingAutoSatang, order.shippingRealSatang)}
-              </div>
-            )}
           </div>
 
           {/* Zone B is a read-only SUMMARY of RESOLVED claims — the active one is handled full-width in
