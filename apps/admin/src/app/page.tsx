@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "./PageHeader";
-import { fetchOrders } from "@/lib/api";
+import { fetchOrders, fetchShopeeWorklist, type ShopeeWorklistItem } from "@/lib/api";
+import { ShopeeWorklist } from "./ShopeeWorklist";
 import {
   ORDER_SUMMARY_CARDS,
   orderSummaryCardLabel,
@@ -44,6 +45,15 @@ export default async function DashboardPage() {
     counts = summaryCardCounts(await fetchOrders());
   } catch {
     counts = null;
+  }
+
+  // Products the owner still owes Shopee a stock update for. Same defensive stance — a failure here
+  // just hides the section rather than breaking the dashboard.
+  let worklist: ShopeeWorklistItem[] = [];
+  try {
+    worklist = await fetchShopeeWorklist();
+  } catch {
+    worklist = [];
   }
 
   return (
@@ -107,6 +117,15 @@ export default async function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Only shown when something has actually changed since the owner last reconciled Shopee — an
+          empty list stays hidden so the dashboard doesn't carry a dead section. */}
+      {worklist.length > 0 && (
+        <section aria-label="Update on Shopee" style={{ marginTop: 34 }}>
+          <div style={{ ...sectionLabel, marginBottom: 12 }}>Update on Shopee</div>
+          <ShopeeWorklist rows={worklist} />
+        </section>
+      )}
 
       <div style={{ ...sectionLabel, marginTop: 34, marginBottom: 12 }}>Go to</div>
       <div className="card-grid">
