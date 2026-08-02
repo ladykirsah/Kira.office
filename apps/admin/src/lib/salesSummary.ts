@@ -12,7 +12,8 @@
  * was sold, since createdAt is the only timestamp on the row.
  */
 
-export type RangePreset = "today" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | "custom";
+export type RangePreset =
+  "all" | "today" | "7d" | "30d" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | "custom";
 
 /** The minimal shape summarize() needs; SaleRow (lib/api) is structurally assignable. */
 export interface SaleLike {
@@ -80,6 +81,13 @@ export function rangeFor(
       const s = startOfDay(now);
       return { startMs: s, endMs: addDays(s, 1) };
     }
+    // Orders-style rolling windows, so the Finance date picker matches the Orders page.
+    case "all":
+      return { startMs: 0, endMs: now };
+    case "7d":
+      return { startMs: addDays(now, -7), endMs: now };
+    case "30d":
+      return { startMs: addDays(now, -30), endMs: now };
     case "thisWeek": {
       const s = startOfWeek(now);
       return { startMs: s, endMs: addDays(s, 7) };

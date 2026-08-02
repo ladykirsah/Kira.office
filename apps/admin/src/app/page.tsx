@@ -24,7 +24,7 @@ const SECTIONS: { href: string; icon: string; title: string; desc: string }[] = 
   { href: "/products", icon: "📦", title: "Products", desc: "Catalog, images, edit" },
   { href: "/barcodes", icon: "🏷️", title: "Barcodes", desc: "Generate & print" },
   { href: "/pos", icon: "🛒", title: "Point of Sale", desc: "Barcode selling (works offline)" },
-  { href: "/sales", icon: "💰", title: "Sales", desc: "Totals, VAT, profit, refunds" },
+  { href: "/sales", icon: "💰", title: "Finance", desc: "Totals, VAT, profit, refunds" },
   { href: "/orders", icon: "🧾", title: "Orders", desc: "Shopee CSV import" },
   { href: "/terms", icon: "📝", title: "Terms", desc: "Thai T&C editor" },
 ];

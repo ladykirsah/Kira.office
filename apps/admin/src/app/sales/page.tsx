@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiBase, fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
+import { fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
+import { operationalStatus } from "@l-shopee/core";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import {
@@ -15,23 +16,25 @@ import {
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
-import { onsiteSalesToCsv, onlineOrdersToCsv } from "@/lib/salesCsv";
-import { shopeeStatusBadge, airplusStatusBadge } from "@/lib/badges";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
-import { OnlineOrders } from "./OnlineOrders";
 import { AirPlusOrders } from "./AirPlusOrders";
 
+// Matches the Orders page's date picker (owner request), minus the week presets.
 const PRESETS: { key: RangePreset; label: string }[] = [
+  { key: "all", label: "All time" },
   { key: "today", label: "Today" },
-  { key: "thisWeek", label: "This week" },
-  { key: "lastWeek", label: "Last week" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
   { key: "thisMonth", label: "This month" },
   { key: "lastMonth", label: "Last month" },
-  { key: "custom", label: "Custom" },
+  { key: "custom", label: "Custom..." },
 ];
 
 const card = {
+  // Grow to share the row's full width equally; minWidth 150 keeps them from getting too narrow
+  // (they wrap to the next line instead), so a row of cards fills the page rather than sitting small.
+  flex: 1,
   border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "14px 18px",
@@ -41,12 +44,21 @@ const card = {
 
 const right = { textAlign: "right" } as const;
 
-type SalesTab = "summary" | "onsite" | "shopee" | "airplus";
+type SalesTab = "summary" | "onsite" | "airplus";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** An order's effective sale date: when it was placed, falling back to when it was imported. */
 const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
+
+// Only orders where money has actually moved belong on the finance view (owner): a completed sale
+// (money in), a refund (money out), and the two claim resolutions. Anything mid-flight — to ship,
+// in transit, pending, cancelled — is not yet a financial event, so it never lands here.
+const FINANCE_ORDER_STATUSES = new Set(["complete", "refunded", "claimed", "claim_rejected"]);
+const isFinanceOrder = (o: OrderRow): boolean => {
+  const st = operationalStatus(o.orderStatus, o.paymentStatus);
+  return st != null && FINANCE_ORDER_STATUSES.has(st);
+};
 
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[] | null>(null);
@@ -57,7 +69,6 @@ export default function SalesPage() {
   const [customEnd, setCustomEnd] = useState("");
   const [tab, setTab] = useState<SalesTab>("summary");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
@@ -69,17 +80,16 @@ export default function SalesPage() {
       .catch((err) => setError((err as Error).message));
   }, []);
 
-  // Filters are per-tab; reset search/status/type on tab switch (the period persists).
+  // Filters are per-tab; reset search/type on tab switch (the period persists).
   useEffect(() => {
     setSearch("");
-    setStatusFilter("");
     setTypeFilter("");
   }, [tab]);
 
   if (error) {
     return (
       <main>
-        <h1>Sales</h1>
+        <h1>Finance</h1>
         <p style={{ color: "var(--danger)" }}>Could not load sales: {error}</p>
       </main>
     );
@@ -106,10 +116,9 @@ export default function SalesPage() {
   );
   const s = summarize(inRange, range);
 
-  // Onsite table/info/CSV view: period → search + status filter/sort. Feeds the cards + table.
-  const onsiteView = salesView(inRange, { search, status: statusFilter, type: typeFilter });
+  // Onsite table/info view: period → search + type filter. Feeds the cards + table.
+  const onsiteView = salesView(inRange, { search, status: "", type: typeFilter });
   const onsiteSumm = summarize(onsiteView, range);
-  const onsiteStatuses = Array.from(new Set(inRange.map((x) => x.saleStatus))).sort();
 
   // Growth rate: this period's revenue vs the previous equal-length period (same search/filter).
   const prevRange = {
@@ -118,56 +127,54 @@ export default function SalesPage() {
   };
   const prevView = salesView(
     (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
-    { search, status: statusFilter, type: typeFilter },
+    { search, status: "", type: typeFilter },
   );
   const onsiteGrowth = growthRatePct(
     onsiteSumm.revenueSatang,
     summarize(prevView, prevRange).revenueSatang,
   );
-  // No "+"; negatives shown accounting-style, e.g. -5% → "(5%)".
-  const growthLabel =
-    onsiteGrowth === null
+  // Format any growth %: no "+"; negatives shown accounting-style, e.g. -5% → "(5%)".
+  const fmtGrowth = (pct: number | null) =>
+    pct === null
       ? "—"
-      : Math.round(onsiteGrowth) < 0
-        ? `(${Math.abs(Math.round(onsiteGrowth))}%)`
-        : `${Math.round(onsiteGrowth)}%`;
-
-  const shopeeInRange = (orders ?? []).filter(
-    (o) => o.channel === "shopee" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
-  );
-  const shopeeTotal = shopeeInRange.reduce((sum, o) => sum + o.grandTotalSatang, 0);
-  // Shopee tab view: search + order-status filter over the period (cards + table reflect it).
-  // Status filters on the short mapped label (Complete/Shipped/…), not the verbose raw status.
-  const shopeeStatuses = Array.from(
-    new Set(shopeeInRange.map((o) => shopeeStatusBadge(o.orderStatus).label)),
-  ).sort();
-  const shopeeView = ordersView(shopeeInRange, { search, status: "" }).filter(
-    (o) => statusFilter === "" || shopeeStatusBadge(o.orderStatus).label === statusFilter,
-  );
-  const shopeeViewTotal = shopeeView.reduce((sum, o) => sum + o.grandTotalSatang, 0);
-  const shopeeViewFees = shopeeView.reduce((sum, o) => sum + (o.feeTotalSatang ?? 0), 0);
-  // Profit is only known once order lines are matched to Kira costs — "—" until then.
-  const shopeeHasProfit = shopeeView.some((o) => o.profitSatang != null);
-  const shopeeViewProfit = shopeeView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
+      : Math.round(pct) < 0
+        ? `(${Math.abs(Math.round(pct))}%)`
+        : `${Math.round(pct)}%`;
 
   // AirPlus tab (own single-seller site: no commission, Sales = payout, real profit).
   const airplusInRange = (orders ?? []).filter(
-    (o) => o.channel === "airplus" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
+    (o) =>
+      o.channel === "airplus" &&
+      isFinanceOrder(o) &&
+      orderDate(o) >= range.startMs &&
+      orderDate(o) < range.endMs,
   );
   const airplusRangeSales = airplusInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
-  const airplusStatuses = Array.from(
-    new Set(airplusInRange.map((o) => airplusStatusBadge(o.orderStatus).label)),
-  ).sort();
-  const airplusView = ordersView(airplusInRange, { search, status: "" }).filter(
-    (o) => statusFilter === "" || airplusStatusBadge(o.orderStatus).label === statusFilter,
-  );
+  const airplusView = ordersView(airplusInRange, { search, status: "" });
   const airplusSales = airplusView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
   const airplusProfit = airplusView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
+  // AirPlus growth: this period's revenue vs the previous equal-length period, same filter.
+  const airplusPrevInRange = (orders ?? []).filter(
+    (o) =>
+      o.channel === "airplus" &&
+      isFinanceOrder(o) &&
+      orderDate(o) >= prevRange.startMs &&
+      orderDate(o) < prevRange.endMs,
+  );
+  const airplusPrevView = ordersView(airplusPrevInRange, { search, status: "" });
+  const airplusGrowth = growthRatePct(
+    airplusSales,
+    airplusPrevView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0),
+  );
 
   // Group 1 — product sales across channels (roll-up shown in the summary table).
   const channelRows: ChannelSales[] = [
-    { key: "onsite", label: "Onsite", count: s.salesCount, revenueSatang: s.revenueSatang },
-    { key: "shopee", label: "Shopee", count: shopeeInRange.length, revenueSatang: shopeeTotal },
+    {
+      key: "onsite",
+      label: "Den Air Service",
+      count: s.salesCount,
+      revenueSatang: s.revenueSatang,
+    },
     {
       key: "airplus",
       label: "AirPlus",
@@ -176,6 +183,20 @@ export default function SalesPage() {
     },
   ];
   const channelTotal = totalChannelSales(channelRows);
+
+  // Summary combines both shops (no per-shop filter here). Profit = onsite gross profit + AirPlus
+  // profit; growth = combined revenue vs the previous equal-length period.
+  const airplusRangeProfit = airplusInRange.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
+  const summaryProfit = s.grossProfitSatang + airplusRangeProfit;
+  const onsitePrevRevenue = summarize(
+    (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
+    prevRange,
+  ).revenueSatang;
+  const airplusPrevRevenue = airplusPrevInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
+  const summaryGrowth = growthRatePct(
+    channelTotal.revenueSatang,
+    onsitePrevRevenue + airplusPrevRevenue,
+  );
 
   const Card = ({ label, value }: { label: string; value: string }) => (
     <div style={card}>
@@ -207,11 +228,7 @@ export default function SalesPage() {
 
   // The framed toolbar shared by every tab: optional search + status + type, always a date range.
   // A plain function (not a component) so its inputs keep focus while typing.
-  const toolbar = (opts: {
-    searchPlaceholder?: string;
-    statuses?: string[];
-    showType?: boolean;
-  }) => (
+  const toolbar = (opts: { searchPlaceholder?: string; showType?: boolean }) => (
     <>
       <div style={toolbarStyle}>
         {opts.searchPlaceholder && (
@@ -222,21 +239,6 @@ export default function SalesPage() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
           />
-        )}
-        {opts.statuses && (
-          <select
-            aria-label="Status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ ...inputS, color: statusFilter ? "var(--text)" : "var(--text-faint)" }}
-          >
-            <option value="">All status</option>
-            {opts.statuses.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-          </select>
         )}
         {opts.showType && (
           <select
@@ -293,38 +295,13 @@ export default function SalesPage() {
     </>
   );
 
-  const download = (csv: string, filename: string) => {
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const csvLink = (onClick: () => void) => (
-    <div style={{ marginBottom: 14 }}>
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          onClick();
-        }}
-      >
-        Download CSV
-      </a>
-    </div>
-  );
-
   return (
     <main>
-      <PageHeader title="Sales" subtitle="Product sales by channel." />
+      <PageHeader title="Finance" subtitle="Product sales by channel." />
 
       <div className="tabs">
         <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />
-        <TabBtn id="onsite" label={`Onsite (${s.salesCount})`} />
-        <TabBtn id="shopee" label={`Shopee (${shopeeInRange.length})`} />
+        <TabBtn id="onsite" label={`Den Air Service (${s.salesCount})`} />
         <TabBtn id="airplus" label={`AirPlus (${airplusInRange.length})`} />
       </div>
 
@@ -335,11 +312,10 @@ export default function SalesPage() {
           {tab === "summary" && (
             <>
               <div style={cardsRow}>
-                <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
-                <Card label="Total conversions" value={String(channelTotal.count)} />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
+                <Card label="Revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
+                <Card label="Conversions" value={String(channelTotal.count)} />
+                <Card label="Profit" value={formatBahtTrim(summaryProfit)} />
+                <Card label="Growth rate" value={fmtGrowth(summaryGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({})}
@@ -379,38 +355,14 @@ export default function SalesPage() {
                 <Card label="Revenue" value={formatBahtTrim(onsiteSumm.revenueSatang)} />
                 <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
                 <Card label="Profit" value={formatBahtTrim(onsiteSumm.grossProfitSatang)} />
-                <Card label="Growth rate" value={growthLabel} />
+                <Card label="Growth rate" value={fmtGrowth(onsiteGrowth)} />
               </div>
-              {csvLink(() => download(onsiteSalesToCsv(onsiteView), "onsite-sales.csv"))}
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search plate / car / bill / amount…",
-                  statuses: onsiteStatuses,
                   showType: true,
                 })}
                 <SalesTable sales={onsiteView} />
-              </div>
-            </>
-          )}
-
-          {tab === "shopee" && (
-            <>
-              <div style={cardsRow}>
-                <Card label="Revenue" value={formatBahtTrim(shopeeViewTotal)} />
-                <Card label="Orders" value={String(shopeeView.length)} />
-                <Card
-                  label="Profit"
-                  value={shopeeHasProfit ? formatBahtTrim(shopeeViewProfit) : "—"}
-                />
-                <Card label="Fees" value={formatBahtTrim(shopeeViewFees)} />
-              </div>
-              {csvLink(() => download(onlineOrdersToCsv(shopeeView), "shopee-orders.csv"))}
-              <div style={frameStyle}>
-                {toolbar({
-                  searchPlaceholder: "Search order / status / amount…",
-                  statuses: shopeeStatuses,
-                })}
-                <OnlineOrders orders={shopeeView} />
               </div>
             </>
           )}
@@ -419,14 +371,13 @@ export default function SalesPage() {
             <>
               <div style={cardsRow}>
                 <Card label="Revenue" value={formatBahtTrim(airplusSales)} />
-                <Card label="Orders" value={String(airplusView.length)} />
+                <Card label="Conversions" value={String(airplusView.length)} />
                 <Card label="Profit" value={formatBahtTrim(airplusProfit)} />
+                <Card label="Growth rate" value={fmtGrowth(airplusGrowth)} />
               </div>
-              {csvLink(() => download(onlineOrdersToCsv(airplusView), "airplus-orders.csv"))}
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search order / status / amount…",
-                  statuses: airplusStatuses,
                 })}
                 <AirPlusOrders
                   orders={airplusView}
