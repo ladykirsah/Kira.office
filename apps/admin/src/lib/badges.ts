@@ -117,11 +117,12 @@ export function operationalStatusBadge(
     // Unknown or pre-0069 Thai data: show the raw value rather than guess at one of the seven.
     return { pill: "off", label: orderStatus || "—" };
   }
-  // Exactly the three the owner named, and no more. `verifying` and `claim_pending` are also
-  // waiting-on-us states and arguably deserve a colour by the same logic, but the owner specified
-  // three, so extending the palette is their call to make, not one to assume.
+  // The states the owner wants coloured, each one waiting on an action. The two payment decisions —
+  // approve a COD, verify a bank-transfer slip — both read amber (owner, 2 Aug 2026: BC pending joins
+  // COD pending in amber). Keep this list short; add a colour only when a new state demands action.
   const COLOURED: Partial<Record<typeof s, PillClass>> = {
-    cod_pending: "warn", // yellow — waiting on the owner's COD decision
+    cod_pending: "warn", // amber — waiting on the owner's COD decision
+    verifying: "warn", // amber — a bank-transfer slip to verify (BC pending)
     to_ship: "info", // blue — waiting to be packed and sent
     return: "bad", // red — ตีกลับ, the parcel came back and needs handling
   };

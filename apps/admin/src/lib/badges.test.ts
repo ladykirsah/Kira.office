@@ -116,8 +116,14 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
    * where everything is coloured highlights nothing. These assertions exist so a later "let's make
    * complete green" cannot quietly undo that.
    */
-  it("COD pending is yellow — waiting on the owner's COD decision", () =>
+  it("COD pending is amber — waiting on the owner's COD decision", () =>
     expect(operationalStatusBadge("new", "cod")).toEqual({ pill: "warn", label: "COD pending" }));
+
+  it("BC pending is amber too — a bank-transfer slip to verify", () =>
+    expect(operationalStatusBadge("new", "verifying")).toEqual({
+      pill: "warn",
+      label: "BC pending",
+    }));
 
   it("To ship is blue — waiting to be packed and sent", () =>
     expect(operationalStatusBadge("confirmed", "paid")).toEqual({
@@ -136,10 +142,6 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
     expect(operationalStatusBadge("shipped", "paid")).toEqual({ pill: "off", label: "In transit" });
     expect(operationalStatusBadge("delivered", "paid")).toEqual({ pill: "off", label: "Complete" });
     expect(operationalStatusBadge("cancelled", "pending")).toEqual({ pill: "off", label: "Fail" });
-    expect(operationalStatusBadge("new", "verifying")).toEqual({
-      pill: "off",
-      label: "BC pending",
-    });
     expect(operationalStatusBadge("claim_pending", "paid")).toEqual({
       pill: "off",
       label: "Claim pending",
@@ -147,7 +149,7 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
     expect(operationalStatusBadge("claimed", "refunded")).toEqual({ pill: "off", label: "Refund" });
   });
 
-  it("exactly three of the seven are coloured", () => {
+  it("exactly the four action states are coloured", () => {
     const coloured = OPERATIONAL_STATUSES.filter((s) => {
       // Drive each status through a representative (orderStatus, paymentStatus) pair.
       const pairs: Record<string, [string, string]> = {
@@ -168,7 +170,7 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
       const [os, ps] = pairs[s]!;
       return operationalStatusBadge(os, ps).pill !== "off";
     });
-    expect([...coloured]).toEqual(["cod_pending", "to_ship", "return"]);
+    expect([...coloured]).toEqual(["verifying", "cod_pending", "to_ship", "return"]);
   });
 
   it("given pre-0069 Thai data > stays gray and shows the raw value rather than guessing", () =>

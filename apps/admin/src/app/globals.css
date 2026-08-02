@@ -362,34 +362,52 @@ tbody tr:hover {
 .pill.boxed {
   border-radius: 8px;
 }
-.pill.on {
-  background: color-mix(in srgb, var(--ok) 16%, transparent);
-  color: var(--ok);
+/* Status-tag palette — the owner's picked shades, 2 Aug 2026: bright red/amber/blue/green and a slate
+   grey. Each pill is a light tint of its hue with the hue itself as the text; dark mode lightens the
+   text one step so it still reads on the darker tint. Green pairs a bright tint with a slightly deeper
+   text (#16a34a) that stays legible — a full #22c55e text on a pale fill would wash out. */
+.pill.on,
+.pill.good {
+  background: color-mix(in srgb, #22c55e 16%, transparent);
+  color: #16a34a;
 }
 .pill.off {
-  background: var(--hover);
-  color: var(--text-muted);
-}
-.pill.good {
-  background: color-mix(in srgb, var(--ok) 16%, transparent);
-  color: var(--ok);
+  background: color-mix(in srgb, #334155 12%, transparent);
+  color: #334155;
 }
 .pill.warn {
-  background: color-mix(in srgb, var(--warn) 18%, transparent);
-  color: var(--warn);
+  background: color-mix(in srgb, #d97706 16%, transparent);
+  color: #d97706;
 }
 .pill.bad {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  color: #ef4444;
 }
 .pill.soft {
   background: var(--primary-soft);
   color: var(--primary);
 }
-/* Info = blue (e.g. a Shopee order delivered but not yet confirmed). */
+/* Info = blue (To ship). */
 .pill.info {
-  background: color-mix(in srgb, #2563eb 14%, transparent);
-  color: #1d4ed8;
+  background: color-mix(in srgb, #3b82f6 14%, transparent);
+  color: #3b82f6;
+}
+html[data-theme="dark"] .pill.on,
+html[data-theme="dark"] .pill.good {
+  background: color-mix(in srgb, #22c55e 24%, transparent);
+  color: #4ade80;
+}
+html[data-theme="dark"] .pill.off {
+  background: color-mix(in srgb, #64748b 26%, transparent);
+  color: #cbd5e1;
+}
+html[data-theme="dark"] .pill.warn {
+  background: color-mix(in srgb, #d97706 26%, transparent);
+  color: #fbbf24;
+}
+html[data-theme="dark"] .pill.bad {
+  background: color-mix(in srgb, #ef4444 26%, transparent);
+  color: #f87171;
 }
 html[data-theme="dark"] .pill.info {
   background: color-mix(in srgb, #60a5fa 22%, transparent);
