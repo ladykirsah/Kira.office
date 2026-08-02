@@ -195,9 +195,7 @@ export function AirPlusOrders({
           <tr>
             <th>Order ID</th>
             <th>Sales</th>
-            <th>Shipping</th>
             <th>Profit</th>
-            <th>Carrier</th>
             <th>Date</th>
             <th>Status</th>
             <th aria-label="Actions" />
@@ -212,23 +210,14 @@ export function AirPlusOrders({
             return (
               <Fragment key={o.id}>
                 <tr>
-                  {/* Order ID + username */}
+                  {/* Order ID */}
                   <td style={{ whiteSpace: "nowrap" }}>
                     <div style={{ ...tableText.body2, ...mono }}>{o.externalOrderId}</div>
-                    {o.buyerUsername && <div style={tableText.subtitle}>{o.buyerUsername}</div>}
                   </td>
                   {/* Sales = goods revenue the customer paid (shipping excluded) */}
                   <td>
                     {o.salesSatang != null ? (
                       formatBahtTrim(o.salesSatang)
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  {/* Shipping the customer paid (owed onward to Flash — a pass-through) */}
-                  <td>
-                    {o.shippingFeeSatang ? (
-                      formatBahtTrim(o.shippingFeeSatang)
                     ) : (
                       <span className="muted">—</span>
                     )}
@@ -239,19 +228,6 @@ export function AirPlusOrders({
                       formatBahtTrim(o.profitSatang)
                     ) : (
                       <span className="muted">—</span>
-                    )}
-                  </td>
-                  {/* Carrier tag + tracking no. */}
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {o.carrier ? (
-                      <span className="pill off">{o.carrier}</span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                    {o.trackingNo && (
-                      <div style={{ ...tableText.subtitle, ...mono, marginTop: 4 }}>
-                        {o.trackingNo}
-                      </div>
                     )}
                   </td>
                   {/* Ordered date + shipped date */}
@@ -276,7 +252,7 @@ export function AirPlusOrders({
                 </tr>
                 {editing && (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={6}>
                       <OrderEditor
                         order={o}
                         onCancel={() => setEditingId(null)}
