@@ -7,19 +7,17 @@ export interface StatusTag {
 }
 
 /**
- * Single display status for a product row — it describes AIRPLUS, the owner's own storefront, which
- * shows a product only while status = 'active' (owner, 2026-07-29: there is no Shopee API, so the
- * old shopeeListed flag no longer decides anything). Precedence (first match wins):
- *   Draft      — not published yet (status === "draft")
- *   Paused     — deliberately hidden from the storefront
- *   Out        — live on AirPlus but no stock (visible and unfulfillable)
- *   On AirPlus — live and in stock
+ * Single display status for a product's presence on AIRPLUS, the owner's own storefront — the column
+ * is headed "AirPlus". It mirrors the `status` field directly, in three states (first match wins):
+ *   Draft   — not published yet (status === "draft")
+ *   Paused  — deliberately hidden from the storefront (any status that is neither active nor draft)
+ *   Active  — live on AirPlus
+ * Stock is a separate column, so an active product reads Active whether or not it has stock right now
+ * (owner, 2 Aug 2026 — the old "Out" state folded into Active). shopeeListed is legacy and unread:
+ * there is no Shopee API (owner, 2026-07-29).
  */
-export function productStatusTag(
-  p: Pick<ProductRow, "status" | "shopeeListed" | "onHand">,
-): StatusTag {
+export function productStatusTag(p: Pick<ProductRow, "status">): StatusTag {
   if (p.status === "draft") return { label: "Draft", cls: "off" };
   if (p.status !== "active") return { label: "Paused", cls: "pause" };
-  if (p.onHand <= 0) return { label: "Out", cls: "bad" };
-  return { label: "On AirPlus", cls: "on" };
+  return { label: "Active", cls: "on" };
 }
