@@ -99,10 +99,11 @@ const TRANSITIONS: Record<ClaimState, Partial<Record<ClaimState, ClaimActor>>> =
   requested: { received: "admin" },
   approved: { received: "admin", cancelled: "admin" },
   received: { mechanic_approved: "mechanic", mechanic_rejected: "mechanic" },
-  // Two resolutions, chosen by the customer at claim time: a refund closes the claim directly (money
-  // back, nothing shipped), a replacement ships first (→ shipped → done).
+  // Two resolutions, chosen by the customer at claim time. Both FINISH on form submit — there is no
+  // separate เสร็จสิ้น step: a refund closes to `done` (money back, nothing shipped); a replacement's
+  // drop-off form lands in `shipped`, which is itself terminal.
   mechanic_approved: { done: "admin", shipped: "admin" },
-  shipped: { done: "admin" },
+  shipped: {},
   done: {},
   cancelled: {},
   mechanic_rejected: {},

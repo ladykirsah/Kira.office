@@ -1805,6 +1805,8 @@ export interface OrderDetail {
     assigneeName: string | null;
     carrier: string | null;
     trackingNo: string | null;
+    /** What we paid the carrier to ship the replacement/return (exchange or rejection). */
+    shippingFeeSatang: number | null;
     createdAt: number;
     /** R2 keys of the claim's evidence photos, served via the private /file route. */
     photoKeys: string[];
