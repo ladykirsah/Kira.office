@@ -158,7 +158,7 @@ describe("operationalStatus > unknown and legacy data", () => {
 describe("operationalStatus > labels", () => {
   const EXPECTED: [OperationalStatus, string, string][] = [
     ["unpaid", "Unpaid", "ยังไม่ชำระเงิน"],
-    ["verifying", "Payment pending", "กำลังตรวจสอบ"],
+    ["verifying", "BC pending", "กำลังตรวจสอบ"],
     ["cod_pending", "COD pending", "รอการอนุมัติ"],
     ["cod_reject", "COD reject", "ปฏิเสธเก็บเงินปลายทาง"],
     ["to_ship", "To ship", "เตรียมจัดส่ง"],

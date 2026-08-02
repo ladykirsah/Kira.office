@@ -5,7 +5,7 @@ import { ORDER_TAB_LABELS, ORDER_TAB_STATUSES } from "./orderTabs";
 
 /**
  * The owner re-sectioned the summary frame, 2 Aug 2026: a card is now a section that may gather
- * several operational statuses (Pending = COD pending + Payment pending; Refund = a bounced parcel
+ * several operational statuses (Pending = COD pending + BC pending; Refund = a bounced parcel
  * plus every claim order), while To ship and In transit stay one status each.
  *
  * Two invariants keep a section honest, and both failures they guard against have bitten before: a
@@ -49,7 +49,7 @@ describe("order summary cards > the owner's sections", () => {
     ]);
   });
 
-  it("Pending gathers COD pending and Payment pending", () => {
+  it("Pending gathers COD pending and BC pending", () => {
     expect([...byKey("pending").statuses].sort()).toEqual(["cod_pending", "verifying"]);
   });
 
