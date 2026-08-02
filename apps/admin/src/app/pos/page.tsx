@@ -321,6 +321,16 @@ function SaveMenu({
   );
 }
 
+/** A layout-neutral <fieldset>, used only for its `disabled` attribute: that locks every form
+ *  control nested inside it at once (Steps 2 & 3 while reprinting) without touching each one.
+ *  minInlineSize:0 stops a fieldset's default min-content width from forcing horizontal overflow. */
+const LOCK_FIELDSET: CSSProperties = {
+  border: 0,
+  margin: 0,
+  padding: 0,
+  minInlineSize: 0,
+};
+
 /** Clickable horizontal step timeline at the top of the POS builder — jumps to each group. */
 const POS_STEPS = [
   { n: 1, label: "Setup" },
@@ -328,7 +338,9 @@ const POS_STEPS = [
   { n: 3, label: "Items" },
 ] as const;
 
-function StepTimeline() {
+function StepTimeline({ locked = false }: { locked?: boolean }) {
+  // Reprint locks Info + Items (steps 2 & 3): those dots read as inactive and don't navigate.
+  const isLocked = (n: number) => locked && n !== 1;
   const go = (n: number) =>
     document
       .getElementById(`pos-step-${n}`)
@@ -347,46 +359,50 @@ function StepTimeline() {
         paddingBottom: 10,
       }}
     >
-      {POS_STEPS.map((s, i) => (
-        <Fragment key={s.n}>
-          <button
-            type="button"
-            onClick={() => go(s.n)}
-            title={`Go to ${s.label}`}
-            aria-label={`Go to ${s.label}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 40,
-              height: 40,
-              borderRadius: 999,
-              background: "var(--primary)",
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 700,
-              border: 0,
-              padding: 0,
-              cursor: "pointer",
-              minHeight: 0,
-              flex: "0 0 auto",
-            }}
-          >
-            {s.n}
-          </button>
-          {i < POS_STEPS.length - 1 && (
-            <div
+      {POS_STEPS.map((s, i) => {
+        const lockedStep = isLocked(s.n);
+        return (
+          <Fragment key={s.n}>
+            <button
+              type="button"
+              onClick={() => (lockedStep ? undefined : go(s.n))}
+              disabled={lockedStep}
+              title={lockedStep ? `${s.label} is locked while reprinting` : `Go to ${s.label}`}
+              aria-label={lockedStep ? `${s.label} (locked)` : `Go to ${s.label}`}
               style={{
-                flex: 1,
-                height: 2,
-                borderRadius: 2,
-                background: "var(--border)",
-                margin: "0 10px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                background: lockedStep ? "var(--border)" : "var(--primary)",
+                color: lockedStep ? "var(--text-faint)" : "#fff",
+                fontSize: 15,
+                fontWeight: 700,
+                border: 0,
+                padding: 0,
+                cursor: lockedStep ? "not-allowed" : "pointer",
+                minHeight: 0,
+                flex: "0 0 auto",
               }}
-            />
-          )}
-        </Fragment>
-      ))}
+            >
+              {s.n}
+            </button>
+            {i < POS_STEPS.length - 1 && (
+              <div
+                style={{
+                  flex: 1,
+                  height: 2,
+                  borderRadius: 2,
+                  background: "var(--border)",
+                  margin: "0 10px",
+                }}
+              />
+            )}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -1443,6 +1459,10 @@ export default function PosPage() {
     .filter(Boolean)
     .join(" ");
 
+  // Reprinting a finalized bill: its info + items are fixed history. Steps 2 (Info) and 3 (Items)
+  // are locked so nothing about the bill can be edited — only Step 1 (paper/language) and Create PDF.
+  const reprintMode = reprint !== null;
+
   // Match the plate against the customer book as it's typed. A plate we already know keeps the
   // current flow (and prefills its saved car); only a genuinely new one opens the New customer
   // block — so `known` stays undefined ("still checking") until the answer is in.
@@ -2019,7 +2039,7 @@ export default function PosPage() {
         {/* ---- LEFT: build the sale ---- */}
         <div className="pos-col-left" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Clickable step timeline — frozen above the scroll area */}
-          <StepTimeline />
+          <StepTimeline locked={reprintMode} />
           {/* Only these 3 groups scroll; the rest of the page is frozen (wide screens). */}
           <div className="pos-groups-scroll">
             {/* ── Step 1 · Setup — document type, paper, language ── */}
@@ -2127,169 +2147,176 @@ export default function PosPage() {
             <div id="pos-group-2" className="pos-step-group">
               <StepHead n={2} label="Info" />
               <div style={card}>
-                {/* Date */}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={fieldLabel}>Date</div>
-                  <input
-                    type="date"
-                    value={billDate}
-                    onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
-                    style={inputL}
-                  />
-                </div>
-
-                {/* Vehicle — brand → model → year + plate */}
-                <div style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                  <div style={fieldLabel}>Vehicle</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <select
-                      value={carBrandId}
-                      onChange={(e) => {
-                        setCarBrandId(e.target.value);
-                        setCarModelId("");
-                        setCarYear("");
-                      }}
-                      style={{ flex: "1 1 130px", ...inputS }}
-                    >
-                      <option value="">Brand…</option>
-                      {carFitment.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={carModelId}
-                      onChange={(e) => {
-                        setCarModelId(e.target.value);
-                        setCarYear("");
-                      }}
-                      disabled={!selectedBrand || brandModels.length === 0}
-                      style={{ flex: "1 1 130px", ...inputS }}
-                    >
-                      <option value="">
-                        {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
-                      </option>
-                      {brandModels.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                          {m.yearFrom || m.yearTo
-                            ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})`
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={carYear}
-                      onChange={(e) => setCarYear(e.target.value)}
-                      disabled={!selectedModel}
-                      style={{ flex: "0 1 104px", ...inputS }}
-                    >
-                      <option value="">Year…</option>
-                      {yearOptions.map((y) => (
-                        <option key={y} value={y}>
-                          {y}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Plate number + province belong together — both are printed on the physical
-                      plate (same number repeats across provinces). Mileage is service info. */}
-                  <div style={{ marginTop: 12 }}>
-                    <div style={fieldLabel}>Plate</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        value={plate}
-                        onChange={(e) => setPlate(e.target.value)}
-                        placeholder="License plate"
-                        style={{ flex: 1, minWidth: 0 }}
-                      />
-                      <input
-                        value={province}
-                        onChange={(e) => setProvince(e.target.value)}
-                        placeholder="จังหวัด (บนป้ายทะเบียน)"
-                        list="thai-provinces"
-                        aria-label="Plate province"
-                        style={{ width: 200 }}
-                      />
-                      <datalist id="thai-provinces">
-                        {THAI_PROVINCES.map((p) => (
-                          <option key={p} value={p} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <div style={fieldLabel}>Mileage</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        value={mileage}
-                        onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
-                        placeholder="Mileage"
-                        inputMode="numeric"
-                        aria-label="Mileage (km)"
-                        style={{ width: 160 }}
-                      />
-                      <span className="muted">km</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* New customer — only for a plate the customer book doesn't know yet. Everything
-                    here is optional: an empty block saves exactly what a plate-only bill saves. */}
-                {known === null && (
-                  <div
-                    style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}
-                  >
-                    <div style={{ ...fieldLabel, display: "flex", alignItems: "center", gap: 8 }}>
-                      New customer
-                      <span className="pill soft">new plate</span>
-                    </div>
+                <fieldset disabled={reprintMode} style={LOCK_FIELDSET}>
+                  {/* Date */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>Date</div>
                     <input
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Customer name"
-                      aria-label="Customer name"
-                      style={{ width: "100%", marginBottom: 8 }}
+                      type="date"
+                      value={billDate}
+                      onChange={(e) => setBillDate(e.target.value || toISODate(new Date()))}
+                      style={inputL}
                     />
-                    {phones.map((ph, i) => (
-                      <div
-                        key={i}
-                        style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}
+                  </div>
+
+                  {/* Vehicle — brand → model → year + plate */}
+                  <div style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+                    <div style={fieldLabel}>Vehicle</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <select
+                        value={carBrandId}
+                        onChange={(e) => {
+                          setCarBrandId(e.target.value);
+                          setCarModelId("");
+                          setCarYear("");
+                        }}
+                        style={{ flex: "1 1 130px", ...inputS }}
                       >
+                        <option value="">Brand…</option>
+                        {carFitment.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={carModelId}
+                        onChange={(e) => {
+                          setCarModelId(e.target.value);
+                          setCarYear("");
+                        }}
+                        disabled={!selectedBrand || brandModels.length === 0}
+                        style={{ flex: "1 1 130px", ...inputS }}
+                      >
+                        <option value="">
+                          {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
+                        </option>
+                        {brandModels.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                            {m.yearFrom || m.yearTo
+                              ? ` (${m.yearFrom ?? "…"}–${m.yearTo ?? "…"})`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={carYear}
+                        onChange={(e) => setCarYear(e.target.value)}
+                        disabled={!selectedModel}
+                        style={{ flex: "0 1 104px", ...inputS }}
+                      >
+                        <option value="">Year…</option>
+                        {yearOptions.map((y) => (
+                          <option key={y} value={y}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Plate number + province belong together — both are printed on the physical
+                      plate (same number repeats across provinces). Mileage is service info. */}
+                    <div style={{ marginTop: 12 }}>
+                      <div style={fieldLabel}>Plate</div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <input
-                          value={ph}
-                          onChange={(e) =>
-                            setPhones((xs) => xs.map((p, j) => (j === i ? e.target.value : p)))
-                          }
-                          placeholder={i === 0 ? "Phone number" : "Another number"}
-                          aria-label={i === 0 ? "Phone number" : `Phone number ${i + 1}`}
-                          inputMode="tel"
+                          value={plate}
+                          onChange={(e) => setPlate(e.target.value)}
+                          placeholder="License plate"
                           style={{ flex: 1, minWidth: 0 }}
                         />
-                        {phones.length > 1 && (
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            aria-label="Remove this number"
-                            title="Remove"
-                            onClick={() => setPhones((xs) => xs.filter((_, j) => j !== i))}
-                            style={{ color: "var(--danger)" }}
-                          >
-                            ✕
-                          </button>
-                        )}
+                        <input
+                          value={province}
+                          onChange={(e) => setProvince(e.target.value)}
+                          placeholder="จังหวัด (บนป้ายทะเบียน)"
+                          list="thai-provinces"
+                          aria-label="Plate province"
+                          style={{ width: 200 }}
+                        />
+                        <datalist id="thai-provinces">
+                          {THAI_PROVINCES.map((p) => (
+                            <option key={p} value={p} />
+                          ))}
+                        </datalist>
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="btn-soft btn-sm"
-                      onClick={() => setPhones((xs) => [...xs, ""])}
-                    >
-                      + Add number
-                    </button>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <div style={fieldLabel}>Mileage</div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input
+                          value={mileage}
+                          onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
+                          placeholder="Mileage"
+                          inputMode="numeric"
+                          aria-label="Mileage (km)"
+                          style={{ width: 160 }}
+                        />
+                        <span className="muted">km</span>
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  {/* New customer — only for a plate the customer book doesn't know yet. Everything
+                    here is optional: an empty block saves exactly what a plate-only bill saves.
+                    Hidden while reprinting: a finalized bill's customer is already on record. */}
+                  {known === null && !reprintMode && (
+                    <div
+                      style={{
+                        marginTop: 14,
+                        paddingTop: 14,
+                        borderTop: "1px solid var(--border)",
+                      }}
+                    >
+                      <div style={{ ...fieldLabel, display: "flex", alignItems: "center", gap: 8 }}>
+                        New customer
+                        <span className="pill soft">new plate</span>
+                      </div>
+                      <input
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="Customer name"
+                        aria-label="Customer name"
+                        style={{ width: "100%", marginBottom: 8 }}
+                      />
+                      {phones.map((ph, i) => (
+                        <div
+                          key={i}
+                          style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}
+                        >
+                          <input
+                            value={ph}
+                            onChange={(e) =>
+                              setPhones((xs) => xs.map((p, j) => (j === i ? e.target.value : p)))
+                            }
+                            placeholder={i === 0 ? "Phone number" : "Another number"}
+                            aria-label={i === 0 ? "Phone number" : `Phone number ${i + 1}`}
+                            inputMode="tel"
+                            style={{ flex: 1, minWidth: 0 }}
+                          />
+                          {phones.length > 1 && (
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              aria-label="Remove this number"
+                              title="Remove"
+                              onClick={() => setPhones((xs) => xs.filter((_, j) => j !== i))}
+                              style={{ color: "var(--danger)" }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-soft btn-sm"
+                        onClick={() => setPhones((xs) => [...xs, ""])}
+                      >
+                        + Add number
+                      </button>
+                    </div>
+                  )}
+                </fieldset>
               </div>
             </div>
 
@@ -2297,275 +2324,286 @@ export default function PosPage() {
             <div id="pos-group-3" className="pos-step-group">
               <StepHead n={3} label="Items" />
               <div style={card}>
-                {/* Add item — Product / Service toggle switches the workspace */}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={fieldLabel}>Add item</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                    <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
-                      📦 Product
-                    </Seg>
-                    <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
-                      🔧 Service
-                    </Seg>
-                    <Seg active={addKind === "addon"} onClick={() => setAddKind("addon")}>
-                      ➕ Add-on
-                    </Seg>
-                  </div>
-                  <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
-                    {addKind === "product"
-                      ? "Scan a barcode, type the code, or search your catalog."
-                      : addKind === "service"
-                        ? "Pick a saved service. For a one-off, use Add-on."
-                        : "A one-off item not in your catalog — type a name and price."}
-                  </p>
+                <fieldset disabled={reprintMode} style={LOCK_FIELDSET}>
+                  {/* Add item — Product / Service toggle switches the workspace */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>Add item</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                      <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
+                        📦 Product
+                      </Seg>
+                      <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
+                        🔧 Service
+                      </Seg>
+                      <Seg active={addKind === "addon"} onClick={() => setAddKind("addon")}>
+                        ➕ Add-on
+                      </Seg>
+                    </div>
+                    <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
+                      {addKind === "product"
+                        ? "Scan a barcode, type the code, or search your catalog."
+                        : addKind === "service"
+                          ? "Pick a saved service. For a one-off, use Add-on."
+                          : "A one-off item not in your catalog — type a name and price."}
+                    </p>
 
-                  {addKind === "product" && (
-                    <div>
-                      <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-                        <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
-                          📷 Scan barcode
-                        </Tab>
-                        <Tab active={method === "code"} onClick={() => setMethod("code")}>
-                          ⌨️ Type code
-                        </Tab>
-                        <Tab active={method === "search"} onClick={() => setMethod("search")}>
-                          🔍 Search
-                        </Tab>
-                      </div>
+                    {addKind === "product" && (
+                      <div>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                          <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
+                            📷 Scan barcode
+                          </Tab>
+                          <Tab active={method === "code"} onClick={() => setMethod("code")}>
+                            ⌨️ Type code
+                          </Tab>
+                          <Tab active={method === "search"} onClick={() => setMethod("search")}>
+                            🔍 Search
+                          </Tab>
+                        </div>
 
-                      {method === "scan" && (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            addByScan();
-                          }}
-                          style={{ display: "flex", gap: 8 }}
-                        >
-                          <input
-                            autoFocus
-                            value={scanVal}
-                            onChange={(e) => setScanVal(e.target.value)}
-                            placeholder="Scan or paste a barcode…"
-                            style={{ flex: 1, ...inputS }}
-                          />
-                          <button type="submit" className="btn-soft" disabled={busy} style={inputS}>
-                            Add
-                          </button>
-                        </form>
-                      )}
+                        {method === "scan" && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              addByScan();
+                            }}
+                            style={{ display: "flex", gap: 8 }}
+                          >
+                            <input
+                              autoFocus
+                              value={scanVal}
+                              onChange={(e) => setScanVal(e.target.value)}
+                              placeholder="Scan or paste a barcode…"
+                              style={{ flex: 1, ...inputS }}
+                            />
+                            <button
+                              type="submit"
+                              className="btn-soft"
+                              disabled={busy}
+                              style={inputS}
+                            >
+                              Add
+                            </button>
+                          </form>
+                        )}
 
-                      {method === "code" && (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            addByCode();
-                          }}
-                          style={{ display: "flex", gap: 8 }}
-                        >
-                          <input
-                            value={codeVal}
-                            onChange={(e) => setCodeVal(e.target.value)}
-                            placeholder="Type a product code…"
-                            style={{ flex: 1, ...inputS }}
-                          />
-                          <button type="submit" className="btn-soft" style={inputS}>
-                            Add
-                          </button>
-                        </form>
-                      )}
+                        {method === "code" && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              addByCode();
+                            }}
+                            style={{ display: "flex", gap: 8 }}
+                          >
+                            <input
+                              value={codeVal}
+                              onChange={(e) => setCodeVal(e.target.value)}
+                              placeholder="Type a product code…"
+                              style={{ flex: 1, ...inputS }}
+                            />
+                            <button type="submit" className="btn-soft" style={inputS}>
+                              Add
+                            </button>
+                          </form>
+                        )}
 
-                      {method === "search" && (
-                        <div style={{ position: "relative" }}>
-                          <input
-                            autoFocus
-                            value={searchQ}
-                            onChange={(e) => setSearchQ(e.target.value)}
-                            placeholder="Search by product name or code…"
-                            style={{ width: "100%", ...inputS }}
-                          />
-                          {searchQ.trim() && (
-                            <div className="combo-pop">
-                              {searchResults.length === 0 ? (
-                                <p className="muted" style={{ fontSize: 13, margin: "6px 8px" }}>
-                                  No product matches “{searchQ.trim()}”.
-                                </p>
-                              ) : (
-                                searchResults.map((p) => (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    className="combo-opt"
-                                    onClick={() => addProductLine(p)}
-                                    style={{
-                                      display: "flex",
-                                      justifyContent: "space-between",
-                                      alignItems: "center",
-                                      gap: 8,
-                                    }}
-                                  >
-                                    <span style={{ minWidth: 0 }}>
+                        {method === "search" && (
+                          <div style={{ position: "relative" }}>
+                            <input
+                              autoFocus
+                              value={searchQ}
+                              onChange={(e) => setSearchQ(e.target.value)}
+                              placeholder="Search by product name or code…"
+                              style={{ width: "100%", ...inputS }}
+                            />
+                            {searchQ.trim() && (
+                              <div className="combo-pop">
+                                {searchResults.length === 0 ? (
+                                  <p className="muted" style={{ fontSize: 13, margin: "6px 8px" }}>
+                                    No product matches “{searchQ.trim()}”.
+                                  </p>
+                                ) : (
+                                  searchResults.map((p) => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      className="combo-opt"
+                                      onClick={() => addProductLine(p)}
+                                      style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 8,
+                                      }}
+                                    >
+                                      <span style={{ minWidth: 0 }}>
+                                        <span
+                                          style={{
+                                            display: "block",
+                                            fontWeight: 600,
+                                            fontSize: 13,
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                          }}
+                                        >
+                                          {p.name}
+                                        </span>
+                                        <span className="muted" style={{ fontSize: 12 }}>
+                                          {p.productRef}
+                                        </span>
+                                      </span>
                                       <span
                                         style={{
-                                          display: "block",
                                           fontWeight: 600,
                                           fontSize: 13,
                                           whiteSpace: "nowrap",
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
                                         }}
                                       >
-                                        {p.name}
+                                        ฿{amt(tierPrice(p))}
                                       </span>
-                                      <span className="muted" style={{ fontSize: 12 }}>
-                                        {p.productRef}
-                                      </span>
-                                    </span>
-                                    <span
-                                      style={{
-                                        fontWeight: 600,
-                                        fontSize: 13,
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      ฿{amt(tierPrice(p))}
-                                    </span>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          )}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Service workspace */}
+                    {addKind === "service" && (
+                      <div>
+                        <div style={fieldLabel}>Add service</div>
+                        <ServiceSelect services={services} value={svcId} onSelect={selectService} />
+
+                        {/* Add — the price is set on the item in the cart below */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                          <button
+                            type="button"
+                            className="btn-soft"
+                            disabled={!serviceName}
+                            onClick={addService}
+                            style={{ ...inputS, padding: "8px 16px" }}
+                          >
+                            Add
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  {/* Service workspace */}
-                  {addKind === "service" && (
-                    <div>
-                      <div style={fieldLabel}>Add service</div>
-                      <ServiceSelect services={services} value={svcId} onSelect={selectService} />
-
-                      {/* Add — the price is set on the item in the cart below */}
-                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    {/* Add-on — a one-off custom line (name + price), not from the catalog */}
+                    {addKind === "addon" && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          addAddon();
+                        }}
+                        style={{ display: "flex", gap: 8 }}
+                      >
+                        <input
+                          autoFocus
+                          value={addonName}
+                          onChange={(e) => setAddonName(e.target.value)}
+                          placeholder="Item name…"
+                          style={{ flex: 1, ...inputS }}
+                        />
+                        <input
+                          value={addonPrice}
+                          onChange={(e) => setAddonPrice(e.target.value)}
+                          inputMode="decimal"
+                          placeholder="฿ price"
+                          style={{ width: 96, ...inputS }}
+                        />
                         <button
-                          type="button"
+                          type="submit"
                           className="btn-soft"
-                          disabled={!serviceName}
-                          onClick={addService}
-                          style={{ ...inputS, padding: "8px 16px" }}
+                          disabled={!addonName.trim()}
+                          style={inputS}
                         >
                           Add
                         </button>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Cart */}
+                  <div
+                    style={{
+                      marginBottom: 14,
+                      paddingTop: 14,
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <div style={fieldLabel}>Items ({lines.length})</div>
+                    {lines.length === 0 ? (
+                      <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                        No items yet. Add a product or service above.
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {lines.map((l) => (
+                          <CartItem
+                            key={l.uid}
+                            line={l}
+                            lang={billLang}
+                            barcode={l.barcodeValue || codeToBarcode.get(l.productRef ?? "")}
+                            onQty={(quantity) => updateLine(l.uid, { quantity })}
+                            onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
+                            onTier={(t) => setLineTier(l.uid, t)}
+                            onRemove={() => removeLine(l.uid)}
+                          />
+                        ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
-                  {/* Add-on — a one-off custom line (name + price), not from the catalog */}
-                  {addKind === "addon" && (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        addAddon();
-                      }}
-                      style={{ display: "flex", gap: 8 }}
-                    >
-                      <input
-                        autoFocus
-                        value={addonName}
-                        onChange={(e) => setAddonName(e.target.value)}
-                        placeholder="Item name…"
-                        style={{ flex: 1, ...inputS }}
-                      />
-                      <input
-                        value={addonPrice}
-                        onChange={(e) => setAddonPrice(e.target.value)}
-                        inputMode="decimal"
-                        placeholder="฿ price"
-                        style={{ width: 96, ...inputS }}
-                      />
-                      <button
-                        type="submit"
-                        className="btn-soft"
-                        disabled={!addonName.trim()}
-                        style={inputS}
-                      >
-                        Add
-                      </button>
-                    </form>
-                  )}
-                </div>
-
-                {/* Cart */}
-                <div
-                  style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}
-                >
-                  <div style={fieldLabel}>Items ({lines.length})</div>
-                  {lines.length === 0 ? (
-                    <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                      No items yet. Add a product or service above.
-                    </p>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {lines.map((l) => (
-                        <CartItem
-                          key={l.uid}
-                          line={l}
-                          lang={billLang}
-                          barcode={l.barcodeValue || codeToBarcode.get(l.productRef ?? "")}
-                          onQty={(quantity) => updateLine(l.uid, { quantity })}
-                          onPrice={(unitPriceSatang) => updateLine(l.uid, { unitPriceSatang })}
-                          onTier={(t) => setLineTier(l.uid, t)}
-                          onRemove={() => removeLine(l.uid)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Discount — ฿ or % off the whole bill */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    paddingTop: 14,
-                    borderTop: "1px solid var(--border)",
-                  }}
-                >
-                  <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                    Discount
-                  </span>
-                  <input
-                    value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                    inputMode="decimal"
-                    placeholder="0"
-                    style={{ flex: 1, ...inputS }}
-                  />
-                  {(["thb", "pct"] as DiscountKind[]).map((k) => {
-                    const active = discountKind === k;
-                    return (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setDiscountKind(k)}
-                        style={{
-                          padding: "8px 14px",
-                          borderRadius: 8,
-                          border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-                          background: active ? "var(--primary-soft)" : "var(--surface)",
-                          color: active ? "var(--primary)" : "var(--text)",
-                          fontWeight: 700,
-                          fontSize: 13,
-                          cursor: "pointer",
-                          minHeight: 0,
-                        }}
-                      >
-                        {k === "thb" ? "฿" : "%"}
-                      </button>
-                    );
-                  })}
-                </div>
+                  {/* Discount — ฿ or % off the whole bill */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      paddingTop: 14,
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
+                      Discount
+                    </span>
+                    <input
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="0"
+                      style={{ flex: 1, ...inputS }}
+                    />
+                    {(["thb", "pct"] as DiscountKind[]).map((k) => {
+                      const active = discountKind === k;
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setDiscountKind(k)}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: 8,
+                            border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
+                            background: active ? "var(--primary-soft)" : "var(--surface)",
+                            color: active ? "var(--primary)" : "var(--text)",
+                            fontWeight: 700,
+                            fontSize: 13,
+                            cursor: "pointer",
+                            minHeight: 0,
+                          }}
+                        >
+                          {k === "thb" ? "฿" : "%"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
               </div>
             </div>
           </div>
