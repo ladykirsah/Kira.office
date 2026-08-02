@@ -33,7 +33,7 @@ export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
     key: "pending",
     label: "Pending",
     statuses: ["cod_pending", "verifying"],
-    tab: "unpaid",
+    tab: "pending",
     activeColor: "var(--warn)",
   },
   { key: "toship", label: "To ship", statuses: ["to_ship"], tab: "toship", activeColor: "#2563eb" },
@@ -50,7 +50,7 @@ export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
     key: "refund",
     label: "Refund",
     statuses: ["return", "claim_pending", "claimed", "refunded", "claim_rejected"],
-    tab: "unfinished",
+    tab: "refundclaim",
     activeColor: "var(--danger)",
   },
 ];
@@ -63,9 +63,10 @@ export function orderSummaryCardLabel(card: OrderSummaryCard): string {
 /**
  * Is this card simply a shortcut to its whole tab, rather than a narrower slice of it?
  *
- * True when the card's statuses are exactly the tab's statuses — To ship and In transit, each the
- * sole occupant of its tab. False for Pending (a slice of Unpaid) and Refund (Unfinished minus
- * `fail`), which show less than the tab, so clicking them keeps their own highlight.
+ * Since the 2 Aug tab re-section every card lines up with a tab exactly — Pending, To ship, In
+ * transit and Refund are all whole-tab shortcuts — so this is true for each current card. It stays a
+ * computed check rather than a flag because a later card that counts only part of a tab must still be
+ * caught, and the tests lean on it to hold the "same label ⇒ same page" rule.
  */
 export function cardIsWholeTab(card: OrderSummaryCard): boolean {
   const tabStatuses = ORDER_TAB_STATUSES[card.tab];

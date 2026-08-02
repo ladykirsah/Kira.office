@@ -37,9 +37,13 @@ describe("ORDER_TAB_STATUSES > partition", () => {
   });
 });
 
-describe("ORDER_TAB_STATUSES > the owner's grouping", () => {
-  it("Unpaid holds the whole waiting-on-money stage", () => {
-    expect(ORDER_TAB_STATUSES.unpaid).toEqual(["unpaid", "verifying", "cod_pending", "cod_reject"]);
+describe("ORDER_TAB_STATUSES > the owner's grouping (2 Aug re-section)", () => {
+  it("Unpaid is only the prepaid order whose money has not arrived", () => {
+    expect(ORDER_TAB_STATUSES.unpaid).toEqual(["unpaid"]);
+  });
+
+  it("Pending is the two payment decisions we owe: COD to approve, slip to verify", () => {
+    expect(ORDER_TAB_STATUSES.pending).toEqual(["cod_pending", "verifying"]);
   });
 
   it("To ship and In transit hold exactly one status each", () => {
@@ -51,9 +55,12 @@ describe("ORDER_TAB_STATUSES > the owner's grouping", () => {
     expect(ORDER_TAB_STATUSES.completed).toEqual(["complete"]);
   });
 
-  it("Unfinished holds the failures, the bounced parcel and the whole claim lifecycle", () => {
-    expect(ORDER_TAB_STATUSES.unfinished).toEqual([
-      "fail",
+  it("Cancel & fail holds dead orders (cancelled/expired) and a refused COD", () => {
+    expect(ORDER_TAB_STATUSES.cancelfail).toEqual(["fail", "cod_reject"]);
+  });
+
+  it("Refund & claim holds the bounced parcel and the whole claim lifecycle", () => {
+    expect(ORDER_TAB_STATUSES.refundclaim).toEqual([
       "return",
       "claim_pending",
       "claimed",

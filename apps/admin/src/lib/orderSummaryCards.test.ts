@@ -79,23 +79,20 @@ describe("order summary cards > clicking one cannot land on a view that hides it
     }
   });
 
-  it("To ship and In transit are whole tabs; Pending and Refund are slices", () => {
-    expect(cardIsWholeTab(byKey("toship"))).toBe(true);
-    expect(cardIsWholeTab(byKey("intransit"))).toBe(true);
-    // Both sit inside tabs that hold more than they count, so they show LESS than the tab — which is
-    // why they keep their own highlight instead of just selecting the tab.
-    expect(cardIsWholeTab(byKey("pending"))).toBe(false);
-    expect(cardIsWholeTab(byKey("refund"))).toBe(false);
+  it("every card is a whole-tab shortcut after the 2 Aug re-section", () => {
+    // Each card's statuses are now exactly one tab's, so clicking a card just selects that tab.
+    for (const card of ORDER_SUMMARY_CARDS) {
+      expect(cardIsWholeTab(card)).toBe(true);
+    }
   });
 
-  it("a whole-tab card's label equals its tab's label; a slice's differs", () => {
-    // The owner's original rule, still true: same label ⇒ same page. A whole-tab card is that tab, so
-    // it may share its name; a slice must not, or the two would disagree about what the page shows.
+  it("a card that reads the same as its tab IS that whole tab", () => {
+    // The owner's rule, one-directional: same label ⇒ same page. A card MAY name itself differently
+    // from the tab it opens (Refund → the "Refund & claim" tab), but if the names match the card must
+    // show exactly what that tab shows, or two things with one name would disagree about the page.
     for (const card of ORDER_SUMMARY_CARDS) {
-      if (cardIsWholeTab(card)) {
-        expect(orderSummaryCardLabel(card)).toBe(ORDER_TAB_LABELS[card.tab]);
-      } else {
-        expect(orderSummaryCardLabel(card)).not.toBe(ORDER_TAB_LABELS[card.tab]);
+      if (orderSummaryCardLabel(card) === ORDER_TAB_LABELS[card.tab]) {
+        expect(cardIsWholeTab(card)).toBe(true);
       }
     }
   });
