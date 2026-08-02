@@ -362,26 +362,28 @@ tbody tr:hover {
 .pill.boxed {
   border-radius: 8px;
 }
-/* Status-tag palette — the owner's picked shades, 2 Aug 2026: bright red/amber/blue/green and a slate
-   grey. Each pill is a light tint of its hue with the hue itself as the text; dark mode lightens the
-   text one step so it still reads on the darker tint. Green pairs a bright tint with a slightly deeper
-   text (#16a34a) that stays legible — a full #22c55e text on a pale fill would wash out. */
+/* Status-tag palette — the owner's picked shades, revised 2 Aug 2026: red #dc2626, amber #d97706
+   (COD pending, BC pending and Paused all share it), blue #2563eb, green #16a34a, grey #566071. Each
+   pill is a light tint of its hue with the hue itself as the text; dark mode lightens the text one
+   step so it still reads on the darker tint. */
 .pill.on,
 .pill.good {
-  background: color-mix(in srgb, #22c55e 16%, transparent);
+  background: color-mix(in srgb, #16a34a 16%, transparent);
   color: #16a34a;
 }
 .pill.off {
-  background: color-mix(in srgb, #334155 12%, transparent);
-  color: #334155;
+  background: color-mix(in srgb, #566071 12%, transparent);
+  color: #566071;
 }
-.pill.warn {
+/* Warn and Pause are the same amber — COD/BC pending and a paused product all read amber. */
+.pill.warn,
+.pill.pause {
   background: color-mix(in srgb, #d97706 16%, transparent);
   color: #d97706;
 }
 .pill.bad {
-  background: color-mix(in srgb, #ef4444 16%, transparent);
-  color: #ef4444;
+  background: color-mix(in srgb, #dc2626 16%, transparent);
+  color: #dc2626;
 }
 .pill.soft {
   background: var(--primary-soft);
@@ -389,40 +391,30 @@ tbody tr:hover {
 }
 /* Info = blue (To ship). */
 .pill.info {
-  background: color-mix(in srgb, #3b82f6 14%, transparent);
-  color: #3b82f6;
+  background: color-mix(in srgb, #2563eb 14%, transparent);
+  color: #2563eb;
 }
 html[data-theme="dark"] .pill.on,
 html[data-theme="dark"] .pill.good {
-  background: color-mix(in srgb, #22c55e 24%, transparent);
+  background: color-mix(in srgb, #16a34a 24%, transparent);
   color: #4ade80;
 }
 html[data-theme="dark"] .pill.off {
   background: color-mix(in srgb, #64748b 26%, transparent);
   color: #cbd5e1;
 }
-html[data-theme="dark"] .pill.warn {
+html[data-theme="dark"] .pill.warn,
+html[data-theme="dark"] .pill.pause {
   background: color-mix(in srgb, #d97706 26%, transparent);
   color: #fbbf24;
 }
 html[data-theme="dark"] .pill.bad {
-  background: color-mix(in srgb, #ef4444 26%, transparent);
+  background: color-mix(in srgb, #dc2626 26%, transparent);
   color: #f87171;
 }
 html[data-theme="dark"] .pill.info {
   background: color-mix(in srgb, #60a5fa 22%, transparent);
   color: #93c5fd;
-}
-/* Pause = caution yellow. Soft pale-yellow tint like the other pills, but built from a
-   true-yellow hue (#facc15) so the tint reads yellow instead of the tan that --warn gives.
-   Text stays a dark amber because a light-enough yellow isn't legible. */
-.pill.pause {
-  background: color-mix(in srgb, #facc15 26%, transparent);
-  color: #845209;
-}
-html[data-theme="dark"] .pill.pause {
-  background: color-mix(in srgb, #facc15 22%, transparent);
-  color: #fcd34d;
 }
 
 /* Plain white tag/chip */
