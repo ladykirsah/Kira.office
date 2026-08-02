@@ -182,19 +182,41 @@ describe("creditEventFromOrder", () => {
   });
 });
 
-describe("computeCreditFromOrders", () => {
+describe("computeCreditFromOrders (order-sensitive demerit credit, oldest first)", () => {
   it("given no orders > credit 0", () => {
     expect(computeCreditFromOrders([])).toBe(0);
   });
 
-  it("given a mix of delivered and expired > net credit", () => {
+  it("completed orders alone never inflate credit (stays 0)", () => {
     expect(
       computeCreditFromOrders([
         { orderStatus: "delivered", paymentStatus: "paid" },
         { orderStatus: "delivered", paymentStatus: "cod_collected" },
+      ]),
+    ).toBe(0);
+  });
+
+  it("an incomplete is −1, repaid by 2 completions AFTER it", () => {
+    expect(computeCreditFromOrders([{ orderStatus: "expired", paymentStatus: "expired" }])).toBe(
+      -1,
+    );
+    expect(
+      computeCreditFromOrders([
+        { orderStatus: "expired", paymentStatus: "expired" },
+        { orderStatus: "delivered", paymentStatus: "paid" },
+        { orderStatus: "delivered", paymentStatus: "paid" },
+      ]),
+    ).toBe(0);
+  });
+
+  it("past completions do NOT pre-absorb a later incomplete", () => {
+    expect(
+      computeCreditFromOrders([
+        { orderStatus: "delivered", paymentStatus: "paid" },
+        { orderStatus: "delivered", paymentStatus: "paid" },
         { orderStatus: "expired", paymentStatus: "expired" },
       ]),
-    ).toBe(1);
+    ).toBe(-1);
   });
 
   it("given mid-flight orders > ignores them", () => {
@@ -204,27 +226,26 @@ describe("computeCreditFromOrders", () => {
         { orderStatus: "shipped", paymentStatus: "paid" },
         { orderStatus: "delivered", paymentStatus: "paid" },
       ]),
-    ).toBe(1);
+    ).toBe(0);
   });
 
   it("given cancelled-with-refund (product fault) > not counted", () => {
     expect(
       computeCreditFromOrders([
-        { orderStatus: "delivered", paymentStatus: "paid" },
         { orderStatus: "cancelled", paymentStatus: "refunded" },
-        { orderStatus: "cancelled", paymentStatus: "refunded" },
+        { orderStatus: "expired", paymentStatus: "expired" },
       ]),
-    ).toBe(1);
+    ).toBe(-1);
   });
 
   it("given non-standard statuses (Shopee) > skips them safely", () => {
     expect(
       computeCreditFromOrders([
         { orderStatus: "สำเร็จ", paymentStatus: "paid" },
-        { orderStatus: "delivered", paymentStatus: "paid" },
+        { orderStatus: "expired", paymentStatus: "expired" },
         { orderStatus: null, paymentStatus: null },
       ]),
-    ).toBe(1);
+    ).toBe(-1);
   });
 });
 

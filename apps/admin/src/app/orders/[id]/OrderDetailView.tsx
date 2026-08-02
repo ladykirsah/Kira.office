@@ -710,15 +710,40 @@ function ClaimsSection({
               <div>
                 <span style={tableText.subtitle}>สินค้า</span> · {nameFor(c) || "—"}
               </div>
+              {/* What the customer asked for, and the detail they submitted for it — kept even on a
+                  rejected claim so the whole request is on record. */}
               {c.resolution && (
-                <div>
-                  <span style={tableText.subtitle}>ลูกค้าเลือก</span> ·{" "}
-                  {isRefund ? "รับเงินคืน" : "เปลี่ยนสินค้าใหม่"}
-                </div>
+                <>
+                  <div>
+                    <span style={tableText.subtitle}>ลูกค้าเลือก</span> ·{" "}
+                    {isRefund ? "รับเงินคืน" : "เปลี่ยนสินค้าใหม่"}
+                  </div>
+                  {isRefund ? (
+                    <div>
+                      <span style={tableText.subtitle}>บัญชีรับเงินคืน</span> ·{" "}
+                      {!viewerIsSuperAdmin
+                        ? "เฉพาะผู้ดูแลระดับสูง"
+                        : order.refundAccountNo
+                          ? `${order.refundBankName} · ${order.refundAccountNo} · ${order.refundAccountName}`
+                          : "—"}
+                    </div>
+                  ) : (
+                    <div>
+                      <span style={tableText.subtitle}>ที่อยู่จัดส่ง</span> · {claimAddress(shipTo)}
+                    </div>
+                  )}
+                </>
               )}
               {c.reasonNote && (
                 <div>
                   <span style={tableText.subtitle}>เหตุผลลูกค้า</span> · {c.reasonNote}
+                </div>
+              )}
+              {/* The mechanic on the case — shown for an approved claim AND a rejected one. */}
+              {(c.assigneeName || c.mechanicName) && (
+                <div>
+                  <span style={tableText.subtitle}>ช่างผู้รับผิดชอบ</span> ·{" "}
+                  {c.assigneeName || c.mechanicName}
                 </div>
               )}
               {isReturn && c.adminNote && (
@@ -794,9 +819,6 @@ function ClaimsSection({
                   <div style={{ fontWeight: 600, fontSize: 14 }}>
                     {isReturn ? "ส่งสินค้าคืนลูกค้าแล้ว" : "จัดส่งสินค้าใหม่แล้ว"}
                   </div>
-                  {!isReturn && shipTo && (
-                    <div style={tableText.subtitle}>ส่งไปที่ · {claimAddress(shipTo)}</div>
-                  )}
                   <div style={tableText.subtitle}>
                     {[c.carrier, c.trackingNo].filter(Boolean).join(" · ")}
                     {c.shippingFeeSatang != null

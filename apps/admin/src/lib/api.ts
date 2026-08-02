@@ -441,6 +441,13 @@ export async function searchStorefrontCustomers(q: string): Promise<StorefrontCu
   return ((await res.json()) as { customers: StorefrontCustomerListItem[] }).customers;
 }
 
+/** Backfill: recompute every AirPlus customer's credit + tier with the current rules. */
+export async function recalcAllCustomerCredit(): Promise<number> {
+  const res = await apiFetch(`/storefront-customers/recalculate-credit-all`, { method: "POST" });
+  if (!res.ok) throw new Error(`Recalculate failed (HTTP ${res.status})`);
+  return ((await res.json()) as { recalculated: number }).recalculated;
+}
+
 export async function getStorefrontCustomerDetail(id: string): Promise<StorefrontCustomerDetail> {
   const res = await apiFetch(`/storefront-customers/${encodeURIComponent(id)}`, {
     cache: "no-store",

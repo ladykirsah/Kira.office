@@ -1,377 +1,163 @@
 import { describe, it, expect } from "vitest";
 import {
   creditScoreFromEvents,
+  loyaltyCredit,
   tierFromCredit,
-  isVelocityBlock,
   meetsBestEarn,
   meetsBestHold,
   codApproval,
-  isBadRecovered,
   computeEffectiveTier,
   type CreditEvent,
-  type CustomerTier,
 } from "./customerTier";
 
-describe("creditScoreFromEvents", () => {
-  it("given no events > returns 0 (new customer)", () => {
+/**
+ * The owner's credit model (2 Aug 2026). Credit is a DEMERIT counter, not an order tally:
+ *   - a completed order is worth 0 on its own (a clean customer sits at 0 = good);
+ *   - an incomplete order is −1;
+ *   - a mistake is repaid FORWARD — 2 completed orders after it earn +1 back — and never pre-absorbed
+ *     by past completes (recovery is earned, not banked);
+ *   - the order part is capped at 0; only loyalty can push a customer positive;
+ *   - loyalty adds +1 per criterion (earn, hold), so a loyal customer buffers mistakes.
+ * Tier is then a pure function of the total credit, so the number always matches the badge.
+ */
+
+const complete: CreditEvent = { type: "complete" };
+const incomplete: CreditEvent = { type: "incomplete" };
+const ret: CreditEvent = { type: "product_return" };
+
+describe("creditScoreFromEvents (order credit, chronological, capped at 0)", () => {
+  it("a new customer with no orders is 0", () => {
     expect(creditScoreFromEvents([])).toBe(0);
   });
 
-  it("given only complete orders > returns positive credit", () => {
-    const events: CreditEvent[] = [
-      { type: "complete" },
-      { type: "complete" },
-      { type: "complete" },
-    ];
-    expect(creditScoreFromEvents(events)).toBe(3);
+  it("completed orders alone never push credit above 0 (fixes the old +1-per-order inflation)", () => {
+    expect(creditScoreFromEvents([complete, complete, complete])).toBe(0);
+    expect(creditScoreFromEvents(Array(38).fill(complete))).toBe(0);
   });
 
-  it("given only incomplete orders > returns negative credit", () => {
-    const events: CreditEvent[] = [{ type: "incomplete" }, { type: "incomplete" }];
-    expect(creditScoreFromEvents(events)).toBe(-2);
+  it("each incomplete is −1", () => {
+    expect(creditScoreFromEvents([incomplete])).toBe(-1);
+    expect(creditScoreFromEvents([incomplete, incomplete])).toBe(-2);
   });
 
-  it("given mixed complete and incomplete > returns net credit", () => {
-    const events: CreditEvent[] = [
-      { type: "complete" },
-      { type: "complete" },
-      { type: "incomplete" },
-      { type: "complete" },
-      { type: "incomplete" },
-      { type: "incomplete" },
-    ];
-    expect(creditScoreFromEvents(events)).toBe(0);
+  it("a mistake is repaid by 2 completed orders after it (+1)", () => {
+    expect(creditScoreFromEvents([incomplete, complete])).toBe(-1); // 1 complete is not enough
+    expect(creditScoreFromEvents([incomplete, complete, complete])).toBe(0); // 2 completes repay it
   });
 
-  it("given product-failure returns > does NOT count them as negative", () => {
-    const events: CreditEvent[] = [
-      { type: "complete" },
-      { type: "complete" },
-      { type: "product_return" },
-      { type: "product_return" },
-      { type: "product_return" },
-    ];
-    expect(creditScoreFromEvents(events)).toBe(2);
+  it("2 mistakes need 4 completes to clear", () => {
+    expect(creditScoreFromEvents([incomplete, incomplete, complete, complete])).toBe(-1);
+    expect(
+      creditScoreFromEvents([incomplete, incomplete, complete, complete, complete, complete]),
+    ).toBe(0);
   });
 
-  it("given product returns mixed with incompletes > only incompletes reduce credit", () => {
-    const events: CreditEvent[] = [
-      { type: "complete" },
-      { type: "incomplete" },
-      { type: "product_return" },
-      { type: "incomplete" },
-      { type: "product_return" },
-    ];
-    expect(creditScoreFromEvents(events)).toBe(-1);
+  it("past completes do NOT pre-absorb a later mistake — recovery is forward only", () => {
+    // Many clean completes then one incomplete: still −1, because those completes happened while at 0.
+    expect(creditScoreFromEvents([...Array(10).fill(complete), incomplete])).toBe(-1);
+  });
+
+  it("repayment never overshoots 0 — extra completes after clearing are ignored", () => {
+    expect(creditScoreFromEvents([incomplete, complete, complete, complete, complete])).toBe(0);
+  });
+
+  it("product returns never move credit", () => {
+    expect(creditScoreFromEvents([complete, ret, ret, incomplete, ret])).toBe(-1);
   });
 });
 
-describe("tierFromCredit", () => {
-  it("given credit 0 (new customer) > good", () => {
+describe("loyaltyCredit (+1 per criterion met, max +2)", () => {
+  const meets = { completedOrdersInWindow: 12, totalSpentSatangInWindow: 20_000_00 };
+  const misses = { completedOrdersInWindow: 0, totalSpentSatangInWindow: 0 };
+
+  it("neither criterion > 0", () => {
+    expect(loyaltyCredit(misses, misses)).toBe(0);
+    expect(loyaltyCredit(null, null)).toBe(0);
+  });
+
+  it("earn only > +1", () => {
+    expect(loyaltyCredit(meets, misses)).toBe(1);
+  });
+
+  it("hold only > +1", () => {
+    expect(loyaltyCredit(misses, meets)).toBe(1);
+  });
+
+  it("both criteria > +2", () => {
+    expect(loyaltyCredit(meets, meets)).toBe(2);
+  });
+});
+
+describe("tierFromCredit (the bands the owner set)", () => {
+  it("≥ 1 (loyalty above mistakes) > best", () => {
+    expect(tierFromCredit(1)).toBe("best");
+    expect(tierFromCredit(2)).toBe("best");
+  });
+  it("exactly 0 > good", () => {
     expect(tierFromCredit(0)).toBe("good");
   });
-
-  it("given positive credit > good", () => {
-    expect(tierFromCredit(5)).toBe("good");
-    expect(tierFromCredit(100)).toBe("good");
+  it("−1 and −2 > watch", () => {
+    expect(tierFromCredit(-1)).toBe("watch");
+    expect(tierFromCredit(-2)).toBe("watch");
   });
-
-  it("given credit -1 > good (1 mistake allowed)", () => {
-    expect(tierFromCredit(-1)).toBe("good");
-  });
-
-  it("given credit -2 > good (2 mistakes allowed)", () => {
-    expect(tierFromCredit(-2)).toBe("good");
-  });
-
-  it("given credit -3 > watch", () => {
-    expect(tierFromCredit(-3)).toBe("watch");
-  });
-
-  it("given credit -4 > watch", () => {
-    expect(tierFromCredit(-4)).toBe("watch");
-  });
-
-  it("given credit -5 > bad", () => {
+  it("−3 to −5 > bad", () => {
+    expect(tierFromCredit(-3)).toBe("bad");
     expect(tierFromCredit(-5)).toBe("bad");
   });
-
-  it("given credit -10 > bad", () => {
-    expect(tierFromCredit(-10)).toBe("bad");
+  it("−6 or worse > block", () => {
+    expect(tierFromCredit(-6)).toBe("block");
+    expect(tierFromCredit(-10)).toBe("block");
   });
 });
 
-describe("isVelocityBlock", () => {
-  it("given 4 incompletes in a month > not blocked", () => {
-    expect(isVelocityBlock(4)).toBe(false);
-  });
-
-  it("given 5 incompletes in a month > blocked", () => {
-    expect(isVelocityBlock(5)).toBe(true);
-  });
-
-  it("given 10 incompletes in a month > blocked", () => {
-    expect(isVelocityBlock(10)).toBe(true);
-  });
-
-  it("given 0 incompletes > not blocked", () => {
-    expect(isVelocityBlock(0)).toBe(false);
-  });
-});
-
-describe("meetsBestEarn", () => {
-  it("given 10+ orders in 90 days > earns best", () => {
+describe("meetsBestEarn / meetsBestHold (unchanged loyalty criteria)", () => {
+  it("earn: 10 orders OR ฿15,000 in the window", () => {
     expect(meetsBestEarn({ completedOrdersInWindow: 10, totalSpentSatangInWindow: 0 })).toBe(true);
+    expect(meetsBestEarn({ completedOrdersInWindow: 0, totalSpentSatangInWindow: 15_000_00 })).toBe(
+      true,
+    );
+    expect(meetsBestEarn({ completedOrdersInWindow: 9, totalSpentSatangInWindow: 14_999_00 })).toBe(
+      false,
+    );
   });
-
-  it("given 15,000+ baht spent in 90 days > earns best", () => {
-    expect(
-      meetsBestEarn({
-        completedOrdersInWindow: 1,
-        totalSpentSatangInWindow: 15_000_00,
-      }),
-    ).toBe(true);
-  });
-
-  it("given 9 orders and 14,999 baht > does not earn best", () => {
-    expect(
-      meetsBestEarn({
-        completedOrdersInWindow: 9,
-        totalSpentSatangInWindow: 14_999_00,
-      }),
-    ).toBe(false);
-  });
-
-  it("given exactly the threshold > earns (inclusive)", () => {
-    expect(
-      meetsBestEarn({
-        completedOrdersInWindow: 10,
-        totalSpentSatangInWindow: 0,
-      }),
-    ).toBe(true);
-    expect(
-      meetsBestEarn({
-        completedOrdersInWindow: 0,
-        totalSpentSatangInWindow: 15_000_00,
-      }),
-    ).toBe(true);
-  });
-});
-
-describe("meetsBestHold", () => {
-  it("given 3+ orders in 60 days > holds best", () => {
+  it("hold: 3 orders OR ฿5,000 in the window", () => {
     expect(meetsBestHold({ completedOrdersInWindow: 3, totalSpentSatangInWindow: 0 })).toBe(true);
-  });
-
-  it("given 5,000+ baht in 60 days > holds best", () => {
-    expect(
-      meetsBestHold({
-        completedOrdersInWindow: 0,
-        totalSpentSatangInWindow: 5_000_00,
-      }),
-    ).toBe(true);
-  });
-
-  it("given 2 orders and 4,999 baht > does not hold best", () => {
-    expect(
-      meetsBestHold({
-        completedOrdersInWindow: 2,
-        totalSpentSatangInWindow: 4_999_00,
-      }),
-    ).toBe(false);
+    expect(meetsBestHold({ completedOrdersInWindow: 0, totalSpentSatangInWindow: 5_000_00 })).toBe(
+      true,
+    );
+    expect(meetsBestHold({ completedOrdersInWindow: 2, totalSpentSatangInWindow: 4_999_00 })).toBe(
+      false,
+    );
   });
 });
 
 describe("codApproval", () => {
-  it("best > auto-approved", () => {
+  it("best / good auto-approve; watch needs staff; bad + block are blocked", () => {
     expect(codApproval("best")).toBe("auto");
-  });
-
-  it("good > auto-approved", () => {
     expect(codApproval("good")).toBe("auto");
-  });
-
-  it("watch > needs staff approval", () => {
     expect(codApproval("watch")).toBe("staff");
-  });
-
-  it("bad > blocked", () => {
     expect(codApproval("bad")).toBe("blocked");
-  });
-
-  it("block > blocked", () => {
     expect(codApproval("block")).toBe("blocked");
   });
 });
 
-describe("isBadRecovered", () => {
-  const DAY = 86_400_000;
-  const lockStart = 1_700_000_000_000;
-  const lockEnd = lockStart + 90 * DAY;
-
-  it("given lock not expired > not recovered regardless of completions", () => {
-    expect(
-      isBadRecovered({
-        badLockedUntil: lockEnd,
-        prepaidCompletionsSinceLock: 5,
-        now: lockEnd - 1,
-      }),
-    ).toBe(false);
+describe("computeEffectiveTier (tier is a pure function of credit + admin block)", () => {
+  it("a new customer (0) is good", () => {
+    expect(computeEffectiveTier({ credit: 0, adminBlocked: false })).toBe("good");
   });
-
-  it("given lock expired but 0 prepaid completions > not recovered", () => {
-    expect(
-      isBadRecovered({
-        badLockedUntil: lockEnd,
-        prepaidCompletionsSinceLock: 0,
-        now: lockEnd + 1,
-      }),
-    ).toBe(false);
+  it("a loyal customer above 0 is best", () => {
+    expect(computeEffectiveTier({ credit: 2, adminBlocked: false })).toBe("best");
   });
-
-  it("given lock expired and 1 prepaid completion > not recovered (need 2)", () => {
-    expect(
-      isBadRecovered({
-        badLockedUntil: lockEnd,
-        prepaidCompletionsSinceLock: 1,
-        now: lockEnd + 1,
-      }),
-    ).toBe(false);
+  it("a loyal +2 customer after one mistake (+1) is still best", () => {
+    expect(computeEffectiveTier({ credit: 1, adminBlocked: false })).toBe("best");
   });
-
-  it("given lock expired and 2+ prepaid completions > recovered", () => {
-    expect(
-      isBadRecovered({
-        badLockedUntil: lockEnd,
-        prepaidCompletionsSinceLock: 2,
-        now: lockEnd + 1,
-      }),
-    ).toBe(true);
+  it("one mistake with no loyalty (−1) is watch", () => {
+    expect(computeEffectiveTier({ credit: -1, adminBlocked: false })).toBe("watch");
   });
-});
-
-describe("computeEffectiveTier", () => {
-  it("given new customer (credit 0, no loyalty) > good", () => {
-    expect(
-      computeEffectiveTier({
-        credit: 0,
-        earn: null,
-        hold: null,
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-      }),
-    ).toBe("good");
+  it("−6 is block on credit alone", () => {
+    expect(computeEffectiveTier({ credit: -6, adminBlocked: false })).toBe("block");
   });
-
-  it("given loyal customer with good credit > best", () => {
-    expect(
-      computeEffectiveTier({
-        credit: 5,
-        earn: { completedOrdersInWindow: 12, totalSpentSatangInWindow: 20_000_00 },
-        hold: { completedOrdersInWindow: 4, totalSpentSatangInWindow: 6_000_00 },
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-      }),
-    ).toBe("best");
-  });
-
-  it("given loyal customer who earned but no longer holds > good (lost best)", () => {
-    expect(
-      computeEffectiveTier({
-        credit: 5,
-        earn: { completedOrdersInWindow: 12, totalSpentSatangInWindow: 20_000_00 },
-        hold: { completedOrdersInWindow: 1, totalSpentSatangInWindow: 2_000_00 },
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-      }),
-    ).toBe("good");
-  });
-
-  it("given best earner with credit at -3 > watch (incidents override loyalty)", () => {
-    expect(
-      computeEffectiveTier({
-        credit: -3,
-        earn: { completedOrdersInWindow: 15, totalSpentSatangInWindow: 30_000_00 },
-        hold: { completedOrdersInWindow: 5, totalSpentSatangInWindow: 8_000_00 },
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-      }),
-    ).toBe("watch");
-  });
-
-  it("given credit -5 > bad (regardless of loyalty)", () => {
-    expect(
-      computeEffectiveTier({
-        credit: -5,
-        earn: { completedOrdersInWindow: 15, totalSpentSatangInWindow: 30_000_00 },
-        hold: { completedOrdersInWindow: 5, totalSpentSatangInWindow: 8_000_00 },
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-      }),
-    ).toBe("bad");
-  });
-
-  it("given 5+ incompletes this month > block (velocity)", () => {
-    expect(
-      computeEffectiveTier({
-        credit: 0,
-        earn: null,
-        hold: null,
-        incompletesThisMonth: 5,
-        adminBlocked: false,
-      }),
-    ).toBe("block");
-  });
-
-  it("given admin-blocked > block (overrides everything)", () => {
-    expect(
-      computeEffectiveTier({
-        credit: 10,
-        earn: { completedOrdersInWindow: 20, totalSpentSatangInWindow: 50_000_00 },
-        hold: { completedOrdersInWindow: 10, totalSpentSatangInWindow: 20_000_00 },
-        incompletesThisMonth: 0,
-        adminBlocked: true,
-      }),
-    ).toBe("block");
-  });
-
-  it("given bad customer with recovery > good", () => {
-    const DAY = 86_400_000;
-    const lockStart = 1_700_000_000_000;
-    const lockEnd = lockStart + 90 * DAY;
-    expect(
-      computeEffectiveTier({
-        credit: -5,
-        earn: null,
-        hold: null,
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-        badRecovery: {
-          badLockedUntil: lockEnd,
-          prepaidCompletionsSinceLock: 2,
-          now: lockEnd + DAY,
-        },
-      }),
-    ).toBe("good");
-  });
-
-  it("given bad customer with incomplete recovery > bad", () => {
-    const DAY = 86_400_000;
-    const lockStart = 1_700_000_000_000;
-    const lockEnd = lockStart + 90 * DAY;
-    expect(
-      computeEffectiveTier({
-        credit: -5,
-        earn: null,
-        hold: null,
-        incompletesThisMonth: 0,
-        adminBlocked: false,
-        badRecovery: {
-          badLockedUntil: lockEnd,
-          prepaidCompletionsSinceLock: 1,
-          now: lockEnd + DAY,
-        },
-      }),
-    ).toBe("bad");
+  it("admin block overrides any credit", () => {
+    expect(computeEffectiveTier({ credit: 2, adminBlocked: true })).toBe("block");
   });
 });
