@@ -31,6 +31,7 @@ import {
   planHoldMovement,
   computeCreditFromOrders,
   computeEffectiveTier,
+  loyaltyCredit,
   historyEventFor,
   type OrderHistoryEvent,
   isOrderStatus,
@@ -3897,28 +3898,29 @@ export async function recalculateCustomerCredit(
   now: number = Date.now(),
 ): Promise<{ credit: number; tier: CustomerTier } | null> {
   const customer = await db
-    .prepare(`SELECT id, tier_override, tier_locked_until FROM storefront_customers WHERE id = ?`)
+    .prepare(`SELECT id, tier_override FROM storefront_customers WHERE id = ?`)
     .bind(customerId)
-    .first<{ id: string; tier_override: string | null; tier_locked_until: number | null }>();
+    .first<{ id: string; tier_override: string | null }>();
   if (!customer) return null;
 
+  // Oldest first: recovery is order-sensitive — a −1 mistake is repaid only by 2 LATER completions.
   const { results: orders } = await db
     .prepare(
       `SELECT order_status AS orderStatus, payment_status AS paymentStatus
        FROM sales_orders
-       WHERE storefront_customer_id = ? AND channel = 'airplus'`,
+       WHERE storefront_customer_id = ? AND channel = 'airplus'
+       ORDER BY COALESCE(order_created_at, imported_at) ASC`,
     )
     .bind(customerId)
     .all<{ orderStatus: string | null; paymentStatus: string | null }>();
 
-  const credit = computeCreditFromOrders(orders ?? []);
+  const orderCredit = computeCreditFromOrders(orders ?? []);
 
+  // Loyalty windows (rolling): 90d earn, 60d hold. Each criterion met adds +1 to the credit — the
+  // only way a customer goes above 0, and a buffer against mistakes.
   const DAY = 86_400_000;
   const d90 = now - 90 * DAY;
   const d60 = now - 60 * DAY;
-  const monthStart = new Date(now);
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
 
   const { results: loyaltyRows } = await db
     .prepare(
@@ -3926,85 +3928,36 @@ export async function recalculateCustomerCredit(
          SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN 1 ELSE 0 END) AS earn_orders,
          SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS earn_spent,
          SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN 1 ELSE 0 END) AS hold_orders,
-         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS hold_spent,
-         SUM(CASE WHEN order_created_at >= ? AND (order_status = 'expired' OR (order_status = 'cancelled' AND payment_status IN ('pending','cod_denied'))) THEN 1 ELSE 0 END) AS month_incompletes
+         SUM(CASE WHEN order_created_at >= ? AND order_status = 'delivered' THEN grand_total_satang ELSE 0 END) AS hold_spent
        FROM sales_orders
        WHERE storefront_customer_id = ? AND channel = 'airplus'`,
     )
-    .bind(d90, d90, d60, d60, monthStart.getTime(), customerId)
-    .all<{
-      earn_orders: number;
-      earn_spent: number;
-      hold_orders: number;
-      hold_spent: number;
-      month_incompletes: number;
-    }>();
+    .bind(d90, d90, d60, d60, customerId)
+    .all<{ earn_orders: number; earn_spent: number; hold_orders: number; hold_spent: number }>();
 
   const stats = loyaltyRows?.[0] ?? {
     earn_orders: 0,
     earn_spent: 0,
     hold_orders: 0,
     hold_spent: 0,
-    month_incompletes: 0,
   };
 
-  if (customer.tier_override === "block") {
-    await db
-      .prepare(
-        `UPDATE storefront_customers SET credit_score = ?, tier = 'block', updated_at = ? WHERE id = ?`,
-      )
-      .bind(credit, now, customerId)
-      .run();
-    return { credit, tier: "block" };
-  }
+  // Total credit = the demerit order credit (≤ 0) plus loyalty (0..+2). Tier is a pure function of it,
+  // so the badge always matches the number the owner reads.
+  const credit =
+    orderCredit +
+    loyaltyCredit(
+      { completedOrdersInWindow: stats.earn_orders, totalSpentSatangInWindow: stats.earn_spent },
+      { completedOrdersInWindow: stats.hold_orders, totalSpentSatangInWindow: stats.hold_spent },
+    );
 
-  const prepaidSinceLock =
-    customer.tier_locked_until != null
-      ? ((
-          await db
-            .prepare(
-              `SELECT COUNT(*) AS n FROM sales_orders
-               WHERE storefront_customer_id = ? AND channel = 'airplus'
-                 AND order_status = 'delivered' AND payment_status = 'paid'
-                 AND order_created_at >= ?`,
-            )
-            .bind(customerId, customer.tier_locked_until)
-            .first<{ n: number }>()
-        )?.n ?? 0)
-      : 0;
-
-  const tier = computeEffectiveTier({
-    credit,
-    earn: {
-      completedOrdersInWindow: stats.earn_orders,
-      totalSpentSatangInWindow: stats.earn_spent,
-    },
-    hold: {
-      completedOrdersInWindow: stats.hold_orders,
-      totalSpentSatangInWindow: stats.hold_spent,
-    },
-    incompletesThisMonth: stats.month_incompletes,
-    adminBlocked: customer.tier_override === "block",
-    badRecovery:
-      customer.tier_locked_until != null
-        ? {
-            badLockedUntil: customer.tier_locked_until,
-            prepaidCompletionsSinceLock: prepaidSinceLock,
-            now,
-          }
-        : undefined,
-  });
-
-  const tierLockedUntil =
-    tier === "bad" && customer.tier_locked_until == null
-      ? now + 90 * DAY
-      : customer.tier_locked_until;
+  const tier = computeEffectiveTier({ credit, adminBlocked: customer.tier_override === "block" });
 
   await db
     .prepare(
-      `UPDATE storefront_customers SET credit_score = ?, tier = ?, tier_locked_until = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE storefront_customers SET credit_score = ?, tier = ?, updated_at = ? WHERE id = ?`,
     )
-    .bind(credit, tier, tierLockedUntil, now, customerId)
+    .bind(credit, tier, now, customerId)
     .run();
 
   return { credit, tier };
@@ -5806,6 +5759,24 @@ const worker = {
     if (sfRecalc && request.method === "POST") {
       const result = await recalculateCustomerCredit(env.DB, decodeURIComponent(sfRecalc[1]!));
       return result ? json(result) : json({ error: "customer not found" }, 404);
+    }
+
+    // Recompute EVERY customer's credit + tier with the current rules — the one-shot backfill after a
+    // credit-model change (old rows carry stale scores from the previous +1-per-order model).
+    if (
+      url.pathname === "/storefront-customers/recalculate-credit-all" &&
+      request.method === "POST"
+    ) {
+      const { results } = await env.DB.prepare(`SELECT id FROM storefront_customers`).all<{
+        id: string;
+      }>();
+      const now = Date.now();
+      let n = 0;
+      for (const c of results ?? []) {
+        await recalculateCustomerCredit(env.DB, c.id, now);
+        n++;
+      }
+      return json({ ok: true, recalculated: n });
     }
 
     // Payment approvals — the Payment page records each PromptPay take here (anti-cheat trail).

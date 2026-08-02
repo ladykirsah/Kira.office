@@ -21,6 +21,7 @@ import worker, {
   recordRefund,
   recordClaimRefund,
   recordClaimReturnShipment,
+  recalculateCustomerCredit,
   getOrderDetail,
   getProductDetail,
   applyHoldToDb,
@@ -5390,6 +5391,100 @@ describe("recordClaimReturnShipment (ship a rejected claim's product back)", () 
     const out = await recordClaimReturnShipment(asD1(rejected()), "nope", ship, "b", NOW);
     expect(out.ok).toBe(false);
     expect(out.code).toBe(404);
+  });
+});
+
+describe("recalculateCustomerCredit (the demerit credit model, end-to-end)", () => {
+  const NOW = SQLITE_NOW;
+  const DAY = 86_400_000;
+
+  function seedCustomer(over: { tierOverride?: string | null } = {}) {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at, customer_code, tier_override)
+       VALUES ('c1','0810000000','ทดสอบ',?,?,?,?)`,
+    ).run(NOW, NOW, "AP-TEST", over.tierOverride ?? null);
+    return db;
+  }
+  function addOrder(
+    db: DatabaseSync,
+    i: number,
+    orderStatus: string,
+    paymentStatus: string,
+    grandSatang: number,
+    createdAt: number,
+  ) {
+    db.prepare(
+      `INSERT INTO sales_orders
+         (id, channel, external_order_id, order_status, payment_status, grand_total_satang,
+          order_created_at, imported_at, storefront_customer_id)
+       VALUES (?, 'airplus', ?, ?, ?, ?, ?, ?, 'c1')`,
+    ).run(`o${i}`, `AP-${i}`, orderStatus, paymentStatus, grandSatang, createdAt, NOW);
+  }
+
+  it("a couple of completed orders stay at 0 / good — no per-order inflation", async () => {
+    const db = seedCustomer();
+    // 2 small completes: below the hold (3) and earn (฿15k) loyalty bars, so no loyalty, no inflation.
+    addOrder(db, 1, "delivered", "paid", 100_00, NOW - 2 * DAY);
+    addOrder(db, 2, "delivered", "paid", 100_00, NOW - 1 * DAY);
+    expect(await recalculateCustomerCredit(asD1(db), "c1", NOW)).toEqual({
+      credit: 0,
+      tier: "good",
+    });
+  });
+
+  it("38 completed orders read as loyalty +2 (best), NEVER 38 — the reported bug", async () => {
+    const db = seedCustomer();
+    for (let i = 0; i < 38; i++) addOrder(db, i, "delivered", "paid", 100_00, NOW - (40 - i) * DAY);
+    expect(await recalculateCustomerCredit(asD1(db), "c1", NOW)).toEqual({
+      credit: 2,
+      tier: "best",
+    });
+  });
+
+  it("one incomplete → −1 / watch", async () => {
+    const db = seedCustomer();
+    addOrder(db, 1, "expired", "expired", 100_00, NOW - DAY);
+    expect(await recalculateCustomerCredit(asD1(db), "c1", NOW)).toEqual({
+      credit: -1,
+      tier: "watch",
+    });
+  });
+
+  it("a mistake then 2 later completions recovers to 0 / good", async () => {
+    const db = seedCustomer();
+    addOrder(db, 1, "expired", "expired", 100_00, NOW - 3 * DAY);
+    addOrder(db, 2, "delivered", "paid", 100_00, NOW - 2 * DAY);
+    addOrder(db, 3, "delivered", "paid", 100_00, NOW - 1 * DAY);
+    expect(await recalculateCustomerCredit(asD1(db), "c1", NOW)).toEqual({
+      credit: 0,
+      tier: "good",
+    });
+  });
+
+  it("a loyal customer (฿20k recent) earns +2 → best", async () => {
+    const db = seedCustomer();
+    addOrder(db, 1, "delivered", "paid", 20_000_00, NOW - DAY); // meets earn + hold
+    expect(await recalculateCustomerCredit(asD1(db), "c1", NOW)).toEqual({
+      credit: 2,
+      tier: "best",
+    });
+  });
+
+  it("loyalty buffers a mistake: +2 then one incomplete → +1 / best", async () => {
+    const db = seedCustomer();
+    addOrder(db, 1, "delivered", "paid", 20_000_00, NOW - 2 * DAY);
+    addOrder(db, 2, "expired", "expired", 100_00, NOW - 1 * DAY);
+    expect(await recalculateCustomerCredit(asD1(db), "c1", NOW)).toEqual({
+      credit: 1,
+      tier: "best",
+    });
+  });
+
+  it("admin block overrides the credit", async () => {
+    const db = seedCustomer({ tierOverride: "block" });
+    addOrder(db, 1, "delivered", "paid", 20_000_00, NOW - DAY);
+    expect((await recalculateCustomerCredit(asD1(db), "c1", NOW))?.tier).toBe("block");
   });
 });
 

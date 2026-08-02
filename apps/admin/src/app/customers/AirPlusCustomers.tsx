@@ -9,6 +9,7 @@ import {
   getStorefrontCustomerDetail,
   setStorefrontMarketingConsent,
   anonymizeStorefrontCustomer,
+  recalcAllCustomerCredit,
   type StorefrontCustomerListItem,
   type StorefrontCustomerDetail,
 } from "@/lib/api";
@@ -254,6 +255,20 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
   const [list, setList] = useState<StorefrontCustomerListItem[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recalcing, setRecalcing] = useState(false);
+
+  async function recalcAll() {
+    setRecalcing(true);
+    try {
+      const n = await recalcAllCustomerCredit();
+      toast(`อัปเดตเครดิตแล้ว ${n} ราย`, "success");
+      load(q);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Recalculate failed", "error");
+    } finally {
+      setRecalcing(false);
+    }
+  }
 
   const load = useCallback(
     (term: string) => {
@@ -284,7 +299,16 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
       />
       {tabs}
       {/* 14px below the tabs — the same gap Shop info leaves between its switcher and the card. */}
-      <div style={{ marginTop: 14, marginBottom: 12 }}>
+      <div
+        style={{
+          marginTop: 14,
+          marginBottom: 12,
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
         <input
           style={{ ...inputS, width: 320 }}
           placeholder="Search User ID, name, phone, or email"
@@ -292,6 +316,16 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search AirPlus customers by User ID, name, phone, or email"
         />
+        {/* One-shot backfill: recompute every customer's credit + tier with the current rules. */}
+        <button
+          type="button"
+          className="btn-soft btn-sm"
+          disabled={recalcing}
+          onClick={() => void recalcAll()}
+          title="Recompute every customer's credit + tier with the current rules"
+        >
+          {recalcing ? "กำลังอัปเดต…" : "อัปเดตเครดิตทั้งหมด"}
+        </button>
       </div>
       <TableFrame>
         {loading ? (
