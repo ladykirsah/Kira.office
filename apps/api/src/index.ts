@@ -3788,11 +3788,14 @@ export async function searchCustomers(db: D1Database, q: string): Promise<unknow
                   FROM customer_history_entries
                   GROUP BY license_plate) h ON h.license_plate = x.license_plate
        WHERE (? = '' OR x.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
-              OR b.vehicle LIKE ? OR c.car_model LIKE ?)
+              OR b.vehicle LIKE ? OR c.car_model LIKE ?
+              OR EXISTS (SELECT 1 FROM onsite_sales os
+                         WHERE os.license_plate = x.license_plate AND os.stage = 'bill'
+                               AND os.sale_number LIKE ?))
        ORDER BY MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)) DESC, x.license_plate
        LIMIT 100`,
     )
-    .bind(q.trim(), term, term, term, term, term)
+    .bind(q.trim(), term, term, term, term, term, term)
     .all();
   return rows.results ?? [];
 }

@@ -884,7 +884,7 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search plate, phone, or car…"
+          placeholder="Search plate, car, bill, or phone…"
           style={{ ...inputS, width: 280, maxWidth: "100%", marginBottom: 12 }}
         />
         {list.length === 0 ? (
