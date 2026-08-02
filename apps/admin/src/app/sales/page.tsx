@@ -30,6 +30,9 @@ const PRESETS: { key: RangePreset; label: string }[] = [
 ];
 
 const card = {
+  // Grow to share the row's full width equally; minWidth 150 keeps them from getting too narrow
+  // (they wrap to the next line instead), so a row of cards fills the page rather than sitting small.
+  flex: 1,
   border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "14px 18px",
