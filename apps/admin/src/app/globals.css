@@ -1,5 +1,9 @@
 /* Kira.office admin design system. Light, high-contrast (WCAG AA), touch-friendly. */
 :root {
+  /* Kira.office uses one (sans) font for everything. `inherit` makes every
+     `font-family: var(--font-mono, monospace)` resolve to the surrounding text's font, so IDs, bill
+     numbers and codes are no longer monospace (owner, 2 Aug 2026). */
+  --font-mono: inherit;
   --bg: #fbfcfe;
   --surface: #ffffff;
   --border: #e3e6ea;
@@ -95,6 +99,7 @@ code {
   padding: 1px 6px;
   border-radius: 6px;
   font-size: 0.9em;
+  font-family: inherit;
 }
 
 /* Forms + buttons — 44px touch targets, visible focus */
