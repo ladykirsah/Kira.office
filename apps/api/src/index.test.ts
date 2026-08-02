@@ -487,6 +487,16 @@ describe("searchCustomers", () => {
     expect(sql).toContain("c.customer_name LIKE ?");
   });
 
+  it("also matches by bill / sale number, so typing a bill ID finds its car", async () => {
+    const { db } = makeDb({});
+    const prepare = vi.spyOn(db, "prepare");
+    await searchCustomers(db, "DA-25080201");
+    const sql = prepare.mock.calls[0]?.[0] as string;
+    // A bill number belongs to a plate via onsite_sales; the search must reach it.
+    expect(sql).toContain("sale_number LIKE ?");
+    expect(sql).toContain("FROM onsite_sales");
+  });
+
   it("lists directory-only customers (imported, no bills yet) alongside billed plates", async () => {
     const { db } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
