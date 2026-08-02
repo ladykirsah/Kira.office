@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { OPERATIONAL_STATUSES } from "@l-shopee/core";
-import { ORDER_SUMMARY_CARDS, cardIsWholeTab, orderSummaryCardLabel } from "./orderSummaryCards";
+import {
+  ORDER_SUMMARY_CARDS,
+  cardIsWholeTab,
+  orderSummaryCardLabel,
+  summaryCardCounts,
+  summaryCardHref,
+  summaryCardFromKey,
+} from "./orderSummaryCards";
 import { ORDER_TAB_LABELS, ORDER_TAB_STATUSES } from "./orderTabs";
 
 /**
@@ -95,5 +102,81 @@ describe("order summary cards > clicking one cannot land on a view that hides it
         expect(cardIsWholeTab(card)).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * The dashboard duplicates this frame, so it needs the same three answers, from pure code the way the
+ * /orders table gets them: how many orders sit in each section, where a card links, and — for the
+ * reverse trip — which card a `?card=` deep-link names. Counting here rather than on the page keeps
+ * the dashboard and the table reading one number for one status.
+ */
+const mk = (channel: string, orderStatus: string | null, paymentStatus: string | null) => ({
+  channel,
+  orderStatus,
+  paymentStatus,
+});
+
+describe("summaryCardCounts > groups the same way the /orders cards do", () => {
+  it("counts each airplus order under exactly the card that owns its status", () => {
+    const orders = [
+      mk("airplus", "new", "cod"), // cod_pending → Pending
+      mk("airplus", "new", "verifying"), // verifying   → Pending
+      mk("airplus", "new", "paid"), // to_ship     → To ship
+      mk("airplus", "shipped", "paid"), // in_transit  → In transit
+      mk("airplus", "delivery_failed", "paid"), // return      → Refund
+      mk("airplus", "claim_pending", "paid"), // claim_pending → Refund
+    ];
+    expect(summaryCardCounts(orders)).toEqual({
+      pending: 2,
+      toship: 1,
+      intransit: 1,
+      refund: 2,
+    });
+  });
+
+  it("ignores non-airplus orders even when their status would match a card", () => {
+    const orders = [mk("shopee", "new", "cod"), mk("airplus", "new", "cod")];
+    expect(summaryCardCounts(orders).pending).toBe(1);
+  });
+
+  it("counts nothing for a status no card owns (fail) or that cannot be derived (null)", () => {
+    const orders = [
+      mk("airplus", "cancelled", "paid"), // fail — belongs to no card
+      mk("airplus", null, null), // underivable
+    ];
+    expect(summaryCardCounts(orders)).toEqual({
+      pending: 0,
+      toship: 0,
+      intransit: 0,
+      refund: 0,
+    });
+  });
+
+  it("returns a zero for every card key, so the frame always has all four to render", () => {
+    const counts = summaryCardCounts([]);
+    for (const card of ORDER_SUMMARY_CARDS) {
+      expect(counts[card.key]).toBe(0);
+    }
+  });
+});
+
+describe("summaryCardHref + summaryCardFromKey > the deep-link round-trips", () => {
+  it("a card links to /orders carrying its own key", () => {
+    for (const card of ORDER_SUMMARY_CARDS) {
+      expect(summaryCardHref(card)).toBe(`/orders?card=${card.key}`);
+    }
+  });
+
+  it("the key a card links with resolves back to that same card", () => {
+    for (const card of ORDER_SUMMARY_CARDS) {
+      expect(summaryCardFromKey(card.key)).toBe(card);
+    }
+  });
+
+  it("an unknown or missing key resolves to no card, so a junk ?card= just falls back", () => {
+    expect(summaryCardFromKey("nope")).toBeUndefined();
+    expect(summaryCardFromKey(null)).toBeUndefined();
+    expect(summaryCardFromKey(undefined)).toBeUndefined();
   });
 });

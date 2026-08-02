@@ -1,5 +1,8 @@
-import { type OperationalStatus } from "@l-shopee/core";
+import { operationalStatus, type OperationalStatus } from "@l-shopee/core";
 import { ORDER_TAB_STATUSES, type OrderTab } from "./orderTabs";
+
+/** The key a card is identified by in state and in the `?card=` deep-link. */
+export type SummaryCardKey = OrderSummaryCard["key"];
 
 /**
  * The four summary cards above the /orders table.
@@ -74,4 +77,53 @@ export function cardIsWholeTab(card: OrderSummaryCard): boolean {
     tabStatuses.length === card.statuses.length &&
     tabStatuses.every((s) => card.statuses.includes(s))
   );
+}
+
+/** The order fields the counts read. Structural on purpose, so this stays free of api.ts (any
+ *  OrderRow satisfies it) and the counter can be unit-tested on tiny literals. */
+type SummaryCountable = {
+  channel: string;
+  orderStatus: string | null;
+  paymentStatus: string | null;
+};
+
+/**
+ * How many orders sit in each section — the dashboard's copy of the /orders frame reads these.
+ *
+ * Same rules the table's `countOf` follows: AirPlus only, and an order is placed by its DERIVED
+ * operational status, not its raw order_status. `break` after the first owning card is safe because
+ * the sections are disjoint (held by orderSummaryCards.test.ts) — a status lives under one card or
+ * none (fail, and any underivable row, are counted by nobody). Every key is present, seeded to 0, so
+ * the frame always has four numbers to render even on an empty shop.
+ */
+export function summaryCardCounts(
+  orders: readonly SummaryCountable[],
+): Record<SummaryCardKey, number> {
+  const counts = Object.fromEntries(ORDER_SUMMARY_CARDS.map((c) => [c.key, 0])) as Record<
+    SummaryCardKey,
+    number
+  >;
+  for (const o of orders) {
+    if (o.channel !== "airplus") continue;
+    const s = operationalStatus(o.orderStatus, o.paymentStatus);
+    if (s == null) continue;
+    for (const card of ORDER_SUMMARY_CARDS) {
+      if (card.statuses.includes(s)) {
+        counts[card.key]++;
+        break;
+      }
+    }
+  }
+  return counts;
+}
+
+/** Where a card links from the dashboard: /orders, carrying the key OrdersTable reads on load. */
+export function summaryCardHref(card: OrderSummaryCard): string {
+  return `/orders?card=${card.key}`;
+}
+
+/** The card a `?card=` value names, or undefined when it names nothing — so a junk param just
+ *  falls back to the default /orders view instead of throwing. */
+export function summaryCardFromKey(key: string | null | undefined): OrderSummaryCard | undefined {
+  return ORDER_SUMMARY_CARDS.find((c) => c.key === key);
 }

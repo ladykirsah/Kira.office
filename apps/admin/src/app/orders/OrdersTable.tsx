@@ -12,8 +12,16 @@ import {
   ORDER_SUMMARY_CARDS,
   cardIsWholeTab,
   orderSummaryCardLabel,
+  summaryCardFromKey,
   type OrderSummaryCard,
 } from "@/lib/orderSummaryCards";
+import {
+  summaryCard,
+  summaryCardActive,
+  summaryLabel,
+  summaryNumber,
+  summaryNumberColor,
+} from "@/lib/summaryCardStyles";
 import { OPERATIONAL_STATUSES, operationalStatus, operationalStatusLabel } from "@l-shopee/core";
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
@@ -52,36 +60,26 @@ const toolbarStyle = {
   marginBottom: 12,
 } as const;
 
-const summaryCard = {
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "12px 14px",
-  cursor: "pointer",
-  transition: "border-color 0.15s",
-} as const;
-
-const summaryCardActive = {
-  ...summaryCard,
-  borderColor: "var(--primary)",
-  background: "var(--primary-faint)",
-} as const;
-
-const summaryLabel = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.03em",
-} as const;
-
-export function OrdersTable({ orders }: { orders: OrderRow[] }) {
-  const [tab, setTab] = useState<Tab>("all");
-  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>(null);
+export function OrdersTable({
+  orders,
+  initialCardKey = null,
+}: {
+  orders: OrderRow[];
+  /** A `?card=` deep-link from the dashboard: opens the table already on that card's filter, the same
+   *  view clicking the card here produces. An unknown/absent key just leaves the default All view. */
+  initialCardKey?: string | null;
+}) {
+  const initialCard = summaryCardFromKey(initialCardKey);
+  const [tab, setTab] = useState<Tab>(initialCard ? initialCard.tab : "all");
+  // Mirror toggleSummary's landing exactly: a whole-tab card needs no separate filter (its tab IS it),
+  // and the date range widens to all-time so an all-time count doesn't open onto an empty Today.
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>(
+    initialCard && !cardIsWholeTab(initialCard) ? initialCard.key : null,
+  );
   const [q, setQ] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [filterVal, setFilterVal] = useState("");
-  const [datePreset, setDatePreset] = useState<DatePreset>("today");
+  const [datePreset, setDatePreset] = useState<DatePreset>(initialCard ? "all" : "today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
@@ -217,14 +215,7 @@ export function OrdersTable({ orders }: { orders: OrderRow[] }) {
         }}
       >
         <div style={summaryLabel}>{orderSummaryCardLabel(card)}</div>
-        <div
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            marginTop: 2,
-            color: value > 0 ? card.activeColor : "var(--text-faint)",
-          }}
-        >
+        <div style={{ ...summaryNumber, color: summaryNumberColor(value, card.activeColor) }}>
           {value}
         </div>
       </div>
