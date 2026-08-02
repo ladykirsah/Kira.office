@@ -2,27 +2,17 @@
 
 import { useState } from "react";
 import {
-  CLAIM_STATES,
-  claimStateLabel,
   isClaimState,
   isTerminalClaimState,
-  nextClaimStates,
-  actorFor,
+  claimStateLabelTh,
   codApproval,
   canReviewPayment,
   operationalStatus,
   orderStages,
-  type ClaimState,
   type CustomerTier,
   type OrderStage,
 } from "@l-shopee/core";
-import {
-  createOrderClaim,
-  saveOrderStaffNote,
-  transitionOrderClaim,
-  type OrderDetail,
-  type ShopInfo,
-} from "@/lib/api";
+import { saveOrderStaffNote, privateFileUrl, type OrderDetail, type ShopInfo } from "@/lib/api";
 import { ShipmentSection } from "./ShipmentActions";
 import { PaymentReviewSection } from "./PaymentReview";
 import { CodApprovalSection } from "./CodApproval";
@@ -246,8 +236,6 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [busyClaim, setBusyClaim] = useState<string | null>(null);
-  const [raising, setRaising] = useState(false);
 
   async function saveNote() {
     setNoteSaving(true);
@@ -260,19 +248,6 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
       setErr((e as Error).message);
     } finally {
       setNoteSaving(false);
-    }
-  }
-
-  async function move(claimId: string, to: ClaimState) {
-    setBusyClaim(claimId);
-    setErr(null);
-    try {
-      await transitionOrderClaim(claimId, to);
-      location.reload();
-    } catch (e) {
-      // The API re-checks the gates, so a refusal here means the page was stale.
-      setErr((e as Error).message);
-      setBusyClaim(null);
     }
   }
 
@@ -592,17 +567,15 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             )}
           </div>
 
-          {/* Zone B keeps the "Raise a claim" button + any TERMINAL/past claims — the active one is
-              handled full-width in Zone A above, so it is excluded here to avoid a duplicate. */}
+          {/* Zone B is a read-only SUMMARY of RESOLVED claims — the active one is handled full-width in
+              Zone A above and excluded here. Claims are raised by the customer, so there is no raise
+              button; once a claim's resolution form is submitted it drops out of Zone A into here. */}
           <ClaimsSection
-            orderId={order.id}
             claims={claims.filter((c) => c.id !== activeClaim?.id)}
             lines={lines}
-            busyClaim={busyClaim}
-            raising={raising}
-            setRaising={setRaising}
-            onMove={move}
-            onError={setErr}
+            address={address}
+            order={order}
+            viewerIsSuperAdmin={viewerIsSuperAdmin}
           />
         </div>
 
@@ -656,171 +629,185 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
  * Claims. Actions are offered from the state machine in core, so the page can only ever show a
  * legal move — and the API re-checks anyway, because a stale tab is not a guard.
  */
+/** One-line address for a resolved exchange's ship-to. */
+function claimAddress(a: OrderDetail["address"]): string {
+  if (!a) return "—";
+  return [
+    a.recipientName,
+    a.phone,
+    a.addressLine1,
+    a.subdistrict,
+    a.district,
+    a.province,
+    a.postalCode,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * Zone B: a read-only SUMMARY of RESOLVED claims. Claims are raised by the customer (no admin raise
+ * button) and driven to resolution in Zone A above; once a claim's resolution form is submitted it
+ * finishes and drops in here as one card — the defect details + evidence + the outcome (refund slip,
+ * or the replacement/return shipment). Hidden entirely when there is nothing to summarise.
+ */
 function ClaimsSection({
-  orderId,
   claims,
   lines,
-  busyClaim,
-  raising,
-  setRaising,
-  onMove,
-  onError,
+  address,
+  order,
+  viewerIsSuperAdmin,
 }: {
-  orderId: string;
   claims: OrderDetail["claims"];
   lines: OrderDetail["lines"];
-  busyClaim: string | null;
-  raising: boolean;
-  setRaising: (v: boolean) => void;
-  onMove: (claimId: string, to: ClaimState) => void;
-  onError: (m: string | null) => void;
+  address: OrderDetail["address"];
+  order: OrderDetail["order"];
+  viewerIsSuperAdmin: boolean;
 }) {
-  const [kind, setKind] = useState<"defect" | "wrong_item">("defect");
-  const [reason, setReason] = useState("");
-  const [picked, setPicked] = useState<Record<string, number>>({});
-  const [saving, setSaving] = useState(false);
+  if (claims.length === 0) return null;
 
-  const chosen = Object.entries(picked).filter(([, q]) => q > 0);
-
-  async function submit() {
-    setSaving(true);
-    onError(null);
-    try {
-      await createOrderClaim(orderId, {
-        kind,
-        reasonNote: reason.trim() || null,
-        lines: chosen.map(([salesOrderLineId, quantity]) => ({ salesOrderLineId, quantity })),
-      });
-      location.reload();
-    } catch (e) {
-      onError((e as Error).message);
-      setSaving(false);
-    }
-  }
+  const nameFor = (c: OrderDetail["claims"][number]) =>
+    c.lines.length > 0
+      ? c.lines
+          .map((cl) => lines.find((l) => l.id === cl.salesOrderLineId)?.name ?? cl.salesOrderLineId)
+          .join(", ")
+      : lines
+          .map((l) => l.name)
+          .filter(Boolean)
+          .join(", ");
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ ...sectionTitle, marginBottom: 0 }}>Claims</div>
-        {!raising && (
-          <button type="button" className="btn-soft btn-sm" onClick={() => setRaising(true)}>
-            + Raise a claim
-          </button>
-        )}
-      </div>
-
-      {raising && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-            <select
-              aria-label="Reason"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as "defect" | "wrong_item")}
-              style={inputS}
-            >
-              <option value="defect">Defective (เคลม)</option>
-              <option value="wrong_item">Wrong item sent (ส่งผิด)</option>
-            </select>
-            <input
-              placeholder="What did the customer say?"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              style={{ ...inputS, flex: 1, minWidth: 220 }}
-            />
-          </div>
-          {/* Which items — the owner said a claim can cover one line or several. */}
-          {lines.map((l) => (
-            <div
-              key={l.id}
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0" }}
-            >
-              <input
-                type="checkbox"
-                checked={(picked[l.id] ?? 0) > 0}
-                onChange={(e) => setPicked((p) => ({ ...p, [l.id]: e.target.checked ? 1 : 0 }))}
-              />
-              <span style={{ ...tableText.body2, flex: 1 }}>{l.name ?? l.variantId}</span>
-              <input
-                type="number"
-                min={1}
-                max={l.quantity}
-                value={picked[l.id] ?? 1}
-                disabled={(picked[l.id] ?? 0) === 0}
-                onChange={(e) =>
-                  setPicked((p) => ({ ...p, [l.id]: Math.min(l.quantity, Number(e.target.value)) }))
-                }
-                style={{ ...inputS, width: 70 }}
-              />
-              <span style={tableText.subtitle}>of {l.quantity}</span>
-            </div>
-          ))}
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button
-              type="button"
-              className="btn-primary btn-sm"
-              disabled={saving || chosen.length === 0}
-              onClick={() => void submit()}
-            >
-              {saving ? "Raising…" : "Raise claim"}
-            </button>
-            <button type="button" className="btn-soft btn-sm" onClick={() => setRaising(false)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {claims.length === 0 && !raising && (
-        <div style={{ ...tableText.subtitle, marginTop: 8 }}>No claims on this order.</div>
-      )}
-
-      {claims.map((c) => {
+      <div style={sectionTitle}>สรุปการเคลม</div>
+      {claims.map((c, i) => {
         const state = isClaimState(c.state) ? c.state : null;
-        const moves = state ? nextClaimStates(state) : [];
+        const isRefund = c.resolution === "refund";
+        const isReturn = c.state === "mechanic_rejected";
+        const shipTo = c.replacementAddress ?? address;
         return (
           <div
             key={c.id}
-            style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}
+            style={
+              i > 0
+                ? { marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }
+                : undefined
+            }
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontWeight: 700, ...tableText.body2 }}>
-                {state ? claimStateLabel(state) : c.state}
-              </span>
-              <span className="pill off">{c.kind === "defect" ? "Defective" : "Wrong item"}</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+                marginBottom: 6,
+              }}
+            >
+              <span className="pill off">{state ? claimStateLabelTh(state) : c.state}</span>
               <span style={tableText.subtitle}>{dt(c.createdAt)}</span>
             </div>
-            {c.reasonNote && <div style={tableText.subtitle}>{c.reasonNote}</div>}
-            <div style={tableText.subtitle}>
-              {c.lines.length} item{c.lines.length === 1 ? "" : "s"}
-              {c.mechanicName ? ` · mechanic: ${c.mechanicName}` : ""}
-              {c.refundSatang != null ? ` · refund ${formatBahtTrim(c.refundSatang)}` : ""}
+
+            <div style={{ fontSize: 14, lineHeight: 1.9 }}>
+              <div>
+                <span style={tableText.subtitle}>สินค้า</span> · {nameFor(c) || "—"}
+              </div>
+              {c.resolution && (
+                <div>
+                  <span style={tableText.subtitle}>ลูกค้าเลือก</span> ·{" "}
+                  {isRefund ? "รับเงินคืน" : "เปลี่ยนสินค้าใหม่"}
+                </div>
+              )}
+              {c.reasonNote && (
+                <div>
+                  <span style={tableText.subtitle}>เหตุผลลูกค้า</span> · {c.reasonNote}
+                </div>
+              )}
+              {isReturn && c.adminNote && (
+                <div>
+                  <span style={tableText.subtitle}>เหตุผลปฏิเสธ</span> · {c.adminNote}
+                </div>
+              )}
             </div>
 
-            {moves.length > 0 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                {moves.map((to) => {
-                  const who = state ? actorFor(state, to) : null;
-                  return (
-                    <button
-                      key={to}
-                      type="button"
-                      className={to.includes("reject") ? "btn-soft btn-sm" : "btn-primary btn-sm"}
-                      disabled={busyClaim === c.id}
-                      onClick={() => onMove(c.id, to)}
-                      // Whose decision this is — a mechanic's verdict must never be mistaken for
-                      // an admin's, because a refund traces back to who passed it.
-                      title={who ? `${who} action` : undefined}
-                    >
-                      {claimStateLabel(to)}
-                      {who === "mechanic" ? " (ช่าง)" : ""}
-                    </button>
-                  );
-                })}
+            {c.photoKeys.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                {c.photoKeys.map((k) =>
+                  /\.(mp4|mov|webm|m4v)$/i.test(k) ? (
+                    <video
+                      key={k}
+                      src={privateFileUrl(k)}
+                      controls
+                      style={{
+                        width: 120,
+                        height: 72,
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                        background: "#000",
+                      }}
+                    />
+                  ) : (
+                    <a key={k} href={privateFileUrl(k)} target="_blank" rel="noreferrer">
+                      <img
+                        src={privateFileUrl(k)}
+                        alt="หลักฐานการเคลม"
+                        style={{
+                          width: 72,
+                          height: 72,
+                          objectFit: "cover",
+                          borderRadius: 8,
+                          border: "1px solid var(--border)",
+                        }}
+                      />
+                    </a>
+                  ),
+                )}
               </div>
             )}
-            {state && CLAIM_STATES.includes(state) && moves.length === 0 && (
-              <div style={{ ...tableText.subtitle, marginTop: 6 }}>Closed — no further action.</div>
-            )}
+
+            {/* the outcome */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)" }}>
+              {isRefund ? (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    คืนเงินแล้ว{" "}
+                    {order.refundSatang != null ? formatBahtTrim(order.refundSatang) : ""}
+                  </div>
+                  <div style={tableText.subtitle}>
+                    {order.refundedAt ? dt(order.refundedAt) : "—"}
+                    {order.refundActorEmail ? ` · ${order.refundActorEmail}` : ""}
+                  </div>
+                  {viewerIsSuperAdmin && order.refundSlipImageKey && (
+                    <img
+                      src={privateFileUrl(order.refundSlipImageKey)}
+                      alt="สลิปการคืนเงิน"
+                      style={{
+                        marginTop: 8,
+                        maxWidth: 220,
+                        width: "100%",
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                      }}
+                    />
+                  )}
+                </>
+              ) : c.trackingNo ? (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {isReturn ? "ส่งสินค้าคืนลูกค้าแล้ว" : "จัดส่งสินค้าใหม่แล้ว"}
+                  </div>
+                  {!isReturn && shipTo && (
+                    <div style={tableText.subtitle}>ส่งไปที่ · {claimAddress(shipTo)}</div>
+                  )}
+                  <div style={tableText.subtitle}>
+                    {[c.carrier, c.trackingNo].filter(Boolean).join(" · ")}
+                    {c.shippingFeeSatang != null
+                      ? ` · ค่าจัดส่ง ${formatBahtTrim(c.shippingFeeSatang)}`
+                      : ""}
+                  </div>
+                </>
+              ) : (
+                <div style={tableText.subtitle}>ปิดการเคลมแล้ว</div>
+              )}
+            </div>
           </div>
         );
       })}

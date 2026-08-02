@@ -66,10 +66,14 @@ describe("isClaimState", () => {
 
 describe("canTransition > the happy path", () => {
   it("walks the owner's flow end to end", () => {
-    const path: ClaimState[] = ["requested", "received", "mechanic_approved", "shipped", "done"];
+    // Replacement path: arrival → inspect → mechanic pass → ship. `shipped` is the finish — submitting
+    // the drop-off form completes the claim, there is no separate เสร็จสิ้น step.
+    const path: ClaimState[] = ["requested", "received", "mechanic_approved", "shipped"];
     for (let i = 0; i < path.length - 1; i++) {
       expect(canTransition(path[i]!, path[i + 1]!)).toBe(true);
     }
+    // The refund path closes directly.
+    expect(canTransition("mechanic_approved", "done")).toBe(true);
   });
 });
 
@@ -111,9 +115,9 @@ describe("canTransition > the two resolutions after a mechanic passes", () => {
     expect(canTransition("mechanic_approved", "done")).toBe(true);
   });
 
-  it("a replacement ships first, then closes", () => {
+  it("a replacement is finished once shipped — the drop-off form completes it", () => {
     expect(canTransition("mechanic_approved", "shipped")).toBe(true);
-    expect(canTransition("shipped", "done")).toBe(true);
+    expect(canTransition("shipped", "done")).toBe(false); // shipped is terminal, no เสร็จสิ้น step
   });
 });
 
@@ -138,7 +142,7 @@ describe("canTransition > cancelling", () => {
 
 describe("canTransition > terminal states are final", () => {
   it("nothing leaves a terminal state", () => {
-    for (const t of ["done", "cancelled", "mechanic_rejected"] as ClaimState[]) {
+    for (const t of ["shipped", "done", "cancelled", "mechanic_rejected"] as ClaimState[]) {
       expect(isTerminalClaimState(t)).toBe(true);
       expect(nextClaimStates(t)).toEqual([]);
       for (const s of CLAIM_STATES) expect(canTransition(t, s)).toBe(false);
@@ -146,13 +150,7 @@ describe("canTransition > terminal states are final", () => {
   });
 
   it("mid-flight states are not terminal", () => {
-    for (const s of [
-      "requested",
-      "approved",
-      "received",
-      "mechanic_approved",
-      "shipped",
-    ] as ClaimState[]) {
+    for (const s of ["requested", "approved", "received", "mechanic_approved"] as ClaimState[]) {
       expect(isTerminalClaimState(s)).toBe(false);
     }
   });
@@ -179,7 +177,6 @@ describe("actorFor > who is allowed to make each move", () => {
 
   it("shipping the replacement is the admin's job, not the mechanic's", () => {
     expect(actorFor("mechanic_approved", "shipped")).toBe("admin");
-    expect(actorFor("shipped", "done")).toBe("admin");
   });
 
   it("returns null for a move that is not allowed at all", () => {
