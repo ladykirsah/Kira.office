@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
+import { operationalStatus } from "@l-shopee/core";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import {
@@ -49,6 +50,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** An order's effective sale date: when it was placed, falling back to when it was imported. */
 const orderDate = (o: OrderRow) => o.orderCreatedAt ?? o.importedAt;
+
+// Only orders where money has actually moved belong on the finance view (owner): a completed sale
+// (money in), a refund (money out), and the two claim resolutions. Anything mid-flight — to ship,
+// in transit, pending, cancelled — is not yet a financial event, so it never lands here.
+const FINANCE_ORDER_STATUSES = new Set(["complete", "refunded", "claimed", "claim_rejected"]);
+const isFinanceOrder = (o: OrderRow): boolean => {
+  const st = operationalStatus(o.orderStatus, o.paymentStatus);
+  return st != null && FINANCE_ORDER_STATUSES.has(st);
+};
 
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[] | null>(null);
@@ -133,7 +143,11 @@ export default function SalesPage() {
 
   // AirPlus tab (own single-seller site: no commission, Sales = payout, real profit).
   const airplusInRange = (orders ?? []).filter(
-    (o) => o.channel === "airplus" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
+    (o) =>
+      o.channel === "airplus" &&
+      isFinanceOrder(o) &&
+      orderDate(o) >= range.startMs &&
+      orderDate(o) < range.endMs,
   );
   const airplusRangeSales = airplusInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
   const airplusView = ordersView(airplusInRange, { search, status: "" });
@@ -143,6 +157,7 @@ export default function SalesPage() {
   const airplusPrevInRange = (orders ?? []).filter(
     (o) =>
       o.channel === "airplus" &&
+      isFinanceOrder(o) &&
       orderDate(o) >= prevRange.startMs &&
       orderDate(o) < prevRange.endMs,
   );
