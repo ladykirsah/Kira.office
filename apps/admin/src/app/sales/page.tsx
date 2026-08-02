@@ -336,7 +336,7 @@ export default function SalesPage() {
             <>
               <div style={cardsRow}>
                 <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
-                <Card label="Total sales" value={String(channelTotal.count)} />
+                <Card label="Total conversions" value={String(channelTotal.count)} />
               </div>
               <div style={{ marginBottom: 14 }}>
                 <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
@@ -348,7 +348,7 @@ export default function SalesPage() {
                     <thead>
                       <tr>
                         <th>Channel</th>
-                        <th style={right}>Sales</th>
+                        <th style={right}>Conversions</th>
                         <th style={right}>Revenue</th>
                       </tr>
                     </thead>
