@@ -146,6 +146,26 @@ export function totalChannelSales(rows: ChannelSales[]): {
   );
 }
 
+/** The money fields an order row carries; OrderRow (lib/api) is structurally assignable. */
+export interface OrderMoney {
+  salesSatang: number | null;
+  profitSatang: number | null;
+}
+
+/** Σ sales + Σ profit across order rows (null → 0) — the AirPlus table's Total row. */
+export function sumOrderMoney(orders: OrderMoney[]): {
+  salesSatang: number;
+  profitSatang: number;
+} {
+  return orders.reduce<{ salesSatang: number; profitSatang: number }>(
+    (t, o) => ({
+      salesSatang: t.salesSatang + (o.salesSatang ?? 0),
+      profitSatang: t.profitSatang + (o.profitSatang ?? 0),
+    }),
+    { salesSatang: 0, profitSatang: 0 },
+  );
+}
+
 /** Local YYYY-MM-DD for a timestamp — the value shape an <input type="date"> expects. */
 export function toDateInputValue(ms: number): string {
   const d = new Date(ms);

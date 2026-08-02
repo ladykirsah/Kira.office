@@ -3,6 +3,7 @@
 import { type OrderRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { operationalStatusBadge } from "@/lib/badges";
+import { sumOrderMoney } from "@/lib/salesSummary";
 import { tableText } from "@/lib/tableText";
 import { TableFrame } from "../TableFrame";
 import { OrderActionsMenu } from "../orders/OrderActionsMenu";
@@ -23,6 +24,7 @@ export function AirPlusOrders({ orders }: { orders: OrderRow[] }) {
       </div>
     );
   }
+  const totals = sumOrderMoney(orders);
   return (
     <TableFrame>
       <table style={{ tableLayout: "fixed", minWidth: 900 }}>
@@ -86,6 +88,15 @@ export function AirPlusOrders({ orders }: { orders: OrderRow[] }) {
               </tr>
             );
           })}
+          {/* Total row — Σ Sales and Σ Profit of the rows shown, matching the Summary table. */}
+          <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+            <td>Total</td>
+            <td>{formatBahtTrim(totals.salesSatang)}</td>
+            <td>{formatBahtTrim(totals.profitSatang)}</td>
+            <td />
+            <td />
+            <td />
+          </tr>
         </tbody>
       </table>
     </TableFrame>

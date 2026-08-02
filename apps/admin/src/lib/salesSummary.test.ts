@@ -9,6 +9,7 @@ import {
   matchesOrderSearch,
   ordersView,
   growthRatePct,
+  sumOrderMoney,
   type SaleLike,
 } from "./salesSummary";
 
@@ -139,6 +140,21 @@ describe("totalChannelSales", () => {
 
   it("given no channels > returns zeros", () => {
     expect(totalChannelSales([])).toEqual({ count: 0, revenueSatang: 0, profitSatang: 0 });
+  });
+});
+
+describe("sumOrderMoney", () => {
+  it("sums sales and profit across orders, treating null as 0", () => {
+    const orders = [
+      { salesSatang: 145000, profitSatang: 42000 },
+      { salesSatang: 320000, profitSatang: -320000 },
+      { salesSatang: null, profitSatang: null },
+    ];
+    expect(sumOrderMoney(orders)).toEqual({ salesSatang: 465000, profitSatang: -278000 });
+  });
+
+  it("given no orders > returns zeros", () => {
+    expect(sumOrderMoney([])).toEqual({ salesSatang: 0, profitSatang: 0 });
   });
 });
 
