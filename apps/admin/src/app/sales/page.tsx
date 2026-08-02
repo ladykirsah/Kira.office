@@ -15,7 +15,6 @@ import {
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
-import { airplusStatusBadge } from "@/lib/badges";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
 import { AirPlusOrders } from "./AirPlusOrders";
@@ -60,7 +59,6 @@ export default function SalesPage() {
   const [customEnd, setCustomEnd] = useState("");
   const [tab, setTab] = useState<SalesTab>("summary");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
@@ -72,10 +70,9 @@ export default function SalesPage() {
       .catch((err) => setError((err as Error).message));
   }, []);
 
-  // Filters are per-tab; reset search/status/type on tab switch (the period persists).
+  // Filters are per-tab; reset search/type on tab switch (the period persists).
   useEffect(() => {
     setSearch("");
-    setStatusFilter("");
     setTypeFilter("");
   }, [tab]);
 
@@ -109,10 +106,9 @@ export default function SalesPage() {
   );
   const s = summarize(inRange, range);
 
-  // Onsite table/info/CSV view: period → search + status filter/sort. Feeds the cards + table.
-  const onsiteView = salesView(inRange, { search, status: statusFilter, type: typeFilter });
+  // Onsite table/info view: period → search + type filter. Feeds the cards + table.
+  const onsiteView = salesView(inRange, { search, status: "", type: typeFilter });
   const onsiteSumm = summarize(onsiteView, range);
-  const onsiteStatuses = Array.from(new Set(inRange.map((x) => x.saleStatus))).sort();
 
   // Growth rate: this period's revenue vs the previous equal-length period (same search/filter).
   const prevRange = {
@@ -121,7 +117,7 @@ export default function SalesPage() {
   };
   const prevView = salesView(
     (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
-    { search, status: statusFilter, type: typeFilter },
+    { search, status: "", type: typeFilter },
   );
   const onsiteGrowth = growthRatePct(
     onsiteSumm.revenueSatang,
@@ -140,12 +136,7 @@ export default function SalesPage() {
     (o) => o.channel === "airplus" && orderDate(o) >= range.startMs && orderDate(o) < range.endMs,
   );
   const airplusRangeSales = airplusInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
-  const airplusStatuses = Array.from(
-    new Set(airplusInRange.map((o) => airplusStatusBadge(o.orderStatus).label)),
-  ).sort();
-  const airplusView = ordersView(airplusInRange, { search, status: "" }).filter(
-    (o) => statusFilter === "" || airplusStatusBadge(o.orderStatus).label === statusFilter,
-  );
+  const airplusView = ordersView(airplusInRange, { search, status: "" });
   const airplusSales = airplusView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
   const airplusProfit = airplusView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
   // AirPlus growth: this period's revenue vs the previous equal-length period, same filter.
@@ -155,9 +146,7 @@ export default function SalesPage() {
       orderDate(o) >= prevRange.startMs &&
       orderDate(o) < prevRange.endMs,
   );
-  const airplusPrevView = ordersView(airplusPrevInRange, { search, status: "" }).filter(
-    (o) => statusFilter === "" || airplusStatusBadge(o.orderStatus).label === statusFilter,
-  );
+  const airplusPrevView = ordersView(airplusPrevInRange, { search, status: "" });
   const airplusGrowth = growthRatePct(
     airplusSales,
     airplusPrevView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0),
@@ -224,11 +213,7 @@ export default function SalesPage() {
 
   // The framed toolbar shared by every tab: optional search + status + type, always a date range.
   // A plain function (not a component) so its inputs keep focus while typing.
-  const toolbar = (opts: {
-    searchPlaceholder?: string;
-    statuses?: string[];
-    showType?: boolean;
-  }) => (
+  const toolbar = (opts: { searchPlaceholder?: string; showType?: boolean }) => (
     <>
       <div style={toolbarStyle}>
         {opts.searchPlaceholder && (
@@ -239,21 +224,6 @@ export default function SalesPage() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ ...inputS, width: 240, maxWidth: "100%", color: "var(--text)" }}
           />
-        )}
-        {opts.statuses && (
-          <select
-            aria-label="Status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ ...inputS, color: statusFilter ? "var(--text)" : "var(--text-faint)" }}
-          >
-            <option value="">All status</option>
-            {opts.statuses.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-          </select>
         )}
         {opts.showType && (
           <select
@@ -375,7 +345,6 @@ export default function SalesPage() {
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search plate / car / bill / amount…",
-                  statuses: onsiteStatuses,
                   showType: true,
                 })}
                 <SalesTable sales={onsiteView} />
@@ -394,7 +363,6 @@ export default function SalesPage() {
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search order / status / amount…",
-                  statuses: airplusStatuses,
                 })}
                 <AirPlusOrders
                   orders={airplusView}
