@@ -191,15 +191,15 @@ export function AirPlusOrders({
   return (
     <TableFrame>
       <table style={{ tableLayout: "fixed", minWidth: 900 }}>
-        {/* Same grid as the Den Air Service table (SalesTable) so the two Finance tabs share one
-            column layout: Order ID gets 30% like Job, the other five split the rest evenly. */}
+        {/* Order ID and Status are pinned to the owner's widths (200 / 160); the middle four
+            columns flex to fill the rest so the table still spans the card. */}
         <colgroup>
-          <col style={{ width: "30%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
+          <col style={{ width: 200 }} /> {/* Order ID */}
+          <col /> {/* Sales */}
+          <col /> {/* Profit */}
+          <col /> {/* Date */}
+          <col style={{ width: 160 }} /> {/* Status */}
+          <col /> {/* Action */}
         </colgroup>
         <thead>
           <tr>
