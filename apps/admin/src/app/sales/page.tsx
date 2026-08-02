@@ -150,6 +150,7 @@ export default function SalesPage() {
       orderDate(o) < range.endMs,
   );
   const airplusRangeSales = airplusInRange.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
+  const airplusRangeProfit = airplusInRange.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
   const airplusView = ordersView(airplusInRange, { search, status: "" });
   const airplusSales = airplusView.reduce((sum, o) => sum + (o.salesSatang ?? 0), 0);
   const airplusProfit = airplusView.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
@@ -174,19 +175,20 @@ export default function SalesPage() {
       label: "Den Air Service",
       count: s.salesCount,
       revenueSatang: s.revenueSatang,
+      profitSatang: s.grossProfitSatang,
     },
     {
       key: "airplus",
       label: "AirPlus",
       count: airplusInRange.length,
       revenueSatang: airplusRangeSales,
+      profitSatang: airplusRangeProfit,
     },
   ];
   const channelTotal = totalChannelSales(channelRows);
 
   // Summary combines both shops (no per-shop filter here). Profit = onsite gross profit + AirPlus
   // profit; growth = combined revenue vs the previous equal-length period.
-  const airplusRangeProfit = airplusInRange.reduce((sum, o) => sum + (o.profitSatang ?? 0), 0);
   const summaryProfit = s.grossProfitSatang + airplusRangeProfit;
   const onsitePrevRevenue = summarize(
     (sales ?? []).filter((x) => x.createdAt >= prevRange.startMs && x.createdAt < prevRange.endMs),
@@ -326,6 +328,7 @@ export default function SalesPage() {
                         <th>Channel</th>
                         <th style={right}>Conversions</th>
                         <th style={right}>Revenue</th>
+                        <th style={right}>Profit</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -334,12 +337,14 @@ export default function SalesPage() {
                           <td>{r.label}</td>
                           <td style={right}>{r.count}</td>
                           <td style={right}>{formatBahtTrim(r.revenueSatang)}</td>
+                          <td style={right}>{formatBahtTrim(r.profitSatang)}</td>
                         </tr>
                       ))}
                       <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
                         <td>Total</td>
                         <td style={right}>{channelTotal.count}</td>
                         <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
+                        <td style={right}>{formatBahtTrim(channelTotal.profitSatang)}</td>
                       </tr>
                     </tbody>
                   </table>

@@ -127,13 +127,22 @@ export interface ChannelSales {
   label: string;
   count: number;
   revenueSatang: number;
+  profitSatang: number;
 }
 
-/** Total count + revenue across the product-sales channels — the summary table's Total row. */
-export function totalChannelSales(rows: ChannelSales[]): { count: number; revenueSatang: number } {
+/** Total count + revenue + profit across the product-sales channels — the summary Total row. */
+export function totalChannelSales(rows: ChannelSales[]): {
+  count: number;
+  revenueSatang: number;
+  profitSatang: number;
+} {
   return rows.reduce(
-    (t, r) => ({ count: t.count + r.count, revenueSatang: t.revenueSatang + r.revenueSatang }),
-    { count: 0, revenueSatang: 0 },
+    (t, r) => ({
+      count: t.count + r.count,
+      revenueSatang: t.revenueSatang + r.revenueSatang,
+      profitSatang: t.profitSatang + r.profitSatang,
+    }),
+    { count: 0, revenueSatang: 0, profitSatang: 0 },
   );
 }
 
