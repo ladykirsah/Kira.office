@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiBase, fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
+import { useEffect, useState, type ReactNode } from "react";
+import { fetchSales, fetchOrders, type SaleRow, type OrderRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import {
@@ -15,7 +15,6 @@ import {
   type RangePreset,
   type ChannelSales,
 } from "@/lib/salesSummary";
-import { onsiteSalesToCsv, onlineOrdersToCsv } from "@/lib/salesCsv";
 import { airplusStatusBadge } from "@/lib/badges";
 import { PageHeader } from "../PageHeader";
 import { SalesTable } from "./SalesTable";
@@ -58,6 +57,7 @@ export default function SalesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [shopFilter, setShopFilter] = useState(""); // Summary tab only: "" | "onsite" | "airplus"
 
   useEffect(() => {
     fetchSales()
@@ -162,6 +162,12 @@ export default function SalesPage() {
   ];
   const channelTotal = totalChannelSales(channelRows);
 
+  // Summary shop filter (Den Air Service / AirPlus): narrow the roll-up and its total to one shop.
+  const shownChannelRows = shopFilter
+    ? channelRows.filter((r) => r.key === shopFilter)
+    : channelRows;
+  const shownChannelTotal = totalChannelSales(shownChannelRows);
+
   const Card = ({ label, value }: { label: string; value: string }) => (
     <div style={card}>
       <div style={{ color: "var(--text-muted)", fontSize: 13 }}>{label}</div>
@@ -196,6 +202,7 @@ export default function SalesPage() {
     searchPlaceholder?: string;
     statuses?: string[];
     showType?: boolean;
+    extra?: ReactNode;
   }) => (
     <>
       <div style={toolbarStyle}>
@@ -235,6 +242,7 @@ export default function SalesPage() {
             <option value="repair">Service</option>
           </select>
         )}
+        {opts.extra}
         <select
           aria-label="Date range"
           value={preset}
@@ -278,30 +286,6 @@ export default function SalesPage() {
     </>
   );
 
-  const download = (csv: string, filename: string) => {
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const csvLink = (onClick: () => void) => (
-    <div style={{ marginBottom: 14 }}>
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          onClick();
-        }}
-      >
-        Download CSV
-      </a>
-    </div>
-  );
-
   return (
     <main>
       <PageHeader title="Finance" subtitle="Product sales by channel." />
@@ -319,14 +303,27 @@ export default function SalesPage() {
           {tab === "summary" && (
             <>
               <div style={cardsRow}>
-                <Card label="Total revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
-                <Card label="Total conversions" value={String(channelTotal.count)} />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <a href={`${apiBase}/sales/export.csv`}>Download CSV</a>
+                <Card
+                  label="Total revenue"
+                  value={formatBahtTrim(shownChannelTotal.revenueSatang)}
+                />
+                <Card label="Total conversions" value={String(shownChannelTotal.count)} />
               </div>
               <div style={frameStyle}>
-                {toolbar({})}
+                {toolbar({
+                  extra: (
+                    <select
+                      aria-label="Shop"
+                      value={shopFilter}
+                      onChange={(e) => setShopFilter(e.target.value)}
+                      style={{ ...inputS, color: shopFilter ? "var(--text)" : "var(--text-faint)" }}
+                    >
+                      <option value="">All shops</option>
+                      <option value="onsite">Den Air Service</option>
+                      <option value="airplus">AirPlus</option>
+                    </select>
+                  ),
+                })}
                 <div style={{ overflowX: "auto" }}>
                   <table>
                     <thead>
@@ -337,7 +334,7 @@ export default function SalesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {channelRows.map((r) => (
+                      {shownChannelRows.map((r) => (
                         <tr key={r.key}>
                           <td>{r.label}</td>
                           <td style={right}>{r.count}</td>
@@ -346,8 +343,8 @@ export default function SalesPage() {
                       ))}
                       <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
                         <td>Total</td>
-                        <td style={right}>{channelTotal.count}</td>
-                        <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
+                        <td style={right}>{shownChannelTotal.count}</td>
+                        <td style={right}>{formatBahtTrim(shownChannelTotal.revenueSatang)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -365,7 +362,6 @@ export default function SalesPage() {
                 <Card label="Profit" value={formatBahtTrim(onsiteSumm.grossProfitSatang)} />
                 <Card label="Growth rate" value={growthLabel} />
               </div>
-              {csvLink(() => download(onsiteSalesToCsv(onsiteView), "onsite-sales.csv"))}
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search plate / car / bill / amount…",
@@ -384,7 +380,6 @@ export default function SalesPage() {
                 <Card label="Orders" value={String(airplusView.length)} />
                 <Card label="Profit" value={formatBahtTrim(airplusProfit)} />
               </div>
-              {csvLink(() => download(onlineOrdersToCsv(airplusView), "airplus-orders.csv"))}
               <div style={frameStyle}>
                 {toolbar({
                   searchPlaceholder: "Search order / status / amount…",
