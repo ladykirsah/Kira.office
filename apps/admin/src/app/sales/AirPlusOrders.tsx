@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { CARRIERS } from "@l-shopee/core";
 import { updateAirPlusOrder, type OrderRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
-import { airplusStatusBadge } from "@/lib/badges";
+import { operationalStatusBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { useToast } from "../ToastProvider";
@@ -205,7 +205,9 @@ export function AirPlusOrders({
         </thead>
         <tbody>
           {orders.map((o) => {
-            const badge = airplusStatusBadge(o.orderStatus);
+            // Same status the /orders page shows: the owner's operational states derived from BOTH
+            // axes (order + payment), so an AirPlus row reads identically here and there.
+            const badge = operationalStatusBadge(o.orderStatus, o.paymentStatus);
             const editing = editingId === o.id;
             return (
               <Fragment key={o.id}>
