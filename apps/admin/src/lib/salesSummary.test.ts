@@ -10,6 +10,7 @@ import {
   ordersView,
   growthRatePct,
   sumOrderMoney,
+  sumSaleMoney,
   expensesInRange,
   sumExpensesForChannel,
   type SaleLike,
@@ -157,6 +158,20 @@ describe("sumOrderMoney", () => {
 
   it("given no orders > returns zeros", () => {
     expect(sumOrderMoney([])).toEqual({ salesSatang: 0, profitSatang: 0 });
+  });
+});
+
+describe("sumSaleMoney", () => {
+  it("sums grandTotal (as sales) and grossProfit across sale rows", () => {
+    const sales = [
+      { grandTotalSatang: 250000, grossProfitSatang: 144000 },
+      { grandTotalSatang: 180000, grossProfitSatang: 58000 },
+    ];
+    expect(sumSaleMoney(sales)).toEqual({ salesSatang: 430000, profitSatang: 202000 });
+  });
+
+  it("given no sales > returns zeros", () => {
+    expect(sumSaleMoney([])).toEqual({ salesSatang: 0, profitSatang: 0 });
   });
 });
 

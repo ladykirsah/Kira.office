@@ -1321,6 +1321,23 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseR
   return data.expense;
 }
 
+export async function updateExpense(id: string, input: CreateExpenseInput): Promise<ExpenseRow> {
+  const res = await apiFetch(`/finance/expenses/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = (await res.json().catch(() => ({}))) as { expense?: ExpenseRow; error?: string };
+  if (!res.ok || !data.expense)
+    throw new Error(data.error ?? `Failed to update expense (HTTP ${res.status})`);
+  return data.expense;
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  const res = await apiFetch(`/finance/expenses/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to delete expense (HTTP ${res.status})`);
+}
+
 export interface ImportResult {
   received: number;
   valid: number;

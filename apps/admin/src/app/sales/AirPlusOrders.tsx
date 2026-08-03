@@ -7,6 +7,7 @@ import { sumOrderMoney } from "@/lib/salesSummary";
 import { tableText } from "@/lib/tableText";
 import { TableFrame } from "../TableFrame";
 import { OrderActionsMenu } from "../orders/OrderActionsMenu";
+import { ExpenseRows } from "./ExpenseRows";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
@@ -19,10 +20,14 @@ const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
 export function AirPlusOrders({
   orders,
   expenses = [],
+  onExpenseEdited,
+  onExpenseDeleted,
 }: {
   orders: OrderRow[];
   /** AirPlus expenses in the period — shown as rows and subtracted from the Total's Profit. */
   expenses?: ExpenseRow[];
+  onExpenseEdited?: (e: ExpenseRow) => void;
+  onExpenseDeleted?: (id: string) => void;
 }) {
   if (orders.length === 0 && expenses.length === 0) {
     return (
@@ -97,26 +102,12 @@ export function AirPlusOrders({
               </tr>
             );
           })}
-          {/* Expense rows — money out; the plain Conversion text is the row's identity, no Sales,
-              a negative Profit, and an "Expense" status. Subtracted from the Total below. */}
-          {expenses.map((e) => (
-            <tr key={e.id}>
-              <td style={{ whiteSpace: "nowrap" }}>
-                <div style={tableText.body2}>{e.conversion}</div>
-              </td>
-              <td>
-                <span className="muted">—</span>
-              </td>
-              <td style={{ color: "var(--danger)" }}>{formatBahtTrim(-e.amountSatang)}</td>
-              <td style={{ whiteSpace: "nowrap" }}>
-                <div style={tableText.body2}>{dateTH(e.occurredAt)}</div>
-              </td>
-              <td>
-                <span className="pill bad">Expense</span>
-              </td>
-              <td />
-            </tr>
-          ))}
+          {/* Expense rows — money out; subtracted from the Total below. */}
+          <ExpenseRows
+            expenses={expenses}
+            onEdited={(e) => onExpenseEdited?.(e)}
+            onDeleted={(id) => onExpenseDeleted?.(id)}
+          />
           {/* Total row — Σ Sales and net Profit (orders − expenses), matching the Summary table. */}
           <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
             <td>Total</td>

@@ -3542,6 +3542,44 @@ async function createExpenseInDb(
   };
 }
 
+async function updateExpenseInDb(
+  db: D1Database,
+  id: string,
+  input: Partial<ExpenseInput>,
+): Promise<{ ok: true; expense: ExpenseRow } | { ok: false; error: string; status: number }> {
+  const reason = validateExpenseInput(input);
+  if (reason) return { ok: false, error: reason, status: 400 };
+  const conversion = input.conversion!.trim();
+  const note =
+    typeof input.note === "string" && input.note.trim() !== "" ? input.note.trim() : null;
+  const res = await db
+    .prepare(
+      `UPDATE expenses SET channel = ?, conversion = ?, amount_satang = ?, note = ?, occurred_at = ?
+       WHERE id = ? AND archived = 0`,
+    )
+    .bind(input.channel!, conversion, input.amountSatang!, note, input.occurredAt!, id)
+    .run();
+  if (!res.meta.changes) return { ok: false, error: "expense not found", status: 404 };
+  const row = await db
+    .prepare(
+      `SELECT id, channel, conversion, amount_satang AS amountSatang, note,
+              occurred_at AS occurredAt, created_at AS createdAt
+       FROM expenses WHERE id = ?`,
+    )
+    .bind(id)
+    .first<ExpenseRow>();
+  return { ok: true, expense: row! };
+}
+
+/** Soft-delete an expense (archived = 1) — per the soft-delete invariant, no hard deletes. */
+async function archiveExpenseInDb(db: D1Database, id: string): Promise<{ ok: boolean }> {
+  const res = await db
+    .prepare(`UPDATE expenses SET archived = 1 WHERE id = ? AND archived = 0`)
+    .bind(id)
+    .run();
+  return { ok: Boolean(res.meta.changes) };
+}
+
 // ── On-site drafts & quotations ────────────────────────────────────────────────────────────────
 // A draft/quotation is a work-in-progress cart stored server-side so any POS device can reopen it.
 // It is a NO-MONEY document: no stock check, no ledger, no financial record. Stock and revenue only
@@ -5825,6 +5863,18 @@ const worker = {
       const body = (await request.json().catch(() => ({}))) as Partial<ExpenseInput>;
       const result = await createExpenseInDb(env.DB, body);
       return json(result, result.ok ? 200 : 400);
+    }
+    const expenseId = url.pathname.match(/^\/finance\/expenses\/([^/]+)$/);
+    if (expenseId && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as Partial<ExpenseInput>;
+      const result = await updateExpenseInDb(env.DB, decodeURIComponent(expenseId[1]!), body);
+      return result.ok
+        ? json({ ok: true, expense: result.expense })
+        : json({ ok: false, error: result.error }, result.status);
+    }
+    if (expenseId && request.method === "DELETE") {
+      const result = await archiveExpenseInDb(env.DB, decodeURIComponent(expenseId[1]!));
+      return json(result, result.ok ? 200 : 404);
     }
 
     if (url.pathname === "/onsite/drafts" && request.method === "GET") {

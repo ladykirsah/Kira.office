@@ -166,6 +166,23 @@ export function sumOrderMoney(orders: OrderMoney[]): {
   );
 }
 
+/** The money fields an on-site sale row carries; SaleRow (lib/api) is structurally assignable. */
+export interface SaleMoney {
+  grandTotalSatang: number;
+  grossProfitSatang: number;
+}
+
+/** Σ grandTotal + Σ grossProfit across sale rows — the Den Air Service table's Total row. */
+export function sumSaleMoney(sales: SaleMoney[]): { salesSatang: number; profitSatang: number } {
+  return sales.reduce<{ salesSatang: number; profitSatang: number }>(
+    (t, s) => ({
+      salesSatang: t.salesSatang + s.grandTotalSatang,
+      profitSatang: t.profitSatang + s.grossProfitSatang,
+    }),
+    { salesSatang: 0, profitSatang: 0 },
+  );
+}
+
 /** A logged expense (money out) tagged to a channel; ExpenseRow (lib/api) is structurally assignable. */
 export interface ExpenseLike {
   channel: string;

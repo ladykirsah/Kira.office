@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { EXPENSE_CHANNELS, type ExpenseChannel } from "@l-shopee/core";
-import { createExpense, type ExpenseRow } from "@/lib/api";
+import { type CreateExpenseInput } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import { useToast } from "../ToastProvider";
@@ -12,9 +12,9 @@ const CHANNEL_LABEL: Record<ExpenseChannel, string> = {
   airplus: "AirPlus",
 };
 
-/** Today as YYYY-MM-DD for the date input's default. */
-function todayISO(): string {
-  const d = new Date();
+/** A timestamp (ms) as local YYYY-MM-DD, the value an <input type="date"> expects. */
+function msToISO(ms: number): string {
+  const d = new Date(ms);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${mm}-${dd}`;
@@ -30,17 +30,38 @@ const fieldLabel = {
   display: "block",
 } as const;
 
+export interface ExpenseFormValue {
+  channel: ExpenseChannel;
+  conversion: string;
+  amountSatang: number;
+  occurredAt: number;
+  note: string | null;
+}
+
 /**
- * Record a Finance expense (money out) — Design B: channel first, then the fields. On submit it
- * persists via the API and calls onCreated so the page folds it into the channel table + Profit.
+ * Record OR edit a Finance expense (money out) — Design B: channel first, then the fields. Collects
+ * and validates the input, then hands it to onSubmit (the parent does the create/update + state).
+ * Pass `initial` to prefill it as an inline editor for an existing expense.
  */
-export function ExpenseForm({ onCreated }: { onCreated: (e: ExpenseRow) => void }) {
+export function ExpenseForm({
+  initial,
+  title = "Add expense",
+  submitLabel = "Add expense",
+  onSubmit,
+  onCancel,
+}: {
+  initial?: ExpenseFormValue;
+  title?: string;
+  submitLabel?: string;
+  onSubmit: (input: CreateExpenseInput) => Promise<void>;
+  onCancel?: () => void;
+}) {
   const toast = useToast();
-  const [channel, setChannel] = useState<ExpenseChannel>("onsite");
-  const [conversion, setConversion] = useState("");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(todayISO());
-  const [note, setNote] = useState("");
+  const [channel, setChannel] = useState<ExpenseChannel>(initial?.channel ?? "onsite");
+  const [conversion, setConversion] = useState(initial?.conversion ?? "");
+  const [amount, setAmount] = useState(initial ? String(initial.amountSatang / 100) : "");
+  const [date, setDate] = useState(msToISO(initial?.occurredAt ?? Date.now()));
+  const [note, setNote] = useState(initial?.note ?? "");
   const [busy, setBusy] = useState(false);
 
   const amountSatang = Math.round(parseFloat(amount.replace(/,/g, "")) * 100);
@@ -51,18 +72,19 @@ export function ExpenseForm({ onCreated }: { onCreated: (e: ExpenseRow) => void 
     if (!valid) return;
     setBusy(true);
     try {
-      const created = await createExpense({
+      await onSubmit({
         channel,
         conversion: conversion.trim(),
         amountSatang,
         note: note.trim() || null,
         occurredAt: new Date(`${date}T00:00:00`).getTime(),
       });
-      toast("Expense added", "success");
-      setConversion("");
-      setAmount("");
-      setNote("");
-      onCreated(created);
+      toast(initial ? "Expense updated" : "Expense added", "success");
+      if (!initial) {
+        setConversion("");
+        setAmount("");
+        setNote("");
+      }
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -101,10 +123,10 @@ export function ExpenseForm({ onCreated }: { onCreated: (e: ExpenseRow) => void 
         borderRadius: 8,
         padding: 18,
         background: "var(--surface)",
-        marginTop: 14,
+        marginTop: onCancel ? 0 : 14,
       }}
     >
-      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Add expense</div>
+      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{title}</div>
 
       <span style={fieldLabel}>1 · Which channel?</span>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -184,14 +206,21 @@ export function ExpenseForm({ onCreated }: { onCreated: (e: ExpenseRow) => void 
             <>Lowers {CHANNEL_LABEL[channel]}&rsquo;s net Profit and lands in its table.</>
           )}
         </p>
-        <button
-          type="button"
-          className="btn-primary btn-sm"
-          disabled={!valid || busy}
-          onClick={submit}
-        >
-          Add expense
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {onCancel && (
+            <button type="button" className="btn-sm" disabled={busy} onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            disabled={!valid || busy}
+            onClick={submit}
+          >
+            {submitLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import {
   fetchSales,
   fetchOrders,
   fetchExpenses,
+  createExpense,
   type SaleRow,
   type OrderRow,
   type ExpenseRow,
@@ -136,6 +137,11 @@ export default function SalesPage() {
   const airplusExpenses = expensesInRange(expenses, "airplus", range);
   const onsiteExpenseSatang = sumExpensesForChannel(expenses, "onsite", range);
   const airplusExpenseSatang = sumExpensesForChannel(expenses, "airplus", range);
+
+  // Keep the local expenses list in sync after an inline edit / delete (no re-fetch needed).
+  const onExpenseEdited = (e: ExpenseRow) =>
+    setExpenses((prev) => prev.map((x) => (x.id === e.id ? e : x)));
+  const onExpenseDeleted = (id: string) => setExpenses((prev) => prev.filter((x) => x.id !== id));
 
   // Onsite table/info view: period → search + type filter. Feeds the cards + table.
   const onsiteView = salesView(inRange, { search, status: "", type: typeFilter });
@@ -374,7 +380,12 @@ export default function SalesPage() {
               </div>
               {/* Record an expense (money out) — channel-first; on submit it lands in that channel's
                   table and lowers its net Profit above. Placed under the summary table (owner). */}
-              <ExpenseForm onCreated={(e) => setExpenses((prev) => [e, ...prev])} />
+              <ExpenseForm
+                onSubmit={async (input) => {
+                  const created = await createExpense(input);
+                  setExpenses((prev) => [created, ...prev]);
+                }}
+              />
             </>
           )}
 
@@ -395,7 +406,12 @@ export default function SalesPage() {
                   searchPlaceholder: "Search plate / car / bill / amount…",
                   showType: true,
                 })}
-                <SalesTable sales={onsiteView} expenses={onsiteExpenses} />
+                <SalesTable
+                  sales={onsiteView}
+                  expenses={onsiteExpenses}
+                  onExpenseEdited={onExpenseEdited}
+                  onExpenseDeleted={onExpenseDeleted}
+                />
               </div>
             </>
           )}
@@ -412,7 +428,12 @@ export default function SalesPage() {
                 {toolbar({
                   searchPlaceholder: "Search order / status / amount…",
                 })}
-                <AirPlusOrders orders={airplusView} expenses={airplusExpenses} />
+                <AirPlusOrders
+                  orders={airplusView}
+                  expenses={airplusExpenses}
+                  onExpenseEdited={onExpenseEdited}
+                  onExpenseDeleted={onExpenseDeleted}
+                />
               </div>
             </>
           )}
