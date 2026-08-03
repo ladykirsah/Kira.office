@@ -8,7 +8,7 @@ import { DevApiBanner } from "./DevApiBanner";
 
 export const metadata = {
   title: "Kira.office — Admin",
-  description: "Shopee Thailand back office",
+  description: "Den Air Service + AirPlus back office",
 };
 
 // Apply the saved theme before first paint to avoid a flash.
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div className="main">
               <header className="topbar">
                 <MobileNav />
-                <span className="muted topbar-tagline">Shopee Thailand back office</span>
+                <span className="muted topbar-tagline">Den Air Service + AirPlus back office</span>
                 <ThemeToggle />
               </header>
               <div className="content">

@@ -532,7 +532,7 @@ export default function AffiliateItemsPage() {
   return (
     <main>
       <PageHeader
-        title="Affiliate tools"
+        title="Affiliate Promote"
         subtitle="Mechanic-tool cards on the AirPlus storefront that link out to Shopee / Lazada with your affiliate link. The price text is display-only. Clicks are counted per card."
       />
 

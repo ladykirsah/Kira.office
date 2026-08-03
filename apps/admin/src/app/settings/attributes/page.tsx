@@ -21,7 +21,7 @@ const KINDS: AttrKindConfig[] = [
 export default function PartAttributesPage() {
   return (
     <AttributeManager
-      title="Part attributes"
+      title="Part setup"
       subtitle="Manage the lists behind a product's dropdowns (brand · car system · product category). Product categories also carry the storefront tile photo and the warranty window. You can also type a new value directly on a product — it shows up here."
       kinds={KINDS}
     />

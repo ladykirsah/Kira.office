@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageHeader } from "./PageHeader";
 import { fetchOrders, fetchShopeeWorklist, type ShopeeWorklistItem } from "@/lib/api";
+import { shopeeWorklistErrorText } from "@/lib/shopeeWorklist";
+import { DASHBOARD_CARDS } from "@/lib/dashboardCards";
 import { ShopeeWorklist } from "./ShopeeWorklist";
 import {
   ORDER_SUMMARY_CARDS,
@@ -20,15 +22,6 @@ import {
 // same reason /orders is force-dynamic.
 export const dynamic = "force-dynamic";
 
-const SECTIONS: { href: string; icon: string; title: string; desc: string }[] = [
-  { href: "/products", icon: "📦", title: "Products", desc: "Catalog, images, edit" },
-  { href: "/barcodes", icon: "🏷️", title: "Barcodes", desc: "Generate & print" },
-  { href: "/pos", icon: "🛒", title: "Point of Sale", desc: "Barcode selling (works offline)" },
-  { href: "/sales", icon: "💰", title: "Finance", desc: "Totals, VAT, profit, refunds" },
-  { href: "/orders", icon: "🧾", title: "Orders", desc: "Shopee CSV import" },
-  { href: "/terms", icon: "📝", title: "Terms", desc: "Thai T&C editor" },
-];
-
 const sectionLabel = {
   fontSize: 12,
   fontWeight: 700,
@@ -47,13 +40,15 @@ export default async function DashboardPage() {
     counts = null;
   }
 
-  // Products the owner still owes Shopee a stock update for. Same defensive stance — a failure here
-  // just hides the section rather than breaking the dashboard.
+  // Products the owner still owes Shopee a stock update for. A failure must NOT collapse into an
+  // empty list: "no work" and "we couldn't look" are different answers, and only one of them means
+  // the Shopee stock is safe to leave alone. Keep the reason and show it.
   let worklist: ShopeeWorklistItem[] = [];
+  let worklistError: string | null = null;
   try {
     worklist = await fetchShopeeWorklist();
-  } catch {
-    worklist = [];
+  } catch (e) {
+    worklistError = shopeeWorklistErrorText(e);
   }
 
   return (
@@ -118,18 +113,26 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {/* Only shown when something has actually changed since the owner last reconciled Shopee — an
-          empty list stays hidden so the dashboard doesn't carry a dead section. */}
-      {worklist.length > 0 && (
-        <section aria-label="Update on Shopee" style={{ marginTop: 34 }}>
-          <div style={{ ...sectionLabel, marginBottom: 12 }}>Update on Shopee</div>
+      {/* Always on the dashboard, even with nothing to do (owner's request, 2026-08-03): a section
+          that disappears can't be trusted — you can't tell "nothing to update" from "the block is
+          gone again". Three answers, never mixed: the checklist, "No updates.", or why we failed. */}
+      <section aria-label="Update on Shopee" style={{ marginTop: 34 }}>
+        <div style={{ ...sectionLabel, marginBottom: 12 }}>Update on Shopee</div>
+        {worklistError ? (
+          <div className="empty">
+            <div className="empty-icon" aria-hidden>
+              ⚠
+            </div>
+            <span style={{ color: "var(--danger)" }}>{worklistError}</span>
+          </div>
+        ) : (
           <ShopeeWorklist rows={worklist} />
-        </section>
-      )}
+        )}
+      </section>
 
       <div style={{ ...sectionLabel, marginTop: 34, marginBottom: 12 }}>Go to</div>
       <div className="card-grid">
-        {SECTIONS.map((s) => (
+        {DASHBOARD_CARDS.map((s) => (
           <a key={s.href} href={s.href} className="card">
             <div style={{ fontSize: 28, lineHeight: 1 }} aria-hidden>
               {s.icon}
