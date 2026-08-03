@@ -1,294 +1,122 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { CARRIERS } from "@l-shopee/core";
-import { updateAirPlusOrder, type OrderRow } from "@/lib/api";
+import { type OrderRow, type ExpenseRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
-import { airplusStatusBadge } from "@/lib/badges";
+import { operationalStatusBadge } from "@/lib/badges";
+import { sumOrderMoney } from "@/lib/salesSummary";
 import { tableText } from "@/lib/tableText";
-import { inputS } from "@/lib/inputStyles";
-import { useToast } from "../ToastProvider";
 import { TableFrame } from "../TableFrame";
+import { OrderActionsMenu } from "../orders/OrderActionsMenu";
+import { ExpenseRows } from "./ExpenseRows";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
 
-// FULFILMENT vocabulary only (Thai stored values). Money lives on payment_status (below), so the
-// two axes never contradict each other: ใหม่ → เตรียมจัดส่ง (paid, packing) → กำลังจัดส่ง → สำเร็จ,
-// plus the ยกเลิก / คืนเงิน branches. รอชำระเงิน/ชำระแล้ว deliberately are NOT here — set those on the
-// payment dropdown.
-const ORDER_STATUSES = [
-  "ใหม่",
-  "เตรียมจัดส่ง",
-  "กำลังจัดส่ง",
-  "สำเร็จ",
-  "ยกเลิก",
-  "คืนเงิน",
-] as const;
-const PAYMENT_STATUSES = ["รอชำระเงิน", "ชำระแล้ว", "เก็บเงินปลายทาง"] as const;
-
-const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
-const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
-
-/** Inline fulfillment editor for one order — status / payment / carrier / tracking, then Save. */
-function OrderEditor({
-  order,
-  onSaved,
-  onCancel,
-}: {
-  order: OrderRow;
-  onSaved: () => void | Promise<void>;
-  onCancel: () => void;
-}) {
-  const toast = useToast();
-  const currentStatus = order.orderStatus ?? "";
-  const isPreset = (ORDER_STATUSES as readonly string[]).includes(currentStatus);
-  const [statusSel, setStatusSel] = useState(isPreset ? currentStatus : "");
-  // Free-text override — wins over the select when non-empty (for one-off statuses).
-  const [statusOverride, setStatusOverride] = useState(isPreset ? "" : currentStatus);
-  const [payment, setPayment] = useState(order.paymentStatus ?? "");
-  const [carrier, setCarrier] = useState(order.carrier ?? "");
-  const [trackingNo, setTrackingNo] = useState(order.trackingNo ?? "");
-  const [busy, setBusy] = useState(false);
-
-  const effectiveStatus = statusOverride.trim() || statusSel;
-  const dirty =
-    effectiveStatus !== currentStatus ||
-    payment !== (order.paymentStatus ?? "") ||
-    carrier.trim() !== (order.carrier ?? "") ||
-    trackingNo.trim() !== (order.trackingNo ?? "");
-
-  async function save() {
-    setBusy(true);
-    try {
-      const fields: Parameters<typeof updateAirPlusOrder>[1] = {};
-      if (effectiveStatus !== currentStatus) fields.orderStatus = effectiveStatus;
-      if (payment !== (order.paymentStatus ?? "")) fields.paymentStatus = payment;
-      if (carrier.trim() !== (order.carrier ?? "")) fields.carrier = carrier.trim();
-      if (trackingNo.trim() !== (order.trackingNo ?? "")) fields.trackingNo = trackingNo.trim();
-      await updateAirPlusOrder(order.id, fields);
-      toast("Order updated", "success");
-      await onSaved();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Keep an off-vocabulary stored payment status selectable so it isn't silently lost.
-  const paymentOptions: string[] = [...PAYMENT_STATUSES];
-  if (payment && !paymentOptions.includes(payment)) paymentOptions.unshift(payment);
-
-  return (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-      <div style={fieldCol}>
-        <span style={fieldLabel}>Order status</span>
-        <select
-          aria-label="Order status"
-          value={statusSel}
-          onChange={(e) => {
-            setStatusSel(e.target.value);
-            setStatusOverride("");
-          }}
-          style={inputS}
-        >
-          <option value="">—</option>
-          {ORDER_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div style={fieldCol}>
-        <span style={fieldLabel}>Custom status (overrides)</span>
-        <input
-          value={statusOverride}
-          onChange={(e) => setStatusOverride(e.target.value)}
-          placeholder="Free text…"
-          style={{ ...inputS, width: 150 }}
-        />
-      </div>
-      <div style={fieldCol}>
-        <span style={fieldLabel}>Payment</span>
-        <select
-          aria-label="Payment status"
-          value={payment}
-          onChange={(e) => setPayment(e.target.value)}
-          style={inputS}
-        >
-          <option value="">—</option>
-          {paymentOptions.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div style={fieldCol}>
-        <span style={fieldLabel}>Carrier</span>
-        <input
-          list="airplus-carriers"
-          value={carrier}
-          onChange={(e) => setCarrier(e.target.value)}
-          placeholder="Flash Express…"
-          style={{ ...inputS, width: 150 }}
-        />
-        <datalist id="airplus-carriers">
-          {CARRIERS.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
-      </div>
-      <div style={fieldCol}>
-        <span style={fieldLabel}>Tracking no.</span>
-        <input
-          value={trackingNo}
-          onChange={(e) => setTrackingNo(e.target.value)}
-          placeholder="TH1234567890"
-          style={{ ...inputS, ...mono, width: 170 }}
-        />
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          type="button"
-          className="btn-primary btn-sm"
-          disabled={!dirty || busy}
-          onClick={save}
-        >
-          Save
-        </button>
-        <button type="button" className="btn-sm" onClick={onCancel} disabled={busy}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /**
- * AirPlus orders (the owner's own single-seller site) — the sales numbers plus inline fulfillment
- * editing: order/payment status, carrier and tracking number per row.
+ * AirPlus orders (the owner's own single-seller site) — the money numbers per order, with the
+ * same per-row "Actions ▾" dropdown the /orders table uses: View → the order's detail page, where
+ * status / carrier / tracking are edited. Finance stays a money view; fulfilment lives on /orders.
  */
 export function AirPlusOrders({
   orders,
-  onChanged,
+  expenses = [],
+  onExpenseEdited,
+  onExpenseDeleted,
 }: {
   orders: OrderRow[];
-  /** Called after a successful edit so the parent can re-fetch the orders list. */
-  onChanged?: () => void | Promise<void>;
+  /** AirPlus expenses in the period — shown as rows and subtracted from the Total's Profit. */
+  expenses?: ExpenseRow[];
+  onExpenseEdited?: (e: ExpenseRow) => void;
+  onExpenseDeleted?: (id: string) => void;
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  if (orders.length === 0) {
+  if (orders.length === 0 && expenses.length === 0) {
     return (
       <div className="empty">
         <div className="empty-icon">☁️</div>No AirPlus orders in this period.
       </div>
     );
   }
+  const totals = sumOrderMoney(orders);
+  const expenseSatang = expenses.reduce((sum, e) => sum + e.amountSatang, 0);
   return (
     <TableFrame>
-      <table>
+      <table style={{ tableLayout: "fixed", minWidth: 900 }}>
+        {/* Columns: Order ID (200) · Sales · Profit · Date · Status (160) · Action. Order ID and
+            Status are pinned to the owner's widths; the middle four flex to fill the card.
+            No inline comments between <col>s — they create whitespace text nodes (hydration error). */}
+        <colgroup>
+          <col style={{ width: 200 }} />
+          <col />
+          <col />
+          <col />
+          <col style={{ width: 160 }} />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             <th>Order ID</th>
             <th>Sales</th>
-            <th>Shipping</th>
             <th>Profit</th>
-            <th>Carrier</th>
             <th>Date</th>
             <th>Status</th>
-            <th aria-label="Actions" />
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {orders.map((o) => {
-            const badge = airplusStatusBadge(o.orderStatus);
-            const editing = editingId === o.id;
+            // Same status the /orders page shows: the owner's operational states derived from BOTH
+            // axes (order + payment), so an AirPlus row reads identically here and there.
+            const badge = operationalStatusBadge(o.orderStatus, o.paymentStatus);
             return (
-              <Fragment key={o.id}>
-                <tr>
-                  {/* Order ID + username */}
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <div style={{ ...tableText.body2, ...mono }}>{o.externalOrderId}</div>
-                    {o.buyerUsername && <div style={tableText.subtitle}>{o.buyerUsername}</div>}
-                  </td>
-                  {/* Sales = goods revenue the customer paid (shipping excluded) */}
-                  <td>
-                    {o.salesSatang != null ? (
-                      formatBahtTrim(o.salesSatang)
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  {/* Shipping the customer paid (owed onward to Flash — a pass-through) */}
-                  <td>
-                    {o.shippingFeeSatang ? (
-                      formatBahtTrim(o.shippingFeeSatang)
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  {/* Profit = Sales − cost (own site, known cost) */}
-                  <td>
-                    {o.profitSatang != null ? (
-                      formatBahtTrim(o.profitSatang)
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  {/* Carrier tag + tracking no. */}
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {o.carrier ? (
-                      <span className="pill off">{o.carrier}</span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                    {o.trackingNo && (
-                      <div style={{ ...tableText.subtitle, ...mono, marginTop: 4 }}>
-                        {o.trackingNo}
-                      </div>
-                    )}
-                  </td>
-                  {/* Ordered date + shipped date */}
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <div style={tableText.body2}>{dateTH(o.orderCreatedAt ?? o.importedAt)}</div>
-                    <div style={tableText.subtitle}>
-                      {o.shipTimeMs ? `→ ${dateTH(o.shipTimeMs)}` : "—"}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`pill ${badge.pill}`}>{badge.label}</span>
-                  </td>
-                  <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
-                    <button
-                      type="button"
-                      className="btn-sm"
-                      onClick={() => setEditingId(editing ? null : o.id)}
-                    >
-                      {editing ? "Close" : "Edit"}
-                    </button>
-                  </td>
-                </tr>
-                {editing && (
-                  <tr>
-                    <td colSpan={8}>
-                      <OrderEditor
-                        order={o}
-                        onCancel={() => setEditingId(null)}
-                        onSaved={async () => {
-                          setEditingId(null);
-                          await onChanged?.();
-                        }}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
+              <tr key={o.id}>
+                {/* Order ID */}
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <div style={{ ...tableText.body2, ...mono }}>{o.externalOrderId}</div>
+                </td>
+                {/* Sales = goods revenue the customer paid (shipping excluded) */}
+                <td>
+                  {o.salesSatang != null ? (
+                    formatBahtTrim(o.salesSatang)
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                {/* Profit = Sales − cost (own site, known cost) */}
+                <td>
+                  {o.profitSatang != null ? (
+                    formatBahtTrim(o.profitSatang)
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                {/* Ordered date */}
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <div style={tableText.body2}>{dateTH(o.orderCreatedAt ?? o.importedAt)}</div>
+                </td>
+                <td>
+                  <span className={`pill ${badge.pill}`}>{badge.label}</span>
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <OrderActionsMenu orderId={o.id} />
+                </td>
+              </tr>
             );
           })}
+          {/* Expense rows — money out; subtracted from the Total below. */}
+          <ExpenseRows
+            expenses={expenses}
+            onEdited={(e) => onExpenseEdited?.(e)}
+            onDeleted={(id) => onExpenseDeleted?.(id)}
+          />
+          {/* Total row — Σ Sales and net Profit (orders − expenses), matching the Summary table. */}
+          <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+            <td>Total</td>
+            <td>{formatBahtTrim(totals.salesSatang)}</td>
+            <td>{formatBahtTrim(totals.profitSatang - expenseSatang)}</td>
+            <td />
+            <td />
+            <td />
+          </tr>
         </tbody>
       </table>
     </TableFrame>

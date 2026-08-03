@@ -127,14 +127,87 @@ export interface ChannelSales {
   label: string;
   count: number;
   revenueSatang: number;
+  profitSatang: number;
 }
 
-/** Total count + revenue across the product-sales channels — the summary table's Total row. */
-export function totalChannelSales(rows: ChannelSales[]): { count: number; revenueSatang: number } {
+/** Total count + revenue + profit across the product-sales channels — the summary Total row. */
+export function totalChannelSales(rows: ChannelSales[]): {
+  count: number;
+  revenueSatang: number;
+  profitSatang: number;
+} {
   return rows.reduce(
-    (t, r) => ({ count: t.count + r.count, revenueSatang: t.revenueSatang + r.revenueSatang }),
-    { count: 0, revenueSatang: 0 },
+    (t, r) => ({
+      count: t.count + r.count,
+      revenueSatang: t.revenueSatang + r.revenueSatang,
+      profitSatang: t.profitSatang + r.profitSatang,
+    }),
+    { count: 0, revenueSatang: 0, profitSatang: 0 },
   );
+}
+
+/** The money fields an order row carries; OrderRow (lib/api) is structurally assignable. */
+export interface OrderMoney {
+  salesSatang?: number | null;
+  profitSatang?: number | null;
+}
+
+/** Σ sales + Σ profit across order rows (null → 0) — the AirPlus table's Total row. */
+export function sumOrderMoney(orders: OrderMoney[]): {
+  salesSatang: number;
+  profitSatang: number;
+} {
+  return orders.reduce<{ salesSatang: number; profitSatang: number }>(
+    (t, o) => ({
+      salesSatang: t.salesSatang + (o.salesSatang ?? 0),
+      profitSatang: t.profitSatang + (o.profitSatang ?? 0),
+    }),
+    { salesSatang: 0, profitSatang: 0 },
+  );
+}
+
+/** The money fields an on-site sale row carries; SaleRow (lib/api) is structurally assignable. */
+export interface SaleMoney {
+  grandTotalSatang: number;
+  grossProfitSatang: number;
+}
+
+/** Σ grandTotal + Σ grossProfit across sale rows — the Den Air Service table's Total row. */
+export function sumSaleMoney(sales: SaleMoney[]): { salesSatang: number; profitSatang: number } {
+  return sales.reduce<{ salesSatang: number; profitSatang: number }>(
+    (t, s) => ({
+      salesSatang: t.salesSatang + s.grandTotalSatang,
+      profitSatang: t.profitSatang + s.grossProfitSatang,
+    }),
+    { salesSatang: 0, profitSatang: 0 },
+  );
+}
+
+/** A logged expense (money out) tagged to a channel; ExpenseRow (lib/api) is structurally assignable. */
+export interface ExpenseLike {
+  channel: string;
+  amountSatang: number;
+  occurredAt: number;
+}
+
+/** A channel's expenses whose date falls in [startMs, endMs) — the rows its table shows this period. */
+export function expensesInRange<T extends ExpenseLike>(
+  expenses: T[],
+  channel: string,
+  range: Range,
+): T[] {
+  return expenses.filter(
+    (e) => e.channel === channel && e.occurredAt >= range.startMs && e.occurredAt < range.endMs,
+  );
+}
+
+/** Σ amount (satang) of a channel's in-range expenses — subtracted from that channel's Profit. */
+export function sumExpensesForChannel(
+  expenses: ExpenseLike[],
+  channel: string,
+  range: Range,
+): number {
+  return expensesInRange(expenses, channel, range).reduce((s, e) => s + e.amountSatang, 0);
 }
 
 /** Local YYYY-MM-DD for a timestamp — the value shape an <input type="date"> expects. */

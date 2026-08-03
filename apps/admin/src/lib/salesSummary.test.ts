@@ -9,6 +9,10 @@ import {
   matchesOrderSearch,
   ordersView,
   growthRatePct,
+  sumOrderMoney,
+  sumSaleMoney,
+  expensesInRange,
+  sumExpensesForChannel,
   type SaleLike,
 } from "./salesSummary";
 
@@ -124,17 +128,50 @@ describe("toDateInputValue", () => {
 });
 
 describe("totalChannelSales", () => {
-  it("sums count and revenue across channels", () => {
+  it("sums count, revenue and profit across channels", () => {
     const rows = [
-      { key: "onsite", label: "Onsite", count: 3, revenueSatang: 30000 },
-      { key: "shopee", label: "Shopee", count: 2, revenueSatang: 20000 },
-      { key: "airplus", label: "AirPlus", count: 0, revenueSatang: 0 },
+      { key: "onsite", label: "Onsite", count: 3, revenueSatang: 30000, profitSatang: 12000 },
+      { key: "shopee", label: "Shopee", count: 2, revenueSatang: 20000, profitSatang: 5000 },
+      { key: "airplus", label: "AirPlus", count: 0, revenueSatang: 0, profitSatang: 0 },
     ];
-    expect(totalChannelSales(rows)).toEqual({ count: 5, revenueSatang: 50000 });
+    expect(totalChannelSales(rows)).toEqual({
+      count: 5,
+      revenueSatang: 50000,
+      profitSatang: 17000,
+    });
   });
 
   it("given no channels > returns zeros", () => {
-    expect(totalChannelSales([])).toEqual({ count: 0, revenueSatang: 0 });
+    expect(totalChannelSales([])).toEqual({ count: 0, revenueSatang: 0, profitSatang: 0 });
+  });
+});
+
+describe("sumOrderMoney", () => {
+  it("sums sales and profit across orders, treating null as 0", () => {
+    const orders = [
+      { salesSatang: 145000, profitSatang: 42000 },
+      { salesSatang: 320000, profitSatang: -320000 },
+      { salesSatang: null, profitSatang: null },
+    ];
+    expect(sumOrderMoney(orders)).toEqual({ salesSatang: 465000, profitSatang: -278000 });
+  });
+
+  it("given no orders > returns zeros", () => {
+    expect(sumOrderMoney([])).toEqual({ salesSatang: 0, profitSatang: 0 });
+  });
+});
+
+describe("sumSaleMoney", () => {
+  it("sums grandTotal (as sales) and grossProfit across sale rows", () => {
+    const sales = [
+      { grandTotalSatang: 250000, grossProfitSatang: 144000 },
+      { grandTotalSatang: 180000, grossProfitSatang: 58000 },
+    ];
+    expect(sumSaleMoney(sales)).toEqual({ salesSatang: 430000, profitSatang: 202000 });
+  });
+
+  it("given no sales > returns zeros", () => {
+    expect(sumSaleMoney([])).toEqual({ salesSatang: 0, profitSatang: 0 });
   });
 });
 
@@ -260,5 +297,34 @@ describe("summarize", () => {
     const s = summarize(sales, range);
     expect(s.salesCount).toBe(1);
     expect(s.revenueSatang).toBe(100);
+  });
+});
+
+describe("expensesInRange / sumExpensesForChannel", () => {
+  const exp = (over = {}) => ({
+    channel: "airplus",
+    amountSatang: 10000,
+    occurredAt: ts(2026, 5, 17, 12),
+    ...over,
+  });
+  const range = { startMs: ts(2026, 5, 15), endMs: ts(2026, 5, 22) };
+
+  it("keeps only the matching channel within [startMs, endMs)", () => {
+    const a = exp({ channel: "airplus", amountSatang: 10000 });
+    const b = exp({ channel: "onsite", amountSatang: 5000 });
+    const before = exp({ channel: "airplus", amountSatang: 999, occurredAt: ts(2026, 5, 1) });
+    expect(expensesInRange([a, b, before], "airplus", range)).toEqual([a]);
+    expect(sumExpensesForChannel([a, b, before], "airplus", range)).toBe(10000);
+    expect(sumExpensesForChannel([a, b, before], "onsite", range)).toBe(5000);
+  });
+
+  it("given the half-open boundary > includes startMs, excludes endMs", () => {
+    const atStart = exp({ occurredAt: range.startMs });
+    const atEnd = exp({ occurredAt: range.endMs });
+    expect(sumExpensesForChannel([atStart, atEnd], "airplus", range)).toBe(10000);
+  });
+
+  it("given no expenses > sums to 0", () => {
+    expect(sumExpensesForChannel([], "airplus", range)).toBe(0);
   });
 });

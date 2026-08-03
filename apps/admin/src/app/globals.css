@@ -1,9 +1,15 @@
 /* Kira.office admin design system. Light, high-contrast (WCAG AA), touch-friendly. */
 :root {
-  /* Kira.office uses one (sans) font for everything. `inherit` makes every
-     `font-family: var(--font-mono, monospace)` resolve to the surrounding text's font, so IDs, bill
-     numbers and codes are no longer monospace (owner, 2 Aug 2026). */
-  --font-mono: inherit;
+  /* Kira.office uses one (sans) font for everything, so `var(--font-mono, monospace)` usages (IDs,
+     bill numbers, codes) render in the normal font. This MUST be the real stack, not `inherit`: a
+     CSS-wide keyword as a custom-property value makes var() fall back to monospace (owner, 2 Aug). */
+  --font-mono:
+    "IBM Plex Sans Thai",
+    "Noto Sans Thai",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   --bg: #fbfcfe;
   --surface: #ffffff;
   --border: #e3e6ea;
@@ -131,6 +137,14 @@ button:active:not(:disabled) {
   transform: scale(0.98);
 }
 button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* Locked fields read as locked — matches button:disabled. Covers a whole <fieldset disabled>
+   (e.g. POS Steps 2 & 3 while reprinting) as well as one-off disabled inputs/selects. */
+input:disabled,
+select:disabled,
+textarea:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

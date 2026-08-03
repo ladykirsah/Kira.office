@@ -1,20 +1,36 @@
 "use client";
 
-import { type SaleRow } from "@/lib/api";
+import { type SaleRow, type ExpenseRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { saleStatusPill, saleTypeBadge } from "@/lib/badges";
+import { sumSaleMoney } from "@/lib/salesSummary";
 import { tableText } from "@/lib/tableText";
 import { SalesActionsMenu } from "./SalesActionsMenu";
+import { ExpenseRows } from "./ExpenseRows";
 
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
-export function SalesTable({ sales }: { sales: SaleRow[] }) {
-  if (sales.length === 0) {
+export function SalesTable({
+  sales,
+  expenses = [],
+  onExpenseEdited,
+  onExpenseDeleted,
+}: {
+  sales: SaleRow[];
+  /** Den Air expenses in the period — money-out rows with a negative Profit. */
+  expenses?: ExpenseRow[];
+  onExpenseEdited?: (e: ExpenseRow) => void;
+  onExpenseDeleted?: (id: string) => void;
+}) {
+  if (sales.length === 0 && expenses.length === 0) {
     return (
       <div className="empty">
         <div className="empty-icon">💰</div>No sales for this view.
       </div>
     );
   }
+
+  const totals = sumSaleMoney(sales);
+  const expenseSatang = expenses.reduce((sum, e) => sum + e.amountSatang, 0);
 
   return (
     <div style={{ overflowX: "auto" }}>
@@ -31,7 +47,7 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
         <thead>
           <tr>
             <th>Job</th>
-            <th>Total</th>
+            <th>Sales</th>
             <th>Profit</th>
             <th>Date</th>
             <th>Status</th>
@@ -71,6 +87,20 @@ export function SalesTable({ sales }: { sales: SaleRow[] }) {
               </tr>
             );
           })}
+          <ExpenseRows
+            expenses={expenses}
+            onEdited={(e) => onExpenseEdited?.(e)}
+            onDeleted={(id) => onExpenseDeleted?.(id)}
+          />
+          {/* Total row — Sales = Σ bill totals, Profit = Σ gross profit − expenses (net). */}
+          <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+            <td>Total</td>
+            <td>{formatBahtTrim(totals.salesSatang)}</td>
+            <td>{formatBahtTrim(totals.profitSatang - expenseSatang)}</td>
+            <td />
+            <td />
+            <td />
+          </tr>
         </tbody>
       </table>
     </div>
