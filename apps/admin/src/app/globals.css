@@ -1143,7 +1143,9 @@ a.card:hover {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin: 16px 10px 4px;
+  /* 26px above, 4px below: a heading sits close to the group it names and well clear of the group
+     above it, so the four sections read as separate blocks rather than one long list. */
+  margin: 26px 10px 4px;
 }
 .nav-link {
   display: flex;
@@ -1153,6 +1155,12 @@ a.card:hover {
   border-radius: 10px;
   color: var(--text);
   font-size: 15px;
+}
+/* The desktop sidebar packs its rows tighter (39px instead of 45px) — the whole menu has to fit a
+   mouse-driven column without scrolling any more than it must. The phone drawer deliberately does
+   NOT inherit this: there a row is a thumb target, so it keeps the full 45px. */
+.sidebar .nav-link {
+  padding: 6px 10px;
 }
 .nav-link:hover {
   background: var(--hover);

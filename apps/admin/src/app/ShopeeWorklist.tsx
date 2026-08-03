@@ -78,7 +78,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
     return (
       <div className="empty">
         <div className="empty-icon">✓</div>
-        All caught up — nothing to update on Shopee.
+        No updates.
       </div>
     );
   }

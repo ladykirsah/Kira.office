@@ -3,6 +3,24 @@ import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
 
 const allHrefs = NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href));
 
+describe("NAV_GROUPS", () => {
+  it("groups every page by the job it does, in the owner's order (2026-08-03)", () => {
+    expect(NAV_GROUPS.map((g) => [g.section, g.links.map((l) => l.label)])).toEqual([
+      ["Daily Uses", ["Scan here", "AirPlus Orders", "Point of Sale", "Payment", "Customers"]],
+      ["Stock", ["Products", "Add product", "Barcodes", "Stock movements"]],
+      ["AirPlus Marketing", ["Affiliate Promote", "Banners", "Coupons", "Flash sales"]],
+      [
+        "Overall management",
+        ["Shop info", "Finance", "Service Setup", "Part setup", "Car fitment", "Terms"],
+      ],
+    ]);
+  });
+
+  it("lists no page twice", () => {
+    expect(new Set(allHrefs).size).toBe(allHrefs.length);
+  });
+});
+
 describe("PRIMARY_TABS", () => {
   it("is exactly the owner's four daily pages, in their order", () => {
     expect(PRIMARY_TABS.map((t) => t.href)).toEqual(["/scan", "/customers", "/pos", "/payment"]);
