@@ -2249,6 +2249,9 @@ export const BACKUP_TABLES = [
   "stock_ledger_entries",
   "sales_orders",
   "financial_records",
+  // Finance expenses (0081): money out tagged to a channel (a refund, an AI-package fee). The only
+  // record of that spend, and it feeds net Profit — irreplaceable.
+  "expenses",
   // Irreplaceable/anti-cheat data added 2026-07: the customer directory, the payment approval
   // trail, the audit log, and hand-transcribed legacy service history.
   "customers",
