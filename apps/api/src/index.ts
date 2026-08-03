@@ -50,6 +50,8 @@ import {
   normalizePaymentStatus,
   privateFileAccess,
   isSuperAdmin,
+  validateExpenseInput,
+  type ExpenseInput,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2247,6 +2249,9 @@ export const BACKUP_TABLES = [
   "stock_ledger_entries",
   "sales_orders",
   "financial_records",
+  // Finance expenses (0081): money out tagged to a channel (a refund, an AI-package fee). The only
+  // record of that spend, and it feeds net Profit — irreplaceable.
+  "expenses",
   // Irreplaceable/anti-cheat data added 2026-07: the customer directory, the payment approval
   // trail, the audit log, and hand-transcribed legacy service history.
   "customers",
@@ -3481,6 +3486,101 @@ async function querySales(db: D1Database): Promise<SaleExportRow[]> {
 
 async function listSales(env: Env): Promise<Response> {
   return json({ sales: await querySales(env.DB) });
+}
+
+// ── Finance expenses ─────────────────────────────────────────────────────────────────────────────
+// Money out tagged to one channel (see migration 0081_expenses). amount_satang is positive; the
+// negative sign is applied in the Finance UI, where it lowers that channel's (and the Total) Profit.
+interface ExpenseRow {
+  id: string;
+  channel: string;
+  conversion: string;
+  amountSatang: number;
+  note: string | null;
+  occurredAt: number;
+  createdAt: number;
+}
+
+async function queryExpenses(db: D1Database): Promise<ExpenseRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, channel, conversion, amount_satang AS amountSatang, note,
+              occurred_at AS occurredAt, created_at AS createdAt
+       FROM expenses WHERE archived = 0 ORDER BY occurred_at DESC, created_at DESC`,
+    )
+    .all<ExpenseRow>();
+  return results ?? [];
+}
+
+async function createExpenseInDb(
+  db: D1Database,
+  input: Partial<ExpenseInput>,
+): Promise<{ ok: true; expense: ExpenseRow } | { ok: false; error: string }> {
+  const reason = validateExpenseInput(input);
+  if (reason) return { ok: false, error: reason };
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const conversion = input.conversion!.trim();
+  const note =
+    typeof input.note === "string" && input.note.trim() !== "" ? input.note.trim() : null;
+  await db
+    .prepare(
+      `INSERT INTO expenses
+         (id, channel, conversion, amount_satang, note, occurred_at, created_at, archived)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+    )
+    .bind(id, input.channel!, conversion, input.amountSatang!, note, input.occurredAt!, now)
+    .run();
+  return {
+    ok: true,
+    expense: {
+      id,
+      channel: input.channel!,
+      conversion,
+      amountSatang: input.amountSatang!,
+      note,
+      occurredAt: input.occurredAt!,
+      createdAt: now,
+    },
+  };
+}
+
+async function updateExpenseInDb(
+  db: D1Database,
+  id: string,
+  input: Partial<ExpenseInput>,
+): Promise<{ ok: true; expense: ExpenseRow } | { ok: false; error: string; status: number }> {
+  const reason = validateExpenseInput(input);
+  if (reason) return { ok: false, error: reason, status: 400 };
+  const conversion = input.conversion!.trim();
+  const note =
+    typeof input.note === "string" && input.note.trim() !== "" ? input.note.trim() : null;
+  const res = await db
+    .prepare(
+      `UPDATE expenses SET channel = ?, conversion = ?, amount_satang = ?, note = ?, occurred_at = ?
+       WHERE id = ? AND archived = 0`,
+    )
+    .bind(input.channel!, conversion, input.amountSatang!, note, input.occurredAt!, id)
+    .run();
+  if (!res.meta.changes) return { ok: false, error: "expense not found", status: 404 };
+  const row = await db
+    .prepare(
+      `SELECT id, channel, conversion, amount_satang AS amountSatang, note,
+              occurred_at AS occurredAt, created_at AS createdAt
+       FROM expenses WHERE id = ?`,
+    )
+    .bind(id)
+    .first<ExpenseRow>();
+  return { ok: true, expense: row! };
+}
+
+/** Soft-delete an expense (archived = 1) — per the soft-delete invariant, no hard deletes. */
+async function archiveExpenseInDb(db: D1Database, id: string): Promise<{ ok: boolean }> {
+  const res = await db
+    .prepare(`UPDATE expenses SET archived = 1 WHERE id = ? AND archived = 0`)
+    .bind(id)
+    .run();
+  return { ok: Boolean(res.meta.changes) };
 }
 
 // ── On-site drafts & quotations ────────────────────────────────────────────────────────────────
@@ -5757,6 +5857,27 @@ const worker = {
 
     if (url.pathname === "/sales" && request.method === "GET") {
       return listSales(env);
+    }
+
+    if (url.pathname === "/finance/expenses" && request.method === "GET") {
+      return json({ expenses: await queryExpenses(env.DB) });
+    }
+    if (url.pathname === "/finance/expenses" && request.method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as Partial<ExpenseInput>;
+      const result = await createExpenseInDb(env.DB, body);
+      return json(result, result.ok ? 200 : 400);
+    }
+    const expenseId = url.pathname.match(/^\/finance\/expenses\/([^/]+)$/);
+    if (expenseId && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as Partial<ExpenseInput>;
+      const result = await updateExpenseInDb(env.DB, decodeURIComponent(expenseId[1]!), body);
+      return result.ok
+        ? json({ ok: true, expense: result.expense })
+        : json({ ok: false, error: result.error }, result.status);
+    }
+    if (expenseId && request.method === "DELETE") {
+      const result = await archiveExpenseInDb(env.DB, decodeURIComponent(expenseId[1]!));
+      return json(result, result.ok ? 200 : 404);
     }
 
     if (url.pathname === "/onsite/drafts" && request.method === "GET") {
