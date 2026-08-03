@@ -379,14 +379,7 @@ export default function SalesPage() {
                 {toolbar({
                   searchPlaceholder: "Search order / status / amount…",
                 })}
-                <AirPlusOrders
-                  orders={airplusView}
-                  onChanged={() =>
-                    fetchOrders()
-                      .then(setOrders)
-                      .catch((err) => setError((err as Error).message))
-                  }
-                />
+                <AirPlusOrders orders={airplusView} />
               </div>
             </>
           )}

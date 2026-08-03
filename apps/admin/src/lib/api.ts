@@ -1303,30 +1303,6 @@ export async function importProductsCsv(
   return (await res.json()) as ImportResult;
 }
 
-// ── AirPlus order fulfillment ────────────────────────────────────────────────────────────────────
-
-/** Patch an AirPlus order's fulfillment fields; returns the updated row. */
-export async function updateAirPlusOrder(
-  id: string,
-  fields: {
-    orderStatus?: string;
-    paymentStatus?: string;
-    carrier?: string;
-    trackingNo?: string;
-  },
-): Promise<OrderRow> {
-  const res = await apiFetch(`/orders/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(fields),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `Update order failed (HTTP ${res.status})`);
-  }
-  return ((await res.json()) as { order: OrderRow }).order;
-}
-
 // ── Storefront banners (hero carousel + promo strip) ─────────────────────────────────────────────
 
 export interface BannerRow {
