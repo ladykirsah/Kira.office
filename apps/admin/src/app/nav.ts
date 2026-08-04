@@ -1,3 +1,5 @@
+import type { StaffRole } from "@l-shopee/core";
+
 /**
  * The one description of the admin's navigation — used by the desktop sidebar and by the phone
  * menu (bottom bar + drawer), so the two can never drift apart.
@@ -68,6 +70,9 @@ export const NAV_GROUPS: NavGroup[] = [
     section: "Overall management",
     links: [
       { href: "/settings/shop", icon: "🏪", label: "Shop info" },
+      // Next to Shop info (owner, 2026-08-04): the shop and the people in it are the same errand.
+      // Super admin only.
+      { href: "/settings/staff", icon: "👤", label: "Staff" },
       { href: "/sales", icon: "💰", label: "Finance" },
       { href: "/settings/services", icon: "🔧", label: "Service Setup" },
       // Warranty used to be its own entry; it now lives on the Product categories card on Part
@@ -78,6 +83,47 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * The menu as one role sees it.
+ *
+ * HIDDEN MEANS ABSENT, not greyed out (owner, 2026-08-03) — a disabled row still tells a mechanic
+ * that a Finance page exists. And this is only the MENU: every rule below is enforced again in the
+ * API, because a link nobody can see is not a permission.
+ *
+ * A section that loses all its links disappears with them; a bare "Overall management" heading with
+ * nothing under it looks like a bug.
+ */
+const HIDDEN_FROM: Record<StaffRole, ReadonlySet<string>> = {
+  super_admin: new Set(),
+  // An admin runs the shop but not the books, and never the people.
+  admin: new Set(["/sales", "/settings/staff"]),
+  // A mechanic gets the counter and the stock they touch. No catalogue editing (Add product,
+  // Barcodes), no marketing, no settings, no money.
+  mechanic: new Set([
+    "/products/new",
+    "/barcodes",
+    "/settings/affiliate-items",
+    "/settings/banners",
+    "/settings/coupons",
+    "/settings/campaigns",
+    "/settings/shop",
+    "/sales",
+    "/settings/services",
+    "/settings/attributes",
+    "/settings/car-fitment",
+    "/terms",
+    "/settings/staff",
+  ]),
+};
+
+export function navGroupsFor(role: StaffRole): NavGroup[] {
+  const hidden = HIDDEN_FROM[role];
+  return NAV_GROUPS.map((g) => ({
+    section: g.section,
+    links: g.links.filter((l) => !hidden.has(l.href)),
+  })).filter((g) => g.links.length > 0);
+}
 
 const byHref = new Map(NAV_GROUPS.flatMap((g) => g.links).map((l) => [l.href, l]));
 

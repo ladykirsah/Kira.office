@@ -75,25 +75,32 @@ export async function POST(req: Request): Promise<Response> {
     const env = await getEnv();
 
     // Keep the uploaded slip as back-office evidence. Namespace `slip/` is served super-admin-only
-    // via apps/api's private /file route — a bank slip is financial PII, never public. Best-effort:
-    // if there is no image or no bucket binding, verification below is unaffected. A dedicated,
-    // unconditional UPDATE records the key so a re-upload after `verifying` still refreshes it.
-    let slipImageKey: string | null = null;
-    if (env.IMAGES && slipFile instanceof File && slipFile.size > 0) {
-      slipImageKey = `slip/${order.id}/${crypto.randomUUID()}.jpg`;
-      await env.IMAGES.put(slipImageKey, await slipFile.arrayBuffer(), {
-        httpMetadata: { contentType: slipFile.type || "image/jpeg" },
-      });
-    }
-    const recordSlipKey = slipImageKey
-      ? [
-          db
-            .prepare(
-              `UPDATE sales_orders SET slip_image_key = ? WHERE id = ? AND channel = 'airplus'`,
-            )
-            .bind(slipImageKey, order.id),
-        ]
-      : [];
+    // via apps/api's private /file route — a bank slip is financial PII, never public.
+    //
+    // NOT best-effort any more (owner's locked rule, 2026-08-04): every slip is approved before an
+    // order becomes To ship, so an order must never enter `verifying` without an image to approve.
+    // It used to: a readable QR with no file, or a missing bucket binding, moved the order to
+    // `verifying` with slip_image_key NULL — which also stopped the 48-hour expiry clock on an
+    // order nobody could prove was paid. Failing here leaves it `pending`, so the clock runs and
+    // the customer is told to send the slip again.
+    if (!(slipFile instanceof File) || slipFile.size === 0)
+      return Response.json({ error: "กรุณาแนบรูปสลิปโอนเงิน" }, { status: 400 });
+    if (!env.IMAGES)
+      return Response.json(
+        { error: "ระบบรับสลิปขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง" },
+        { status: 503 },
+      );
+
+    const slipImageKey = `slip/${order.id}/${crypto.randomUUID()}.jpg`;
+    await env.IMAGES.put(slipImageKey, await slipFile.arrayBuffer(), {
+      httpMetadata: { contentType: slipFile.type || "image/jpeg" },
+    });
+    // A dedicated UPDATE records the key, so a re-upload after `verifying` still refreshes it.
+    const recordSlipKey = [
+      db
+        .prepare(`UPDATE sales_orders SET slip_image_key = ? WHERE id = ? AND channel = 'airplus'`)
+        .bind(slipImageKey, order.id),
+    ];
 
     if (!slipVerificationConfigured(env)) {
       // Manual-review mode (this is what runs today — SlipOK is not configured). Keep the payload

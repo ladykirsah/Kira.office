@@ -38,10 +38,16 @@ their labels are `--text-muted` ~13px. Status is never color-only — pair with 
 - **Tables** — equal padding on all four sides (general 12px, pricing `.ptbl` 14px, fitment `.ftbl`
   8px). No first/last-child padding zeroing. Pricing tables use **margin bars** (`.mwrap`/`.mtrack`/
   `.mfill.good|warn|bad`/`.mpct`) and bold profit; the online row gets a coral accent.
+  Any table that **lists records** follows the locked list-table pattern below.
 - **Tags** — `.tag`: filled (`background --code-bg`, `font-weight 500`, `padding 4px 11px`) for part
   details. Skimmable, not plain text.
 - **Pills** — `.pill.soft` (primary-soft bg + primary text) for non-status chips like
   `scratch · not saved`; `.pill.good|warn|bad` for margin/health. Coral, not amber, for "soft."
+- **File picker — LOCKED (owner, 4 Aug 2026).** Never a bare `<input type="file">`: the browser
+  draws its own grey "Choose File / No file chosen" chip in its own font and size, ignoring every
+  token here. Use `FilePickButton` (`app/FilePickButton.tsx`) — a hidden input clicked by a real
+  `.btn-sm` reading `＋ Choose…`, which becomes `＋ <filename>` once something is picked. Affiliate
+  Promote is where this started and is the reference.
 - **Image frames** — `.frame` / `.frame.empty` (the "+ Add" tile) / `.cover-badge` / `.frame-x`
   (remove) in edit mode; the view-mode gallery is a 350px main image + a 350px-tall column of 110px
   thumbnails in rows of 3 (3×110 + 2×10 gap = 350), active thumb gets a 2px coral border.
@@ -54,6 +60,50 @@ their labels are `--text-muted` ~13px. Status is never color-only — pair with 
   (`lib/inputStyles.ts`, floored to 32px). Header actions are plain white buttons; always set
   `type="button"` on non-submit buttons. (Heights are measured, not the `min-height` values — the base
   `input` min-height is 40px, so `inputS` needs its own 32px floor to match the S buttons.)
+
+## List table — LOCKED (owner's brief, 4 Aug 2026)
+
+The products table is the reference implementation (`apps/admin/src/app/products/ProductsTable.tsx`
++ the `.products-*` rules in `globals.css`). Every screen that lists records — staff, orders,
+customers, stock movements — copies this shape. Change it here first, then everywhere; don't fork a
+second table style per page.
+
+**1. Tabs above the frame.** `.tabs` / `.tab`, one per meaningful subset, each label carrying its
+count: `All (3)`, `Out of stock (3)`. Active = coral text + 2px coral bottom border, and only the
+active tab is coral — see the red-is-active rule. A tab with 0 rows still shows; the zero is the
+answer.
+
+**2. One framed section holds toolbar + table.** `border:1px solid --border`, `border-radius:8px`,
+`padding:18px`, `background:--surface`. Nothing floats outside it.
+
+**3. Toolbar, top of the frame.** Flex row, `gap:10px`, wrap, `margin-bottom:12px`. Free-text search
+first (`.tbar-input`, S size, 240px), then `Sort by…`, then a filter select that appears **only**
+once a sort dimension is picked. Unset controls read `--text-faint` / weight 400; once set they go
+`--text` / weight 500, so you can see at a glance whether a filter is on.
+
+**4. Fixed layout, frozen identity column.** `table-layout:fixed`, `width:100%`, and a `min-width`
+that forces horizontal scroll inside `.products-scroll` rather than squeezing cells. A `<colgroup>`
+gives the identity column the slack and every other column a fixed px width. The identity column is
+`.freeze-col` — sticky left on `--surface`; its divider shadow appears only while the table actually
+overflows (the `.frozen` class), so it never draws a line for nothing.
+
+**5. The identity cell is picture + name + tags.** 56px square thumbnail (`--hover` background,
+6px radius, emoji placeholder when there's no image), the name as a 600-weight link on one line with
+ellipsis and a `title` holding the full text, and under it a row of `.tag.tag-sm` chips. No tags → a
+`tableText.subtitle` line with the reference code instead. The cell is never just text.
+
+**6. Cells state their type.** `th` is 12px/600/muted with a 2px bottom rule; `td` is 12px padding,
+1px rule, middle-aligned, hovering to `--hover` (the frozen cell hovers with it). Numbers are
+centred or right-aligned per column, and **an empty value is an em dash in `.muted`, never a blank
+cell** — blank reads as broken.
+
+**7. Status is a pill; actions are one menu.** The state column uses a pill/tag, never colour alone.
+The last column is a single `Actions` dropdown — not a row of buttons that grows every time
+something is added. Inline editors (stock, price) live in their own cell and keep a neutral focus
+ring.
+
+**8. Empty state, not an empty table.** `.empty` with an emoji and a sentence that distinguishes
+"nothing exists yet" from "nothing matches this filter" — they need different next steps.
 
 ## Formatting
 

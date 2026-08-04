@@ -40,6 +40,8 @@ export * from "./operationalStatus";
 export * from "./orderStages";
 export * from "./orderDocuments";
 export * from "./access";
+export * from "./staffAuth";
+export * from "./staffPay";
 export * from "./claimState";
 export * from "./legacyStatus";
 export * from "./orderMoney";

@@ -1,10 +1,9 @@
 import "./globals.css";
 import type { ReactNode } from "react";
-import { Sidebar } from "./Sidebar";
-import { MobileNav } from "./MobileNav";
-import { ThemeToggle } from "./ThemeToggle";
 import { ToastProvider } from "./ToastProvider";
-import { DevApiBanner } from "./DevApiBanner";
+import { AppShell } from "./AppShell";
+import { StaffChip } from "./StaffChip";
+import { currentStaff } from "@/lib/staffSession";
 
 export const metadata = {
   title: "Kira.office — Admin",
@@ -14,26 +13,19 @@ export const metadata = {
 // Apply the saved theme before first paint to avoid a flash.
 const themeScript = `try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Read once here rather than in every page: the top bar shows who is signed in on every screen,
+  // which is what makes a shared counter tablet safe to use.
+  const staff = await currentStaff();
+
   return (
     <html lang="th" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ToastProvider>
-          <div className="app-shell">
-            <Sidebar />
-            <div className="main">
-              <header className="topbar">
-                <MobileNav />
-                <span className="muted topbar-tagline">Den Air Service + AirPlus back office</span>
-                <ThemeToggle />
-              </header>
-              <div className="content">
-                <DevApiBanner />
-                {children}
-              </div>
-            </div>
-          </div>
+          <AppShell role={staff?.role} identity={staff ? <StaffChip staff={staff} /> : null}>
+            {children}
+          </AppShell>
         </ToastProvider>
       </body>
     </html>

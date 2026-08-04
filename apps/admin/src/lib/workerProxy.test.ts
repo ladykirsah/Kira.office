@@ -5,6 +5,7 @@ import {
   workerProxyResponseHeaders,
   fetchUpstream,
   ACCESS_JWT_HEADER,
+  STAFF_SESSION_HEADER,
 } from "./workerProxy";
 
 describe("buildWorkerProxyUrl", () => {
@@ -125,5 +126,29 @@ describe("workerProxyResponseHeaders", () => {
     expect(out.get("transfer-encoding")).toBeNull();
     expect(out.get("content-type")).toBe("application/json");
     expect(out.get("access-control-allow-origin")).toBe("*");
+  });
+});
+
+describe("workerProxyForwardHeaders > staff session", () => {
+  it("turns the session cookie into the header the API reads", () => {
+    // The browser holds a cookie on the admin origin; the API is a different host and reads a
+    // header. Without this translation every proxied call arrives unauthenticated.
+    const out = workerProxyForwardHeaders(
+      new Headers({ cookie: "theme=dark; kira_staff=abc123; other=1" }),
+    );
+    expect(out.get(STAFF_SESSION_HEADER)).toBe("abc123");
+  });
+
+  it("sends no session header when there is no session cookie", () => {
+    const out = workerProxyForwardHeaders(new Headers({ cookie: "theme=dark" }));
+    expect(out.get(STAFF_SESSION_HEADER)).toBeNull();
+    expect(workerProxyForwardHeaders(new Headers()).get(STAFF_SESSION_HEADER)).toBeNull();
+  });
+
+  it("never forwards the raw cookie header itself", () => {
+    // Cookies are for the admin origin. Passing them to the API would hand another host the
+    // session token in a form it has no reason to see.
+    const out = workerProxyForwardHeaders(new Headers({ cookie: "kira_staff=abc123" }));
+    expect(out.get("cookie")).toBeNull();
   });
 });

@@ -66,6 +66,16 @@ export interface Env {
   /** Set both to enable Cloudflare Access JWT enforcement (defense-in-depth). Unset = open. */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  /**
+   * Staff logins (0082/0083). Both are secrets, set with `wrangler secret put`:
+   *  · STAFF_SECRET_KEY — 32 hex bytes; encrypts the readable copy of each staff password. Kept out
+   *    of D1 so a stolen database reveals nothing. Losing it breaks only the reveal, never a login.
+   *  · STAFF_PIN_PEPPER — mixed into the 6-digit PIN before storage, so the database cannot be
+   *    scanned for PINs offline.
+   * Unset ⇒ the reveal and PIN login are unavailable; email + password still works.
+   */
+  STAFF_SECRET_KEY?: string;
+  STAFF_PIN_PEPPER?: string;
   /** SlipOK slip-verification credentials — set both to enable Payment auto-confirm. */
   SLIPOK_API_KEY?: string;
   SLIPOK_BRANCH_ID?: string;
@@ -85,6 +95,39 @@ export interface Env {
   ALLOWED_CORS_ORIGINS?: string;
 }
 
+import {
+  loginStaff,
+  loginWithPin,
+  requireStaff,
+  revokeStaffSession,
+  STAFF_SESSION_HEADER,
+} from "./staffSession";
+import {
+  listStaff,
+  createStaff,
+  setStaffPassword,
+  updateStaff,
+  ownProfile,
+  changeOwnPassword,
+  setOwnPin,
+  recordDayOff,
+  revealPassword,
+  deleteStaff,
+  salaryMonth,
+  markSalaryPaid,
+  salarySlipKey,
+  purgeExpiredSalarySlips,
+  staffPayments,
+  staffActivity,
+  staffProfileFor,
+  updateStaffProfile,
+  clearStaffPin,
+  setStaffPin,
+  type StaffProfileInput,
+  type DayOffInput,
+  type CreateStaffInput,
+  type UpdateStaffInput,
+} from "./staffRoutes";
 export { resolveActor, requireRole, type ActorContext } from "./auth";
 
 interface SyncLine {
@@ -2296,6 +2339,13 @@ export const BACKUP_TABLES = [
   "affiliate_items",
   "affiliate_categories",
   "affiliate_clicks",
+  // Staff records (0083). These are employment history, not transient auth state: a payslip is
+  // proof of what someone was paid and a day-off row is what that figure was calculated from, so
+  // losing them loses the ability to answer a payroll question. `staff_sessions` is deliberately
+  // NOT here — see BACKUP_EXCLUSIONS; restoring session tokens would revive revoked logins.
+  "staff_days_off",
+  "staff_payslips",
+  "staff_activity",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
@@ -3032,6 +3082,24 @@ export async function updateOrder(
     };
   }
 
+  // `paid` is not a status anyone types in — it is what approving a slip produces. Without this an
+  // order could be moved to paid (and so To ship) with no evidence behind it, which is the one thing
+  // the owner's rule forbids. Only the literal transfer status is gated: COD is a separate flow and
+  // its cod_* statuses legitimately have no slip.
+  if ("paymentStatus" in patch && patch.paymentStatus === "paid") {
+    const slip = await db
+      .prepare(`SELECT slip_image_key AS slipImageKey FROM sales_orders WHERE id = ?`)
+      .bind(id)
+      .first<{ slipImageKey: string | null }>();
+    if (!slip?.slipImageKey) {
+      return {
+        ok: false,
+        code: 409,
+        reason: "this order has no slip, so it cannot be marked paid",
+      };
+    }
+  }
+
   const norm = (v: string | null | undefined): string | null => {
     const s = typeof v === "string" ? v.trim() : "";
     return s || null;
@@ -3117,15 +3185,27 @@ export async function reviewOrderPayment(
 ): Promise<ReviewPaymentResult> {
   const order = await db
     .prepare(
-      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus
+      `SELECT id, order_status AS orderStatus, payment_status AS paymentStatus,
+              slip_image_key AS slipImageKey
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(id)
-    .first<{ id: string; orderStatus: string | null; paymentStatus: string | null }>();
+    .first<{
+      id: string;
+      orderStatus: string | null;
+      paymentStatus: string | null;
+      slipImageKey: string | null;
+    }>();
   if (!order) return { ok: false, code: 404, reason: "not found" };
   // Only a slip actually awaiting review can be decided here — never re-open a settled order.
   if (order.paymentStatus !== "verifying")
     return { ok: false, code: 409, reason: "this order is not awaiting slip review" };
+  // The owner's rule, locked: every slip is approved before an order becomes To ship. A slip that
+  // does not exist cannot be approved — so confirming without one is refused, and the order stays
+  // unpaid with its 48-hour clock. REJECT is deliberately still allowed below: "no slip arrived" is
+  // exactly the case you reject.
+  if (decision === "confirm" && !order.slipImageKey)
+    return { ok: false, code: 409, reason: "this order has no slip to approve" };
 
   if (decision === "reject") {
     const note = (reason ?? "").trim();
@@ -5824,6 +5904,190 @@ const worker = {
       });
     }
 
+    // ── Staff logins ────────────────────────────────────────────────────────────────────────────
+    // PUBLIC, and they have to be: a login endpoint you must already be logged in to reach is no
+    // use at cutover. Nothing here reads business data — the worst an anonymous caller can do is
+    // spend one of the three attempts that lock the account for a day.
+    if (url.pathname === "/staff/login" && request.method === "POST") {
+      const body = await readJson<{ email?: string; password?: string }>(request);
+      const out = await loginStaff(env.DB, body?.email ?? "", body?.password ?? "", Date.now());
+      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
+      return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
+    }
+
+    // The PIN arrives with NO email — see loginWithPin for why that needs a peppered lookup.
+    if (url.pathname === "/staff/login-pin" && request.method === "POST") {
+      if (!env.STAFF_PIN_PEPPER) return json({ error: "pin_login_unavailable" }, 503);
+      const body = await readJson<{ pin?: string }>(request);
+      const out = await loginWithPin(env.DB, body?.pin ?? "", Date.now(), env.STAFF_PIN_PEPPER);
+      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
+      return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
+    }
+
+    // ── Everything below needs a live staff session ─────────────────────────────────────────────
+    // During the transition BOTH gates run: Cloudflare Access still guards the edge, and a staff
+    // session is what identifies the person. Once Access comes off (Phase 5) this is the only gate,
+    // which is why it fails closed.
+    if (url.pathname.startsWith("/staff")) {
+      const who = await requireStaff(request, env);
+      if (who instanceof Response) return who;
+
+      if (url.pathname === "/staff/me" && request.method === "GET") return json({ staff: who });
+
+      // Everyone's own profile — no role check, because it is theirs.
+      if (url.pathname === "/staff/me/profile" && request.method === "GET") {
+        return ownProfile(env.DB, who, env.STAFF_SECRET_KEY ?? "");
+      }
+      if (url.pathname === "/staff/me/password" && request.method === "POST") {
+        const body = await readJson<{ password?: string }>(request);
+        return changeOwnPassword(
+          env.DB,
+          who,
+          body?.password ?? "",
+          Date.now(),
+          env.STAFF_SECRET_KEY ?? "",
+        );
+      }
+      if (url.pathname === "/staff/me/pin" && request.method === "POST") {
+        const body = await readJson<{ pin?: string }>(request);
+        return setOwnPin(
+          env.DB,
+          who,
+          body?.pin ?? "",
+          Date.now(),
+          env.STAFF_PIN_PEPPER ?? "",
+          env.STAFF_SECRET_KEY ?? "",
+        );
+      }
+      if (url.pathname === "/staff/me/day-off" && request.method === "POST") {
+        const body = await readJson<DayOffInput>(request);
+        return recordDayOff(env.DB, who, body ?? {}, Date.now());
+      }
+
+      if (url.pathname === "/staff/logout" && request.method === "POST") {
+        const token = request.headers.get(STAFF_SESSION_HEADER);
+        if (token) await revokeStaffSession(env.DB, token, Date.now());
+        return json({ ok: true });
+      }
+
+      if (url.pathname === "/staff" && request.method === "GET") return listStaff(env.DB, who);
+
+      // Salary run for one month, and marking a person paid for it.
+      if (url.pathname === "/staff/salary" && request.method === "GET") {
+        return salaryMonth(env.DB, who, url.searchParams.get("month") ?? "");
+      }
+      // Confirming a payment carries its proof: the transfer slip is the raw body, the month is a
+      // query param. Same shape as the refund slips above, and the image lands in R2 before the
+      // payslip is written — so a payslip never claims a slip that failed to upload.
+      const paid = url.pathname.match(/^\/staff\/([^/]+)\/salary-paid$/);
+      if (paid && request.method === "POST") {
+        const period = url.searchParams.get("period") ?? "";
+        const bytes = await request.arrayBuffer();
+        const contentType = request.headers.get("content-type") ?? "";
+        if (!bytes.byteLength || !contentType.startsWith("image/")) {
+          return json({ error: "a transfer slip image is required" }, 400);
+        }
+        const key = `salary-slip/${paid[1]!}/${period}/${crypto.randomUUID()}.jpg`;
+        await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+        return markSalaryPaid(env.DB, who, paid[1]!, period, Date.now(), key);
+      }
+
+      // One person's wage history. Lives on the person, not the salary run — see staffPayments.
+      const payments = url.pathname.match(/^\/staff\/([^/]+)\/payments$/);
+      if (payments && request.method === "GET") {
+        return staffPayments(env.DB, who, payments[1]!);
+      }
+
+      // The slip image itself. The owner, or the person it paid — see salarySlipKey. Everything
+      // that isn't a slip you may see is one 404, so this can't be used to probe payment history.
+      const slip = url.pathname.match(/^\/staff\/([^/]+)\/salary-slip$/);
+      if (slip && request.method === "GET") {
+        const key = await salarySlipKey(
+          env.DB,
+          who,
+          slip[1]!,
+          url.searchParams.get("period") ?? "",
+        );
+        if (!key) return json({ error: "not found" }, 404);
+        // retryRead for the same reason product images use it: R2 intermittently throws (10001),
+        // and a wage slip that fails to load once looks like a slip that was never uploaded.
+        const object = await retryRead(() => env.IMAGES.get(key));
+        if (!object) return json({ error: "not found" }, 404);
+        return new Response(object.body, {
+          headers: {
+            ...responseHeaders,
+            "content-type": object.httpMetadata?.contentType ?? "image/jpeg",
+            // Private: a wage slip carries both parties' bank details, so no shared cache ever.
+            "cache-control": "private, max-age=60",
+          },
+        });
+      }
+
+      if (url.pathname === "/staff/activity" && request.method === "GET") {
+        return staffActivity(env.DB, who, {
+          userId: url.searchParams.get("person") || undefined,
+          period: url.searchParams.get("month") || undefined,
+        });
+      }
+
+      if (url.pathname === "/staff" && request.method === "POST") {
+        const body = await readJson<CreateStaffInput>(request);
+        return createStaff(env.DB, who, body ?? {}, Date.now());
+      }
+
+      const pw = url.pathname.match(/^\/staff\/([^/]+)\/password$/);
+      if (pw && request.method === "POST") {
+        const body = await readJson<{ password?: string }>(request);
+        return setStaffPassword(
+          env.DB,
+          who,
+          pw[1]!,
+          body?.password ?? "",
+          Date.now(),
+          env.STAFF_SECRET_KEY ?? "",
+        );
+      }
+      if (pw && request.method === "GET") {
+        return revealPassword(env.DB, who, pw[1]!, env.STAFF_SECRET_KEY ?? "");
+      }
+
+      const prof = url.pathname.match(/^\/staff\/([^/]+)\/profile$/);
+      if (prof && request.method === "GET") {
+        return staffProfileFor(env.DB, who, prof[1]!, env.STAFF_SECRET_KEY ?? "");
+      }
+      if (prof && request.method === "PATCH") {
+        const body = await readJson<StaffProfileInput>(request);
+        return updateStaffProfile(env.DB, who, prof[1]!, body ?? {}, Date.now());
+      }
+      const pin = url.pathname.match(/^\/staff\/([^/]+)\/pin$/);
+      if (pin && request.method === "DELETE") {
+        return clearStaffPin(env.DB, who, pin[1]!, Date.now());
+      }
+      if (pin && request.method === "POST") {
+        const body = await readJson<{ pin?: string }>(request);
+        return setStaffPin(
+          env.DB,
+          who,
+          pin[1]!,
+          body?.pin ?? "",
+          Date.now(),
+          env.STAFF_PIN_PEPPER ?? "",
+          env.STAFF_SECRET_KEY ?? "",
+        );
+      }
+
+      const one = url.pathname.match(/^\/staff\/([^/]+)$/);
+      if (one && request.method === "DELETE") {
+        return deleteStaff(env.DB, who, one[1]!, Date.now());
+      }
+      if (one && request.method === "PATCH") {
+        const body = await readJson<UpdateStaffInput>(request);
+        return updateStaff(env.DB, who, one[1]!, body ?? {}, Date.now());
+      }
+
+      return json({ error: "not found" }, 404);
+    }
+
     const isPublic = url.pathname.startsWith("/img/");
     let userEmail: string | null = null;
     if (!isPublic) {
@@ -7219,6 +7483,11 @@ const worker = {
 
     const expired = await expireUnpaidOrders(env.DB, controller.scheduledTime);
     if (expired > 0) console.log(`expired ${expired} unpaid orders`);
+
+    // Wage slips are kept three months and no longer (owner, 2026-08-04). The payslip records
+    // themselves are never touched — only the images hanging off them.
+    const slips = await purgeExpiredSalarySlips(env.DB, env.IMAGES, controller.scheduledTime);
+    if (slips > 0) console.log(`purged ${slips} wage slips past their three months`);
   },
 } satisfies ExportedHandler<Env>;
 

@@ -1,0 +1,273 @@
+"use client";
+
+import { useState } from "react";
+import { useToast } from "../ToastProvider";
+
+export interface Profile {
+  id: string;
+  name: string;
+  nameTh: string | null;
+  nameEn: string | null;
+  email: string;
+  role: string;
+  phone: string | null;
+  emergencyPhone: string | null;
+  emergencyName: string | null;
+  startedOn: number | null;
+  dayRateSatang: number | null;
+  bankName: string | null;
+  bankAccountNo: string | null;
+  bankAccountName: string | null;
+  password: string | null;
+  hasPin: number;
+}
+
+const baht = (satang: number) => `฿${(satang / 100).toLocaleString("en-US")}`;
+const thaiDate = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+/** A read-only row. Everything here is the owner's to change, not the staff member's. */
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <>
+      <dt className="muted">{label}</dt>
+      <dd style={{ margin: 0 }}>{value ?? <span className="faint">—</span>}</dd>
+    </>
+  );
+}
+
+export function MyProfile({ profile }: { profile: Profile }) {
+  const toast = useToast();
+  const [shown, setShown] = useState(false);
+  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const [day, setDay] = useState("");
+  const [halves, setHalves] = useState<1 | 2>(2);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function post(path: string, body: unknown, okMessage: string, after: () => void) {
+    setBusy(path);
+    try {
+      const res = await fetch(`/api/worker/staff/me/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error || "That didn't work. Try again.", "error");
+        return;
+      }
+      toast(okMessage, "success");
+      after();
+    } catch {
+      toast("Couldn't reach the server.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 560 }}>
+      <section className="card">
+        <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Your details</h2>
+        <dl
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(120px,auto) 1fr",
+            gap: "10px 16px",
+            margin: 0,
+          }}
+        >
+          <Row label="ชื่อ (Thai)" value={profile.nameTh} />
+          <Row label="Name (English)" value={profile.nameEn} />
+          <Row label="Email" value={profile.email} />
+          <Row label="Phone" value={profile.phone} />
+          <Row
+            label="Emergency contact"
+            value={
+              profile.emergencyPhone ? (
+                <>
+                  {profile.emergencyPhone}
+                  {profile.emergencyName && (
+                    <span className="faint"> · {profile.emergencyName}</span>
+                  )}
+                </>
+              ) : null
+            }
+          />
+          <Row label="Started" value={profile.startedOn ? thaiDate(profile.startedOn) : null} />
+        </dl>
+        <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
+          Ask the owner to change any of these.
+        </p>
+      </section>
+
+      <section className="card">
+        <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Signing in</h2>
+
+        <div style={{ marginBottom: 16 }}>
+          <div className="muted" style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Password
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <code style={{ fontSize: 15, padding: "6px 10px" }}>
+              {shown ? (profile.password ?? "—") : "••••••••••"}
+            </code>
+            <button type="button" className="btn-sm" onClick={() => setShown((v) => !v)}>
+              {shown ? "Hide" : "Show"}
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              placeholder="New password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ flex: 1, minWidth: 180 }}
+            />
+            <button
+              type="button"
+              className="btn-soft"
+              disabled={busy === "password" || password.length < 8}
+              onClick={() =>
+                post("password", { password }, "Password changed", () => {
+                  setPassword("");
+                  location.reload();
+                })
+              }
+            >
+              {busy === "password" ? "Saving…" : "Change"}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div className="muted" style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            6-digit PIN {profile.hasPin ? "" : "— not set yet"}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="••••••"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              style={{ width: 130, letterSpacing: "0.3em", textAlign: "center" }}
+            />
+            <button
+              type="button"
+              className="btn-soft"
+              disabled={busy === "pin" || !/^\d{6}$/.test(pin)}
+              onClick={() =>
+                post("pin", { pin }, "PIN set", () => {
+                  setPin("");
+                  location.reload();
+                })
+              }
+            >
+              {busy === "pin" ? "Saving…" : profile.hasPin ? "Change PIN" : "Set PIN"}
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 12.5, margin: "8px 0 0" }}>
+            The PIN signs you in on its own — no email needed. Three wrong tries locks the account
+            for 24 hours.
+          </p>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>Day off</h2>
+        <p className="muted" style={{ fontSize: 13.5, margin: "0 0 14px" }}>
+          Tell us and it comes off the month&rsquo;s working days. No approval needed.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label
+              className="muted"
+              style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
+            >
+              Date
+            </label>
+            <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+          </div>
+          <div>
+            <label
+              className="muted"
+              style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
+            >
+              How much
+            </label>
+            <select value={halves} onChange={(e) => setHalves(Number(e.target.value) as 1 | 2)}>
+              <option value={2}>Full day</option>
+              <option value={1}>Half day</option>
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <label
+              className="muted"
+              style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
+            >
+              Reason <span className="faint">(optional)</span>
+            </label>
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy === "day-off" || !day}
+            onClick={() =>
+              post(
+                "day-off",
+                { day, halves, reason: reason || undefined },
+                "Day off recorded",
+                () => {
+                  setDay("");
+                  setReason("");
+                },
+              )
+            }
+          >
+            {busy === "day-off" ? "Saving…" : "Record"}
+          </button>
+        </div>
+      </section>
+
+      {profile.dayRateSatang != null && (
+        <section className="card">
+          <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Salary</h2>
+          <dl
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(120px,auto) 1fr",
+              gap: "10px 16px",
+              margin: 0,
+            }}
+          >
+            <Row label="Day rate" value={`${baht(profile.dayRateSatang)} / day`} />
+            <Row label="Paid" value="5th of each month" />
+            <Row
+              label="Bank"
+              value={
+                profile.bankAccountNo ? (
+                  <>
+                    {profile.bankName} ····{profile.bankAccountNo.slice(-4)}
+                    {profile.bankAccountName && (
+                      <span className="faint"> · {profile.bankAccountName}</span>
+                    )}
+                  </>
+                ) : null
+              }
+            />
+          </dl>
+        </section>
+      )}
+    </div>
+  );
+}

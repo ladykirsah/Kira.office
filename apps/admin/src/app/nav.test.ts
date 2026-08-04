@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
+import { NAV_GROUPS, PRIMARY_TABS, activeHref, navGroupsFor, nextBarVisible } from "./nav";
+import type { StaffRole } from "@l-shopee/core";
 
 const allHrefs = NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href));
 
@@ -11,7 +12,7 @@ describe("NAV_GROUPS", () => {
       ["AirPlus Marketing", ["Affiliate Promote", "Banners", "Coupons", "Flash sales"]],
       [
         "Overall management",
-        ["Shop info", "Finance", "Service Setup", "Part setup", "Car fitment", "Terms"],
+        ["Shop info", "Staff", "Finance", "Service Setup", "Part setup", "Car fitment", "Terms"],
       ],
     ]);
   });
@@ -66,5 +67,48 @@ describe("nextBarVisible", () => {
   it("a jitter smaller than the threshold > leaves it as it was", () => {
     expect(nextBarVisible({ y: 400, visible: true }, 404)).toBe(true);
     expect(nextBarVisible({ y: 400, visible: false }, 396)).toBe(false);
+  });
+});
+
+describe("navGroupsFor", () => {
+  const hrefs = (role: StaffRole) => navGroupsFor(role).flatMap((g) => g.links.map((l) => l.href));
+
+  it("a super admin sees everything, including Staff", () => {
+    expect(hrefs("super_admin")).toEqual(NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href)));
+    expect(hrefs("super_admin")).toContain("/settings/staff");
+  });
+
+  it("an admin loses Finance and Staff, and keeps the rest", () => {
+    const admin = hrefs("admin");
+    expect(admin).not.toContain("/sales");
+    expect(admin).not.toContain("/settings/staff");
+    expect(admin).toContain("/orders");
+    expect(admin).toContain("/settings/coupons");
+    expect(admin).toContain("/settings/shop");
+  });
+
+  it("a mechanic sees only their own work", () => {
+    expect(hrefs("mechanic")).toEqual([
+      "/scan",
+      "/orders",
+      "/pos",
+      "/payment",
+      "/customers",
+      "/products",
+      "/stock",
+    ]);
+  });
+
+  it("drops a section that ends up empty rather than leaving a bare heading", () => {
+    // A mechanic gets nothing from Marketing or Overall management; those headings must not survive.
+    const sections = navGroupsFor("mechanic").map((g) => g.section);
+    expect(sections).toEqual(["Daily Uses", "Stock"]);
+  });
+
+  it("never invents a link that isn't in the one menu definition", () => {
+    const all = new Set(NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href)));
+    for (const role of ["super_admin", "admin", "mechanic"] as StaffRole[]) {
+      for (const href of hrefs(role)) expect(all.has(href)).toBe(true);
+    }
   });
 });

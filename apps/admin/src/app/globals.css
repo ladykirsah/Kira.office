@@ -4,12 +4,7 @@
      bill numbers, codes) render in the normal font. This MUST be the real stack, not `inherit`: a
      CSS-wide keyword as a custom-property value makes var() fall back to monospace (owner, 2 Aug). */
   --font-mono:
-    "IBM Plex Sans Thai",
-    "Noto Sans Thai",
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+    "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
   --bg: #fbfcfe;
   --surface: #ffffff;
   --border: #e3e6ea;
@@ -269,7 +264,17 @@ tbody tr:hover {
   background: var(--hover);
 }
 
-/* Products table: freeze the first (Product) column while the rest scroll horizontally. */
+/* ── LIST TABLE: THE LOCKED PATTERN (owner's brief, locked 2026-08-04) ─────────────────────────
+ *
+ * Every screen that LISTS RECORDS wears this shape: counted tabs above a framed section, a
+ * search + sort + dependent-filter toolbar, a fixed-layout table that scrolls sideways with its
+ * identity column frozen, a picture-name-tags identity cell, an em dash for empty values, a pill
+ * for status, and ONE Actions menu in the last column.
+ *
+ * Products is the reference implementation (products/ProductsTable.tsx). The full rule list lives
+ * in docs/DESIGN_SYSTEM.md → "List table — LOCKED". Do not fork a second table style for a new
+ * page; change it there first, then bring every table along.
+ */
 .products-scroll {
   overflow-x: auto;
 }
@@ -1015,6 +1020,18 @@ html[data-theme="dark"] .pill.info {
   max-width: 52ch;
 }
 
+/* ── ICON BUTTONS: TWO VARIANTS, AND ONLY TWO (owner's brief, locked 2026-08-04) ───────────────
+ *
+ *   .icon-btn         bare — no frame, no fill. THE DEFAULT. Reach for this one.
+ *   .icon-btn-framed  the same glyph inside a hairline box, for when an icon button stands alone
+ *                     as a control rather than sitting beside text it belongs to.
+ *
+ * Do NOT redefine .icon-btn to add a frame. It is used on Services, Shop info, Car fitment,
+ * Banners, Flash sales, Part setup and ConfirmButton; a second definition later in this file wins
+ * the cascade and silently puts a box around every one of them. That happened on 2026-08-04.
+ * If something needs a frame, use the framed class — do not restyle the bare one.
+ */
+
 /* Plain icon button — no frame (inline cell editors, etc.) */
 .icon-btn {
   min-height: 0;
@@ -1028,6 +1045,40 @@ html[data-theme="dark"] .pill.info {
 }
 .icon-btn:hover:not(:disabled) {
   color: var(--text);
+}
+
+.icon-btn[aria-pressed="true"],
+.icon-btn-framed[aria-pressed="true"] {
+  color: var(--primary);
+}
+
+/* Framed icon button — the same bare glyph, in a hairline box. */
+.icon-btn-framed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+}
+.icon-btn-framed:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* A SIZE for the bare button, not a third variant: a 24px square target, so a glyph on its own
+   (the month arrows on Salary) can be aimed at without gaining a frame. */
+.icon-btn.icon-btn-24 {
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 20px;
 }
 
 /* Per-row Actions dropdown (products table) */
@@ -1450,4 +1501,457 @@ a.card:hover {
   .bill-no-print {
     display: none !important;
   }
+}
+
+/* ── Staff logins ────────────────────────────────────────────────────────────────────────────── */
+/* The sign-in page renders without the app frame (see AppShell), so it owns the whole viewport. */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: var(--bg);
+}
+.login-box {
+  width: 100%;
+  max-width: 340px;
+}
+.login-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--code-bg);
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+}
+.login-tab {
+  flex: 1;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.login-tab.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.login-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+/* Six boxes, 3 + 3 — a PIN pad, not a text field. The gap after the third is the whole point:
+   it makes six digits read as two groups of three, which is how people say them out loud.
+
+   The row fills the card exactly: each box takes an equal share of whatever is left after the gaps
+   (flex: 1) and stays square (aspect-ratio: 1). No fixed pixel size, so the same rule holds on a
+   phone and on the counter tablet without a breakpoint. */
+.pin-boxes {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.pin-box {
+  flex: 1;
+  /* Without this, a flex item refuses to shrink below its content width and the row overflows. */
+  min-width: 0;
+  aspect-ratio: 1;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  border-radius: 10px;
+  /* Digits are the same width as each other, so a filled row doesn't shuffle sideways. */
+  font-variant-numeric: tabular-nums;
+}
+.pin-boxes .pin-box:nth-child(3) {
+  margin-right: 14px;
+}
+
+.login-error {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+}
+
+/* Signed-in person in the top bar. Pushed to the right, ahead of the theme toggle. */
+.staff-chip-wrap {
+  position: relative;
+  margin-left: auto;
+}
+.staff-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 13.5px;
+}
+.staff-chip-name {
+  font-weight: 600;
+}
+.staff-chip-role {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.staff-chip-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 168px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 5px;
+  z-index: 60;
+}
+.staff-chip-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 11px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  min-height: 0;
+}
+.staff-chip-item:hover {
+  background: var(--hover);
+  text-decoration: none;
+}
+/* On a phone the name alone is enough — the role would push the toggle off the bar. */
+@media (max-width: 741px) {
+  .staff-chip-role {
+    display: none;
+  }
+}
+
+/* Staff page: the three views share one menu entry, so they need tabs. */
+.staff-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--code-bg);
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  width: fit-content;
+}
+/* Tabs and the page's one action share a line — the action sits at the right end (owner,
+   2026-08-04), so the table below starts with its own content rather than a button. */
+.staff-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.staff-tabs-row .staff-tabs {
+  margin-bottom: 0;
+}
+.staff-tabs-row > :last-child {
+  margin-left: auto;
+}
+.staff-tab {
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.staff-tab:hover {
+  text-decoration: none;
+  color: var(--text);
+}
+.staff-tab.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* Role reads on the pill itself — there is no separate status column (owner, 2026-08-03). */
+.role-pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.role-pill.super_admin {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft);
+  color: var(--primary);
+}
+.role-pill.off {
+  background: var(--code-bg);
+  color: var(--text-faint);
+}
+
+/* Per-row dropdown, shared shape with the products table's Actions ▾. */
+/* Fixed, not absolute: the table lives inside an overflow-x wrapper that would clip it. Position
+   comes from the trigger button's rect — see StaffActions. */
+.row-menu {
+  position: fixed;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 5px;
+  z-index: 40;
+  text-align: left;
+}
+.row-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 11px;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  /* Regular, not the 500 every <button> inherits — these are a list to read down, not a row of
+     controls competing for attention. */
+  font-weight: 400;
+  color: var(--text);
+}
+.row-menu-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+.row-menu-item.danger {
+  color: var(--danger);
+}
+.row-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 5px 3px;
+}
+
+/* Salary + Activity */
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.salary-total td {
+  border-top: 2px solid var(--border);
+  font-weight: 700;
+  background: var(--hover);
+}
+/* A month still running is a projection, not a wage bill — say so rather than let the number lie. */
+.salary-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  max-width: 76ch;
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, transparent);
+}
+.activity-day {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 14px 12px 6px;
+}
+
+/* Role, changed in place from the staff table. */
+.role-select {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 13.5px;
+  border-radius: 8px;
+}
+
+/* On/Off switch. A real checkbox underneath — keyboard reachable, and it announces itself; the
+   track and knob are only paint. */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-track {
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  transition: background 0.15s;
+  flex: 0 0 auto;
+}
+.switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.3);
+  transition: transform 0.15s;
+}
+.switch input:checked + .switch-track {
+  background: var(--ok);
+}
+.switch input:checked + .switch-track .switch-knob {
+  transform: translateX(16px);
+}
+.switch input:disabled + .switch-track {
+  opacity: 0.5;
+}
+.switch:has(input:disabled) {
+  cursor: not-allowed;
+}
+.switch input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.switch-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  min-width: 22px;
+  white-space: nowrap;
+}
+/* A LABELLED switch has to size to its text. `.switch` is declared twice in this file: the first
+   block (44×24, inline-block) belongs to the bare `.slider` toggles used on Shop info, Banners,
+   Coupons, Flash sales and Pricing, and its fixed width still applies here — so a label longer
+   than "On" spilled out of a 44px box. Opt in per use rather than widening every switch in the
+   app; the bare ones must stay exactly 44×24. */
+.switch.switch-wide {
+  width: auto;
+  height: auto;
+}
+
+/* A text button: an action that sits inline with content and shouldn't carry a box (e.g. Save
+   beside the role dropdown). Still a real button — focusable, and the same 32px hit area. */
+.text-btn {
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.text-btn:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+
+/* Hairline between groups of fields inside one card — a break in meaning, not a new card. */
+.field-divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+
+/* Password / PIN rows on a staff profile — one shape for both, so they read as the same kind of
+   thing (owner: "this flow is not smooth", 2026-08-03). */
+.secret-row + .secret-row {
+  margin-top: 4px;
+}
+.secret-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.secret-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.secret-value {
+  min-width: 170px;
+  padding: 7px 11px;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.secret-hint {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  margin: 8px 0 0;
+  max-width: 62ch;
+}
+.text-btn.muted-btn {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── Paying a wage: the row unfolds into the payment ───────────────────────────────────────────
+ * Amount, account and slip are read together for ONE person, so the two numbers that must match
+ * are never on opposite ends of a wide row (owner, 2026-08-04). */
+.pay-drawer td {
+  background: var(--primary-faint);
+}
+/* A switch label is two or three words; letting it wrap turns the toolbar into a column and pushes
+   it past the card edge. */
+.switch .switch-text {
+  white-space: nowrap;
+}
+.pay-grid {
+  display: flex;
+  gap: 26px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.pay-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.pay-amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pay-acts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* Two cards on one row where the page has the width for it — Details beside Signing in on a staff
+   profile (owner, 2026-08-04). auto-fit rather than a hard `1fr 1fr`: below ~380px each they stack
+   instead of squeezing, which is the same responsive grid the rest of the admin uses. */
+.profile-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  gap: 18px;
+  align-items: start;
 }
