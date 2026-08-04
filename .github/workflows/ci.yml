@@ -102,3 +102,58 @@ jobs:
           fi
           echo "::error::Admin deploy failed (beyond the custom-domain step)."
           exit 1
+
+  # Auto-deploy the AirPlus storefront (airplus-storefront → airplusauto.com) via OpenNext.
+  #
+  # This job exists because it DIDN'T, and that silently cost a feature. The API and admin have
+  # deployed themselves since 2026-07, so "merged to main" was assumed to mean "live" — but the
+  # storefront had no job at all. Merging the Insight work (#124) therefore shipped the admin page
+  # and the API that serves it while leaving the storefront BEACON undeployed: the whole traffic half
+  # of the page would have read zero forever, with every check green and nothing to look at. It took
+  # a manual `npm run deploy -w @l-shopee/storefront` to finish the release (2026-08-04).
+  #
+  # Same account and token as the other two (187ab61e… GoGoCash, in apps/storefront/wrangler.jsonc),
+  # same contract: missing token FAILS LOUDLY, and only the known custom-domain re-assert wart is
+  # tolerated with a warning.
+  deploy-storefront:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # NEXT_PUBLIC_* are INLINED INTO THE BUNDLE at build time, so whatever is set here is frozen
+      # into what customers download. A dev shell once baked a localhost API base into a production
+      # deploy and served it for 16 hours. A clean runner has none set, and every one of them falls
+      # back to a prod URL in source — so the safe state is ABSENT, and this fails the build if
+      # anything ever starts injecting one rather than letting it reach customers.
+      - name: Refuse to bake a NEXT_PUBLIC_* override into the bundle
+        run: |
+          leaked=$(env | grep -E '^NEXT_PUBLIC_' | cut -d= -f1 || true)
+          if [ -n "$leaked" ]; then
+            echo "::error::NEXT_PUBLIC_* is set in the build environment and would be inlined into the production bundle: $leaked. These must stay unset so the in-source production defaults apply."
+            exit 1
+          fi
+      - name: Deploy storefront (OpenNext)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set — the storefront was NOT deployed; airplusauto.com is still serving the previous build."
+            exit 1
+          fi
+          set +e
+          out=$(npm run deploy -w @l-shopee/storefront 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -eq 0 ]; then exit 0; fi
+          if echo "$out" | grep -q "Deployed airplus-storefront"; then
+            echo "::warning::Storefront code deployed, but wrangler could not re-assert the airplusauto.com custom domain (known — needs a Cloudflare dashboard fix). Not failing the run."
+            exit 0
+          fi
+          echo "::error::Storefront deploy failed (beyond the custom-domain step)."
+          exit 1
