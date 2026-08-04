@@ -207,3 +207,16 @@ describe("pinLookup", () => {
     expect(await pinLookup("481920", PEPPER)).not.toContain("481920");
   });
 });
+
+describe("PASSWORD_ITERATIONS — the platform's ceiling, not ours", () => {
+  it("never asks Workers for more PBKDF2 rounds than it will do", () => {
+    // Cloudflare Workers refuses above 100,000: "Pbkdf2 failed: iteration counts above 100000 are
+    // not supported". Asking for more does not slow an attacker down — it throws, and every login
+    // 500s. Vitest runs on Node, which has no such cap, so only production ever found this.
+    expect(PASSWORD_ITERATIONS).toBeLessThanOrEqual(100_000);
+  });
+
+  it("and still asks for a serious number of them", () => {
+    expect(PASSWORD_ITERATIONS).toBeGreaterThanOrEqual(100_000);
+  });
+});

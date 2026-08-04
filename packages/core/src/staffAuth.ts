@@ -38,7 +38,18 @@ export interface StoredPassword {
  * which happens once per session rather than per request. Raise it freely — existing rows keep
  * verifying against the count stored alongside their own hash.
  */
-export const PASSWORD_ITERATIONS = 210_000;
+/**
+ * PBKDF2 rounds. 100,000 is not a preference — it is Cloudflare Workers' hard ceiling:
+ *
+ *   NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not supported
+ *
+ * This shipped at 210,000 and every production login 500'd, while the whole suite stayed green:
+ * vitest runs on Node, which happily does 210k. Do not raise it — a number the platform refuses
+ * protects nobody, it just breaks signing in (found on prod, 2026-08-04).
+ *
+ * The count is stored per row, so a password set under a different number keeps verifying.
+ */
+export const PASSWORD_ITERATIONS = 100_000;
 
 const MIN_PASSWORD_LENGTH = 8;
 
