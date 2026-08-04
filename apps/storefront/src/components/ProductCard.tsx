@@ -5,6 +5,7 @@ import Link from "next/link";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import type { CatalogItem } from "@/lib/db";
 import { addToCart } from "@/lib/cart";
+import { track } from "@/lib/track";
 import { BrandTag } from "@/components/BrandTag";
 import { DiscountTag } from "@/components/DiscountTag";
 import { ReadyToShip } from "@/components/ReadyToShip";
@@ -28,6 +29,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
 
   function handleAdd() {
+    track("add_to_cart", item.productId);
     addToCart(
       {
         variantId: item.variantId,
@@ -56,7 +58,14 @@ export function ProductCard({ item }: { item: CatalogItem }) {
         color: "var(--gray-dark)",
       }}
     >
-      <Link href={productHref(item)} style={{ color: "inherit", display: "block" }}>
+      {/* The card's own click is Shopee's จำนวนคลิก — the denominator of อัตราการคลิก. Recorded on the
+          Link rather than the wrapper so a click on the add-to-cart button isn't also counted as a
+          click-through to the product page. sendBeacon survives the navigation that follows. */}
+      <Link
+        href={productHref(item)}
+        style={{ color: "inherit", display: "block" }}
+        onClick={() => track("click", item.productId)}
+      >
         <div
           style={{
             position: "relative",

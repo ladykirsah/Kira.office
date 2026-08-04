@@ -25,3 +25,12 @@ SHOPEE_REDIRECT_URL="http://localhost:8787/api/shopee/callback"
 
 # Only if using the Hyperdrive + Postgres alternative instead of D1:
 # DATABASE_URL="postgresql://user:pass@host:5432/l_shopee"
+
+# AirPlus Insight traffic beacon (storefront worker). Salts the day-scoped visitor hash written by
+# POST /api/track, so nobody holding the storefront_events table can brute-force it back to an IP —
+# the space of IPv4 addresses is small enough to enumerate against a known day and user-agent.
+# UNSET = a constant dev fallback is used, which is NOT a security control: set a long random value
+# in prod via `wrangler secret put TRACK_SALT` on the airplus-storefront worker.
+# Changing it re-buckets that day's visitors (each visitor counts twice for the day it changes), so
+# set it once and leave it.
+TRACK_SALT=""

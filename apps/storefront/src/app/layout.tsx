@@ -5,6 +5,7 @@ import { CartHeader } from "./CartHeader";
 import { InnerHeader } from "./InnerHeader";
 import { SearchLandingBar } from "./search/SearchLandingBar";
 import { SiteFooter } from "./SiteFooter";
+import { TrackPageView } from "@/components/TrackView";
 import { SITE_ORIGIN } from "@/lib/seo";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="th" className={prompt.variable}>
       <body>
+        <TrackPageView />
         <SiteHeader />
         <CartHeader />
         <InnerHeader />
