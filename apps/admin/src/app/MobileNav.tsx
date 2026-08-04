@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { NAV_GROUPS, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
+import { navGroupsFor, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
+import type { StaffRole } from "@l-shopee/core";
 
 /** Menu glyph: a list — a dot and a line per row, i.e. the pages behind it. */
 const MenuIcon = () => (
@@ -33,12 +34,13 @@ const MenuIcon = () => (
  *   · ☰ in the top bar, which slides the full grouped menu over the page
  *   · the bar slides away while scrolling down a long list and returns on the way up
  */
-export function MobileNav() {
+export function MobileNav({ role }: { role: StaffRole }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [barVisible, setBarVisible] = useState(true);
   const scroll = useRef({ y: 0, visible: true });
   const active = activeHref(path);
+  const groups = navGroupsFor(role);
 
   // Any navigation closes the drawer — otherwise it would stay over the page you just opened.
   useEffect(() => setOpen(false), [path]);
@@ -96,7 +98,7 @@ export function MobileNav() {
             <Link className="brand" href="/" onClick={() => setOpen(false)}>
               Kira.office
             </Link>
-            {NAV_GROUPS.map((g) => (
+            {groups.map((g) => (
               <div key={g.section}>
                 <div className="nav-section-label">{g.section}</div>
                 {g.links.map((l) => (

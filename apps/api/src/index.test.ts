@@ -1,4 +1,42 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+  createStaffSession,
+  staffFromToken,
+  revokeStaffSession,
+  loginStaff,
+  requireStaff,
+  STAFF_SESSION_HEADER,
+  loginWithPin,
+} from "./staffSession";
+import {
+  listStaff,
+  createStaff,
+  setStaffPassword,
+  updateStaff,
+  ownProfile,
+  changeOwnPassword,
+  setOwnPin,
+  recordDayOff,
+  revealPassword,
+  deleteStaff,
+  salaryMonth,
+  markSalaryPaid,
+  staffActivity,
+  staffProfileFor,
+  updateStaffProfile,
+  clearStaffPin,
+  setStaffPin,
+  purgeExpiredSalarySlips,
+  salarySlipKey,
+  staffPayments,
+} from "./staffRoutes";
+import {
+  hashPassword,
+  sha256Hex,
+  pinLookup,
+  LOCK_AFTER_FAILURES,
+  LOCK_DURATION_MS,
+} from "@l-shopee/core";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -2609,6 +2647,9 @@ describe("BACKUP_TABLES vs the migrations", () => {
     auth_otp_codes: "transient: 6-digit codes with a 5-minute TTL; meaningless by the next backup",
     auth_throttle: "transient: fixed-window rate-limit counters, rebuilt continuously",
     storefront_sessions: "transient: only token hashes; a restore re-issues them at next login",
+    staff_sessions:
+      "transient: only token hashes. Restoring is worse than losing them — it would revive " +
+      "sessions that were revoked (staff removed, device logged out) between backup and restore.",
   };
 
   it("covers every table the migrations create", () => {
@@ -4670,10 +4711,12 @@ describe("updateOrder > timeline", () => {
 
   function seeded() {
     const db = migratedDb();
+    // Carries a slip: these tests move the order to `paid`, which is refused without one. The
+    // subject here is the timeline, not the payment rule, so the evidence is simply present.
     db.prepare(
       `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
-                                 order_created_at, imported_at)
-       VALUES ('o1', 'airplus', 'AP-1', 'new', 'pending', ?, ?)`,
+                                 order_created_at, imported_at, slip_image_key)
+       VALUES ('o1', 'airplus', 'AP-1', 'new', 'pending', ?, ?, 'slip/o1/a.jpg')`,
     ).run(NOW, NOW);
     // The backfill already gave it an opening row; clear it so each test reads only its own writes.
     db.prepare(`DELETE FROM order_status_history`).run();
@@ -6567,12 +6610,14 @@ describe("reviewOrderPayment (confirm / reject a slip awaiting review)", () => {
 
   function seeded(paymentStatus = "verifying", createdAt = NOW) {
     const db = migratedDb();
+    // The order carries a slip: an order awaiting review got there BY a slip arriving, and confirm
+    // now refuses without one (owner's rule, 2026-08-04).
     db.prepare(
       `INSERT INTO sales_orders
          (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
           discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
-          order_created_at, imported_at, buyer_username)
-       VALUES ('o1','airplus','AP-1','new',?,100000,0,4000,104000,30000,?,?,'u1')`,
+          order_created_at, imported_at, buyer_username, slip_image_key)
+       VALUES ('o1','airplus','AP-1','new',?,100000,0,4000,104000,30000,?,?,'u1','slip/o1/a.jpg')`,
     ).run(paymentStatus, createdAt, createdAt);
     db.prepare(
       `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status, created_at, sales_order_id)
@@ -6744,5 +6789,1612 @@ describe("shopeeSyncWorklist + markShopeeSynced", () => {
     const { db } = await scenario();
     const res = await markShopeeSynced(envOf(db), [], T);
     expect((await res.json()) as { updated: number }).toEqual({ ok: true, updated: 0 });
+  });
+});
+
+// ── Staff logins (replacing Cloudflare Access) ───────────────────────────────────────────────────
+// Run against the real migrated schema, not the canned mock: session lookup is a JOIN whose WHERE
+// clause IS the security boundary, and a mock that matches on sql.includes() would happily approve
+// a query that forgot `revoked_at IS NULL`.
+describe("staff sessions", () => {
+  const NOW = 1_800_000_000_000;
+  const DAY = 24 * 60 * 60 * 1000;
+
+  async function withUser(
+    overrides: { role?: string; status?: string; password?: string | null } = {},
+  ) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    const stored = overrides.password
+      ? await hashPassword(overrides.password, { iterations: 1000 })
+      : { hash: null, salt: null, iterations: null };
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at,
+                            password_hash, password_salt, password_iterations)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "u1",
+        "Somchai",
+        "somchai@shop.test",
+        overrides.role ?? "mechanic",
+        overrides.status ?? "active",
+        NOW,
+        stored.hash,
+        stored.salt,
+        stored.iterations,
+      );
+    return { raw, db };
+  }
+
+  it("a fresh session identifies its user", async () => {
+    const { db } = await withUser({ role: "admin" });
+    const { token } = await createStaffSession(db, "u1", NOW);
+    await expect(staffFromToken(db, token, NOW + 1000)).resolves.toMatchObject({
+      userId: "u1",
+      email: "somchai@shop.test",
+      role: "admin",
+    });
+  });
+
+  it("stores only the hash — the raw token never lands in the database", async () => {
+    const { raw, db } = await withUser();
+    const { token } = await createStaffSession(db, "u1", NOW);
+    const rows = raw.prepare(`SELECT token_hash FROM staff_sessions`).all() as {
+      token_hash: string;
+    }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.token_hash).not.toBe(token);
+    expect(rows[0]!.token_hash).toBe(await sha256Hex(token));
+  });
+
+  it("an unknown token is nobody", async () => {
+    const { db } = await withUser();
+    await expect(staffFromToken(db, "not-a-real-token", NOW)).resolves.toBeNull();
+    await expect(staffFromToken(db, "", NOW)).resolves.toBeNull();
+  });
+
+  it("an expired session is nobody", async () => {
+    const { db } = await withUser();
+    const { token, expiresAt } = await createStaffSession(db, "u1", NOW);
+    // Checked on an untouched session: any earlier lookup would have ROLLED it (see next test),
+    // which is exactly the interaction that made an earlier version of this test lie.
+    await expect(staffFromToken(db, token, expiresAt + 1)).resolves.toBeNull();
+  });
+
+  it("a session in daily use rolls forward instead of expiring under you", async () => {
+    const { raw, db } = await withUser();
+    const { token, expiresAt } = await createStaffSession(db, "u1", NOW);
+    const later = NOW + 25 * 60 * 60 * 1000; // stale by more than a day => rolls
+    await expect(staffFromToken(db, token, later)).resolves.not.toBeNull();
+    const row = raw.prepare(`SELECT expires_at AS e FROM staff_sessions`).get() as { e: number };
+    expect(row.e).toBeGreaterThan(expiresAt);
+  });
+
+  it("does not write on every request — only once the session is a day stale", async () => {
+    const { raw, db } = await withUser();
+    const { token } = await createStaffSession(db, "u1", NOW);
+    const before = (
+      raw.prepare(`SELECT last_seen_at AS s FROM staff_sessions`).get() as { s: number }
+    ).s;
+    await staffFromToken(db, token, NOW + 60_000); // a minute later: not stale
+    const after = (
+      raw.prepare(`SELECT last_seen_at AS s FROM staff_sessions`).get() as { s: number }
+    ).s;
+    expect(after).toBe(before);
+  });
+
+  it("a revoked session is nobody, immediately", async () => {
+    const { db } = await withUser();
+    const { token } = await createStaffSession(db, "u1", NOW);
+    await revokeStaffSession(db, token, NOW + 5);
+    await expect(staffFromToken(db, token, NOW + 6)).resolves.toBeNull();
+  });
+
+  it("deactivating a person kills their live sessions without touching the session rows", async () => {
+    const { raw, db } = await withUser();
+    const { token } = await createStaffSession(db, "u1", NOW);
+    raw.prepare(`UPDATE users SET status = 'disabled' WHERE id = 'u1'`).run();
+    await expect(staffFromToken(db, token, NOW + 10)).resolves.toBeNull();
+  });
+
+  it("an unknown role on the row is refused rather than trusted", async () => {
+    const { raw, db } = await withUser();
+    const { token } = await createStaffSession(db, "u1", NOW);
+    raw.prepare(`UPDATE users SET role = 'wizard' WHERE id = 'u1'`).run();
+    await expect(staffFromToken(db, token, NOW + 10)).resolves.toBeNull();
+  });
+});
+
+describe("loginStaff", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function withUser(password: string | null, status = "active") {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    const stored = password
+      ? await hashPassword(password, { iterations: 1000 })
+      : { hash: null, salt: null, iterations: null };
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at,
+                            password_hash, password_salt, password_iterations)
+         VALUES ('u1','Nok','nok@shop.test','admin',?,?,?,?,?)`,
+      )
+      .run(status, NOW, stored.hash, stored.salt, stored.iterations);
+    return { raw, db };
+  }
+
+  it("the right password opens a session", async () => {
+    const { db } = await withUser("aircon-2026");
+    const out = await loginStaff(db, "nok@shop.test", "aircon-2026", NOW);
+    expect(out.ok).toBe(true);
+    if (out.ok)
+      await expect(staffFromToken(db, out.token, NOW + 1)).resolves.toMatchObject({
+        userId: "u1",
+      });
+  });
+
+  it("matches the email case-insensitively — nobody types their own capitals twice", async () => {
+    const { db } = await withUser("aircon-2026");
+    expect((await loginStaff(db, "  Nok@Shop.TEST ", "aircon-2026", NOW)).ok).toBe(true);
+  });
+
+  it("the wrong password opens nothing", async () => {
+    const { db } = await withUser("aircon-2026");
+    expect((await loginStaff(db, "nok@shop.test", "aircon-2025", NOW)).ok).toBe(false);
+  });
+
+  it("an account with no password set can never be logged into", async () => {
+    const { db } = await withUser(null);
+    expect((await loginStaff(db, "nok@shop.test", "", NOW)).ok).toBe(false);
+    expect((await loginStaff(db, "nok@shop.test", "anything", NOW)).ok).toBe(false);
+  });
+
+  it("a deactivated account cannot log in even with the right password", async () => {
+    const { db } = await withUser("aircon-2026", "disabled");
+    expect((await loginStaff(db, "nok@shop.test", "aircon-2026", NOW)).ok).toBe(false);
+  });
+
+  it("an unknown email fails the same way a wrong password does", async () => {
+    const { db } = await withUser("aircon-2026");
+    const unknown = await loginStaff(db, "nobody@shop.test", "aircon-2026", NOW);
+    const wrong = await loginStaff(db, "nok@shop.test", "nope", NOW);
+    // Same shape and same message: the response must not reveal which emails exist.
+    expect(unknown).toEqual(wrong);
+  });
+
+  it("locks for 24 hours after 3 failures — the owner's rule, not a soft throttle", async () => {
+    const { db } = await withUser("aircon-2026");
+    for (let i = 0; i < LOCK_AFTER_FAILURES; i++) {
+      await loginStaff(db, "nok@shop.test", "wrong", NOW);
+    }
+    // Even the CORRECT password is refused, and stays refused for a full day.
+    const out = await loginStaff(db, "nok@shop.test", "aircon-2026", NOW);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toBe("locked");
+    expect(
+      (await loginStaff(db, "nok@shop.test", "aircon-2026", NOW + LOCK_DURATION_MS - 1)).ok,
+    ).toBe(false);
+    // ...and opens again once the day is up.
+    expect((await loginStaff(db, "nok@shop.test", "aircon-2026", NOW + LOCK_DURATION_MS)).ok).toBe(
+      true,
+    );
+  });
+
+  it("counts PIN and password failures against the SAME allowance", async () => {
+    const { db } = await withUser("aircon-2026");
+    await loginStaff(db, "nok@shop.test", "wrong", NOW);
+    await loginStaff(db, "nok@shop.test", "wrong", NOW);
+    // Two password misses already spent; the third failure of EITHER kind locks the account.
+    await loginStaff(db, "nok@shop.test", "wrong", NOW);
+    expect((await loginStaff(db, "nok@shop.test", "aircon-2026", NOW)).ok).toBe(false);
+  });
+});
+
+describe("requireStaff (the gate that must never fail open)", () => {
+  const NOW = 1_800_000_000_000;
+
+  it("no token at all > 401, whatever the environment looks like", async () => {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    // Deliberately an env with NOTHING configured — the shape that made the old requireAccess
+    // return an open {email: null}. It must not open anything here.
+    const res = await requireStaff(new Request("https://x/products"), { DB: db } as unknown as Env);
+    expect(res instanceof Response).toBe(true);
+    if (res instanceof Response) expect(res.status).toBe(401);
+  });
+
+  it("a garbage token > 401", async () => {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    const req = new Request("https://x/products", {
+      headers: { [STAFF_SESSION_HEADER]: "deadbeef" },
+    });
+    const res = await requireStaff(req, { DB: db } as unknown as Env);
+    expect(res instanceof Response && res.status).toBe(401);
+  });
+
+  it("a live session > the identity, not a Response", async () => {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('u1','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", Date.now());
+    const req = new Request("https://x/products", {
+      headers: { [STAFF_SESSION_HEADER]: token },
+    });
+    const res = await requireStaff(req, { DB: db } as unknown as Env);
+    expect(res instanceof Response).toBe(false);
+    expect(res).toMatchObject({ userId: "u1", role: "super_admin" });
+  });
+});
+
+// ── Staff management (super admin only) ──────────────────────────────────────────────────────────
+describe("staff management", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const clerk = { userId: "c1", email: "c1@shop.test", name: "Nok", role: "admin" } as const;
+  const mech = { userId: "m1", email: "m1@shop.test", name: "Somchai", role: "mechanic" } as const;
+
+  it("only a super admin may list or create staff", async () => {
+    const { db } = await seed();
+    expect((await listStaff(db, clerk)).status).toBe(403);
+    expect((await listStaff(db, mech)).status).toBe(403);
+    expect((await listStaff(db, boss)).status).toBe(200);
+    const denied = await createStaff(
+      db,
+      clerk,
+      { name: "X", email: "x@s.test", role: "admin" },
+      NOW,
+    );
+    expect(denied.status).toBe(403);
+  });
+
+  it("creating staff stores a hashed password and never the password itself", async () => {
+    const { raw, db } = await seed();
+    const res = await createStaff(
+      db,
+      boss,
+      { name: "Somchai", email: "Somchai@Shop.test", role: "mechanic", password: "aircon-2026" },
+      NOW,
+    );
+    expect(res.status).toBe(201);
+    const row = raw
+      .prepare(
+        `SELECT email, role, password_hash AS h FROM users WHERE email = 'somchai@shop.test'`,
+      )
+      .get() as { email: string; role: string; h: string };
+    expect(row.email).toBe("somchai@shop.test"); // stored lowercase, so login can match
+    expect(row.role).toBe("mechanic");
+    expect(row.h).not.toBe("aircon-2026");
+    expect(row.h.length).toBeGreaterThan(20);
+  });
+
+  it("stores the Thai and English names separately (owner, 2026-08-03)", async () => {
+    const { raw, db } = await seed();
+    await createStaff(
+      db,
+      boss,
+      {
+        name: "สมชาย ใจดี",
+        nameTh: "สมชาย ใจดี",
+        nameEn: "Somchai Jaidee",
+        email: "s@shop.test",
+        role: "mechanic",
+      },
+      NOW,
+    );
+    const row = raw
+      .prepare(`SELECT name, name_th AS th, name_en AS en FROM users WHERE email='s@shop.test'`)
+      .get() as { name: string; th: string; en: string };
+    expect(row).toEqual({ name: "สมชาย ใจดี", th: "สมชาย ใจดี", en: "Somchai Jaidee" });
+  });
+
+  it("refuses a role it does not know", async () => {
+    const { db } = await seed();
+    const res = await createStaff(db, boss, { name: "X", email: "x@s.test", role: "wizard" }, NOW);
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses a duplicate email rather than shadowing an existing login", async () => {
+    const { db } = await seed();
+    const res = await createStaff(
+      db,
+      boss,
+      { name: "Another Boss", email: "BOSS@shop.test", role: "admin" },
+      NOW,
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("resetting a password logs that person's devices out", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('m1','S','m1@shop.test','mechanic','active',?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "m1", NOW);
+    await expect(staffFromToken(db, token, NOW + 1)).resolves.not.toBeNull();
+    const res = await setStaffPassword(db, boss, "m1", "brand-new-password", NOW + 2);
+    expect(res.status).toBe(200);
+    // The old session must die with the old password.
+    await expect(staffFromToken(db, token, NOW + 3)).resolves.toBeNull();
+  });
+
+  it("setting a new password lifts the 24-hour block (owner, 2026-08-03)", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,failed_attempts,locked_until,last_failed_at)
+         VALUES ('m1','S','m1@shop.test','mechanic','active',?,3,?,?)`,
+      )
+      .run(NOW, NOW + LOCK_DURATION_MS, NOW);
+    // Locked solid before...
+    expect((await loginStaff(db, "m1@shop.test", "whatever", NOW + 1000)).ok).toBe(false);
+
+    await setStaffPassword(db, boss, "m1", "brand-new-password", NOW + 2000);
+
+    // ...and the new password works at once. The credential they were failing against is gone, so
+    // the run of failures has nothing left to be a run of.
+    const out = await loginStaff(db, "m1@shop.test", "brand-new-password", NOW + 3000);
+    expect(out.ok).toBe(true);
+    const row = raw
+      .prepare(`SELECT failed_attempts AS f, locked_until AS l FROM users WHERE id='m1'`)
+      .get() as { f: number; l: number | null };
+    expect(row).toEqual({ f: 0, l: null });
+  });
+
+  it("changing your OWN password lifts it too", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,failed_attempts,locked_until,last_failed_at)
+         VALUES ('m2','S','m2@shop.test','mechanic','active',?,3,?,?)`,
+      )
+      .run(NOW, NOW + LOCK_DURATION_MS, NOW);
+    const them = {
+      userId: "m2",
+      email: "m2@shop.test",
+      name: "S",
+      role: "mechanic",
+    } as const;
+    await changeOwnPassword(db, them, "my-own-new-password", NOW + 2000, "9f".repeat(32));
+    expect((await loginStaff(db, "m2@shop.test", "my-own-new-password", NOW + 3000)).ok).toBe(true);
+  });
+
+  it("the last super admin cannot demote or disable themselves out of the system", async () => {
+    const { db } = await seed();
+    const demote = await updateStaff(db, boss, "boss", { role: "admin" }, NOW);
+    expect(demote.status).toBe(409);
+    const disable = await updateStaff(db, boss, "boss", { status: "disabled" }, NOW);
+    expect(disable.status).toBe(409);
+  });
+
+  it("a second super admin makes the first one demotable again", async () => {
+    const { db } = await seed();
+    await createStaff(db, boss, { name: "Two", email: "two@shop.test", role: "super_admin" }, NOW);
+    expect((await updateStaff(db, boss, "boss", { role: "admin" }, NOW)).status).toBe(200);
+  });
+
+  it("disabling someone revokes their sessions immediately", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('m1','S','m1@shop.test','mechanic','active',?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "m1", NOW);
+    await updateStaff(db, boss, "m1", { status: "disabled" }, NOW + 1);
+    await expect(staffFromToken(db, token, NOW + 2)).resolves.toBeNull();
+  });
+
+  it("never returns password material in a staff listing", async () => {
+    const { db } = await seed();
+    await createStaff(
+      db,
+      boss,
+      { name: "S", email: "s@shop.test", role: "mechanic", password: "x-secret-123" },
+      NOW,
+    );
+    const body = await (await listStaff(db, boss)).text();
+    expect(body).not.toContain("x-secret-123");
+    expect(body).not.toContain("password_hash");
+    expect(body).not.toContain("passwordHash");
+  });
+});
+
+// ── PIN login (no email — the PIN identifies the person by itself) ───────────────────────────────
+describe("loginWithPin", () => {
+  const NOW = 1_800_000_000_000;
+  const PEPPER = "test-pepper";
+
+  async function seed(pins: { id: string; pin: string; status?: string }[]) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    for (const p of pins) {
+      const hashed = await hashPassword(p.pin, { iterations: 1000 });
+      raw
+        .prepare(
+          `INSERT INTO users (id, name, email, role, status, created_at,
+                              pin_hash, pin_salt, pin_iterations, pin_lookup)
+           VALUES (?, ?, ?, 'mechanic', ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          p.id,
+          p.id,
+          `${p.id}@shop.test`,
+          p.status ?? "active",
+          NOW,
+          hashed.hash,
+          hashed.salt,
+          hashed.iterations,
+          await pinLookup(p.pin, PEPPER),
+        );
+    }
+    return { raw, db };
+  }
+
+  it("the right PIN identifies its owner with no email typed", async () => {
+    const { db } = await seed([{ id: "somchai", pin: "481920" }]);
+    const out = await loginWithPin(db, "481920", NOW, PEPPER);
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.identity.userId).toBe("somchai");
+  });
+
+  it("tells two people apart by their PIN alone", async () => {
+    const { db } = await seed([
+      { id: "somchai", pin: "481920" },
+      { id: "nok", pin: "735104" },
+    ]);
+    const a = await loginWithPin(db, "735104", NOW, PEPPER);
+    expect(a.ok && a.identity.userId).toBe("nok");
+  });
+
+  it("a PIN nobody holds opens nothing", async () => {
+    const { db } = await seed([{ id: "somchai", pin: "481920" }]);
+    expect((await loginWithPin(db, "999111", NOW, PEPPER)).ok).toBe(false);
+  });
+
+  it("a switched-off person cannot use their PIN", async () => {
+    const { db } = await seed([{ id: "pond", pin: "481920", status: "disabled" }]);
+    expect((await loginWithPin(db, "481920", NOW, PEPPER)).ok).toBe(false);
+  });
+
+  it("a deleted person cannot use their PIN", async () => {
+    const { raw, db } = await seed([{ id: "pond", pin: "481920" }]);
+    raw.prepare(`UPDATE users SET deleted_at = ? WHERE id = 'pond'`).run(NOW);
+    expect((await loginWithPin(db, "481920", NOW, PEPPER)).ok).toBe(false);
+  });
+
+  it("locks the account for 24 hours after 3 wrong PINs", async () => {
+    const { db } = await seed([{ id: "somchai", pin: "481920" }]);
+    // Wrong PINs that DO belong to nobody can't lock an account — there is none to lock. What must
+    // lock is the account whose PIN was got wrong, so drive it through that account's own failures.
+    for (let i = 0; i < 3; i++) await loginStaff(db, "somchai@shop.test", "wrong", NOW);
+    const out = await loginWithPin(db, "481920", NOW, PEPPER);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toBe("locked");
+  });
+
+  it("a correct PIN clears the failure count", async () => {
+    const { raw, db } = await seed([{ id: "somchai", pin: "481920" }]);
+    await loginStaff(db, "somchai@shop.test", "wrong", NOW);
+    await loginWithPin(db, "481920", NOW, PEPPER);
+    const row = raw.prepare(`SELECT failed_attempts AS f FROM users WHERE id='somchai'`).get() as {
+      f: number;
+    };
+    expect(row.f).toBe(0);
+  });
+});
+
+// ── Own profile: change password, set PIN, record a day off ──────────────────────────────────────
+describe("staff profile (their own)", () => {
+  const NOW = 1_800_000_000_000;
+  const KEY = "9f".repeat(32);
+  const PEPPER = "test-pepper";
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,name_th,name_en,day_rate_satang)
+         VALUES ('m1','Somchai','somchai@shop.test','mechanic','active',?,'สมชาย','Somchai',40000)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+  const me = {
+    userId: "m1",
+    email: "somchai@shop.test",
+    name: "Somchai",
+    role: "mechanic",
+  } as const;
+
+  it("shows their own details, and their password in readable form", async () => {
+    const { db } = await seed();
+    await changeOwnPassword(db, me, "aircon-2026", NOW, KEY);
+    const body = (await (await ownProfile(db, me, KEY)).json()) as {
+      profile: { nameTh: string; password: string | null; dayRateSatang: number };
+    };
+    expect(body.profile.nameTh).toBe("สมชาย");
+    expect(body.profile.password).toBe("aircon-2026");
+    expect(body.profile.dayRateSatang).toBe(40000);
+  });
+
+  it("never leaks the password hash to the browser", async () => {
+    const { db } = await seed();
+    await changeOwnPassword(db, me, "aircon-2026", NOW, KEY);
+    const text = await (await ownProfile(db, me, KEY)).text();
+    expect(text).not.toContain("password_hash");
+    expect(text).not.toContain("passwordHash");
+    expect(text).not.toContain("pin_hash");
+  });
+
+  it("changing their own password logs it for the owner to see", async () => {
+    const { raw, db } = await seed();
+    await changeOwnPassword(db, me, "aircon-2026", NOW, KEY);
+    const rows = raw.prepare(`SELECT kind, user_id FROM staff_activity`).all() as {
+      kind: string;
+      user_id: string;
+    }[];
+    expect(rows).toEqual([{ kind: "password_changed", user_id: "m1" }]);
+  });
+
+  it("a changed password actually works, and the old one stops working", async () => {
+    const { db } = await seed();
+    await changeOwnPassword(db, me, "aircon-2026", NOW, KEY);
+    await changeOwnPassword(db, me, "aircon-2027", NOW + 1, KEY);
+    expect((await loginStaff(db, "somchai@shop.test", "aircon-2027", NOW + 2)).ok).toBe(true);
+    expect((await loginStaff(db, "somchai@shop.test", "aircon-2026", NOW + 3)).ok).toBe(false);
+  });
+
+  it("refuses a password too weak to bother with", async () => {
+    const { db } = await seed();
+    expect((await changeOwnPassword(db, me, "short", NOW, KEY)).status).toBe(400);
+  });
+
+  it("sets their own 6-digit PIN, and it signs them in", async () => {
+    const { db } = await seed();
+    expect((await setOwnPin(db, me, "481920", NOW, PEPPER)).status).toBe(200);
+    const out = await loginWithPin(db, "481920", NOW + 1, PEPPER);
+    expect(out.ok && out.identity.userId).toBe("m1");
+  });
+
+  it("refuses a PIN that is not six digits, or one anybody would guess", async () => {
+    const { db } = await seed();
+    expect((await setOwnPin(db, me, "1234", NOW, PEPPER)).status).toBe(400);
+    expect((await setOwnPin(db, me, "123456", NOW, PEPPER)).status).toBe(400);
+  });
+
+  it("refuses a PIN somebody else already holds", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('n1','Nok','nok@shop.test','admin','active',?)`,
+      )
+      .run(NOW);
+    const nok = { userId: "n1", email: "nok@shop.test", name: "Nok", role: "admin" } as const;
+    expect((await setOwnPin(db, nok, "481920", NOW, PEPPER)).status).toBe(200);
+    // Two people sharing six digits would make a PIN-only login ambiguous.
+    expect((await setOwnPin(db, me, "481920", NOW, PEPPER)).status).toBe(409);
+  });
+
+  it("records a day off, full or half, without asking anyone", async () => {
+    const { raw, db } = await seed();
+    expect((await recordDayOff(db, me, { day: "2026-08-15", halves: 2 }, NOW)).status).toBe(201);
+    expect(
+      (await recordDayOff(db, me, { day: "2026-08-09", halves: 1, reason: "มาสาย" }, NOW)).status,
+    ).toBe(201);
+    const rows = raw.prepare(`SELECT day, halves FROM staff_days_off ORDER BY day`).all() as {
+      day: string;
+      halves: number;
+    }[];
+    expect(rows).toEqual([
+      { day: "2026-08-09", halves: 1 },
+      { day: "2026-08-15", halves: 2 },
+    ]);
+  });
+
+  it("changing a day already recorded replaces it rather than double-counting", async () => {
+    const { raw, db } = await seed();
+    await recordDayOff(db, me, { day: "2026-08-15", halves: 2 }, NOW);
+    await recordDayOff(db, me, { day: "2026-08-15", halves: 1 }, NOW + 1);
+    const rows = raw.prepare(`SELECT halves FROM staff_days_off`).all() as { halves: number }[];
+    expect(rows).toEqual([{ halves: 1 }]);
+  });
+
+  it("refuses a nonsense date or amount", async () => {
+    const { db } = await seed();
+    expect((await recordDayOff(db, me, { day: "15/08/2026", halves: 2 }, NOW)).status).toBe(400);
+    expect((await recordDayOff(db, me, { day: "2026-08-15", halves: 3 }, NOW)).status).toBe(400);
+  });
+});
+
+describe("revealPassword", () => {
+  const NOW = 1_800_000_000_000;
+  const KEY = "9f".repeat(32);
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const clerk = { userId: "c1", email: "c1@shop.test", name: "Nok", role: "admin" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('m1','S','s@shop.test','mechanic','active',?)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("the super admin can read any staff password back, any time", async () => {
+    const { db } = await seed();
+    await setStaffPassword(db, boss, "m1", "aircon-2026", NOW, KEY);
+    const body = (await (await revealPassword(db, boss, "m1", KEY)).json()) as {
+      password: string | null;
+    };
+    expect(body.password).toBe("aircon-2026");
+  });
+
+  it("nobody else can — not even an admin", async () => {
+    const { db } = await seed();
+    await setStaffPassword(db, boss, "m1", "aircon-2026", NOW, KEY);
+    expect((await revealPassword(db, clerk, "m1", KEY)).status).toBe(403);
+  });
+
+  it("with the key missing, it says so instead of pretending there is no password", async () => {
+    const { db } = await seed();
+    await setStaffPassword(db, boss, "m1", "aircon-2026", NOW, KEY);
+    expect((await revealPassword(db, boss, "m1", "")).status).toBe(503);
+  });
+});
+
+// ── Deleting a person (keeps their name on past work) ────────────────────────────────────────────
+describe("deleteStaff", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const clerk = { userId: "c1", email: "c1@shop.test", name: "Nok", role: "admin" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('boss','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,phone,emergency_phone,
+                            bank_account_no,pin_hash,pin_lookup,password_hash,password_cipher)
+         VALUES ('p1','ปอนด์ (Pond)','pond@shop.test','mechanic','active',?,'0821114444','0899992222',
+                 '1234567890','h','lookup','ph','cipher')`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("only a super admin may delete", async () => {
+    const { db } = await seed();
+    expect((await deleteStaff(db, clerk, "p1", NOW)).status).toBe(403);
+  });
+
+  it("keeps the name but destroys everything personal", async () => {
+    const { raw, db } = await seed();
+    expect((await deleteStaff(db, boss, "p1", NOW)).status).toBe(200);
+    const row = raw
+      .prepare(
+        `SELECT name, phone, emergency_phone AS ep, bank_account_no AS bank, pin_hash AS pin,
+                pin_lookup AS lookup, password_hash AS pw, password_cipher AS cipher,
+                deleted_at AS deletedAt, status
+           FROM users WHERE id='p1'`,
+      )
+      .get() as Record<string, unknown>;
+    // The name survives so old bills still say who made them — the owner's choice.
+    expect(row.name).toBe("ปอนด์ (Pond)");
+    // Everything else that identifies or admits them is gone.
+    expect(row.phone).toBeNull();
+    expect(row.ep).toBeNull();
+    expect(row.bank).toBeNull();
+    expect(row.pin).toBeNull();
+    expect(row.lookup).toBeNull();
+    expect(row.pw).toBeNull();
+    expect(row.cipher).toBeNull();
+    expect(row.deletedAt).toBe(NOW);
+    expect(row.status).toBe("disabled");
+  });
+
+  it("a deleted person disappears from the staff list", async () => {
+    const { db } = await seed();
+    await deleteStaff(db, boss, "p1", NOW);
+    const body = (await (await listStaff(db, boss)).json()) as { staff: { id: string }[] };
+    expect(body.staff.map((s) => s.id)).toEqual(["boss"]);
+  });
+
+  it("a deleted person's live session dies at once", async () => {
+    const { db } = await seed();
+    const { token } = await createStaffSession(db, "p1", NOW);
+    await deleteStaff(db, boss, "p1", NOW + 1);
+    await expect(staffFromToken(db, token, NOW + 2)).resolves.toBeNull();
+  });
+
+  it("frees their PIN for somebody else to use", async () => {
+    const { raw, db } = await seed();
+    await deleteStaff(db, boss, "p1", NOW);
+    // pin_lookup is UNIQUE; if delete left it behind, nobody could ever reuse those six digits.
+    const rows = raw
+      .prepare(`SELECT COUNT(*) AS n FROM users WHERE pin_lookup = 'lookup'`)
+      .get() as { n: number };
+    expect(rows.n).toBe(0);
+  });
+
+  it("refuses to delete your own account", async () => {
+    const { db } = await seed();
+    expect((await deleteStaff(db, boss, "boss", NOW)).status).toBe(409);
+  });
+
+  it("refuses to delete the last super admin, even from another super admin's account", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('b2','Two','two@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    const other = {
+      userId: "b2",
+      email: "two@shop.test",
+      name: "Two",
+      role: "super_admin",
+    } as const;
+    // Two supers: removing one is fine...
+    expect((await deleteStaff(db, other, "boss", NOW)).status).toBe(200);
+    // ...but the survivor cannot then be removed by anyone.
+    const solo = { ...other };
+    expect((await deleteStaff(db, solo, "b2", NOW)).status).toBe(409);
+  });
+});
+
+// ── Salary: the month's run ──────────────────────────────────────────────────────────────────────
+describe("salaryMonth", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const clerk = { userId: "c1", email: "c1@shop.test", name: "Nok", role: "admin" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,name_th,email,role,status,created_at,day_rate_satang)
+         VALUES ('boss','Boss','เลดี้','boss@shop.test','super_admin','active',?,NULL)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,name_th,email,role,status,created_at,day_rate_satang)
+         VALUES ('s1','Somchai','สมชาย','s@shop.test','mechanic','active',?,40000)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("is super-admin only", async () => {
+    const { db } = await seed();
+    expect((await salaryMonth(db, clerk, "2026-07")).status).toBe(403);
+  });
+
+  it("computes the owner's example from the days off people recorded themselves", async () => {
+    const { raw, db } = await seed();
+    // Two full days off in July.
+    for (const day of ["2026-07-04", "2026-07-18"]) {
+      raw
+        .prepare(
+          `INSERT INTO staff_days_off (id,user_id,day,halves,created_at) VALUES (?, 's1', ?, 2, ?)`,
+        )
+        .run(crypto.randomUUID(), day, NOW);
+    }
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
+      daysInMonth: number;
+      rows: { userId: string; offHalves: number; workingHalves: number; amountSatang: number }[];
+    };
+    expect(body.daysInMonth).toBe(31);
+    const somchai = body.rows.find((r) => r.userId === "s1")!;
+    expect(somchai.offHalves).toBe(4);
+    expect(somchai.workingHalves).toBe(58); // 29 days
+    expect(somchai.amountSatang).toBe(1_160_000); // ฿11,600
+  });
+
+  it("counts a half day as half", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO staff_days_off (id,user_id,day,halves,created_at) VALUES (?, 's1','2026-07-09',1,?)`,
+      )
+      .run(crypto.randomUUID(), NOW);
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
+      rows: { userId: string; amountSatang: number }[];
+    };
+    expect(body.rows.find((r) => r.userId === "s1")!.amountSatang).toBe(1_220_000); // 30.5 × ฿400
+  });
+
+  it("only counts days off inside the month asked for", async () => {
+    const { raw, db } = await seed();
+    for (const day of ["2026-06-30", "2026-08-01"]) {
+      raw
+        .prepare(
+          `INSERT INTO staff_days_off (id,user_id,day,halves,created_at) VALUES (?, 's1', ?, 2, ?)`,
+        )
+        .run(crypto.randomUUID(), day, NOW);
+    }
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
+      rows: { userId: string; offHalves: number }[];
+    };
+    expect(body.rows.find((r) => r.userId === "s1")!.offHalves).toBe(0);
+  });
+
+  it("leaves out anyone with no day rate — there is nothing to pay them by yet", async () => {
+    const { db } = await seed();
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
+      rows: { userId: string }[];
+    };
+    expect(body.rows.map((r) => r.userId)).toEqual(["s1"]);
+  });
+
+  it("leaves out people who have been deleted", async () => {
+    const { raw, db } = await seed();
+    raw.prepare(`UPDATE users SET deleted_at = ? WHERE id='s1'`).run(NOW);
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as { rows: unknown[] };
+    expect(body.rows).toEqual([]);
+  });
+
+  it("refuses a period that isn't a month", async () => {
+    const { db } = await seed();
+    expect((await salaryMonth(db, boss, "July")).status).toBe(400);
+    expect((await salaryMonth(db, boss, "2026-13")).status).toBe(400);
+  });
+});
+
+describe("markSalaryPaid + staffActivity", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const clerk = { userId: "c1", email: "c1@shop.test", name: "Nok", role: "admin" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?,NULL)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('s1','Somchai','s@shop.test','mechanic','active',?,40000)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO staff_days_off (id,user_id,day,halves,created_at) VALUES ('d1','s1','2026-07-04',2,?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO staff_days_off (id,user_id,day,halves,created_at) VALUES ('d2','s1','2026-07-18',2,?)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("marking paid freezes the figures as they stood", async () => {
+    const { raw, db } = await seed();
+    expect(
+      (await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/a.jpg")).status,
+    ).toBe(200);
+    const slip = raw
+      .prepare(
+        `SELECT day_rate_satang AS rate, off_halves AS off, amount_satang AS amt FROM staff_payslips`,
+      )
+      .get() as { rate: number; off: number; amt: number };
+    expect(slip).toEqual({ rate: 40000, off: 4, amt: 1_160_000 });
+  });
+
+  it("a later raise does not rewrite a month already paid", async () => {
+    const { raw, db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/a.jpg");
+    raw.prepare(`UPDATE users SET day_rate_satang = 60000 WHERE id='s1'`).run();
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
+      rows: { amountSatang: number; paidAt: number | null }[];
+    };
+    // The row still reports what was actually paid, not what the new rate would give.
+    expect(body.rows[0]!.amountSatang).toBe(1_160_000);
+    expect(body.rows[0]!.paidAt).toBe(NOW);
+  });
+
+  it("only a super admin may mark paid, or read the activity log", async () => {
+    const { db } = await seed();
+    expect(
+      (await markSalaryPaid(db, clerk, "s1", "2026-07", NOW, "salary-slip/s1/a.jpg")).status,
+    ).toBe(403);
+    expect((await staffActivity(db, clerk, {})).status).toBe(403);
+  });
+
+  it("activity comes back newest first, with the person's name attached", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO staff_activity (id,user_id,kind,detail,created_at) VALUES ('a1','s1','pin_changed',NULL,?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO staff_activity (id,user_id,kind,detail,created_at) VALUES ('a2','s1','day_off','2026-07-04 · full day',?)`,
+      )
+      .run(NOW + 5000);
+    const body = (await (await staffActivity(db, boss, {})).json()) as {
+      activity: { id: string; name: string; kind: string }[];
+    };
+    expect(body.activity.map((a) => a.id)).toEqual(["a2", "a1"]);
+    expect(body.activity[0]!.name).toBe("Somchai");
+  });
+
+  it("filters by person and by month", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO staff_activity (id,user_id,kind,detail,created_at) VALUES ('a1','s1','pin_changed',NULL,?)`,
+      )
+      .run(Date.UTC(2026, 6, 15));
+    raw
+      .prepare(
+        `INSERT INTO staff_activity (id,user_id,kind,detail,created_at) VALUES ('a2','boss','pin_changed',NULL,?)`,
+      )
+      .run(Date.UTC(2026, 7, 15));
+    const byPerson = (await (await staffActivity(db, boss, { userId: "s1" })).json()) as {
+      activity: { id: string }[];
+    };
+    expect(byPerson.activity.map((a) => a.id)).toEqual(["a1"]);
+    const byMonth = (await (await staffActivity(db, boss, { period: "2026-08" })).json()) as {
+      activity: { id: string }[];
+    };
+    expect(byMonth.activity.map((a) => a.id)).toEqual(["a2"]);
+  });
+});
+
+// ── One person's profile, as the owner sees and edits it ─────────────────────────────────────────
+describe("staffProfileFor + updateStaffProfile + clearStaffPin", () => {
+  const NOW = 1_800_000_000_000;
+  const KEY = "9f".repeat(32);
+  const PEPPER = "test-pepper";
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const clerk = { userId: "c1", email: "c1@shop.test", name: "Nok", role: "admin" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,name_th,name_en,email,role,status,created_at,phone)
+         VALUES ('m1','Somchai','สมชาย','Somchai','s@shop.test','mechanic','active',?,'0811111111')`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("only a super admin may read or change someone else's profile", async () => {
+    const { db } = await seed();
+    expect((await staffProfileFor(db, clerk, "m1", KEY)).status).toBe(403);
+    expect((await updateStaffProfile(db, clerk, "m1", { phone: "x" }, NOW)).status).toBe(403);
+    expect((await clearStaffPin(db, clerk, "m1", NOW)).status).toBe(403);
+  });
+
+  it("shows their details and their password in readable form", async () => {
+    const { db } = await seed();
+    await setStaffPassword(db, boss, "m1", "aircon-2026", NOW, KEY);
+    const body = (await (await staffProfileFor(db, boss, "m1", KEY)).json()) as {
+      profile: { nameTh: string; phone: string; password: string };
+    };
+    expect(body.profile.nameTh).toBe("สมชาย");
+    expect(body.profile.phone).toBe("0811111111");
+    expect(body.profile.password).toBe("aircon-2026");
+  });
+
+  it("never ships a hash to the browser", async () => {
+    const { db } = await seed();
+    await setStaffPassword(db, boss, "m1", "aircon-2026", NOW, KEY);
+    const text = await (await staffProfileFor(db, boss, "m1", KEY)).text();
+    expect(text).not.toContain("password_hash");
+    expect(text).not.toContain("pin_hash");
+    expect(text).not.toContain("passwordHash");
+  });
+
+  it("edits everything about them", async () => {
+    const { raw, db } = await seed();
+    const res = await updateStaffProfile(
+      db,
+      boss,
+      "m1",
+      {
+        nameTh: "สมชาย ใจดี",
+        nameEn: "Somchai Jaidee",
+        phone: "0822222222",
+        emergencyName: "มาลี",
+        emergencyPhone: "0899999999",
+        startedOn: Date.UTC(2026, 2, 4),
+        dayRateSatang: 40000,
+        bankName: "Kasikorn",
+        bankAccountNo: "1234567890",
+        bankAccountName: "Somchai Jaidee",
+      },
+      NOW,
+    );
+    expect(res.status).toBe(200);
+    const row = raw
+      .prepare(
+        `SELECT name_th AS th, name_en AS en, phone, emergency_name AS en2, day_rate_satang AS rate,
+                bank_account_no AS acct, name
+           FROM users WHERE id='m1'`,
+      )
+      .get() as Record<string, unknown>;
+    expect(row.th).toBe("สมชาย ใจดี");
+    expect(row.phone).toBe("0822222222");
+    expect(row.rate).toBe(40000);
+    expect(row.acct).toBe("1234567890");
+    // The display name follows the Thai name, so the staff list and salary run stay in step.
+    expect(row.name).toBe("สมชาย ใจดี");
+  });
+
+  it("leaves alone anything not sent", async () => {
+    const { raw, db } = await seed();
+    await updateStaffProfile(db, boss, "m1", { phone: "0899000000" }, NOW);
+    const row = raw.prepare(`SELECT name_th AS th, phone FROM users WHERE id='m1'`).get() as {
+      th: string;
+      phone: string;
+    };
+    expect(row).toEqual({ th: "สมชาย", phone: "0899000000" });
+  });
+
+  it("refuses an email that already belongs to somebody else", async () => {
+    const { db } = await seed();
+    expect(
+      (await updateStaffProfile(db, boss, "m1", { email: "BOSS@shop.test" }, NOW)).status,
+    ).toBe(409);
+  });
+
+  it("refuses a negative or fractional day rate", async () => {
+    const { db } = await seed();
+    expect((await updateStaffProfile(db, boss, "m1", { dayRateSatang: -1 }, NOW)).status).toBe(400);
+    expect((await updateStaffProfile(db, boss, "m1", { dayRateSatang: 1.5 }, NOW)).status).toBe(
+      400,
+    );
+  });
+
+  it("clearing a PIN frees those six digits for somebody else", async () => {
+    const { db } = await seed();
+    const them = {
+      userId: "m1",
+      email: "s@shop.test",
+      name: "Somchai",
+      role: "mechanic",
+    } as const;
+    await setOwnPin(db, them, "481920", NOW, PEPPER);
+    expect((await loginWithPin(db, "481920", NOW + 1, PEPPER)).ok).toBe(true);
+
+    expect((await clearStaffPin(db, boss, "m1", NOW + 2)).status).toBe(200);
+    // Gone as a way in...
+    expect((await loginWithPin(db, "481920", NOW + 3, PEPPER)).ok).toBe(false);
+    // ...and available again, which a left-behind unique index would have prevented forever.
+    expect((await setOwnPin(db, boss, "481920", NOW + 4, PEPPER)).status).toBe(200);
+  });
+});
+
+// ── PINs the owner can read back (0085) ──────────────────────────────────────────────────────────
+describe("setStaffPin + PIN reveal", () => {
+  const NOW = 1_800_000_000_000;
+  const KEY = "9f".repeat(32);
+  const PEPPER = "test-pepper";
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const them = {
+    userId: "m1",
+    email: "s@shop.test",
+    name: "Somchai",
+    role: "mechanic",
+  } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('boss','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at) VALUES ('m1','Somchai','s@shop.test','mechanic','active',?)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("a PIN the staff member sets themselves can be read back by the owner", async () => {
+    const { db } = await seed();
+    expect((await setOwnPin(db, them, "620418", NOW, PEPPER, KEY)).status).toBe(200);
+    const body = (await (await staffProfileFor(db, boss, "m1", KEY)).json()) as {
+      profile: { pin: string | null };
+    };
+    expect(body.profile.pin).toBe("620418");
+  });
+
+  it("the owner can set somebody's PIN, and it signs them in", async () => {
+    const { db } = await seed();
+    expect((await setStaffPin(db, boss, "m1", "481920", NOW, PEPPER, KEY)).status).toBe(200);
+    const out = await loginWithPin(db, "481920", NOW + 1, PEPPER);
+    expect(out.ok && out.identity.userId).toBe("m1");
+  });
+
+  it("resetting a PIN signs that person out of every device", async () => {
+    const { db } = await seed();
+    await setStaffPin(db, boss, "m1", "481920", NOW, PEPPER, KEY);
+    const { token } = await createStaffSession(db, "m1", NOW + 1);
+    await expect(staffFromToken(db, token, NOW + 2)).resolves.not.toBeNull();
+    await setStaffPin(db, boss, "m1", "735104", NOW + 3, PEPPER, KEY);
+    await expect(staffFromToken(db, token, NOW + 4)).resolves.toBeNull();
+  });
+
+  it("only a super admin may set somebody else's PIN", async () => {
+    const { db } = await seed();
+    const clerk = { userId: "c1", email: "c@x.test", name: "Nok", role: "admin" } as const;
+    expect((await setStaffPin(db, clerk, "m1", "481920", NOW, PEPPER, KEY)).status).toBe(403);
+  });
+
+  it("refuses a PIN that isn't six digits, or one anybody would guess", async () => {
+    const { db } = await seed();
+    expect((await setStaffPin(db, boss, "m1", "1234", NOW, PEPPER, KEY)).status).toBe(400);
+    expect((await setStaffPin(db, boss, "m1", "111111", NOW, PEPPER, KEY)).status).toBe(400);
+  });
+
+  it("refuses a PIN somebody else already holds", async () => {
+    const { db } = await seed();
+    await setOwnPin(db, them, "620418", NOW, PEPPER, KEY);
+    expect((await setStaffPin(db, boss, "boss", "620418", NOW, PEPPER, KEY)).status).toBe(409);
+  });
+
+  it("clearing a PIN destroys the readable copy too", async () => {
+    const { raw, db } = await seed();
+    await setOwnPin(db, them, "620418", NOW, PEPPER, KEY);
+    await clearStaffPin(db, boss, "m1", NOW + 1);
+    const row = raw.prepare(`SELECT pin_cipher AS c FROM users WHERE id='m1'`).get() as {
+      c: string | null;
+    };
+    expect(row.c).toBeNull();
+  });
+
+  it("says a password EXISTS even when it can't be revealed", async () => {
+    const { raw, db } = await seed();
+    // A password set before the encryption key existed: a working hash, no readable copy. The eye
+    // has to stay usable-looking rather than claiming there is no password.
+    const hashed = await hashPassword("older-password", { iterations: 1000 });
+    raw
+      .prepare(
+        `UPDATE users SET password_hash=?, password_salt=?, password_iterations=? WHERE id='m1'`,
+      )
+      .run(hashed.hash, hashed.salt, hashed.iterations);
+    const body = (await (await staffProfileFor(db, boss, "m1", KEY)).json()) as {
+      profile: { password: string | null; hasPassword: number };
+    };
+    expect(body.profile.hasPassword).toBe(1);
+    expect(body.profile.password).toBeNull();
+  });
+
+  it("with no key configured, the PIN reads as unavailable rather than as absent", async () => {
+    const { db } = await seed();
+    await setOwnPin(db, them, "620418", NOW, PEPPER, KEY);
+    const body = (await (await staffProfileFor(db, boss, "m1", "")).json()) as {
+      profile: { pin: string | null; hasPin: number };
+    };
+    // hasPin still says there IS one — only the reveal is unavailable.
+    expect(body.profile.pin).toBeNull();
+    expect(body.profile.hasPin).toBe(1);
+  });
+});
+
+// ── Wage slips: required to confirm, gone after three months ─────────────────────────────────────
+describe("wage transfer slips", () => {
+  const NOW = 1_800_000_000_000; // 2027-01-15
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const mech = { userId: "s1", email: "s@shop.test", name: "Somchai", role: "mechanic" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang,
+                            bank_name,bank_account_no,bank_account_name)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?,NULL,NULL,NULL,NULL)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang,
+                            bank_name,bank_account_no,bank_account_name)
+         VALUES ('s1','Somchai','s@shop.test','mechanic','active',?,40000,
+                 'Kasikorn','1234567890','Somchai Jaidee')`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  /** A stand-in for the R2 bucket: remembers what was deleted so the sweep can be checked. */
+  function fakeBucket() {
+    const deleted: string[] = [];
+    return {
+      deleted,
+      bucket: { delete: async (k: string) => void deleted.push(k) } as unknown as R2Bucket,
+    };
+  }
+
+  it("given no slip > when marking paid > then it is refused", async () => {
+    const { db } = await seed();
+    const res = await markSalaryPaid(db, boss, "s1", "2026-07", NOW, null);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/slip/i);
+  });
+
+  it("given a slip > then the payslip keeps its key and the month reads as paid", async () => {
+    const { raw, db } = await seed();
+    expect(
+      (await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/x.jpg")).status,
+    ).toBe(200);
+    const row = raw
+      .prepare(
+        `SELECT slip_key AS k, slip_uploaded_at AS at FROM staff_payslips WHERE user_id='s1'`,
+      )
+      .get() as { k: string; at: number };
+    expect(row.k).toBe("salary-slip/s1/x.jpg");
+    expect(row.at).toBe(NOW);
+  });
+
+  it("the month's rows carry the bank details needed to pay, and whether a slip is held", async () => {
+    const { db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/x.jpg");
+    const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
+      rows: {
+        userId: string;
+        bankName: string | null;
+        bankAccountNo: string | null;
+        bankAccountName: string | null;
+        hasSlip: boolean;
+      }[];
+    };
+    const row = body.rows.find((r) => r.userId === "s1")!;
+    expect(row.bankName).toBe("Kasikorn");
+    expect(row.bankAccountNo).toBe("1234567890");
+    expect(row.bankAccountName).toBe("Somchai Jaidee");
+    expect(row.hasSlip).toBe(true);
+  });
+
+  it("given a payment three months old > when the sweep runs > then the image goes and the record stays", async () => {
+    const { raw, db } = await seed();
+    const paidAt = Date.UTC(2026, 9, 5); // 5 October 2026 — expires 5 January 2027
+    await markSalaryPaid(db, boss, "s1", "2026-09", paidAt, "salary-slip/s1/old.jpg");
+    const { deleted, bucket } = fakeBucket();
+
+    const purged = await purgeExpiredSalarySlips(db, bucket, NOW);
+
+    expect(purged).toBe(1);
+    expect(deleted).toEqual(["salary-slip/s1/old.jpg"]);
+    const row = raw
+      .prepare(
+        `SELECT slip_key AS k, paid_at AS paidAt, amount_satang AS amt
+                  FROM staff_payslips WHERE user_id='s1'`,
+      )
+      .get() as { k: string | null; paidAt: number; amt: number };
+    expect(row.k).toBeNull(); // the image is gone…
+    expect(row.paidAt).toBe(paidAt); // …the payment record is not
+    expect(row.amt).toBeGreaterThan(0);
+  });
+
+  it("given a recent payment > then the sweep leaves it alone", async () => {
+    const { db } = await seed();
+    await markSalaryPaid(
+      db,
+      boss,
+      "s1",
+      "2026-12",
+      Date.UTC(2026, 11, 5),
+      "salary-slip/s1/new.jpg",
+    );
+    const { deleted, bucket } = fakeBucket();
+    expect(await purgeExpiredSalarySlips(db, bucket, NOW)).toBe(0);
+    expect(deleted).toEqual([]);
+  });
+
+  it("a slip is readable by the owner and by the person it paid, and by nobody else", async () => {
+    const { db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/x.jpg");
+    expect(await salarySlipKey(db, boss, "s1", "2026-07")).toBe("salary-slip/s1/x.jpg");
+    expect(await salarySlipKey(db, mech, "s1", "2026-07")).toBe("salary-slip/s1/x.jpg");
+    const other = { ...mech, userId: "s2", email: "s2@shop.test" };
+    expect(await salarySlipKey(db, other, "s1", "2026-07")).toBeNull();
+  });
+});
+
+describe("staffPayments — one person's wage history", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const mech = { userId: "s1", email: "s@shop.test", name: "Somchai", role: "mechanic" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?,NULL)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('s1','Somchai','s@shop.test','mechanic','active',?,40000)`,
+      )
+      .run(NOW);
+    return { raw, db };
+  }
+
+  it("lists that person's months, newest first, with whether a slip is still held", async () => {
+    const { db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-06", NOW - 100, "salary-slip/s1/jun.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/jul.jpg");
+
+    const body = (await (await staffPayments(db, boss, "s1")).json()) as {
+      payments: { period: string; amountSatang: number; paidAt: number; hasSlip: boolean }[];
+    };
+    expect(body.payments.map((p) => p.period)).toEqual(["2026-07", "2026-06"]);
+    expect(body.payments[0]!.hasSlip).toBe(true);
+    expect(body.payments[0]!.amountSatang).toBeGreaterThan(0);
+  });
+
+  it("a swept slip leaves the payment on the list, just without one", async () => {
+    const { raw, db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-06", NOW, "salary-slip/s1/jun.jpg");
+    raw.prepare(`UPDATE staff_payslips SET slip_key = NULL`).run();
+    const body = (await (await staffPayments(db, boss, "s1")).json()) as {
+      payments: { hasSlip: boolean }[];
+    };
+    expect(body.payments).toHaveLength(1);
+    expect(body.payments[0]!.hasSlip).toBe(false);
+  });
+
+  it("a person may read their own wage history, but never anyone else's", async () => {
+    const { db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/jul.jpg");
+    expect((await staffPayments(db, mech, "s1")).status).toBe(200);
+    const other = { ...mech, userId: "s2", email: "s2@shop.test" };
+    expect((await staffPayments(db, other, "s1")).status).toBe(403);
+  });
+});
+
+// ── A paid order is a proven order ───────────────────────────────────────────────────────────────
+// The owner's locked rule (2026-08-04): "all slips need to be approved > then turn to 'to ship'".
+// A slip cannot be approved if there is no slip, so confirming payment without one is refused.
+describe("reviewOrderPayment > a transfer cannot be confirmed without its slip", () => {
+  const NOW = 1_800_000_000_000;
+
+  function awaitingReview(opts: { slip?: string | null } = {}) {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                   order_created_at, imported_at, slip_image_key)
+         VALUES ('o1','airplus','AP-1','new','verifying',?,?,?)`,
+      )
+      .run(NOW, NOW, opts.slip ?? null);
+    return { raw, db: asD1(raw) };
+  }
+
+  const status = (raw: DatabaseSync) =>
+    (
+      raw.prepare(`SELECT payment_status AS s FROM sales_orders WHERE id='o1'`).get() as {
+        s: string;
+      }
+    ).s;
+
+  it("given no slip on the order > when confirming > then it is refused and stays unpaid", async () => {
+    const { raw, db } = awaitingReview({ slip: null });
+    const out = await reviewOrderPayment(db, "o1", "confirm", null, "boss@shop.test", NOW);
+    expect(out.ok).toBe(false);
+    expect(out.ok === false && out.code).toBe(409);
+    // Unpaid means the flow stops — the order must not become To ship.
+    expect(status(raw)).toBe("verifying");
+  });
+
+  it("given a slip on the order > when confirming > then it settles as paid", async () => {
+    const { raw, db } = awaitingReview({ slip: "slip/o1/a.jpg" });
+    const out = await reviewOrderPayment(db, "o1", "confirm", null, "boss@shop.test", NOW);
+    expect(out.ok).toBe(true);
+    expect(status(raw)).toBe("paid");
+  });
+
+  it("rejecting needs no slip — that is the case where one never arrived", async () => {
+    const { raw, db } = awaitingReview({ slip: null });
+    const out = await reviewOrderPayment(db, "o1", "reject", "ไม่พบสลิป", "boss@shop.test", NOW);
+    expect(out.ok).toBe(true);
+    expect(status(raw)).toBe("pending");
+  });
+});
+
+describe("updateOrder > paid is not a status you can simply type", () => {
+  const NOW = 1_800_000_000_000;
+
+  function order(opts: { slip?: string | null; status?: string } = {}) {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                   order_created_at, imported_at, slip_image_key)
+         VALUES ('o1','airplus','AP-1','new',?,?,?,?)`,
+      )
+      .run(opts.status ?? "verifying", NOW, NOW, opts.slip ?? null);
+    return { raw, db: asD1(raw) };
+  }
+  const paymentStatus = (raw: DatabaseSync) =>
+    (
+      raw.prepare(`SELECT payment_status AS s FROM sales_orders WHERE id='o1'`).get() as {
+        s: string;
+      }
+    ).s;
+
+  it("given no slip > when an admin patches it straight to paid > then it is refused", async () => {
+    const { raw, db } = order({ slip: null });
+    const out = await updateOrder(db, "o1", { paymentStatus: "paid" });
+    expect(out.ok).toBe(false);
+    expect(paymentStatus(raw)).toBe("verifying");
+  });
+
+  it("given a slip > then the same patch is allowed, so a mistake can still be corrected", async () => {
+    const { raw, db } = order({ slip: "slip/o1/a.jpg" });
+    expect((await updateOrder(db, "o1", { paymentStatus: "paid" })).ok).toBe(true);
+    expect(paymentStatus(raw)).toBe("paid");
+  });
+
+  it("COD is a different flow — its statuses never need a transfer slip", async () => {
+    const { raw, db } = order({ slip: null, status: "cod" });
+    expect((await updateOrder(db, "o1", { paymentStatus: "cod_confirmed" })).ok).toBe(true);
+    expect(paymentStatus(raw)).toBe("cod_confirmed");
+  });
+});
+
+// ── The activity log is read by a person ─────────────────────────────────────────────────────────
+describe("staff activity names the person it is about, never their id", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const UUID = "d7f46888-9b19-4b3c-a78a-c355eeaf7d4e";
+
+  function seed() {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,name_th,email,role,status,created_at)
+         VALUES ('boss','Boss','เลดี้','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,name_th,email,role,status,created_at)
+         VALUES (?, 'Somchai','สมชาย','s@shop.test','mechanic','active',?)`,
+      )
+      .run(UUID, NOW);
+    return { raw, db: asD1(raw) };
+  }
+
+  const details = async (db: D1Database) =>
+    (
+      (await (await staffActivity(db, boss, {})).json()) as {
+        activity: { detail: string | null }[];
+      }
+    ).activity.map((a) => a.detail ?? "");
+
+  it("given a profile edit > then the line names them, with no id in sight", async () => {
+    const { db } = seed();
+    await updateStaffProfile(db, boss, UUID, { phone: "081-555-0000" }, NOW);
+    const lines = await details(db);
+    expect(lines.join(" ")).toContain("สมชาย");
+    expect(lines.join(" ")).not.toContain(UUID);
+  });
+
+  it("given a PIN cleared > then the line names them", async () => {
+    const { db } = seed();
+    await clearStaffPin(db, boss, UUID, NOW);
+    const lines = await details(db);
+    expect(lines.join(" ")).toContain("สมชาย");
+    expect(lines.join(" ")).not.toContain(UUID);
+  });
+
+  it("given a PIN reset > then the line names them", async () => {
+    const { db } = seed();
+    await setStaffPin(db, boss, UUID, "482913", NOW, "test-pepper", "9f".repeat(32));
+    const lines = await details(db);
+    expect(lines.join(" ")).toContain("สมชาย");
+    expect(lines.join(" ")).not.toContain(UUID);
   });
 });

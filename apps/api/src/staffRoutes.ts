@@ -1,0 +1,1036 @@
+/**
+ * Staff administration — create people, set their password, change their role, switch them off.
+ *
+ * Every handler re-checks `canManageStaff` itself rather than trusting the router to have done it.
+ * That is deliberate duplication: a route added later that forgets the check should still be safe.
+ *
+ * Owner's rules (2026-08-03, revised during the preview):
+ *  · The super admin can READ any staff password back at any time — `revealPassword`. That works
+ *    off a second, encrypted copy of the password, never the one-way hash.
+ *  · Staff may change their own password and PIN, and every such change is written to
+ *    `staff_activity` so the owner sees it ("all changes update to me").
+ *  · Days off are self-reported with no approval step.
+ */
+import {
+  canManageStaff,
+  decryptSecret,
+  encryptSecret,
+  hashPassword,
+  isStaffRole,
+  passwordProblem,
+  pinLookup,
+  pinProblem,
+  payForMonth,
+  daysInMonth,
+  slipIsExpired,
+} from "@l-shopee/core";
+import type { StaffIdentity } from "./staffSession";
+import { revokeAllStaffSessions } from "./staffSession";
+
+export interface CreateStaffInput {
+  name?: string;
+  /** Thai and English kept apart, following the taxonomy convention (name_th / name_en). */
+  nameTh?: string | null;
+  nameEn?: string | null;
+  email?: string;
+  role?: string;
+  password?: string;
+}
+export interface UpdateStaffInput {
+  role?: string;
+  status?: string;
+  /** Day rate in satang. Null clears it, which takes the person out of the salary run. */
+  dayRateSatang?: number | null;
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+const forbidden = () => json({ error: "forbidden", reason: "super_admin_only" }, 403);
+
+/** How many active super admins remain — the number that must never reach zero. */
+async function activeSuperAdmins(db: D1Database, excludingUserId?: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM users
+        WHERE role = 'super_admin' AND status = 'active' AND id <> ?`,
+    )
+    .bind(excludingUserId ?? "")
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+export async function listStaff(db: D1Database, actor: StaffIdentity): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  // Columns are named explicitly: SELECT * here would start leaking password_hash the moment
+  // someone adds a column, and this response goes to a browser.
+  const { results } = await db
+    .prepare(
+      `SELECT id, name, email, role, status, created_at AS createdAt,
+              last_login_at AS lastLoginAt,
+              day_rate_satang AS dayRateSatang,
+              CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword
+         FROM users
+        WHERE deleted_at IS NULL
+        ORDER BY CASE role WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, name`,
+    )
+    .all();
+  return json({ staff: results ?? [] });
+}
+
+export async function createStaff(
+  db: D1Database,
+  actor: StaffIdentity,
+  input: CreateStaffInput,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+
+  const name = (input.name ?? "").trim();
+  const email = (input.email ?? "").trim().toLowerCase();
+  const role = input.role ?? "";
+  if (!name || !email) return json({ error: "name and email are required" }, 400);
+  if (!isStaffRole(role)) return json({ error: "unknown role" }, 400);
+
+  // A password is optional at creation — the account simply can't be logged into until one is set,
+  // which `verifyPassword` enforces by refusing a null hash.
+  if (input.password) {
+    const problem = passwordProblem(input.password);
+    if (problem) return json({ error: problem }, 400);
+  }
+
+  const existing = await db
+    .prepare(`SELECT id FROM users WHERE lower(email) = ?`)
+    .bind(email)
+    .first<{ id: string }>();
+  if (existing) return json({ error: "that email already has an account" }, 409);
+
+  const stored = input.password
+    ? await hashPassword(input.password)
+    : { hash: null, salt: null, iterations: null };
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO users (id, name, name_th, name_en, email, role, status, created_at, created_by,
+                          password_hash, password_salt, password_iterations, password_set_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      name,
+      input.nameTh?.trim() || null,
+      input.nameEn?.trim() || null,
+      email,
+      role,
+      now,
+      actor.userId,
+      stored.hash,
+      stored.salt,
+      stored.iterations,
+      input.password ? now : null,
+    )
+    .run();
+  return json({ id, name, email, role, status: "active" }, 201);
+}
+
+export async function setStaffPassword(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  password: string,
+  now: number,
+  key?: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const problem = passwordProblem(password);
+  if (problem) return json({ error: problem }, 400);
+
+  const target = await db
+    .prepare(`SELECT id FROM users WHERE id = ?`)
+    .bind(userId)
+    .first<{ id: string }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  const stored = await hashPassword(password);
+  // Two copies, two jobs: the hash is what a login is checked against and can never be reversed;
+  // the cipher is what the owner reveals later. Without a key we simply store no readable copy —
+  // the account still works, the reveal just says the key is missing.
+  const cipher = key ? await encryptSecret(password, key) : null;
+  await db
+    .prepare(
+      `UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?,
+                        password_set_at = ?, password_cipher = ?,
+                        failed_attempts = 0, locked_until = NULL, last_failed_at = NULL
+        WHERE id = ?`,
+    )
+    .bind(stored.hash, stored.salt, stored.iterations, now, cipher, userId)
+    .run();
+
+  // The lock goes with the old password (owner, 2026-08-03). The 24 hours punish a run of failed
+  // guesses against a credential that no longer exists — leaving it in place would mean handing
+  // someone a working password and telling them to come back tomorrow.
+
+  // The old password is gone, so the sessions it opened go with it. Otherwise changing a password
+  // to lock someone out would leave them logged in on the device that matters.
+  await revokeAllStaffSessions(db, userId, now);
+  return json({ ok: true });
+}
+
+export async function updateStaff(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  input: UpdateStaffInput,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+
+  const target = await db
+    .prepare(`SELECT id, role, status FROM users WHERE id = ?`)
+    .bind(userId)
+    .first<{ id: string; role: string; status: string }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  const nextRole = input.role ?? target.role;
+  const nextStatus = input.status ?? target.status;
+  if (!isStaffRole(nextRole)) return json({ error: "unknown role" }, 400);
+  if (nextStatus !== "active" && nextStatus !== "disabled")
+    return json({ error: "unknown status" }, 400);
+
+  // The one door that must never lock behind you: if this change would remove the last active
+  // super admin, refuse it. Nobody could then create staff, set passwords, or see a bank slip —
+  // and there is no back door, because the roles no longer come from an env var we could edit.
+  const losesSuper =
+    target.role === "super_admin" && (nextRole !== "super_admin" || nextStatus !== "active");
+  if (losesSuper && (await activeSuperAdmins(db, userId)) === 0) {
+    return json({ error: "this is the only super admin — promote someone else first" }, 409);
+  }
+
+  if (input.dayRateSatang !== undefined) {
+    const rate = input.dayRateSatang;
+    if (rate !== null && (!Number.isInteger(rate) || rate < 0)) {
+      return json({ error: "day rate must be a whole number of satang" }, 400);
+    }
+    await db.prepare(`UPDATE users SET day_rate_satang = ? WHERE id = ?`).bind(rate, userId).run();
+  }
+
+  await db
+    .prepare(`UPDATE users SET role = ?, status = ? WHERE id = ?`)
+    .bind(nextRole, nextStatus, userId)
+    .run();
+
+  // Switching someone off has to take effect now, not whenever their session happens to expire.
+  if (nextStatus === "disabled") await revokeAllStaffSessions(db, userId, now);
+  return json({ ok: true, role: nextRole, status: nextStatus });
+}
+
+/**
+ * Who a log line is ABOUT, by name.
+ *
+ * The activity log is read by a person, so it says "สมชาย" and never a database key (owner,
+ * 2026-08-04). Falls back to the id only if the row has vanished, which beats writing nothing —
+ * and keeps working for someone deleted since, because a tombstone keeps its `name`.
+ */
+async function nameOf(db: D1Database, userId: string): Promise<string> {
+  try {
+    const row = await db
+      .prepare(`SELECT COALESCE(name_th, name) AS name FROM users WHERE id = ?`)
+      .bind(userId)
+      .first<{ name: string | null }>();
+    return row?.name || userId;
+  } catch {
+    return userId;
+  }
+}
+
+/** A line in the owner's activity log. Best-effort: never fail a real action because logging did. */
+async function logActivity(
+  db: D1Database,
+  userId: string,
+  kind: string,
+  detail: string | null,
+  now: number,
+): Promise<void> {
+  try {
+    await db
+      .prepare(
+        `INSERT INTO staff_activity (id, user_id, kind, detail, created_at) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), userId, kind, detail, now)
+      .run();
+  } catch (err) {
+    console.error("staff_activity write failed:", err);
+  }
+}
+
+export interface DayOffInput {
+  day?: string;
+  halves?: number;
+  reason?: string;
+}
+
+/**
+ * Someone's own profile. Includes their password in readable form — the owner decided staff may see
+ * and change their own (2026-08-03). Columns are listed one by one; a `SELECT *` here would start
+ * shipping the password and PIN hashes to a browser the moment anyone added a column.
+ */
+export async function ownProfile(
+  db: D1Database,
+  actor: StaffIdentity,
+  key: string,
+): Promise<Response> {
+  const row = await db
+    .prepare(
+      `SELECT id, name, name_th AS nameTh, name_en AS nameEn, email, role, phone,
+              emergency_phone AS emergencyPhone, emergency_name AS emergencyName,
+              started_on AS startedOn, day_rate_satang AS dayRateSatang,
+              bank_name AS bankName, bank_account_no AS bankAccountNo,
+              bank_account_name AS bankAccountName,
+              password_cipher AS cipher, pin_cipher AS pinCipher,
+              CASE WHEN pin_hash IS NULL THEN 0 ELSE 1 END AS hasPin,
+              CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword
+         FROM users WHERE id = ?`,
+    )
+    .bind(actor.userId)
+    .first<Record<string, unknown> & { cipher: string | null; pinCipher: string | null }>();
+  if (!row) return json({ error: "no such person" }, 404);
+
+  const { cipher, pinCipher, ...profile } = row;
+  return json({
+    profile: {
+      ...profile,
+      password: key ? await decryptSecret(cipher, key) : null,
+      pin: key ? await decryptSecret(pinCipher, key) : null,
+    },
+  });
+}
+
+/**
+ * Change your own password. Other devices are signed out; this one is not — being logged out of the
+ * screen you just used would look like the change failed.
+ */
+export async function changeOwnPassword(
+  db: D1Database,
+  actor: StaffIdentity,
+  password: string,
+  now: number,
+  key: string,
+): Promise<Response> {
+  const problem = passwordProblem(password);
+  if (problem) return json({ error: problem }, 400);
+
+  const stored = await hashPassword(password);
+  const cipher = key ? await encryptSecret(password, key) : null;
+  await db
+    .prepare(
+      `UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?,
+                        password_set_at = ?, password_cipher = ?,
+                        failed_attempts = 0, locked_until = NULL, last_failed_at = NULL
+        WHERE id = ?`,
+    )
+    .bind(stored.hash, stored.salt, stored.iterations, now, cipher, actor.userId)
+    .run();
+
+  await logActivity(db, actor.userId, "password_changed", null, now);
+  return json({ ok: true });
+}
+
+/**
+ * Choose your own quick-login PIN.
+ *
+ * Two refusals matter here. An easily guessed PIN is refused because a PIN is typed with no email —
+ * it IS the whole lock. And a PIN somebody else already holds is refused because a PIN-only login
+ * has to resolve to exactly one person; the UNIQUE index would reject it anyway, and a caught
+ * constraint error makes a much worse message than this one.
+ */
+async function writePin(
+  db: D1Database,
+  userId: string,
+  pin: string,
+  now: number,
+  pepper: string,
+  key: string,
+): Promise<Response | null> {
+  if (!pepper) return json({ error: "pin_unavailable" }, 503);
+  const problem = pinProblem(pin);
+  if (problem) return json({ error: problem }, 400);
+
+  const lookup = await pinLookup(pin, pepper);
+  const taken = await db
+    .prepare(`SELECT id FROM users WHERE pin_lookup = ? AND id <> ?`)
+    .bind(lookup, userId)
+    .first<{ id: string }>();
+  if (taken) return json({ error: "Someone already uses that PIN. Choose another." }, 409);
+
+  const stored = await hashPassword(pin);
+  // Two copies, same split as the password: the hash authorises, the cipher is what the owner can
+  // reveal (0085). Without a key we simply store no readable copy — the PIN still works.
+  const cipher = key ? await encryptSecret(pin, key) : null;
+  await db
+    .prepare(
+      `UPDATE users SET pin_hash = ?, pin_salt = ?, pin_iterations = ?, pin_lookup = ?,
+                        pin_set_at = ?, pin_cipher = ?
+        WHERE id = ?`,
+    )
+    .bind(stored.hash, stored.salt, stored.iterations, lookup, now, cipher, userId)
+    .run();
+  return null;
+}
+
+export async function setOwnPin(
+  db: D1Database,
+  actor: StaffIdentity,
+  pin: string,
+  now: number,
+  pepper: string,
+  key = "",
+): Promise<Response> {
+  const failed = await writePin(db, actor.userId, pin, now, pepper, key);
+  if (failed) return failed;
+  await logActivity(db, actor.userId, "pin_changed", null, now);
+  return json({ ok: true });
+}
+
+/**
+ * The owner setting somebody else's PIN — the reset half of the Staff page's PIN row.
+ *
+ * Like a password reset, it ends their sessions: the credential they were signed in under has been
+ * replaced, so leaving those open would mean a "reset" that didn't actually shut anything.
+ */
+export async function setStaffPin(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  pin: string,
+  now: number,
+  pepper: string,
+  key = "",
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const target = await db
+    .prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ id: string }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  const failed = await writePin(db, userId, pin, now, pepper, key);
+  if (failed) return failed;
+
+  await revokeAllStaffSessions(db, userId, now);
+  await logActivity(
+    db,
+    actor.userId,
+    "pin_changed",
+    `Reset the PIN for ${await nameOf(db, userId)}`,
+    now,
+  );
+  return json({ ok: true });
+}
+
+/**
+ * Record a day off — self-reported, no approval (owner: "so they can inform by themselves").
+ * Re-recording the same date REPLACES it, so correcting a half day to a full one can't quietly
+ * charge the month twice.
+ */
+export async function recordDayOff(
+  db: D1Database,
+  actor: StaffIdentity,
+  input: DayOffInput,
+  now: number,
+): Promise<Response> {
+  const day = (input.day ?? "").trim();
+  const halves = input.halves;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: "Pick a date." }, 400);
+  if (halves !== 1 && halves !== 2) return json({ error: "Choose a half day or a full day." }, 400);
+
+  await db
+    .prepare(
+      `INSERT INTO staff_days_off (id, user_id, day, halves, reason, created_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, day) DO UPDATE SET halves = ?, reason = ?, created_at = ?`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      actor.userId,
+      day,
+      halves,
+      input.reason ?? null,
+      now,
+      actor.userId,
+      halves,
+      input.reason ?? null,
+      now,
+    )
+    .run();
+
+  await logActivity(
+    db,
+    actor.userId,
+    "day_off",
+    `${day} · ${halves === 2 ? "full day" : "half day"}`,
+    now,
+  );
+  return json({ ok: true }, 201);
+}
+
+/** Reveal a staff password. Super admin only, and only when the encryption key is configured. */
+export async function revealPassword(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  key: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  // Distinguish "the key is missing" from "there is no password". Reporting the first as the second
+  // would send the owner off resetting a password that was never the problem.
+  if (!key) return json({ error: "reveal_unavailable", reason: "STAFF_SECRET_KEY not set" }, 503);
+
+  const row = await db
+    .prepare(`SELECT password_cipher AS cipher FROM users WHERE id = ?`)
+    .bind(userId)
+    .first<{ cipher: string | null }>();
+  if (!row) return json({ error: "no such person" }, 404);
+  return json({ password: await decryptSecret(row.cipher, key) });
+}
+
+/**
+ * Delete someone — a TOMBSTONE, not a DELETE FROM.
+ *
+ * The owner chose (2026-08-03) that past bills and stock movements keep showing who made them. Those
+ * rows carry a foreign key to this one, so the row has to survive; what goes is everything that
+ * identifies the person or lets them back in: contact details, bank account, PIN, both copies of the
+ * password. The name stays, and every staff list filters `deleted_at`.
+ *
+ * `pin_lookup` is cleared for a practical reason as well as a privacy one: it is UNIQUE, so leaving
+ * it behind would reserve those six digits forever against somebody who no longer works here.
+ */
+export async function deleteStaff(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  // Deleting the account you are signed in with destroys your own session mid-request. If someone
+  // really is leaving, another super admin removes them.
+  if (userId === actor.userId) {
+    return json({ error: "you can't delete your own account" }, 409);
+  }
+
+  const target = await db
+    .prepare(`SELECT id, role, status FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ id: string; role: string; status: string }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  // Same door that must never lock behind you as in updateStaff — deleting the last super admin
+  // would leave nobody able to create staff, set passwords or see a slip.
+  if (target.role === "super_admin" && (await activeSuperAdmins(db, userId)) === 0) {
+    return json({ error: "this is the only super admin — promote someone else first" }, 409);
+  }
+
+  await db
+    .prepare(
+      `UPDATE users
+          SET deleted_at = ?, status = 'disabled',
+              phone = NULL, emergency_phone = NULL, emergency_name = NULL,
+              bank_name = NULL, bank_account_no = NULL, bank_account_name = NULL,
+              pin_hash = NULL, pin_salt = NULL, pin_iterations = NULL, pin_lookup = NULL,
+              password_hash = NULL, password_salt = NULL, password_iterations = NULL,
+              password_cipher = NULL
+        WHERE id = ?`,
+    )
+    .bind(now, userId)
+    .run();
+
+  await revokeAllStaffSessions(db, userId, now);
+  return json({ ok: true });
+}
+
+/**
+ * One month's salary run: day rate × working days, where working days are the month's days minus
+ * what each person recorded on their own profile. Nothing is added and nothing deducted — the
+ * owner's model, and the arithmetic itself lives in `payForMonth` so it can be tested exactly.
+ *
+ * Anyone without a day rate is left out rather than shown as ฿0: there is genuinely nothing to pay
+ * them BY yet, and a zero in a wage table reads like a decision rather than a missing field.
+ *
+ * Paid months come from `staff_payslips`, which stores a SNAPSHOT — a raise next month must never
+ * rewrite what this one paid.
+ */
+export async function salaryMonth(
+  db: D1Database,
+  actor: StaffIdentity,
+  period: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    return json({ error: "period must look like 2026-07" }, 400);
+  }
+
+  const { results } = await db
+    .prepare(
+      `SELECT u.id AS userId, u.name AS name, u.name_th AS nameTh, u.role AS role,
+              u.day_rate_satang AS dayRateSatang,
+              u.bank_name AS bankName, u.bank_account_no AS bankAccountNo,
+              u.bank_account_name AS bankAccountName,
+              COALESCE((SELECT SUM(d.halves) FROM staff_days_off d
+                         WHERE d.user_id = u.id AND substr(d.day, 1, 7) = ?), 0) AS offHalves,
+              p.slip_key AS slipKey,
+              p.paid_at AS paidAt,
+              p.day_rate_satang AS paidRate,
+              p.off_halves AS paidOff,
+              p.working_halves AS paidWorking,
+              p.amount_satang AS paidAmount
+         FROM users u
+         LEFT JOIN staff_payslips p ON p.user_id = u.id AND p.period = ?
+        WHERE u.deleted_at IS NULL
+          AND u.day_rate_satang IS NOT NULL
+        ORDER BY CASE u.role WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.name`,
+    )
+    .bind(period, period)
+    .all<{
+      userId: string;
+      name: string;
+      nameTh: string | null;
+      role: string;
+      dayRateSatang: number;
+      bankName: string | null;
+      bankAccountNo: string | null;
+      bankAccountName: string | null;
+      offHalves: number;
+      slipKey: string | null;
+      paidAt: number | null;
+      paidRate: number | null;
+      paidOff: number | null;
+      paidWorking: number | null;
+      paidAmount: number | null;
+    }>();
+
+  const rows = (results ?? []).map((r) => {
+    // Where to send the money travels with the row, so paying someone never needs a second screen
+    // (owner, 2026-08-04). `hasSlip` is false both before a slip is uploaded and after the image
+    // has been swept, three months on — the payslip itself survives either way.
+    const payee = {
+      userId: r.userId,
+      name: r.nameTh || r.name,
+      role: r.role,
+      bankName: r.bankName,
+      bankAccountNo: r.bankAccountNo,
+      bankAccountName: r.bankAccountName,
+      hasSlip: r.slipKey !== null,
+    };
+    // A paid month reports what was PAID, not what today's rate would produce. Recomputing here is
+    // how a September raise would silently rewrite August's wage bill.
+    if (r.paidAt !== null && r.paidAmount !== null) {
+      return {
+        ...payee,
+        dayRateSatang: r.paidRate ?? r.dayRateSatang,
+        offHalves: r.paidOff ?? 0,
+        workingHalves: r.paidWorking ?? 0,
+        amountSatang: r.paidAmount,
+        paidAt: r.paidAt,
+      };
+    }
+    const pay = payForMonth({
+      dayRateSatang: r.dayRateSatang,
+      period,
+      offHalves: r.offHalves,
+    });
+    return {
+      ...payee,
+      dayRateSatang: r.dayRateSatang,
+      offHalves: r.offHalves,
+      workingHalves: pay.workingHalves,
+      amountSatang: pay.amountSatang,
+      paidAt: r.paidAt,
+    };
+  });
+
+  return json({
+    period,
+    daysInMonth: daysInMonth(period),
+    rows,
+    totalSatang: rows.reduce((n, r) => n + r.amountSatang, 0),
+  });
+}
+
+/**
+ * Mark one person's month as paid — and FREEZE it.
+ *
+ * The payslip stores the day rate, the days off and the amount as they stand right now, rather than
+ * a pointer to the person's current rate. A raise in September must never quietly rewrite what
+ * August actually paid; a paid month is a record of a payment, not a live calculation.
+ */
+export async function markSalaryPaid(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  period: string,
+  now: number,
+  /** The stored transfer slip. Required: a wage is not recorded as paid without proof of it. */
+  slipKey: string | null,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    return json({ error: "period must look like 2026-07" }, 400);
+  }
+  if (!slipKey) return json({ error: "a transfer slip is required to confirm a payment" }, 400);
+
+  const person = await db
+    .prepare(
+      `SELECT day_rate_satang AS dayRateSatang,
+              COALESCE(name_th, name) AS name,
+              COALESCE((SELECT SUM(d.halves) FROM staff_days_off d
+                         WHERE d.user_id = users.id AND substr(d.day, 1, 7) = ?), 0) AS offHalves
+         FROM users WHERE id = ? AND deleted_at IS NULL`,
+    )
+    .bind(period, userId)
+    .first<{ dayRateSatang: number | null; name: string; offHalves: number }>();
+  if (!person) return json({ error: "no such person" }, 404);
+  if (person.dayRateSatang == null) {
+    return json({ error: "set a day rate for this person first" }, 400);
+  }
+
+  const pay = payForMonth({
+    dayRateSatang: person.dayRateSatang,
+    period,
+    offHalves: person.offHalves,
+  });
+  await db
+    .prepare(
+      `INSERT INTO staff_payslips (id, user_id, period, day_rate_satang, days_in_month,
+                                   off_halves, working_halves, amount_satang, paid_at, created_at,
+                                   slip_key, slip_uploaded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, period) DO UPDATE SET
+         day_rate_satang = excluded.day_rate_satang,
+         days_in_month = excluded.days_in_month,
+         off_halves = excluded.off_halves,
+         working_halves = excluded.working_halves,
+         amount_satang = excluded.amount_satang,
+         paid_at = excluded.paid_at,
+         slip_key = excluded.slip_key,
+         slip_uploaded_at = excluded.slip_uploaded_at`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      userId,
+      period,
+      person.dayRateSatang,
+      pay.daysInMonth,
+      person.offHalves,
+      pay.workingHalves,
+      pay.amountSatang,
+      now,
+      now,
+      slipKey,
+      now,
+    )
+    .run();
+
+  // The person's NAME, not their id — this line is read by a human in the activity log.
+  await logActivity(db, actor.userId, "salary_paid", `${person.name} · ${period}`, now);
+  return json({ ok: true, amountSatang: pay.amountSatang, paidAt: now });
+}
+
+/**
+ * One person's wage history — every month they have been paid for, newest first.
+ *
+ * This lives on the person rather than on the salary run (owner, 2026-08-04): the salary table
+ * answers "who do I still owe this month", and a wage history answers "what has this person been
+ * paid", which is a question about them. Readable by the owner and by that person.
+ *
+ * `hasSlip` is false both before a slip exists and after the image has been swept at three months.
+ * The payment itself is never removed.
+ */
+export async function staffPayments(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role) && actor.userId !== userId) return forbidden();
+  const { results } = await db
+    .prepare(
+      `SELECT period, amount_satang AS amountSatang, day_rate_satang AS dayRateSatang,
+              working_halves AS workingHalves, off_halves AS offHalves,
+              paid_at AS paidAt, slip_key AS slipKey
+         FROM staff_payslips
+        WHERE user_id = ? AND paid_at IS NOT NULL
+        ORDER BY period DESC`,
+    )
+    .bind(userId)
+    .all<{ slipKey: string | null; [k: string]: unknown }>();
+
+  // slip_key itself never leaves the server — it is an R2 path, and the image is served by its own
+  // route. The page only needs to know whether there is one to link to.
+  const payments = (results ?? []).map(({ slipKey, ...row }) => ({
+    ...row,
+    hasSlip: slipKey !== null,
+  }));
+  return json({ payments });
+}
+
+/**
+ * The stored slip for one person's month, or null if there isn't one to show.
+ *
+ * Readable by the owner and by the person the money went to — a wage slip is that person's own
+ * proof of pay (owner, 2026-08-04) — and by nobody else, because it carries both parties' bank
+ * details. Returns null rather than throwing for "no slip", "swept" and "not yours" alike: the
+ * caller turns all three into the same 404, so the route can't be used to probe who was paid when.
+ */
+export async function salarySlipKey(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  period: string,
+): Promise<string | null> {
+  if (!canManageStaff(actor.role) && actor.userId !== userId) return null;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return null;
+  const row = await db
+    .prepare(`SELECT slip_key AS slipKey FROM staff_payslips WHERE user_id = ? AND period = ?`)
+    .bind(userId, period)
+    .first<{ slipKey: string | null }>();
+  return row?.slipKey ?? null;
+}
+
+/**
+ * The nightly sweep: delete wage-slip images that have served their three months.
+ *
+ * The image goes; the payslip row — what was paid, to whom, when — stays forever. `slip_key` is
+ * nulled in the same pass, so a failed R2 delete simply retries tomorrow rather than orphaning a
+ * row that claims to hold an image it no longer has.
+ *
+ * Returns how many were swept, for the cron log.
+ */
+export async function purgeExpiredSalarySlips(
+  db: D1Database,
+  bucket: R2Bucket,
+  now: number,
+): Promise<number> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, slip_key AS slipKey, paid_at AS paidAt
+         FROM staff_payslips
+        WHERE slip_key IS NOT NULL AND paid_at IS NOT NULL`,
+    )
+    .all<{ id: string; slipKey: string; paidAt: number }>();
+
+  const due = (results ?? []).filter((r) => slipIsExpired(r.paidAt, now));
+  for (const row of due) {
+    await bucket.delete(row.slipKey);
+    await db.prepare(`UPDATE staff_payslips SET slip_key = NULL WHERE id = ?`).bind(row.id).run();
+  }
+  return due.length;
+}
+
+/** The owner's record of what staff changed. Newest first, optionally one person or one month. */
+export async function staffActivity(
+  db: D1Database,
+  actor: StaffIdentity,
+  filter: { userId?: string; period?: string },
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+
+  const where: string[] = [];
+  const binds: unknown[] = [];
+  if (filter.userId) {
+    where.push("a.user_id = ?");
+    binds.push(filter.userId);
+  }
+  if (filter.period) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(filter.period)) {
+      return json({ error: "period must look like 2026-07" }, 400);
+    }
+    // Month boundaries in milliseconds — cheaper and index-friendlier than formatting every row.
+    const [y, m] = filter.period.split("-").map(Number);
+    where.push("a.created_at >= ? AND a.created_at < ?");
+    binds.push(Date.UTC(y!, m! - 1, 1), Date.UTC(y!, m!, 1));
+  }
+
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.kind, a.detail, a.created_at AS createdAt,
+              u.id AS userId, COALESCE(u.name_th, u.name) AS name, u.role AS role
+         FROM staff_activity a
+         JOIN users u ON u.id = a.user_id
+        ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+        ORDER BY a.created_at DESC
+        LIMIT 200`,
+    )
+    .bind(...binds)
+    .all();
+  return json({ activity: results ?? [] });
+}
+
+/** Everything the owner may change about a person. Anything omitted is left exactly as it was. */
+export interface StaffProfileInput {
+  nameTh?: string | null;
+  nameEn?: string | null;
+  email?: string;
+  phone?: string | null;
+  emergencyName?: string | null;
+  emergencyPhone?: string | null;
+  startedOn?: number | null;
+  dayRateSatang?: number | null;
+  bankName?: string | null;
+  bankAccountNo?: string | null;
+  bankAccountName?: string | null;
+}
+
+/** The columns a profile view may show. Listed by hand — a SELECT * here would ship hashes. */
+const PROFILE_COLUMNS = `id, name, name_th AS nameTh, name_en AS nameEn, email, role, status,
+       phone, emergency_phone AS emergencyPhone, emergency_name AS emergencyName,
+       started_on AS startedOn, day_rate_satang AS dayRateSatang,
+       bank_name AS bankName, bank_account_no AS bankAccountNo,
+       bank_account_name AS bankAccountName,
+       last_login_at AS lastLoginAt, locked_until AS lockedUntil,
+       password_cipher AS cipher, pin_cipher AS pinCipher,
+       CASE WHEN pin_hash IS NULL THEN 0 ELSE 1 END AS hasPin,
+       CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword`;
+
+/** One person, as the owner sees them — including their password in readable form. */
+export async function staffProfileFor(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  key: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const row = await db
+    .prepare(`SELECT ${PROFILE_COLUMNS} FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<Record<string, unknown> & { cipher: string | null; pinCipher: string | null }>();
+  if (!row) return json({ error: "no such person" }, 404);
+
+  const { cipher, pinCipher, ...profile } = row;
+  return json({
+    profile: {
+      ...profile,
+      password: key ? await decryptSecret(cipher, key) : null,
+      pin: key ? await decryptSecret(pinCipher, key) : null,
+    },
+  });
+}
+
+/**
+ * Edit a person. Only the fields actually sent are touched, so a form that posts one box cannot
+ * blank out the rest.
+ *
+ * The Thai name doubles as the display name (`name`) wherever one line is all there is room for —
+ * the staff list, the salary run, the activity log. Keeping them in step here means those never
+ * disagree with the profile.
+ */
+export async function updateStaffProfile(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  input: StaffProfileInput,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+
+  const target = await db
+    .prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ id: string }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  if (input.dayRateSatang !== undefined && input.dayRateSatang !== null) {
+    if (!Number.isInteger(input.dayRateSatang) || input.dayRateSatang < 0) {
+      return json({ error: "day rate must be a whole number of satang" }, 400);
+    }
+  }
+
+  if (input.email !== undefined) {
+    const email = input.email.trim().toLowerCase();
+    if (!email) return json({ error: "email is required" }, 400);
+    // An email IS the username, so a duplicate would make two accounts answer to one sign-in.
+    const clash = await db
+      .prepare(`SELECT id FROM users WHERE lower(email) = ? AND id <> ?`)
+      .bind(email, userId)
+      .first<{ id: string }>();
+    if (clash) return json({ error: "that email already has an account" }, 409);
+  }
+
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  const put = (column: string, value: unknown) => {
+    sets.push(`${column} = ?`);
+    binds.push(value);
+  };
+  const trimmed = (v: string | null | undefined) =>
+    v === undefined ? undefined : v === null ? null : v.trim() || null;
+
+  if (input.nameTh !== undefined) put("name_th", trimmed(input.nameTh));
+  if (input.nameEn !== undefined) put("name_en", trimmed(input.nameEn));
+  if (input.email !== undefined) put("email", input.email.trim().toLowerCase());
+  if (input.phone !== undefined) put("phone", trimmed(input.phone));
+  if (input.emergencyName !== undefined) put("emergency_name", trimmed(input.emergencyName));
+  if (input.emergencyPhone !== undefined) put("emergency_phone", trimmed(input.emergencyPhone));
+  if (input.startedOn !== undefined) put("started_on", input.startedOn);
+  if (input.dayRateSatang !== undefined) put("day_rate_satang", input.dayRateSatang);
+  if (input.bankName !== undefined) put("bank_name", trimmed(input.bankName));
+  if (input.bankAccountNo !== undefined) put("bank_account_no", trimmed(input.bankAccountNo));
+  if (input.bankAccountName !== undefined) put("bank_account_name", trimmed(input.bankAccountName));
+
+  // The one-line display name follows the Thai name, then the English one.
+  const displayName = trimmed(input.nameTh) ?? trimmed(input.nameEn);
+  if (displayName) put("name", displayName);
+
+  if (sets.length === 0) return json({ ok: true, changed: 0 });
+
+  binds.push(userId);
+  await db
+    .prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+
+  await logActivity(
+    db,
+    actor.userId,
+    "profile_edited",
+    `Edited ${await nameOf(db, userId)}’s profile`,
+    now,
+  );
+  return json({ ok: true, changed: sets.length });
+}
+
+/**
+ * Forget someone's PIN so they can choose a new one.
+ *
+ * `pin_lookup` goes too, not just the hash: it is UNIQUE, so leaving it behind would reserve those
+ * six digits against a PIN nobody can use any more. The owner never picks the replacement — the
+ * person sets it themselves from their own profile, which is what keeps a PIN personal.
+ */
+export async function clearStaffPin(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const target = await db
+    .prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ id: string }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  await db
+    .prepare(
+      `UPDATE users SET pin_hash = NULL, pin_salt = NULL, pin_iterations = NULL,
+                        pin_lookup = NULL, pin_set_at = NULL, pin_cipher = NULL
+        WHERE id = ?`,
+    )
+    .bind(userId)
+    .run();
+
+  await logActivity(
+    db,
+    actor.userId,
+    "pin_cleared",
+    `Cleared the PIN for ${await nameOf(db, userId)}`,
+    now,
+  );
+  return json({ ok: true });
+}

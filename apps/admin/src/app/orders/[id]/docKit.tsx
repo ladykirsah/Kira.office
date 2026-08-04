@@ -1,84 +1,16 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { tableText } from "@/lib/tableText";
-import { sectionTitle } from "./cardStyles";
-import { Icon } from "../../Icon";
+
+// The popup moved to the app root so the staff wage slips can use the very same one; re-exported
+// here because this is where the order Documents card expects to find it.
+export { Modal } from "../../Modal";
 
 /**
  * Small building blocks for the order Documents section. Kept free of any data/API imports so both
  * the Documents card and the label export (in ShipmentActions) can share them without a cycle.
  */
-
-/** A centred overlay for a "View" popup. Closes on backdrop click, the ✕, or Escape. */
-export function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        zIndex: 1000,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 10,
-          maxWidth: "min(92vw, 640px)",
-          maxHeight: "90vh",
-          overflow: "auto",
-          padding: 18,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
-          <div style={sectionTitle}>{title}</div>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={onClose}
-            aria-label="Close"
-            title="Close"
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /** One file row: name (+ optional sub-line) on the left, its actions on the right. */
 export function DocRow({

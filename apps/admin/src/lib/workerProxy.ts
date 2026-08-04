@@ -1,6 +1,10 @@
 /** Cloudflare Access JWT header injected at the edge for authenticated requests. */
 export const ACCESS_JWT_HEADER = "Cf-Access-Jwt-Assertion";
 
+/** Staff session: cookie name on the admin origin, header name the API reads it as. */
+export const STAFF_COOKIE = "kira_staff";
+export const STAFF_SESSION_HEADER = "X-Staff-Session";
+
 /** Build the upstream Worker URL from path segments and the request search string. */
 export function buildWorkerProxyUrl(
   apiBase: string,
@@ -66,6 +70,17 @@ export function workerProxyForwardHeaders(incoming: Headers): Headers {
   if (ct) out.set("content-type", ct);
   const jwt = incoming.get(ACCESS_JWT_HEADER);
   if (jwt) out.set(ACCESS_JWT_HEADER, jwt);
+
+  // Staff session: the browser holds a cookie on the admin origin, the API reads a header on its
+  // own. Translate rather than forwarding the cookie jar — the API has no business seeing the rest
+  // of it, and a cookie scoped to one host should not be replayed to another.
+  const token = incoming
+    .get("cookie")
+    ?.split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${STAFF_COOKIE}=`))
+    ?.slice(STAFF_COOKIE.length + 1);
+  if (token) out.set(STAFF_SESSION_HEADER, token);
   return out;
 }
 

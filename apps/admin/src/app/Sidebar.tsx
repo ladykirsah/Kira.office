@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_GROUPS, activeHref } from "./nav";
+import { navGroupsFor, activeHref } from "./nav";
+import type { StaffRole } from "@l-shopee/core";
 
 /** Desktop navigation. Below 742px CSS hides this and <MobileNav> takes over. */
-export function Sidebar() {
+export function Sidebar({ role }: { role: StaffRole }) {
   const path = usePathname();
   const active = activeHref(path);
+  const groups = navGroupsFor(role);
   return (
     <nav className="sidebar" aria-label="Main">
       <Link className="brand" href="/">
         Kira.office
       </Link>
-      {NAV_GROUPS.map((g) => (
+      {groups.map((g) => (
         <div key={g.section}>
           <div className="nav-section-label">{g.section}</div>
           {g.links.map((l) => (

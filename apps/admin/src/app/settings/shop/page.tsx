@@ -10,6 +10,7 @@ import {
   type ShopProfile,
 } from "@l-shopee/core";
 import { BusinessTabs } from "../../BusinessTabs";
+import { FilePickButton } from "../../FilePickButton";
 import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import { PageHeader } from "../../PageHeader";
@@ -320,10 +321,13 @@ export default function ShopInfoPage() {
           )}
         </div>
         <div>
-          <input
-            type="file"
+          {/* The one file picker in the app (owner's brief, 2026-08-04). This one uploads on pick
+              rather than holding the file, so it never shows a filename — hence file={null}. */}
+          <FilePickButton
+            file={null}
             accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => upload(slot, e.target.files?.[0])}
+            label={`Upload ${label}`}
+            onPick={(f) => upload(slot, f ?? undefined)}
           />
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{hint}</div>
         </div>
