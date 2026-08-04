@@ -58,6 +58,61 @@ export interface ChartPoint {
   y: number;
 }
 
+/** Straight segments between points, or the owner's chosen smooth curve (design 5, 4 Aug 2026). */
+export type Curve = "linear" | "smooth";
+
+/**
+ * A smooth curve through the points that never leaves the range of the points it joins —
+ * monotone cubic interpolation (Fritsch–Carlson).
+ *
+ * The obvious smoothing, Catmull-Rom, overshoots: given an empty hour, a sale, then another empty
+ * hour, it swings the curve past both ends and dips below the baseline. On this page that is drawn
+ * as negative sales, and AirPlus's real days are exactly that shape — two orders and twenty-two
+ * quiet hours. Clamping the tangent to zero at every local peak or trough pins the curve to its
+ * points, so the picture stays as smooth as the owner asked for while never claiming a value that
+ * did not happen.
+ */
+function monotonePath(points: readonly ChartPoint[]): string {
+  const n = points.length;
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const run = points[i + 1]!.x - points[i]!.x;
+    dx.push(run);
+    slope.push(run === 0 ? 0 : (points[i + 1]!.y - points[i]!.y) / run);
+  }
+
+  const m: number[] = [slope[0] ?? 0];
+  for (let i = 1; i < n - 1; i++) {
+    const a = slope[i - 1]!;
+    const b = slope[i]!;
+    // Opposite signs (or a flat) means this point is a turning point — a zero tangent there is what
+    // removes the overshoot.
+    m.push(a * b <= 0 ? 0 : (a + b) / 2);
+  }
+  m.push(slope[n - 2] ?? 0);
+
+  // A flat segment must stay perfectly flat at both ends, or a long quiet stretch ripples.
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+    }
+  }
+
+  let d = `M${points[0]!.x} ${points[0]!.y}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i]!;
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    d +=
+      ` C${p1.x + h / 3} ${p1.y + (m[i]! * h) / 3},` +
+      `${p2.x - h / 3} ${p2.y - (m[i + 1]! * h) / 3},` +
+      `${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
 export interface ChartGeometry {
   points: ChartPoint[];
   /** `M…L…` through every point — the line itself. */
@@ -77,6 +132,7 @@ export function chartGeometry(
   values: readonly number[],
   max: number,
   box: { width: number; height: number },
+  curve: Curve = "linear",
 ): ChartGeometry {
   if (values.length === 0) return { points: [], line: "", area: "" };
 
@@ -86,7 +142,10 @@ export function chartGeometry(
     y: box.height - (Math.max(0, v) / max) * box.height,
   }));
 
-  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
+  const line =
+    curve === "smooth" && points.length > 1
+      ? monotonePath(points)
+      : points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
   const first = points[0];
   const last = points[points.length - 1];
   const area = first && last ? `${line} L${last.x} ${box.height} L${first.x} ${box.height} Z` : "";

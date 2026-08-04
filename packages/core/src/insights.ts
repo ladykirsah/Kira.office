@@ -287,21 +287,32 @@ export const TRAFFIC_METRIC_KEYS = [
 ] as const;
 
 /**
- * The six the owner reads first (4 Aug 2026), in their order. They lead the page; every other tile
- * follows underneath rather than being hidden — the owner asked to still see all of them.
+ * Where every tile sits on the page — the owner's re-sectioning, 4 Aug 2026.
  *
- * Shopee's fourteen are built for a seller with thousands of orders a day. These six are the ones
- * that answer "how did today go" for this shop: how many came, how many looked, how many nearly
- * bought, how many joined, what we took, and how much of it went wrong.
+ * Shopee's fourteen tiles are built for a seller with thousands of orders a day. This arrangement is
+ * for a shop reading its own day: two headline figures, three supporting ones under them, and then
+ * the full detail split by the question it answers — money, or the people who came.
+ *
+ * `strip` REPEATS three keys that also appear in a group below, and that is deliberate: the strip
+ * digests the page, the groups are the page. Both copies render from the same catalogue entry and
+ * share one selection state, so they can never disagree or drift. A key repeated inside a single
+ * group would just be a bug, which is why the test holds that separately.
  */
-export const PRIORITY_METRIC_KEYS = [
-  "sales",
-  "visitors",
-  "productViews",
-  "addToCartVisitors",
-  "newAccounts",
-  "failRate",
-] as const;
+export const INSIGHT_LAYOUT = {
+  /** The two figures that answer "was today good" — shown large, and always amber in the UI. */
+  heroes: ["sales", "profit"],
+  /** Three supporting figures directly beneath the heroes, no heading. */
+  strip: ["visitors", "productViews", "aov"],
+  money: ["orders", "buyers", "units", "aov", "salesPerBuyer", "margin", "failRate"],
+  traffic: [
+    "visitors",
+    "addToCartVisitors",
+    "conversionRate",
+    "newAccounts",
+    "addToCartRate",
+    "productViews",
+  ],
+} as const satisfies Record<string, readonly MetricKey[]>;
 
 export type MetricKey = (typeof MONEY_METRIC_KEYS)[number] | (typeof TRAFFIC_METRIC_KEYS)[number];
 

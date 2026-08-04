@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   METRICS,
-  PRIORITY_METRIC_KEYS,
+  INSIGHT_LAYOUT,
   metricValues,
   pctChange,
   granularityFor,
@@ -34,8 +34,6 @@ import { TableFrame } from "../TableFrame";
  * switched off.
  */
 
-/** Sales and profit lead, at double size — the owner's twin heroes (4 Aug 2026). */
-const HERO_KEYS: readonly MetricKey[] = ["sales", "profit"];
 const MAX_SERIES = 2;
 
 /** The two lines' colours. Coral is the primary series; slate is the overlay. */
@@ -73,17 +71,14 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
     });
   }
 
-  const heroes = METRICS.filter((m) => HERO_KEYS.includes(m.key));
-  // The owner's six lead (4 Aug 2026), minus sales — it is already the hero directly above, and
-  // printing the same number twice on one screen makes a reader hunt for the difference.
-  const priority = PRIORITY_METRIC_KEYS.filter((k) => !HERO_KEYS.includes(k)).map((k) =>
-    METRICS.find((m) => m.key === k)!,
-  );
-  // Everything else, still shown rather than hidden — the owner asked to keep all fourteen in view.
-  const isPriority = (k: MetricKey) =>
-    (PRIORITY_METRIC_KEYS as readonly MetricKey[]).includes(k) || HERO_KEYS.includes(k);
-  const moneyRest = METRICS.filter((m) => m.group === "money" && !isPriority(m.key));
-  const traffic = METRICS.filter((m) => m.group === "traffic" && !isPriority(m.key));
+  // The page's shape lives in core, so this and its tests read one description of it. A key that
+  // appears in both the strip and a group below renders twice from the SAME catalogue entry and the
+  // same selection state, so the two copies can never disagree or drift apart.
+  const defs = (keys: readonly MetricKey[]) => keys.map((k) => METRICS.find((m) => m.key === k)!);
+  const heroes = defs(INSIGHT_LAYOUT.heroes);
+  const strip = defs(INSIGHT_LAYOUT.strip);
+  const moneyRest = defs(INSIGHT_LAYOUT.money);
+  const traffic = defs(INSIGHT_LAYOUT.traffic);
 
   const tileProps = (def: MetricDef) => ({
     def,
@@ -96,18 +91,35 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      {/* Twin heroes. Same size as each other on purpose: neither sales nor profit outranks the
-          other, which is the whole point of showing both. */}
-      <div
-        style={{
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        }}
-      >
-        {heroes.map((def) => (
-          <MetricTile key={def.key} {...tileProps(def)} hero />
-        ))}
+      {/* The top block: two headline cards, then three supporting ones directly beneath with no
+          heading. Held a card-gap apart rather than a section-gap so they read as one block while
+          every tile keeps its own frame — the owner rejected a merged, hairline-divided panel here
+          (4 Aug 2026), because everything else in this admin is a separate framed card. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          }}
+        >
+          {heroes.map((def) => (
+            <MetricTile key={def.key} {...tileProps(def)} hero />
+          ))}
+        </div>
+        {/* Exactly three columns: these are a fixed set, not a flowing grid, and auto-fill was
+            opening a fourth slot on a wide screen and leaving dead space beside them. */}
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))",
+          }}
+        >
+          {strip.map((def) => (
+            <MetricTile key={def.key} {...tileProps(def)} />
+          ))}
+        </div>
       </div>
 
       <Chart
@@ -116,12 +128,6 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
         ticks={ticks}
         buckets={payload.series.buckets}
       />
-
-      <TileGroup title="ตัวชี้วัดหลัก">
-        {priority.map((def) => (
-          <MetricTile key={def.key} {...tileProps(def)} />
-        ))}
-      </TileGroup>
 
       <TileGroup title="ยอดขาย">
         {moneyRest.map((def) => (
@@ -217,8 +223,17 @@ function MetricTile({
       aria-pressed={selected}
       style={{
         textAlign: "left",
-        background: selected ? "var(--primary-faint)" : "var(--surface)",
-        border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}`,
+        // The two headline cards keep amber whether or not they are driving the chart. Coral is this
+        // admin's "you are here" marker and the period chip above is already wearing it, so two big
+        // coral cards were competing with it for the same meaning (owner, 4 Aug 2026).
+        background: hero
+          ? selected
+            ? "var(--amber-soft)"
+            : "var(--amber-faint)"
+          : selected
+            ? "var(--primary-faint)"
+            : "var(--surface)",
+        border: `1px solid ${hero ? "var(--warn)" : selected ? "var(--primary)" : "var(--border)"}`,
         borderRadius: "var(--radius)",
         padding: hero ? "16px 18px" : "12px 14px",
         cursor: "pointer",
@@ -297,10 +312,15 @@ function Chart({
     values: perBucket.map((b) => b[key]),
   }));
   const scales = seriesScales(plotted);
+  // Design 5, the owner's pick (4 Aug 2026): a smoothed curve with a gradient fade and a marked
+  // endpoint. The smoothing is monotone, so the curve can never swing below the baseline between a
+  // sale and an empty hour — see monotonePath. On this shop's real days that is not a corner case.
   const series = plotted.map((s, i) => ({
     key: s.key,
-    geo: chartGeometry(s.values, scales[i] ?? 1, CHART_BOX),
+    geo: chartGeometry(s.values, scales[i] ?? 1, CHART_BOX, "smooth"),
     color: SERIES_COLORS[i] ?? SERIES_COLORS[0]!,
+    last: s.values[s.values.length - 1] ?? 0,
+    max: scales[i] ?? 1,
   }));
 
   return (
@@ -314,11 +334,20 @@ function Chart({
     >
       <svg
         viewBox={`0 0 ${CHART_BOX.width} ${CHART_BOX.height}`}
-        preserveAspectRatio="none"
         role="img"
         aria-label={`แนวโน้ม ${selected.join(", ")}`}
-        style={{ width: "100%", height: 170, display: "block", overflow: "visible" }}
+        // height:auto with the viewBox intact — `preserveAspectRatio="none"` would squash the
+        // endpoint circle into an ellipse at any width but exactly 720px.
+        style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}
       >
+        <defs>
+          {/* The fill fades to nothing at the baseline, so the area reads as depth under the line
+              rather than a solid block competing with the second series. */}
+          <linearGradient id="insight-fade" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={SERIES_COLORS[0]} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={SERIES_COLORS[0]} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {/* Three faint gridlines. Enough to read a level against, quiet enough to ignore. */}
         {[0, 0.5, 1].map((f) => (
           <line
@@ -335,7 +364,7 @@ function Chart({
         {series.map((s, i) => (
           <g key={s.key}>
             {/* Only the primary series gets a fill; two overlapping washes read as mud. */}
-            {i === 0 && s.geo.area && <path d={s.geo.area} fill={s.color} opacity={0.08} />}
+            {i === 0 && s.geo.area && <path d={s.geo.area} fill="url(#insight-fade)" />}
             {s.geo.line && (
               <path
                 d={s.geo.line}
@@ -349,6 +378,15 @@ function Chart({
             )}
           </g>
         ))}
+        {/* "You are here" — the same endpoint mark Shopee puts on its real-time sparkline. */}
+        {series[0] && series[0].geo.points.length > 0 && (
+          <circle
+            cx={CHART_BOX.width}
+            cy={CHART_BOX.height - (Math.max(0, series[0].last) / series[0].max) * CHART_BOX.height}
+            r={4}
+            fill={series[0].color}
+          />
+        )}
       </svg>
 
       <div

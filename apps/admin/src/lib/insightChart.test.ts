@@ -153,3 +153,48 @@ describe("seriesScales", () => {
     expect(seriesScales([])).toEqual([]);
   });
 });
+
+describe("chartGeometry > smooth curve (design 5)", () => {
+  const BOX = { width: 600, height: 160 };
+
+  it("given smooth > then the path is cubic, not straight segments", () => {
+    const g = chartGeometry([0, 10, 4, 8], 10, BOX, "smooth");
+    expect(g.line).toContain("C");
+    expect(g.line).not.toContain("L0");
+  });
+
+  it("given a spike between two empty hours > then the curve NEVER dips below the baseline", () => {
+    // The reason this uses monotone interpolation rather than plain Catmull-Rom. A naive smooth
+    // overshoots past the points it joins, so 0 → peak → 0 swings below zero — drawing negative
+    // sales on a quiet day, which is exactly the shape AirPlus has right now.
+    const g = chartGeometry([0, 0, 10, 0, 0], 10, BOX, "smooth");
+    const ys = [...g.line.matchAll(/[-\d.]+ ([-\d.]+)/g)].map((m) => Number(m[1]));
+    expect(Math.max(...ys)).toBeLessThanOrEqual(BOX.height + 0.001);
+  });
+
+  it("given a spike > then the curve never overshoots above the top either", () => {
+    const g = chartGeometry([0, 0, 10, 0, 0], 10, BOX, "smooth");
+    const ys = [...g.line.matchAll(/[-\d.]+ ([-\d.]+)/g)].map((m) => Number(m[1]));
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(-0.001);
+  });
+
+  it("given a flat run > then it stays flat rather than rippling", () => {
+    // Twenty-two empty hours must read as a flat line, not a gentle wave suggesting trade.
+    const g = chartGeometry([0, 0, 0, 0], 10, BOX, "smooth");
+    const ys = [...g.line.matchAll(/[-\d.]+ ([-\d.]+)/g)].map((m) => Number(m[1]));
+    expect(new Set(ys.map((y) => y.toFixed(3))).size).toBe(1);
+  });
+
+  it("given smooth > then still no NaN, and the area still closes", () => {
+    for (const values of [[0, 0], [5], [1, 2, 3], [0, 9, 0]]) {
+      const g = chartGeometry(values, niceMax(values), BOX, "smooth");
+      expect(g.line).not.toContain("NaN");
+      expect(g.area).not.toContain("NaN");
+      if (values.length > 1) expect(g.area.endsWith("Z")).toBe(true);
+    }
+  });
+
+  it("given no curve argument > then it stays the straight-line geometry", () => {
+    expect(chartGeometry([0, 10], 10, BOX).line).toBe("M0 160 L600 0");
+  });
+});

@@ -11,7 +11,7 @@ import {
   METRICS,
   metricValues,
   trafficSource,
-  PRIORITY_METRIC_KEYS,
+  INSIGHT_LAYOUT,
 } from "./insights";
 
 /** Bangkok wall-clock → epoch ms, so every expectation reads as the owner's clock. */
@@ -377,29 +377,59 @@ describe("metricValues > owner's six (4 Aug 2026)", () => {
   });
 });
 
-describe("PRIORITY_METRIC_KEYS", () => {
-  it("is the owner's six, in their order", () => {
-    expect(PRIORITY_METRIC_KEYS).toEqual([
-      "sales",
-      "visitors",
-      "productViews",
-      "addToCartVisitors",
-      "newAccounts",
-      "failRate",
-    ]);
-  });
-
-  it("names only metrics that exist in the catalogue", () => {
-    for (const key of PRIORITY_METRIC_KEYS) {
-      expect(METRICS.some((m) => m.key === key)).toBe(true);
-    }
-  });
-
+describe("METRICS catalogue > clicks", () => {
   it("no longer offers clicks as its own tile — a product view IS a click (owner)", () => {
     // The two were separate tiles; the owner collapsed them, which also removes the need for
     // impression tracking, since with no split there is no click-through rate to compute.
     // Compared as strings on purpose: `key === "clicks"` is now a compile error, because the type
     // already forbids it. That is the stronger guarantee, and this keeps the decision written down.
     expect(METRICS.map((m) => m.key as string)).not.toContain("clicks");
+  });
+});
+
+describe("INSIGHT_LAYOUT", () => {
+  it("is the owner's re-sectioning (4 Aug 2026)", () => {
+    expect(INSIGHT_LAYOUT.heroes).toEqual(["sales", "profit"]);
+    expect(INSIGHT_LAYOUT.strip).toEqual(["visitors", "productViews", "aov"]);
+    expect(INSIGHT_LAYOUT.money).toEqual([
+      "orders",
+      "buyers",
+      "units",
+      "aov",
+      "salesPerBuyer",
+      "margin",
+      "failRate",
+    ]);
+    expect(INSIGHT_LAYOUT.traffic).toEqual([
+      "visitors",
+      "addToCartVisitors",
+      "conversionRate",
+      "newAccounts",
+      "addToCartRate",
+      "productViews",
+    ]);
+  });
+
+  it("names only metrics that exist in the catalogue", () => {
+    for (const keys of Object.values(INSIGHT_LAYOUT)) {
+      for (const key of keys) expect(METRICS.some((m) => m.key === key)).toBe(true);
+    }
+  });
+
+  it("places every metric somewhere, so none is defined but never shown", () => {
+    const placed = new Set(Object.values(INSIGHT_LAYOUT).flat());
+    expect(METRICS.filter((m) => !placed.has(m.key)).map((m) => m.key)).toEqual([]);
+  });
+
+  it("repeats a key only between the summary strip and a group below, never within one group", () => {
+    // ผู้เข้าชม, ยอดการมองเห็นสินค้า and ยอดขายเฉลี่ยต่อคำสั่งซื้อ appear twice by design: the strip
+    // digests the page, the groups are the page. Twice inside ONE group would just be a bug.
+    for (const keys of Object.values(INSIGHT_LAYOUT)) {
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+    const repeated = INSIGHT_LAYOUT.strip.filter((k) =>
+      [...INSIGHT_LAYOUT.money, ...INSIGHT_LAYOUT.traffic].includes(k),
+    );
+    expect(repeated).toEqual(["visitors", "productViews", "aov"]);
   });
 });
