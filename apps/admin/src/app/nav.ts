@@ -56,6 +56,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     section: "AirPlus Marketing",
     links: [
+      // First in the section on purpose: you read what the shop did, then reach for the levers
+      // below it. Shopee's own Business Insights sits the same way relative to its marketing tools.
+      { href: "/insights", icon: "📈", label: "Insight" },
       { href: "/settings/affiliate-items", icon: "🤝", label: "Affiliate Promote" },
       { href: "/settings/banners", icon: "🖼️", label: "Banners" },
       { href: "/settings/coupons", icon: "🎟️", label: "Coupons" },
@@ -96,12 +99,16 @@ export const NAV_GROUPS: NavGroup[] = [
  */
 const HIDDEN_FROM: Record<StaffRole, ReadonlySet<string>> = {
   super_admin: new Set(),
-  // An admin runs the shop but not the books, and never the people.
-  admin: new Set(["/sales", "/settings/staff"]),
+  // An admin runs the shop but not the books, and never the people. Insight is withheld for the
+  // same reason as Finance rather than a new one: its two headline tiles are profit and margin, so
+  // showing it would hand over exactly the numbers /sales exists to keep. If the owner would rather
+  // an admin could read the traffic half, the fix is to split the page, not to open this one.
+  admin: new Set(["/sales", "/settings/staff", "/insights"]),
   // A mechanic gets the counter and the stock they touch. No catalogue editing (Add product,
   // Barcodes), no marketing, no settings, no money.
   mechanic: new Set([
     "/products/new",
+    "/insights",
     "/barcodes",
     "/settings/affiliate-items",
     "/settings/banners",

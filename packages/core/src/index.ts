@@ -49,3 +49,5 @@ export * from "./refundAction";
 
 export * from "./carriers";
 export * from "./expense";
+
+export * from "./insights";

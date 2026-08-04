@@ -9,7 +9,7 @@ describe("NAV_GROUPS", () => {
     expect(NAV_GROUPS.map((g) => [g.section, g.links.map((l) => l.label)])).toEqual([
       ["Daily Uses", ["Scan here", "AirPlus Orders", "Point of Sale", "Payment", "Customers"]],
       ["Stock", ["Products", "Add product", "Barcodes", "Stock movements"]],
-      ["AirPlus Marketing", ["Affiliate Promote", "Banners", "Coupons", "Flash sales"]],
+      ["AirPlus Marketing", ["Insight", "Affiliate Promote", "Banners", "Coupons", "Flash sales"]],
       [
         "Overall management",
         ["Shop info", "Staff", "Finance", "Service Setup", "Part setup", "Car fitment", "Terms"],
@@ -78,10 +78,12 @@ describe("navGroupsFor", () => {
     expect(hrefs("super_admin")).toContain("/settings/staff");
   });
 
-  it("an admin loses Finance and Staff, and keeps the rest", () => {
+  it("an admin loses Finance, Staff and Insight, and keeps the rest", () => {
     const admin = hrefs("admin");
     expect(admin).not.toContain("/sales");
     expect(admin).not.toContain("/settings/staff");
+    // Insight leads with profit and margin — the same books /sales is withheld for.
+    expect(admin).not.toContain("/insights");
     expect(admin).toContain("/orders");
     expect(admin).toContain("/settings/coupons");
     expect(admin).toContain("/settings/shop");

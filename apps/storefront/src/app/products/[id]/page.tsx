@@ -21,6 +21,7 @@ import { Pill } from "@/components/Pill";
 import { ProductCard } from "@/components/ProductCard";
 import { ReadyToShip } from "@/components/ReadyToShip";
 import { RecordView } from "@/components/RecentlyViewed";
+import { TrackProductView } from "@/components/TrackView";
 import { Icon } from "@/components/Icon";
 import { AddToCartBar } from "./AddToCartBar";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -384,6 +385,8 @@ export default async function ProductPage(props: PageProps) {
           </div>
         </section>
       )}
+
+      <TrackProductView productId={detail.productId} />
 
       <RecordView
         item={{

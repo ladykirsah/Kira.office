@@ -2085,3 +2085,58 @@ export async function recordClaimReturnShipment(
     throw new Error(err.error ?? `Return shipment failed (HTTP ${res.status})`);
   }
 }
+
+/* ---- AirPlus Insight ---- */
+
+/** The nine raw counts every tile on the Insight page is derived from. */
+export interface InsightTotalsRow {
+  salesSatang: number;
+  profitSatang: number;
+  orders: number;
+  buyers: number;
+  units: number;
+  visitors: number;
+  productViews: number;
+  clicks: number;
+  addToCartVisitors: number;
+}
+
+export interface InsightSourceRow {
+  source: string;
+  visitors: number;
+  productViews: number;
+  clicks: number;
+}
+
+export interface InsightProductRow {
+  productId: string;
+  productRef: string | null;
+  name: string;
+  imageKey: string | null;
+  salesSatang: number;
+  profitSatang: number;
+  units: number;
+  views: number;
+  clicks: number;
+}
+
+export interface InsightsPayload {
+  period: string;
+  window: { start: number; end: number };
+  comparison: { start: number; end: number };
+  totals: InsightTotalsRow;
+  previous: InsightTotalsRow;
+  series: { buckets: number[]; totals: InsightTotalsRow[] };
+  sources: InsightSourceRow[];
+  products: InsightProductRow[];
+  /** Orders whose cost snapshot is missing, so their profit is excluded from the total. */
+  unknownCostOrders: number;
+}
+
+export async function fetchInsights(period: string): Promise<InsightsPayload> {
+  const res = await apiFetch(`/insights?period=${encodeURIComponent(period)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to load insights (HTTP ${res.status})`);
+  return (await res.json()) as InsightsPayload;
+}

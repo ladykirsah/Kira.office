@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addToCart } from "@/lib/cart";
+import { track } from "@/lib/track";
 import { baht } from "@/lib/format";
 import { LINE_OA_URL } from "@/lib/links";
 import { Icon } from "@/components/Icon";
@@ -48,8 +49,11 @@ export function AddToCartBar({
     [],
   );
 
-  const add = () =>
+  // Both the cart button and "ซื้อเลย" go through here, so an add is counted once either way.
+  const add = () => {
+    track("add_to_cart", productId);
     addToCart({ variantId, productId, name, productRef, brandName, priceSatang, imageKey }, 1);
+  };
 
   const handleAdd = () => {
     add();

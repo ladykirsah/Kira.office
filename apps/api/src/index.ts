@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { insightsFor } from "./insights";
 import {
   type ClaimResolution,
   orderStatusForClaim,
@@ -52,6 +53,7 @@ import {
   isSuperAdmin,
   validateExpenseInput,
   type ExpenseInput,
+  isInsightPeriod,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2295,6 +2297,12 @@ export const BACKUP_TABLES = [
   // Finance expenses (0081): money out tagged to a channel (a refund, an AI-package fee). The only
   // record of that spend, and it feeds net Profit — irreplaceable.
   "expenses",
+  // Storefront traffic (0087). Not transient like the session and OTP tables: an event is a
+  // historical fact that nothing can regenerate, and losing it silently erases a month of the
+  // Insight page's history with no error to notice. This is the one table here that grows with
+  // traffic rather than with the business, so if the daily dump ever becomes heavy the fix is a
+  // retention window ON THE TABLE — dropping it from the backup would just move the data loss.
+  "storefront_events",
   // Irreplaceable/anti-cheat data added 2026-07: the customer directory, the payment approval
   // trail, the audit log, and hand-transcribed legacy service history.
   "customers",
@@ -6969,6 +6977,15 @@ const worker = {
 
     if (url.pathname === "/orders" && request.method === "GET") {
       return listOrders(env);
+    }
+
+    // AirPlus Insight — the admin's answer to Shopee's Business Insights. One period per call; an
+    // unknown or absent ?period= falls back to realtime rather than 400, so a stale bookmark or a
+    // hand-typed URL still lands on a working page.
+    if (url.pathname === "/insights" && request.method === "GET") {
+      const requested = url.searchParams.get("period") ?? "";
+      const period = isInsightPeriod(requested) ? requested : "realtime";
+      return json(await insightsFor(env.DB, period, Date.now()));
     }
 
     // Fulfillment editor: the admin Sales → AirPlus tab PATCHes status / payment / carrier /
