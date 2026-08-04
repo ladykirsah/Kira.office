@@ -223,17 +223,16 @@ function MetricTile({
       aria-pressed={selected}
       style={{
         textAlign: "left",
-        // The two headline cards keep amber whether or not they are driving the chart. Coral is this
-        // admin's "you are here" marker and the period chip above is already wearing it, so two big
-        // coral cards were competing with it for the same meaning (owner, 4 Aug 2026).
-        background: hero
-          ? selected
-            ? "var(--amber-soft)"
-            : "var(--amber-faint)"
-          : selected
-            ? "var(--primary-faint)"
-            : "var(--surface)",
-        border: `1px solid ${hero ? "var(--warn)" : selected ? "var(--primary)" : "var(--border)"}`,
+        // White throughout — the card's FRAME carries the meaning instead of a fill (owner,
+        // 4 Aug 2026). A tile that is plotted wears its own line's colour as its border, so the
+        // legend is the card itself: coral frame, coral line. No wash, so a blue-framed tile and a
+        // coral-framed one sit side by side without either shouting.
+        background: "var(--surface)",
+        // Unplotted means no line to match, so the frame falls back to the ordinary hairline. This
+        // also fixes an inconsistency the fill was hiding: a tile drawn in blue used to wear a coral
+        // border, because the selected state was coloured by "is selected" rather than by which
+        // series it actually is.
+        border: `1px solid ${selected && seriesColor ? seriesColor : "var(--border)"}`,
         borderRadius: "var(--radius)",
         padding: hero ? "16px 18px" : "12px 14px",
         cursor: "pointer",
