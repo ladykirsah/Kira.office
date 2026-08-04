@@ -81,7 +81,52 @@ const ZERO: InsightTotals = {
   productViews: 0,
   clicks: 0,
   addToCartVisitors: 0,
+  newAccounts: 0,
+  failedOrders: 0,
+  placedOrders: 0,
 };
+
+/**
+ * How many orders were placed in the window, and how many of them went wrong.
+ *
+ * The owner's four causes (4 Aug 2026): cancelled, expired unpaid, claimed, failed delivery. Three
+ * are order statuses and the fourth is a row in `order_claims` — an order can be delivered and still
+ * have gone wrong — so the check spans both, and `EXISTS` rather than a join is what makes an order
+ * with two claims still one failure.
+ *
+ * The denominator is every order placed, cancelled and expired INCLUDED. `orders` already drops
+ * those, and dividing by it would hide the failures inside their own base.
+ */
+async function failureCounts(
+  db: D1Database,
+  w: InsightWindow,
+): Promise<{ placedOrders: number; failedOrders: number }> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS placedOrders,
+              SUM(CASE WHEN o.order_status IN ('cancelled', 'expired', 'delivery_failed')
+                         OR EXISTS (SELECT 1 FROM order_claims c WHERE c.sales_order_id = o.id)
+                       THEN 1 ELSE 0 END) AS failedOrders
+       FROM sales_orders o
+       WHERE o.channel = 'airplus'
+         AND COALESCE(o.order_created_at, o.imported_at) >= ?
+         AND COALESCE(o.order_created_at, o.imported_at) < ?`,
+    )
+    .bind(w.start, w.end)
+    .first<{ placedOrders: number; failedOrders: number | null }>();
+  return { placedOrders: row?.placedOrders ?? 0, failedOrders: row?.failedOrders ?? 0 };
+}
+
+/** Storefront customers who registered in the window. */
+async function newAccounts(db: D1Database, w: InsightWindow): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM storefront_customers WHERE created_at >= ? AND created_at < ?`,
+    )
+    .bind(w.start, w.end)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
 
 function zeroTotals(): InsightTotals {
   return { ...ZERO };
@@ -211,11 +256,13 @@ async function windowTotals(
   db: D1Database,
   w: InsightWindow,
 ): Promise<{ totals: InsightTotals; unknownCost: number }> {
-  const [{ totals, unknownCost }, traffic] = await Promise.all([
+  const [{ totals, unknownCost }, traffic, failures, accounts] = await Promise.all([
     orderFacts(db, w).then(foldOrders),
     trafficTotals(db, w),
+    failureCounts(db, w),
+    newAccounts(db, w),
   ]);
-  return { totals: { ...totals, ...traffic }, unknownCost };
+  return { totals: { ...totals, ...traffic, ...failures, newAccounts: accounts }, unknownCost };
 }
 
 /**

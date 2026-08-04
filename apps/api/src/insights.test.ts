@@ -99,11 +99,19 @@ function seedOrder(
 }
 
 /** sales_orders.storefront_customer_id is a real FK, so a linked buyer must exist first. */
-function seedCustomer(db: DatabaseSync, id: string) {
+function seedCustomer(db: DatabaseSync, id: string, createdAt = 0) {
   db.prepare(
     `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at, customer_code)
-     VALUES (?, ?, ?, 0, 0, ?)`,
-  ).run(id, `08${id}`, id, `AP-${id}`);
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(id, `08${id}`, id, createdAt, createdAt, `AP-${id}`);
+}
+
+/** A claim against an order — the one failure cause that is a row rather than a status. */
+function seedClaim(db: DatabaseSync, orderId: string, at: number) {
+  db.prepare(
+    `INSERT INTO order_claims (id, sales_order_id, kind, state, created_at, updated_at)
+     VALUES (?, ?, 'defect', 'requested', ?, ?)`,
+  ).run(`cl-${orderId}`, orderId, at, at);
 }
 
 function seedProduct(db: DatabaseSync, id: string, name: string) {
@@ -319,5 +327,80 @@ describe("insightsFor > product ranking", () => {
     const p = await insightsFor(asD1(db), "realtime", NOW);
     expect(p.products).toHaveLength(1);
     expect(p.products[0]).toMatchObject({ productId: "p1", salesSatang: 0, views: 1, units: 0 });
+  });
+});
+
+describe("insightsFor > new accounts", () => {
+  it("given customers registered inside and outside the window > then only today's count", async () => {
+    const db = migratedDb();
+    seedCustomer(db, "c1", TODAY_13);
+    seedCustomer(db, "c2", TODAY_13);
+    seedCustomer(db, "old", YESTERDAY_13);
+
+    const p = await insightsFor(asD1(db), "realtime", NOW);
+    expect(p.totals.newAccounts).toBe(2);
+    expect(p.previous.newAccounts).toBe(1);
+  });
+});
+
+describe("insightsFor > failed orders (owner's four, 4 Aug 2026)", () => {
+  it("given a cancelled order > then it counts as failed and as placed", async () => {
+    const db = migratedDb();
+    seedOrder(db, { id: "ok", at: TODAY_13, grand: 45000, cost: 33000 });
+    seedOrder(db, { id: "x", at: TODAY_13, grand: 10000, cost: 1, status: "cancelled" });
+
+    const p = await insightsFor(asD1(db), "realtime", NOW);
+    expect(p.totals.placedOrders).toBe(2);
+    expect(p.totals.failedOrders).toBe(1);
+    // Still excluded from sales — a cancelled order is a failure, not revenue.
+    expect(p.totals.orders).toBe(1);
+    expect(p.totals.salesSatang).toBe(45000);
+  });
+
+  it("given an expired unpaid order > then it counts as failed", async () => {
+    const db = migratedDb();
+    seedOrder(db, { id: "e", at: TODAY_13, grand: 10000, cost: 1, status: "expired" });
+    expect((await insightsFor(asD1(db), "realtime", NOW)).totals.failedOrders).toBe(1);
+  });
+
+  it("given a failed delivery > then it counts as failed", async () => {
+    const db = migratedDb();
+    seedOrder(db, { id: "d", at: TODAY_13, grand: 10000, cost: 1, status: "delivery_failed" });
+    expect((await insightsFor(asD1(db), "realtime", NOW)).totals.failedOrders).toBe(1);
+  });
+
+  it("given a delivered order carrying a claim > then it counts as failed", async () => {
+    // A claim is a separate row, not a status — an order can be delivered and still have gone wrong.
+    const db = migratedDb();
+    seedOrder(db, { id: "c", at: TODAY_13, grand: 45000, cost: 33000 });
+    seedClaim(db, "c", TODAY_13);
+    expect((await insightsFor(asD1(db), "realtime", NOW)).totals.failedOrders).toBe(1);
+  });
+
+  it("given one order that failed delivery AND has a claim > then it counts ONCE", async () => {
+    // The reason the ratio can never exceed 100%: an order is one failure however many ways it
+    // went wrong.
+    const db = migratedDb();
+    seedOrder(db, { id: "both", at: TODAY_13, grand: 10000, cost: 1, status: "delivery_failed" });
+    seedClaim(db, "both", TODAY_13);
+
+    const p = await insightsFor(asD1(db), "realtime", NOW);
+    expect(p.totals.failedOrders).toBe(1);
+    expect(p.totals.placedOrders).toBe(1);
+  });
+
+  it("given a Shopee order > then it is not counted on either side of the ratio", async () => {
+    const db = migratedDb();
+    seedOrder(db, {
+      id: "sp",
+      at: TODAY_13,
+      grand: 10000,
+      cost: 1,
+      status: "cancelled",
+      channel: "shopee",
+    });
+    const p = await insightsFor(asD1(db), "realtime", NOW);
+    expect(p.totals.placedOrders).toBe(0);
+    expect(p.totals.failedOrders).toBe(0);
   });
 });

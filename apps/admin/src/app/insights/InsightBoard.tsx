@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   METRICS,
+  PRIORITY_METRIC_KEYS,
   metricValues,
   pctChange,
   granularityFor,
@@ -73,8 +74,16 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
   }
 
   const heroes = METRICS.filter((m) => HERO_KEYS.includes(m.key));
-  const moneyRest = METRICS.filter((m) => m.group === "money" && !HERO_KEYS.includes(m.key));
-  const traffic = METRICS.filter((m) => m.group === "traffic");
+  // The owner's six lead (4 Aug 2026), minus sales — it is already the hero directly above, and
+  // printing the same number twice on one screen makes a reader hunt for the difference.
+  const priority = PRIORITY_METRIC_KEYS.filter((k) => !HERO_KEYS.includes(k)).map((k) =>
+    METRICS.find((m) => m.key === k)!,
+  );
+  // Everything else, still shown rather than hidden — the owner asked to keep all fourteen in view.
+  const isPriority = (k: MetricKey) =>
+    (PRIORITY_METRIC_KEYS as readonly MetricKey[]).includes(k) || HERO_KEYS.includes(k);
+  const moneyRest = METRICS.filter((m) => m.group === "money" && !isPriority(m.key));
+  const traffic = METRICS.filter((m) => m.group === "traffic" && !isPriority(m.key));
 
   const tileProps = (def: MetricDef) => ({
     def,
@@ -108,6 +117,12 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
         buckets={payload.series.buckets}
       />
 
+      <TileGroup title="ตัวชี้วัดหลัก">
+        {priority.map((def) => (
+          <MetricTile key={def.key} {...tileProps(def)} />
+        ))}
+      </TileGroup>
+
       <TileGroup title="ยอดขาย">
         {moneyRest.map((def) => (
           <MetricTile key={def.key} {...tileProps(def)} />
@@ -128,6 +143,11 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
           <MetricTile key={def.key} {...tileProps(def)} />
         ))}
       </TileGroup>
+
+      <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+        อัตราคำสั่งซื้อไม่สำเร็จ = ยกเลิก · หมดเวลาชำระ · เคลม · ส่งไม่สำเร็จ (นับคำสั่งซื้อละครั้ง)
+        — {payload.totals.failedOrders} จาก {payload.totals.placedOrders} คำสั่งซื้อ
+      </p>
 
       {payload.unknownCostOrders > 0 && (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
@@ -373,7 +393,7 @@ function SourceTable({ rows }: { rows: InsightSourceRow[] }) {
         {/* Shopee shows sales per source; we cannot, and say so rather than inventing a number.
             Attributing a sale to a source needs the browsing session to be linked to the order,
             which is exactly the link the visitor-id design refuses to make. */}
-        นับเฉพาะการเข้าชม — ยังไม่แยกยอดขายตามที่มา
+        นับเฉพาะการเข้าชม — ยังไม่แยกยอดขายตามที่มา · 1 การมองเห็น = 1 คลิก
       </p>
       <TableFrame>
         <table style={{ width: "100%" }}>
@@ -383,13 +403,12 @@ function SourceTable({ rows }: { rows: InsightSourceRow[] }) {
               <th style={{ textAlign: "right" }}>สัดส่วน</th>
               <th style={{ textAlign: "right" }}>ผู้เข้าชม</th>
               <th style={{ textAlign: "right" }}>มองเห็นสินค้า</th>
-              <th style={{ textAlign: "right" }}>คลิก</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted">
+                <td colSpan={4} className="muted">
                   ยังไม่มีข้อมูลการเข้าชมในช่วงนี้
                 </td>
               </tr>
@@ -407,9 +426,6 @@ function SourceTable({ rows }: { rows: InsightSourceRow[] }) {
                 </td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {r.productViews.toLocaleString("en-US")}
-                </td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                  {r.clicks.toLocaleString("en-US")}
                 </td>
               </tr>
             ))}
@@ -440,14 +456,13 @@ function ProductTable({ rows }: { rows: InsightProductRow[] }) {
               <th style={{ textAlign: "right" }}>กำไร</th>
               <th style={{ textAlign: "right" }}>ขายได้</th>
               <th style={{ textAlign: "right" }}>มองเห็น</th>
-              <th style={{ textAlign: "right" }}>คลิก</th>
               <th style={{ textAlign: "right" }}>อัตราการซื้อ</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="muted">
+                <td colSpan={7} className="muted">
                   ยังไม่มีข้อมูลสินค้าในช่วงนี้
                 </td>
               </tr>
@@ -476,9 +491,6 @@ function ProductTable({ rows }: { rows: InsightProductRow[] }) {
                 </td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {r.views.toLocaleString("en-US")}
-                </td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                  {r.clicks.toLocaleString("en-US")}
                 </td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {/* Views, not clicks, is the denominator: the question this answers is "of the

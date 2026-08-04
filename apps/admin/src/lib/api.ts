@@ -2099,6 +2099,9 @@ export interface InsightTotalsRow {
   productViews: number;
   clicks: number;
   addToCartVisitors: number;
+  newAccounts: number;
+  failedOrders: number;
+  placedOrders: number;
 }
 
 export interface InsightSourceRow {

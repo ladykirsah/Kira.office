@@ -11,6 +11,7 @@ import {
   METRICS,
   metricValues,
   trafficSource,
+  PRIORITY_METRIC_KEYS,
 } from "./insights";
 
 /** Bangkok wall-clock → epoch ms, so every expectation reads as the owner's clock. */
@@ -263,6 +264,9 @@ describe("metricValues", () => {
     productViews: 546,
     clicks: 18,
     addToCartVisitors: 2,
+    newAccounts: 0,
+    failedOrders: 0,
+    placedOrders: 1,
   };
 
   it("given the shop's own numbers > then reproduces Shopee's derived rates", () => {
@@ -308,6 +312,9 @@ describe("METRICS catalogue", () => {
       productViews: 1,
       clicks: 1,
       addToCartVisitors: 1,
+      newAccounts: 1,
+      failedOrders: 1,
+      placedOrders: 1,
     });
     for (const def of METRICS) expect(Number.isFinite(m[def.key])).toBe(true);
   });
@@ -331,5 +338,68 @@ describe("METRICS catalogue", () => {
     // Owner's call, 4 Aug 2026: sales AND profit, equal weight, at the front.
     const money = METRICS.filter((d) => d.group === "money");
     expect(money.slice(0, 2).map((d) => d.key)).toEqual(["sales", "profit"]);
+  });
+});
+
+describe("metricValues > owner's six (4 Aug 2026)", () => {
+  const BASE = {
+    salesSatang: 45000,
+    profitSatang: 12000,
+    orders: 8,
+    buyers: 1,
+    units: 1,
+    visitors: 19,
+    productViews: 546,
+    clicks: 18,
+    addToCartVisitors: 2,
+    newAccounts: 3,
+    failedOrders: 2,
+    placedOrders: 10,
+  };
+
+  it("given new accounts > then reported as a plain count", () => {
+    expect(metricValues(BASE).newAccounts).toBe(3);
+  });
+
+  it("given 2 failed of 10 placed > then a 20% fail ratio", () => {
+    // Denominator is orders PLACED, including the cancelled and expired ones — they are the
+    // failures being measured, so leaving them out of the base would hide the problem inside it.
+    expect(metricValues(BASE).failRate).toBe(20);
+  });
+
+  it("given no orders at all > then the fail ratio is 0, not NaN", () => {
+    expect(metricValues({ ...BASE, placedOrders: 0, failedOrders: 0 }).failRate).toBe(0);
+  });
+
+  it("given the fail ratio > then it can never exceed 100%", () => {
+    // Holds because an order is counted once however many ways it went wrong.
+    expect(metricValues({ ...BASE, failedOrders: 10, placedOrders: 10 }).failRate).toBe(100);
+  });
+});
+
+describe("PRIORITY_METRIC_KEYS", () => {
+  it("is the owner's six, in their order", () => {
+    expect(PRIORITY_METRIC_KEYS).toEqual([
+      "sales",
+      "visitors",
+      "productViews",
+      "addToCartVisitors",
+      "newAccounts",
+      "failRate",
+    ]);
+  });
+
+  it("names only metrics that exist in the catalogue", () => {
+    for (const key of PRIORITY_METRIC_KEYS) {
+      expect(METRICS.some((m) => m.key === key)).toBe(true);
+    }
+  });
+
+  it("no longer offers clicks as its own tile — a product view IS a click (owner)", () => {
+    // The two were separate tiles; the owner collapsed them, which also removes the need for
+    // impression tracking, since with no split there is no click-through rate to compute.
+    // Compared as strings on purpose: `key === "clicks"` is now a compile error, because the type
+    // already forbids it. That is the stronger guarantee, and this keeps the decision written down.
+    expect(METRICS.map((m) => m.key as string)).not.toContain("clicks");
   });
 });

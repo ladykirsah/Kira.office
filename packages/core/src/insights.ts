@@ -226,17 +226,43 @@ export function trafficSource(referrer: string | null | undefined, origin: strin
   return "referral";
 }
 
-/** The raw countable facts a window yields. Everything on the page is derived from these nine. */
+/** The raw countable facts a window yields. Everything on the page is derived from these. */
 export interface InsightTotals {
   salesSatang: number;
   profitSatang: number;
+  /** Orders that stand — a sale that happened. Excludes cancelled and expired. */
   orders: number;
   buyers: number;
   units: number;
   visitors: number;
+  /**
+   * Product detail pages opened.
+   *
+   * The owner collapsed views and clicks into one number ("1 view = 1 click", 4 Aug 2026), and this
+   * is that number: a card click always lands on a detail page, and a direct arrival produces one
+   * without a card click, so PDP opens is the complete count with nothing double-counted. `clicks`
+   * survives below because the product and source tables still break it out, but it is no longer a
+   * tile of its own — which is also why the page needs no click-through rate, and therefore no
+   * impression tracking.
+   */
   productViews: number;
   clicks: number;
   addToCartVisitors: number;
+  /** Storefront customers who registered in the window. */
+  newAccounts: number;
+  /**
+   * Orders that did not make it, counted ONCE however many ways they went wrong: cancelled,
+   * expired unpaid, claimed, or failed delivery (owner's four, 4 Aug 2026). Counting once is what
+   * keeps the ratio inside 0-100% — an order can carry both a failed delivery and a claim.
+   */
+  failedOrders: number;
+  /**
+   * Every order placed in the window whatever became of it — the fail ratio's denominator.
+   *
+   * Deliberately NOT `orders`: that one already drops the cancelled and expired, which are the very
+   * failures being measured. Dividing by it would hide the problem inside its own base.
+   */
+  placedOrders: number;
 }
 
 export const MONEY_METRIC_KEYS = [
@@ -248,15 +274,33 @@ export const MONEY_METRIC_KEYS = [
   "salesPerBuyer",
   "units",
   "margin",
+  "failRate",
 ] as const;
 
 export const TRAFFIC_METRIC_KEYS = [
   "visitors",
   "productViews",
-  "clicks",
   "addToCartVisitors",
   "addToCartRate",
   "conversionRate",
+  "newAccounts",
+] as const;
+
+/**
+ * The six the owner reads first (4 Aug 2026), in their order. They lead the page; every other tile
+ * follows underneath rather than being hidden — the owner asked to still see all of them.
+ *
+ * Shopee's fourteen are built for a seller with thousands of orders a day. These six are the ones
+ * that answer "how did today go" for this shop: how many came, how many looked, how many nearly
+ * bought, how many joined, what we took, and how much of it went wrong.
+ */
+export const PRIORITY_METRIC_KEYS = [
+  "sales",
+  "visitors",
+  "productViews",
+  "addToCartVisitors",
+  "newAccounts",
+  "failRate",
 ] as const;
 
 export type MetricKey = (typeof MONEY_METRIC_KEYS)[number] | (typeof TRAFFIC_METRIC_KEYS)[number];
@@ -319,6 +363,14 @@ export const METRICS: readonly MetricDef[] = [
     derived: true,
   },
   {
+    key: "failRate",
+    labelTh: "อัตราคำสั่งซื้อไม่สำเร็จ",
+    labelEn: "Failed-order rate",
+    format: "percent",
+    group: "money",
+    derived: true,
+  },
+  {
     key: "visitors",
     labelTh: "ผู้เข้าชม",
     labelEn: "Visitors",
@@ -332,7 +384,6 @@ export const METRICS: readonly MetricDef[] = [
     format: "count",
     group: "traffic",
   },
-  { key: "clicks", labelTh: "จำนวนคลิก", labelEn: "Clicks", format: "count", group: "traffic" },
   {
     key: "addToCartVisitors",
     labelTh: "ผู้เข้าชมที่เพิ่มในรถเข็น",
@@ -356,6 +407,13 @@ export const METRICS: readonly MetricDef[] = [
     group: "traffic",
     derived: true,
   },
+  {
+    key: "newAccounts",
+    labelTh: "สมัครสมาชิกใหม่",
+    labelEn: "New accounts",
+    format: "count",
+    group: "traffic",
+  },
 ];
 
 /** Division that yields 0 rather than NaN/Infinity on an empty window — an empty shop is not a bug. */
@@ -376,9 +434,10 @@ export function metricValues(t: InsightTotals): Record<MetricKey, number> {
     margin: ratio(t.profitSatang, t.salesSatang) * 100,
     visitors: t.visitors,
     productViews: t.productViews,
-    clicks: t.clicks,
     addToCartVisitors: t.addToCartVisitors,
     addToCartRate: ratio(t.addToCartVisitors, t.visitors) * 100,
     conversionRate: ratio(t.buyers, t.visitors) * 100,
+    newAccounts: t.newAccounts,
+    failRate: ratio(t.failedOrders, t.placedOrders) * 100,
   };
 }
