@@ -24,6 +24,10 @@ const KIND: Record<string, { text: (d: string | null) => string; colour: string 
   password_changed: { text: () => "Changed their password", colour: "var(--text-muted)" },
   pin_changed: { text: () => "Changed their PIN", colour: "var(--text-muted)" },
   day_off: { text: (d) => `Recorded a day off — ${d ?? ""}`, colour: "var(--ok)" },
+  day_off_edit: { text: (d) => `Edited a day off — ${d ?? ""}`, colour: "var(--text-muted)" },
+  // Coral, not grey: a deleted day off is the one day-off action that puts a day's wage back, and
+  // it is the only one staff cannot do themselves. Worth being able to find in the list.
+  day_off_delete: { text: (d) => `Deleted a day off — ${d ?? ""}`, colour: "var(--primary)" },
   locked: { text: (d) => `3 failed sign-ins — locked ${d ?? ""}`, colour: "var(--danger)" },
   salary_paid: { text: (d) => `Marked salary paid — ${d ?? ""}`, colour: "var(--primary)" },
   profile_edited: { text: (d) => d ?? "Updated their profile", colour: "var(--text-muted)" },
@@ -89,6 +93,18 @@ export function ActivityView({
   // Toolbar controls are S-size; an unset filter reads faint, a set one reads solid.
   return (
     <section className="card">
+      <div style={{ marginBottom: 12 }}>
+        <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>Activity</h2>
+        {/* Month and count, the same shape the วันหยุด card uses — so a reader moving between the
+            Staff tabs meets one heading pattern rather than a different one per tab. */}
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+          {months.find((m) => m.value === month)?.label ?? month} ·{" "}
+          {activity.length === 0
+            ? "no changes"
+            : `${activity.length} change${activity.length === 1 ? "" : "s"}`}
+          {person ? ` · ${people.find((p) => p.id === person)?.name ?? ""}` : ""}
+        </p>
+      </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <select
           value={person}
