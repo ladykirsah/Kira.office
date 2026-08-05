@@ -23,6 +23,8 @@ import {
   payForMonth,
   daysInMonth,
   slipIsExpired,
+  isLeaveHalves,
+  leaveModeLabel,
 } from "@l-shopee/core";
 import type { StaffIdentity } from "./staffSession";
 import { revokeAllStaffSessions } from "./staffSession";
@@ -438,20 +440,62 @@ export async function recordDayOff(
   input: DayOffInput,
   now: number,
 ): Promise<Response> {
+  return writeDayOff(db, actor, actor.userId, input, now);
+}
+
+/**
+ * Record a day off ON BEHALF OF a staff member. Super admin only.
+ *
+ * `user_id` is whose day off it is; `created_by` is who typed it in. Keeping them apart is the whole
+ * point — conflating them would put the mechanic's absence on the owner's own month.
+ */
+export async function recordDayOffFor(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  input: DayOffInput,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const target = await db
+    .prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ id: string }>();
+  if (!target) return json({ error: "not found" }, 404);
+  return writeDayOff(db, actor, userId, input, now);
+}
+
+/**
+ * The one writer both paths go through, so a day off recorded by the owner and one recorded by the
+ * person are validated and stored identically.
+ *
+ * The upsert is what makes "one row per day" true rather than merely intended: the table is unique
+ * on (user_id, day), so re-submitting a date — or editing a row onto a date that already has one —
+ * REPLACES it instead of leaving two rows quietly double-counting against a wage.
+ */
+async function writeDayOff(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  input: DayOffInput,
+  now: number,
+): Promise<Response> {
   const day = (input.day ?? "").trim();
   const halves = input.halves;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: "Pick a date." }, 400);
-  if (halves !== 1 && halves !== 2) return json({ error: "Choose a half day or a full day." }, 400);
+  // Validated against core's closed set, not an inline pair of comparisons: `halves` is subtracted
+  // straight from the month's wage, so an unexpected value here costs somebody real money.
+  if (!isLeaveHalves(halves)) return json({ error: "Choose how much of the day." }, 400);
 
   await db
     .prepare(
       `INSERT INTO staff_days_off (id, user_id, day, halves, reason, created_at, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id, day) DO UPDATE SET halves = ?, reason = ?, created_at = ?`,
+       ON CONFLICT(user_id, day) DO UPDATE SET halves = ?, reason = ?, created_at = ?, created_by = ?`,
     )
     .bind(
       crypto.randomUUID(),
-      actor.userId,
+      userId,
       day,
       halves,
       input.reason ?? null,
@@ -460,17 +504,126 @@ export async function recordDayOff(
       halves,
       input.reason ?? null,
       now,
+      actor.userId,
     )
     .run();
 
-  await logActivity(
-    db,
-    actor.userId,
-    "day_off",
-    `${day} · ${halves === 2 ? "full day" : "half day"}`,
-    now,
-  );
+  await logActivity(db, actor.userId, "day_off", `${day} · ${leaveModeLabel(halves)}`, now);
   return json({ ok: true }, 201);
+}
+
+/**
+ * Edit an existing day off IN PLACE — the row moves rather than being re-created.
+ *
+ * Distinct from the upsert on purpose. Re-submitting keys on (person, day), so changing a row's DATE
+ * that way would write a row for the new day and strand the old one — and staff cannot delete, so
+ * they would be left with a day off they never took, quietly costing them a day's wage.
+ *
+ * Staff may edit only their own; a super admin may edit anyone's. A move onto a date the person
+ * already has is REFUSED rather than overwritten: overwriting would destroy the other row, which is
+ * deletion by another name and exactly the power staff are not meant to have.
+ */
+export async function updateDayOff(
+  db: D1Database,
+  actor: StaffIdentity,
+  id: string,
+  input: DayOffInput,
+  now: number,
+): Promise<Response> {
+  const row = await db
+    .prepare(`SELECT id, user_id AS userId, day FROM staff_days_off WHERE id = ?`)
+    .bind(id)
+    .first<{ id: string; userId: string; day: string }>();
+  if (!row) return json({ error: "not found" }, 404);
+  if (row.userId !== actor.userId && !canManageStaff(actor.role)) return forbidden();
+
+  const day = (input.day ?? "").trim();
+  const halves = input.halves;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: "Pick a date." }, 400);
+  if (!isLeaveHalves(halves)) return json({ error: "Choose how much of the day." }, 400);
+
+  if (day !== row.day) {
+    const clash = await db
+      .prepare(`SELECT id FROM staff_days_off WHERE user_id = ? AND day = ? AND id <> ?`)
+      .bind(row.userId, day, id)
+      .first<{ id: string }>();
+    if (clash) return json({ error: "วันที่นี้มีบันทึกอยู่แล้ว" }, 409);
+  }
+
+  await db
+    .prepare(
+      `UPDATE staff_days_off SET day = ?, halves = ?, reason = ?, created_at = ? WHERE id = ?`,
+    )
+    .bind(day, halves, input.reason ?? null, now, id)
+    .run();
+
+  await logActivity(db, actor.userId, "day_off_edit", `${day} · ${leaveModeLabel(halves)}`, now);
+  return json({ ok: true });
+}
+
+/** One month of my own days off, newest first. */
+export async function listMyDaysOff(
+  db: D1Database,
+  actor: StaffIdentity,
+  month: string,
+): Promise<Response> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, day, halves, reason FROM staff_days_off
+        WHERE user_id = ? AND substr(day, 1, 7) = ?
+        ORDER BY day DESC`,
+    )
+    .bind(actor.userId, month)
+    .all();
+  return json({ days: results ?? [] });
+}
+
+/**
+ * Everyone's days off for a month. Super admin only — who else is off is not a mechanic's to read,
+ * and the reason field is free text that may say why somebody was at a hospital.
+ */
+export async function listTeamDaysOff(
+  db: D1Database,
+  actor: StaffIdentity,
+  month: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const { results } = await db
+    .prepare(
+      `SELECT d.id, d.user_id AS userId, d.day, d.halves, d.reason,
+              u.name, u.name_th AS nameTh, u.role
+         FROM staff_days_off d
+         JOIN users u ON u.id = d.user_id
+        WHERE substr(d.day, 1, 7) = ? AND u.deleted_at IS NULL
+        ORDER BY d.day DESC, u.name`,
+    )
+    .bind(month)
+    .all();
+  return json({ days: results ?? [] });
+}
+
+/**
+ * Delete a day off. SUPER ADMIN ONLY (owner, 5 Aug 2026) — staff may edit their own rows but never
+ * remove one.
+ *
+ * The asymmetry is deliberate: editing leaves a record that the day was claimed, while deleting
+ * erases that it was ever claimed at all. The second is the one that can quietly restore a day's
+ * wage, so it stays with the person who signs the wages.
+ */
+export async function deleteDayOff(
+  db: D1Database,
+  actor: StaffIdentity,
+  id: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const row = await db
+    .prepare(`SELECT id, user_id AS userId, day FROM staff_days_off WHERE id = ?`)
+    .bind(id)
+    .first<{ id: string; userId: string; day: string }>();
+  if (!row) return json({ error: "not found" }, 404);
+  await db.prepare(`DELETE FROM staff_days_off WHERE id = ?`).bind(id).run();
+  await logActivity(db, actor.userId, "day_off_delete", `${row.day} · ${row.userId}`, Date.now());
+  return json({ ok: true });
 }
 
 /** Reveal a staff password. Super admin only, and only when the encryption key is configured. */

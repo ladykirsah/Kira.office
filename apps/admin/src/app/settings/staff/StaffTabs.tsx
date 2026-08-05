@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 /**
- * People · Salary · Activity — three views of the same subject, so they share one menu entry
- * rather than crowding Overall management with three (owner's placement question, 2026-08-03).
+ * People · Salary · วันหยุด · Activity — four views of the same subject, so they share one menu
+ * entry rather than crowding Overall management with four (owner's placement question, 2026-08-03).
  */
 const TABS = [
   { key: "people", href: "/settings/staff", label: "People" },
   { key: "salary", href: "/settings/staff/salary", label: "Salary" },
+  // Beside Salary on purpose: days off are what Salary subtracts, so the two are read together.
+  { key: "days-off", href: "/settings/staff/days-off", label: "วันหยุด" },
   { key: "activity", href: "/settings/staff/activity", label: "Activity" },
 ] as const;
 
