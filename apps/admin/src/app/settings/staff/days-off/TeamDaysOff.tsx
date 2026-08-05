@@ -55,80 +55,6 @@ export function TeamDaysOff({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <section className="card">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 12,
-            flexWrap: "wrap",
-            marginBottom: 12,
-          }}
-        >
-          <div>
-            <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>วันหยุดของทีม</h2>
-            <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-              {monthLabel(month)} · {summariseDaysOff(days).label}
-            </p>
-          </div>
-          {/* A plain link per month keeps every month its own URL — bookmarkable, and the back
-              button behaves. */}
-          <input
-            type="month"
-            aria-label="เดือน"
-            defaultValue={month}
-            onChange={(e) => {
-              if (e.target.value) router.push(`/settings/staff/days-off?month=${e.target.value}`);
-            }}
-          />
-        </div>
-
-        <DayOffTable
-          rows={days}
-          showWho
-          canDelete
-          busy={busy}
-          onSave={async (row: DayOffRow, next: DayOffEdit) => {
-            setBusy(row.id);
-            try {
-              await call(
-                `/api/worker/staff/days-off/${row.id}`,
-                {
-                  method: "PATCH",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    day: next.day,
-                    halves: next.halves,
-                    reason: next.reason || undefined,
-                  }),
-                },
-                "บันทึกแล้ว",
-              );
-            } finally {
-              setBusy(null);
-            }
-          }}
-          onDelete={async (row: DayOffRow) => {
-            setBusy(row.id);
-            try {
-              await call(
-                `/api/worker/staff/days-off/${row.id}`,
-                { method: "DELETE" },
-                "ลบวันหยุดแล้ว",
-              );
-            } finally {
-              setBusy(null);
-            }
-          }}
-        />
-
-        <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
-          ลบได้เฉพาะที่นี่ — พนักงานแก้ไขของตัวเองได้อย่างเดียว ·
-          เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน <b>เข้าสาย ไม่หักเงิน</b>
-        </p>
-      </section>
-
-      <section className="card">
         <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>บันทึกให้พนักงาน</h2>
         <p className="muted" style={{ fontSize: 13.5, margin: "0 0 14px" }}>
           เมื่อพนักงานลืมบันทึกเอง — บันทึกทีละวันเหมือนกัน
@@ -218,6 +144,80 @@ export function TeamDaysOff({
             {busy === "new" ? "กำลังบันทึก…" : "บันทึก"}
           </button>
         </div>
+      </section>
+
+      <section className="card">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>วันหยุดของทีม</h2>
+            <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+              {monthLabel(month)} · {summariseDaysOff(days).label}
+            </p>
+          </div>
+          {/* A plain link per month keeps every month its own URL — bookmarkable, and the back
+              button behaves. */}
+          <input
+            type="month"
+            aria-label="เดือน"
+            defaultValue={month}
+            onChange={(e) => {
+              if (e.target.value) router.push(`/settings/staff/days-off?month=${e.target.value}`);
+            }}
+          />
+        </div>
+
+        <DayOffTable
+          rows={days}
+          showWho
+          canDelete
+          busy={busy}
+          onSave={async (row: DayOffRow, next: DayOffEdit) => {
+            setBusy(row.id);
+            try {
+              await call(
+                `/api/worker/staff/days-off/${row.id}`,
+                {
+                  method: "PATCH",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({
+                    day: next.day,
+                    halves: next.halves,
+                    reason: next.reason || undefined,
+                  }),
+                },
+                "บันทึกแล้ว",
+              );
+            } finally {
+              setBusy(null);
+            }
+          }}
+          onDelete={async (row: DayOffRow) => {
+            setBusy(row.id);
+            try {
+              await call(
+                `/api/worker/staff/days-off/${row.id}`,
+                { method: "DELETE" },
+                "ลบวันหยุดแล้ว",
+              );
+            } finally {
+              setBusy(null);
+            }
+          }}
+        />
+
+        <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
+          ลบได้เฉพาะที่นี่ — พนักงานแก้ไขของตัวเองได้อย่างเดียว ·
+          เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน <b>เข้าสาย ไม่หักเงิน</b>
+        </p>
       </section>
     </div>
   );
