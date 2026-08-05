@@ -616,13 +616,25 @@ export async function deleteDayOff(
   id: string,
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
+  // Joined for the NAME: the activity log is read by a person, and an internal id in that line
+  // tells them nothing about whose day was removed.
   const row = await db
-    .prepare(`SELECT id, user_id AS userId, day FROM staff_days_off WHERE id = ?`)
+    .prepare(
+      `SELECT d.id, d.day, COALESCE(u.name_th, u.name) AS name
+         FROM staff_days_off d LEFT JOIN users u ON u.id = d.user_id
+        WHERE d.id = ?`,
+    )
     .bind(id)
-    .first<{ id: string; userId: string; day: string }>();
+    .first<{ id: string; day: string; name: string | null }>();
   if (!row) return json({ error: "not found" }, 404);
   await db.prepare(`DELETE FROM staff_days_off WHERE id = ?`).bind(id).run();
-  await logActivity(db, actor.userId, "day_off_delete", `${row.day} · ${row.userId}`, Date.now());
+  await logActivity(
+    db,
+    actor.userId,
+    "day_off_delete",
+    `${row.day} · ${row.name ?? ""}`.trim(),
+    Date.now(),
+  );
   return json({ ok: true });
 }
 
