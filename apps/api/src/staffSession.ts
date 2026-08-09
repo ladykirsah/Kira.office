@@ -21,6 +21,7 @@ import {
   sha256Hex,
   verifyPassword,
   type LockState,
+  credentialNeedsReset,
 } from "@l-shopee/core";
 import type { StaffRole } from "@l-shopee/core";
 
@@ -40,7 +41,13 @@ export interface StaffIdentity {
 
 export type LoginResult =
   | { ok: true; token: string; expiresAt: number; identity: StaffIdentity }
-  | { ok: false; reason: "invalid" | "locked" };
+  /**
+   * `needs_reset` — the credential exists and may well be typed correctly, but was hashed above the
+   * platform's PBKDF2 ceiling and can never be verified here (see `credentialNeedsReset`). Kept
+   * distinct from `invalid` because telling someone their password is wrong, when it is right and
+   * can never work, costs them an afternoon of retyping it.
+   */
+  | { ok: false; reason: "invalid" | "locked" | "needs_reset" };
 
 export async function createStaffSession(
   db: D1Database,
@@ -188,6 +195,11 @@ export async function loginStaff(
       iterations: row.iterations,
     }));
 
+  // Checked BEFORE the failure counter: an uncheckable credential is our bug, not a wrong guess, and
+  // counting it would lock the account out on top of the problem it is already stuck behind.
+  if (credentialNeedsReset({ hash: row.hash, salt: row.salt, iterations: row.iterations })) {
+    return { ok: false, reason: "needs_reset" };
+  }
   if (!good) {
     await recordAccountFailure(db, row.id, lockStateOf(row), now);
     return { ok: false, reason: "invalid" };
@@ -285,6 +297,11 @@ export async function loginWithPin(
     salt: row.salt,
     iterations: row.iterations,
   });
+  // Checked BEFORE the failure counter: an uncheckable credential is our bug, not a wrong guess, and
+  // counting it would lock the account out on top of the problem it is already stuck behind.
+  if (credentialNeedsReset({ hash: row.hash, salt: row.salt, iterations: row.iterations })) {
+    return { ok: false, reason: "needs_reset" };
+  }
   if (!good) {
     await recordAccountFailure(db, row.id, lockStateOf(row), now);
     return { ok: false, reason: "invalid" };

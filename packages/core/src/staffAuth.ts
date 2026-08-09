@@ -51,6 +51,33 @@ export interface StoredPassword {
  */
 export const PASSWORD_ITERATIONS = 100_000;
 
+/**
+ * The most rounds a Cloudflare Worker will compute. Anything above this throws NotSupportedError.
+ *
+ * Named separately from PASSWORD_ITERATIONS because they answer different questions: that one is
+ * what we CHOOSE for a new credential, this one is what the platform ALLOWS. They happen to be
+ * equal today; lowering the choice must not quietly lower the ceiling used to judge old rows.
+ */
+export const PBKDF2_MAX_ITERATIONS = 100_000;
+
+/**
+ * Is this stored credential impossible to verify on a Worker?
+ *
+ * True only for a credential that EXISTS but was hashed above the platform ceiling — the state that
+ * locked the owner out of production (9 Aug 2026). Staff logins shipped at 210,000 rounds; #123
+ * lowered the constant for NEW credentials but could not migrate existing rows, because re-hashing
+ * needs the plaintext nobody has. Verification runs at the count stored on the row, so those rows
+ * throw on every attempt no matter what is typed.
+ *
+ * Deliberately FALSE for a credential that was never set. "No password" and "a password that can
+ * never be checked" are different problems with different fixes, and offering a reset flow to an
+ * account that never had one would be noise.
+ */
+export function credentialNeedsReset(stored: StoredPassword): boolean {
+  if (!stored.hash || !stored.salt || !stored.iterations) return false;
+  return stored.iterations > PBKDF2_MAX_ITERATIONS;
+}
+
 const MIN_PASSWORD_LENGTH = 8;
 
 export function isStaffRole(value: unknown): value is StaffRole {
@@ -119,6 +146,11 @@ export async function verifyPassword(password: string, stored: StoredPassword): 
   // there is no path where a blank column and a blank password meet and agree.
   if (!stored.hash || !stored.salt || !stored.iterations || stored.iterations < 1) return false;
   if (!password) return false;
+  // A row hashed above the platform ceiling cannot be checked here — pbkdf2 would throw, which
+  // surfaced as a 500 and read to the person signing in as "my password is wrong". Answer false
+  // (never true: an uncheckable credential must never be treated as correct) and let the caller
+  // ask `credentialNeedsReset` to say something useful instead.
+  if (credentialNeedsReset(stored)) return false;
   const candidate = await pbkdf2(password, stored.salt, stored.iterations);
   return constantTimeEquals(candidate, stored.hash);
 }

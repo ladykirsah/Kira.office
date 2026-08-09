@@ -61,6 +61,13 @@ export function LoginForm() {
         setError("Can't reach the server. Check the connection and try again.");
       } else if (body.reason === "locked") {
         setError("This account is locked for 24 hours after 3 failed tries.");
+      } else if (body.reason === "needs_reset") {
+        // NOT "wrong password". This account's credential was hashed above the platform's PBKDF2
+        // ceiling and can never be verified, however correctly it is typed — saying "wrong" sends
+        // someone retyping a password that is right (owner locked out of prod, 9 Aug 2026).
+        setError(
+          "This login needs resetting — it can't be checked, even if it's correct. Ask a super admin to set a new password or PIN.",
+        );
       } else if (body.reason === "pin_login_unavailable") {
         setError("PIN sign-in isn't set up yet. Use email and password.");
       } else {
