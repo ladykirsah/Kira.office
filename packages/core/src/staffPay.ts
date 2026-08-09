@@ -108,6 +108,29 @@ export function isLocked(state: LockState, now: number): boolean {
   return state.lockedUntil !== null && now < state.lockedUntil;
 }
 
+/**
+ * Whose account may be locked out after three failed sign-ins.
+ *
+ * Admins and super admins are exempt (owner, 9 Aug 2026). The lock's only recovery is "ask a super
+ * admin to reset it" — which is nobody when the locked-out person IS the super admin, and a 24-hour
+ * wall in front of whoever runs the shop costs more than it protects. It cost exactly that on the
+ * day this was written.
+ *
+ * What makes the trade sound HERE rather than anywhere: Cloudflare Access already stands in front of
+ * the admin, so reaching the login form at all means passing a one-time code sent to an approved
+ * mailbox. The lock is a second fence behind a locked gate, and it was the fence catching the owner.
+ *
+ * Mechanics keep it. Theirs is a 6-digit PIN typed at a shared counter machine — the one credential
+ * in this system somebody could realistically stand and guess — and if one is locked out, an admin
+ * is right there to clear it.
+ *
+ * An unrecognised role KEEPS the lock: a role added later should inherit the protection, not lose it
+ * by being unlisted.
+ */
+export function roleCanBeLocked(role: string | null | undefined): boolean {
+  return role !== "admin" && role !== "super_admin";
+}
+
 /* ── Wage-slip retention ──────────────────────────────────────────────────────────────────────
  *
  * A transfer slip is proof that a wage was paid, and it carries bank details for both sides. It is

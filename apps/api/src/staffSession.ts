@@ -23,6 +23,7 @@ import {
   type LockState,
   credentialNeedsReset,
   canSignInAsOwner,
+  roleCanBeLocked,
 } from "@l-shopee/core";
 import type { StaffRole } from "@l-shopee/core";
 
@@ -183,7 +184,7 @@ export async function loginStaff(
 
   if (!row) return { ok: false, reason: "invalid" };
 
-  if (isLocked(lockStateOf(row), now)) {
+  if (roleCanBeLocked(row.role) && isLocked(lockStateOf(row), now)) {
     return { ok: false, reason: "locked" };
   }
   if (row.status !== "active" || row.deletedAt !== null) return { ok: false, reason: "invalid" };
@@ -202,7 +203,7 @@ export async function loginStaff(
     return { ok: false, reason: "needs_reset" };
   }
   if (!good) {
-    await recordAccountFailure(db, row.id, lockStateOf(row), now);
+    await recordAccountFailure(db, row.id, lockStateOf(row), now, row.role);
     return { ok: false, reason: "invalid" };
   }
 
@@ -286,7 +287,7 @@ export async function loginWithPin(
   // are in use.
   if (!row) return { ok: false, reason: "invalid" };
 
-  if (isLocked(lockStateOf(row), now)) {
+  if (roleCanBeLocked(row.role) && isLocked(lockStateOf(row), now)) {
     return { ok: false, reason: "locked" };
   }
   // A person who has left, or been switched off, keeps neither their PIN nor their password.
@@ -304,7 +305,7 @@ export async function loginWithPin(
     return { ok: false, reason: "needs_reset" };
   }
   if (!good) {
-    await recordAccountFailure(db, row.id, lockStateOf(row), now);
+    await recordAccountFailure(db, row.id, lockStateOf(row), now, row.role);
     return { ok: false, reason: "invalid" };
   }
 
@@ -337,8 +338,21 @@ export async function recordAccountFailure(
   userId: string,
   state: LockState,
   now: number,
+  role?: string | null,
 ): Promise<void> {
   const next = nextLockState(state, now);
+  // Exempt roles still have their failures COUNTED — not locking is not the same as not noticing,
+  // and the tally is what makes a burst of failed sign-ins visible afterwards. Only the wall is
+  // skipped. A clean sign-in clears the count either way.
+  if (role !== undefined && !roleCanBeLocked(role)) {
+    await db
+      .prepare(
+        `UPDATE users SET failed_attempts = ?, locked_until = NULL, last_failed_at = ? WHERE id = ?`,
+      )
+      .bind(next.failedAttempts, next.lastFailedAt, userId)
+      .run();
+    return;
+  }
   await db
     .prepare(
       `UPDATE users SET failed_attempts = ?, locked_until = ?, last_failed_at = ? WHERE id = ?`,
