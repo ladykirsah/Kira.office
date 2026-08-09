@@ -13,14 +13,20 @@
  * value cannot drift from what the app expects on the way back in.
  *
  * Usage:
- *   node reset-staff-password.mjs you@example.com            # production
- *   node reset-staff-password.mjs you@example.com --local    # the local dev database
+ *   node reset-staff-password.mjs you@example.com              # production, via wrangler
+ *   node reset-staff-password.mjs you@example.com --local      # the local dev database
+ *   node reset-staff-password.mjs you@example.com --print-sql  # print SQL, run nothing
+ *
+ * `--print-sql` exists because wrangler needs a login of its own, and the person who most needs this
+ * script is the one who is already locked out of something. The printed statement can be pasted into
+ * the D1 console in the Cloudflare dashboard, which needs no CLI at all.
  */
 import { spawnSync } from "node:child_process";
 import { stdin, stdout } from "node:process";
 
 const email = process.argv[2];
 const local = process.argv.includes("--local");
+const printOnly = process.argv.includes("--print-sql");
 if (!email || email.startsWith("--")) {
   console.error("Usage: node reset-staff-password.mjs <email> [--local]");
   process.exit(1);
@@ -83,19 +89,51 @@ if (pw !== again) {
 const { hash, salt, iterations } = await hashPassword(pw);
 console.log(`\nHashed at ${iterations} rounds (the platform ceiling is 100000).`);
 
-// Clearing the lock alongside the password: whoever is running this has already been told their
-// password is wrong several times, and leaving a 24-hour lock behind would just move the wall.
+/**
+ * One statement that works whether or not the account exists.
+ *
+ * `email` is UNIQUE, so an upsert covers both cases — a password that cannot be verified, and an
+ * account that was never created in production at all. Both produce exactly the same "Email or
+ * password is wrong" on the sign-in screen, and from outside the database there is no way to tell
+ * them apart, so the fix should not have to care which one it is.
+ *
+ * On an existing row it also clears the lock and restores role and status: whoever runs this has
+ * been told their password is wrong several times, and leaving a 24-hour lock or a deactivated flag
+ * behind would just move the wall.
+ */
+const now = Date.now();
+const safeEmail = email.replace(/'/g, "''");
 const sql = `
-UPDATE users
-   SET password_hash = '${hash}',
-       password_salt = '${salt}',
-       password_iterations = ${iterations},
-       password_set_at = ${Date.now()},
-       failed_attempts = 0,
-       locked_until = NULL
- WHERE lower(email) = lower('${email.replace(/'/g, "''")}')
-   AND deleted_at IS NULL;
+INSERT INTO users (id, name, email, role, status, created_at, failed_attempts,
+                   password_hash, password_salt, password_iterations, password_set_at)
+VALUES ('${crypto.randomUUID()}', 'Owner', '${safeEmail}', 'super_admin', 'active', ${now}, 0,
+        '${hash}', '${salt}', ${iterations}, ${now})
+ON CONFLICT(email) DO UPDATE SET
+  password_hash       = excluded.password_hash,
+  password_salt       = excluded.password_salt,
+  password_iterations = excluded.password_iterations,
+  password_set_at     = excluded.password_set_at,
+  role                = 'super_admin',
+  status              = 'active',
+  deleted_at          = NULL,
+  failed_attempts     = 0,
+  locked_until        = NULL;
 `.trim();
+
+if (printOnly) {
+  console.log("\n===== 1. OPTIONAL — what state is the account in? =====\n");
+  // Worth running first only to learn WHICH problem it was. The fix below handles either.
+  console.log(
+    `SELECT email, role, status, password_iterations, failed_attempts, locked_until, deleted_at\n` +
+      `  FROM users WHERE lower(email) = lower('${safeEmail}');`,
+  );
+  console.log("\n  no rows           -> the account was never created in production");
+  console.log("  iterations 210000 -> exists, but can never be verified on Workers");
+  console.log("\n===== 2. THE FIX — paste into Cloudflare dashboard → D1 → kira-office → Console =====\n");
+  console.log(sql);
+  console.log("\n===== then sign in at admin.airplusauto.com with the password you just typed =====\n");
+  process.exit(0);
+}
 
 const args = [
   "wrangler",
