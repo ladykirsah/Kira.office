@@ -18,6 +18,7 @@ import {
   encryptSecret,
   decryptSecret,
   pinLookup,
+  credentialNeedsReset,
   type StaffRole,
 } from "./staffAuth";
 
@@ -218,5 +219,37 @@ describe("PASSWORD_ITERATIONS — the platform's ceiling, not ours", () => {
 
   it("and still asks for a serious number of them", () => {
     expect(PASSWORD_ITERATIONS).toBeGreaterThanOrEqual(100_000);
+  });
+});
+
+describe("credentials hashed above the platform ceiling", () => {
+  const legacy = { hash: "a".repeat(64), salt: "b".repeat(32), iterations: 210_000 };
+
+  it("given a row hashed at 210k > then verification reports it, rather than throwing", async () => {
+    // The bug that locked the owner out of production (found 9 Aug 2026). Workers REFUSE pbkdf2
+    // above 100k, and verification runs at the count stored on the row — so a credential created
+    // before #123 can never be checked. It threw NotSupportedError, which surfaced as a 500 and
+    // read to the person signing in as "my password is wrong".
+    expect(await verifyPassword("whatever", legacy)).toBe(false);
+  });
+
+  it("given that row > then it is identifiable as needing a reset, not as a wrong password", async () => {
+    // The distinction the login screen needs: "wrong password" sends someone round in circles
+    // retyping a password that is correct and can never work.
+    expect(credentialNeedsReset(legacy)).toBe(true);
+  });
+
+  it("given a normal row > then it is not flagged, and still verifies", async () => {
+    const fresh = await hashPassword("correct horse battery");
+    expect(credentialNeedsReset(fresh)).toBe(false);
+    expect(await verifyPassword("correct horse battery", fresh)).toBe(true);
+    expect(await verifyPassword("wrong", fresh)).toBe(false);
+  });
+
+  it("given an empty or absent credential > then it is not mistaken for one needing a reset", () => {
+    // No password set is a different state from an unusable one; conflating them would invite a
+    // "reset" flow on accounts that never had a password.
+    expect(credentialNeedsReset({ hash: "", salt: "", iterations: 0 })).toBe(false);
+    expect(credentialNeedsReset({ hash: "x", salt: "y", iterations: 100_000 })).toBe(false);
   });
 });

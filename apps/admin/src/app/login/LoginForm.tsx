@@ -16,6 +16,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [showOwner, setShowOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
 
@@ -40,6 +41,40 @@ export function LoginForm() {
     setError(null);
   }
 
+  /**
+   * The owner's way in when neither door opens: Cloudflare Access has already proved who they are
+   * before this page was reachable, so the server can create or repair their staff row and sign
+   * them in. Refused for anyone not named in SUPER_ADMIN_EMAILS, so it is not a back door.
+   *
+   * Offered only after a failed attempt — it is a recovery, not the everyday route, and putting it
+   * beside the password box would invite people to use it instead of their own login.
+   */
+  async function signInAsOwner() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/staff/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ owner: true }),
+      });
+      if (res.ok) {
+        window.location.href = "/";
+        return;
+      }
+      const body = (await res.json().catch(() => ({}))) as { reason?: string };
+      setError(
+        body.reason === "access_not_configured"
+          ? "Owner sign-in needs Cloudflare Access switched on for this site."
+          : "This sign-in is only for the shop owner's email address.",
+      );
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -61,12 +96,24 @@ export function LoginForm() {
         setError("Can't reach the server. Check the connection and try again.");
       } else if (body.reason === "locked") {
         setError("This account is locked for 24 hours after 3 failed tries.");
+        setShowOwner(true);
+      } else if (body.reason === "needs_reset") {
+        // NOT "wrong password". This account's credential was hashed above the platform's PBKDF2
+        // ceiling and can never be verified, however correctly it is typed — saying "wrong" sends
+        // someone retyping a password that is right (owner locked out of prod, 9 Aug 2026).
+        setError(
+          "This login needs resetting — it can't be checked, even if it's correct. Ask a super admin to set a new password or PIN.",
+        );
+        setShowOwner(true);
       } else if (body.reason === "pin_login_unavailable") {
         setError("PIN sign-in isn't set up yet. Use email and password.");
       } else {
         setError(
           method === "pin" ? "That PIN doesn't match anyone." : "Email or password is wrong.",
         );
+        // Surfaced only once something has actually failed, so the everyday login stays the obvious
+        // one and this reads as what it is: the way out of being stuck.
+        setShowOwner(true);
       }
     } catch {
       setError("Something went wrong. Try again.");
@@ -154,6 +201,31 @@ export function LoginForm() {
       >
         {busy ? "Signing in…" : "Sign in"}
       </button>
+
+      {showOwner && (
+        <div style={{ marginTop: 14, textAlign: "center" }}>
+          <button
+            type="button"
+            onClick={signInAsOwner}
+            disabled={busy}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--primary)",
+              font: "inherit",
+              fontSize: 14,
+              textDecoration: "underline",
+              cursor: "pointer",
+              padding: 4,
+            }}
+          >
+            I&rsquo;m the shop owner — sign me in
+          </button>
+          <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>
+            Uses the email you already verified to reach this page.
+          </p>
+        </div>
+      )}
     </form>
   );
 }
