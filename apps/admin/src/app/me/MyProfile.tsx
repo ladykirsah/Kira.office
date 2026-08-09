@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { LEAVE_MODES, bangkokMonth, summariseDaysOff, type LeaveHalves } from "@l-shopee/core";
 import { useToast } from "../ToastProvider";
+import { DayOffTable, type DayOffEdit, type DayOffRow } from "../DayOffTable";
+import { monthLabel } from "@/lib/dayOff";
 
 export interface Profile {
   id: string;
@@ -42,9 +45,56 @@ export function MyProfile({ profile }: { profile: Profile }) {
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [day, setDay] = useState("");
-  const [halves, setHalves] = useState<1 | 2>(2);
+  const [halves, setHalves] = useState<LeaveHalves>(2);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [month] = useState(() => bangkokMonth(Date.now()));
+  const [days, setDays] = useState<DayOffRow[]>([]);
+
+  const refreshDays = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/worker/staff/me/days-off?month=${month}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (res.ok) setDays(((await res.json()) as { days: DayOffRow[] }).days);
+    } catch {
+      // A list that will not load is not worth interrupting the page for; the form still works.
+    }
+  }, [month]);
+
+  useEffect(() => {
+    void refreshDays();
+  }, [refreshDays]);
+
+  /**
+   * An edit PATCHes the row by id so it MOVES, rather than re-posting it — a re-post keys on
+   * (person, day) and would leave the original date behind as a day off nobody took.
+   */
+  async function saveDay(row: DayOffRow, next: DayOffEdit) {
+    setBusy(row.id);
+    try {
+      const res = await fetch(`/api/worker/staff/days-off/${row.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          day: next.day,
+          halves: next.halves,
+          reason: next.reason || undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error || "แก้ไขไม่สำเร็จ ลองใหม่อีกครั้ง", "error");
+        return;
+      }
+      toast("บันทึกแล้ว", "success");
+      await refreshDays();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function post(path: string, body: unknown, okMessage: string, after: () => void) {
     setBusy(path);
@@ -179,9 +229,10 @@ export function MyProfile({ profile }: { profile: Profile }) {
       </section>
 
       <section className="card">
-        <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>Day off</h2>
+        <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>วันหยุด</h2>
         <p className="muted" style={{ fontSize: 13.5, margin: "0 0 14px" }}>
-          Tell us and it comes off the month&rsquo;s working days. No approval needed.
+          บันทึกได้เลย ไม่ต้องรออนุมัติ · บันทึกทีละวัน — หยุด 3 วันคือบันทึก 3 ครั้ง ·
+          ย้อนหลังได้ถ้าลืมบันทึกวันที่หยุดไปแล้ว
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
@@ -189,7 +240,7 @@ export function MyProfile({ profile }: { profile: Profile }) {
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              Date
+              วันที่
             </label>
             <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
           </div>
@@ -198,11 +249,17 @@ export function MyProfile({ profile }: { profile: Profile }) {
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              How much
+              ลาแบบ
             </label>
-            <select value={halves} onChange={(e) => setHalves(Number(e.target.value) as 1 | 2)}>
-              <option value={2}>Full day</option>
-              <option value={1}>Half day</option>
+            <select
+              value={halves}
+              onChange={(e) => setHalves(Number(e.target.value) as LeaveHalves)}
+            >
+              {LEAVE_MODES.map((m) => (
+                <option key={m.halves} value={m.halves}>
+                  {m.th}
+                </option>
+              ))}
             </select>
           </div>
           <div style={{ flex: 1, minWidth: 150 }}>
@@ -210,11 +267,12 @@ export function MyProfile({ profile }: { profile: Profile }) {
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              Reason <span className="faint">(optional)</span>
+              เหตุผล <span className="faint">(ไม่บังคับ)</span>
             </label>
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              placeholder="เช่น พาแม่ไปหาหมอ"
               style={{ width: "100%" }}
             />
           </div>
@@ -226,17 +284,36 @@ export function MyProfile({ profile }: { profile: Profile }) {
               post(
                 "day-off",
                 { day, halves, reason: reason || undefined },
-                "Day off recorded",
+                "บันทึกวันหยุดแล้ว",
                 () => {
                   setDay("");
                   setReason("");
+                  void refreshDays();
                 },
               )
             }
           >
-            {busy === "day-off" ? "Saving…" : "Record"}
+            {busy === "day-off" ? "กำลังบันทึก…" : "บันทึก"}
           </button>
         </div>
+        <p className="muted" style={{ fontSize: 12.5, margin: "10px 0 0" }}>
+          {/* Said here rather than discovered on payday: the shop pays by the day, so a day not
+              worked is a day not paid — but เข้าสาย is a record only and never touches the wage. */}
+          ร้านจ่ายเป็นรายวัน — เต็มวันและครึ่งวันจะถูกหักออกจากวันทำงานของเดือนนั้น ส่วน{" "}
+          <b>เข้าสาย ไม่หักเงิน</b> บันทึกไว้เป็นประวัติเท่านั้น
+        </p>
+      </section>
+
+      <section className="card">
+        <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>วันหยุดของฉัน</h2>
+        <p className="muted" style={{ fontSize: 13.5, margin: "0 0 14px" }}>
+          {monthLabel(month)} · {summariseDaysOff(days).label}
+        </p>
+        <DayOffTable rows={days} busy={busy} onSave={saveDay} />
+        <p className="muted" style={{ fontSize: 12.5, margin: "10px 0 0" }}>
+          กด <b>แก้ไข</b> แล้วแก้ในตารางได้เลย — ทั้งวันที่ ลาแบบ และเหตุผล · ลบไม่ได้
+          ถ้าบันทึกผิดจนต้องลบจริง ๆ ให้แจ้งเจ้าของ
+        </p>
       </section>
 
       {profile.dayRateSatang != null && (

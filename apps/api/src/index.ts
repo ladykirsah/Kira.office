@@ -54,6 +54,7 @@ import {
   validateExpenseInput,
   type ExpenseInput,
   isInsightPeriod,
+  bangkokMonth,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -114,6 +115,11 @@ import {
   changeOwnPassword,
   setOwnPin,
   recordDayOff,
+  recordDayOffFor,
+  listMyDaysOff,
+  listTeamDaysOff,
+  deleteDayOff,
+  updateDayOff,
   revealPassword,
   deleteStaff,
   salaryMonth,
@@ -5995,6 +6001,39 @@ const worker = {
       if (url.pathname === "/staff/me/day-off" && request.method === "POST") {
         const body = await readJson<DayOffInput>(request);
         return recordDayOff(env.DB, who, body ?? {}, Date.now());
+      }
+      // My own month. `?month=YYYY-MM`, defaulting to the current Bangkok month rather than the
+      // Worker's UTC one — at 01:00 Bangkok on the 1st, UTC is still last month.
+      if (url.pathname === "/staff/me/days-off" && request.method === "GET") {
+        return listMyDaysOff(
+          env.DB,
+          who,
+          url.searchParams.get("month") ?? bangkokMonth(Date.now()),
+        );
+      }
+      // Everyone's month, and deleting — both super-admin only, enforced inside each handler so the
+      // rule holds even if a route is ever reached another way.
+      if (url.pathname === "/staff/days-off" && request.method === "GET") {
+        return listTeamDaysOff(
+          env.DB,
+          who,
+          url.searchParams.get("month") ?? bangkokMonth(Date.now()),
+        );
+      }
+      const dayOffFor = url.pathname.match(/^\/staff\/([^/]+)\/day-off$/);
+      if (dayOffFor && request.method === "POST") {
+        const body = await readJson<DayOffInput>(request);
+        return recordDayOffFor(env.DB, who, dayOffFor[1]!, body ?? {}, Date.now());
+      }
+      const dayOffById = url.pathname.match(/^\/staff\/days-off\/([^/]+)$/);
+      if (dayOffById && request.method === "DELETE") {
+        return deleteDayOff(env.DB, who, dayOffById[1]!);
+      }
+      // PATCH moves an existing row; POST /day-off creates or replaces one for a date. Keeping them
+      // apart is what stops an edited date from stranding the row it came from.
+      if (dayOffById && request.method === "PATCH") {
+        const body = await readJson<DayOffInput>(request);
+        return updateDayOff(env.DB, who, dayOffById[1]!, body ?? {}, Date.now());
       }
 
       if (url.pathname === "/staff/logout" && request.method === "POST") {
