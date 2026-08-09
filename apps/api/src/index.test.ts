@@ -6910,7 +6910,7 @@ describe("staff sessions", () => {
 describe("loginStaff", () => {
   const NOW = 1_800_000_000_000;
 
-  async function withUser(password: string | null, status = "active") {
+  async function withUser(password: string | null, status = "active", role = "admin") {
     const raw = migratedDb();
     const db = asD1(raw);
     const stored = password
@@ -6920,9 +6920,9 @@ describe("loginStaff", () => {
       .prepare(
         `INSERT INTO users (id, name, email, role, status, created_at,
                             password_hash, password_salt, password_iterations)
-         VALUES ('u1','Nok','nok@shop.test','admin',?,?,?,?,?)`,
+         VALUES ('u1','Nok','nok@shop.test',?,?,?,?,?,?)`,
       )
-      .run(status, NOW, stored.hash, stored.salt, stored.iterations);
+      .run(role, status, NOW, stored.hash, stored.salt, stored.iterations);
     return { raw, db };
   }
 
@@ -6966,7 +6966,9 @@ describe("loginStaff", () => {
   });
 
   it("locks for 24 hours after 3 failures — the owner's rule, not a soft throttle", async () => {
-    const { db } = await withUser("aircon-2026");
+    // A MECHANIC: admins and super admins are exempt from the lock (owner, 9 Aug 2026), so testing
+    // it on one would assert the opposite of the rule.
+    const { db } = await withUser("aircon-2026", "active", "mechanic");
     for (let i = 0; i < LOCK_AFTER_FAILURES; i++) {
       await loginStaff(db, "nok@shop.test", "wrong", NOW);
     }
@@ -6984,7 +6986,9 @@ describe("loginStaff", () => {
   });
 
   it("counts PIN and password failures against the SAME allowance", async () => {
-    const { db } = await withUser("aircon-2026");
+    // A mechanic, for the same reason as the test above: the allowance only ends in a lock for
+    // roles that can be locked.
+    const { db } = await withUser("aircon-2026", "active", "mechanic");
     await loginStaff(db, "nok@shop.test", "wrong", NOW);
     await loginStaff(db, "nok@shop.test", "wrong", NOW);
     // Two password misses already spent; the third failure of EITHER kind locks the account.

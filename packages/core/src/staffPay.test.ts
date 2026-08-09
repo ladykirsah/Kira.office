@@ -12,6 +12,7 @@ import {
   slipExpiresAt,
   slipIsExpired,
   SLIP_RETENTION_MONTHS,
+  roleCanBeLocked,
 } from "./staffPay";
 
 describe("daysInMonth", () => {
@@ -181,5 +182,29 @@ describe("wage-slip retention", () => {
     // A 92-day quarter (Aug+Sep+Oct) must not expire early just because the days don't divide.
     expect(SLIP_RETENTION_MONTHS).toBe(3);
     expect(slipIsExpired(utc(2026, 8, 4), utc(2026, 11, 3))).toBe(false);
+  });
+});
+
+describe("lockable roles", () => {
+  it("given a mechanic > then the 3-strike lock still applies", () => {
+    // The counter staff sign in at a shared machine with a 6-digit PIN, which is the one credential
+    // in this system a person could realistically sit and guess. The lock is what makes that futile.
+    expect(roleCanBeLocked("mechanic")).toBe(true);
+  });
+
+  it("given an admin or super admin > then they are never locked out (owner, 9 Aug 2026)", () => {
+    // A locked-out admin has no way back in — the recovery for a lock is "ask a super admin", and
+    // when the super admin is the locked one that is nobody. A 24-hour wall in front of the person
+    // who runs the shop costs more than the brute-force protection is worth HERE, because
+    // Cloudflare Access already stands in front of the admin: reaching this login form at all
+    // requires passing an email one-time code first.
+    expect(roleCanBeLocked("admin")).toBe(false);
+    expect(roleCanBeLocked("super_admin")).toBe(false);
+  });
+
+  it("given an unknown role > then it CAN be locked", () => {
+    // Fail safe: a role this doesn't recognise keeps the protection rather than losing it.
+    expect(roleCanBeLocked("something_new")).toBe(true);
+    expect(roleCanBeLocked(null)).toBe(true);
   });
 });
