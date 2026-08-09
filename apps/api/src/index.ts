@@ -101,6 +101,7 @@ export interface Env {
 import {
   loginStaff,
   loginWithPin,
+  signInAsOwner,
   requireStaff,
   revokeStaffSession,
   STAFF_SESSION_HEADER,
@@ -5930,6 +5931,30 @@ const worker = {
     }
 
     // The PIN arrives with NO email — see loginWithPin for why that needs a peppered lookup.
+    /**
+     * Sign in as the owner on the strength of Cloudflare Access alone — the way back in when there
+     * is no usable staff row to sign into, and no second super admin to make one.
+     *
+     * The Access check is done HERE rather than trusted from the body: `requireAccess` verifies the
+     * Cf-Access-Jwt-Assertion against Cloudflare's keys, and `accessConfigured` is read from the
+     * environment, so a deployment that lost its ACCESS_* variables refuses instead of opening.
+     */
+    if (url.pathname === "/staff/login-access" && request.method === "POST") {
+      const gate = await requireAccess(request, env);
+      if (gate instanceof Response) return gate;
+      const out = await signInAsOwner(
+        env.DB,
+        gate.email,
+        {
+          accessConfigured: Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD),
+          superAdminEmails: env.SUPER_ADMIN_EMAILS,
+        },
+        Date.now(),
+      );
+      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
+      return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
+    }
+
     if (url.pathname === "/staff/login-pin" && request.method === "POST") {
       if (!env.STAFF_PIN_PEPPER) return json({ error: "pin_login_unavailable" }, 503);
       const body = await readJson<{ pin?: string }>(request);

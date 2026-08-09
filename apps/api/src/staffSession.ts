@@ -21,6 +21,8 @@ import {
   sha256Hex,
   verifyPassword,
   type LockState,
+  credentialNeedsReset,
+  canSignInAsOwner,
 } from "@l-shopee/core";
 import type { StaffRole } from "@l-shopee/core";
 
@@ -40,7 +42,13 @@ export interface StaffIdentity {
 
 export type LoginResult =
   | { ok: true; token: string; expiresAt: number; identity: StaffIdentity }
-  | { ok: false; reason: "invalid" | "locked" };
+  /**
+   * `needs_reset` — the credential exists and may well be typed correctly, but was hashed above the
+   * platform's PBKDF2 ceiling and can never be verified here (see `credentialNeedsReset`). Kept
+   * distinct from `invalid` because telling someone their password is wrong, when it is right and
+   * can never work, costs them an afternoon of retyping it.
+   */
+  | { ok: false; reason: "invalid" | "locked" | "needs_reset" | "access_not_configured" };
 
 export async function createStaffSession(
   db: D1Database,
@@ -188,6 +196,11 @@ export async function loginStaff(
       iterations: row.iterations,
     }));
 
+  // Checked BEFORE the failure counter: an uncheckable credential is our bug, not a wrong guess, and
+  // counting it would lock the account out on top of the problem it is already stuck behind.
+  if (credentialNeedsReset({ hash: row.hash, salt: row.salt, iterations: row.iterations })) {
+    return { ok: false, reason: "needs_reset" };
+  }
   if (!good) {
     await recordAccountFailure(db, row.id, lockStateOf(row), now);
     return { ok: false, reason: "invalid" };
@@ -285,6 +298,11 @@ export async function loginWithPin(
     salt: row.salt,
     iterations: row.iterations,
   });
+  // Checked BEFORE the failure counter: an uncheckable credential is our bug, not a wrong guess, and
+  // counting it would lock the account out on top of the problem it is already stuck behind.
+  if (credentialNeedsReset({ hash: row.hash, salt: row.salt, iterations: row.iterations })) {
+    return { ok: false, reason: "needs_reset" };
+  }
   if (!good) {
     await recordAccountFailure(db, row.id, lockStateOf(row), now);
     return { ok: false, reason: "invalid" };
@@ -343,4 +361,78 @@ export async function clearAccountFailures(
     )
     .bind(now, userId)
     .run();
+}
+
+/**
+ * Sign in as the shop's owner using the Cloudflare Access identity alone, creating or repairing the
+ * staff row on the way.
+ *
+ * The escape hatch for the one person who has no other: every other recovery ends at "ask a super
+ * admin", and `createStaff` needs an existing super admin, so an owner without a usable row had no
+ * way in short of hand-written SQL. Access has already proved who they are — by one-time code to
+ * that mailbox — before the login page is even reachable, so that proof is what this trusts.
+ *
+ * Authorisation is entirely `canSignInAsOwner`, which fails closed on anything it is unsure about
+ * (see its notes on why it must never share an implementation with `isSuperAdmin`). Nothing is
+ * written unless it says yes: a refusal must not leave an account behind as a side effect.
+ *
+ * Repairs cover every way the row could be stuck — demoted, deactivated, soft-deleted, locked — so
+ * the owner never has to work out which one applies. It deliberately does NOT touch the password or
+ * PIN: proving ownership through Access says nothing about those, and clearing them would quietly
+ * destroy a credential that only needs resetting.
+ */
+export async function signInAsOwner(
+  db: D1Database,
+  verifiedEmail: string | null,
+  env: { accessConfigured: boolean; superAdminEmails?: string },
+  now: number,
+): Promise<LoginResult> {
+  const verdict = canSignInAsOwner({
+    accessConfigured: env.accessConfigured,
+    verifiedEmail,
+    superAdminEmails: env.superAdminEmails,
+  });
+  if (!verdict.ok) {
+    // Mapped onto the login screen's existing vocabulary rather than leaking the internal reason —
+    // and `invalid` for a non-owner, so this cannot be used to enumerate who the owners are.
+    return {
+      ok: false,
+      reason: verdict.reason === "access_not_configured" ? "access_not_configured" : "invalid",
+    };
+  }
+
+  const email = verdict.email;
+  const existing = await db
+    .prepare(`SELECT id, name FROM users WHERE lower(email) = lower(?)`)
+    .bind(email)
+    .first<{ id: string; name: string }>();
+
+  const userId = existing?.id ?? crypto.randomUUID();
+  if (existing) {
+    await db
+      .prepare(
+        `UPDATE users
+            SET role = 'super_admin', status = 'active', deleted_at = NULL,
+                failed_attempts = 0, locked_until = NULL
+          WHERE id = ?`,
+      )
+      .bind(userId)
+      .run();
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at, failed_attempts)
+         VALUES (?, ?, ?, 'super_admin', 'active', ?, 0)`,
+      )
+      .bind(userId, "Owner", email, now)
+      .run();
+  }
+
+  const { token, expiresAt } = await createStaffSession(db, userId, now);
+  return {
+    ok: true,
+    token,
+    expiresAt,
+    identity: { userId, email, name: existing?.name ?? "Owner", role: "super_admin" },
+  };
 }
