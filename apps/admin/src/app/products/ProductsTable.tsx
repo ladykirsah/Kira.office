@@ -5,6 +5,7 @@ import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { tierProfits } from "@/lib/tierProfits";
 import { productStatusTag, isNotLive } from "@/lib/productStatus";
+import { readinessNote, readinessValues } from "@/lib/readiness";
 import { canWrite, canSeeProfit } from "@l-shopee/core";
 import { useStaffRole } from "../StaffRoleProvider";
 import { stockStatus } from "@/lib/stock";
@@ -29,6 +30,12 @@ const DIMENSIONS = [
   },
   { key: "type", label: "Part name", values: (p: ProductRow) => (p.typeName ? [p.typeName] : []) },
   { key: "car", label: "Car brand", values: (p: ProductRow) => p.carBrands },
+  /**
+   * Not a property of the part — a property of how finished its record is. It earns a place beside
+   * the others because it is the one the Not live tab is actually worked from: "show me everything
+   * missing a photo" is the whole job, and it was previously eight products opened one at a time.
+   */
+  { key: "readiness", label: "Readiness", values: readinessValues },
 ] as const;
 
 export function ProductsTable({ products }: { products: ProductRow[] }) {
@@ -341,7 +348,22 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                       <td>
                         {(() => {
                           const s = productStatusTag(p);
-                          return <span className={`pill ${s.cls}`}>{s.label}</span>;
+                          // The pill says WHICH tab this row belongs to; the line under it says what
+                          // is stopping the product from selling. On every tab, not just Not live
+                          // (owner, 2026-08-24) — a product selling without a picture is worth
+                          // flagging too. `readinessNote` is what keeps the two from repeating each
+                          // other: it stays quiet about stock whenever the pill already reads Out.
+                          const note = readinessNote(p);
+                          return (
+                            <>
+                              <span className={`pill ${s.cls}`}>{s.label}</span>
+                              {note && (
+                                <span className={note.ready ? "why ready" : "why"}>
+                                  {note.text}
+                                </span>
+                              )}
+                            </>
+                          );
                         })()}
                       </td>
                       <td>

@@ -95,6 +95,12 @@ sources: [session 2026-08-09]
   now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
   previously had no delete box at all. See [back-office/products](back-office/products.md).
 
+- **2026-08-24** — **Status cell gained a second line: what is stopping this product from
+  selling.** After 0088 all eight not-live products read "Paused" and nothing more. The line now
+  reads `no photo · no price · no stock`, or **ready to sell** in green when nothing is missing —
+  on every tab, and never repeating what the pill already says. Also a **Readiness** sort/filter.
+  See [back-office/products](back-office/products.md).
+
 - **2026-08-24** — **Migration 0088 applied to production.** 8 products sat at the retired
   `archived` status; all 8 are now `paused` and appear under **Not live**, where they can be put
   back on sale or deleted properly. Verified after: 0 rows left at `archived`, no migrations

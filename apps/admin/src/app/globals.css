@@ -1613,6 +1613,22 @@ a.card:hover {
   color: var(--text-muted);
 }
 
+/* Second line in a list table's Status cell: what is stopping this product from selling.
+   Sits under the pill, in the same muted register as the reference code under a product name —
+   it is context for the pill, never a competing label. Green only for "ready to sell", which is
+   the one state that invites an action; every gap stays muted so five of them do not shout. */
+.why {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+.why.ready {
+  color: var(--ok);
+  font-weight: 600;
+}
+
 /* Signed-in person in the top bar. Pushed to the right, ahead of the theme toggle. */
 .staff-chip-wrap {
   position: relative;
