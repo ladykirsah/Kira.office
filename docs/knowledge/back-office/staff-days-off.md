@@ -63,13 +63,60 @@ used to get it wrong.
 someone will write why they were at a hospital in it, so shipping the whole team's reasons to a page
 that displays one of them hands the browser more than it needs.
 
-## Parked: เงินเบิกล่วงหน้า (advance payment)
+## The Record section (owner, 2026-08-24)
 
-Designed with the owner on 2026-08-24, **not built**. Salary taken before payday, deducted from that
-month's wage. Agreed rules: over-advancing is allowed, the month pays ฿0 and the excess shows **in
-red as owed** with no automatic carry-over; staff see their own taken/remaining but cannot record
-one. Needs a table, a payslip column so a paid month stays frozen, and two new Payments columns —
-a payroll change, which is why it was split from this one.
+Built on the car-fitment page's **Add new**, which the owner picked as the working flow: pick what
+you are recording, fill it in, Save. Three tabs — **วันหยุด · เบิกล่วงหน้า · จ่ายเงินเดือน** — at the
+top of the profile, replacing the add form that used to sit *underneath* the วันหยุด table where you
+had to scroll past the data to reach the input. The page now reads downwards as cause then effect:
+**Record → วันหยุด → Payments**.
+
+**Design B of three, and the reason matters.** Car brands and car models are the same kind of thing,
+so equal tabs are honest there. A day off and a cash advance are not: one is attendance, the other
+is money leaving the shop. Equal tabs would give them equal weight and equal muscle memory, and a
+mis-tap would record ฿3,000 instead of a half day. So:
+
+- a divider marked **เงิน** separates time from money;
+- the panel and the Save button turn **amber** whenever money is involved — amber on this page means
+  something is about to leave the shop;
+- the Save button **always ends with the amount** (`บันทึกการเบิก ฿3,000`), so the last thing read
+  before pressing is the number.
+
+Amber, never `--primary`: red marks the one "you are here" control per view, and this is a warning
+about what a control *does*.
+
+## เงินเบิกล่วงหน้า — salary taken before payday
+
+`staff_advances` (migration 0089), filed against the **month it comes off** rather than derived from
+its date: an advance handed over on the 31st for next month's pay is a real thing, and deriving
+would file it in the wrong month with no way to correct it.
+
+| Rule | |
+| --- | --- |
+| Who | super admin records and deletes; staff read their own totals |
+| Over-advancing | **allowed** — the month pays ฿0 and the excess shows **red as owed**; never carried into next month automatically |
+| A paid month | refuses further advances (409) — the payslip froze the figure, and a later one would leave the two disagreeing |
+
+## Cash or transfer — one rule, both forms
+
+`payoutProblem()` in core owns it, so the advance form and the wage form cannot drift apart:
+**cash needs nothing, a transfer needs its slip.**
+
+This **changed how wages are marked paid**. A slip used to be demanded unconditionally, which is
+wrong for a shop that mostly hands over cash: it pushed people into not recording the payment at
+all, or attaching something meaningless to get past the form, and a rule people route around is not
+a control. `staff_payslips.method` records which it was; rows written before today read as unknown,
+because backfilling them "transfer" would be inventing a fact.
+
+## Payments: one table, one sum
+
+`staffPayments` no longer lists paid months only. An advance changes a month's figure the moment it
+is handed over, so the month you are standing in is always listed — otherwise the one number you
+want, *what do I owe on the 5th*, is the one the table will not show.
+
+**เงินเดือน − เบิกไปแล้ว = คงเหลือ**, with the advance frozen onto the payslip at payment. A paid
+month reports what the payslip froze; an unpaid one is computed live. Never the reverse — recomputing
+a paid month is how a September raise, or a September advance, would rewrite what August handed over.
 
 Related: [products](products.md) · [roles-model](../auth/roles-model.md) ·
 [staff-mechanic-section-plan](../auth/staff-mechanic-section-plan.md)

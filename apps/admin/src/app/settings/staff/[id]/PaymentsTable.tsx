@@ -6,14 +6,22 @@ import { Modal } from "../../../Modal";
 
 export interface StaffPayment {
   period: string;
-  amountSatang: number;
+  /** What the month's work came to, before anything taken early. */
+  earnedSatang: number;
+  /** Salary already handed over before payday. Frozen onto the payslip once the month is paid. */
+  advanceSatang: number;
+  /** earned − advance, floored at zero. What actually changes hands on the 5th. */
+  dueSatang: number;
+  /** Advance beyond the whole month's wage. Shown in red; never carried forward on its own. */
+  owedSatang: number;
   dayRateSatang: number;
   workingHalves: number;
   offHalves: number;
-  /** Null would mean a month still owed. Today the list only holds paid months — see the note
-   *  on PaymentsTable — so this is always set; typed honestly for when that changes. */
+  /** Null for a month not yet paid — the running month is always listed (2026-08-24). */
   paidAt: number | null;
-  /** False before a slip exists, and again once the image is swept at three months. */
+  /** "cash" | "transfer" | null for rows written before the method was recorded. */
+  method: string | null;
+  /** False before a slip exists, once the image is swept at three months, and for cash. */
   hasSlip: boolean;
 }
 
@@ -55,7 +63,7 @@ export function PaymentsTable({ userId, payments }: { userId: string; payments: 
   if (payments.length === 0) {
     return (
       <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-        No wages paid yet.
+        No wages recorded yet.
       </p>
     );
   }
@@ -73,6 +81,8 @@ export function PaymentsTable({ userId, payments }: { userId: string; payments: 
               <th style={{ textAlign: "right" }}>Days off</th>
               <th style={{ textAlign: "right" }}>Working days</th>
               <th style={{ textAlign: "right" }}>Salary</th>
+              <th style={{ textAlign: "right" }}>Advance</th>
+              <th style={{ textAlign: "right" }}>Still due</th>
               <th style={{ textAlign: "right" }}>Paid</th>
               <th style={{ textAlign: "right" }}>Slip</th>
             </tr>
@@ -84,8 +94,29 @@ export function PaymentsTable({ userId, payments }: { userId: string; payments: 
                 <td className="num">{baht(p.dayRateSatang)}</td>
                 <td className="num">{p.offHalves ? days(p.offHalves) : "0"}</td>
                 <td className="num">{days(p.workingHalves)}</td>
+                <td className="num">{baht(p.earnedSatang)}</td>
+                {/* One sum across the row: Salary − Advance = Still due. The advance is signed so
+                    it reads as a subtraction rather than as a second amount owed. */}
+                <td className="num">
+                  {p.advanceSatang ? `−${baht(p.advanceSatang)}` : <span className="faint">—</span>}
+                </td>
                 <td className="num" style={{ fontWeight: 700 }}>
-                  {baht(p.amountSatang)}
+                  {baht(p.dueSatang)}
+                  {/* Over-advanced: the month pays ฿0 and the excess is owed back. Red, because it
+                      is the one figure on this table that means money is missing (owner's rule —
+                      allowed, shown, never carried forward automatically). */}
+                  {p.owedSatang > 0 && (
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "var(--danger)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      ค้าง {baht(p.owedSatang)}
+                    </span>
+                  )}
                 </td>
                 <td style={{ textAlign: "right" }}>
                   {/* The state, not the date (owner, 2026-08-04) — green for settled, amber for
@@ -96,6 +127,11 @@ export function PaymentsTable({ userId, payments }: { userId: string; payments: 
                   >
                     {p.paidAt ? "Paid" : "Unpaid"}
                   </span>
+                  {p.paidAt && p.method && (
+                    <span className="faint" style={{ display: "block", fontSize: 12 }}>
+                      {p.method === "cash" ? "เงินสด" : "โอน"}
+                    </span>
+                  )}
                 </td>
                 <td style={{ textAlign: "right" }}>
                   {p.hasSlip ? (

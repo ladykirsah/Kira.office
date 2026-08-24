@@ -42,7 +42,7 @@ export default async function StaffProfilePage({
   // to an empty list.
   let payments: StaffPayment[] = [];
   try {
-    const res = await apiFetch(`/staff/${id}/payments`, {
+    const res = await apiFetch(`/staff/${id}/payments?month=${encodeURIComponent(month)}`, {
       cache: "no-store",
       headers: { [STAFF_SESSION_HEADER]: token ?? "" },
     });

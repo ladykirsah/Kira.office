@@ -7825,7 +7825,12 @@ describe("markSalaryPaid + staffActivity", () => {
   it("marking paid freezes the figures as they stood", async () => {
     const { raw, db } = await seed();
     expect(
-      (await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/a.jpg")).status,
+      (
+        await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+          method: "transfer",
+          slipKey: "salary-slip/s1/a.jpg",
+        })
+      ).status,
     ).toBe(200);
     const slip = raw
       .prepare(
@@ -7837,7 +7842,10 @@ describe("markSalaryPaid + staffActivity", () => {
 
   it("a later raise does not rewrite a month already paid", async () => {
     const { raw, db } = await seed();
-    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/a.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/a.jpg",
+    });
     raw.prepare(`UPDATE users SET day_rate_satang = 60000 WHERE id='s1'`).run();
     const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
       rows: { amountSatang: number; paidAt: number | null }[];
@@ -7850,7 +7858,12 @@ describe("markSalaryPaid + staffActivity", () => {
   it("only a super admin may mark paid, or read the activity log", async () => {
     const { db } = await seed();
     expect(
-      (await markSalaryPaid(db, clerk, "s1", "2026-07", NOW, "salary-slip/s1/a.jpg")).status,
+      (
+        await markSalaryPaid(db, clerk, "s1", "2026-07", NOW, {
+          method: "transfer",
+          slipKey: "salary-slip/s1/a.jpg",
+        })
+      ).status,
     ).toBe(403);
     expect((await staffActivity(db, clerk, {})).status).toBe(403);
   });
@@ -8192,9 +8205,16 @@ describe("wage transfer slips", () => {
     };
   }
 
-  it("given no slip > when marking paid > then it is refused", async () => {
+  // CHANGED 2026-08-24: a slip used to be demanded for every payment. It is now demanded only for a
+  // TRANSFER — cash needs none — because a shop that mostly hands over cash was being pushed into
+  // either not recording the payment or attaching something meaningless. The cash path is covered
+  // in advances.test.ts; this keeps the half of the old rule that still holds.
+  it("given a transfer with no slip > when marking paid > then it is refused", async () => {
     const { db } = await seed();
-    const res = await markSalaryPaid(db, boss, "s1", "2026-07", NOW, null);
+    const res = await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: null,
+    });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toMatch(/slip/i);
   });
@@ -8202,7 +8222,12 @@ describe("wage transfer slips", () => {
   it("given a slip > then the payslip keeps its key and the month reads as paid", async () => {
     const { raw, db } = await seed();
     expect(
-      (await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/x.jpg")).status,
+      (
+        await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+          method: "transfer",
+          slipKey: "salary-slip/s1/x.jpg",
+        })
+      ).status,
     ).toBe(200);
     const row = raw
       .prepare(
@@ -8215,7 +8240,10 @@ describe("wage transfer slips", () => {
 
   it("the month's rows carry the bank details needed to pay, and whether a slip is held", async () => {
     const { db } = await seed();
-    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/x.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/x.jpg",
+    });
     const body = (await (await salaryMonth(db, boss, "2026-07")).json()) as {
       rows: {
         userId: string;
@@ -8235,7 +8263,10 @@ describe("wage transfer slips", () => {
   it("given a payment three months old > when the sweep runs > then the image goes and the record stays", async () => {
     const { raw, db } = await seed();
     const paidAt = Date.UTC(2026, 9, 5); // 5 October 2026 — expires 5 January 2027
-    await markSalaryPaid(db, boss, "s1", "2026-09", paidAt, "salary-slip/s1/old.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-09", paidAt, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/old.jpg",
+    });
     const { deleted, bucket } = fakeBucket();
 
     const purged = await purgeExpiredSalarySlips(db, bucket, NOW);
@@ -8255,14 +8286,10 @@ describe("wage transfer slips", () => {
 
   it("given a recent payment > then the sweep leaves it alone", async () => {
     const { db } = await seed();
-    await markSalaryPaid(
-      db,
-      boss,
-      "s1",
-      "2026-12",
-      Date.UTC(2026, 11, 5),
-      "salary-slip/s1/new.jpg",
-    );
+    await markSalaryPaid(db, boss, "s1", "2026-12", Date.UTC(2026, 11, 5), {
+      method: "transfer",
+      slipKey: "salary-slip/s1/new.jpg",
+    });
     const { deleted, bucket } = fakeBucket();
     expect(await purgeExpiredSalarySlips(db, bucket, NOW)).toBe(0);
     expect(deleted).toEqual([]);
@@ -8270,7 +8297,10 @@ describe("wage transfer slips", () => {
 
   it("a slip is readable by the owner and by the person it paid, and by nobody else", async () => {
     const { db } = await seed();
-    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/x.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/x.jpg",
+    });
     expect(await salarySlipKey(db, boss, "s1", "2026-07")).toBe("salary-slip/s1/x.jpg");
     expect(await salarySlipKey(db, mech, "s1", "2026-07")).toBe("salary-slip/s1/x.jpg");
     const other = { ...mech, userId: "s2", email: "s2@shop.test" };
@@ -8308,34 +8338,50 @@ describe("staffPayments — one person's wage history", () => {
 
   it("lists that person's months, newest first, with whether a slip is still held", async () => {
     const { db } = await seed();
-    await markSalaryPaid(db, boss, "s1", "2026-06", NOW - 100, "salary-slip/s1/jun.jpg");
-    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/jul.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-06", NOW - 100, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/jun.jpg",
+    });
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/jul.jpg",
+    });
 
-    const body = (await (await staffPayments(db, boss, "s1")).json()) as {
-      payments: { period: string; amountSatang: number; paidAt: number; hasSlip: boolean }[];
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as {
+      payments: { period: string; earnedSatang: number; paidAt: number; hasSlip: boolean }[];
     };
     expect(body.payments.map((p) => p.period)).toEqual(["2026-07", "2026-06"]);
     expect(body.payments[0]!.hasSlip).toBe(true);
-    expect(body.payments[0]!.amountSatang).toBeGreaterThan(0);
+    expect(body.payments[0]!.earnedSatang).toBeGreaterThan(0);
   });
 
   it("a swept slip leaves the payment on the list, just without one", async () => {
     const { raw, db } = await seed();
-    await markSalaryPaid(db, boss, "s1", "2026-06", NOW, "salary-slip/s1/jun.jpg");
+    await markSalaryPaid(db, boss, "s1", "2026-06", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/jun.jpg",
+    });
     raw.prepare(`UPDATE staff_payslips SET slip_key = NULL`).run();
-    const body = (await (await staffPayments(db, boss, "s1")).json()) as {
-      payments: { hasSlip: boolean }[];
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as {
+      payments: { period: string; hasSlip: boolean; paidAt: number | null }[];
     };
-    expect(body.payments).toHaveLength(1);
-    expect(body.payments[0]!.hasSlip).toBe(false);
+    // Two rows now, not one: the running month is always listed (2026-07 here) alongside the paid
+    // month whose slip was swept. Asserting on the June row rather than the count, so this test
+    // keeps testing the sweep rather than the shape of the list.
+    const june = body.payments.find((p) => p.period === "2026-06")!;
+    expect(june.paidAt).not.toBeNull();
+    expect(june.hasSlip).toBe(false);
   });
 
   it("a person may read their own wage history, but never anyone else's", async () => {
     const { db } = await seed();
-    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, "salary-slip/s1/jul.jpg");
-    expect((await staffPayments(db, mech, "s1")).status).toBe(200);
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/jul.jpg",
+    });
+    expect((await staffPayments(db, mech, "s1", "2026-07")).status).toBe(200);
     const other = { ...mech, userId: "s2", email: "s2@shop.test" };
-    expect((await staffPayments(db, other, "s1")).status).toBe(403);
+    expect((await staffPayments(db, other, "s1", "2026-07")).status).toBe(403);
   });
 });
 
