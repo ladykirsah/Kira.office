@@ -54,6 +54,8 @@ import {
   canViewSlips,
   canEditPrice,
   canSeeProfit,
+  sellingPricesChanged,
+  type SellingPriceFields,
   type WriteArea,
   type StaffRole,
   type ViewerRole,
@@ -258,6 +260,56 @@ const json = (data: unknown, status = 200): Response =>
  * 401 without a session, 403 with the wrong role. Never falls through: this Worker is its own
  * public hostname and cannot rely on anything in front of it.
  */
+/**
+ * Refuse a save that moves a SELLING price when this person may not set one.
+ *
+ * The owner refined "an admin cannot change price" on 2026-08-24: an admin buys the stock, so item
+ * cost and the VAT switch are theirs; the selling tiers and the commission are the owner's.
+ *
+ * Compares against what is stored rather than refusing outright, because the edit page sends the
+ * WHOLE profile back on every save — an admin fixing a name or a cost would otherwise be blocked
+ * for prices they never touched. Returns a Response to send, or null to carry on.
+ *
+ * Applies to a product that already exists. Pricing a NEW one is open to an admin: a product with
+ * no price cannot be finished.
+ */
+async function refuseSellingPriceChange(
+  db: D1Database,
+  productId: string,
+  incoming: SellingPriceFields,
+  role: StaffRole,
+): Promise<Response | null> {
+  if (canEditPrice(role)) return null;
+  const stored = await db
+    .prepare(
+      `SELECT pp.target_price_satang AS targetPriceSatang, pp.b2b_price_satang AS b2bPriceSatang,
+              pp.online_price_satang AS onlinePriceSatang, pp.shopee_price_satang AS shopeePriceSatang,
+              pp.online_commission_bp AS onlineCommissionBp
+         FROM pricing_profiles pp
+         JOIN product_variants v ON v.id = pp.product_variant_id
+        WHERE v.product_id = ?
+        -- setVariantPricing deletes then inserts, so there is normally exactly one row. Ordered
+        -- anyway: an unordered LIMIT 1 would pick an arbitrary profile if a stray ever existed, and
+        -- compare a save against the wrong prices.
+        ORDER BY pp.active_from DESC
+        LIMIT 1`,
+    )
+    .bind(productId)
+    .first<SellingPriceFields>();
+  // No stored profile means this product has never been priced — that is a first price, not a
+  // change, and an admin may set it.
+  if (!stored) return null;
+  if (!sellingPricesChanged(stored, incoming)) return null;
+  return json(
+    {
+      error:
+        "Only the shop owner can change what a product sells for. You can still change the item cost.",
+      reason: "price_is_owners",
+    },
+    403,
+  );
+}
+
 async function requireRole(
   request: Request,
   env: Env,
@@ -6958,11 +7010,9 @@ const worker = {
 
     const productPricing = url.pathname.match(/^\/products\/([^/]+)\/pricing$/);
     if (productPricing && request.method === "PUT") {
-      // What the shop CHARGES is the owner's (owner, 2026-08-24). Narrower than the products-area
-      // write gate above, which an admin passes: they run the catalog, not the prices. Setting a
-      // price while ADDING a product goes through /products/full and stays open to an admin — a
-      // product with no price cannot be finished.
-      const priceActor = await requireRole(request, env, canEditPrice, "super_admin_only");
+      // Cost is the admin's, selling price is the owner's (owner, 2026-08-24). The products-area
+      // write gate above has already refused a mechanic; this decides between the other two.
+      const priceActor = await requireStaff(request, env);
       if (priceActor instanceof Response) return priceActor;
       const body = await readJson<{
         itemCostSatang?: number;
@@ -6975,6 +7025,19 @@ const worker = {
       }>(request);
       // Reject (don't coalesce) a malformed body — the ?? 0 fallbacks below would zero all pricing.
       if (!body) return json({ error: "invalid JSON body" }, 400);
+      const priceRefusal = await refuseSellingPriceChange(
+        env.DB,
+        productPricing[1]!,
+        {
+          targetPriceSatang: body.targetPriceSatang ?? 0,
+          b2bPriceSatang: body.b2bPriceSatang ?? 0,
+          onlinePriceSatang: body.onlinePriceSatang ?? 0,
+          shopeePriceSatang: body.shopeePriceSatang ?? 0,
+          onlineCommissionBp: body.onlineCommissionBp ?? 0,
+        },
+        priceActor.role,
+      );
+      if (priceRefusal) return priceRefusal;
       const detail = await getProductDetail(env.DB, productPricing[1]!);
       if (!detail?.variantId) return json({ error: "product or variant not found" }, 404);
       await setVariantPricing(env.DB, detail.variantId, {
@@ -7019,6 +7082,26 @@ const worker = {
       const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
       // Product categories are a subset of car systems (migration 0064): a brand-new category typed on
       // Add product is created under the selected system. An existing category keeps its own system.
+      // The edit page saves through HERE, not through PUT /products/:id/pricing — guarding only
+      // that route would have left the real door open. Existing product + a moved selling price +
+      // someone who may not set one = refused.
+      if (body.id && body.pricing) {
+        const fullActor = await requireStaff(request, env);
+        if (fullActor instanceof Response) return fullActor;
+        const refusal = await refuseSellingPriceChange(
+          env.DB,
+          body.id,
+          {
+            targetPriceSatang: body.pricing.targetPriceSatang ?? 0,
+            b2bPriceSatang: body.pricing.b2bPriceSatang ?? 0,
+            onlinePriceSatang: body.pricing.onlinePriceSatang ?? 0,
+            shopeePriceSatang: body.pricing.shopeePriceSatang ?? 0,
+            onlineCommissionBp: body.pricing.onlineCommissionBp ?? 0,
+          },
+          fullActor.role,
+        );
+        if (refusal) return refusal;
+      }
       const typeId = await resolveAttribute(env.DB, "product_types", body.typeName, { usageId });
       const category =
         [body.brandName, body.usageName, body.typeName]

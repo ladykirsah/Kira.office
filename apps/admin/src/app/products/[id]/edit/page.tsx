@@ -377,7 +377,7 @@ export default function EditProductPage() {
               <PricingFields
                 form={pricing}
                 update={updatePricing}
-                readOnly={!role || !canEditPrice(role)}
+                sellingReadOnly={!role || !canEditPrice(role)}
               />
             </div>
 

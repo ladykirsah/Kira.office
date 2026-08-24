@@ -9186,12 +9186,17 @@ describe("product money: who may change a price, and who may see margin", () => 
     expect((await putPricing(env, token)).status).toBe(200);
   });
 
-  it("given an admin > 403, and the stored cost is untouched", async () => {
-    // An admin runs the catalog; what the shop charges is not theirs to move.
+  it("given an admin moving a SELLING price > 403, and nothing is written", async () => {
+    // This body changes onlinePriceSatang as well as the cost, so it is refused as a whole — an
+    // admin may set the cost, but not in the same save that moves what the shop charges.
+    //
+    // The rule was a flat "an admin cannot touch pricing" for part of 2026-08-24, before the owner
+    // split it: cost is the admin's, selling price is the owner's. Hence the reason changed from
+    // super_admin_only to price_is_owners.
     const { raw, env, token } = await seed("admin");
     const res = await putPricing(env, token);
     expect(res.status).toBe(403);
-    expect((await res.json()) as { reason: string }).toMatchObject({ reason: "super_admin_only" });
+    expect((await res.json()) as { reason: string }).toMatchObject({ reason: "price_is_owners" });
     expect(cost(raw)).toBe(40000);
   });
 
@@ -9238,6 +9243,137 @@ describe("product money: who may change a price, and who may see margin", () => 
       );
       const body = (await res.json()) as { products: { onlinePriceSatang: number }[] };
       expect(body.products[0]!.onlinePriceSatang).toBe(95000);
+    });
+  });
+});
+
+// ── An admin sets the COST; the owner sets what the shop CHARGES (owner, 2026-08-24) ─────────────
+// Refines the earlier flat "an admin cannot change price". An admin buys the stock, so item cost
+// and the VAT-on-cost switch are theirs; the selling tiers and the commission are not.
+//
+// Both save paths are covered on purpose. The edit page saves through POST /products/full, NOT
+// PUT /products/:id/pricing — guarding only the latter left the actual door open.
+describe("pricing: cost is the admin's, selling price is the owner's", () => {
+  const NOW = 1_800_000_000_000;
+  const STORED = {
+    itemCostSatang: 40000,
+    targetPriceSatang: 90000,
+    onlinePriceSatang: 95000,
+    b2bPriceSatang: 80000,
+    onlineCommissionBp: 0,
+    taxOnCost: false,
+  };
+
+  async function seed(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','S','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,product_ref,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','REF-1','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id,product_id,created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO pricing_profiles
+           (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang,
+            b2b_price_satang, online_commission_bp, tax_on_cost, active_from)
+         VALUES ('pp1','v1',40000,90000,95000,80000,0,0,?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const putPricing = (env: Env, token: string, pricing: Record<string, unknown>) =>
+    worker.fetch!(
+      new Request("https://x/products/p1/pricing", {
+        method: "PUT",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify(pricing),
+      }),
+      env,
+      ctx,
+    );
+
+  const saveFull = (env: Env, token: string, pricing: Record<string, unknown>) =>
+    worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify({
+          id: "p1",
+          productRef: "REF-1",
+          name: "Compressor",
+          status: "active",
+          pricing,
+        }),
+      }),
+      env,
+      ctx,
+    );
+
+  const cost = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT item_cost_satang AS c FROM pricing_profiles`).get() as { c: number }).c;
+  const online = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT online_price_satang AS p FROM pricing_profiles`).get() as { p: number }).p;
+
+  describe("PUT /products/:id/pricing", () => {
+    it("given an admin changing only the COST > allowed, and it lands", async () => {
+      const { raw, env, token } = await seed("admin");
+      const res = await putPricing(env, token, { ...STORED, itemCostSatang: 44000 });
+      expect(res.status).toBe(200);
+      expect(cost(raw)).toBe(44000);
+    });
+
+    it("given an admin changing a SELLING price > 403, and nothing moves", async () => {
+      const { raw, env, token } = await seed("admin");
+      const res = await putPricing(env, token, { ...STORED, onlinePriceSatang: 999999 });
+      expect(res.status).toBe(403);
+      expect((await res.json()) as { reason: string }).toMatchObject({ reason: "price_is_owners" });
+      expect(online(raw)).toBe(95000);
+    });
+
+    it("given the owner changing a selling price > allowed", async () => {
+      const { raw, env, token } = await seed("super_admin");
+      expect((await putPricing(env, token, { ...STORED, onlinePriceSatang: 111111 })).status).toBe(
+        200,
+      );
+      expect(online(raw)).toBe(111111);
+    });
+
+    it("given a mechanic > 403; they write no products at all", async () => {
+      const { env, token } = await seed("mechanic");
+      expect((await putPricing(env, token, { ...STORED, itemCostSatang: 1 })).status).toBe(403);
+    });
+  });
+
+  describe("POST /products/full — the path the edit page actually uses", () => {
+    it("given an admin changing only the COST > allowed", async () => {
+      const { raw, env, token } = await seed("admin");
+      const res = await saveFull(env, token, { ...STORED, itemCostSatang: 47000 });
+      expect(res.status).toBe(200);
+      expect(cost(raw)).toBe(47000);
+    });
+
+    it("given an admin changing a SELLING price here > 403, not a way around the rule", async () => {
+      const { raw, env, token } = await seed("admin");
+      expect((await saveFull(env, token, { ...STORED, b2bPriceSatang: 1 })).status).toBe(403);
+      expect(online(raw)).toBe(95000);
+    });
+
+    it("given the owner > allowed", async () => {
+      const { env, token } = await seed("super_admin");
+      expect((await saveFull(env, token, { ...STORED, b2bPriceSatang: 1 })).status).toBe(200);
     });
   });
 });

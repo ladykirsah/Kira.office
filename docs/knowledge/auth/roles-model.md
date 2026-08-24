@@ -133,7 +133,8 @@ As of 2026-07-27: `resolveActor(db, email, …)` (in `apps/api/src/auth.ts`, re-
 | Edit anything | **no** | yes | yes |
 | Stock pencil / row Edit | **hidden** | shown | shown |
 | See profit | **no** | yes | yes |
-| Change a price | no | **no** | yes |
+| Change the item COST / VAT-on-cost | no | **yes** | yes |
+| Change a SELLING price (B2C · B2B · AirPlus · Shopee · commission) | no | **no** | yes |
 | Set a price when ADDING | no | **yes** | yes |
 | Pause on a channel · delete | no | no | yes |
 
@@ -142,12 +143,30 @@ As of 2026-07-27: `resolveActor(db, email, …)` (in `apps/api/src/auth.ts`, re-
 cost and hiding the answer would be decoration — anyone reading the response could subtract. Selling
 prices still go through; those are not secret.
 
-**An admin may price a NEW product but not re-price an existing one** (owner's choice: A1). Adding
-goes through `POST /products/full`; changing goes through `PUT /products/:id/pricing`, which
-`canEditPrice` refuses. On the edit page the price fields render as **plain body-coloured text, not
-disabled inputs** (owner: "plain black text") — a greyed box reads as broken or switch-on-able,
-text reads as a fact. The VAT-on-cost toggle is read-only with them: it changes the cost the margins
-are figured from, so leaving it flippable would let an admin make a change that fails on save.
+### Cost is the admin's; the selling price is the owner's
+
+Refined by the owner after a first pass locked pricing wholesale: an admin **buys the stock**, so
+`itemCostSatang` and the VAT-on-cost switch are theirs. What the shop **charges** is not:
+`targetPriceSatang` (Den Air B2C), `b2bPriceSatang`, `onlinePriceSatang` (AirPlus),
+`shopeePriceSatang`, and `onlineCommissionBp` — commission counts as a selling field because moving
+it moves the margin exactly as moving a price would.
+
+Enforced by **comparing a save against what is stored** (`sellingPricesChanged` in
+`packages/core/src/sellingPrice.ts`), not by refusing outright: the edit page sends the WHOLE profile
+back on every save, so a flat refusal would stop an admin fixing a name or a cost. Optional fields
+compare through `?? 0` — a form that never filled the Shopee price sends `undefined` where the
+database holds `0`, and treating those as different would refuse an admin for a field nobody typed.
+An admin may still price a **NEW** product (owner's A1): a product with no price cannot be finished,
+and no stored profile means a first price rather than a change.
+
+**BOTH save paths are guarded, and this was nearly missed.** The edit page saves through
+`POST /products/full`, **not** `PUT /products/:id/pricing` — guarding only the pricing route left
+the actual door open, and a test now covers each. The stored-profile lookup orders by `active_from
+DESC`: `setVariantPricing` deletes-then-inserts so there is normally one row, but an unordered
+`LIMIT 1` would compare against an arbitrary profile if a stray ever existed.
+
+On the edit page the selling fields render as **plain body-coloured text, not disabled inputs**
+(owner: "plain black text") — a greyed box reads as broken or switch-on-able; text reads as a fact.
 
 ### The server-side session trap this exposed
 

@@ -75,3 +75,8 @@ sources: [session 2026-08-09]
   Fixed a server-side trap on the way: `apiFetch` did not forward the staff session from server
   components, so role-shaped GETs degraded to their most restricted form. See
   [auth/roles-model](auth/roles-model.md).
+
+- **2026-08-24** — Pricing split refined (owner): an admin may change the item COST and VAT-on-cost;
+  the SELLING tiers and commission are the owner's. Enforced by comparing a save against stored
+  values on **both** `PUT /products/:id/pricing` and `POST /products/full` — the edit page uses the
+  latter, so guarding only the former had left the real door open.

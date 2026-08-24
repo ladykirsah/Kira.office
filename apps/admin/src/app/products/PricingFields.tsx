@@ -48,30 +48,37 @@ const numStyle: CSSProperties = { ...inputS, width: "min(110px, 100%)" };
 export function PricingFields({
   form,
   update,
-  readOnly = false,
+  sellingReadOnly = false,
 }: {
   form: PricingForm;
   update: (patch: Partial<PricingForm>) => void;
   /**
-   * Show the numbers, do not let them be typed (owner, 2026-08-24: an admin may not change price).
+   * Lock what the shop CHARGES, leaving the COST editable (owner, 2026-08-24).
    *
-   * Plain text in the normal body colour, NOT a disabled input — the owner asked for "plain black
-   * text". A greyed box reads as broken or as something you could switch on; text reads as a fact.
-   * An admin needs to know what the shop charges to do their job, they just do not move it.
+   * An admin buys the stock, so item cost and the VAT-on-cost switch stay theirs; the selling tiers
+   * and the Shopee commission are the owner's. The API draws the same line, comparing a save against
+   * what is stored — an admin can save a product whose prices they did not touch.
+   *
+   * Locked fields render as plain text in the normal body colour, NOT as disabled inputs (the owner
+   * asked for "plain black text"): a greyed box reads as broken or as something you could switch on,
+   * text reads as a fact.
    */
-  readOnly?: boolean;
+  sellingReadOnly?: boolean;
 }) {
   /** One price field: an input, or the same number as plain text when this viewer may not edit it. */
   const Money = ({
     value,
     onChange,
     width,
+    locked = sellingReadOnly,
   }: {
     value: string;
     onChange: (v: string) => void;
     width: CSSProperties["width"];
+    /** Defaults to the selling-price lock; the COST row passes false — it is the admin's. */
+    locked?: boolean;
   }) =>
-    readOnly ? (
+    locked ? (
       <span style={{ fontWeight: 600, color: "var(--text)" }}>{value.trim() || "—"}</span>
     ) : (
       <input
@@ -126,28 +133,27 @@ export function PricingFields({
             <span className="muted" style={{ fontSize: 12 }}>
               Item cost ฿
             </span>
-            <Money value={form.costThb} onChange={(v) => update({ costThb: v })} width={92} />
+            <Money
+              value={form.costThb}
+              onChange={(v) => update({ costThb: v })}
+              width={92}
+              /* The COST is the admin's: they buy the stock. Only the selling tiers below lock. */
+              locked={false}
+            />
           </label>
-          {/* VAT-on-cost belongs to pricing: it changes the total cost the margins are figured
-              from, and the API refuses this whole profile from a non-price-editor anyway. Leaving
-              it flippable would let an admin make a change that silently fails on save. */}
-          {readOnly ? (
-            <span style={{ fontSize: 12, color: "var(--text)" }}>
-              {form.taxOnCost ? "incl. VAT 7%" : "no VAT"}
+          {/* VAT-on-cost sits with the COST, not with the prices: it decides the cost base the
+              margins are figured from. An admin buys the stock, so this is theirs (owner). */}
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={form.taxOnCost}
+                onChange={(e) => update({ taxOnCost: e.target.checked })}
+              />
+              <span className="slider" />
             </span>
-          ) : (
-            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span className="switch">
-                <input
-                  type="checkbox"
-                  checked={form.taxOnCost}
-                  onChange={(e) => update({ taxOnCost: e.target.checked })}
-                />
-                <span className="slider" />
-              </span>
-              <span style={{ fontSize: 12 }}>Add VAT 7%</span>
-            </label>
-          )}
+            <span style={{ fontSize: 12 }}>Add VAT 7%</span>
+          </label>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <span className="muted" style={{ fontSize: 12 }}>
