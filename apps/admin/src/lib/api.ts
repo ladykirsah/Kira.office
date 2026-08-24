@@ -1236,6 +1236,20 @@ export async function deleteProductForever(id: string): Promise<void> {
 }
 
 /**
+ * Mark a product as listed on Shopee, or not.
+ *
+ * BOOKKEEPING ONLY — there is no Shopee connection. This drives the dashboard's manual "Update on
+ * Shopee" worklist and the Not-listed pill, so unlisting takes the product off that to-do list.
+ * Pausing it on Shopee itself is still done by hand on Shopee's own site.
+ */
+export async function setProductShopeeListed(id: string, listed: boolean): Promise<void> {
+  const res = await apiFetch(`/products/${id}/shopee/${listed ? "list" : "unlist"}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Shopee update failed (HTTP ${res.status})`);
+}
+
+/**
  * Pause = "not live", and reversible — the opposite of deleting, which is permanent.
  *
  * Resuming puts the product back ON SALE, because pausing is what you do to something that was on

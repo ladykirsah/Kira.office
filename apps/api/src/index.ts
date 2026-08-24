@@ -7094,6 +7094,28 @@ const worker = {
       }
       return json({ ok: true });
     }
+    // Shopee listing flag — BOOKKEEPING ONLY, and the comment matters more than the code.
+    //
+    // There is no Shopee connection: `shopee.ts` holds signing helpers nothing imports, and the
+    // sync queue is commented out in wrangler.jsonc. `shopee_listed` drives the dashboard's MANUAL
+    // "Update on Shopee" worklist and the Not-listed pill, so unlisting removes a product from that
+    // to-do list. Pausing it on Shopee itself is still done by hand on Shopee's own site — do not
+    // let this route's name suggest otherwise.
+    const shopeeListMatch = url.pathname.match(/^\/products\/([^/]+)\/shopee\/(list|unlist)$/);
+    if (shopeeListMatch && request.method === "POST") {
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      // Same authority as pausing on AirPlus: taking a product off a sales channel is the owner's.
+      if (!canDeleteProduct(actor.role)) {
+        return json({ error: "forbidden", reason: "super_admin_only" }, 403);
+      }
+      const listing = shopeeListMatch[2] === "list";
+      await env.DB.prepare("UPDATE products SET shopee_listed = ? WHERE id = ?")
+        .bind(listing ? 1 : 0, shopeeListMatch[1]!)
+        .run();
+      return json({ ok: true, shopeeListed: listing });
+    }
+
     // Pause / resume — "not live", and reversible. The counterpart to DELETE below: this keeps
     // everything and can be undone, which is why a product with sales history gets this instead.
     // Its own route because PATCH /products/:id demands a whole product body, and "take this off

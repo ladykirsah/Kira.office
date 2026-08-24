@@ -115,3 +115,29 @@ stock level is not the thing worth saying about it.
 
 This reverses the 2 Aug 2026 decision that folded "Out" into Active because stock had its own
 column. The stock NUMBER is still its own column — Status is the flag, not the figure.
+
+## Pausing per channel, from the row menu (owner, 2026-08-24)
+
+The products-table row menu is **Edit · Pause on AirPlus · Mark paused on Shopee**. The two
+channels pause **independently**, which is why it is two items:
+
+| Item | Field | Real? |
+| --- | --- | --- |
+| Pause on AirPlus / Put back on AirPlus | `products.status` ⇄ `active`/`paused` | **Yes** — the storefront gates on `status = 'active'` |
+| Mark paused on Shopee / Mark listed on Shopee | `products.shopee_listed` 1⇄0 | **No — bookkeeping only** |
+
+**The Shopee item cannot touch Shopee.** There is no Shopee connection: `apps/api/src/shopee.ts`
+holds v2 signing helpers that **nothing imports**, and the sync queue is commented out in
+`wrangler.jsonc`. `shopee_listed` drives the dashboard's MANUAL "Update on Shopee" worklist
+([dashboard-shortcuts](dashboard-shortcuts.md)) and the Not-listed pill, so unlisting removes the
+product from that to-do list. Pausing it on Shopee itself is still done by hand on Shopee's own
+site — hence the label says **"Mark paused on Shopee"**, not "Pause on Shopee". Do not let a future
+rename promise something the app cannot do.
+
+Routes: `POST /products/:id/pause|resume` and `POST /products/:id/shopee/list|unlist`. Both are
+**super-admin only** — taking a product off a sales channel is the owner's call — and the row menu
+hides them from everyone else.
+
+The **AirPlus item is hidden for a draft**: a draft was never on AirPlus, so pausing it means
+nothing. Publishing a draft is a different decision and belongs on the product page. "View" was
+dropped from the menu — the product name in the row is already the link.

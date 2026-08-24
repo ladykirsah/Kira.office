@@ -9047,3 +9047,84 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
     expect(res.status).toBe(403);
   });
 });
+
+// ── Pausing per channel (owner, 2026-08-24) ──────────────────────────────────────────────────────
+// AirPlus and Shopee are paused separately, from the products-table row menu.
+//
+// AirPlus is real: the storefront gates on `status = 'active'`, so pause/resume genuinely takes a
+// product off the shop and puts it back.
+//
+// Shopee is BOOKKEEPING ONLY. There is no Shopee connection — `shopee.ts` holds signing helpers
+// that nothing imports, and the sync queue is commented out in wrangler.jsonc. `shopee_listed`
+// drives the dashboard's MANUAL "Update on Shopee" worklist and the Not-listed pill, so unlisting
+// here removes a product from that to-do list; pausing it on Shopee itself is still done by hand on
+// Shopee's own site.
+describe("POST /products/:id/shopee/list|unlist — the Shopee listing flag", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed(role = "super_admin", listed = 1) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Somchai','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,?,0)`,
+      )
+      .run(NOW, listed);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const post = (env: Env, path: string, token?: string) =>
+    worker.fetch!(
+      new Request(`https://x/products/p1/shopee/${path}`, {
+        method: "POST",
+        headers: token ? { "X-Staff-Session": token } : {},
+      }),
+      env,
+      ctx,
+    );
+
+  const listed = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT shopee_listed AS n FROM products WHERE id='p1'`).get() as { n: number }).n;
+
+  it("unlist > clears the flag, so the product drops off the manual Shopee worklist", async () => {
+    const { raw, env, token } = await seed("super_admin", 1);
+    expect((await post(env, "unlist", token)).status).toBe(200);
+    expect(listed(raw)).toBe(0);
+  });
+
+  it("list > sets it again", async () => {
+    const { raw, env, token } = await seed("super_admin", 0);
+    expect((await post(env, "list", token)).status).toBe(200);
+    expect(listed(raw)).toBe(1);
+  });
+
+  it("does NOT touch the AirPlus status — the two channels pause independently", async () => {
+    // The whole point of splitting the menu item in two.
+    const { raw, env, token } = await seed("super_admin", 1);
+    await post(env, "unlist", token);
+    expect(
+      (raw.prepare(`SELECT status FROM products WHERE id='p1'`).get() as { status: string }).status,
+    ).toBe("active");
+  });
+
+  for (const role of ["admin", "mechanic"]) {
+    it(`given a ${role} > 403; taking a product off a sales channel is the owner's call`, async () => {
+      const { raw, env, token } = await seed(role, 1);
+      expect((await post(env, "unlist", token)).status).toBe(403);
+      expect(listed(raw)).toBe(1);
+    });
+  }
+
+  it("given no session > 401", async () => {
+    const { env } = await seed();
+    expect((await post(env, "unlist")).status).toBe(401);
+  });
+});
