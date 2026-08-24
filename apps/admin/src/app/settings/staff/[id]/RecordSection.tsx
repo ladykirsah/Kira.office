@@ -15,12 +15,17 @@ import { monthLabel } from "@/lib/dayOff";
  * จ่ายเงินเดือน — and it replaces the add form that used to sit *underneath* the วันหยุด table,
  * where you had to scroll past the data to reach the input.
  *
- * WHY THE MONEY TABS LOOK DIFFERENT (design B, chosen from three). Car brands and car models are
- * the same kind of thing, so equal tabs are honest there. A day off and a cash advance are not: one
- * is attendance, the other is money leaving the shop. Given equal tabs they would earn equal weight
- * and equal muscle memory, and a mis-tap would record ฿3,000 instead of a half day. So a divider
- * separates them, the panel and the button turn amber whenever money is involved, and
- * the Save button always ENDS WITH THE AMOUNT — the last thing read before pressing is the number.
+ * WHY MONEY LOOKS DIFFERENT (design B, chosen from three). Car brands and car models are the same
+ * kind of thing, so equal tabs are honest there. A day off and a cash advance are not: one is
+ * attendance, the other is money leaving the shop. Given no distinction at all they would earn equal
+ * weight and equal muscle memory, and a mis-tap would record ฿3,000 instead of a half day. So a
+ * divider separates them, the form sits on an amber panel, and the Save button is amber and always
+ * ENDS WITH THE AMOUNT — the last thing read before pressing is the number.
+ *
+ * The tabs themselves are plain coral like any other, and there is no warning line above the form:
+ * both were tried and the owner removed them (2026-08-24). The panel and the button are where the
+ * colour does work; on the tab row it only made three tabs look like two different controls, and
+ * the warning repeated what the panel had already said.
  *
  * The slip rule is the API's (`payoutProblem` in core): cash needs nothing, a transfer needs its
  * slip. This mirrors it for the person filling the form — the field appears, and Save stays
@@ -259,8 +264,6 @@ export function RecordSection({
       </div>
 
       <div className={isMoney ? "record-money" : undefined}>
-        {isMoney && <p className="record-money-note">⚠ เงินออกจากร้าน — ตรวจยอดก่อนบันทึก</p>}
-
         {tab === "off" && (
           <div className="record-fields" style={fields}>
             <Field label="วันที่">

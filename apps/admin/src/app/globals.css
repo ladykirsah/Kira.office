@@ -1655,11 +1655,9 @@ a.card:hover {
   color: #fff;
   font-weight: 600;
 }
-.record-tab.money.on {
-  border-color: var(--warn);
-  background: var(--warn);
-  color: #fff;
-}
+/* The money tabs take the same coral as any other active tab (owner, 2026-08-24). They were amber
+   for a while; the panel behind the form and the Save button still carry that, which is where the
+   colour is doing work — on the tab it only made the row look like two different controls. */
 .record-rule {
   width: 1px;
   align-self: stretch;
@@ -1675,12 +1673,6 @@ a.card:hover {
   border-left-width: 3px;
   border-radius: 10px;
   padding: 14px;
-}
-.record-money-note {
-  margin: 0 0 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--warn);
 }
 
 /* Amber twin of .btn-primary, at .btn-sm's size — Record matches the Add new section it copies,
@@ -1715,18 +1707,23 @@ a.card:hover {
 /* เงินสด / โอน — a two-way segmented control, not a select: there are exactly two answers and one
    of them changes what the form asks for next. */
 .pay-method {
-  display: inline-flex;
+  /* A field like the ones beside it: full column width and the same 10px corner as an input. It was
+     inline-flex at 8px, which left it narrower than its neighbours and rounded differently — the
+     two halves now split the column evenly instead. */
+  display: flex;
+  width: 100%;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   min-height: 32px;
 }
 .pay-method button {
+  flex: 1;
   border: none;
+  border-radius: 0;
   background: var(--surface);
   color: var(--text-muted);
-  font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   /* Same reason as .record-tab: the global button min-height would push this to 42px, out of line
      with every other control in the section. */
   min-height: 0;

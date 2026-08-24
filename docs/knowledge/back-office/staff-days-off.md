@@ -76,15 +76,19 @@ so equal tabs are honest there. A day off and a cash advance are not: one is att
 is money leaving the shop. Equal tabs would give them equal weight and equal muscle memory, and a
 mis-tap would record ฿3,000 instead of a half day. So:
 
-- a divider separates time from money (it carried a **เงิน** label at first; the owner had it
-  removed 2026-08-24 — the amber already says which side you are on, and the word only repeated it);
-- the panel and the Save button turn **amber** whenever money is involved — amber on this page means
-  something is about to leave the shop;
+- a divider separates time from money;
+- the **form panel and the Save button** turn amber whenever money is involved — amber on this page
+  means something is about to leave the shop;
 - the Save button **always ends with the amount** (`บันทึกการเบิก ฿3,000`), so the last thing read
   before pressing is the number.
 
 Amber, never `--primary`: red marks the one "you are here" control per view, and this is a warning
 about what a control *does*.
+
+Three things were tried and removed by the owner on the same day: a **เงิน** label on the divider, an
+**amber tint on the money tabs**, and a **⚠ warning line** above the form. Each repeated something the
+panel or the button already said. The lesson is worth keeping: the signal belongs on the thing that
+acts, not on every part of the way there.
 
 ## เงินเบิกล่วงหน้า — salary taken before payday
 
