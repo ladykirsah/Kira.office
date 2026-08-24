@@ -37,6 +37,12 @@ All three draw the same `DayOffTable`, which differs only by `canDelete` and `sh
 habit, learned once: teaching one gesture on one screen and a different one on another would make
 whichever you met second feel broken.
 
+Row actions are **icon buttons** — a hairline, then bare `.icon-btn` pencil and trash, matching the
+Services table (owner, 2026-08-24). A row action should look the same wherever it appears, and two
+Thai words per row was a lot of ink for something done rarely. The glyphs live in the shared
+`Icon.tsx` (`edit`, `trash`) rather than being re-inlined; the Services page still carries its own
+copies, which predate that file.
+
 ## Why only the owner deletes
 
 Editing leaves a record that the day was claimed. Deleting erases that it was ever claimed at all —

@@ -3,7 +3,7 @@
  * table): 16px, 24×24 viewBox, stroke 2, round caps. Add a glyph here rather than re-inlining an SVG.
  * Decorative by default (aria-hidden) — the button/link around it carries the aria-label.
  */
-export type AdminIconName = "view" | "save" | "close";
+export type AdminIconName = "view" | "save" | "close" | "edit" | "trash";
 
 export function Icon({ name, size = 16 }: { name: AdminIconName; size?: number }) {
   return (
@@ -19,6 +19,20 @@ export function Icon({ name, size = 16 }: { name: AdminIconName; size?: number }
       aria-hidden="true"
       style={{ display: "block" }}
     >
+      {name === "edit" && (
+        <>
+          {/* Pencil — the same two paths the Services table draws, so a row action looks the same
+              wherever it appears. */}
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </>
+      )}
+      {name === "trash" && (
+        <>
+          <path d="M3 6h18" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </>
+      )}
       {name === "view" && (
         <>
           {/* Expand — open the preview. */}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LEAVE_MODES, leaveModeLabel, type LeaveHalves } from "@l-shopee/core";
 import { thaiShortDate } from "@/lib/dayOff";
 import { inputS } from "@/lib/inputStyles";
+import { Icon } from "./Icon";
 
 /**
  * The day-off list, edited in place (owner, 5 Aug 2026).
@@ -183,18 +184,46 @@ export function DayOffTable({
                 </td>
                 <td>{row.reason || <span className="faint">—</span>}</td>
                 <td>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button type="button" className="btn-sm" onClick={() => open(row)}>
-                      แก้ไข
+                  {/* Icon buttons, matching the Services table (owner, 2026-08-24) — a hairline,
+                      then bare `.icon-btn` glyphs. A row action should look the same wherever it
+                      appears, and two Thai words per row was a lot of ink for something you do
+                      rarely. The label still exists for screen readers and as the hover title. */}
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 1,
+                        alignSelf: "stretch",
+                        background: "var(--border)",
+                        margin: "0 8px",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={`แก้ไขวันหยุด ${thaiShortDate(row.day)}`}
+                      title="แก้ไข"
+                      onClick={() => open(row)}
+                    >
+                      <Icon name="edit" />
                     </button>
                     {canDelete && onDelete && (
                       <button
                         type="button"
-                        className="btn-danger btn-sm"
+                        className="icon-btn"
+                        aria-label={`ลบวันหยุด ${thaiShortDate(row.day)}`}
+                        title="ลบ"
                         disabled={busy === row.id}
                         onClick={() => onDelete(row)}
                       >
-                        {busy === row.id ? "…" : "ลบ"}
+                        <Icon name="trash" />
                       </button>
                     )}
                   </div>
