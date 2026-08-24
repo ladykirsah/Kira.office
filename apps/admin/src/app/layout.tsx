@@ -2,6 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { ToastProvider } from "./ToastProvider";
 import { AppShell } from "./AppShell";
+import { PracticeCopyBanner } from "./PracticeCopyBanner";
 import { StaffChip } from "./StaffChip";
 import { currentStaff } from "@/lib/staffSession";
 
@@ -22,6 +23,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="th" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* Above everything, including /login, which renders outside AppShell. */}
+        <PracticeCopyBanner />
         <ToastProvider>
           <AppShell role={staff?.role} identity={staff ? <StaffChip staff={staff} /> : null}>
             {children}

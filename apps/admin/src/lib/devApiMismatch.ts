@@ -15,7 +15,7 @@
 /** Hostnames that mean "this is a developer's machine", not a deployed environment. */
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
 
-function isLocal(hostname: string): boolean {
+export function isLocalHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   return LOCAL_HOSTS.has(h) || h.endsWith(".local");
 }
@@ -31,7 +31,7 @@ function isLocal(hostname: string): boolean {
  * warning about.
  */
 export function describeApiMismatch(pageHostname: string, apiBase: string): string | null {
-  if (!isLocal(pageHostname)) return null;
+  if (!isLocalHost(pageHostname)) return null;
 
   let apiHost: string;
   try {
@@ -39,7 +39,7 @@ export function describeApiMismatch(pageHostname: string, apiBase: string): stri
   } catch {
     return null;
   }
-  if (isLocal(apiHost)) return null;
+  if (isLocalHost(apiHost)) return null;
 
   return (
     `Dev mode: this admin is running locally but calling the REMOTE API at ${apiHost}, ` +
