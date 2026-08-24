@@ -1665,10 +1665,12 @@ a.card:hover {
   margin: 0 4px;
 }
 
-/* The panel only exists while money is being recorded, so it still marks those two tabs out from
-   วันหยุด — but in the house coral wash, not amber (owner, 2026-08-24). --primary-faint is the
-   token for exactly this: a grouped panel that belongs to the page rather than warning about it. */
-.record-money {
+/* The frame around a "fill this in and Save" block: Record's money forms, and the วันหยุด form on
+   a person's own profile. Named for what it does rather than for money — it was `.record-money`
+   while the two money tabs were amber, and stopped being about money when the owner took the amber
+   out (2026-08-24). --primary-faint is the token for exactly this: a grouped panel that belongs to
+   the page rather than warning about it. */
+.fill-panel {
   background: var(--primary-faint);
   border: 1px solid var(--primary-soft);
   border-left: 3px solid var(--primary);

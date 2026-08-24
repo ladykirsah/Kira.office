@@ -265,7 +265,7 @@ export function RecordSection({
         ))}
       </div>
 
-      <div className={isMoney ? "record-money" : undefined}>
+      <div className={isMoney ? "fill-panel" : undefined}>
         {tab === "off" && (
           <div className="record-fields" style={fields}>
             <Field label="วันที่">

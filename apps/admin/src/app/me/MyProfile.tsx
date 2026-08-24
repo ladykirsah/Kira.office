@@ -250,7 +250,13 @@ export function MyProfile({
           บันทึกได้เลย ไม่ต้องรออนุมัติ · บันทึกทีละวัน — หยุด 3 วันคือบันทึก 3 ครั้ง ·
           ย้อนหลังได้ถ้าลืมบันทึกวันที่หยุดไปแล้ว
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+        {/* The same coral frame Record uses on the owner's side (owner, 2026-08-24): one look for
+            "this is the bit you fill in and Save". There is no Record section on this page, so this
+            form IS the input point and should read like one. */}
+        <div
+          className="fill-panel"
+          style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}
+        >
           <div>
             <label
               className="muted"

@@ -26,7 +26,12 @@ as a record only.
 | --- | --- | --- |
 | `/me` | your own | record, **edit** — never delete |
 | Staff → วันหยุด | everyone's, one month | record for anyone, edit, **delete** |
-| A person's profile (2026-08-24) | one person, one month | record, edit, **delete** |
+| A person's profile (2026-08-24) | one person, one month | edit, **delete** — recording happens in **Record** |
+
+The profile's วันหยุด card has **no add form**: Record above it is the one input point on that page.
+It carried its own for a few hours and that was simply two ways to do the same thing on one screen.
+`/me` keeps its inline form, because there is no Record section there — and it wears the same coral
+`.fill-panel` frame, so "the bit you fill in and Save" looks the same on both sides.
 
 All three draw the same `DayOffTable`, which differs only by `canDelete` and `showWho`. One editing
 habit, learned once: teaching one gesture on one screen and a different one on another would make
@@ -67,8 +72,8 @@ that displays one of them hands the browser more than it needs.
 
 Built on the car-fitment page's **Add new**, which the owner picked as the working flow: pick what
 you are recording, fill it in, Save. Three tabs — **วันหยุด · เบิกล่วงหน้า · จ่ายเงินเดือน** — at the
-top of the profile, replacing the add form that used to sit *underneath* the วันหยุด table where you
-had to scroll past the data to reach the input. The page now reads downwards as cause then effect:
+top of the profile, and **the only place anything is entered on that page**: the วันหยุด card below
+reads, corrects and deletes, and the Payments table below that is filled by the จ่ายเงินเดือน tab. The page now reads downwards as cause then effect:
 **Record → วันหยุด → Payments**.
 
 **Design B of three, and the reason matters.** Car brands and car models are the same kind of thing,
