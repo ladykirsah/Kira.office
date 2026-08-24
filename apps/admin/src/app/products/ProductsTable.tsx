@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
-import { productStatusTag } from "@/lib/productStatus";
+import { productStatusTag, isNotLive } from "@/lib/productStatus";
 import { stockStatus } from "@/lib/stock";
 import { tableText } from "@/lib/tableText";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 
-type Tab = "all" | "airplus" | "paused" | "draft" | "low" | "out";
+type Tab = "all" | "airplus" | "notlive" | "low" | "out";
 
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
@@ -41,23 +41,29 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   // Shopee tabs are gone — there is no Shopee API (owner, 2026-07-29). The status that matters is
   // AirPlus: the storefront shows a product only while status = 'active'.
   const onAirPlus = products.filter((p) => p.status === "active");
-  const paused = products.filter((p) => p.status !== "active" && p.status !== "draft");
-  const drafts = products.filter((p) => p.status === "draft");
-  const outOfStock = products.filter((p) => p.onHand <= 0);
-  const lowStock = products.filter((p) => stockStatus(p.onHand) === "low");
+
+  // "Not live" replaced three tabs — Paused, Draft and Archive (owner, 2026-08-24) — because they
+  // answer one question: is this in front of a customer? The three states survive in the status
+  // pill, which is now the only thing telling them apart.
+  const notLive = products.filter((p) => isNotLive(p.status));
+
+  // Archived rows arrive only because this page asks for them, and they are NOT stock you hold or
+  // work you have in progress — so they stay out of All and out of the stock tabs. Otherwise
+  // deleting a product would make "All" grow and "Out of stock" fill up with things you deleted.
+  const notArchived = products.filter((p) => p.status !== "archived");
+  const outOfStock = notArchived.filter((p) => p.onHand <= 0);
+  const lowStock = notArchived.filter((p) => stockStatus(p.onHand) === "low");
 
   const byTab =
     tab === "airplus"
       ? onAirPlus
-      : tab === "paused"
-        ? paused
-        : tab === "draft"
-          ? drafts
-          : tab === "low"
-            ? lowStock
-            : tab === "out"
-              ? outOfStock
-              : products;
+      : tab === "notlive"
+        ? notLive
+        : tab === "low"
+          ? lowStock
+          : tab === "out"
+            ? outOfStock
+            : notArchived;
   const s = q.trim().toLowerCase();
   const rows = s
     ? byTab.filter(
@@ -104,10 +110,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   return (
     <>
       <div className="tabs">
-        <TabBtn id="all" label="All" n={products.length} />
+        <TabBtn id="all" label="All" n={notArchived.length} />
         <TabBtn id="airplus" label="On AirPlus" n={onAirPlus.length} />
-        <TabBtn id="paused" label="Paused" n={paused.length} />
-        <TabBtn id="draft" label="Draft" n={drafts.length} />
+        <TabBtn id="notlive" label="Not live" n={notLive.length} />
         <TabBtn id="low" label="Low stock" n={lowStock.length} />
         <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
       </div>

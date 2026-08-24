@@ -42,3 +42,8 @@ sources: [session 2026-08-09]
   fail-open that served customer bank PII whenever `ACCESS_AUD` was unset. `a.card:hover`
   tokenised, closing backlog item 7. Both dark values DERIVED from their light counterparts —
   see [conventions/admin-design-tokens](conventions/admin-design-tokens.md).
+
+- **2026-08-24** — Products table: `Paused` + `Draft` tabs merged into **`Not live`**, which now
+  also lists archived rows via the opt-in `GET /products?includeArchived=1` (POS and Barcodes keep
+  the unchanged default — an archived part must never be sellable or printable). Status pill gained
+  `Archived`. See [back-office/products](back-office/products.md).

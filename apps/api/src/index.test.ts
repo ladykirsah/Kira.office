@@ -8848,3 +8848,58 @@ describe("GET /orders/:id — the slip gate follows the staff role", () => {
     expect(body.order.refundAccountNo).toBeNull();
   });
 });
+
+// ── "Not live" needs archived rows, but ONLY where they were asked for ───────────────────────────
+// The merged tab (owner, 2026-08-24) shows draft + paused + archived together. That means the admin
+// products list has to be able to return archived rows — and the SAME payload feeds the POS and the
+// Barcodes page, where an archived product must never appear or you could sell a deleted part.
+// Hence opt-in: the default is unchanged, and only the products table asks.
+describe("GET /products — archived rows are opt-in", () => {
+  const NOW = 1_800_000_000_000;
+
+  function seeded() {
+    const raw = migratedDb();
+    for (const [id, name, status] of [
+      ["p-live", "Live compressor", "active"],
+      ["p-draft", "Half-written", "draft"],
+      ["p-paused", "Hidden on purpose", "paused"],
+      ["p-gone", "Deleted one", "archived"],
+    ] as const) {
+      raw
+        .prepare(
+          `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+           VALUES (?,?,?,?,0,0)`,
+        )
+        .run(id, name, status, NOW);
+    }
+    return { env: { DB: asD1(raw) } as unknown as Env };
+  }
+
+  const ids = async (env: Env, qs = "") => {
+    const res = await worker.fetch!(new Request(`https://x/products${qs}`), env, ctx);
+    const body = (await res.json()) as { products: { id: string }[] };
+    return body.products.map((p) => p.id).sort();
+  };
+
+  it("by default > archived rows stay out, exactly as before", async () => {
+    const { env } = seeded();
+    expect(await ids(env)).toEqual(["p-draft", "p-live", "p-paused"]);
+  });
+
+  it("with includeArchived=1 > archived rows come too, for the Not-live tab", async () => {
+    const { env } = seeded();
+    expect(await ids(env, "?includeArchived=1")).toEqual([
+      "p-draft",
+      "p-gone",
+      "p-live",
+      "p-paused",
+    ]);
+  });
+
+  it("any other value > treated as no; only an explicit opt-in widens a soft-delete filter", async () => {
+    const { env } = seeded();
+    expect(await ids(env, "?includeArchived=0")).not.toContain("p-gone");
+    expect(await ids(env, "?includeArchived=yes")).not.toContain("p-gone");
+    expect(await ids(env, "?includeArchived=")).not.toContain("p-gone");
+  });
+});

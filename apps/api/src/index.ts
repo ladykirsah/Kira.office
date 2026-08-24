@@ -2227,7 +2227,15 @@ async function getTerms(env: Env): Promise<Response> {
 }
 
 /** Products with the default variant's price (offline + online), on-hand stock, and Shopee status. */
-async function listProducts(env: Env): Promise<Response> {
+/**
+ * The admin products list.
+ *
+ * `includeArchived` exists for the merged "Not live" tab (owner, 2026-08-24), which shows draft +
+ * paused + archived together. It is OPT-IN and must stay that way: this same payload feeds the POS
+ * and the Barcodes page, and an archived product appearing there would let someone sell or label a
+ * part that has been deleted. The soft-delete invariant is unchanged everywhere it is not asked for.
+ */
+async function listProducts(env: Env, includeArchived = false): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
@@ -2260,9 +2268,11 @@ async function listProducts(env: Env): Promise<Response> {
      LEFT JOIN product_variants v
        ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)
      LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id
-     WHERE p.status <> 'archived'
+     WHERE (?1 = 1 OR p.status <> 'archived')
      ORDER BY p.created_at DESC LIMIT 200`,
-  ).all();
+  )
+    .bind(includeArchived ? 1 : 0)
+    .all();
   return json({ products: results });
 }
 
@@ -6257,7 +6267,8 @@ const worker = {
     }
 
     if (url.pathname === "/products" && request.method === "GET") {
-      return listProducts(env);
+      // Only an explicit "1" widens a soft-delete filter — no truthy-string guessing.
+      return listProducts(env, url.searchParams.get("includeArchived") === "1");
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {

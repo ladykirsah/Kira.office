@@ -29,8 +29,18 @@ export interface ProductRow {
   held: number;
 }
 
-export async function fetchProducts(): Promise<ProductRow[]> {
-  const res = await apiFetch(`/products`, { cache: "no-store" });
+/**
+ * The admin products list.
+ *
+ * `includeArchived` is OPT-IN and only the products table passes it, for the merged "Not live" tab.
+ * The POS and the Barcodes page call this too — an archived product must never reach either, or a
+ * deleted part could be sold or labelled.
+ */
+export async function fetchProducts(
+  opts: { includeArchived?: boolean } = {},
+): Promise<ProductRow[]> {
+  const qs = opts.includeArchived ? "?includeArchived=1" : "";
+  const res = await apiFetch(`/products${qs}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load products (HTTP ${res.status})`);
   type Raw = Omit<ProductRow, "carBrands"> & { carBrandsCsv: string | null };
   const data = (await res.json()) as { products: Raw[] };
