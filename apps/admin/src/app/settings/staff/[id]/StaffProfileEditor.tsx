@@ -442,8 +442,9 @@ export function StaffProfileEditor({
 
         {/* Wages paid, and the transfer slip for each — on the person, not the salary run
             (owner, 2026-08-04). Outside the Edit flow: a payment record is history, not a field. */}
+        {/* The heading lives inside PaymentsTable, so it can share a row with that table's own month
+            picker — the same shape the วันหยุด card uses. */}
         <section className="card">
-          <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Payments</h2>
           <PaymentsTable userId={profile.id} payments={payments} currentYear={currentYear} />
         </section>
 

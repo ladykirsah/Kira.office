@@ -78,36 +78,50 @@ export function PaymentsTable({
    */
   const [jumpTo, setJumpTo] = useState<string>(payments[0]?.period ?? "");
 
+  /**
+   * Heading and picker on one row, the same shape the วันหยุด card uses (owner, 2026-08-24). The
+   * `<h2>` lives here rather than in the page above, because a control that belongs to a table has
+   * to be able to sit beside that table's title — it was floating alone over the columns before.
+   */
+  const header = (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 12,
+        flexWrap: "wrap",
+        marginBottom: 12,
+      }}
+    >
+      <h2 style={{ margin: 0, fontSize: 16 }}>Payments</h2>
+      {/* English names and the western year, matching this table's own month headings. The วันหยุด
+          card above is Thai and carries its own — each says what its neighbours say rather than
+          following one global setting. */}
+      <MonthYearPicker
+        value={jumpTo}
+        lang="en"
+        label="Jump to month"
+        currentYear={currentYear}
+        onChange={setJumpTo}
+      />
+    </div>
+  );
+
   if (payments.length === 0) {
     return (
-      <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-        No wages recorded yet.
-      </p>
+      <>
+        {header}
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+          No wages recorded yet.
+        </p>
+      </>
     );
   }
 
   return (
     <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 12,
-          flexWrap: "wrap",
-          gap: 8,
-        }}
-      >
-        {/* English names and the western year, matching this table's own month headings. The
-            วันหยุด card above is Thai and carries its own picker — each says what its neighbours
-            say rather than following one global setting. */}
-        <MonthYearPicker
-          value={jumpTo}
-          lang="en"
-          label="Jump to month"
-          currentYear={currentYear}
-          onChange={setJumpTo}
-        />
-      </div>
+      {header}
 
       <div className="products-scroll">
         <table className="products-table">
