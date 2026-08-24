@@ -123,16 +123,22 @@ channels pause **independently**, which is why it is two items:
 
 | Item | Field | Real? |
 | --- | --- | --- |
-| Pause on AirPlus / Put back on AirPlus | `products.status` ⇄ `active`/`paused` | **Yes** — the storefront gates on `status = 'active'` |
-| Mark paused on Shopee / Mark listed on Shopee | `products.shopee_listed` 1⇄0 | **No — bookkeeping only** |
+| **Pause on AirPlus** / **Live on AirPlus** | `products.status` ⇄ `active`/`paused` | **Yes** — the storefront gates on `status = 'active'` |
+| **Pause on Shopee** / **Live on Shopee** | `products.shopee_listed` 1⇄0 | **No — bookkeeping only** |
+
+The four labels are the owner's words and are **locked by a test** (`lib/channelActions.ts` +
+`.test.ts`). Two earlier attempts drifted — "Put back on AirPlus", "Mark listed on Shopee" — and
+each read differently from the tabs and the Status column, which use the same vocabulary: a product
+is live on a channel, or paused on it. The label names the state you are moving TO.
 
 **The Shopee item cannot touch Shopee.** There is no Shopee connection: `apps/api/src/shopee.ts`
 holds v2 signing helpers that **nothing imports**, and the sync queue is commented out in
 `wrangler.jsonc`. `shopee_listed` drives the dashboard's MANUAL "Update on Shopee" worklist
 ([dashboard-shortcuts](dashboard-shortcuts.md)) and the Not-listed pill, so unlisting removes the
 product from that to-do list. Pausing it on Shopee itself is still done by hand on Shopee's own
-site — hence the label says **"Mark paused on Shopee"**, not "Pause on Shopee". Do not let a future
-rename promise something the app cannot do.
+site. **The owner chose the symmetric wording anyway, after being told this** — so the Shopee item
+reads exactly like the AirPlus one but does less. That is a deliberate decision, not an oversight:
+do not let the wording mislead a future change into thinking a Shopee API call happens here.
 
 Routes: `POST /products/:id/pause|resume` and `POST /products/:id/shopee/list|unlist`. Both are
 **super-admin only** — taking a product off a sales channel is the owner's call — and the row menu

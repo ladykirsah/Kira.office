@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canDeleteProduct } from "@l-shopee/core";
 import { setProductPaused, setProductShopeeListed } from "@/lib/api";
+import { channelActionLabel } from "@/lib/channelActions";
 import { useStaffRole } from "../StaffRoleProvider";
 import { useToast } from "../ToastProvider";
 
@@ -16,8 +17,9 @@ import { useToast } from "../ToastProvider";
  *             product from the shop and puts it back.
  *   Shopee  — bookkeeping. There is no Shopee connection; the flag drives the dashboard's MANUAL
  *             "Update on Shopee" worklist and the Not-listed pill. Pausing it on Shopee itself is
- *             still done by hand there, so the label says "Mark paused on Shopee" rather than
- *             promising something this app cannot do.
+ *             still done by hand there. The owner chose the symmetric wording anyway, after being
+ *             told — so this menu item reads like the AirPlus one but does less. Do not let that
+ *             wording mislead a future change into thinking a Shopee API call happens here.
  *
  * The AirPlus item is hidden for a DRAFT: a draft was never on AirPlus, so pausing it means
  * nothing. Publishing a draft is a different decision and belongs on the product page.
@@ -118,11 +120,11 @@ export function ActionsMenu({
               onClick={() =>
                 run(
                   () => setProductPaused(productId, !paused),
-                  paused ? "Back on AirPlus" : "Paused on AirPlus",
+                  paused ? "Live on AirPlus" : "Paused on AirPlus",
                 )
               }
             >
-              {paused ? "Put back on AirPlus" : "Pause on AirPlus"}
+              {channelActionLabel("AirPlus", !paused)}
             </button>
           )}
 
@@ -135,11 +137,11 @@ export function ActionsMenu({
               onClick={() =>
                 run(
                   () => setProductShopeeListed(productId, !listed),
-                  listed ? "Marked paused on Shopee" : "Marked listed on Shopee",
+                  listed ? "Paused on Shopee" : "Live on Shopee",
                 )
               }
             >
-              {listed ? "Mark paused on Shopee" : "Mark listed on Shopee"}
+              {channelActionLabel("Shopee", listed)}
             </button>
           )}
         </div>
