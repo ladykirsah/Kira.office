@@ -21,6 +21,7 @@ import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { PricingFields, type PricingForm } from "../../PricingFields";
 import { canWrite, canEditPrice } from "@l-shopee/core";
+import { nextProductStatus } from "@/lib/airplusStatus";
 import { useStaffRole } from "../../../StaffRoleProvider";
 import { NoAccess } from "../../../NoAccess";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
@@ -51,6 +52,7 @@ export default function EditProductPage() {
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [productRef, setProductRef] = useState("");
   const [shopeeActive, setShopeeActive] = useState(true);
+  const [airplusLive, setAirplusLive] = useState(false);
   const [weightKg, setWeightKg] = useState("");
   const [widthCm, setWidthCm] = useState("");
   const [lengthCm, setLengthCm] = useState("");
@@ -84,6 +86,7 @@ export default function EditProductPage() {
       type: d.product.typeName ?? "",
     });
     setShopeeActive(Boolean(d.product.shopeeListed));
+    setAirplusLive(d.product.status === "active");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
     setWidthCm(mmToCm(d.product.widthMm));
     setLengthCm(mmToCm(d.product.lengthMm));
@@ -147,9 +150,10 @@ export default function EditProductPage() {
         id,
         name,
         description,
-        // "Active on Shopee" = listed live on Shopee. ON also makes the product active on-site (a
-        // live product can't be a draft); OFF leaves the on-site status unchanged (→ "Not listed").
-        status: shopeeActive ? "active" : (detail?.product.status ?? "active"),
+        // One switch per channel (owner, 2026-08-24): AirPlus decides the status, Shopee decides the
+        // listing flag, and neither reaches across. Turning Shopee on used to publish to AirPlus as
+        // well, because this page had no AirPlus control and Shopee was the only way to go live.
+        status: nextProductStatus(detail?.product.status ?? "draft", airplusLive),
         shopeeListed: shopeeActive,
         shopeeItemId,
         productRef,
@@ -366,6 +370,8 @@ export default function EditProductPage() {
                 onProductRefChange={setProductRef}
                 shopeeActive={shopeeActive}
                 onShopeeActiveChange={setShopeeActive}
+                airplusLive={airplusLive}
+                onAirplusLiveChange={setAirplusLive}
               />
             </div>
 

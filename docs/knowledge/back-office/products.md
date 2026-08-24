@@ -144,6 +144,26 @@ Routes: `POST /products/:id/pause|resume` and `POST /products/:id/shopee/list|un
 **super-admin only** — taking a product off a sales channel is the owner's call — and the row menu
 hides them from everyone else.
 
-The **AirPlus item is hidden for a draft**: a draft was never on AirPlus, so pausing it means
-nothing. Publishing a draft is a different decision and belongs on the product page. "View" was
-dropped from the menu — the product name in the row is already the link.
+A **draft gets the AirPlus item too**, reading **Live on AirPlus** — that is publishing. "View" was
+dropped from the menu for anyone who can edit; the product name in the row is already the link.
+
+### One switch per channel, and why they used to be tangled
+
+Until 2026-08-24 the edit page had **no AirPlus control at all**: `status: shopeeActive ? "active" :
+…` meant "Active on Shopee" doubled as the publish button, so turning Shopee on **also put the
+product in front of AirPlus customers** without saying so. It had to, because there was no other way
+to publish from that page — and the row menu hid its AirPlus item from drafts.
+
+Both halves are fixed together, and neither works without the other:
+
+- the row menu offers **Live on AirPlus** on a draft, so publishing has an honest home;
+- the edit page has **two switches** — *Live on AirPlus* and *Live on Shopee* — each moving its own
+  channel and nothing else.
+
+`nextProductStatus(current, live)` (`apps/admin/src/lib/airplusStatus.ts`) decides what the AirPlus
+switch saves. ON is `active`. **OFF only ever moves a LIVE product to `paused`** — anything already
+not-live keeps the status it has, so a half-written draft is never quietly promoted into something
+that looks like a deliberate decision, and an unrecognised status is left alone.
+
+The **Add product** page is unaffected: it renders neither switch (PartDetails draws each only when
+its handler is supplied) and keeps its explicit *Save as draft* / *Publish* buttons.

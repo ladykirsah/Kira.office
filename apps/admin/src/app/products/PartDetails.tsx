@@ -30,6 +30,8 @@ export function PartDetails({
   onProductRefChange,
   shopeeActive,
   onShopeeActiveChange,
+  airplusLive,
+  onAirplusLiveChange,
   refWarning,
 }: {
   value: PartForm;
@@ -40,6 +42,9 @@ export function PartDetails({
   /** "Active on Shopee" (= live/listed on Shopee). Rendered only when a handler is supplied. */
   shopeeActive?: boolean;
   onShopeeActiveChange?: (v: boolean) => void;
+  /** "Live on AirPlus" (= the storefront shows it). Rendered only when a handler is supplied. */
+  airplusLive?: boolean;
+  onAirplusLiveChange?: (v: boolean) => void;
   /** Optional "already used by …" warnings shown under the matching identifier field. */
   refWarning?: string | null;
   shopeeWarning?: string | null;
@@ -139,8 +144,27 @@ export function PartDetails({
       {/* Shopee ID is not shown any more — there is no Shopee API to link to (owner, 2026-07-29).
           The value is still carried through save so existing ids are preserved, not wiped. */}
 
-      {/* "Active on Shopee" lives with the Shopee ID: it means the product is live/listed on Shopee.
-          Turning it on also makes the product active on-site; off leaves the on-site status as-is. */}
+      {/* One switch per sales channel (owner, 2026-08-24). They were not always separate: "Active on
+          Shopee" used to also make the product live on-site, because there was no AirPlus control
+          here and it was the only way to publish. That is what put products in front of AirPlus
+          customers by surprise. Each switch now moves its own channel and nothing else. */}
+      {onAirplusLiveChange ? (
+        <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={!!airplusLive}
+              onChange={(e) => onAirplusLiveChange(e.target.checked)}
+            />
+            <span className="slider" />
+          </span>
+          <span>Live on AirPlus</span>
+          <small className="muted" style={{ fontSize: 12 }}>
+            — customers can see it in your shop
+          </small>
+        </label>
+      ) : null}
+
       {onShopeeActiveChange ? (
         <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span className="switch">
@@ -151,9 +175,9 @@ export function PartDetails({
             />
             <span className="slider" />
           </span>
-          <span>Active on Shopee</span>
+          <span>Live on Shopee</span>
           <small className="muted" style={{ fontSize: 12 }}>
-            — product is live on Shopee
+            — marks it listed; pause it on Shopee itself by hand
           </small>
         </label>
       ) : null}

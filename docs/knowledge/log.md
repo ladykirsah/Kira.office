@@ -80,3 +80,9 @@ sources: [session 2026-08-09]
   the SELLING tiers and commission are the owner's. Enforced by comparing a save against stored
   values on **both** `PUT /products/:id/pricing` and `POST /products/full` — the edit page uses the
   latter, so guarding only the former had left the real door open.
+
+- **2026-08-24** — One switch per sales channel. The edit page gained a **Live on AirPlus** toggle
+  beside **Live on Shopee**, and the row menu now offers **Live on AirPlus** on a draft. Together
+  these removed the old side effect where "Active on Shopee" also published to AirPlus — it did so
+  only because it was the single way to publish from that page. See
+  [back-office/products](back-office/products.md).

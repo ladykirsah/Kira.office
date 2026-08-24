@@ -21,8 +21,10 @@ import { useToast } from "../ToastProvider";
  *             told — so this menu item reads like the AirPlus one but does less. Do not let that
  *             wording mislead a future change into thinking a Shopee API call happens here.
  *
- * The AirPlus item is hidden for a DRAFT: a draft was never on AirPlus, so pausing it means
- * nothing. Publishing a draft is a different decision and belongs on the product page.
+ * A DRAFT gets the AirPlus item too, reading "Live on AirPlus" — publishing (owner, 2026-08-24).
+ * Hiding it was the reason "Active on Shopee" on the edit page had to double as a publish button,
+ * which is how turning Shopee on came to put a product in front of AirPlus customers without saying
+ * so. With one honest way to publish here, that side effect could be removed.
  *
  * Both are super-admin only, like pausing and deleting from the product page — taking a product off
  * a sales channel is the owner's call. The API refuses independently; this only hides the control.
@@ -47,8 +49,9 @@ export function ActionsMenu({
   // A mechanic reads the catalog and edits nothing (owner, 2026-08-24), so the menu offers View —
   // the row already links there, but a menu with one dead item would be worse than one that works.
   const mayEdit = !!role && canWrite(role, "products");
-  const isDraft = status === "draft";
-  const paused = status !== "active" && !isDraft;
+  // Live on AirPlus is exactly "the storefront shows it" — status === 'active'. Draft and paused are
+  // both simply not-live, and the action for both is the same: make it live.
+  const liveOnAirPlus = status === "active";
   const listed = shopeeListed === 1;
 
   useEffect(() => {
@@ -120,7 +123,7 @@ export function ActionsMenu({
             </a>
           )}
 
-          {mayChangeChannels && !isDraft && (
+          {mayChangeChannels && (
             <button
               type="button"
               className="actions-item"
@@ -128,12 +131,12 @@ export function ActionsMenu({
               disabled={busy}
               onClick={() =>
                 run(
-                  () => setProductPaused(productId, !paused),
-                  paused ? "Live on AirPlus" : "Paused on AirPlus",
+                  () => setProductPaused(productId, liveOnAirPlus),
+                  liveOnAirPlus ? "Paused on AirPlus" : "Live on AirPlus",
                 )
               }
             >
-              {channelActionLabel("AirPlus", !paused)}
+              {channelActionLabel("AirPlus", liveOnAirPlus)}
             </button>
           )}
 
