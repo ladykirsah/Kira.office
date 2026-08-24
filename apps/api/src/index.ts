@@ -51,6 +51,7 @@ import {
   canRefund,
   canWrite,
   canReviewPaymentRole,
+  canViewSlips,
   type WriteArea,
   type StaffRole,
   type ViewerRole,
@@ -113,6 +114,7 @@ import {
   type StaffIdentity,
   revokeStaffSession,
   STAFF_SESSION_HEADER,
+  staffFromToken,
 } from "./staffSession";
 import {
   listStaff,
@@ -7079,11 +7081,14 @@ const worker = {
     // The namespace allow-list means a guessed key can never reach a product image or a backup.
     if (url.pathname.startsWith("/file/") && request.method === "GET") {
       const key = decodeURIComponent(url.pathname.slice("/file/".length));
-      const verdict = privateFileAccess(key, {
-        email: userEmail,
-        superAdminEmails: env.SUPER_ADMIN_EMAILS,
-        accessConfigured: !!env.ACCESS_AUD,
-      });
+      // The RULE is unchanged (owner, 31 Jul): any admin approves a payment, but the customer's
+      // slip IMAGE — their bank and account number — is the super admin's alone. Only the identity
+      // moved here, onto the staff session: the Access email list fails OPEN wherever ACCESS_AUD is
+      // unset, which is a bad default for customer financial PII, and it names whoever opened the
+      // host rather than whoever signed in.
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      const verdict = privateFileAccess(key, canViewSlips(actor.role));
       if (verdict === "not_allowed")
         return new Response("Not found", { status: 404, headers: responseHeaders });
       if (verdict === "forbidden")
@@ -7134,12 +7139,19 @@ const worker = {
     if (orderById && request.method === "GET") {
       const detail = await getOrderDetail(env.DB, orderById[1]!);
       if (!detail) return json({ error: "not found" }, 404);
-      // The page needs to know whether THIS viewer may see slip images (super-admin), to gate the
-      // slip preview + Documents actions. The decision itself (confirm/reject) is open to any admin.
-      const viewerIsSuperAdmin = isSuperAdmin(userEmail, {
-        superAdminEmails: env.SUPER_ADMIN_EMAILS,
-        accessConfigured: !!env.ACCESS_AUD,
-      });
+      // The page needs to know whether THIS viewer may see slip images, to gate the slip preview +
+      // Documents actions. The decision itself (confirm/reject) stays open to any admin.
+      //
+      // Read from the STAFF SESSION since 2026-08-24 (owner: same rule, better identity). Resolved
+      // OPTIONALLY, not required: the order should still render for anyone allowed on the page, it
+      // just carries less. No session therefore means "not a super admin" — fail CLOSED, because
+      // the alternative on customer bank details is to guess yes.
+      const viewer = await staffFromToken(
+        env.DB,
+        request.headers.get(STAFF_SESSION_HEADER) ?? "",
+        Date.now(),
+      );
+      const viewerIsSuperAdmin = viewer ? canViewSlips(viewer.role) : false;
       // The customer's refund payout account is financial PII: never send the number or holder name to
       // an admin who is not a super-admin. (Slip images are separately gated by the /file route.)
       if (!viewerIsSuperAdmin) {

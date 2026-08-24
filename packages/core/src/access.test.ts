@@ -57,37 +57,41 @@ describe("isSuperAdmin", () => {
 });
 
 describe("privateFileAccess", () => {
-  const superCtx = { accessConfigured: true, superAdminEmails: "boss@x.com" };
-
-  it("claim evidence > any authenticated admin may read it", () => {
-    expect(privateFileAccess("claim/o1/1.jpg", { email: "staff@x.com", ...superCtx })).toBe("ok");
+  /**
+   * The namespace policy only. WHO the caller is arrives as a single capability, decided by the
+   * route from the staff session — this function no longer knows about emails or env lists.
+   *
+   * That is the point of the 2026-08-24 change: the old signature took an Access email plus
+   * `accessConfigured`, and returned "ok" for a bank slip whenever Access was unconfigured. A
+   * fail-open default on customer bank PII is the wrong default however unlikely the state, and
+   * the Access email had stopped naming the person operating the admin anyway.
+   */
+  it("claim evidence > any signed-in staff may read it", () => {
+    expect(privateFileAccess("claim/o1/1.jpg", false)).toBe("ok");
   });
 
-  it("payment slip > super-admin may read it", () => {
-    expect(privateFileAccess("slip/o1/1.jpg", { email: "boss@x.com", ...superCtx })).toBe("ok");
+  it("payment slip > readable by someone who may see slips", () => {
+    expect(privateFileAccess("slip/o1/1.jpg", true)).toBe("ok");
   });
 
-  it("payment slip > a non-super admin is forbidden", () => {
-    expect(privateFileAccess("slip/o1/1.jpg", { email: "staff@x.com", ...superCtx })).toBe(
-      "forbidden",
-    );
+  it("payment slip > forbidden to everyone else", () => {
+    expect(privateFileAccess("slip/o1/1.jpg", false)).toBe("forbidden");
   });
 
-  it("payment slip > Access off (local dev) serves it", () => {
-    expect(privateFileAccess("slip/o1/1.jpg", { email: null, accessConfigured: false })).toBe("ok");
+  it("refund slip (our outgoing transfer proof) > any signed-in staff may read it", () => {
+    // Not customer bank PII — it is proof WE paid the customer back, and the customer sees it too
+    // on their order page. So it reads like claim evidence: not slip-gated.
+    expect(privateFileAccess("refund-slip/o1/1.jpg", false)).toBe("ok");
   });
 
-  it("refund slip (our outgoing transfer proof) > any authenticated admin may read it", () => {
-    // Not customer bank PII — it is proof WE paid the customer back, and the customer sees it too on
-    // their order page. So it reads like claim evidence: any admin, not super-admin-gated.
-    expect(privateFileAccess("refund-slip/o1/1.jpg", { email: "staff@x.com", ...superCtx })).toBe(
-      "ok",
-    );
+  it("refund-slip is matched before slip, so the hyphen cannot be mistaken for the PII namespace", () => {
+    expect(privateFileAccess("refund-slip/o1/1.jpg", false)).toBe("ok");
+    expect(privateFileAccess("slip/o1/1.jpg", false)).toBe("forbidden");
   });
 
-  it("any other namespace > refused outright (no key can reach it)", () => {
+  it("any other namespace > refused outright, even for someone who may see slips", () => {
     for (const key of ["products/x.jpg", "backups/db.json", "", "slipmalicious/x", "claimant/x"]) {
-      expect(privateFileAccess(key, { email: "boss@x.com", ...superCtx })).toBe("not_allowed");
+      expect(privateFileAccess(key, true)).toBe("not_allowed");
     }
   });
 });

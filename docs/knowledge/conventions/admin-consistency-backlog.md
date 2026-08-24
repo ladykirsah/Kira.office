@@ -20,7 +20,7 @@ A ranked audit (July 2026) of where the admin UI deviates from [admin-design-tok
 4. **Empty/loading states** use plain muted text instead of `.empty` on settings list pages.
 5. **Segmented-control/tab buttons hand-rolled 4+ ways** (POS SegBtn/Tab/pills, BusinessTabs, LabelStudio) — unify on `.tab` / `.tab.active`.
 6. **POS renders its own `<h1>`** (not PageHeader); ~10 loading/error branches skip PageHeader → title spacing differs by state.
-7. **Token-less colours in shared CSS**: ~~`.danger-zone`~~ FIXED 2026-08-24 — now `--danger-soft` / `--danger-border`, defined in both themes (it had been a pale pink panel in dark mode with body text at ~1.8:1; the owner spotted it once the delete box moved onto the product page). `a.card:hover` (#cfd4da) REMAINS the last one — no dark override.
+7. ~~**Token-less colours in shared CSS**~~ **CLOSED 2026-08-24** — `.danger-zone` → `--danger-soft`/`--danger-border`, `a.card:hover` → `--border-hover`/`--shadow-hover`, both defined in each theme and derived from existing tokens ([admin-design-tokens](admin-design-tokens.md)). The only literals left in `globals.css` are the owner's picked status-tag shades, which are deliberate and use `color-mix`.
 8. **Image tiles**: `#fff` preview background + scattered 6/8/10 radii vs the `.frame` convention (`var(--hover)`, radius 10).
 
 ## Messiest files (worst first)

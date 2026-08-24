@@ -3,7 +3,7 @@ type: convention
 title: Admin design tokens, sizing tiers, and colour rules
 description: The Kira admin design system's foundations — tokens, text scale, control sizing, money formatting, red-is-active — and why ad-hoc styling is banned
 tags: [design-system, admin, tokens, css, typography, color]
-timestamp: 2026-08-09
+timestamp: 2026-08-24
 status: convention
 sources: [ui-consistency-design-system.md, kira-admin-design-consistency.md, red-reserved-for-active-only.md, docs/DESIGN_SYSTEM.md]
 ---
@@ -40,6 +40,24 @@ Concrete case that set the rule: the order-detail Timeline stepper — passed st
 - One-offs: textarea grows; `.theme-toggle` 36px; `.tab` auto (9/14 padding); icon buttons `min-height:0` (align by centre).
 
 **History:** `docs/DESIGN_SYSTEM.md` once claimed 44/36/32 for these tiers; it now records the measured 40/32 contract, and `inputS` carries a `minHeight: 32` floor in `apps/admin/src/lib/inputStyles.ts` (the old 30.5px mismatch is fixed). The rule stands: trust measurements over prose. Vocabulary usage counts at audit time: `inputS` ×138, `btn-sm` ×49, `btn-soft` ×20, `inputL` ×18, `btn-primary` ×45.
+
+## Derived colours, not picked ones (2026-08-24)
+
+Two token pairs were added by DERIVING them from an existing relationship rather than choosing a
+shade by eye. Both replaced literals that only worked in light mode:
+
+- `--danger-soft` / `--danger-border` — the destructive twin of `--primary-soft`. `--primary-soft`
+  is `--primary` scaled per channel by ~[0.173, 0.213, 0.232]; the same scaling applied to
+  `--danger` gives dark `#2c1719`, the same depth as the active menu chip (`--primary-soft`) with a
+  red hue instead of orange. That was the owner's ask: the delete box should read as the same
+  family as the selected menu item.
+- `--border-hover` / `--shadow-hover` — card hover. In light, hovering DARKENS the edge by
+  ~[20,18,16] per channel; in dark the same step is applied upward, because strengthening an edge
+  on a dark page means lightening it. Same effect, mirrored. The old literal `#cfd4da` was a
+  light-page value used in both themes, and its `rgba(16,24,40,.1)` shadow did nothing on dark.
+
+The rule this encodes: when a colour needs a dark counterpart, express what it IS relative to an
+existing token, then apply that relationship — a second literal is a second thing to get wrong.
 
 ## Text scale
 

@@ -56,7 +56,8 @@ API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly tw
 | `canRefund` | YES — `/(orders\|claims\|sales)/:id/refund` (added 2026-08-24) |
 | `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
 | `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
-| `canViewSlips`, `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
+| `canViewSlips` | YES — `GET /file/:key` for `slip/` keys, and `viewerIsSuperAdmin` on `GET /orders/:id` (added 2026-08-24) |
+| `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
 
 Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on
 `canViewSlips`. Treat a green permission test as proof the FUNCTION is right, never as proof the
@@ -81,9 +82,22 @@ which makes every "a mechanic may not…" rule unenforceable on that path. All g
 The refund routes keep their older `isSuperAdmin` email check as well — both must pass. Nothing was
 removed; a second, non-fail-open check was added in front.
 
-**Still on the old path (not migrated):** slip images via `privateFileAccess`, claim review via
-`canReviewClaim`, and `viewerIsSuperAdmin` / `viewerRole` in `GET /orders/:id`, which is what the
-order page uses to shape Zone A.
+**Slip images migrated 2026-08-24** (owner: "the rule is right, then just make it update"). The
+rule itself is unchanged — approve/reject a payment is any admin's call, the slip IMAGE is the
+super admin's alone — only the identity moved. `privateFileAccess(key, canSeeSlips)` now takes a
+capability instead of an email context, so core no longer knows about env lists, and the route
+supplies `canViewSlips(actor.role)` from the staff session. `viewerIsSuperAdmin` on
+`GET /orders/:id` moved with it (it gates the UI's slip preview AND redacts the customer's refund
+bank details); it resolves the session OPTIONALLY and defaults to false, so an order still renders
+but carries less.
+
+**This removed a real fail-open**: the old `privateFileAccess` answered "ok" for a bank slip
+whenever `ACCESS_AUD` was unset, serving customer financial PII to an unauthenticated caller.
+
+**Still on the old path (not migrated):** claim review via `canReviewClaim`, and `viewerRole` in
+`GET /orders/:id`, which shapes Zone A. Deliberate — `MECHANIC_EMAILS` being unset in prod makes
+claim review effectively super-admin-only today, so migrating `viewerRole` to staff roles would
+silently GRANT mechanics claim review. That is a behaviour change, not a refactor; ask first.
 
 ## Deleting a product: super admin only (owner, 2026-08-24)
 
