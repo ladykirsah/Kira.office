@@ -67,6 +67,7 @@ import {
   type ExpenseInput,
   isInsightPeriod,
   bangkokMonth,
+  isPracticeCopy,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -81,6 +82,12 @@ export interface Env {
   /** Set both to enable Cloudflare Access JWT enforcement (defense-in-depth). Unset = open. */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  /**
+   * Exactly "1" marks this as a LOCAL PRACTICE COPY and enables `POST /staff/login-practice`, a
+   * passwordless super-admin sign-in. Set only in `.dev.vars`; production has never had it and must
+   * never get it. Two more conditions guard it besides this one — see `isPracticeCopy`.
+   */
+  PRACTICE_COPY?: string;
   /**
    * Staff logins (0082/0083). Both are secrets, set with `wrangler secret put`:
    *  · STAFF_SECRET_KEY — 32 hex bytes; encrypts the readable copy of each staff password. Kept out
@@ -115,6 +122,7 @@ import {
   loginWithPin,
   signInAsOwner,
   requireStaff,
+  signInToPracticeCopy,
   type StaffIdentity,
   revokeStaffSession,
   STAFF_SESSION_HEADER,
@@ -6167,6 +6175,22 @@ const worker = {
         },
         Date.now(),
       );
+      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
+      return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
+    }
+
+    /**
+     * Sign in to a LOCAL PRACTICE COPY with no credential — see `signInToPracticeCopy`.
+     *
+     * 404, not 403, when the gate says no: outside a practice copy this route does not exist, so
+     * nothing advertises that there is a door here worth rattling. The gate reads only the
+     * environment — deliberately, and NOT the hostname: `wrangler dev` rewrites both `request.url`
+     * and the Host header to the Worker's first configured route, so locally this Worker believes
+     * it is `api.homeseeker.me`. See `isPracticeCopy` for why no hostname check can be correct.
+     */
+    if (url.pathname === "/staff/login-practice" && request.method === "POST") {
+      if (!isPracticeCopy(env)) return json({ error: "not found" }, 404);
+      const out = await signInToPracticeCopy(env.DB, Date.now());
       if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
       return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
     }

@@ -1613,6 +1613,14 @@ a.card:hover {
   color: var(--text-muted);
 }
 
+/* The practice copy's passwordless door, above the normal form. Separated by a rule and a label
+   so it reads as a different route in, not as a second submit button for the fields above it. */
+.practice-door {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* Second line in a list table's Status cell: what is stopping this product from selling.
    Sits under the pill, in the same muted register as the reference code under a product name —
    it is context for the pill, never a competing label. Green only for "ready to sell", which is

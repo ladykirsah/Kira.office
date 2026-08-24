@@ -450,3 +450,60 @@ export async function signInAsOwner(
     identity: { userId, email, name: existing?.name ?? "Owner", role: "super_admin" },
   };
 }
+
+/**
+ * Sign in to a LOCAL PRACTICE COPY with no credential at all.
+ *
+ * Reachable only behind `isPracticeCopy` — three conditions, all required, and the route 404s
+ * otherwise. Read that gate's notes before touching anything here: everything below assumes it has
+ * already established that this database is a throwaway on the caller's own machine.
+ *
+ * WHY THIS IS NOT A BACK DOOR IN DISGUISE. The practice copy carries its own users table and its
+ * own password for the same email address as production, behind an identical login screen. On
+ * 2026-08-24 that cost the owner two separate sessions — the second one AFTER the banner explaining
+ * it was already on screen — because knowing why you are locked out does not unlock anything. There
+ * is nothing in this database to protect: it is empty by design (migrations, no seed), it answers
+ * only on loopback, and the real shop is a different host with a different gate.
+ *
+ * CREATES an owner when there is none, rather than refusing. A fresh practice copy has no users at
+ * all, which is exactly when the owner most needs a way in; refusing there would reproduce the bug
+ * this exists to remove.
+ *
+ * Picks the EARLIEST active super admin so repeated sign-ins land on the same person — a practice
+ * copy that signs you in as somebody different each time is its own kind of confusing.
+ */
+export async function signInToPracticeCopy(db: D1Database, now: number): Promise<LoginResult> {
+  const existing = await db
+    .prepare(
+      `SELECT id, name, email FROM users
+        WHERE role = 'super_admin' AND status = 'active' AND deleted_at IS NULL
+        ORDER BY created_at ASC, id ASC
+        LIMIT 1`,
+    )
+    .first<{ id: string; name: string; email: string }>();
+
+  let userId = existing?.id;
+  let email = existing?.email;
+  let name = existing?.name;
+
+  if (!userId) {
+    userId = crypto.randomUUID();
+    email = "owner@practice.local";
+    name = "Practice owner";
+    await db
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at, failed_attempts)
+         VALUES (?, ?, ?, 'super_admin', 'active', ?, 0)`,
+      )
+      .bind(userId, name, email, now)
+      .run();
+  }
+
+  const { token, expiresAt } = await createStaffSession(db, userId, now);
+  return {
+    ok: true,
+    token,
+    expiresAt,
+    identity: { userId, email: email!, name: name!, role: "super_admin" },
+  };
+}
