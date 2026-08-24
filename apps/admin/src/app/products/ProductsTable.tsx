@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
-import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
+import { tierProfits } from "@/lib/tierProfits";
 import { productStatusTag, isNotLive } from "@/lib/productStatus";
 import { canWrite, canSeeProfit } from "@l-shopee/core";
 import { useStaffRole } from "../StaffRoleProvider";
@@ -238,13 +238,17 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               </thead>
               <tbody>
                 {view.map((p) => {
-                  const cost = totalCostSatang(p.itemCostSatang, !!p.taxOnCost);
-                  const onlineProfit = profitSatang(
-                    p.onlinePriceSatang,
-                    cost,
-                    commissionFeeSatang(p.onlinePriceSatang, p.onlineCommissionBp),
-                  );
-                  const b2cProfit = profitSatang(p.offlinePriceSatang, cost, 0);
+                  // Shared formula. This used to charge AirPlus a commission it does not pay —
+                  // that fee belongs to Shopee, which this table does not have a column for.
+                  const { airplus: onlineProfit, b2c: b2cProfit } = tierProfits({
+                    costSatang: p.itemCostSatang,
+                    taxOnCost: !!p.taxOnCost,
+                    b2cSatang: p.offlinePriceSatang,
+                    b2bSatang: p.b2bPriceSatang ?? 0, // optional on the list payload
+                    airplusSatang: p.onlinePriceSatang,
+                    shopeeSatang: 0,
+                    commissionBp: p.onlineCommissionBp,
+                  });
                   return (
                     <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
                       <td className="freeze-col">

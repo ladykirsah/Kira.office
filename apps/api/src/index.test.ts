@@ -9377,3 +9377,104 @@ describe("pricing: cost is the admin's, selling price is the owner's", () => {
     });
   });
 });
+
+// ── /products/full is not a way around the channel gate either ───────────────────────────────────
+// Pausing and Shopee-listing are super-admin only (canDeleteProduct), enforced on their own routes.
+// The edit form saves through POST /products/full, so without a guard there an admin could take a
+// live product off the storefront from the one screen built for it — exactly the shape already
+// fixed for selling prices, which this repo learned the hard way an hour earlier.
+describe("POST /products/full — channel changes are super-admin only", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed(role: string, status = "active", shopeeListed = 0) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','S','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,product_ref,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','REF-1',?,?,?,0)`,
+      )
+      .run(status, NOW, shopeeListed);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const save = (env: Env, token: string, body: Record<string, unknown>) =>
+    worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify({ id: "p1", productRef: "REF-1", name: "Compressor", ...body }),
+      }),
+      env,
+      ctx,
+    );
+
+  const row = (raw: DatabaseSync) =>
+    raw.prepare(`SELECT status, shopee_listed AS listed FROM products WHERE id='p1'`).get() as {
+      status: string;
+      listed: number;
+    };
+
+  it("given an admin taking a LIVE product off the storefront > 403, and it stays live", async () => {
+    const { raw, env, token } = await seed("admin", "active");
+    const res = await save(env, token, { status: "paused" });
+    expect(res.status).toBe(403);
+    expect((await res.json()) as { reason: string }).toMatchObject({ reason: "channel_is_owners" });
+    expect(row(raw).status).toBe("active");
+  });
+
+  it("given an admin publishing a draft > 403 too; publishing is the same authority", async () => {
+    const { raw, env, token } = await seed("admin", "draft");
+    expect((await save(env, token, { status: "active" })).status).toBe(403);
+    expect(row(raw).status).toBe("draft");
+  });
+
+  it("given an admin changing the Shopee listing > 403", async () => {
+    const { raw, env, token } = await seed("admin", "active", 0);
+    expect((await save(env, token, { status: "active", shopeeListed: true })).status).toBe(403);
+    expect(row(raw).listed).toBe(0);
+  });
+
+  it("given an admin saving with the channels UNCHANGED > allowed; they still run the catalog", async () => {
+    // The whole reason this compares rather than refuses outright: the edit form posts the entire
+    // product every save, so an admin fixing a name must not be blocked for fields they never touched.
+    const { raw, env, token } = await seed("admin", "active", 1);
+    const res = await save(env, token, {
+      status: "active",
+      shopeeListed: true,
+      name: "Renamed by an admin",
+    });
+    expect(res.status).toBe(200);
+    expect(raw.prepare(`SELECT name FROM products WHERE id='p1'`).get()).toMatchObject({
+      name: "Renamed by an admin",
+    });
+  });
+
+  it("given the super admin > both channels move freely", async () => {
+    const { raw, env, token } = await seed("super_admin", "active", 0);
+    expect((await save(env, token, { status: "paused", shopeeListed: true })).status).toBe(200);
+    expect(row(raw)).toMatchObject({ status: "paused", listed: 1 });
+  });
+
+  it("given a NEW product (no id) > an admin may set its channels; that is not a change", async () => {
+    const { env, token } = await seed("admin");
+    const res = await worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify({ productRef: "REF-NEW", name: "Fresh", status: "active" }),
+      }),
+      env,
+      ctx,
+    );
+    // 201 Created — a create, not a change. The point is that it is not refused.
+    expect(res.status).toBe(201);
+  });
+});

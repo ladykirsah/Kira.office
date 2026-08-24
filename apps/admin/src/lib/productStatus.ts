@@ -53,3 +53,26 @@ export function productStatusTag(p: Pick<ProductRow, "status" | "onHand">): Stat
 export function isNotLive(status: string): boolean {
   return status !== "active";
 }
+
+/**
+ * One tag per sales channel for the Status field on a product's page.
+ *
+ * Replaced a field labelled "Shopee" carrying a single Shopee tag, which sat under a "Shopee ID"
+ * field that was permanently "—" (there is no Shopee API, so no id is ever linked). Naming the field
+ * Status and giving AirPlus a matching tag answers the question people open the page with: where is
+ * this being sold?
+ *
+ * The channels are independent and neither implies the other — AirPlus is live when the storefront
+ * would show it (`status === "active"`), Shopee when the listing flag is set. AirPlus comes first:
+ * it is the owner's own shop.
+ */
+export function channelTags(status: string, shopeeListed: number): StatusTag[] {
+  return [
+    status === "active"
+      ? { label: "Active on AirPlus", cls: "on" }
+      : { label: "Not on AirPlus", cls: "off" },
+    shopeeListed === 1
+      ? { label: "Active on Shopee", cls: "on" }
+      : { label: "Not on Shopee", cls: "off" },
+  ];
+}

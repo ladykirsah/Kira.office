@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { productStatusTag, isNotLive } from "./productStatus";
+import { productStatusTag, isNotLive, channelTags } from "./productStatus";
 
 // The "AirPlus" column shows one of three states, read straight off the product's `status` field.
 describe("productStatusTag", () => {
@@ -99,5 +99,57 @@ describe("isNotLive", () => {
   it("given an unrecognised status > not live, never assumed to be in front of customers", () => {
     expect(isNotLive("hidden")).toBe(true);
     expect(isNotLive("")).toBe(true);
+  });
+});
+
+/**
+ * The Status field on a product's page: one tag per sales channel, so you can see at a glance where
+ * the product is and is not being sold (owner, 2026-08-24).
+ *
+ * It replaced a field labelled "Shopee" that showed a single Shopee tag, next to a "Shopee ID" field
+ * that was always "—" — there is no Shopee API, so no id is ever linked. Naming the field "Status"
+ * and giving AirPlus a matching tag makes it answer the question people actually open the page with.
+ *
+ * The two channels are genuinely separate: AirPlus is live when the storefront would show it
+ * (`status === "active"`), Shopee when the listing flag is set. Neither implies the other.
+ */
+describe("channelTags", () => {
+  it("given live on both > both tags read Active", () => {
+    expect(channelTags("active", 1)).toEqual([
+      { label: "Active on AirPlus", cls: "on" },
+      { label: "Active on Shopee", cls: "on" },
+    ]);
+  });
+
+  it("given live on neither > both tags read Not on", () => {
+    expect(channelTags("draft", 0)).toEqual([
+      { label: "Not on AirPlus", cls: "off" },
+      { label: "Not on Shopee", cls: "off" },
+    ]);
+  });
+
+  it("given AirPlus only > the channels are reported independently", () => {
+    expect(channelTags("active", 0)).toEqual([
+      { label: "Active on AirPlus", cls: "on" },
+      { label: "Not on Shopee", cls: "off" },
+    ]);
+  });
+
+  it("given Shopee only > likewise, and being on Shopee never implies being live in the shop", () => {
+    expect(channelTags("draft", 1)).toEqual([
+      { label: "Not on AirPlus", cls: "off" },
+      { label: "Active on Shopee", cls: "on" },
+    ]);
+  });
+
+  it("given paused > not on AirPlus; only `active` counts as live", () => {
+    expect(channelTags("paused", 0)[0]).toEqual({ label: "Not on AirPlus", cls: "off" });
+  });
+
+  it("AirPlus is always listed first — it is the owner's own shop", () => {
+    expect(channelTags("active", 1).map((t) => t.label)).toEqual([
+      "Active on AirPlus",
+      "Active on Shopee",
+    ]);
   });
 });

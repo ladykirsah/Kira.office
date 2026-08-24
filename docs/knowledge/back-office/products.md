@@ -71,9 +71,9 @@ nothing and keep a previously-deleted product off the storefront if 0088 has not
 
 ### Removing a product
 
-| Action | Route | Effect |
-| --- | --- | --- |
-| **Pause / resume** | `POST /products/:id/pause` \| `/resume` | → `paused`, or back to **`active`**. Reversible, nothing lost. |
+| Action | Route | Effect | Where in the UI |
+| --- | --- | --- | --- |
+| **Pause / resume** | `POST /products/:id/pause` \| `/resume` | → `paused`, or back to **`active`**. Reversible, nothing lost. | the **Live on AirPlus** switch on the edit form, and the row menu — **not** the danger zone |
 | **Delete** | `DELETE /products/:id` | Really removes the product and all it owns — variants, prices, barcodes, fitments, images, terms, campaign prices. |
 
 **INVARIANT — delete is REFUSED (409 `has_history`) when the product has ever been sold or has any
@@ -144,6 +144,116 @@ Routes: `POST /products/:id/pause|resume` and `POST /products/:id/shopee/list|un
 **super-admin only** — taking a product off a sales channel is the owner's call — and the row menu
 hides them from everyone else.
 
-The **AirPlus item is hidden for a draft**: a draft was never on AirPlus, so pausing it means
-nothing. Publishing a draft is a different decision and belongs on the product page. "View" was
-dropped from the menu — the product name in the row is already the link.
+**The edit form does not use those routes.** It posts the whole product to `POST /products/full`, so
+guarding only the small routes left the real door open: an admin was refused 403 by
+`POST /products/:id/pause` and then did exactly the same thing from the edit page, answered **200**.
+`refuseChannelChange()` closes it — same shape as `refuseSellingPriceChange()`, and found the same
+way. It compares `status` and `shopeeListed` against what is **stored**, so an admin fixing a name is
+not blocked for channels they never touched, and returns 403 `channel_is_owners` when one moved. A
+save with no stored row is a create, which an admin may do. The edit page also **withholds both
+switches** from anyone but the super admin, so the refusal is a backstop, not the message.
+
+A **draft gets the AirPlus item too**, reading **Live on AirPlus** — that is publishing. "View" was
+dropped from the menu for anyone who can edit; the product name in the row is already the link.
+
+### One switch per channel, and why they used to be tangled
+
+Until 2026-08-24 the edit page had **no AirPlus control at all**: `status: shopeeActive ? "active" :
+…` meant "Active on Shopee" doubled as the publish button, so turning Shopee on **also put the
+product in front of AirPlus customers** without saying so. It had to, because there was no other way
+to publish from that page — and the row menu hid its AirPlus item from drafts.
+
+Both halves are fixed together, and neither works without the other:
+
+- the row menu offers **Live on AirPlus** on a draft, so publishing has an honest home;
+- the edit page has **two switches** — *Live on AirPlus* and *Live on Shopee* — each moving its own
+  channel and nothing else.
+
+`nextProductStatus(current, live)` (`apps/admin/src/lib/airplusStatus.ts`) decides what the AirPlus
+switch saves. ON is `active`. **OFF only ever moves a LIVE product to `paused`** — anything already
+not-live keeps the status it has, so a half-written draft is never quietly promoted into something
+that looks like a deliberate decision, and an unrecognised status is left alone.
+
+The **Add product** page is unaffected: it renders neither switch (PartDetails draws each only when
+its handler is supplied) and keeps its explicit *Save as draft* / *Publish* buttons.
+
+## The product page's Status field (owner, 2026-08-24)
+
+The Identifiers block on a product's page lost **Shopee ID** and its "Shopee" field. In their place,
+one **Status** field carrying a tag per sales channel:
+
+| Channel | Live | Not live |
+| --- | --- | --- |
+| AirPlus (first — it is the owner's own shop) | `Active on AirPlus` | `Not on AirPlus` |
+| Shopee | `Active on Shopee` | `Not on Shopee` |
+
+`channelTags(status, shopeeListed)` in `apps/admin/src/lib/productStatus.ts`. AirPlus is live when
+the storefront would show it (`status === "active"`); Shopee when the listing flag is set. Neither
+implies the other, which is the point of showing both.
+
+**Shopee ID was removed, not hidden:** there is no Shopee API to link an id to, so the field was
+permanently "—". `shopee_item_id` is still carried through save so existing values are preserved
+rather than wiped — the same treatment the edit form already gave it.
+
+## Where pausing lives, and what the danger zone is for
+
+Pausing was a second button inside the delete card until 2026-08-24. The owner moved it out: taking a
+product off the shop is the **Live on AirPlus** switch (edit form) and the matching row-menu item.
+One control per idea, one place each. The danger zone does **only** deleting.
+
+That pairing had also hidden a bug worth remembering: the delete box was rendered only when the
+product was NOT paused, because a paused product showed a "put it back on sale" message in its
+place — so **a paused product could not be deleted at all**. Being off the shop and being removable
+are unrelated; a paused product with no sales history deletes like any other. Splitting the controls
+fixed it as a side effect.
+
+## Tier profit: four independent prices, one shared cost
+
+Owner's rule, 2026-08-24: *"they are independent to calculate profit, they only based on the same
+cost."*
+
+`tierProfits()` in `apps/admin/src/lib/tierProfits.ts` is the single implementation:
+
+| Tier | Profit |
+| --- | --- |
+| Den Air Service (on-site B2C) | price − shared cost |
+| B2B | price − shared cost |
+| AirPlus | price − shared cost — **no commission**, it is the owner's own shop |
+| AC on Sales (Shopee) | price − shared cost − commission **on its own price** |
+
+The shared cost is `totalCostSatang(cost, taxOnCost)`, so the VAT-on-cost switch moves all four
+alike. Nothing else crosses between tiers.
+
+**Three live bugs this replaced.** The formula was written out **four** times — the edit form's
+Pricing table, the product page, the products table, and the edit page's **campaign baseline** —
+and three had drifted, in *different* directions:
+
+- the **edit form** charged Shopee a commission worked out from the **AirPlus** price
+  (`commissionFeeSatang(online, …)` applied to `shopeeProfit`);
+- the **products table** charged **AirPlus** a commission it does not pay;
+- the **campaign baseline** — the number every campaign scenario is measured against — charged
+  AirPlus that same commission, so it disagreed with the AirPlus row four inches above it on the
+  same screen, and made a price cut look better than it was.
+
+On a worked example (cost ฿400, AirPlus ฿950, Shopee ฿1200, 5%): Shopee read ฿752.50 instead of
+฿740.00, and AirPlus read ฿502.50 instead of ฿550.00. The product page alone was right.
+
+The independence assertions in `tierProfits.test.ts` are the guard: changing one tier's price must
+not move any other tier's profit. Four copies of a formula are four chances to disagree, and this
+one took three of them.
+
+## The price fields, and why `Money` lives at module level
+
+`PricingFields.tsx` defines its `Money` component **outside** the exported component, and must keep
+doing so. It sat inside the render body for a few hours on 2026-08-24 and that made every money
+field on the page unusable.
+
+A component declared in a render body is a **new function identity on every render**, so React
+unmounts the old `<input>` and mounts a fresh one instead of updating it. Typing one digit called
+`onChange` → parent `setState` → re-render → new identity → the focused input was destroyed and
+focus fell to `<body>`. The owner could type one character of `950.00` and the rest went nowhere —
+and a truncated price like ฿9 saves silently, with no error to notice.
+
+It reached production in the previous merge before being caught. The fix is the hoist plus an
+explicit `locked` prop at all six call sites; the closure over the parent's `sellingReadOnly` flag
+is what tempted the definition inside in the first place.

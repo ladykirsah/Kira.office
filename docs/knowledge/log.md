@@ -80,3 +80,34 @@ sources: [session 2026-08-09]
   the SELLING tiers and commission are the owner's. Enforced by comparing a save against stored
   values on **both** `PUT /products/:id/pricing` and `POST /products/full` — the edit page uses the
   latter, so guarding only the former had left the real door open.
+
+- **2026-08-24** — One switch per sales channel. The edit page gained a **Live on AirPlus** toggle
+  beside **Live on Shopee**, and the row menu now offers **Live on AirPlus** on a draft. Together
+  these removed the old side effect where "Active on Shopee" also published to AirPlus — it did so
+  only because it was the single way to publish from that page. See
+  [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Product page: **Shopee ID** removed (permanently "—" with no Shopee API), and the
+  "Shopee" field became **Status**, carrying a tag per channel — `Active on AirPlus` /
+  `Active on Shopee`. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Pausing left the delete card: the **Live on AirPlus** switch and the row menu are
+  now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
+  previously had no delete box at all. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Tier profit unified in `lib/tierProfits.ts`, fixing **three live
+  miscalculations**: the edit form charged Shopee a commission based on the AirPlus price, the
+  products table charged AirPlus a commission it does not pay, and the edit page's **campaign
+  baseline** charged AirPlus that same commission — disagreeing with the AirPlus row on the same
+  screen. Four independent prices, one shared cost. See
+  [back-office/products](back-office/products.md).
+
+- **2026-08-24** — **Price fields were unusable in production for one release.** `Money` had been
+  defined inside `PricingFields`' render body, so every keystroke remounted the input and dropped
+  focus; a price could only be typed one character at a time, and a truncated ฿9 saves silently. It
+  is back at module level and must stay there. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — **Admin channel bypass closed.** `POST /products/:id/pause` refused an admin 403
+  while the edit page's own save (`POST /products/full`) did the same thing and answered 200.
+  `refuseChannelChange()` now guards the save too, and the edit page hides both channel switches
+  from anyone but the super admin. See [back-office/products](back-office/products.md).

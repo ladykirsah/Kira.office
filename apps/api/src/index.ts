@@ -310,6 +310,49 @@ async function refuseSellingPriceChange(
   );
 }
 
+/**
+ * Refuse a save that moves a product on or off a sales CHANNEL when this person may not.
+ *
+ * Pausing, resuming and Shopee listing are super-admin only (`canDeleteProduct`) and their own
+ * routes enforce it. The edit form does not use those routes — it posts the whole product to
+ * /products/full — so without this an admin could take a live product off the storefront from the
+ * one screen built for it, while POST /products/:id/pause answered them 403.
+ *
+ * Exactly the shape already fixed for selling prices, and found the same way: guarding the obvious
+ * route is not the same as guarding the door the UI actually uses.
+ *
+ * Compares against stored values rather than refusing outright — the edit form posts every field on
+ * every save, so an admin fixing a name must not be blocked for channels they never touched.
+ * Returns a Response to send, or null to carry on.
+ */
+async function refuseChannelChange(
+  db: D1Database,
+  productId: string,
+  incoming: { status?: string; shopeeListed?: boolean },
+  role: StaffRole,
+): Promise<Response | null> {
+  if (canDeleteProduct(role)) return null;
+  const stored = await db
+    .prepare(`SELECT status, shopee_listed AS shopeeListed FROM products WHERE id = ?`)
+    .bind(productId)
+    .first<{ status: string; shopeeListed: number }>();
+  // No stored row means this is a create, not a change — an admin may set a new product's channels.
+  if (!stored) return null;
+  const statusMoved = incoming.status !== undefined && incoming.status !== stored.status;
+  const listingMoved =
+    incoming.shopeeListed !== undefined &&
+    (incoming.shopeeListed ? 1 : 0) !== (stored.shopeeListed ? 1 : 0);
+  if (!statusMoved && !listingMoved) return null;
+  return json(
+    {
+      error:
+        "Only the shop owner can put a product on or off a sales channel. You can still edit everything else.",
+      reason: "channel_is_owners",
+    },
+    403,
+  );
+}
+
 async function requireRole(
   request: Request,
   env: Env,
@@ -7080,28 +7123,38 @@ const worker = {
       }
       const brandId = await resolveAttribute(env.DB, "brands", body.brandName);
       const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
-      // Product categories are a subset of car systems (migration 0064): a brand-new category typed on
-      // Add product is created under the selected system. An existing category keeps its own system.
-      // The edit page saves through HERE, not through PUT /products/:id/pricing — guarding only
-      // that route would have left the real door open. Existing product + a moved selling price +
-      // someone who may not set one = refused.
-      if (body.id && body.pricing) {
-        const fullActor = await requireStaff(request, env);
-        if (fullActor instanceof Response) return fullActor;
-        const refusal = await refuseSellingPriceChange(
+      // The edit page saves through HERE, not through the small single-purpose routes — guarding
+      // only those would have left the real door open. Both owner-only things an edit can move,
+      // the selling prices and the sales channels, are therefore checked again on this save.
+      // Each compares against what is stored, so an admin editing anything else is not blocked.
+      if (body.id) {
+        const editor = await requireStaff(request, env);
+        if (editor instanceof Response) return editor;
+        const channelRefusal = await refuseChannelChange(
           env.DB,
           body.id,
-          {
-            targetPriceSatang: body.pricing.targetPriceSatang ?? 0,
-            b2bPriceSatang: body.pricing.b2bPriceSatang ?? 0,
-            onlinePriceSatang: body.pricing.onlinePriceSatang ?? 0,
-            shopeePriceSatang: body.pricing.shopeePriceSatang ?? 0,
-            onlineCommissionBp: body.pricing.onlineCommissionBp ?? 0,
-          },
-          fullActor.role,
+          { status: body.status, shopeeListed: body.shopeeListed },
+          editor.role,
         );
-        if (refusal) return refusal;
+        if (channelRefusal) return channelRefusal;
+        if (body.pricing) {
+          const refusal = await refuseSellingPriceChange(
+            env.DB,
+            body.id,
+            {
+              targetPriceSatang: body.pricing.targetPriceSatang ?? 0,
+              b2bPriceSatang: body.pricing.b2bPriceSatang ?? 0,
+              onlinePriceSatang: body.pricing.onlinePriceSatang ?? 0,
+              shopeePriceSatang: body.pricing.shopeePriceSatang ?? 0,
+              onlineCommissionBp: body.pricing.onlineCommissionBp ?? 0,
+            },
+            editor.role,
+          );
+          if (refusal) return refusal;
+        }
       }
+      // Product categories are a subset of car systems (migration 0064): a brand-new category typed on
+      // Add product is created under the selected system. An existing category keeps its own system.
       const typeId = await resolveAttribute(env.DB, "product_types", body.typeName, { usageId });
       const category =
         [body.brandName, body.usageName, body.typeName]

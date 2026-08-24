@@ -20,7 +20,9 @@ import { BackLink } from "../../../BackLink";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { PricingFields, type PricingForm } from "../../PricingFields";
-import { canWrite, canEditPrice } from "@l-shopee/core";
+import { canWrite, canEditPrice, canDeleteProduct } from "@l-shopee/core";
+import { nextProductStatus } from "@/lib/airplusStatus";
+import { tierProfits } from "@/lib/tierProfits";
 import { useStaffRole } from "../../../StaffRoleProvider";
 import { NoAccess } from "../../../NoAccess";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
@@ -29,7 +31,7 @@ import { PartDetails, type PartForm } from "../../PartDetails";
 import { formatUpdatedAt } from "@/lib/format";
 import { FitmentSection } from "../../FitmentSection";
 import { DeleteProductCard } from "../../DeleteProductCard";
-import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
+import { totalCostSatang } from "@/lib/pricing";
 
 const field = { display: "grid", gap: 4 } as const;
 const n0 = (x: number | undefined | null): number => (Number.isFinite(x) ? (x as number) : 0);
@@ -51,6 +53,7 @@ export default function EditProductPage() {
   const [shopeeItemId, setShopeeItemId] = useState("");
   const [productRef, setProductRef] = useState("");
   const [shopeeActive, setShopeeActive] = useState(true);
+  const [airplusLive, setAirplusLive] = useState(false);
   const [weightKg, setWeightKg] = useState("");
   const [widthCm, setWidthCm] = useState("");
   const [lengthCm, setLengthCm] = useState("");
@@ -84,6 +87,7 @@ export default function EditProductPage() {
       type: d.product.typeName ?? "",
     });
     setShopeeActive(Boolean(d.product.shopeeListed));
+    setAirplusLive(d.product.status === "active");
     setWeightKg(d.product.weightGrams ? (d.product.weightGrams / 1000).toString() : "");
     setWidthCm(mmToCm(d.product.widthMm));
     setLengthCm(mmToCm(d.product.lengthMm));
@@ -147,9 +151,10 @@ export default function EditProductPage() {
         id,
         name,
         description,
-        // "Active on Shopee" = listed live on Shopee. ON also makes the product active on-site (a
-        // live product can't be a draft); OFF leaves the on-site status unchanged (→ "Not listed").
-        status: shopeeActive ? "active" : (detail?.product.status ?? "active"),
+        // One switch per channel (owner, 2026-08-24): AirPlus decides the status, Shopee decides the
+        // listing flag, and neither reaches across. Turning Shopee on used to publish to AirPlus as
+        // well, because this page had no AirPlus control and Shopee was the only way to go live.
+        status: nextProductStatus(detail?.product.status ?? "draft", airplusLive),
         shopeeListed: shopeeActive,
         shopeeItemId,
         productRef,
@@ -226,15 +231,24 @@ export default function EditProductPage() {
 
   const p = detail.product;
 
-  // Campaign workspace baseline = total cost + the saved online default's profit (live, edit mode).
+  // Campaign workspace baseline = total cost + the saved AirPlus default's profit (live, edit mode).
+  //
+  // Uses the SAME shared formula as the Pricing table above it (lib/tierProfits). It was a fourth
+  // hand-written copy until 2026-08-24, and the only one still charging AirPlus a commission — so
+  // the AirPlus row and the campaign baseline, four inches apart on one screen, disagreed by the
+  // fee. Every campaign scenario is measured against this baseline, so an understated one makes a
+  // price cut look better than it is.
   const editTC = totalCostSatang(toSatang(pricing.costThb), pricing.taxOnCost);
   const editOnline = toSatang(pricing.onlineThb);
-  const editCommBp = Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100);
-  const editDefaultProfit = profitSatang(
-    editOnline,
-    editTC,
-    commissionFeeSatang(editOnline, editCommBp),
-  );
+  const editDefaultProfit = tierProfits({
+    costSatang: toSatang(pricing.costThb),
+    taxOnCost: pricing.taxOnCost,
+    b2cSatang: toSatang(pricing.b2cThb),
+    b2bSatang: toSatang(pricing.b2bThb),
+    airplusSatang: editOnline,
+    shopeeSatang: toSatang(pricing.shopeeThb),
+    commissionBp: Math.round((parseFloat(pricing.onlineCommPct) || 0) * 100),
+  }).airplus;
 
   return (
     <main>
@@ -364,8 +378,14 @@ export default function EditProductPage() {
                 attributes={attributes}
                 productRef={productRef}
                 onProductRefChange={setProductRef}
-                shopeeActive={shopeeActive}
-                onShopeeActiveChange={setShopeeActive}
+                {...(role && canDeleteProduct(role)
+                  ? {
+                      shopeeActive,
+                      onShopeeActiveChange: setShopeeActive,
+                      airplusLive,
+                      onAirplusLiveChange: setAirplusLive,
+                    }
+                  : {})}
               />
             </div>
 
@@ -389,7 +409,7 @@ export default function EditProductPage() {
               />
             </div>
           </form>
-          <DeleteProductCard productId={id} status={detail?.product.status} />
+          <DeleteProductCard productId={id} />
         </>
       ) : (
         <ProductView detail={detail} />
