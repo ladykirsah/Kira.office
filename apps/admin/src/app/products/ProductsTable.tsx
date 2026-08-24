@@ -329,7 +329,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                         })()}
                       </td>
                       <td>
-                        <ActionsMenu productId={p.id} status={p.status} />
+                        <ActionsMenu productId={p.id} />
                       </td>
                     </tr>
                   );

@@ -76,9 +76,26 @@ part. Only the literal string `"1"` opts in — no truthy-string guessing. `All`
 `Out of stock` all exclude archived, as does the page-header count, so deleting a product never
 makes those numbers climb.
 
-**Still open (owner has not decided):** the model above says Delete and Archive are different
-things, but in the code they are the **same action** — the products-table "Archive" menu item and
-the product page's "Delete product" box both call `DELETE /products/:id`, which archives. Nothing
-performs a real removal, and nothing restores an archived row. The Archive menu item is also NOT
-role-gated, so an admin or mechanic sees it and receives a 403 rather than not seeing it
-([roles-model](../auth/roles-model.md)).
+**Delete and Archive are now different things (owner, 2026-08-24).** They were the same action —
+both called `DELETE /products/:id`, which archived — which is why the table said "Archive" for what
+the product page called "Delete".
+
+| Action | Route | What it does |
+| --- | --- | --- |
+| **Archive / restore** | `POST /products/:id/archive` \| `/unarchive` | status → `archived`, or back to **`draft`**. Reversible, nothing lost. |
+| **Delete** | `DELETE /products/:id` | Really removes the product and everything it owns: variants, prices, barcodes, fitments, images, terms, campaign prices. |
+
+**INVARIANT — delete is REFUSED (409 `has_history`) when the product has ever been sold or has any
+stock movement.** `sales_order_lines` and `onsite_sale_lines` point at a *variant* and keep **no
+product name of their own**, so removing a sold product leaves a past order holding a line that
+cannot say what was in it — and Finance is built from those lines. The stock ledger is an
+append-only audit trail for the same reason. There is deliberately **no force flag**: the honest
+answer for a product with a past is to archive it. `productHasHistory()` is the single check.
+
+**Restoring lands on `draft`, never `active`** — the prior status is not recorded, and guessing
+would put a product back in front of customers as a side effect of undoing a delete.
+
+Both actions are **super-admin only** (`canDeleteProduct`), and the UI hides them from everyone
+else. The products-table row menu lost its Archive item entirely (owner: "just delete all current
+archive menu item") — it is now Edit + View, and both removal actions live in one danger zone at the
+bottom of the product's own page, where there is room to explain the difference.

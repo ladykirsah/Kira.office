@@ -47,3 +47,9 @@ sources: [session 2026-08-09]
   also lists archived rows via the opt-in `GET /products?includeArchived=1` (POS and Barcodes keep
   the unchanged default — an archived part must never be sellable or printable). Status pill gained
   `Archived`. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Delete and Archive separated (owner). `DELETE /products/:id` now really removes
+  a product, refusing with 409 `has_history` when it has ever been sold or moved stock — sale lines
+  keep no product name, so deleting one would damage past orders and the books built from them.
+  Archive/restore moved to `POST /products/:id/archive|unarchive` (restore → draft, never active).
+  The row menu's Archive item was removed. See [back-office/products](back-office/products.md).

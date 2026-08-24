@@ -8529,11 +8529,16 @@ describe("DELETE /products/:id — super admin only", () => {
   const statusOf = (raw: DatabaseSync) =>
     (raw.prepare(`SELECT status FROM products WHERE id = 'p1'`).get() as { status: string }).status;
 
-  it("given the super admin > archives the product", async () => {
+  it("given the super admin > the product is really removed", async () => {
+    // This asserted status='archived' for a few hours on 2026-08-24, between deleting becoming
+    // super-admin-only and the owner separating the two words. Delete now means gone; "not live"
+    // is what archive means, and it lives on its own route.
     const { raw, env, token } = await withRole("super_admin");
     const res = await del(env, token);
     expect(res.status).toBe(200);
-    expect(statusOf(raw)).toBe("archived");
+    expect(
+      (raw.prepare(`SELECT COUNT(*) AS n FROM products WHERE id='p1'`).get() as { n: number }).n,
+    ).toBe(0);
   });
 
   it("given an admin > refuses, and the product survives", async () => {
@@ -8901,5 +8906,164 @@ describe("GET /products — archived rows are opt-in", () => {
     expect(await ids(env, "?includeArchived=0")).not.toContain("p-gone");
     expect(await ids(env, "?includeArchived=yes")).not.toContain("p-gone");
     expect(await ids(env, "?includeArchived=")).not.toContain("p-gone");
+  });
+});
+
+// ── Delete means GONE; Archive means not live (owner, 2026-08-24) ────────────────────────────────
+// Until now both words meant the same thing: DELETE /products/:id set status='archived'. The owner
+// separated them — "delete = delete from the system", "archive = not live" — so DELETE now really
+// removes the row and its catalog data.
+//
+// THE GUARD IS THE WHOLE POINT. `sales_order_lines` and `onsite_sale_lines` point at a product's
+// VARIANT and store no product name of their own, so removing a product that has ever been sold
+// would leave past orders holding a line that cannot say what was in it — and the books are built
+// from those lines. A product with history is refused and must be archived instead.
+describe("DELETE /products/:id — a real delete, refused when there is history", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed(opts: { sold?: boolean; movements?: boolean } = {}) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id,product_id,created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    if (opts.sold) {
+      raw
+        .prepare(
+          `INSERT INTO sales_orders (id,channel,external_order_id,imported_at)
+           VALUES ('o1','airplus','AP-1',?)`,
+        )
+        .run(NOW);
+      raw
+        .prepare(
+          `INSERT INTO sales_order_lines
+             (id,sales_order_id,product_variant_id,quantity,unit_price_satang,line_total_satang,created_at)
+           VALUES ('l1','o1','v1',1,10000,10000,?)`,
+        )
+        .run(NOW);
+    }
+    if (opts.movements) {
+      raw
+        .prepare(
+          `INSERT INTO stock_ledger_entries
+             (id,product_variant_id,movement_type,quantity_delta,quantity_after,created_at)
+           VALUES ('m1','v1','receive',5,5,?)`,
+        )
+        .run(NOW);
+    }
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const del = (env: Env, token: string) =>
+    worker.fetch!(
+      new Request("https://x/products/p1", {
+        method: "DELETE",
+        headers: { "X-Staff-Session": token },
+      }),
+      env,
+      ctx,
+    );
+
+  const count = (raw: DatabaseSync, sql: string) => (raw.prepare(sql).get() as { n: number }).n;
+
+  it("given a product with no history > the row and its variants are really gone", async () => {
+    const { raw, env, token } = await seed();
+    const res = await del(env, token);
+    expect(res.status).toBe(200);
+    expect(count(raw, `SELECT COUNT(*) AS n FROM products WHERE id='p1'`)).toBe(0);
+    expect(count(raw, `SELECT COUNT(*) AS n FROM product_variants WHERE product_id='p1'`)).toBe(0);
+  });
+
+  it("given a product that has been SOLD > refused, and nothing is touched", async () => {
+    // The order line names no product of its own. Delete it and the order can never say what was
+    // in it — and Finance is built from those lines.
+    const { raw, env, token } = await seed({ sold: true });
+    const res = await del(env, token);
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { reason: string }).toMatchObject({ reason: "has_history" });
+    expect(count(raw, `SELECT COUNT(*) AS n FROM products WHERE id='p1'`)).toBe(1);
+    expect(count(raw, `SELECT COUNT(*) AS n FROM sales_order_lines WHERE id='l1'`)).toBe(1);
+  });
+
+  it("given a product with stock movements > refused; the ledger is an audit trail", async () => {
+    const { raw, env, token } = await seed({ movements: true });
+    expect((await del(env, token)).status).toBe(409);
+    expect(count(raw, `SELECT COUNT(*) AS n FROM products WHERE id='p1'`)).toBe(1);
+  });
+
+  it("archiving is what a sold product gets instead, and it is reversible", async () => {
+    // Its own endpoint rather than PATCH: PATCH /products/:id demands a whole product body, and
+    // "hide this" should not require re-sending the catalog entry to say so.
+    const { raw, env, token } = await seed({ sold: true });
+    const post = (path: string) =>
+      worker.fetch!(
+        new Request(`https://x/products/p1/${path}`, {
+          method: "POST",
+          headers: { "X-Staff-Session": token },
+        }),
+        env,
+        ctx,
+      );
+    const status = () =>
+      (raw.prepare(`SELECT status FROM products WHERE id='p1'`).get() as { status: string }).status;
+
+    expect((await post("archive")).status).toBe(200);
+    expect(status()).toBe("archived");
+
+    // ...and back again. That is the whole difference from delete: nothing was lost.
+    expect((await post("unarchive")).status).toBe(200);
+    expect(status()).toBe("draft");
+  });
+
+  it("unarchiving returns a product to DRAFT, never straight back into the shop", async () => {
+    // The old status is not remembered, and guessing "active" would republish a product to
+    // customers as a side effect of undoing a delete. Draft is the safe landing: not live until
+    // someone says so.
+    const { raw, env, token } = await seed();
+    raw.prepare(`UPDATE products SET status='archived' WHERE id='p1'`).run();
+    await worker.fetch!(
+      new Request("https://x/products/p1/unarchive", {
+        method: "POST",
+        headers: { "X-Staff-Session": token },
+      }),
+      env,
+      ctx,
+    );
+    expect(
+      (raw.prepare(`SELECT status FROM products WHERE id='p1'`).get() as { status: string }).status,
+    ).toBe("draft");
+  });
+
+  it("archiving is super-admin only, like deleting", async () => {
+    const { raw, env } = await seed();
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u2','Adm','adm@shop.test','admin','active',?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(asD1(raw), "u2", NOW);
+    const res = await worker.fetch!(
+      new Request("https://x/products/p1/archive", {
+        method: "POST",
+        headers: { "X-Staff-Session": token },
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(403);
   });
 });

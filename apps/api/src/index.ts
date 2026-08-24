@@ -5255,9 +5255,76 @@ export async function setVariantBarcode(
   ]);
 }
 
-/** Soft-delete a product (status='archived') — preserves sales history + FKs. */
-export async function archiveProduct(db: D1Database, id: string): Promise<void> {
-  await db.prepare("UPDATE products SET status = 'archived' WHERE id = ?").bind(id).run();
+/**
+ * Archive a product, or bring it back — "not live", and reversible (owner, 2026-08-24).
+ *
+ * The counterpart to `deleteProductForever`: this keeps everything, including sales history, which
+ * is why it is the answer for a product that has a past. Restoring lands on DRAFT, never on active:
+ * the previous status is not recorded, and guessing "active" would put a product back in front of
+ * customers as a side effect of undoing a delete.
+ */
+export async function archiveProduct(db: D1Database, id: string, archived = true): Promise<void> {
+  await db
+    .prepare("UPDATE products SET status = ? WHERE id = ?")
+    .bind(archived ? "archived" : "draft", id)
+    .run();
+}
+
+/**
+ * Has this product ever taken part in something the books or the audit trail depend on?
+ *
+ * `sales_order_lines` and `onsite_sale_lines` point at a VARIANT and keep no product name of their
+ * own, so removing the product would leave a past order holding a line that cannot say what was in
+ * it — and Finance is built from those lines. The stock ledger is an append-only audit trail for
+ * the same reason. Any one of the three means "archive it, do not delete it".
+ */
+export async function productHasHistory(db: D1Database, id: string): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM sales_order_lines l
+            JOIN product_variants v ON v.id = l.product_variant_id WHERE v.product_id = ?1)
+       + (SELECT COUNT(*) FROM onsite_sale_lines l
+            JOIN product_variants v ON v.id = l.product_variant_id WHERE v.product_id = ?1)
+       + (SELECT COUNT(*) FROM stock_ledger_entries e
+            JOIN product_variants v ON v.id = e.product_variant_id WHERE v.product_id = ?1)
+       AS n`,
+    )
+    .bind(id)
+    .first<{ n: number }>();
+  return (row?.n ?? 0) > 0;
+}
+
+export type DeleteProductResult = { ok: true } | { ok: false; reason: "has_history" };
+
+/**
+ * Delete a product FOR REAL — the owner's "delete = delete from the system" (2026-08-24).
+ *
+ * Distinct from `archiveProduct`, which is "not live" and reversible. This removes the product and
+ * everything it owns: variants, prices, barcodes, fitments, images, terms and campaign prices.
+ *
+ * REFUSES when the product has history. That guard is not politeness — the tables that record a
+ * sale name no product of their own, so deleting one that has been sold silently damages orders
+ * and the figures built from them. There is no "force" flag on purpose: the honest answer for a
+ * product with a past is to archive it.
+ */
+export async function deleteProductForever(
+  db: D1Database,
+  id: string,
+): Promise<DeleteProductResult> {
+  if (await productHasHistory(db, id)) return { ok: false, reason: "has_history" };
+  const variantIds = `SELECT id FROM product_variants WHERE product_id = ?`;
+  await db.batch([
+    db.prepare(`DELETE FROM campaign_prices WHERE product_variant_id IN (${variantIds})`).bind(id),
+    db.prepare(`DELETE FROM pricing_profiles WHERE product_variant_id IN (${variantIds})`).bind(id),
+    db.prepare(`DELETE FROM barcodes WHERE product_variant_id IN (${variantIds})`).bind(id),
+    db.prepare(`DELETE FROM product_variants WHERE product_id = ?`).bind(id),
+    db.prepare(`DELETE FROM product_fitments WHERE product_id = ?`).bind(id),
+    db.prepare(`DELETE FROM product_images WHERE product_id = ?`).bind(id),
+    db.prepare(`DELETE FROM product_terms WHERE product_id = ?`).bind(id),
+    db.prepare(`DELETE FROM products WHERE id = ?`).bind(id),
+  ]);
+  return { ok: true };
 }
 
 export interface VariantPricing {
@@ -7024,6 +7091,26 @@ const worker = {
       }
       return json({ ok: true });
     }
+    // Archive / unarchive — "not live", and reversible. The counterpart to DELETE below: this one
+    // keeps everything and can be undone, which is why a product with sales history gets this
+    // instead. Its own route because PATCH /products/:id demands a whole product body, and "hide
+    // this" should not require re-sending the catalog entry to say so.
+    const archiveMatch = url.pathname.match(/^\/products\/([^/]+)\/(archive|unarchive)$/);
+    if (archiveMatch && request.method === "POST") {
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      // Same authority as deleting: taking a product off the shop is the owner's call.
+      if (!canDeleteProduct(actor.role)) {
+        return json({ error: "forbidden", reason: "super_admin_only" }, 403);
+      }
+      // Unarchive lands on DRAFT, never on active. The previous status is not remembered, and
+      // guessing "active" would put a product back in front of customers as a side effect of
+      // undoing a delete.
+      const archiving = archiveMatch[2] === "archive";
+      await archiveProduct(env.DB, archiveMatch[1]!, archiving);
+      return json({ ok: true, status: archiving ? "archived" : "draft" });
+    }
+
     if (productById && request.method === "DELETE") {
       // Super admin alone (owner, 2026-08-24). Checked HERE, not only in the admin UI: this
       // Worker is its own public hostname, and a hidden button is not a permission. Deleting
@@ -7033,7 +7120,17 @@ const worker = {
       if (!canDeleteProduct(actor.role)) {
         return json({ error: "forbidden", reason: "super_admin_only" }, 403);
       }
-      await archiveProduct(env.DB, productById[1]!);
+      const out = await deleteProductForever(env.DB, productById[1]!);
+      if (!out.ok) {
+        return json(
+          {
+            error:
+              "This product has already been sold or has stock movements, so it cannot be deleted. Archive it instead — it will stop showing in the shop and everything is kept.",
+            reason: out.reason,
+          },
+          409,
+        );
+      }
       return json({ ok: true });
     }
 

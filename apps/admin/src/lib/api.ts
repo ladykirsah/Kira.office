@@ -1231,9 +1231,26 @@ export async function holdStock(lines: HoldLineInput[]): Promise<HoldLineResult[
   return ((await res.json()) as { results: HoldLineResult[] }).results;
 }
 
-export async function archiveProduct(id: string): Promise<void> {
+/**
+ * Delete a product FOR REAL (owner, 2026-08-24: "delete = delete from the system").
+ *
+ * The API refuses with 409 when the product has ever been sold or has stock movements, because the
+ * rows that record a sale name no product of their own. That refusal carries a sentence worth
+ * showing verbatim, so it is surfaced rather than replaced with a status code.
+ */
+export async function deleteProductForever(id: string): Promise<void> {
   const res = await apiFetch(`/products/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Archive failed (HTTP ${res.status})`);
+  if (res.ok) return;
+  const body = (await res.json().catch(() => null)) as { error?: string } | null;
+  throw new Error(body?.error ?? `Delete failed (HTTP ${res.status})`);
+}
+
+/** Archive = "not live", and reversible. Unarchiving lands on Draft, never straight back on sale. */
+export async function setProductArchived(id: string, archived: boolean): Promise<void> {
+  const res = await apiFetch(`/products/${id}/${archived ? "archive" : "unarchive"}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`${archived ? "Archive" : "Restore"} failed (HTTP ${res.status})`);
 }
 
 export interface BarcodeRow {
