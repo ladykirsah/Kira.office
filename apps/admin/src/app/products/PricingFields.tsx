@@ -44,6 +44,38 @@ function Profit({ value, show }: { value: number; show: boolean }) {
   );
 }
 
+/**
+ * One price field: an input, or the same number as plain text when this viewer may not edit it.
+ *
+ * DEFINED AT MODULE LEVEL ON PURPOSE. It lived inside PricingFields for a few hours on 2026-08-24
+ * and that made every money field unusable: a component declared in the render body is a NEW
+ * function identity on every render, so React unmounts the old <input> and mounts a fresh one
+ * instead of updating it. Typing a digit called onChange -> parent setState -> re-render -> new
+ * identity -> the focused input was destroyed and focus fell to <body>. The owner could type one
+ * character of "950.00" and the rest went nowhere — and a truncated price like ฿9 saves silently.
+ *
+ * `locked` is an explicit prop rather than a closure over the parent's flag, which is what tempted
+ * the definition inside in the first place.
+ */
+function Money({
+  value,
+  onChange,
+  width,
+  locked,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  width: CSSProperties["width"];
+  locked: boolean;
+}) {
+  if (locked) {
+    return <span style={{ fontWeight: 600, color: "var(--text)" }}>{value.trim() || "—"}</span>;
+  }
+  return (
+    <input value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inputS, width }} />
+  );
+}
+
 const numStyle: CSSProperties = { ...inputS, width: "min(110px, 100%)" };
 
 export function PricingFields({
@@ -66,29 +98,6 @@ export function PricingFields({
    */
   sellingReadOnly?: boolean;
 }) {
-  /** One price field: an input, or the same number as plain text when this viewer may not edit it. */
-  const Money = ({
-    value,
-    onChange,
-    width,
-    locked = sellingReadOnly,
-  }: {
-    value: string;
-    onChange: (v: string) => void;
-    width: CSSProperties["width"];
-    /** Defaults to the selling-price lock; the COST row passes false — it is the admin's. */
-    locked?: boolean;
-  }) =>
-    locked ? (
-      <span style={{ fontWeight: 600, color: "var(--text)" }}>{value.trim() || "—"}</span>
-    ) : (
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ ...inputS, width }}
-      />
-    );
-
   const tc = totalCostSatang(toSatang(form.costThb), form.taxOnCost);
   const b2c = toSatang(form.b2cThb);
   const b2b = toSatang(form.b2bThb);
@@ -199,6 +208,7 @@ export function PricingFields({
                   value={form.b2cThb}
                   onChange={(v) => update({ b2cThb: v })}
                   width={numStyle.width}
+                  locked={sellingReadOnly}
                 />
               </td>
               <td className="muted">—</td>
@@ -216,6 +226,7 @@ export function PricingFields({
                   value={form.b2bThb}
                   onChange={(v) => update({ b2bThb: v })}
                   width={numStyle.width}
+                  locked={sellingReadOnly}
                 />
               </td>
               <td className="muted">—</td>
@@ -234,6 +245,7 @@ export function PricingFields({
                   value={form.onlineThb}
                   onChange={(v) => update({ onlineThb: v })}
                   width={numStyle.width}
+                  locked={sellingReadOnly}
                 />
               </td>
               <td className="muted">—</td>
@@ -253,6 +265,7 @@ export function PricingFields({
                   value={form.shopeeThb}
                   onChange={(v) => update({ shopeeThb: v })}
                   width={numStyle.width}
+                  locked={sellingReadOnly}
                 />
               </td>
               <td>
@@ -261,6 +274,7 @@ export function PricingFields({
                     value={form.onlineCommPct}
                     onChange={(v) => update({ onlineCommPct: v })}
                     width={56}
+                    locked={sellingReadOnly}
                   />
                   <span className="muted">%</span>
                 </span>

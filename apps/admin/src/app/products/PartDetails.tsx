@@ -144,7 +144,11 @@ export function PartDetails({
       {/* Shopee ID is not shown any more — there is no Shopee API to link to (owner, 2026-07-29).
           The value is still carried through save so existing ids are preserved, not wiped. */}
 
-      {/* One switch per sales channel (owner, 2026-08-24). They were not always separate: "Active on
+      {/* One switch per sales channel (owner, 2026-08-24). Each is rendered only when its handler
+          is supplied, which is how the edit page withholds BOTH from anyone but the super admin —
+          putting a product on or off a channel is the owner's call, and the API refuses the same
+          save independently (refuseChannelChange). Add product supplies neither and keeps its own
+          Save-as-draft / Publish buttons. They were not always separate: "Active on
           Shopee" used to also make the product live on-site, because there was no AirPlus control
           here and it was the only way to publish. That is what put products in front of AirPlus
           customers by surprise. Each switch now moves its own channel and nothing else. */}

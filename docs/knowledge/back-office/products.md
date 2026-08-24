@@ -144,6 +144,15 @@ Routes: `POST /products/:id/pause|resume` and `POST /products/:id/shopee/list|un
 **super-admin only** — taking a product off a sales channel is the owner's call — and the row menu
 hides them from everyone else.
 
+**The edit form does not use those routes.** It posts the whole product to `POST /products/full`, so
+guarding only the small routes left the real door open: an admin was refused 403 by
+`POST /products/:id/pause` and then did exactly the same thing from the edit page, answered **200**.
+`refuseChannelChange()` closes it — same shape as `refuseSellingPriceChange()`, and found the same
+way. It compares `status` and `shopeeListed` against what is **stored**, so an admin fixing a name is
+not blocked for channels they never touched, and returns 403 `channel_is_owners` when one moved. A
+save with no stored row is a create, which an admin may do. The edit page also **withholds both
+switches** from anyone but the super admin, so the refusal is a backstop, not the message.
+
 A **draft gets the AirPlus item too**, reading **Live on AirPlus** — that is publishing. "View" was
 dropped from the menu for anyone who can edit; the product name in the row is already the link.
 
@@ -215,16 +224,36 @@ cost."*
 The shared cost is `totalCostSatang(cost, taxOnCost)`, so the VAT-on-cost switch moves all four
 alike. Nothing else crosses between tiers.
 
-**Two live bugs this replaced.** The formula was written out three times — the edit form, the
-product page, the products table — and two had drifted, in *different* directions:
+**Three live bugs this replaced.** The formula was written out **four** times — the edit form's
+Pricing table, the product page, the products table, and the edit page's **campaign baseline** —
+and three had drifted, in *different* directions:
 
 - the **edit form** charged Shopee a commission worked out from the **AirPlus** price
   (`commissionFeeSatang(online, …)` applied to `shopeeProfit`);
-- the **products table** charged **AirPlus** a commission it does not pay.
+- the **products table** charged **AirPlus** a commission it does not pay;
+- the **campaign baseline** — the number every campaign scenario is measured against — charged
+  AirPlus that same commission, so it disagreed with the AirPlus row four inches above it on the
+  same screen, and made a price cut look better than it was.
 
 On a worked example (cost ฿400, AirPlus ฿950, Shopee ฿1200, 5%): Shopee read ฿752.50 instead of
 ฿740.00, and AirPlus read ฿502.50 instead of ฿550.00. The product page alone was right.
 
 The independence assertions in `tierProfits.test.ts` are the guard: changing one tier's price must
-not move any other tier's profit. Three copies of a formula are three chances to disagree, and this
-one took two of them.
+not move any other tier's profit. Four copies of a formula are four chances to disagree, and this
+one took three of them.
+
+## The price fields, and why `Money` lives at module level
+
+`PricingFields.tsx` defines its `Money` component **outside** the exported component, and must keep
+doing so. It sat inside the render body for a few hours on 2026-08-24 and that made every money
+field on the page unusable.
+
+A component declared in a render body is a **new function identity on every render**, so React
+unmounts the old `<input>` and mounts a fresh one instead of updating it. Typing one digit called
+`onChange` → parent `setState` → re-render → new identity → the focused input was destroyed and
+focus fell to `<body>`. The owner could type one character of `950.00` and the rest went nowhere —
+and a truncated price like ฿9 saves silently, with no error to notice.
+
+It reached production in the previous merge before being caught. The fix is the hoist plus an
+explicit `locked` prop at all six call sites; the closure over the parent's `sellingReadOnly` flag
+is what tempted the definition inside in the first place.

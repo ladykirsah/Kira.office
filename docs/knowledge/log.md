@@ -95,7 +95,19 @@ sources: [session 2026-08-09]
   now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
   previously had no delete box at all. See [back-office/products](back-office/products.md).
 
-- **2026-08-24** — Tier profit unified in `lib/tierProfits.ts`, fixing **two live miscalculations**:
-  the edit form charged Shopee a commission based on the AirPlus price, and the products table
-  charged AirPlus a commission it does not pay. Four independent prices, one shared cost. See
+- **2026-08-24** — Tier profit unified in `lib/tierProfits.ts`, fixing **three live
+  miscalculations**: the edit form charged Shopee a commission based on the AirPlus price, the
+  products table charged AirPlus a commission it does not pay, and the edit page's **campaign
+  baseline** charged AirPlus that same commission — disagreeing with the AirPlus row on the same
+  screen. Four independent prices, one shared cost. See
   [back-office/products](back-office/products.md).
+
+- **2026-08-24** — **Price fields were unusable in production for one release.** `Money` had been
+  defined inside `PricingFields`' render body, so every keystroke remounted the input and dropped
+  focus; a price could only be typed one character at a time, and a truncated ฿9 saves silently. It
+  is back at module level and must stay there. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — **Admin channel bypass closed.** `POST /products/:id/pause` refused an admin 403
+  while the edit page's own save (`POST /products/full`) did the same thing and answered 200.
+  `refuseChannelChange()` now guards the save too, and the edit page hides both channel switches
+  from anyone but the super admin. See [back-office/products](back-office/products.md).
