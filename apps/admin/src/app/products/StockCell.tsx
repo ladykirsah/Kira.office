@@ -64,10 +64,13 @@ export function StockCell({
   variantId,
   onHand,
   held = 0,
+  readOnly = false,
 }: {
   variantId: string | null;
   onHand: number;
   held?: number;
+  /** A mechanic reads the catalog; the count still shows, the pencil does not (owner, 2026-08-24). */
+  readOnly?: boolean;
 }) {
   const toast = useToast();
   const [current, setCurrent] = useState(onHand);
@@ -153,15 +156,17 @@ export function StockCell({
           +{held} held
         </span>
       )}
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label="Edit stock"
-        title="Edit stock"
-        onClick={startEdit}
-      >
-        <Pencil />
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Edit stock"
+          title="Edit stock"
+          onClick={startEdit}
+        >
+          <Pencil />
+        </button>
+      )}
     </span>
   );
 }

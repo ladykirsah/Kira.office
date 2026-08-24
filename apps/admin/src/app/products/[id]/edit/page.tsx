@@ -20,6 +20,9 @@ import { BackLink } from "../../../BackLink";
 import { useToast } from "../../../ToastProvider";
 import { ProductGallery } from "../../ProductGallery";
 import { PricingFields, type PricingForm } from "../../PricingFields";
+import { canWrite, canEditPrice } from "@l-shopee/core";
+import { useStaffRole } from "../../../StaffRoleProvider";
+import { NoAccess } from "../../../NoAccess";
 import { CampaignWorkspace } from "../../CampaignWorkspace";
 import { ProductView } from "../../ProductView";
 import { PartDetails, type PartForm } from "../../PartDetails";
@@ -34,6 +37,7 @@ const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
 const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
 export default function EditProductPage() {
+  const role = useStaffRole();
   const id = useParams().id as string;
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -193,6 +197,11 @@ export default function EditProductPage() {
       setBusy(false);
     }
   }
+
+  // After the hooks. A mechanic edits nothing (owner, 2026-08-24) — the menu already hides the way
+  // in, this catches a typed address or an old bookmark. The API refuses their writes regardless.
+  if (role && !canWrite(role, "products"))
+    return <NoAccess what="Editing products" who="the shop owner and admins" />;
 
   if (loading)
     return (
@@ -365,7 +374,11 @@ export default function EditProductPage() {
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <PricingFields form={pricing} update={updatePricing} />
+              <PricingFields
+                form={pricing}
+                update={updatePricing}
+                readOnly={!role || !canEditPrice(role)}
+              />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>

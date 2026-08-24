@@ -1,4 +1,4 @@
-import { ACCESS_JWT_HEADER } from "./workerProxy";
+import { ACCESS_JWT_HEADER, STAFF_COOKIE, STAFF_SESSION_HEADER } from "./workerProxy";
 
 /**
  * Public API host — used for image URLs and server-side direct calls.
@@ -22,10 +22,20 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     return fetch(`/api/worker${normalized}`, { ...init, credentials: "include" });
   }
 
-  const { headers: nextHeaders } = await import("next/headers");
+  const { headers: nextHeaders, cookies } = await import("next/headers");
   const h = await nextHeaders();
   const forward = new Headers(init.headers);
   const jwt = h.get(ACCESS_JWT_HEADER);
   if (jwt) forward.set(ACCESS_JWT_HEADER, jwt);
+
+  // Forward the staff session too, the same translation the browser proxy does (cookie on this
+  // origin → header the API reads). Without it a SERVER-rendered page reaches the API with no
+  // identity, and every role-shaped response degrades to its most restricted form — the owner's own
+  // products page would arrive with cost stripped, because the API could not tell who asked.
+  // Skipped when the caller set the header itself (currentStaff does, to check a specific token).
+  if (!forward.has(STAFF_SESSION_HEADER)) {
+    const token = (await cookies()).get(STAFF_COOKIE)?.value;
+    if (token) forward.set(STAFF_SESSION_HEADER, token);
+  }
   return fetch(`${apiBase}${normalized}`, { ...init, headers: forward });
 }

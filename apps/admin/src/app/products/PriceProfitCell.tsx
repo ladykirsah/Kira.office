@@ -12,12 +12,20 @@ export function PriceProfitCell({
   profitSatang,
 }: {
   priceSatang: number;
-  profitSatang: number;
+  /** null = this viewer may not see margin (a mechanic). The eye is not drawn at all. */
+  profitSatang: number | null;
 }) {
   const [show, setShow] = useState(false);
   const hide = () => setShow(false);
 
   if (!priceSatang) return <span className="muted">—</span>;
+
+  // No margin for this viewer: show the selling price alone. The eye is not drawn rather than
+  // drawn-and-disabled — a control that exists but refuses invites "why can't I?", and the API is
+  // not sending the cost anyway, so there is nothing behind it to reveal.
+  if (profitSatang === null) {
+    return <span style={{ fontWeight: 600 }}>{formatBahtTrim(priceSatang)}</span>;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

@@ -52,6 +52,8 @@ import {
   canWrite,
   canReviewPaymentRole,
   canViewSlips,
+  canEditPrice,
+  canSeeProfit,
   type WriteArea,
   type StaffRole,
   type ViewerRole,
@@ -2235,7 +2237,7 @@ async function getTerms(env: Env): Promise<Response> {
  * The `status <> 'archived'` filter stays as pure defence — it costs nothing and keeps a
  * previously-deleted product out of the POS and Barcodes if 0088 has not run somewhere yet.
  */
-async function listProducts(env: Env): Promise<Response> {
+async function listProducts(env: Env, seesProfit = true): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
@@ -2271,6 +2273,12 @@ async function listProducts(env: Env): Promise<Response> {
      WHERE p.status <> 'archived'
      ORDER BY p.created_at DESC LIMIT 200`,
   ).all();
+  // Margin is price minus cost, so withholding the COST is what actually hides it. Blanking the
+  // number in the page while shipping the input would be decoration — anyone reading the response
+  // could do the subtraction. Selling prices stay: those are not secret.
+  if (!seesProfit) {
+    for (const row of results as { itemCostSatang?: number }[]) row.itemCostSatang = 0;
+  }
   return json({ products: results });
 }
 
@@ -6338,7 +6346,13 @@ const worker = {
     }
 
     if (url.pathname === "/products" && request.method === "GET") {
-      return listProducts(env);
+      const viewer = await staffFromToken(
+        env.DB,
+        request.headers.get(STAFF_SESSION_HEADER) ?? "",
+        Date.now(),
+      );
+      // No session resolves to "no margin" — fail closed, same direction as the slip gate.
+      return listProducts(env, viewer ? canSeeProfit(viewer.role) : false);
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {
@@ -6944,6 +6958,12 @@ const worker = {
 
     const productPricing = url.pathname.match(/^\/products\/([^/]+)\/pricing$/);
     if (productPricing && request.method === "PUT") {
+      // What the shop CHARGES is the owner's (owner, 2026-08-24). Narrower than the products-area
+      // write gate above, which an admin passes: they run the catalog, not the prices. Setting a
+      // price while ADDING a product goes through /products/full and stays open to an admin — a
+      // product with no price cannot be finished.
+      const priceActor = await requireRole(request, env, canEditPrice, "super_admin_only");
+      if (priceActor instanceof Response) return priceActor;
       const body = await readJson<{
         itemCostSatang?: number;
         targetPriceSatang?: number;

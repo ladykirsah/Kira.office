@@ -5,6 +5,8 @@ import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
 import { productStatusTag, isNotLive } from "@/lib/productStatus";
+import { canWrite, canSeeProfit } from "@l-shopee/core";
+import { useStaffRole } from "../StaffRoleProvider";
 import { stockStatus } from "@/lib/stock";
 import { tableText } from "@/lib/tableText";
 import { ActionsMenu } from "./ActionsMenu";
@@ -30,6 +32,12 @@ const DIMENSIONS = [
 ] as const;
 
 export function ProductsTable({ products }: { products: ProductRow[] }) {
+  const role = useStaffRole();
+  // A mechanic reads the catalog to do counter work: one list, no filters to manage it by, no
+  // margin, nothing to click into (owner, 2026-08-24). The API enforces each of these itself — the
+  // cost is not even sent to them — so this only spares them controls that would refuse.
+  const managesCatalog = !!role && canWrite(role, "products");
+  const seesProfit = !!role && canSeeProfit(role);
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
   const [sortBy, setSortBy] = useState<string>("");
@@ -106,10 +114,14 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
     <>
       <div className="tabs">
         <TabBtn id="all" label="All" n={products.length} />
-        <TabBtn id="airplus" label="On AirPlus" n={onAirPlus.length} />
-        <TabBtn id="notlive" label="Not live" n={notLive.length} />
-        <TabBtn id="low" label="Low stock" n={lowStock.length} />
-        <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
+        {managesCatalog && (
+          <>
+            <TabBtn id="airplus" label="On AirPlus" n={onAirPlus.length} />
+            <TabBtn id="notlive" label="Not live" n={notLive.length} />
+            <TabBtn id="low" label="Low stock" n={lowStock.length} />
+            <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
+          </>
+        )}
       </div>
 
       <div
@@ -305,17 +317,22 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                       <td>
                         <PriceProfitCell
                           priceSatang={p.onlinePriceSatang}
-                          profitSatang={onlineProfit}
+                          profitSatang={seesProfit ? onlineProfit : null}
                         />
                       </td>
                       <td>
                         <PriceProfitCell
                           priceSatang={p.offlinePriceSatang}
-                          profitSatang={b2cProfit}
+                          profitSatang={seesProfit ? b2cProfit : null}
                         />
                       </td>
                       <td align="center">
-                        <StockCell variantId={p.variantId} onHand={p.onHand} held={p.held} />
+                        <StockCell
+                          variantId={p.variantId}
+                          onHand={p.onHand}
+                          held={p.held}
+                          readOnly={!managesCatalog}
+                        />
                       </td>
                       <td>
                         {(() => {

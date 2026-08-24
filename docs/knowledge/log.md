@@ -68,3 +68,10 @@ sources: [session 2026-08-09]
   channels pause independently. AirPlus is real (`status`); Shopee is bookkeeping only
   (`shopee_listed` → the manual worklist), and the label says so. See
   [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Product table by role: a mechanic gets the **All** tab only, no edit anywhere, and
+  **no profit** (the API withholds `itemCostSatang` rather than blanking a number); an admin
+  **cannot change a price** (`canEditPrice`, super-admin only) but may still price a NEW product.
+  Fixed a server-side trap on the way: `apiFetch` did not forward the staff session from server
+  components, so role-shaped GETs degraded to their most restricted form. See
+  [auth/roles-model](auth/roles-model.md).

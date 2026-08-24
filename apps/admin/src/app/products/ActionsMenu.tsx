@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { canDeleteProduct } from "@l-shopee/core";
+import { canDeleteProduct, canWrite } from "@l-shopee/core";
 import { setProductPaused, setProductShopeeListed } from "@/lib/api";
 import { channelActionLabel } from "@/lib/channelActions";
 import { useStaffRole } from "../StaffRoleProvider";
@@ -44,6 +44,9 @@ export function ActionsMenu({
   const role = useStaffRole();
 
   const mayChangeChannels = !!role && canDeleteProduct(role);
+  // A mechanic reads the catalog and edits nothing (owner, 2026-08-24), so the menu offers View —
+  // the row already links there, but a menu with one dead item would be worse than one that works.
+  const mayEdit = !!role && canWrite(role, "products");
   const isDraft = status === "draft";
   const paused = status !== "active" && !isDraft;
   const listed = shopeeListed === 1;
@@ -107,9 +110,15 @@ export function ActionsMenu({
 
       {open && (
         <div className="actions-menu" role="menu">
-          <a className="actions-item" role="menuitem" href={`/products/${productId}/edit?edit=1`}>
-            Edit
-          </a>
+          {mayEdit ? (
+            <a className="actions-item" role="menuitem" href={`/products/${productId}/edit?edit=1`}>
+              Edit
+            </a>
+          ) : (
+            <a className="actions-item" role="menuitem" href={`/products/${productId}`}>
+              View
+            </a>
+          )}
 
           {mayChangeChannels && !isDraft && (
             <button

@@ -7,6 +7,8 @@ import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricin
 import { BarcodePreview } from "./BarcodePreview";
 import { CopyButton } from "./CopyButton";
 import { ProfitPeek } from "./ProfitPeek";
+import { canSeeProfit } from "@l-shopee/core";
+import { useStaffRole } from "../StaffRoleProvider";
 
 const n0 = (x: number | undefined | null): number => (Number.isFinite(x) ? (x as number) : 0);
 const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
@@ -30,11 +32,11 @@ const groupHead = {
   marginBottom: 12,
 } as const;
 
-function PriceProfit({ price, profit }: { price: number; profit: number }) {
+function PriceProfit({ price, profit }: { price: number; profit: number | null }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       {baht(price)}
-      <ProfitPeek value={profit} />
+      {profit !== null && <ProfitPeek value={profit} />}
     </span>
   );
 }
@@ -149,6 +151,11 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
   const p = detail.product;
   const pr = detail.pricing;
   const held = detail.held ?? 0;
+  // A mechanic sees the selling prices but not the margin (owner, 2026-08-24). The API withholds
+  // the cost from them, so the figures below would read as full profit — hide the reveal entirely
+  // rather than show a number computed from a zero.
+  const role = useStaffRole();
+  const seesProfit = !!role && canSeeProfit(role);
 
   // Profits from the saved pricing (view mode).
   const vTC = pr ? totalCostSatang(pr.itemCostSatang, Boolean(pr.taxOnCost)) : 0;
@@ -289,10 +296,18 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
         >
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Pricing</div>
           {[
-            { label: "Den Air Service", price: n0(pr?.targetPriceSatang), profit: vB2cProfit },
-            { label: "B2B", price: n0(pr?.b2bPriceSatang), profit: vB2bProfit },
-            { label: "AirPlus", price: n0(pr?.onlinePriceSatang), profit: vOnlineProfit },
-            { label: "AC on Sales", price: vShopee, profit: vShopeeProfit },
+            {
+              label: "Den Air Service",
+              price: n0(pr?.targetPriceSatang),
+              profit: seesProfit ? vB2cProfit : null,
+            },
+            { label: "B2B", price: n0(pr?.b2bPriceSatang), profit: seesProfit ? vB2bProfit : null },
+            {
+              label: "AirPlus",
+              price: n0(pr?.onlinePriceSatang),
+              profit: seesProfit ? vOnlineProfit : null,
+            },
+            { label: "AC on Sales", price: vShopee, profit: seesProfit ? vShopeeProfit : null },
           ].map((t) => (
             <div
               key={t.label}

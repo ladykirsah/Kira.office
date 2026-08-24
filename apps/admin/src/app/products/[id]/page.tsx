@@ -8,6 +8,8 @@ import { PageHeader } from "../../PageHeader";
 import { BackLink } from "../../BackLink";
 import { useToast } from "../../ToastProvider";
 import { ProductView } from "../ProductView";
+import { canWrite } from "@l-shopee/core";
+import { useStaffRole } from "../../StaffRoleProvider";
 import { DeleteProductCard } from "../DeleteProductCard";
 
 /**
@@ -17,6 +19,9 @@ import { DeleteProductCard } from "../DeleteProductCard";
  */
 export default function ProductViewPage() {
   const id = useParams().id as string;
+  const role = useStaffRole();
+  // A mechanic reads product details and edits nothing (owner, 2026-08-24).
+  const mayEdit = !!role && canWrite(role, "products");
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
@@ -69,11 +74,13 @@ export default function ProductViewPage() {
         subtitle={p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
         below={<BackLink href="/products">Products</BackLink>}
         action={
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
-            <a className="btn-primary" href={`/products/${id}/edit?edit=1`}>
-              Edit
-            </a>
-          </div>
+          mayEdit ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+              <a className="btn-primary" href={`/products/${id}/edit?edit=1`}>
+                Edit
+              </a>
+            </div>
+          ) : undefined
         }
       />
       <ProductView detail={detail} />

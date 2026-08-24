@@ -57,6 +57,8 @@ API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly tw
 | `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
 | `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
 | `canViewSlips` | YES — `GET /file/:key` for `slip/` keys, and `viewerIsSuperAdmin` on `GET /orders/:id` (added 2026-08-24) |
+| `canEditPrice` | YES — `PUT /products/:id/pricing` (added 2026-08-24) |
+| `canSeeProfit` | YES — `GET /products` withholds `itemCostSatang` (added 2026-08-24) |
 | `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
 
 Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on
@@ -121,3 +123,37 @@ As of 2026-07-27: `resolveActor(db, email, …)` (in `apps/api/src/auth.ts`, re-
 - `packages/core/src/access.ts`, `packages/core/src/access.test.ts`, `packages/core/src/rbac.ts` (dormant)
 - `apps/api/src/auth.ts` — `resolveActor`, `requireRole`
 - PR #95
+
+## The product table by role (owner, 2026-08-24)
+
+| | Mechanic | Admin | Super admin |
+| --- | --- | --- | --- |
+| Tabs | **All only** | all | all |
+| Open a product | view page only | view + edit | view + edit |
+| Edit anything | **no** | yes | yes |
+| Stock pencil / row Edit | **hidden** | shown | shown |
+| See profit | **no** | yes | yes |
+| Change a price | no | **no** | yes |
+| Set a price when ADDING | no | **yes** | yes |
+| Pause on a channel · delete | no | no | yes |
+
+**Profit is hidden by withholding COST, not by blanking a number.** `GET /products` sends
+`itemCostSatang: 0` to a mechanic. The page computes profit as price minus cost, so shipping the
+cost and hiding the answer would be decoration — anyone reading the response could subtract. Selling
+prices still go through; those are not secret.
+
+**An admin may price a NEW product but not re-price an existing one** (owner's choice: A1). Adding
+goes through `POST /products/full`; changing goes through `PUT /products/:id/pricing`, which
+`canEditPrice` refuses. On the edit page the price fields render as **plain body-coloured text, not
+disabled inputs** (owner: "plain black text") — a greyed box reads as broken or switch-on-able,
+text reads as a fact. The VAT-on-cost toggle is read-only with them: it changes the cost the margins
+are figured from, so leaving it flippable would let an admin make a change that fails on save.
+
+### The server-side session trap this exposed
+
+Role-shaped responses broke the moment a SERVER component asked for them: `apiFetch` forwarded only
+the Cloudflare Access JWT, never the staff session, so a server-rendered page reached the API with
+no identity and every role-gated response degraded to its most restricted form — the owner's own
+products page would have arrived with cost stripped. `apiFetch` now forwards the staff cookie as
+`X-Staff-Session`, the same translation the browser proxy does. **Any future role-shaped GET
+depends on this.**

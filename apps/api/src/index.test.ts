@@ -9128,3 +9128,116 @@ describe("POST /products/:id/shopee/list|unlist — the Shopee listing flag", ()
     expect((await post(env, "unlist")).status).toBe(401);
   });
 });
+
+// ── Price is the owner's; profit is not a mechanic's (owner, 2026-08-24) ─────────────────────────
+describe("product money: who may change a price, and who may see margin", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','S','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id,product_id,created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO pricing_profiles
+           (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang,
+            b2b_price_satang, online_commission_bp, tax_on_cost, active_from)
+         VALUES ('pp1','v1',40000,90000,95000,80000,0,0,?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const putPricing = (env: Env, token: string) =>
+    worker.fetch!(
+      new Request("https://x/products/p1/pricing", {
+        method: "PUT",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify({ itemCostSatang: 10, onlinePriceSatang: 999999 }),
+      }),
+      env,
+      ctx,
+    );
+
+  const cost = (raw: DatabaseSync) =>
+    (
+      raw.prepare(`SELECT item_cost_satang AS c FROM pricing_profiles WHERE id='pp1'`).get() as {
+        c: number;
+      }
+    ).c;
+
+  it("given the super admin > the price change lands", async () => {
+    const { env, token } = await seed("super_admin");
+    expect((await putPricing(env, token)).status).toBe(200);
+  });
+
+  it("given an admin > 403, and the stored cost is untouched", async () => {
+    // An admin runs the catalog; what the shop charges is not theirs to move.
+    const { raw, env, token } = await seed("admin");
+    const res = await putPricing(env, token);
+    expect(res.status).toBe(403);
+    expect((await res.json()) as { reason: string }).toMatchObject({ reason: "super_admin_only" });
+    expect(cost(raw)).toBe(40000);
+  });
+
+  it("given a mechanic > 403 as well; they may not write products at all", async () => {
+    const { raw, env, token } = await seed("mechanic");
+    expect((await putPricing(env, token)).status).toBe(403);
+    expect(cost(raw)).toBe(40000);
+  });
+
+  describe("cost is withheld from a mechanic, so margin cannot be worked out", () => {
+    const listCost = async (env: Env, token: string) => {
+      const res = await worker.fetch!(
+        new Request("https://x/products", { headers: { "X-Staff-Session": token } }),
+        env,
+        ctx,
+      );
+      const body = (await res.json()) as { products: { itemCostSatang: number }[] };
+      return body.products[0]!.itemCostSatang;
+    };
+
+    it("given the super admin > the real cost comes through", async () => {
+      const { env, token } = await seed("super_admin");
+      expect(await listCost(env, token)).toBe(40000);
+    });
+
+    it("given an admin > the real cost comes through; margin is their working information", async () => {
+      const { env, token } = await seed("admin");
+      expect(await listCost(env, token)).toBe(40000);
+    });
+
+    it("given a mechanic > cost is ZERO in the payload, not merely hidden in the page", async () => {
+      // The page computes profit as price minus cost. Shipping the cost and hiding the answer
+      // would be decoration — anyone reading the response could do the subtraction.
+      const { env, token } = await seed("mechanic");
+      expect(await listCost(env, token)).toBe(0);
+    });
+
+    it("given a mechanic > the SELLING prices still come through; they are not secret", async () => {
+      const { env, token } = await seed("mechanic");
+      const res = await worker.fetch!(
+        new Request("https://x/products", { headers: { "X-Staff-Session": token } }),
+        env,
+        ctx,
+      );
+      const body = (await res.json()) as { products: { onlinePriceSatang: number }[] };
+      expect(body.products[0]!.onlinePriceSatang).toBe(95000);
+    });
+  });
+});
