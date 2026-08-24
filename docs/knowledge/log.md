@@ -16,3 +16,8 @@ sources: [session 2026-08-09]
   password/PIN rotation pending on `/me`). 81 concept files across 8 areas. Written by the
   outgoing Claude agent as its handover; verified by an adversarial review pass before
   merge.
+
+- **2026-08-24** — Added [auth/practice-copy-login-confusion](auth/practice-copy-login-confusion.md):
+  a correct password rejected by a local practice copy, the four-worktree database drift behind it,
+  and the `describePracticeCopy` banner now rendered from `layout.tsx` so it reaches `/login`.
+  Linked from [auth/index](auth/index.md).
