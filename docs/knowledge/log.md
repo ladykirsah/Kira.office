@@ -53,3 +53,7 @@ sources: [session 2026-08-09]
   keep no product name, so deleting one would damage past orders and the books built from them.
   Archive/restore moved to `POST /products/:id/archive|unarchive` (restore → draft, never active).
   The row menu's Archive item was removed. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Products table: the **AirPlus** column became **Status**, mirroring the tabs
+  (Live / Low / Out / Paused / Draft / Archived) with not-live states outranking stock. Reverses the
+  2 Aug decision that folded "Out" into Active. See [back-office/products](back-office/products.md).

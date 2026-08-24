@@ -225,7 +225,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                   <th align="left">Online price</th>
                   <th align="left">B2C price</th>
                   <th align="center">Stock</th>
-                  <th align="left">AirPlus</th>
+                  <th align="left">Status</th>
                   <th align="left">Action</th>
                 </tr>
               </thead>

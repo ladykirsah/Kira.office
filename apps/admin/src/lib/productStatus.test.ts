@@ -3,33 +3,70 @@ import { productStatusTag, isNotLive } from "./productStatus";
 
 // The "AirPlus" column shows one of three states, read straight off the product's `status` field.
 describe("productStatusTag", () => {
-  it("given an active product > Active (green), live on AirPlus", () => {
-    expect(productStatusTag({ status: "active" })).toEqual({ label: "Active", cls: "on" });
+  /**
+   * The "Status" column (owner, 2026-08-24) — renamed from "AirPlus" and now showing one word per
+   * row that matches the tab it would be found under:
+   *
+   *   Live · Low · Out · Paused · Draft · Archived
+   *
+   * A product can qualify for two at once — live AND out of stock — and the column shows one pill,
+   * so precedence is the whole design:
+   *
+   *   1. Not live at all (Archived → Draft → Paused). If customers cannot see it, its stock level
+   *      is not the thing to tell someone about.
+   *   2. Out, then Low. It IS live, so stock is now the most urgent fact about it.
+   *   3. Live. Nothing to flag.
+   *
+   * This deliberately REVERSES the 2 Aug 2026 decision that folded "Out" into Active because stock
+   * had its own column. The owner asked for the column to mirror the tabs instead.
+   */
+  const of = (status: string, onHand = 10) => productStatusTag({ status, onHand });
+
+  it("given active with healthy stock > Live", () => {
+    expect(of("active", 10)).toEqual({ label: "Live", cls: "on" });
   });
 
-  it("given a draft product > Draft (gray), not published yet", () => {
-    expect(productStatusTag({ status: "draft" })).toEqual({ label: "Draft", cls: "off" });
+  it("given active but out of stock > Out — live, and customers cannot buy it", () => {
+    expect(of("active", 0)).toEqual({ label: "Out", cls: "bad" });
+    expect(of("active", -2)).toEqual({ label: "Out", cls: "bad" });
   });
 
-  it("given a paused product > Paused (yellow) — the storefront hides it", () => {
-    expect(productStatusTag({ status: "paused" })).toEqual({ label: "Paused", cls: "pause" });
+  it("given active and running low > Low", () => {
+    expect(of("active", 1)).toEqual({ label: "Low", cls: "warn" });
+    expect(of("active", 3)).toEqual({ label: "Low", cls: "warn" });
   });
 
-  it("given any status that is neither active nor draft > Paused", () => {
-    // Paused is the catch-all for 'deliberately not live', so an unexpected status never reads Active.
-    expect(productStatusTag({ status: "hidden" }).label).toBe("Paused");
+  it("given draft > Draft, whatever the stock says", () => {
+    // Not live means stock is not the headline: nobody can buy it either way.
+    expect(of("draft", 0).label).toBe("Draft");
+    expect(of("draft", 50).label).toBe("Draft");
   });
 
-  it("stock does not change the AirPlus state — that is the Stock column's job", () => {
-    // The old "Out" state is gone: an active product reads Active whether or not it has stock now.
-    expect(productStatusTag({ status: "active" }).label).toBe("Active");
+  it("given paused > Paused, whatever the stock says", () => {
+    expect(of("paused", 0).label).toBe("Paused");
+    expect(of("paused", 50).label).toBe("Paused");
   });
 
-  it("given an archived product > Archived, its own state — not lumped in with Paused", () => {
-    // Archived and Paused are both "not live", but they are not the same thing: Paused is a
-    // decision you can undo from the product page, Archived is what deleting leaves behind. The
-    // merged "Not live" tab holds both, so the pill is the only thing left that tells them apart.
-    expect(productStatusTag({ status: "archived" })).toEqual({ label: "Archived", cls: "bad" });
+  it("given archived > Archived, and it outranks every other state", () => {
+    expect(of("archived", 0)).toEqual({ label: "Archived", cls: "bad" });
+    expect(of("archived", 50).label).toBe("Archived");
+  });
+
+  it("given an unrecognised status > Paused, never Live", () => {
+    // Same reasoning as isNotLive: the safe default is "not in front of customers".
+    expect(of("hidden", 10).label).toBe("Paused");
+  });
+
+  it("every label matches a tab, so the column explains where a row lives", () => {
+    const labels = [
+      of("active", 10).label,
+      of("active", 1).label,
+      of("active", 0).label,
+      of("paused").label,
+      of("draft").label,
+      of("archived").label,
+    ];
+    expect(labels).toEqual(["Live", "Low", "Out", "Paused", "Draft", "Archived"]);
   });
 });
 

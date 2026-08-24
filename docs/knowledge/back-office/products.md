@@ -99,3 +99,31 @@ Both actions are **super-admin only** (`canDeleteProduct`), and the UI hides the
 else. The products-table row menu lost its Archive item entirely (owner: "just delete all current
 archive menu item") — it is now Edit + View, and both removal actions live in one danger zone at the
 bottom of the product's own page, where there is room to explain the difference.
+
+## The "Status" column (owner, 2026-08-24)
+
+The products table's **AirPlus** column became **Status**, showing one word per row that matches the
+tab the row would be found under:
+
+| Word | Pill | Means |
+| --- | --- | --- |
+| **Live** | `on` | active, stock healthy |
+| **Low** | `warn` | active, at or below `LOW_STOCK_THRESHOLD` (3) |
+| **Out** | `bad` | active, on-hand ≤ 0 |
+| **Paused** | `pause` | deliberately not live |
+| **Draft** | `off` | not live, not finished |
+| **Archived** | `bad` | not live, because it was deleted |
+
+**Precedence is the design** — a product can be live AND out of stock, and there is one pill:
+
+1. Not live at all (Archived → Draft → Paused). If customers cannot see it, its stock level is not
+   the thing worth saying about it.
+2. Out, then Low. It IS live, so stock is the most urgent fact.
+3. Live.
+
+An unrecognised status reads **Paused**, never Live — the same safe default as
+[isNotLive](#the-not-live-tab-and-the-four-product-states-owner-2026-08-24).
+
+This **reverses** the 2 Aug 2026 decision that folded "Out" into Active because stock had its own
+column; the owner asked for the column to mirror the tabs instead. The stock NUMBER is still its own
+column — Status is the flag, not the figure.
