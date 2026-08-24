@@ -46,7 +46,7 @@ import worker, {
   applyAdjustmentToDb,
   applySyncToDb,
   applyOnlineSaleToDb,
-  archiveProduct,
+  setProductPaused,
   BACKUP_TABLES,
   buildCorsHeaders,
   createClaim,
@@ -3516,9 +3516,9 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     expect(batched.length).toBe(0);
   });
 
-  it("archiveProduct resolves (soft-delete)", async () => {
+  it("setProductPaused resolves (the reversible half of removing a product)", async () => {
     const { db } = makeDb({});
-    await expect(archiveProduct(db, "p1")).resolves.toBeUndefined();
+    await expect(setProductPaused(db, "p1", true)).resolves.toBeUndefined();
   });
 
   it("DELETE /products/:id without a staff session > 401, it does not archive anything", async () => {
@@ -8859,7 +8859,10 @@ describe("GET /orders/:id — the slip gate follows the staff role", () => {
 // products list has to be able to return archived rows — and the SAME payload feeds the POS and the
 // Barcodes page, where an archived product must never appear or you could sell a deleted part.
 // Hence opt-in: the default is unchanged, and only the products table asks.
-describe("GET /products — archived rows are opt-in", () => {
+// "Archived" was retired into "paused" on 2026-08-24 (owner: "Archived = Paused globally, and
+// delete = gone"), so the list no longer hides anything and the `includeArchived` opt-in is gone.
+// Three states remain: active, draft, paused — all of them normal rows the admin should see.
+describe("GET /products — every state the catalog has", () => {
   const NOW = 1_800_000_000_000;
 
   function seeded() {
@@ -8867,8 +8870,7 @@ describe("GET /products — archived rows are opt-in", () => {
     for (const [id, name, status] of [
       ["p-live", "Live compressor", "active"],
       ["p-draft", "Half-written", "draft"],
-      ["p-paused", "Hidden on purpose", "paused"],
-      ["p-gone", "Deleted one", "archived"],
+      ["p-paused", "Taken off the shop", "paused"],
     ] as const) {
       raw
         .prepare(
@@ -8880,32 +8882,11 @@ describe("GET /products — archived rows are opt-in", () => {
     return { env: { DB: asD1(raw) } as unknown as Env };
   }
 
-  const ids = async (env: Env, qs = "") => {
-    const res = await worker.fetch!(new Request(`https://x/products${qs}`), env, ctx);
+  it("returns live, draft and paused alike — the tab decides what is shown, not the query", async () => {
+    const { env } = seeded();
+    const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
     const body = (await res.json()) as { products: { id: string }[] };
-    return body.products.map((p) => p.id).sort();
-  };
-
-  it("by default > archived rows stay out, exactly as before", async () => {
-    const { env } = seeded();
-    expect(await ids(env)).toEqual(["p-draft", "p-live", "p-paused"]);
-  });
-
-  it("with includeArchived=1 > archived rows come too, for the Not-live tab", async () => {
-    const { env } = seeded();
-    expect(await ids(env, "?includeArchived=1")).toEqual([
-      "p-draft",
-      "p-gone",
-      "p-live",
-      "p-paused",
-    ]);
-  });
-
-  it("any other value > treated as no; only an explicit opt-in widens a soft-delete filter", async () => {
-    const { env } = seeded();
-    expect(await ids(env, "?includeArchived=0")).not.toContain("p-gone");
-    expect(await ids(env, "?includeArchived=yes")).not.toContain("p-gone");
-    expect(await ids(env, "?includeArchived=")).not.toContain("p-gone");
+    expect(body.products.map((p) => p.id).sort()).toEqual(["p-draft", "p-live", "p-paused"]);
   });
 });
 
@@ -9004,9 +8985,9 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
     expect(count(raw, `SELECT COUNT(*) AS n FROM products WHERE id='p1'`)).toBe(1);
   });
 
-  it("archiving is what a sold product gets instead, and it is reversible", async () => {
+  it("pausing is what a sold product gets instead, and it is reversible", async () => {
     // Its own endpoint rather than PATCH: PATCH /products/:id demands a whole product body, and
-    // "hide this" should not require re-sending the catalog entry to say so.
+    // "take this off the shop" should not require re-sending the catalog entry to say so.
     const { raw, env, token } = await seed({ sold: true });
     const post = (path: string) =>
       worker.fetch!(
@@ -9020,22 +9001,21 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
     const status = () =>
       (raw.prepare(`SELECT status FROM products WHERE id='p1'`).get() as { status: string }).status;
 
-    expect((await post("archive")).status).toBe(200);
-    expect(status()).toBe("archived");
+    expect((await post("pause")).status).toBe(200);
+    expect(status()).toBe("paused");
 
     // ...and back again. That is the whole difference from delete: nothing was lost.
-    expect((await post("unarchive")).status).toBe(200);
-    expect(status()).toBe("draft");
+    expect((await post("resume")).status).toBe(200);
+    expect(status()).toBe("active");
   });
 
-  it("unarchiving returns a product to DRAFT, never straight back into the shop", async () => {
-    // The old status is not remembered, and guessing "active" would republish a product to
-    // customers as a side effect of undoing a delete. Draft is the safe landing: not live until
-    // someone says so.
+  it("resuming puts a product back ON SALE — pausing is what you do to something that was selling", async () => {
+    // Deliberately not "draft": you pause a product that was on sale, so the undo is putting it
+    // back on sale. It publishes, which is why it is super-admin only and the button says so.
     const { raw, env, token } = await seed();
-    raw.prepare(`UPDATE products SET status='archived' WHERE id='p1'`).run();
+    raw.prepare(`UPDATE products SET status='paused' WHERE id='p1'`).run();
     await worker.fetch!(
-      new Request("https://x/products/p1/unarchive", {
+      new Request("https://x/products/p1/resume", {
         method: "POST",
         headers: { "X-Staff-Session": token },
       }),
@@ -9044,10 +9024,10 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
     );
     expect(
       (raw.prepare(`SELECT status FROM products WHERE id='p1'`).get() as { status: string }).status,
-    ).toBe("draft");
+    ).toBe("active");
   });
 
-  it("archiving is super-admin only, like deleting", async () => {
+  it("pausing is super-admin only, like deleting", async () => {
     const { raw, env } = await seed();
     raw
       .prepare(
@@ -9057,7 +9037,7 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
       .run(NOW);
     const { token } = await createStaffSession(asD1(raw), "u2", NOW);
     const res = await worker.fetch!(
-      new Request("https://x/products/p1/archive", {
+      new Request("https://x/products/p1/pause", {
         method: "POST",
         headers: { "X-Staff-Session": token },
       }),

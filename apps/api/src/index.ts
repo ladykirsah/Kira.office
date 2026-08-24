@@ -2230,12 +2230,12 @@ async function getTerms(env: Env): Promise<Response> {
 /**
  * The admin products list.
  *
- * `includeArchived` exists for the merged "Not live" tab (owner, 2026-08-24), which shows draft +
- * paused + archived together. It is OPT-IN and must stay that way: this same payload feeds the POS
- * and the Barcodes page, and an archived product appearing there would let someone sell or label a
- * part that has been deleted. The soft-delete invariant is unchanged everywhere it is not asked for.
+ * The `includeArchived` opt-in that lived here is gone: "archived" was retired into "paused"
+ * (owner, 2026-08-24 — migration 0088), so a not-live product is a normal row the list should show.
+ * The `status <> 'archived'` filter stays as pure defence — it costs nothing and keeps a
+ * previously-deleted product out of the POS and Barcodes if 0088 has not run somewhere yet.
  */
-async function listProducts(env: Env, includeArchived = false): Promise<Response> {
+async function listProducts(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
@@ -2268,11 +2268,9 @@ async function listProducts(env: Env, includeArchived = false): Promise<Response
      LEFT JOIN product_variants v
        ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)
      LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id
-     WHERE (?1 = 1 OR p.status <> 'archived')
+     WHERE p.status <> 'archived'
      ORDER BY p.created_at DESC LIMIT 200`,
-  )
-    .bind(includeArchived ? 1 : 0)
-    .all();
+  ).all();
   return json({ products: results });
 }
 
@@ -5256,17 +5254,23 @@ export async function setVariantBarcode(
 }
 
 /**
- * Archive a product, or bring it back — "not live", and reversible (owner, 2026-08-24).
+ * Take a product off the shop, or put it back — "not live", and reversible.
  *
  * The counterpart to `deleteProductForever`: this keeps everything, including sales history, which
- * is why it is the answer for a product that has a past. Restoring lands on DRAFT, never on active:
- * the previous status is not recorded, and guessing "active" would put a product back in front of
- * customers as a side effect of undoing a delete.
+ * is why it is the answer for a product that has a past.
+ *
+ * There used to be a separate "archived" state meaning the same thing. The owner collapsed the two
+ * on 2026-08-24 — "Archived = Paused globally, and delete = gone" — so there are three states:
+ * active (live), draft (not finished), paused (not live). Migration 0088 rewrote the stored value.
+ *
+ * Resuming goes to ACTIVE, not draft: pausing is something you do to a product that was on sale, so
+ * the undo is putting it back on sale. That does publish it to customers, which is why it is a
+ * deliberate, super-admin-only action and the button says so.
  */
-export async function archiveProduct(db: D1Database, id: string, archived = true): Promise<void> {
+export async function setProductPaused(db: D1Database, id: string, paused: boolean): Promise<void> {
   await db
     .prepare("UPDATE products SET status = ? WHERE id = ?")
-    .bind(archived ? "archived" : "draft", id)
+    .bind(paused ? "paused" : "active", id)
     .run();
 }
 
@@ -6334,8 +6338,7 @@ const worker = {
     }
 
     if (url.pathname === "/products" && request.method === "GET") {
-      // Only an explicit "1" widens a soft-delete filter — no truthy-string guessing.
-      return listProducts(env, url.searchParams.get("includeArchived") === "1");
+      return listProducts(env);
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {
@@ -7091,24 +7094,23 @@ const worker = {
       }
       return json({ ok: true });
     }
-    // Archive / unarchive — "not live", and reversible. The counterpart to DELETE below: this one
-    // keeps everything and can be undone, which is why a product with sales history gets this
-    // instead. Its own route because PATCH /products/:id demands a whole product body, and "hide
-    // this" should not require re-sending the catalog entry to say so.
-    const archiveMatch = url.pathname.match(/^\/products\/([^/]+)\/(archive|unarchive)$/);
-    if (archiveMatch && request.method === "POST") {
+    // Pause / resume — "not live", and reversible. The counterpart to DELETE below: this keeps
+    // everything and can be undone, which is why a product with sales history gets this instead.
+    // Its own route because PATCH /products/:id demands a whole product body, and "take this off
+    // the shop" should not require re-sending the catalog entry to say so.
+    const pauseMatch = url.pathname.match(/^\/products\/([^/]+)\/(pause|resume)$/);
+    if (pauseMatch && request.method === "POST") {
       const actor = await requireStaff(request, env);
       if (actor instanceof Response) return actor;
       // Same authority as deleting: taking a product off the shop is the owner's call.
       if (!canDeleteProduct(actor.role)) {
         return json({ error: "forbidden", reason: "super_admin_only" }, 403);
       }
-      // Unarchive lands on DRAFT, never on active. The previous status is not remembered, and
-      // guessing "active" would put a product back in front of customers as a side effect of
-      // undoing a delete.
-      const archiving = archiveMatch[2] === "archive";
-      await archiveProduct(env.DB, archiveMatch[1]!, archiving);
-      return json({ ok: true, status: archiving ? "archived" : "draft" });
+      // Resuming puts it back ON SALE, because pausing is something you do to a product that was
+      // on sale. That is a publish, which is why it is super-admin only and the button says so.
+      const pausing = pauseMatch[2] === "pause";
+      await setProductPaused(env.DB, pauseMatch[1]!, pausing);
+      return json({ ok: true, status: pausing ? "paused" : "active" });
     }
 
     if (productById && request.method === "DELETE") {

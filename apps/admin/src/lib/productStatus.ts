@@ -16,8 +16,8 @@ export interface StatusTag {
  * A product can qualify for two at once — live AND out of stock — and there is one pill, so the
  * ORDER is the design:
  *
- *   1. Not live at all (Archived → Draft → Paused). If customers cannot see it, its stock level is
- *      not the thing worth saying about it.
+ *   1. Not live at all (Draft → Paused). If customers cannot see it, its stock level is not the
+ *      thing worth saying about it.
  *   2. Out, then Low. It IS live, so stock is now the most urgent fact.
  *   3. Live. Nothing to flag.
  *
@@ -26,9 +26,8 @@ export interface StatusTag {
  * still its own column — this is the flag, not the figure.
  */
 export function productStatusTag(p: Pick<ProductRow, "status" | "onHand">): StatusTag {
-  // Archived first: it is the one state you cannot get back to from the product page, and it must
-  // never be softened into Paused.
-  if (p.status === "archived") return { label: "Archived", cls: "bad" };
+  // Three states since 2026-08-24: active, draft, paused. "archived" was retired into paused
+  // (migration 0088) — anything not active and not draft reads Paused, including a stale row.
   if (p.status === "draft") return { label: "Draft", cls: "off" };
   if (p.status !== "active") return { label: "Paused", cls: "pause" };
 

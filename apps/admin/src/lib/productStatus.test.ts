@@ -7,13 +7,13 @@ describe("productStatusTag", () => {
    * The "Status" column (owner, 2026-08-24) — renamed from "AirPlus" and now showing one word per
    * row that matches the tab it would be found under:
    *
-   *   Live · Low · Out · Paused · Draft · Archived
+   *   Live · Low · Out · Paused · Draft
    *
    * A product can qualify for two at once — live AND out of stock — and the column shows one pill,
    * so precedence is the whole design:
    *
-   *   1. Not live at all (Archived → Draft → Paused). If customers cannot see it, its stock level
-   *      is not the thing to tell someone about.
+   *   1. Not live at all (Draft → Paused). If customers cannot see it, its stock level is not the
+   *      thing to tell someone about.
    *   2. Out, then Low. It IS live, so stock is now the most urgent fact about it.
    *   3. Live. Nothing to flag.
    *
@@ -47,9 +47,11 @@ describe("productStatusTag", () => {
     expect(of("paused", 50).label).toBe("Paused");
   });
 
-  it("given archived > Archived, and it outranks every other state", () => {
-    expect(of("archived", 0)).toEqual({ label: "Archived", cls: "bad" });
-    expect(of("archived", 50).label).toBe("Archived");
+  it("given the old 'archived' value > Paused; the two were collapsed into one state", () => {
+    // Owner, 2026-08-24: "Archived = Paused globally, and delete = gone." Migration 0088 rewrites
+    // every stored 'archived' to 'paused'; this is the belt-and-braces reading of a stale row.
+    expect(of("archived", 0).label).toBe("Paused");
+    expect(of("archived", 50).label).toBe("Paused");
   });
 
   it("given an unrecognised status > Paused, never Live", () => {
@@ -64,9 +66,8 @@ describe("productStatusTag", () => {
       of("active", 0).label,
       of("paused").label,
       of("draft").label,
-      of("archived").label,
     ];
-    expect(labels).toEqual(["Live", "Low", "Out", "Paused", "Draft", "Archived"]);
+    expect(labels).toEqual(["Live", "Low", "Out", "Paused", "Draft"]);
   });
 });
 
@@ -89,6 +90,7 @@ describe("isNotLive", () => {
   });
 
   for (const status of ["draft", "paused", "archived"]) {
+    // "archived" is retired (migration 0088) but a stale row must still never read as live.
     it(`given ${status} > not live`, () => {
       expect(isNotLive(status)).toBe(true);
     });

@@ -29,18 +29,8 @@ export interface ProductRow {
   held: number;
 }
 
-/**
- * The admin products list.
- *
- * `includeArchived` is OPT-IN and only the products table passes it, for the merged "Not live" tab.
- * The POS and the Barcodes page call this too — an archived product must never reach either, or a
- * deleted part could be sold or labelled.
- */
-export async function fetchProducts(
-  opts: { includeArchived?: boolean } = {},
-): Promise<ProductRow[]> {
-  const qs = opts.includeArchived ? "?includeArchived=1" : "";
-  const res = await apiFetch(`/products${qs}`, { cache: "no-store" });
+export async function fetchProducts(): Promise<ProductRow[]> {
+  const res = await apiFetch(`/products`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load products (HTTP ${res.status})`);
   type Raw = Omit<ProductRow, "carBrands"> & { carBrandsCsv: string | null };
   const data = (await res.json()) as { products: Raw[] };
@@ -1245,12 +1235,15 @@ export async function deleteProductForever(id: string): Promise<void> {
   throw new Error(body?.error ?? `Delete failed (HTTP ${res.status})`);
 }
 
-/** Archive = "not live", and reversible. Unarchiving lands on Draft, never straight back on sale. */
-export async function setProductArchived(id: string, archived: boolean): Promise<void> {
-  const res = await apiFetch(`/products/${id}/${archived ? "archive" : "unarchive"}`, {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error(`${archived ? "Archive" : "Restore"} failed (HTTP ${res.status})`);
+/**
+ * Pause = "not live", and reversible — the opposite of deleting, which is permanent.
+ *
+ * Resuming puts the product back ON SALE, because pausing is what you do to something that was on
+ * sale. The button says so, since that is a publish.
+ */
+export async function setProductPaused(id: string, paused: boolean): Promise<void> {
+  const res = await apiFetch(`/products/${id}/${paused ? "pause" : "resume"}`, { method: "POST" });
+  if (!res.ok) throw new Error(`${paused ? "Pause" : "Resume"} failed (HTTP ${res.status})`);
 }
 
 export interface BarcodeRow {

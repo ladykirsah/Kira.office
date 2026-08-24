@@ -4,20 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { canDeleteProduct } from "@l-shopee/core";
 import { inputS } from "@/lib/inputStyles";
-import { deleteProductForever, setProductArchived } from "@/lib/api";
+import { deleteProductForever, setProductPaused } from "@/lib/api";
 import { isDeleteConfirmed } from "@/lib/deleteConfirm";
 import { useStaffRole } from "../StaffRoleProvider";
 import { useToast } from "../ToastProvider";
 
 /**
- * The two ways a product leaves the shop, in one place, side by side so the difference is legible.
+ * The two ways a product leaves the shop, side by side so the difference is legible.
  *
- * The owner separated these on 2026-08-24 — before that both words meant the same thing and the
- * table said "Archive" for what this page called "Delete":
+ *   Pause  — not live. Everything is kept and it can be undone. What a product with a past gets.
+ *   Delete — gone from the system. Only possible while the product has no history, because the
+ *            rows that record a sale name no product of their own; the API refuses the rest.
  *
- *   Archive — not live. Everything is kept and it can be undone. What a product with a past gets.
- *   Delete  — gone from the system. Only possible while the product has no history, because the
- *             rows that record a sale name no product of their own; the API refuses the rest.
+ * There were three words for two ideas until 2026-08-24: the table said "Archive", this page said
+ * "Delete", and both called the same endpoint. The owner collapsed Archived into Paused ("Archived
+ * = Paused globally, and delete = gone"), leaving one honest word for each.
  *
  * Renders nothing for anyone but the super admin. Hidden rather than disabled: a greyed-out delete
  * box invites "why can't I?", and the answer is not a fixable state. The API refuses independently.
@@ -29,7 +30,8 @@ export function DeleteProductCard({ productId, status }: { productId: string; st
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const armed = isDeleteConfirmed(confirm);
-  const archived = status === "archived";
+  // Anything that is not live and not a half-written draft is paused.
+  const paused = status !== "active" && status !== "draft";
 
   if (!role || !canDeleteProduct(role)) return null;
 
@@ -51,13 +53,11 @@ export function DeleteProductCard({ productId, status }: { productId: string; st
   return (
     <section className="danger-zone">
       <div>
-        <div className="danger-zone-title">
-          {archived ? "Archived product" : "Remove from shop"}
-        </div>
+        <div className="danger-zone-title">{paused ? "Paused product" : "Remove from shop"}</div>
         <p className="danger-zone-text">
-          {archived
-            ? "This product is archived — customers cannot see it, but nothing has been lost. Restore it to put it back as a draft."
-            : "Archiving hides this product from the shop and keeps everything, including its sales history. Deleting removes it completely, and is only possible if it has never been sold."}
+          {paused
+            ? "Customers cannot see this product, but nothing has been lost. Put it back on sale whenever you want."
+            : "Pausing hides this product from the shop and keeps everything, including its sales history. Deleting removes it completely, and is only possible if it has never been sold."}
         </p>
       </div>
 
@@ -68,16 +68,16 @@ export function DeleteProductCard({ productId, status }: { productId: string; st
           disabled={busy}
           onClick={() =>
             run(
-              () => setProductArchived(productId, !archived),
-              archived ? "Product restored as a draft" : "Product archived",
+              () => setProductPaused(productId, !paused),
+              paused ? "Product is back on sale" : "Product paused",
             )
           }
         >
-          {archived ? "Restore as draft" : "Archive"}
+          {paused ? "Put back on sale" : "Pause"}
         </button>
       </div>
 
-      {!archived && (
+      {!paused && (
         <div>
           <p className="danger-zone-text">
             Or delete it for good. This cannot be undone — type <strong>DELETE</strong> to confirm.
