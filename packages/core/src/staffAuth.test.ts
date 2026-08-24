@@ -11,6 +11,7 @@ import {
   canViewFinance,
   canViewSlips,
   canRefund,
+  canDeleteProduct,
   canReviewClaimRole,
   canReviewPaymentRole,
   canWrite,
@@ -116,6 +117,19 @@ describe("permissions", () => {
     expect(allow(canViewFinance)).toEqual(["super_admin"]);
     expect(allow(canViewSlips)).toEqual(["super_admin"]);
     expect(allow(canRefund)).toEqual(["super_admin"]);
+  });
+
+  it("only the super admin deletes a product (owner, 2026-08-24)", () => {
+    // Deleting archives the row and NO screen restores it — recovery means hand-editing the
+    // database. An admin runs the catalog day to day; destroying a part of it is the owner's call.
+    expect(allow(canDeleteProduct)).toEqual(["super_admin"]);
+  });
+
+  it("deleting a product is stricter than editing one", () => {
+    // Guards the real risk: that someone later "simplifies" this to canWrite(role, "products"),
+    // which is true for an admin too and would silently hand deletion back.
+    expect(canWrite("admin", "products")).toBe(true);
+    expect(canDeleteProduct("admin")).toBe(false);
   });
 
   it("a mechanic assesses claims; payment approval is never theirs", () => {

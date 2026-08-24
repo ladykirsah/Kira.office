@@ -3,7 +3,7 @@ type: plan
 title: Admin consistency-fix backlog
 description: Ranked list of places where the admin UI still violates the design system, and the messiest files — verify file:line at fix time
 tags: [design-system, admin, backlog, tech-debt, dark-mode]
-timestamp: 2026-08-09
+timestamp: 2026-08-24
 status: open
 sources: [kira-admin-design-consistency.md]
 ---
@@ -20,7 +20,7 @@ A ranked audit (July 2026) of where the admin UI deviates from [admin-design-tok
 4. **Empty/loading states** use plain muted text instead of `.empty` on settings list pages.
 5. **Segmented-control/tab buttons hand-rolled 4+ ways** (POS SegBtn/Tab/pills, BusinessTabs, LabelStudio) — unify on `.tab` / `.tab.active`.
 6. **POS renders its own `<h1>`** (not PageHeader); ~10 loading/error branches skip PageHeader → title spacing differs by state.
-7. **Token-less colours in shared CSS**: `.danger-zone` (#eeb3ac/#fdf3f2) and `a.card:hover` (#cfd4da) are the only ones — no dark override.
+7. **Token-less colours in shared CSS**: ~~`.danger-zone`~~ FIXED 2026-08-24 — now `--danger-soft` / `--danger-border`, defined in both themes (it had been a pale pink panel in dark mode with body text at ~1.8:1; the owner spotted it once the delete box moved onto the product page). `a.card:hover` (#cfd4da) REMAINS the last one — no dark override.
 8. **Image tiles**: `#fff` preview background + scattered 6/8/10 radii vs the `.frame` convention (`var(--hover)`, radius 10).
 
 ## Messiest files (worst first)

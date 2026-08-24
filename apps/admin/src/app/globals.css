@@ -16,6 +16,11 @@
   --primary-soft: #fbe9e3;
   --primary-faint: #fdf4f0; /* even lighter coral wash for grouped panels */
   --danger: #c0291f;
+  /* Danger wash, the destructive twin of --primary-soft/-faint. Tokens rather than literals so the
+     danger zone follows the theme: it used to be hardcoded #fdf3f2/#eeb3ac and stayed a pale pink
+     panel in dark mode, with muted text on it at roughly 1.8:1 (owner spotted it, 2026-08-24). */
+  --danger-soft: #fdf3f2;
+  --danger-border: #eeb3ac;
   --warn: #9a6700; /* amber, AA on white */
   --ok: #1a7f37;
   --code-bg: #f0f2f5;
@@ -40,6 +45,12 @@ html[data-theme="dark"] {
   --primary-soft: #2c1a13;
   --primary-faint: #20140f;
   --danger: #ff6b6b;
+  /* The danger twin of --primary-soft, so the delete box reads as the same family as the active
+     menu item (which is --primary-soft + --primary). Derived, not eyeballed: --primary-soft is
+     --primary scaled per channel by ~[0.173, 0.213, 0.232]; the same scaling applied to --danger
+     (#ff6b6b) gives #2c1719 — identical lightness to #2c1a13, red hue instead of orange. */
+  --danger-soft: #2c1719;
+  --danger-border: #5c3033;
   --warn: #e0a93a;
   --ok: #56d364;
   --code-bg: #1e242c;
@@ -1002,8 +1013,8 @@ html[data-theme="dark"] .pill.info {
   gap: 12px;
   width: fit-content;
   max-width: 100%;
-  border: 1px solid #eeb3ac;
-  background: #fdf3f2;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
   border-radius: 12px;
   padding: 16px 18px;
   margin-top: 16px;

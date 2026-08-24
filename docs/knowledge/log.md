@@ -21,3 +21,18 @@ sources: [session 2026-08-09]
   a correct password rejected by a local practice copy, the four-worktree database drift behind it,
   and the `describePracticeCopy` banner now rendered from `layout.tsx` so it reaches `/login`.
   Linked from [auth/index](auth/index.md).
+
+- **2026-08-24** — [auth/roles-model](auth/roles-model.md): recorded that most `staffAuth`
+  permission helpers are defined and tested but **never called** (the file's own "enforced in the
+  API" claim is false), and added the new super-admin-only product delete
+  (`canDeleteProduct`, enforced on `DELETE /products/:id`).
+
+- **2026-08-24** — [conventions/admin-consistency-backlog](conventions/admin-consistency-backlog.md):
+  item 7 half-closed — `.danger-zone` now uses `--danger-soft` / `--danger-border` tokens in both
+  themes; `a.card:hover` is the last token-less colour left.
+
+- **2026-08-24** — Permission matrix ENFORCED (owner's decisions): `canViewFinance`, `canRefund`,
+  `canWrite` and `canReviewPaymentRole` now gate real routes via a new `requireRole` helper reading
+  the **staff session** (not the Access email, which cannot see mechanics in prod). Finance also
+  gains a `NoAccess` page. [auth/roles-model](auth/roles-model.md) rewritten with the enforced/not
+  table and the two-identity-systems explanation.

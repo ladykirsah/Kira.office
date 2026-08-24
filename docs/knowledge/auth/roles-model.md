@@ -3,7 +3,7 @@ type: convention
 title: Roles model — viewerRole email lists, not the dormant rbac.ts
 description: super_admin / mechanic / admin via env email lists; per-capability gates; slip images super-admin only
 tags: [roles, rbac, super-admin, mechanic, permissions, slip]
-timestamp: 2026-08-09
+timestamp: 2026-08-24
 status: live
 sources: [kira-defect-claim-flow.md, kira-slip-super-admin-gating.md, kira-staff-mechanic-section-plan.md, packages/core/src/access.ts]
 ---
@@ -40,6 +40,63 @@ Bank-transfer slips are financial PII, so the owner split access (31 Jul 2026):
 - **View the slip IMAGE** = **super_admin only, everywhere it appears** — the order Documents row AND inside the verifying review block. A regular admin can clear a payment without ever seeing the slip.
 
 Mechanism: slip images live under R2 `slip/` and serve **only** through the Access-gated `GET /file/:key` route → core `privateFileAccess` (in `packages/core/src/access.ts`) → keys matching `slip/` require `isSuperAdmin` (env `SUPER_ADMIN_EMAILS`; local dev fail-open). The admin UI learns the viewer's status via `GET /orders/:id` returning `viewerIsSuperAdmin`. Reject → a "hold" state (awaiting customer; NO 48-hour auto-expire). Payment flow details in [commerce](../commerce/index.md).
+
+## staffAuth permissions: defined and tested, but MOSTLY NOT ENFORCED (verified 2026-08-24)
+
+`packages/core/src/staffAuth.ts` carries the owner's 2026-08-03 permission matrix — `canManageStaff`,
+`canViewFinance`, `canViewSlips`, `canRefund`, `canReviewClaimRole`, `canReviewPaymentRole`,
+`canWrite`, `scanModesFor` — and its header comment claims "Every one of these is enforced in the
+API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly two enforced:
+
+| Helper | Enforced? |
+| --- | --- |
+| `canManageStaff` | YES — every handler in `apps/api/src/staffRoutes.ts` re-checks it |
+| `canDeleteProduct` | YES — `DELETE /products/:id` in `index.ts` (added 2026-08-24) |
+| `canViewFinance` | YES — every `/finance/*` route (added 2026-08-24) |
+| `canRefund` | YES — `/(orders\|claims\|sales)/:id/refund` (added 2026-08-24) |
+| `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
+| `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
+| `canViewSlips`, `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
+
+Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on
+`canViewSlips`. Treat a green permission test as proof the FUNCTION is right, never as proof the
+RULE is applied — grep for the call site before believing any capability is enforced.
+
+## Why the new gates read the STAFF SESSION, not the Access email
+
+Two identity systems now coexist, and they answer different questions:
+
+| | Old — Access email list | New — staff session |
+| --- | --- | --- |
+| Identity | Cloudflare Access JWT email | `X-Staff-Session` → `users` row |
+| Roles from | `SUPER_ADMIN_EMAILS` / `MECHANIC_EMAILS` env | `users.role` |
+| Fails open? | **YES** — `isSuperAdmin`/`viewerRole` return full access when `ACCESS_AUD` is unset | No |
+
+Since per-staff logins shipped, the Access email says who opened the *host*, not who is operating
+the admin — several people can share one Access session and then sign in as different staff. And
+`MECHANIC_EMAILS` is UNSET in prod, so the email lists **cannot recognise a mechanic at all**,
+which makes every "a mechanic may not…" rule unenforceable on that path. All gates added on
+2026-08-24 therefore use `requireStaff` (`apps/api/src/index.ts`, helper `requireRole`).
+
+The refund routes keep their older `isSuperAdmin` email check as well — both must pass. Nothing was
+removed; a second, non-fail-open check was added in front.
+
+**Still on the old path (not migrated):** slip images via `privateFileAccess`, claim review via
+`canReviewClaim`, and `viewerIsSuperAdmin` / `viewerRole` in `GET /orders/:id`, which is what the
+order page uses to shape Zone A.
+
+## Deleting a product: super admin only (owner, 2026-08-24)
+
+`canDeleteProduct(role)` is `role === "super_admin"` — deliberately **stricter than
+`canWrite(role, "products")`**, which an admin passes. Editing is day-to-day catalog work; deleting
+archives the row, every list filters archived rows out, and **no screen restores it**, so undoing
+one means hand-editing D1.
+
+Enforced in `apps/api/src/index.ts` on `DELETE /products/:id` via `requireStaff` → 401 with no
+session, 403 for admin/mechanic. The admin UI mirrors it by rendering `DeleteProductCard` only for
+a super admin (via the new `StaffRoleProvider` context) — a hidden control is a courtesy, the
+Worker's refusal is the permission. Four route tests cover super_admin / admin / mechanic / no
+session against the real migrated schema.
 
 ## The other role system (status: stale? — verify before relying on it)
 

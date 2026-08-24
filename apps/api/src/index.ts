@@ -46,6 +46,13 @@ import {
   type RefundAction,
   viewerRole,
   canReviewClaim,
+  canDeleteProduct,
+  canViewFinance,
+  canRefund,
+  canWrite,
+  canReviewPaymentRole,
+  type WriteArea,
+  type StaffRole,
   type ViewerRole,
   canRecordDropOff,
   normalizePaymentStatus,
@@ -103,6 +110,7 @@ import {
   loginWithPin,
   signInAsOwner,
   requireStaff,
+  type StaffIdentity,
   revokeStaffSession,
   STAFF_SESSION_HEADER,
 } from "./staffSession";
@@ -235,6 +243,28 @@ let responseHeaders: Record<string, string> = {
 
 const json = (data: unknown, status = 200): Response =>
   Response.json(data, { status, headers: responseHeaders });
+
+/**
+ * The staff behind this request, refused unless `allow` accepts their role.
+ *
+ * Identity comes from the STAFF SESSION, never the Cloudflare Access email. Since per-staff logins
+ * shipped, the Access email says who opened the host, not who is operating the admin — and
+ * MECHANIC_EMAILS is unset in prod, so the older email lists cannot recognise a mechanic at all.
+ *
+ * 401 without a session, 403 with the wrong role. Never falls through: this Worker is its own
+ * public hostname and cannot rely on anything in front of it.
+ */
+async function requireRole(
+  request: Request,
+  env: Env,
+  allow: (role: StaffRole) => boolean,
+  reason: string,
+): Promise<StaffIdentity | Response> {
+  const actor = await requireStaff(request, env);
+  if (actor instanceof Response) return actor;
+  if (!allow(actor.role)) return json({ error: "forbidden", reason }, 403);
+  return actor;
+}
 
 /** Parse a JSON request body; null when malformed/empty — routes turn that into a 400, not a 500. */
 const readJson = async <T>(request: Request): Promise<T | null> =>
@@ -6178,6 +6208,43 @@ const worker = {
       });
     }
 
+    // ── Role gates, applied by AREA rather than per route ────────────────────────────────────────
+    // One place, not a check at each of a dozen call sites: a rule spread that thin is a rule
+    // someone forgets on the thirteenth route. All four were defined and unit-tested but never
+    // called until 2026-08-24 (owner's decisions of that date).
+
+    // Finance — the books are the super admin's alone. An admin runs orders, not the money.
+    if (url.pathname === "/finance" || url.pathname.startsWith("/finance/")) {
+      const gate = await requireRole(request, env, canViewFinance, "super_admin_only");
+      if (gate instanceof Response) return gate;
+    }
+
+    // Sending money back out. These routes already consulted the Access email list, which fails
+    // OPEN wherever Access is unconfigured and names the wrong person besides; the staff role is
+    // the operator's real identity, so both must now agree.
+    if (/^\/(orders|claims|sales)\/[^/]+\/refund$/.test(url.pathname)) {
+      const gate = await requireRole(request, env, canRefund, "super_admin_only");
+      if (gate instanceof Response) return gate;
+    }
+
+    // A mechanic reads the catalog and the customer directory; they do not edit either.
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      const area: WriteArea | null = /^\/products(\/|$)/.test(url.pathname)
+        ? "products"
+        : /^\/customers(\/|$)/.test(url.pathname)
+          ? "customers"
+          : null;
+      if (area) {
+        const gate = await requireRole(
+          request,
+          env,
+          (r) => canWrite(r, area),
+          "mechanic_read_only",
+        );
+        if (gate instanceof Response) return gate;
+      }
+    }
+
     if (url.pathname === "/pricing/preview" && request.method === "POST") {
       const line = await readJson<SaleLineInput>(request);
       // Validate before computing — a missing price/quantity would silently return NaN profit.
@@ -6945,6 +7012,14 @@ const worker = {
       return json({ ok: true });
     }
     if (productById && request.method === "DELETE") {
+      // Super admin alone (owner, 2026-08-24). Checked HERE, not only in the admin UI: this
+      // Worker is its own public hostname, and a hidden button is not a permission. Deleting
+      // archives the row and no screen restores it, so the refusal is the only safety net.
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      if (!canDeleteProduct(actor.role)) {
+        return json({ error: "forbidden", reason: "super_admin_only" }, 403);
+      }
       await archiveProduct(env.DB, productById[1]!);
       return json({ ok: true });
     }
@@ -7240,6 +7315,15 @@ const worker = {
     if (orderById && request.method === "PATCH") {
       const body = await readJson<OrderPatch>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
+      // Signing off an online order's payment is not a mechanic's call — they take money at the
+      // counter (see canWrite) but never clear a customer's transfer. Checked on the FIELD rather
+      // than on the route: the rule is about money, so a mechanic adding a tracking number to the
+      // same order stays allowed. `paymentStatus` present at all counts — clearing or reversing a
+      // payment is the same authority as granting it.
+      if ("paymentStatus" in body) {
+        const gate = await requireRole(request, env, canReviewPaymentRole, "not_for_mechanics");
+        if (gate instanceof Response) return gate;
+      }
       // userEmail comes from the Access gate above, and becomes the timeline entry's actor.
       const out = await updateOrder(env.DB, orderById[1]!, body, userEmail);
       return out.ok ? json({ order: out.order }) : json({ error: out.reason }, out.code);

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ToastProvider } from "./ToastProvider";
 import { AppShell } from "./AppShell";
 import { PracticeCopyBanner } from "./PracticeCopyBanner";
+import { StaffRoleProvider } from "./StaffRoleProvider";
 import { StaffChip } from "./StaffChip";
 import { currentStaff } from "@/lib/staffSession";
 
@@ -25,11 +26,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* Above everything, including /login, which renders outside AppShell. */}
         <PracticeCopyBanner />
-        <ToastProvider>
-          <AppShell role={staff?.role} identity={staff ? <StaffChip staff={staff} /> : null}>
-            {children}
-          </AppShell>
-        </ToastProvider>
+        <StaffRoleProvider role={staff?.role ?? null}>
+          <ToastProvider>
+            <AppShell role={staff?.role} identity={staff ? <StaffChip staff={staff} /> : null}>
+              {children}
+            </AppShell>
+          </ToastProvider>
+        </StaffRoleProvider>
       </body>
     </html>
   );
