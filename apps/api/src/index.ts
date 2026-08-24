@@ -52,6 +52,10 @@ import {
   canWrite,
   canReviewPaymentRole,
   canViewSlips,
+  canEditPrice,
+  canSeeProfit,
+  sellingPricesChanged,
+  type SellingPriceFields,
   type WriteArea,
   type StaffRole,
   type ViewerRole,
@@ -256,6 +260,56 @@ const json = (data: unknown, status = 200): Response =>
  * 401 without a session, 403 with the wrong role. Never falls through: this Worker is its own
  * public hostname and cannot rely on anything in front of it.
  */
+/**
+ * Refuse a save that moves a SELLING price when this person may not set one.
+ *
+ * The owner refined "an admin cannot change price" on 2026-08-24: an admin buys the stock, so item
+ * cost and the VAT switch are theirs; the selling tiers and the commission are the owner's.
+ *
+ * Compares against what is stored rather than refusing outright, because the edit page sends the
+ * WHOLE profile back on every save — an admin fixing a name or a cost would otherwise be blocked
+ * for prices they never touched. Returns a Response to send, or null to carry on.
+ *
+ * Applies to a product that already exists. Pricing a NEW one is open to an admin: a product with
+ * no price cannot be finished.
+ */
+async function refuseSellingPriceChange(
+  db: D1Database,
+  productId: string,
+  incoming: SellingPriceFields,
+  role: StaffRole,
+): Promise<Response | null> {
+  if (canEditPrice(role)) return null;
+  const stored = await db
+    .prepare(
+      `SELECT pp.target_price_satang AS targetPriceSatang, pp.b2b_price_satang AS b2bPriceSatang,
+              pp.online_price_satang AS onlinePriceSatang, pp.shopee_price_satang AS shopeePriceSatang,
+              pp.online_commission_bp AS onlineCommissionBp
+         FROM pricing_profiles pp
+         JOIN product_variants v ON v.id = pp.product_variant_id
+        WHERE v.product_id = ?
+        -- setVariantPricing deletes then inserts, so there is normally exactly one row. Ordered
+        -- anyway: an unordered LIMIT 1 would pick an arbitrary profile if a stray ever existed, and
+        -- compare a save against the wrong prices.
+        ORDER BY pp.active_from DESC
+        LIMIT 1`,
+    )
+    .bind(productId)
+    .first<SellingPriceFields>();
+  // No stored profile means this product has never been priced — that is a first price, not a
+  // change, and an admin may set it.
+  if (!stored) return null;
+  if (!sellingPricesChanged(stored, incoming)) return null;
+  return json(
+    {
+      error:
+        "Only the shop owner can change what a product sells for. You can still change the item cost.",
+      reason: "price_is_owners",
+    },
+    403,
+  );
+}
+
 async function requireRole(
   request: Request,
   env: Env,
@@ -2235,7 +2289,7 @@ async function getTerms(env: Env): Promise<Response> {
  * The `status <> 'archived'` filter stays as pure defence — it costs nothing and keeps a
  * previously-deleted product out of the POS and Barcodes if 0088 has not run somewhere yet.
  */
-async function listProducts(env: Env): Promise<Response> {
+async function listProducts(env: Env, seesProfit = true): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
             p.shopee_listed AS shopeeListed,
@@ -2271,6 +2325,12 @@ async function listProducts(env: Env): Promise<Response> {
      WHERE p.status <> 'archived'
      ORDER BY p.created_at DESC LIMIT 200`,
   ).all();
+  // Margin is price minus cost, so withholding the COST is what actually hides it. Blanking the
+  // number in the page while shipping the input would be decoration — anyone reading the response
+  // could do the subtraction. Selling prices stay: those are not secret.
+  if (!seesProfit) {
+    for (const row of results as { itemCostSatang?: number }[]) row.itemCostSatang = 0;
+  }
   return json({ products: results });
 }
 
@@ -6338,7 +6398,13 @@ const worker = {
     }
 
     if (url.pathname === "/products" && request.method === "GET") {
-      return listProducts(env);
+      const viewer = await staffFromToken(
+        env.DB,
+        request.headers.get(STAFF_SESSION_HEADER) ?? "",
+        Date.now(),
+      );
+      // No session resolves to "no margin" — fail closed, same direction as the slip gate.
+      return listProducts(env, viewer ? canSeeProfit(viewer.role) : false);
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {
@@ -6944,6 +7010,10 @@ const worker = {
 
     const productPricing = url.pathname.match(/^\/products\/([^/]+)\/pricing$/);
     if (productPricing && request.method === "PUT") {
+      // Cost is the admin's, selling price is the owner's (owner, 2026-08-24). The products-area
+      // write gate above has already refused a mechanic; this decides between the other two.
+      const priceActor = await requireStaff(request, env);
+      if (priceActor instanceof Response) return priceActor;
       const body = await readJson<{
         itemCostSatang?: number;
         targetPriceSatang?: number;
@@ -6955,6 +7025,19 @@ const worker = {
       }>(request);
       // Reject (don't coalesce) a malformed body — the ?? 0 fallbacks below would zero all pricing.
       if (!body) return json({ error: "invalid JSON body" }, 400);
+      const priceRefusal = await refuseSellingPriceChange(
+        env.DB,
+        productPricing[1]!,
+        {
+          targetPriceSatang: body.targetPriceSatang ?? 0,
+          b2bPriceSatang: body.b2bPriceSatang ?? 0,
+          onlinePriceSatang: body.onlinePriceSatang ?? 0,
+          shopeePriceSatang: body.shopeePriceSatang ?? 0,
+          onlineCommissionBp: body.onlineCommissionBp ?? 0,
+        },
+        priceActor.role,
+      );
+      if (priceRefusal) return priceRefusal;
       const detail = await getProductDetail(env.DB, productPricing[1]!);
       if (!detail?.variantId) return json({ error: "product or variant not found" }, 404);
       await setVariantPricing(env.DB, detail.variantId, {
@@ -6999,6 +7082,26 @@ const worker = {
       const usageId = await resolveAttribute(env.DB, "usage_categories", body.usageName);
       // Product categories are a subset of car systems (migration 0064): a brand-new category typed on
       // Add product is created under the selected system. An existing category keeps its own system.
+      // The edit page saves through HERE, not through PUT /products/:id/pricing — guarding only
+      // that route would have left the real door open. Existing product + a moved selling price +
+      // someone who may not set one = refused.
+      if (body.id && body.pricing) {
+        const fullActor = await requireStaff(request, env);
+        if (fullActor instanceof Response) return fullActor;
+        const refusal = await refuseSellingPriceChange(
+          env.DB,
+          body.id,
+          {
+            targetPriceSatang: body.pricing.targetPriceSatang ?? 0,
+            b2bPriceSatang: body.pricing.b2bPriceSatang ?? 0,
+            onlinePriceSatang: body.pricing.onlinePriceSatang ?? 0,
+            shopeePriceSatang: body.pricing.shopeePriceSatang ?? 0,
+            onlineCommissionBp: body.pricing.onlineCommissionBp ?? 0,
+          },
+          fullActor.role,
+        );
+        if (refusal) return refusal;
+      }
       const typeId = await resolveAttribute(env.DB, "product_types", body.typeName, { usageId });
       const category =
         [body.brandName, body.usageName, body.typeName]
@@ -7094,6 +7197,28 @@ const worker = {
       }
       return json({ ok: true });
     }
+    // Shopee listing flag — BOOKKEEPING ONLY, and the comment matters more than the code.
+    //
+    // There is no Shopee connection: `shopee.ts` holds signing helpers nothing imports, and the
+    // sync queue is commented out in wrangler.jsonc. `shopee_listed` drives the dashboard's MANUAL
+    // "Update on Shopee" worklist and the Not-listed pill, so unlisting removes a product from that
+    // to-do list. Pausing it on Shopee itself is still done by hand on Shopee's own site — do not
+    // let this route's name suggest otherwise.
+    const shopeeListMatch = url.pathname.match(/^\/products\/([^/]+)\/shopee\/(list|unlist)$/);
+    if (shopeeListMatch && request.method === "POST") {
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      // Same authority as pausing on AirPlus: taking a product off a sales channel is the owner's.
+      if (!canDeleteProduct(actor.role)) {
+        return json({ error: "forbidden", reason: "super_admin_only" }, 403);
+      }
+      const listing = shopeeListMatch[2] === "list";
+      await env.DB.prepare("UPDATE products SET shopee_listed = ? WHERE id = ?")
+        .bind(listing ? 1 : 0, shopeeListMatch[1]!)
+        .run();
+      return json({ ok: true, shopeeListed: listing });
+    }
+
     // Pause / resume — "not live", and reversible. The counterpart to DELETE below: this keeps
     // everything and can be undone, which is why a product with sales history gets this instead.
     // Its own route because PATCH /products/:id demands a whole product body, and "take this off

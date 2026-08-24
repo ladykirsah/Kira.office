@@ -13,12 +13,12 @@ import { BackLink } from "./BackLink";
  *
  * This is a courtesy, not a lock: the API refuses the same data independently.
  */
-export function NoAccess({ what }: { what: string }) {
+export function NoAccess({ what, who = "the shop owner" }: { what: string; who?: string }) {
   return (
     <main>
       <PageHeader
         title={what}
-        subtitle="This page is for the shop owner only."
+        subtitle={`This page is for ${who} only.`}
         below={<BackLink href="/">Dashboard</BackLink>}
       />
       <p className="muted">

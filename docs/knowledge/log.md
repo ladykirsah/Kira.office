@@ -63,3 +63,20 @@ sources: [session 2026-08-09]
   pause (reversible, resume puts it back on sale) and delete (permanent, refused with history).
   Routes renamed `archive|unarchive` → `pause|resume`; the `includeArchived` opt-in is gone.
   [back-office/products](back-office/products.md) rewritten to the settled model.
+
+- **2026-08-24** — Row menu became **Edit · Pause on AirPlus · Mark paused on Shopee**: the two
+  channels pause independently. AirPlus is real (`status`); Shopee is bookkeeping only
+  (`shopee_listed` → the manual worklist), and the label says so. See
+  [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Product table by role: a mechanic gets the **All** tab only, no edit anywhere, and
+  **no profit** (the API withholds `itemCostSatang` rather than blanking a number); an admin
+  **cannot change a price** (`canEditPrice`, super-admin only) but may still price a NEW product.
+  Fixed a server-side trap on the way: `apiFetch` did not forward the staff session from server
+  components, so role-shaped GETs degraded to their most restricted form. See
+  [auth/roles-model](auth/roles-model.md).
+
+- **2026-08-24** — Pricing split refined (owner): an admin may change the item COST and VAT-on-cost;
+  the SELLING tiers and commission are the owner's. Enforced by comparing a save against stored
+  values on **both** `PUT /products/:id/pricing` and `POST /products/full` — the edit page uses the
+  latter, so guarding only the former had left the real door open.

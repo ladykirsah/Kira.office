@@ -9047,3 +9047,333 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
     expect(res.status).toBe(403);
   });
 });
+
+// ── Pausing per channel (owner, 2026-08-24) ──────────────────────────────────────────────────────
+// AirPlus and Shopee are paused separately, from the products-table row menu.
+//
+// AirPlus is real: the storefront gates on `status = 'active'`, so pause/resume genuinely takes a
+// product off the shop and puts it back.
+//
+// Shopee is BOOKKEEPING ONLY. There is no Shopee connection — `shopee.ts` holds signing helpers
+// that nothing imports, and the sync queue is commented out in wrangler.jsonc. `shopee_listed`
+// drives the dashboard's MANUAL "Update on Shopee" worklist and the Not-listed pill, so unlisting
+// here removes a product from that to-do list; pausing it on Shopee itself is still done by hand on
+// Shopee's own site.
+describe("POST /products/:id/shopee/list|unlist — the Shopee listing flag", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed(role = "super_admin", listed = 1) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Somchai','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,?,0)`,
+      )
+      .run(NOW, listed);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const post = (env: Env, path: string, token?: string) =>
+    worker.fetch!(
+      new Request(`https://x/products/p1/shopee/${path}`, {
+        method: "POST",
+        headers: token ? { "X-Staff-Session": token } : {},
+      }),
+      env,
+      ctx,
+    );
+
+  const listed = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT shopee_listed AS n FROM products WHERE id='p1'`).get() as { n: number }).n;
+
+  it("unlist > clears the flag, so the product drops off the manual Shopee worklist", async () => {
+    const { raw, env, token } = await seed("super_admin", 1);
+    expect((await post(env, "unlist", token)).status).toBe(200);
+    expect(listed(raw)).toBe(0);
+  });
+
+  it("list > sets it again", async () => {
+    const { raw, env, token } = await seed("super_admin", 0);
+    expect((await post(env, "list", token)).status).toBe(200);
+    expect(listed(raw)).toBe(1);
+  });
+
+  it("does NOT touch the AirPlus status — the two channels pause independently", async () => {
+    // The whole point of splitting the menu item in two.
+    const { raw, env, token } = await seed("super_admin", 1);
+    await post(env, "unlist", token);
+    expect(
+      (raw.prepare(`SELECT status FROM products WHERE id='p1'`).get() as { status: string }).status,
+    ).toBe("active");
+  });
+
+  for (const role of ["admin", "mechanic"]) {
+    it(`given a ${role} > 403; taking a product off a sales channel is the owner's call`, async () => {
+      const { raw, env, token } = await seed(role, 1);
+      expect((await post(env, "unlist", token)).status).toBe(403);
+      expect(listed(raw)).toBe(1);
+    });
+  }
+
+  it("given no session > 401", async () => {
+    const { env } = await seed();
+    expect((await post(env, "unlist")).status).toBe(401);
+  });
+});
+
+// ── Price is the owner's; profit is not a mechanic's (owner, 2026-08-24) ─────────────────────────
+describe("product money: who may change a price, and who may see margin", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seed(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','S','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id,product_id,created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO pricing_profiles
+           (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang,
+            b2b_price_satang, online_commission_bp, tax_on_cost, active_from)
+         VALUES ('pp1','v1',40000,90000,95000,80000,0,0,?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const putPricing = (env: Env, token: string) =>
+    worker.fetch!(
+      new Request("https://x/products/p1/pricing", {
+        method: "PUT",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify({ itemCostSatang: 10, onlinePriceSatang: 999999 }),
+      }),
+      env,
+      ctx,
+    );
+
+  const cost = (raw: DatabaseSync) =>
+    (
+      raw.prepare(`SELECT item_cost_satang AS c FROM pricing_profiles WHERE id='pp1'`).get() as {
+        c: number;
+      }
+    ).c;
+
+  it("given the super admin > the price change lands", async () => {
+    const { env, token } = await seed("super_admin");
+    expect((await putPricing(env, token)).status).toBe(200);
+  });
+
+  it("given an admin moving a SELLING price > 403, and nothing is written", async () => {
+    // This body changes onlinePriceSatang as well as the cost, so it is refused as a whole — an
+    // admin may set the cost, but not in the same save that moves what the shop charges.
+    //
+    // The rule was a flat "an admin cannot touch pricing" for part of 2026-08-24, before the owner
+    // split it: cost is the admin's, selling price is the owner's. Hence the reason changed from
+    // super_admin_only to price_is_owners.
+    const { raw, env, token } = await seed("admin");
+    const res = await putPricing(env, token);
+    expect(res.status).toBe(403);
+    expect((await res.json()) as { reason: string }).toMatchObject({ reason: "price_is_owners" });
+    expect(cost(raw)).toBe(40000);
+  });
+
+  it("given a mechanic > 403 as well; they may not write products at all", async () => {
+    const { raw, env, token } = await seed("mechanic");
+    expect((await putPricing(env, token)).status).toBe(403);
+    expect(cost(raw)).toBe(40000);
+  });
+
+  describe("cost is withheld from a mechanic, so margin cannot be worked out", () => {
+    const listCost = async (env: Env, token: string) => {
+      const res = await worker.fetch!(
+        new Request("https://x/products", { headers: { "X-Staff-Session": token } }),
+        env,
+        ctx,
+      );
+      const body = (await res.json()) as { products: { itemCostSatang: number }[] };
+      return body.products[0]!.itemCostSatang;
+    };
+
+    it("given the super admin > the real cost comes through", async () => {
+      const { env, token } = await seed("super_admin");
+      expect(await listCost(env, token)).toBe(40000);
+    });
+
+    it("given an admin > the real cost comes through; margin is their working information", async () => {
+      const { env, token } = await seed("admin");
+      expect(await listCost(env, token)).toBe(40000);
+    });
+
+    it("given a mechanic > cost is ZERO in the payload, not merely hidden in the page", async () => {
+      // The page computes profit as price minus cost. Shipping the cost and hiding the answer
+      // would be decoration — anyone reading the response could do the subtraction.
+      const { env, token } = await seed("mechanic");
+      expect(await listCost(env, token)).toBe(0);
+    });
+
+    it("given a mechanic > the SELLING prices still come through; they are not secret", async () => {
+      const { env, token } = await seed("mechanic");
+      const res = await worker.fetch!(
+        new Request("https://x/products", { headers: { "X-Staff-Session": token } }),
+        env,
+        ctx,
+      );
+      const body = (await res.json()) as { products: { onlinePriceSatang: number }[] };
+      expect(body.products[0]!.onlinePriceSatang).toBe(95000);
+    });
+  });
+});
+
+// ── An admin sets the COST; the owner sets what the shop CHARGES (owner, 2026-08-24) ─────────────
+// Refines the earlier flat "an admin cannot change price". An admin buys the stock, so item cost
+// and the VAT-on-cost switch are theirs; the selling tiers and the commission are not.
+//
+// Both save paths are covered on purpose. The edit page saves through POST /products/full, NOT
+// PUT /products/:id/pricing — guarding only the latter left the actual door open.
+describe("pricing: cost is the admin's, selling price is the owner's", () => {
+  const NOW = 1_800_000_000_000;
+  const STORED = {
+    itemCostSatang: 40000,
+    targetPriceSatang: 90000,
+    onlinePriceSatang: 95000,
+    b2bPriceSatang: 80000,
+    onlineCommissionBp: 0,
+    taxOnCost: false,
+  };
+
+  async function seed(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','S','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,product_ref,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','REF-1','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id,product_id,created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO pricing_profiles
+           (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang,
+            b2b_price_satang, online_commission_bp, tax_on_cost, active_from)
+         VALUES ('pp1','v1',40000,90000,95000,80000,0,0,?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const putPricing = (env: Env, token: string, pricing: Record<string, unknown>) =>
+    worker.fetch!(
+      new Request("https://x/products/p1/pricing", {
+        method: "PUT",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify(pricing),
+      }),
+      env,
+      ctx,
+    );
+
+  const saveFull = (env: Env, token: string, pricing: Record<string, unknown>) =>
+    worker.fetch!(
+      new Request("https://x/products/full", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Staff-Session": token },
+        body: JSON.stringify({
+          id: "p1",
+          productRef: "REF-1",
+          name: "Compressor",
+          status: "active",
+          pricing,
+        }),
+      }),
+      env,
+      ctx,
+    );
+
+  const cost = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT item_cost_satang AS c FROM pricing_profiles`).get() as { c: number }).c;
+  const online = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT online_price_satang AS p FROM pricing_profiles`).get() as { p: number }).p;
+
+  describe("PUT /products/:id/pricing", () => {
+    it("given an admin changing only the COST > allowed, and it lands", async () => {
+      const { raw, env, token } = await seed("admin");
+      const res = await putPricing(env, token, { ...STORED, itemCostSatang: 44000 });
+      expect(res.status).toBe(200);
+      expect(cost(raw)).toBe(44000);
+    });
+
+    it("given an admin changing a SELLING price > 403, and nothing moves", async () => {
+      const { raw, env, token } = await seed("admin");
+      const res = await putPricing(env, token, { ...STORED, onlinePriceSatang: 999999 });
+      expect(res.status).toBe(403);
+      expect((await res.json()) as { reason: string }).toMatchObject({ reason: "price_is_owners" });
+      expect(online(raw)).toBe(95000);
+    });
+
+    it("given the owner changing a selling price > allowed", async () => {
+      const { raw, env, token } = await seed("super_admin");
+      expect((await putPricing(env, token, { ...STORED, onlinePriceSatang: 111111 })).status).toBe(
+        200,
+      );
+      expect(online(raw)).toBe(111111);
+    });
+
+    it("given a mechanic > 403; they write no products at all", async () => {
+      const { env, token } = await seed("mechanic");
+      expect((await putPricing(env, token, { ...STORED, itemCostSatang: 1 })).status).toBe(403);
+    });
+  });
+
+  describe("POST /products/full — the path the edit page actually uses", () => {
+    it("given an admin changing only the COST > allowed", async () => {
+      const { raw, env, token } = await seed("admin");
+      const res = await saveFull(env, token, { ...STORED, itemCostSatang: 47000 });
+      expect(res.status).toBe(200);
+      expect(cost(raw)).toBe(47000);
+    });
+
+    it("given an admin changing a SELLING price here > 403, not a way around the rule", async () => {
+      const { raw, env, token } = await seed("admin");
+      expect((await saveFull(env, token, { ...STORED, b2bPriceSatang: 1 })).status).toBe(403);
+      expect(online(raw)).toBe(95000);
+    });
+
+    it("given the owner > allowed", async () => {
+      const { env, token } = await seed("super_admin");
+      expect((await saveFull(env, token, { ...STORED, b2bPriceSatang: 1 })).status).toBe(200);
+    });
+  });
+});

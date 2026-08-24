@@ -12,6 +12,8 @@ import {
   canViewSlips,
   canRefund,
   canDeleteProduct,
+  canEditPrice,
+  canSeeProfit,
   canReviewClaimRole,
   canReviewPaymentRole,
   canWrite,
@@ -130,6 +132,22 @@ describe("permissions", () => {
     // which is true for an admin too and would silently hand deletion back.
     expect(canWrite("admin", "products")).toBe(true);
     expect(canDeleteProduct("admin")).toBe(false);
+  });
+
+  it("only the super admin changes a price (owner, 2026-08-24)", () => {
+    // An admin runs the catalog — names, fitments, photos — but what the shop CHARGES is the
+    // owner's. Deliberately separate from canWrite(role, "products"), which an admin passes: they
+    // may edit the product, just not its price.
+    expect(allow(canEditPrice)).toEqual(["super_admin"]);
+    expect(canWrite("admin", "products")).toBe(true);
+    expect(canEditPrice("admin")).toBe(false);
+  });
+
+  it("a mechanic never sees profit (owner, 2026-08-24)", () => {
+    // Margins are the owner's business and the admin's working information; a mechanic reads the
+    // catalog to do counter work. Enforced by the API withholding COST, not by hiding a number:
+    // profit is price minus cost, so anyone holding the cost can work it out themselves.
+    expect(allow(canSeeProfit)).toEqual(["super_admin", "admin"]);
   });
 
   it("a mechanic assesses claims; payment approval is never theirs", () => {

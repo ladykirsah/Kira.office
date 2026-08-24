@@ -344,3 +344,26 @@ export async function pinLookup(pin: string, pepper: string): Promise<string> {
   const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(pin));
   return toHex(new Uint8Array(mac));
 }
+
+/**
+ * Changing what the shop CHARGES. Super admin alone (owner, 2026-08-24).
+ *
+ * Deliberately narrower than `canWrite(role, "products")`, which an admin passes: an admin runs the
+ * catalog — names, fitments, photos, stock — but not the prices. An admin may still set a price when
+ * ADDING a product, because a product with no price cannot be finished; what they cannot do is move
+ * one afterwards.
+ */
+export function canEditPrice(role: StaffRole): boolean {
+  return role === "super_admin";
+}
+
+/**
+ * Seeing margin. Everyone but a mechanic (owner, 2026-08-24).
+ *
+ * Enforced by the API withholding the COST, not by hiding a number in the page: profit is price
+ * minus cost, so anyone holding the cost can work the margin out themselves. A control that hides
+ * the answer while shipping the inputs is decoration.
+ */
+export function canSeeProfit(role: StaffRole): boolean {
+  return role !== "mechanic";
+}

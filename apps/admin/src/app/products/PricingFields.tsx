@@ -48,10 +48,46 @@ const numStyle: CSSProperties = { ...inputS, width: "min(110px, 100%)" };
 export function PricingFields({
   form,
   update,
+  sellingReadOnly = false,
 }: {
   form: PricingForm;
   update: (patch: Partial<PricingForm>) => void;
+  /**
+   * Lock what the shop CHARGES, leaving the COST editable (owner, 2026-08-24).
+   *
+   * An admin buys the stock, so item cost and the VAT-on-cost switch stay theirs; the selling tiers
+   * and the Shopee commission are the owner's. The API draws the same line, comparing a save against
+   * what is stored — an admin can save a product whose prices they did not touch.
+   *
+   * Locked fields render as plain text in the normal body colour, NOT as disabled inputs (the owner
+   * asked for "plain black text"): a greyed box reads as broken or as something you could switch on,
+   * text reads as a fact.
+   */
+  sellingReadOnly?: boolean;
 }) {
+  /** One price field: an input, or the same number as plain text when this viewer may not edit it. */
+  const Money = ({
+    value,
+    onChange,
+    width,
+    locked = sellingReadOnly,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    width: CSSProperties["width"];
+    /** Defaults to the selling-price lock; the COST row passes false — it is the admin's. */
+    locked?: boolean;
+  }) =>
+    locked ? (
+      <span style={{ fontWeight: 600, color: "var(--text)" }}>{value.trim() || "—"}</span>
+    ) : (
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ ...inputS, width }}
+      />
+    );
+
   const tc = totalCostSatang(toSatang(form.costThb), form.taxOnCost);
   const b2c = toSatang(form.b2cThb);
   const b2b = toSatang(form.b2bThb);
@@ -97,12 +133,16 @@ export function PricingFields({
             <span className="muted" style={{ fontSize: 12 }}>
               Item cost ฿
             </span>
-            <input
+            <Money
               value={form.costThb}
-              onChange={(e) => update({ costThb: e.target.value })}
-              style={{ ...inputS, width: 92 }}
+              onChange={(v) => update({ costThb: v })}
+              width={92}
+              /* The COST is the admin's: they buy the stock. Only the selling tiers below lock. */
+              locked={false}
             />
           </label>
+          {/* VAT-on-cost sits with the COST, not with the prices: it decides the cost base the
+              margins are figured from. An admin buys the stock, so this is theirs (owner). */}
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span className="switch">
               <input
@@ -145,10 +185,10 @@ export function PricingFields({
             <tr>
               <td>Den Air Service</td>
               <td>
-                <input
+                <Money
                   value={form.b2cThb}
-                  onChange={(e) => update({ b2cThb: e.target.value })}
-                  style={numStyle}
+                  onChange={(v) => update({ b2cThb: v })}
+                  width={numStyle.width}
                 />
               </td>
               <td className="muted">—</td>
@@ -162,10 +202,10 @@ export function PricingFields({
             <tr>
               <td>B2B</td>
               <td>
-                <input
+                <Money
                   value={form.b2bThb}
-                  onChange={(e) => update({ b2bThb: e.target.value })}
-                  style={numStyle}
+                  onChange={(v) => update({ b2bThb: v })}
+                  width={numStyle.width}
                 />
               </td>
               <td className="muted">—</td>
@@ -180,10 +220,10 @@ export function PricingFields({
             <tr className="on">
               <td>AirPlus</td>
               <td>
-                <input
+                <Money
                   value={form.onlineThb}
-                  onChange={(e) => update({ onlineThb: e.target.value })}
-                  style={numStyle}
+                  onChange={(v) => update({ onlineThb: v })}
+                  width={numStyle.width}
                 />
               </td>
               <td className="muted">—</td>
@@ -199,18 +239,18 @@ export function PricingFields({
             <tr>
               <td>AC on Sales</td>
               <td>
-                <input
+                <Money
                   value={form.shopeeThb}
-                  onChange={(e) => update({ shopeeThb: e.target.value })}
-                  style={numStyle}
+                  onChange={(v) => update({ shopeeThb: v })}
+                  width={numStyle.width}
                 />
               </td>
               <td>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <input
+                  <Money
                     value={form.onlineCommPct}
-                    onChange={(e) => update({ onlineCommPct: e.target.value })}
-                    style={{ ...inputS, width: 56 }}
+                    onChange={(v) => update({ onlineCommPct: v })}
+                    width={56}
                   />
                   <span className="muted">%</span>
                 </span>

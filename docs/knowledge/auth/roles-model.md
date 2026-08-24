@@ -57,6 +57,8 @@ API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly tw
 | `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
 | `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
 | `canViewSlips` | YES — `GET /file/:key` for `slip/` keys, and `viewerIsSuperAdmin` on `GET /orders/:id` (added 2026-08-24) |
+| `canEditPrice` | YES — `PUT /products/:id/pricing` (added 2026-08-24) |
+| `canSeeProfit` | YES — `GET /products` withholds `itemCostSatang` (added 2026-08-24) |
 | `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
 
 Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on
@@ -121,3 +123,56 @@ As of 2026-07-27: `resolveActor(db, email, …)` (in `apps/api/src/auth.ts`, re-
 - `packages/core/src/access.ts`, `packages/core/src/access.test.ts`, `packages/core/src/rbac.ts` (dormant)
 - `apps/api/src/auth.ts` — `resolveActor`, `requireRole`
 - PR #95
+
+## The product table by role (owner, 2026-08-24)
+
+| | Mechanic | Admin | Super admin |
+| --- | --- | --- | --- |
+| Tabs | **All only** | all | all |
+| Open a product | view page only | view + edit | view + edit |
+| Edit anything | **no** | yes | yes |
+| Stock pencil / row Edit | **hidden** | shown | shown |
+| See profit | **no** | yes | yes |
+| Change the item COST / VAT-on-cost | no | **yes** | yes |
+| Change a SELLING price (B2C · B2B · AirPlus · Shopee · commission) | no | **no** | yes |
+| Set a price when ADDING | no | **yes** | yes |
+| Pause on a channel · delete | no | no | yes |
+
+**Profit is hidden by withholding COST, not by blanking a number.** `GET /products` sends
+`itemCostSatang: 0` to a mechanic. The page computes profit as price minus cost, so shipping the
+cost and hiding the answer would be decoration — anyone reading the response could subtract. Selling
+prices still go through; those are not secret.
+
+### Cost is the admin's; the selling price is the owner's
+
+Refined by the owner after a first pass locked pricing wholesale: an admin **buys the stock**, so
+`itemCostSatang` and the VAT-on-cost switch are theirs. What the shop **charges** is not:
+`targetPriceSatang` (Den Air B2C), `b2bPriceSatang`, `onlinePriceSatang` (AirPlus),
+`shopeePriceSatang`, and `onlineCommissionBp` — commission counts as a selling field because moving
+it moves the margin exactly as moving a price would.
+
+Enforced by **comparing a save against what is stored** (`sellingPricesChanged` in
+`packages/core/src/sellingPrice.ts`), not by refusing outright: the edit page sends the WHOLE profile
+back on every save, so a flat refusal would stop an admin fixing a name or a cost. Optional fields
+compare through `?? 0` — a form that never filled the Shopee price sends `undefined` where the
+database holds `0`, and treating those as different would refuse an admin for a field nobody typed.
+An admin may still price a **NEW** product (owner's A1): a product with no price cannot be finished,
+and no stored profile means a first price rather than a change.
+
+**BOTH save paths are guarded, and this was nearly missed.** The edit page saves through
+`POST /products/full`, **not** `PUT /products/:id/pricing` — guarding only the pricing route left
+the actual door open, and a test now covers each. The stored-profile lookup orders by `active_from
+DESC`: `setVariantPricing` deletes-then-inserts so there is normally one row, but an unordered
+`LIMIT 1` would compare against an arbitrary profile if a stray ever existed.
+
+On the edit page the selling fields render as **plain body-coloured text, not disabled inputs**
+(owner: "plain black text") — a greyed box reads as broken or switch-on-able; text reads as a fact.
+
+### The server-side session trap this exposed
+
+Role-shaped responses broke the moment a SERVER component asked for them: `apiFetch` forwarded only
+the Cloudflare Access JWT, never the staff session, so a server-rendered page reached the API with
+no identity and every role-gated response degraded to its most restricted form — the owner's own
+products page would have arrived with cost stripped. `apiFetch` now forwards the staff cookie as
+`X-Staff-Session`, the same translation the browser proxy does. **Any future role-shaped GET
+depends on this.**

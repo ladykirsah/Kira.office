@@ -54,3 +54,4 @@ export * from "./insights";
 
 export * from "./dayOff";
 export * from "./ownerSignIn";
+export * from "./sellingPrice";
