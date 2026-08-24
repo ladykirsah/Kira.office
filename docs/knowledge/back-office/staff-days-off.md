@@ -76,19 +76,17 @@ so equal tabs are honest there. A day off and a cash advance are not: one is att
 is money leaving the shop. Equal tabs would give them equal weight and equal muscle memory, and a
 mis-tap would record ฿3,000 instead of a half day. So:
 
-- a divider separates time from money;
-- the **form panel and the Save button** turn amber whenever money is involved — amber on this page
-  means something is about to leave the shop;
-- the Save button **always ends with the amount** (`บันทึกการเบิก ฿3,000`), so the last thing read
-  before pressing is the number.
+- a divider in the tab row, and a panel behind the two money forms (`--primary-faint`, the house
+  coral wash for a grouped panel);
+- the Save button **always ends with the amount** — `บันทึกการเบิก ฿3,000`, never a bare "Save".
 
-Amber, never `--primary`: red marks the one "you are here" control per view, and this is a warning
-about what a control *does*.
+**The second one is the safeguard, and it is the one that survived.** Four colour treatments were
+tried and removed by the owner across 2026-08-24 — a **เงิน** label on the divider, **amber tabs**, a
+**⚠ line** above the form, and finally the **amber panel and amber button**. Each restated in colour
+what the button already says in words. Everything is the house coral now.
 
-Three things were tried and removed by the owner on the same day: a **เงิน** label on the divider, an
-**amber tint on the money tabs**, and a **⚠ warning line** above the form. Each repeated something the
-panel or the button already said. The lesson is worth keeping: the signal belongs on the thing that
-acts, not on every part of the way there.
+Worth remembering before reaching for a colour again: the number in the label is what stops a
+mis-tap, not the hue around it.
 
 ## เงินเบิกล่วงหน้า — salary taken before payday
 

@@ -15,17 +15,19 @@ import { monthLabel } from "@/lib/dayOff";
  * จ่ายเงินเดือน — and it replaces the add form that used to sit *underneath* the วันหยุด table,
  * where you had to scroll past the data to reach the input.
  *
- * WHY MONEY LOOKS DIFFERENT (design B, chosen from three). Car brands and car models are the same
- * kind of thing, so equal tabs are honest there. A day off and a cash advance are not: one is
- * attendance, the other is money leaving the shop. Given no distinction at all they would earn equal
- * weight and equal muscle memory, and a mis-tap would record ฿3,000 instead of a half day. So a
- * divider separates them, the form sits on an amber panel, and the Save button is amber and always
- * ENDS WITH THE AMOUNT — the last thing read before pressing is the number.
+ * WHAT MARKS MONEY OUT, AND WHAT DOES NOT. Car brands and car models are the same kind of thing, so
+ * equal tabs are honest there. A day off and a cash advance are not: one is attendance, the other is
+ * money leaving the shop, and given no distinction at all they would earn equal weight and equal
+ * muscle memory. Two things carry that distinction now:
  *
- * The tabs themselves are plain coral like any other, and there is no warning line above the form:
- * both were tried and the owner removed them (2026-08-24). The panel and the button are where the
- * colour does work; on the tab row it only made three tabs look like two different controls, and
- * the warning repeated what the panel had already said.
+ *   · a divider in the tab row, and a panel behind the two money forms;
+ *   · the Save button ALWAYS ENDS WITH THE AMOUNT — `บันทึกการเบิก ฿3,000`, never a bare "Save".
+ *
+ * The second is the one that does the work, and it is the one that survived. Four colour treatments
+ * were tried and removed by the owner on 2026-08-24 — a เงิน label on the divider, amber tabs, a ⚠
+ * line above the form, and finally the amber panel and amber button — each of them restating what
+ * the button already says in words. Everything is the house coral now. Worth remembering before
+ * reaching for a colour again: the number in the label is the safeguard.
  *
  * The slip rule is the API's (`payoutProblem` in core): cash needs nothing, a transfer needs its
  * slip. This mirrors it for the person filling the form — the field appears, and Save stays
@@ -344,12 +346,7 @@ export function RecordSection({
       </div>
 
       <div style={{ marginTop: 14 }}>
-        <button
-          type="button"
-          className={isMoney ? "btn-money" : "btn-primary btn-sm"}
-          disabled={!canSave}
-          onClick={submit}
-        >
+        <button type="button" className="btn-primary btn-sm" disabled={!canSave} onClick={submit}>
           {busy ? "กำลังบันทึก…" : saveText}
         </button>
       </div>

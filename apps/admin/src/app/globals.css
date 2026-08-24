@@ -1665,32 +1665,15 @@ a.card:hover {
   margin: 0 4px;
 }
 
-/* The panel only exists while money is being recorded, so the colour is information rather than
-   decoration: amber on this page means something is about to leave the shop. */
+/* The panel only exists while money is being recorded, so it still marks those two tabs out from
+   วันหยุด — but in the house coral wash, not amber (owner, 2026-08-24). --primary-faint is the
+   token for exactly this: a grouped panel that belongs to the page rather than warning about it. */
 .record-money {
-  background: color-mix(in srgb, var(--warn) 7%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--warn) 38%, transparent);
-  border-left-width: 3px;
+  background: var(--primary-faint);
+  border: 1px solid var(--primary-soft);
+  border-left: 3px solid var(--primary);
   border-radius: 10px;
   padding: 14px;
-}
-
-/* Amber twin of .btn-primary, at .btn-sm's size — Record matches the Add new section it copies,
-   which is small-size throughout (owner, 2026-08-24). Its label always ends with the amount, so the
-   last thing read before pressing is the number. */
-.btn-money {
-  border: 1px solid var(--warn);
-  background: var(--warn);
-  color: #fff;
-  min-height: 32px;
-  padding: 6px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-money:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 /* Every control inside Record is SMALL, matching Add new on the car-fitment page field for field:
