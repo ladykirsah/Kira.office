@@ -1605,6 +1605,14 @@ a.card:hover {
   border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
 }
 
+/* Same box, no alarm: "you were signed out" is information, not a mistake anyone made. Red is
+   reserved for the one thing that is actually wrong, so a plain notice must not borrow it. */
+.login-note {
+  background: var(--hover);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
 /* Signed-in person in the top bar. Pushed to the right, ahead of the theme toggle. */
 .staff-chip-wrap {
   position: relative;
