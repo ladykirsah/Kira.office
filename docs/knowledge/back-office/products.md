@@ -51,51 +51,67 @@ Add-page UX: auto-saves a draft in the background (debounced 1.5 s, `status:'dra
 - Deletion-audit siblings (POS ghost draft, attribute delete): [onsite-pos](onsite-pos.md), [taxonomy-and-attributes](taxonomy-and-attributes.md)
 - D1/DO platform details: [platform](../platform/index.md)
 
-## The "Not live" tab, and the four product states (owner, 2026-08-24)
+## Three product states, and two ways to remove one (owner, 2026-08-24 — SETTLED)
 
-The owner's model, stated in their words:
+The model went through two rounds in one session. This is where it landed:
 
 | State | Meaning |
 | --- | --- |
-| **Delete** | gone from the system |
-| **Archive** | not live |
-| **Paused** | not live |
-| **Draft** | not live, and incomplete |
+| **active** | live — customers can see it |
+| **draft** | not live, and not finished being written |
+| **paused** | not live, deliberately |
 
-The products table's `Paused` and `Draft` tabs were merged into one **`Not live`** tab, which also
-now lists **archived** rows — three tabs answering one question ("is this in front of a customer?")
-became one. `isNotLive(status)` (`apps/admin/src/lib/productStatus.ts`) is simply `status !==
-"active"`, so an unrecognised status counts as not live: the opposite default publishes something
-by accident. The three states survive in the status pill, which gained an **Archived** (`bad`)
-variant and is now the only thing distinguishing them inside the tab.
+**"Archived" no longer exists.** It and "paused" were two words for one thing — "not live, and
+reversible" — and having both is what made the model confusing. Migration **0088** rewrites every
+stored `archived` to `paused`; nothing can write `archived` again. The owner's words: *"Archived =
+Paused globally, and delete = gone."*
 
-**INVARIANT — archived rows are OPT-IN.** `GET /products?includeArchived=1` widens the soft-delete
-filter, and **only** the products table passes it. The SAME payload feeds the **POS** and the
-**Barcodes** page, where an archived product appearing would let someone sell or label a deleted
-part. Only the literal string `"1"` opts in — no truthy-string guessing. `All`, `Low stock` and
-`Out of stock` all exclude archived, as does the page-header count, so deleting a product never
-makes those numbers climb.
+The `status <> 'archived'` filters left in query code are **deliberate dead weight**: they cost
+nothing and keep a previously-deleted product off the storefront if 0088 has not run somewhere yet.
 
-**Delete and Archive are now different things (owner, 2026-08-24).** They were the same action —
-both called `DELETE /products/:id`, which archived — which is why the table said "Archive" for what
-the product page called "Delete".
+### Removing a product
 
-| Action | Route | What it does |
+| Action | Route | Effect |
 | --- | --- | --- |
-| **Archive / restore** | `POST /products/:id/archive` \| `/unarchive` | status → `archived`, or back to **`draft`**. Reversible, nothing lost. |
-| **Delete** | `DELETE /products/:id` | Really removes the product and everything it owns: variants, prices, barcodes, fitments, images, terms, campaign prices. |
+| **Pause / resume** | `POST /products/:id/pause` \| `/resume` | → `paused`, or back to **`active`**. Reversible, nothing lost. |
+| **Delete** | `DELETE /products/:id` | Really removes the product and all it owns — variants, prices, barcodes, fitments, images, terms, campaign prices. |
 
 **INVARIANT — delete is REFUSED (409 `has_history`) when the product has ever been sold or has any
 stock movement.** `sales_order_lines` and `onsite_sale_lines` point at a *variant* and keep **no
 product name of their own**, so removing a sold product leaves a past order holding a line that
 cannot say what was in it — and Finance is built from those lines. The stock ledger is an
-append-only audit trail for the same reason. There is deliberately **no force flag**: the honest
-answer for a product with a past is to archive it. `productHasHistory()` is the single check.
+append-only audit trail for the same reason. There is deliberately **no force flag**.
+`productHasHistory()` is the single check.
 
-**Restoring lands on `draft`, never `active`** — the prior status is not recorded, and guessing
-would put a product back in front of customers as a side effect of undoing a delete.
+**Resume goes to `active`, not `draft`** — you pause something that was on sale, so the undo is
+putting it back on sale. That publishes, which is why it is super-admin only and the button says
+"Put back on sale".
 
-Both actions are **super-admin only** (`canDeleteProduct`), and the UI hides them from everyone
-else. The products-table row menu lost its Archive item entirely (owner: "just delete all current
-archive menu item") — it is now Edit + View, and both removal actions live in one danger zone at the
-bottom of the product's own page, where there is room to explain the difference.
+Both actions are **super-admin only** (`canDeleteProduct`) and hidden from everyone else. The
+products-table row menu is **Edit + View** — its Archive item was removed (owner: "just delete all
+current archive menu item"); it called the same endpoint as the product page's delete box and was
+the last un-gated control, so an admin met a 403 instead of not seeing it.
+
+## The "Not live" tab and the "Status" column
+
+`Paused` + `Draft` merged into one **`Not live`** tab — they answer one question: is this in front
+of a customer? `isNotLive(status)` is `status !== "active"`, so an unrecognised status counts as not
+live; the opposite default publishes something by accident.
+
+The table's **AirPlus** column became **Status**, showing one word that matches the tab a row would
+be found under:
+
+| Word | Pill | Means |
+| --- | --- | --- |
+| **Live** | `on` | active, stock healthy |
+| **Low** | `warn` | active, ≤ `LOW_STOCK_THRESHOLD` (3) |
+| **Out** | `bad` | active, on-hand ≤ 0 |
+| **Paused** | `pause` | deliberately not live |
+| **Draft** | `off` | not live, not finished |
+
+**Precedence is the design** — a product can be live AND out of stock, and there is one pill:
+not-live first (Draft → Paused), then Out, then Low, then Live. If customers cannot see it, its
+stock level is not the thing worth saying about it.
+
+This reverses the 2 Aug 2026 decision that folded "Out" into Active because stock had its own
+column. The stock NUMBER is still its own column — Status is the flag, not the figure.

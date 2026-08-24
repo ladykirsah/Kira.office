@@ -1,0 +1,14 @@
+-- Archived and Paused were two words for one thing: "not live, and reversible". The owner collapsed
+-- them on 2026-08-24 — "Archived = Paused globally, and delete = gone" — leaving three product
+-- states: active (live), draft (not finished), paused (not live).
+--
+-- Anything sitting at 'archived' was archived under the OLD meaning, when archiving WAS deleting.
+-- Those products become paused: still there, still off the shop, and now visible under "Not live"
+-- where they can be deleted properly or put back on sale.
+--
+-- Nothing can write 'archived' after this — the route that did now writes 'paused'. The remaining
+-- `status <> 'archived'` filters in query code are left in place deliberately: they cost nothing and
+-- keep a previously-deleted product off the storefront if this migration has not run yet.
+--
+-- NOTE: `expenses.archived` is a different column on a different table and is NOT touched.
+UPDATE products SET status = 'paused' WHERE status = 'archived';

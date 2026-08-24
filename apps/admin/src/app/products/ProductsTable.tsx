@@ -42,17 +42,12 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   // AirPlus: the storefront shows a product only while status = 'active'.
   const onAirPlus = products.filter((p) => p.status === "active");
 
-  // "Not live" replaced three tabs — Paused, Draft and Archive (owner, 2026-08-24) — because they
-  // answer one question: is this in front of a customer? The three states survive in the status
-  // pill, which is now the only thing telling them apart.
+  // "Not live" replaced the Paused and Draft tabs (owner, 2026-08-24) — they answer one question:
+  // is this in front of a customer? "Archived" was folded into Paused at the same time, so there
+  // are three states: active, draft, paused. The status pill says which.
   const notLive = products.filter((p) => isNotLive(p.status));
-
-  // Archived rows arrive only because this page asks for them, and they are NOT stock you hold or
-  // work you have in progress — so they stay out of All and out of the stock tabs. Otherwise
-  // deleting a product would make "All" grow and "Out of stock" fill up with things you deleted.
-  const notArchived = products.filter((p) => p.status !== "archived");
-  const outOfStock = notArchived.filter((p) => p.onHand <= 0);
-  const lowStock = notArchived.filter((p) => stockStatus(p.onHand) === "low");
+  const outOfStock = products.filter((p) => p.onHand <= 0);
+  const lowStock = products.filter((p) => stockStatus(p.onHand) === "low");
 
   const byTab =
     tab === "airplus"
@@ -63,7 +58,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           ? lowStock
           : tab === "out"
             ? outOfStock
-            : notArchived;
+            : products;
   const s = q.trim().toLowerCase();
   const rows = s
     ? byTab.filter(
@@ -110,7 +105,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   return (
     <>
       <div className="tabs">
-        <TabBtn id="all" label="All" n={notArchived.length} />
+        <TabBtn id="all" label="All" n={products.length} />
         <TabBtn id="airplus" label="On AirPlus" n={onAirPlus.length} />
         <TabBtn id="notlive" label="Not live" n={notLive.length} />
         <TabBtn id="low" label="Low stock" n={lowStock.length} />
@@ -225,7 +220,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                   <th align="left">Online price</th>
                   <th align="left">B2C price</th>
                   <th align="center">Stock</th>
-                  <th align="left">AirPlus</th>
+                  <th align="left">Status</th>
                   <th align="left">Action</th>
                 </tr>
               </thead>
