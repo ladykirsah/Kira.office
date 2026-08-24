@@ -1,33 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { archiveProduct } from "@/lib/api";
-import { useToast } from "../ToastProvider";
 
 /**
- * Per-row "Actions ▾" dropdown for the products table: Edit + Archive (with an inline confirm).
- * Closes on outside-click or Escape. Room to add more actions later (Duplicate, View on Shopee…).
+ * Per-row "Actions ▾" dropdown for the products table. Closes on outside-click or Escape.
+ *
+ * Archive used to live here and was removed on 2026-08-24 (owner: "just delete all current archive
+ * menu item"). Two reasons it did not belong in a row menu: it called the same endpoint as the
+ * product page's delete box, so the table said "Archive" for the thing the product page called
+ * "Delete"; and it was not role-gated, so an admin met a 403 instead of simply not seeing it.
+ *
+ * Taking a product off the shop — archiving it, or deleting it outright — now happens in one place,
+ * at the bottom of the product's own page, where there is room to say what each one does.
  */
-export function ActionsMenu({ productId, status }: { productId: string; status: string }) {
+export function ActionsMenu({ productId }: { productId: string }) {
   const [open, setOpen] = useState(false);
-  const [armed, setArmed] = useState(false);
-  const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const toast = useToast();
-  const archived = status === "archived";
-
-  function close() {
-    setOpen(false);
-    setArmed(false);
-  }
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close();
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -36,19 +32,6 @@ export function ActionsMenu({ productId, status }: { productId: string; status: 
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-
-  async function doArchive() {
-    setBusy(true);
-    try {
-      await archiveProduct(productId);
-      toast("Product archived", "success");
-      setTimeout(() => location.reload(), 600);
-    } catch (err) {
-      toast((err as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -81,32 +64,9 @@ export function ActionsMenu({ productId, status }: { productId: string; status: 
           <a className="actions-item" role="menuitem" href={`/products/${productId}/edit?edit=1`}>
             Edit
           </a>
-          {archived ? (
-            <span className="actions-item is-disabled">Archived</span>
-          ) : armed ? (
-            <div className="actions-confirm">
-              <span className="muted" style={{ fontSize: 12 }}>
-                Archive this product?
-              </span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button type="button" className="btn-danger" disabled={busy} onClick={doArchive}>
-                  Archive
-                </button>
-                <button type="button" disabled={busy} onClick={() => setArmed(false)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="actions-item danger"
-              role="menuitem"
-              onClick={() => setArmed(true)}
-            >
-              Archive
-            </button>
-          )}
+          <a className="actions-item" role="menuitem" href={`/products/${productId}`}>
+            View
+          </a>
         </div>
       )}
     </div>

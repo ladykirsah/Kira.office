@@ -3,7 +3,7 @@ type: invariant
 title: Products — soft delete and atomic save
 description: Delete = archived (every list must filter it); Add/Edit product saves atomically via one D1 batch with recover-on-existing-ref
 tags: [products, soft-delete, atomic-save, d1, admin]
-timestamp: 2026-08-09
+timestamp: 2026-08-24
 status: live
 sources: [kira-soft-delete-invariant.md, kira-product-save-atomic.md, apps/api/src/index.ts, apps/admin/src/lib/newProduct.ts]
 ---
@@ -50,3 +50,52 @@ Add-page UX: auto-saves a draft in the background (debounced 1.5 s, `status:'dra
 - Parked content features shaping `products.name`/`description`: [product-content-patterns](product-content-patterns.md)
 - Deletion-audit siblings (POS ghost draft, attribute delete): [onsite-pos](onsite-pos.md), [taxonomy-and-attributes](taxonomy-and-attributes.md)
 - D1/DO platform details: [platform](../platform/index.md)
+
+## The "Not live" tab, and the four product states (owner, 2026-08-24)
+
+The owner's model, stated in their words:
+
+| State | Meaning |
+| --- | --- |
+| **Delete** | gone from the system |
+| **Archive** | not live |
+| **Paused** | not live |
+| **Draft** | not live, and incomplete |
+
+The products table's `Paused` and `Draft` tabs were merged into one **`Not live`** tab, which also
+now lists **archived** rows — three tabs answering one question ("is this in front of a customer?")
+became one. `isNotLive(status)` (`apps/admin/src/lib/productStatus.ts`) is simply `status !==
+"active"`, so an unrecognised status counts as not live: the opposite default publishes something
+by accident. The three states survive in the status pill, which gained an **Archived** (`bad`)
+variant and is now the only thing distinguishing them inside the tab.
+
+**INVARIANT — archived rows are OPT-IN.** `GET /products?includeArchived=1` widens the soft-delete
+filter, and **only** the products table passes it. The SAME payload feeds the **POS** and the
+**Barcodes** page, where an archived product appearing would let someone sell or label a deleted
+part. Only the literal string `"1"` opts in — no truthy-string guessing. `All`, `Low stock` and
+`Out of stock` all exclude archived, as does the page-header count, so deleting a product never
+makes those numbers climb.
+
+**Delete and Archive are now different things (owner, 2026-08-24).** They were the same action —
+both called `DELETE /products/:id`, which archived — which is why the table said "Archive" for what
+the product page called "Delete".
+
+| Action | Route | What it does |
+| --- | --- | --- |
+| **Archive / restore** | `POST /products/:id/archive` \| `/unarchive` | status → `archived`, or back to **`draft`**. Reversible, nothing lost. |
+| **Delete** | `DELETE /products/:id` | Really removes the product and everything it owns: variants, prices, barcodes, fitments, images, terms, campaign prices. |
+
+**INVARIANT — delete is REFUSED (409 `has_history`) when the product has ever been sold or has any
+stock movement.** `sales_order_lines` and `onsite_sale_lines` point at a *variant* and keep **no
+product name of their own**, so removing a sold product leaves a past order holding a line that
+cannot say what was in it — and Finance is built from those lines. The stock ledger is an
+append-only audit trail for the same reason. There is deliberately **no force flag**: the honest
+answer for a product with a past is to archive it. `productHasHistory()` is the single check.
+
+**Restoring lands on `draft`, never `active`** — the prior status is not recorded, and guessing
+would put a product back in front of customers as a side effect of undoing a delete.
+
+Both actions are **super-admin only** (`canDeleteProduct`), and the UI hides them from everyone
+else. The products-table row menu lost its Archive item entirely (owner: "just delete all current
+archive menu item") — it is now Edit + View, and both removal actions live in one danger zone at the
+bottom of the product's own page, where there is room to explain the difference.

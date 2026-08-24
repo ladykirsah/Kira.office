@@ -376,7 +376,7 @@ export default function EditProductPage() {
               />
             </div>
           </form>
-          <DeleteProductCard productId={id} />
+          <DeleteProductCard productId={id} status={detail?.product.status} />
         </>
       ) : (
         <ProductView detail={detail} />
