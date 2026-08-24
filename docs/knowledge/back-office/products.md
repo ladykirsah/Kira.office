@@ -177,6 +177,41 @@ that looks like a deliberate decision, and an unrecognised status is left alone.
 The **Add product** page is unaffected: it renders neither switch (PartDetails draws each only when
 its handler is supplied) and keeps its explicit *Save as draft* / *Publish* buttons.
 
+## The Status cell's second line: why a product is not selling (owner, 2026-08-24)
+
+Migration 0088 landed and the Not live tab held eight products, every one of them pilled **Paused**
+— which is the name of the tab you are already looking at. Nothing said which could go back on the
+shop that afternoon and which needed a photo shoot first; the only way to find out was to open all
+eight.
+
+The Status cell now keeps its pill and gains a muted line under it naming what is missing.
+`readinessNote()` in `apps/admin/src/lib/readiness.ts`:
+
+| Product | Line |
+| --- | --- |
+| Not live, nothing missing | **ready to sell** — the one green line, because it invites an action |
+| Missing things | `no photo · no price · no stock`, always in that order |
+| Live, nothing missing | nothing at all — it is already selling |
+
+**It never repeats the pill.** `productStatusTag` already flags a live product's stock as **Out** or
+**Low**, so for a live product the line stays silent about stock. A paused or draft product is
+pilled for being off the shop, which says nothing about stock, so there the line does mention it.
+Saying the same thing twice in one cell reads as a bug, not as emphasis.
+
+**On every tab, not just Not live** (owner's follow-up the same day) — a product selling right now
+without a picture is worth flagging too.
+
+`readinessValues()` feeds the same facts into the existing toolbar as a **Readiness** sort/filter
+dimension, so "show me everything missing a photo" is one click. A healthy live product has no
+value and sorts last, matching every other dimension.
+
+Against production's eight on the day it shipped: **2 ready to sell, 1 needing only stock, 5 needing
+photos** — the five being the original demo batch, none of which ever had an image.
+
+Nothing else moved: no new columns, no new buttons, one Actions menu. The line reuses the muted
+sub-line register already used for a reference code under a product name, so the locked list-table
+shape in [DESIGN_SYSTEM](../../DESIGN_SYSTEM.md) is untouched.
+
 ## The product page's Status field (owner, 2026-08-24)
 
 The Identifiers block on a product's page lost **Shopee ID** and its "Shopee" field. In their place,
