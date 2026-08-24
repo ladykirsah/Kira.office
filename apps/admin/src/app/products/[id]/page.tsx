@@ -86,7 +86,7 @@ export default function ProductViewPage() {
       <ProductView detail={detail} />
       {/* Bottom of the page, behind a typed word — never beside Edit. Deleting is a one-way door
           (archive; no screen restores it), and this is a page people land on to READ. */}
-      <DeleteProductCard productId={id} status={p.status} />
+      <DeleteProductCard productId={id} />
     </main>
   );
 }

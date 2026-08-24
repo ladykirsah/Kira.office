@@ -90,3 +90,7 @@ sources: [session 2026-08-09]
 - **2026-08-24** — Product page: **Shopee ID** removed (permanently "—" with no Shopee API), and the
   "Shopee" field became **Status**, carrying a tag per channel — `Active on AirPlus` /
   `Active on Shopee`. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Pausing left the delete card: the **Live on AirPlus** switch and the row menu are
+  now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
+  previously had no delete box at all. See [back-office/products](back-office/products.md).

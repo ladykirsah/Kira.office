@@ -71,9 +71,9 @@ nothing and keep a previously-deleted product off the storefront if 0088 has not
 
 ### Removing a product
 
-| Action | Route | Effect |
-| --- | --- | --- |
-| **Pause / resume** | `POST /products/:id/pause` \| `/resume` | → `paused`, or back to **`active`**. Reversible, nothing lost. |
+| Action | Route | Effect | Where in the UI |
+| --- | --- | --- | --- |
+| **Pause / resume** | `POST /products/:id/pause` \| `/resume` | → `paused`, or back to **`active`**. Reversible, nothing lost. | the **Live on AirPlus** switch on the edit form, and the row menu — **not** the danger zone |
 | **Delete** | `DELETE /products/:id` | Really removes the product and all it owns — variants, prices, barcodes, fitments, images, terms, campaign prices. |
 
 **INVARIANT — delete is REFUSED (409 `has_history`) when the product has ever been sold or has any
@@ -185,3 +185,15 @@ implies the other, which is the point of showing both.
 **Shopee ID was removed, not hidden:** there is no Shopee API to link an id to, so the field was
 permanently "—". `shopee_item_id` is still carried through save so existing values are preserved
 rather than wiped — the same treatment the edit form already gave it.
+
+## Where pausing lives, and what the danger zone is for
+
+Pausing was a second button inside the delete card until 2026-08-24. The owner moved it out: taking a
+product off the shop is the **Live on AirPlus** switch (edit form) and the matching row-menu item.
+One control per idea, one place each. The danger zone does **only** deleting.
+
+That pairing had also hidden a bug worth remembering: the delete box was rendered only when the
+product was NOT paused, because a paused product showed a "put it back on sale" message in its
+place — so **a paused product could not be deleted at all**. Being off the shop and being removable
+are unrelated; a paused product with no sales history deletes like any other. Splitting the controls
+fixed it as a side effect.

@@ -4,48 +4,49 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { canDeleteProduct } from "@l-shopee/core";
 import { inputS } from "@/lib/inputStyles";
-import { deleteProductForever, setProductPaused } from "@/lib/api";
+import { deleteProductForever } from "@/lib/api";
 import { isDeleteConfirmed } from "@/lib/deleteConfirm";
 import { useStaffRole } from "../StaffRoleProvider";
 import { useToast } from "../ToastProvider";
 
 /**
- * The two ways a product leaves the shop, side by side so the difference is legible.
+ * Deleting a product for good — and only that.
  *
- *   Pause  — not live. Everything is kept and it can be undone. What a product with a past gets.
- *   Delete — gone from the system. Only possible while the product has no history, because the
- *            rows that record a sale name no product of their own; the API refuses the rest.
+ * Pausing used to live here as a second button. It moved out on 2026-08-24 (owner): taking a
+ * product off the shop is now the "Live on AirPlus" switch on the edit form, and the same action in
+ * the row menu. One control per idea, in one place each.
  *
- * There were three words for two ideas until 2026-08-24: the table said "Archive", this page said
- * "Delete", and both called the same endpoint. The owner collapsed Archived into Paused ("Archived
- * = Paused globally, and delete = gone"), leaving one honest word for each.
+ * That also fixed something the pairing had hidden. The delete box was rendered only when the
+ * product was NOT paused, because a paused product showed a "put it back on sale" message instead —
+ * so a paused product could not be deleted from this card at all. Being off the shop and being
+ * removable are unrelated: a paused product with no sales history deletes like any other.
+ *
+ * Delete stays refused for a product with a past. Sale lines name no product of their own, so
+ * removing one would leave a past order unable to say what was in it, and the API answers 409 with
+ * a sentence worth showing verbatim.
  *
  * Renders nothing for anyone but the super admin. Hidden rather than disabled: a greyed-out delete
  * box invites "why can't I?", and the answer is not a fixable state. The API refuses independently.
  */
-export function DeleteProductCard({ productId, status }: { productId: string; status?: string }) {
+export function DeleteProductCard({ productId }: { productId: string }) {
   const router = useRouter();
   const toast = useToast();
   const role = useStaffRole();
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const armed = isDeleteConfirmed(confirm);
-  // Anything that is not live and not a half-written draft is paused.
-  const paused = status !== "active" && status !== "draft";
 
   if (!role || !canDeleteProduct(role)) return null;
 
-  async function run(work: () => Promise<void>, done: string, back?: boolean) {
-    if (busy) return;
+  async function onDelete() {
+    if (!armed || busy) return;
     setBusy(true);
     try {
-      await work();
-      toast(done, "success");
-      if (back) router.push("/products");
-      else router.refresh();
+      await deleteProductForever(productId);
+      toast("Product deleted", "success");
+      router.push("/products");
     } catch (err) {
       toast((err as Error).message, "error");
-    } finally {
       setBusy(false);
     }
   }
@@ -53,54 +54,31 @@ export function DeleteProductCard({ productId, status }: { productId: string; st
   return (
     <section className="danger-zone">
       <div>
-        <div className="danger-zone-title">{paused ? "Paused product" : "Remove from shop"}</div>
+        <div className="danger-zone-title">Delete product</div>
         <p className="danger-zone-text">
-          {paused
-            ? "Customers cannot see this product, but nothing has been lost. Put it back on sale whenever you want."
-            : "Pausing hides this product from the shop and keeps everything, including its sales history. Deleting removes it completely, and is only possible if it has never been sold."}
+          Removes this product completely. Only possible if it has never been sold — if it has, take
+          it off the shop with <strong>Live on AirPlus</strong> instead, which keeps everything.
+          This cannot be undone: type <strong>DELETE</strong> to confirm.
         </p>
       </div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder="Type DELETE"
+          aria-label="Type DELETE to confirm"
+          style={{ ...inputS, width: 200 }}
+        />
         <button
           type="button"
-          className="btn-sm"
-          disabled={busy}
-          onClick={() =>
-            run(
-              () => setProductPaused(productId, !paused),
-              paused ? "Product is back on sale" : "Product paused",
-            )
-          }
+          className="btn-danger btn-sm"
+          disabled={!armed || busy}
+          onClick={onDelete}
         >
-          {paused ? "Put back on sale" : "Pause"}
+          Delete product
         </button>
       </div>
-
-      {!paused && (
-        <div>
-          <p className="danger-zone-text">
-            Or delete it for good. This cannot be undone — type <strong>DELETE</strong> to confirm.
-          </p>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Type DELETE"
-              aria-label="Type DELETE to confirm"
-              style={{ ...inputS, width: 200 }}
-            />
-            <button
-              type="button"
-              className="btn-danger btn-sm"
-              disabled={!armed || busy}
-              onClick={() => run(() => deleteProductForever(productId), "Product deleted", true)}
-            >
-              Delete product
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
