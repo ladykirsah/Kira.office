@@ -74,6 +74,29 @@ used to get it wrong.
 someone will write why they were at a hospital in it, so shipping the whole team's reasons to a page
 that displays one of them hands the browser more than it needs.
 
+## Month and year: two boxes, one per table
+
+`<input type="month">` is gone. The owner's words were "**the time setting is un-clickable**", and
+they were right: it is one field with two invisible halves, a calendar button a few pixels wide, and
+it renders however the browser likes — on one machine "August 2026", in English and the western
+year, beside a heading reading สิงหาคม 2569. `MonthYearPicker` is two plain selects instead.
+
+**`lang` follows the words around it**, not a global setting: the วันหยุด card is Thai, so
+สิงหาคม / 2569; the Payments table's own headings are English, so August / 2026. Everything crossing
+a URL or the API stays `YYYY-MM` in the western calendar — **2569 must never reach the database**.
+
+**Every table owns its own**, and they do not touch each other:
+
+| | Its setting does |
+| --- | --- |
+| วันหยุด | picks the month it lists (in the URL, so back and bookmarks work) |
+| Payments | **jumps to and highlights** a month — every month stays listed, because a wage history is read by comparing one month against the one before |
+| Record | none. The two entry tabs take their month from the date typed into them; จ่ายเงินเดือน has its own, because the month you are paying FOR is not the day you pay it |
+
+One coupling had to be cut for that to be true: the wage table asks the API for the **real current
+month**, not the one วันหยุด is browsing. Passing the browsed month made the วันหยุด picker quietly
+add and drop rows from Payments.
+
 ## The Record section (owner, 2026-08-24)
 
 Built on the car-fitment page's **Add new**, which the owner picked as the working flow: pick what

@@ -139,9 +139,9 @@ export function StaffProfileEditor({
   days: DayOffRow[];
 }) {
   const toast = useToast();
-  // The row for the month on screen, so Record can state what is still due and refuse a month that
-  // has already been paid. staffPayments always includes it, even with nothing recorded yet.
-  const thisMonth = payments.find((p) => p.period === month);
+  // The year the year-dropdowns offer, taken once here rather than inside each control, so nothing
+  // on this page can disagree about what "this year" is mid-render.
+  const currentYear = Number(month.slice(0, 4)) || new Date().getFullYear();
   const initial = {
     nameTh: profile.nameTh ?? "",
     nameEn: profile.nameEn ?? "",
@@ -433,18 +433,18 @@ export function StaffProfileEditor({
             working days, and its advances come off the wage. */}
         <RecordSection
           userId={profile.id}
-          month={month}
-          dueSatang={thisMonth?.dueSatang ?? 0}
-          monthIsPaid={thisMonth?.paidAt != null}
+          payments={payments}
+          currentYear={currentYear}
+          defaultPeriod={month}
         />
 
-        <StaffDaysOff userId={profile.id} month={month} days={days} />
+        <StaffDaysOff userId={profile.id} month={month} days={days} currentYear={currentYear} />
 
         {/* Wages paid, and the transfer slip for each — on the person, not the salary run
             (owner, 2026-08-04). Outside the Edit flow: a payment record is history, not a field. */}
         <section className="card">
           <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Payments</h2>
-          <PaymentsTable userId={profile.id} payments={payments} />
+          <PaymentsTable userId={profile.id} payments={payments} currentYear={currentYear} />
         </section>
 
         <section className="card">

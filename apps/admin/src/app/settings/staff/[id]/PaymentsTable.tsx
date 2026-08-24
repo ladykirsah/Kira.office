@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Icon } from "../../../Icon";
 import { Modal } from "../../../Modal";
+import { MonthYearPicker } from "../../../MonthYearPicker";
 
 export interface StaffPayment {
   period: string;
@@ -56,9 +57,26 @@ function monthLabel(period: string): string {
  * That reads as a plain gap on purpose (owner): the payment itself is still on the row, and every
  * payment required a slip to be recorded in the first place.
  */
-export function PaymentsTable({ userId, payments }: { userId: string; payments: StaffPayment[] }) {
+export function PaymentsTable({
+  userId,
+  payments,
+  currentYear,
+}: {
+  userId: string;
+  payments: StaffPayment[];
+  currentYear: number;
+}) {
   // Which month's slip is open in the popup, or null. One at a time, like the order page.
   const [open, setOpen] = useState<string | null>(null);
+  /**
+   * This table's OWN month setting, independent of the วันหยุด card's (owner, 2026-08-24).
+   *
+   * It JUMPS, it does not filter: the chosen month is highlighted and scrolled to, and every other
+   * month stays on the table. A wage history is read by comparing one month against the one before
+   * it, so hiding the others to "find" one would take away the reason you opened it. Owner's call,
+   * and the foundation for more work on this table.
+   */
+  const [jumpTo, setJumpTo] = useState<string>(payments[0]?.period ?? "");
 
   if (payments.length === 0) {
     return (
@@ -70,6 +88,27 @@ export function PaymentsTable({ userId, payments }: { userId: string; payments: 
 
   return (
     <>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 12,
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        {/* English names and the western year, matching this table's own month headings. The
+            วันหยุด card above is Thai and carries its own picker — each says what its neighbours
+            say rather than following one global setting. */}
+        <MonthYearPicker
+          value={jumpTo}
+          lang="en"
+          label="Jump to month"
+          currentYear={currentYear}
+          onChange={setJumpTo}
+        />
+      </div>
+
       <div className="products-scroll">
         <table className="products-table">
           <thead>
@@ -89,7 +128,27 @@ export function PaymentsTable({ userId, payments }: { userId: string; payments: 
           </thead>
           <tbody>
             {payments.map((p) => (
-              <tr key={p.period}>
+              <tr
+                key={p.period}
+                ref={(el) => {
+                  // Bring the chosen month into view without hiding the rest. Only when it is not
+                  // already on screen, so picking a visible month does not yank the page about.
+                  if (el && p.period === jumpTo) {
+                    const r = el.getBoundingClientRect();
+                    if (r.top < 0 || r.bottom > window.innerHeight) {
+                      el.scrollIntoView({ block: "center", behavior: "smooth" });
+                    }
+                  }
+                }}
+                style={
+                  p.period === jumpTo
+                    ? {
+                        background: "var(--primary-faint)",
+                        outline: "1px solid var(--primary-soft)",
+                      }
+                    : undefined
+                }
+              >
                 <td style={{ fontWeight: 600 }}>{monthLabel(p.period)}</td>
                 <td className="num">{baht(p.dayRateSatang)}</td>
                 <td className="num">{p.offHalves ? days(p.offHalves) : "0"}</td>

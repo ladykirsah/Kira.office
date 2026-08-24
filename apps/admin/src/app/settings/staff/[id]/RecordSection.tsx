@@ -5,7 +5,8 @@ import { useState } from "react";
 import { LEAVE_MODES, type LeaveHalves, type PayMethod } from "@l-shopee/core";
 import { useToast } from "../../../ToastProvider";
 import { FilePickButton } from "../../../FilePickButton";
-import { monthLabel } from "@/lib/dayOff";
+import type { StaffPayment } from "./PaymentsTable";
+import { MonthYearPicker } from "../../../MonthYearPicker";
 
 /**
  * "Record" — the one place you write anything down about a person (owner, 2026-08-24).
@@ -66,17 +67,19 @@ function Field({
 
 export function RecordSection({
   userId,
-  month,
-  dueSatang,
-  monthIsPaid,
+  payments,
+  currentYear,
+  defaultPeriod,
 }: {
   userId: string;
-  /** The month the page is showing — what an advance is filed against, and what a wage pays for. */
-  month: string;
-  /** What this month still comes to after advances, so the จ่ายเงินเดือน tab can state the figure. */
-  dueSatang: number;
-  /** A paid month takes no more advances and no second payment — see recordAdvance. */
-  monthIsPaid: boolean;
+  /**
+   * Every month's figures, so the จ่ายเงินเดือน tab can state what is due for whichever month is
+   * chosen — and refuse one already paid.
+   */
+  payments: StaffPayment[];
+  currentYear: number;
+  /** The month จ่ายเงินเดือน opens on. The other two tabs derive theirs from the date typed. */
+  defaultPeriod: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -97,12 +100,24 @@ export function RecordSection({
   const [amountThb, setAmountThb] = useState("");
   const [note, setNote] = useState("");
 
-  // จ่ายเงินเดือน
+  // จ่ายเงินเดือน — the month being paid FOR, which is not the day it is paid: August's wage is
+  // handed over on 5 September. This is the one tab that still needs a month chooser; the other two
+  // take theirs from the date field they already have (owner, 2026-08-24).
+  const [payPeriod, setPayPeriod] = useState(defaultPeriod);
   const [paidOn, setPaidOn] = useState("");
 
   const isMoney = tab !== "off";
   const amountSatang = toSatang(amountThb);
   const slipMissing = method === "transfer" && !slip;
+
+  /** An advance belongs to the month it was handed over in — read straight off its own date box. */
+  const advancePeriod = givenOn.length >= 7 ? givenOn.slice(0, 7) : "";
+  const payRow = payments.find((p) => p.period === payPeriod);
+  const dueSatang = payRow?.dueSatang ?? 0;
+  const payMonthIsPaid = payRow?.paidAt != null;
+  // Only the month being paid can be already-paid; an advance is blocked by ITS month's state.
+  const advanceMonthIsPaid =
+    !!advancePeriod && payments.find((p) => p.period === advancePeriod)?.paidAt != null;
 
   function resetAll() {
     setDay("");
@@ -112,6 +127,7 @@ export function RecordSection({
     setAmountThb("");
     setNote("");
     setPaidOn("");
+    setPayPeriod(defaultPeriod);
     setMethod("cash");
     setSlip(null);
   }
@@ -138,8 +154,8 @@ export function RecordSection({
     (tab === "off"
       ? !!day
       : tab === "advance"
-        ? !!givenOn && amountSatang > 0 && !slipMissing && !monthIsPaid
-        : !!paidOn && !slipMissing && !monthIsPaid);
+        ? !!givenOn && amountSatang > 0 && !slipMissing && !advanceMonthIsPaid
+        : !!paidOn && !!payPeriod && !slipMissing && !payMonthIsPaid);
 
   const saveText =
     tab === "off"
@@ -166,7 +182,7 @@ export function RecordSection({
       // fields with it. A wage payment has no such fields, so that one keeps the raw-image shape
       // the route already had.
       const post = async () => {
-        const slipKey = slip ? await uploadSlip(userId, month, slip) : null;
+        const slipKey = slip ? await uploadSlip(userId, advancePeriod, slip) : null;
         if (slip && !slipKey) {
           toast("อัปโหลดสลิปไม่สำเร็จ", "error");
           return;
@@ -177,7 +193,7 @@ export function RecordSection({
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
-              period: month,
+              period: advancePeriod,
               givenOn,
               amountSatang,
               method,
@@ -193,7 +209,7 @@ export function RecordSection({
       return;
     }
     // จ่ายเงินเดือน — the slip IS the body for a transfer; cash sends none at all.
-    const qs = new URLSearchParams({ period: month, method, paidOn });
+    const qs = new URLSearchParams({ period: payPeriod, method, paidOn });
     void send(
       `/api/worker/staff/${userId}/salary-paid?${qs}`,
       slip
@@ -332,7 +348,13 @@ export function RecordSection({
         {tab === "salary" && (
           <div className="record-fields" style={fields}>
             <Field label="เดือนที่จ่าย">
-              <input value={monthLabel(month)} readOnly />
+              <MonthYearPicker
+                value={payPeriod}
+                lang="th"
+                label="เดือนที่จ่าย"
+                currentYear={currentYear}
+                onChange={setPayPeriod}
+              />
             </Field>
             <Field label="วันที่จ่าย">
               <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
@@ -356,7 +378,7 @@ export function RecordSection({
           <>
             เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน <b>เข้าสาย ไม่หักเงิน</b>
           </>
-        ) : monthIsPaid ? (
+        ) : (tab === "advance" ? advanceMonthIsPaid : payMonthIsPaid) ? (
           <>
             เดือนนี้จ่ายไปแล้ว — <b>บันทึกเพิ่มไม่ได้</b> เพราะสลิปที่ออกไปแล้วจะไม่ตรงกัน
           </>

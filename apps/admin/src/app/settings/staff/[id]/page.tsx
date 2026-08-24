@@ -42,7 +42,11 @@ export default async function StaffProfilePage({
   // to an empty list.
   let payments: StaffPayment[] = [];
   try {
-    const res = await apiFetch(`/staff/${id}/payments?month=${encodeURIComponent(month)}`, {
+    // The REAL current month, not the one the วันหยุด card is browsing (owner, 2026-08-24). It only
+    // decides which running month the wage table always includes; passing the browsed month made the
+    // วันหยุด picker quietly add and drop rows from Payments, which is exactly the coupling the
+    // owner asked to remove. Payments has its own control, and it jumps rather than filters.
+    const res = await apiFetch(`/staff/${id}/payments?month=${bangkokMonth(Date.now())}`, {
       cache: "no-store",
       headers: { [STAFF_SESSION_HEADER]: token ?? "" },
     });

@@ -6,6 +6,7 @@ import { summariseDaysOff } from "@l-shopee/core";
 import { useToast } from "../../../ToastProvider";
 import { DayOffTable, type DayOffEdit, type DayOffRow } from "../../../DayOffTable";
 import { monthLabel } from "@/lib/dayOff";
+import { MonthYearPicker } from "../../../MonthYearPicker";
 
 /**
  * One person's วันหยุด, on their profile (owner, 2026-08-24).
@@ -34,10 +35,13 @@ export function StaffDaysOff({
   userId,
   month,
   days,
+  currentYear,
 }: {
   userId: string;
   month: string;
   days: DayOffRow[];
+  /** Passed down rather than read from a clock here, so a render is never a moving target. */
+  currentYear: number;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -73,14 +77,19 @@ export function StaffDaysOff({
             {monthLabel(month)} · {summariseDaysOff(days).label}
           </p>
         </div>
-        {/* The month lives in the URL, so every month is its own address — bookmarkable, and the
-            back button behaves. Same control as the team screen. */}
-        <input
-          type="month"
-          aria-label="เดือน"
-          defaultValue={month}
-          onChange={(e) => {
-            if (e.target.value) router.push(`/settings/staff/${userId}?month=${e.target.value}`);
+        {/* This table's OWN month, and nothing else's (owner, 2026-08-24) — Payments below carries
+            a separate one, and Record above works from the dates typed into it. The month lives in
+            the URL, so every month is its own address: bookmarkable, and the back button behaves.
+            Thai names and พ.ศ., matching the heading two inches to the left. */}
+        <MonthYearPicker
+          value={month}
+          lang="th"
+          label="เดือนของวันหยุด"
+          currentYear={currentYear}
+          onChange={(period) => {
+            const url = new URLSearchParams(window.location.search);
+            url.set("month", period);
+            router.push(`/settings/staff/${userId}?${url}`);
           }}
         />
       </div>
