@@ -26,3 +26,7 @@ sources: [session 2026-08-09]
   permission helpers are defined and tested but **never called** (the file's own "enforced in the
   API" claim is false), and added the new super-admin-only product delete
   (`canDeleteProduct`, enforced on `DELETE /products/:id`).
+
+- **2026-08-24** — [conventions/admin-consistency-backlog](conventions/admin-consistency-backlog.md):
+  item 7 half-closed — `.danger-zone` now uses `--danger-soft` / `--danger-border` tokens in both
+  themes; `a.card:hover` is the last token-less colour left.
