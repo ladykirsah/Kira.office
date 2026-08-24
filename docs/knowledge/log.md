@@ -95,6 +95,14 @@ sources: [session 2026-08-09]
   now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
   previously had no delete box at all. See [back-office/products](back-office/products.md).
 
+- **2026-08-24** — **A dead session bought a silent, nameless back office.** The middleware gates
+  on the session cookie merely EXISTING — it has no database — so a revoked, expired or
+  deleted-user cookie rendered every page in full, with an empty name badge, no redirect and no
+  message. The root layout already knew better and was ignored; it now decides
+  (`lib/signedInGate.ts`), and the login page says **"You were signed out."** `?next=` is honoured
+  at last, and sanitised against open redirects. See
+  [auth/dead-session-silent-access](auth/dead-session-silent-access.md).
+
 - **2026-08-24** — Tier profit unified in `lib/tierProfits.ts`, fixing **three live
   miscalculations**: the edit form charged Shopee a commission based on the AirPlus price, the
   products table charged AirPlus a commission it does not pay, and the edit page's **campaign

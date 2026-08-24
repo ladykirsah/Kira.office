@@ -1,15 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { STAFF_COOKIE } from "@/lib/staffSession";
+import { GATED_PATH_HEADER } from "@/lib/signedInGate";
 
 /**
- * Send signed-out visitors to /login.
+ * First pass on every back-office page: bounce anyone with no session cookie at all, and tell the
+ * layout which path it is about to draw.
  *
  * THIS IS NOT THE SECURITY BOUNDARY, and must not be mistaken for one. It only checks that a cookie
  * is PRESENT — it cannot verify it, because middleware has no database. The real check happens in
  * the API on every single data request (`requireStaff`), which is what actually protects the data.
- * All this does is spare someone a page full of empty panels and a redirect they'd hit anyway.
  *
- * Keeping it this cheap is deliberate: a middleware that tried to validate would add a round trip
+ * IT IS ALSO NOT THE SIGN-IN CHECK. A cookie left over from a session that has since been revoked,
+ * expired, or whose user was deleted looks identical here to a live one, and used to be waved
+ * through into a fully-drawn back office belonging to nobody (24 Aug 2026). That is why it now
+ * stamps the pathname into `x-kira-path`: the root layout already asks the API who the token
+ * belongs to, and `mustSignIn` turns that answer into the redirect this pass cannot make.
+ *
+ * Keeping this pass cheap is deliberate: a middleware that tried to validate would add a round trip
  * to every navigation, and would still not be the thing standing between the internet and D1.
  */
 export function middleware(request: NextRequest): NextResponse {
@@ -20,10 +27,16 @@ export function middleware(request: NextRequest): NextResponse {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     // Remember where they were going, so signing in doesn't dump everyone on the dashboard.
+    // `safeNextPath` is what decides whether the value is safe to act on, at the moment it is used.
     url.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+
+  // Overwrite rather than append: the header is a statement by this middleware about this request,
+  // and a caller must not be able to supply their own.
+  const headers = new Headers(request.headers);
+  headers.set(GATED_PATH_HEADER, pathname + search);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

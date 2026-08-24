@@ -10,7 +10,7 @@ type Method = "pin" | "password";
  * a password sign-in is email + password. Switching tabs clears whatever was typed, so half of one
  * method can never be submitted alongside the other.
  */
-export function LoginForm() {
+export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; next?: string }) {
   const [method, setMethod] = useState<Method>("pin");
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
@@ -19,6 +19,20 @@ export function LoginForm() {
   const [showOwner, setShowOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Throw away a cookie the API has already disowned.
+   *
+   * Without this the dead cookie sits in the browser indefinitely, and the middleware — which can
+   * only see that a cookie EXISTS — keeps believing this person is signed in and keeps waving their
+   * requests through to a layout that immediately bounces them back here. Nothing is broken by
+   * that, but the browser's idea of the world stays wrong until they succeed at signing in. Clear
+   * it once, on arrival, and the two agree again.
+   */
+  useEffect(() => {
+    if (!expired) return;
+    void fetch("/api/staff/logout", { method: "POST" }).catch(() => {});
+  }, [expired]);
 
   /**
    * The sixth digit hands focus to Sign in, so a PIN can be entered without looking up.
@@ -59,7 +73,7 @@ export function LoginForm() {
         body: JSON.stringify({ owner: true }),
       });
       if (res.ok) {
-        window.location.href = "/";
+        window.location.href = next;
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { reason?: string };
@@ -88,7 +102,7 @@ export function LoginForm() {
       if (res.ok) {
         // A full navigation, not a router push: every server component has to re-render now that
         // there is a session, and the menu itself depends on the role.
-        window.location.href = "/";
+        window.location.href = next;
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { reason?: string; error?: string };
@@ -184,6 +198,12 @@ export function LoginForm() {
             />
           </div>
         </>
+      )}
+
+      {expired && !error && (
+        <div role="status" className="login-error login-note">
+          You were signed out. Please sign in again.
+        </div>
       )}
 
       {error && (
