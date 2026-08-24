@@ -95,6 +95,12 @@ sources: [session 2026-08-09]
   now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
   previously had no delete box at all. See [back-office/products](back-office/products.md).
 
+- **2026-08-24** — **Migration 0088 applied to production.** 8 products sat at the retired
+  `archived` status; all 8 are now `paused` and appear under **Not live**, where they can be put
+  back on sale or deleted properly. Verified after: 0 rows left at `archived`, no migrations
+  pending, the public shop still lists exactly the 10 active products, and the demo skincare
+  product (`prod-demo`) returns 404. Rollback is the 8 recorded ids back to `archived`.
+
 - **2026-08-24** — **A dead session bought a silent, nameless back office.** The middleware gates
   on the session cookie merely EXISTING — it has no database — so a revoked, expired or
   deleted-user cookie rendered every page in full, with an empty name badge, no redirect and no
