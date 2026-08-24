@@ -196,6 +196,8 @@ export function RecordSection({
     );
   }
 
+  // Field for field, the same grid Add new uses on the car-fitment page. `.record-fields` gives the
+  // controls inside it that page's SMALL size; the admin default is the larger 40px one.
   const fields = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
@@ -265,7 +267,7 @@ export function RecordSection({
         {isMoney && <p className="record-money-note">⚠ เงินออกจากร้าน — ตรวจยอดก่อนบันทึก</p>}
 
         {tab === "off" && (
-          <div style={fields}>
+          <div className="record-fields" style={fields}>
             <Field label="วันที่">
               <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
             </Field>
@@ -298,7 +300,7 @@ export function RecordSection({
         )}
 
         {tab === "advance" && (
-          <div style={fields}>
+          <div className="record-fields" style={fields}>
             <Field label="วันที่">
               <input type="date" value={givenOn} onChange={(e) => setGivenOn(e.target.value)} />
             </Field>
@@ -328,7 +330,7 @@ export function RecordSection({
         )}
 
         {tab === "salary" && (
-          <div style={fields}>
+          <div className="record-fields" style={fields}>
             <Field label="เดือนที่จ่าย">
               <input value={monthLabel(month)} readOnly />
             </Field>
@@ -346,7 +348,7 @@ export function RecordSection({
       <div style={{ marginTop: 14 }}>
         <button
           type="button"
-          className={isMoney ? "btn-money" : "btn-primary"}
+          className={isMoney ? "btn-money" : "btn-primary btn-sm"}
           disabled={!canSave}
           onClick={submit}
         >

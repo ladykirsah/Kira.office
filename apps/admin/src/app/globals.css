@@ -1637,11 +1637,15 @@ a.card:hover {
 .record-tab {
   padding: 8px 14px;
   border-radius: 9px;
+  /* Two things here defeat something inherited that made these tabs 9px taller than the Add new
+     tabs they copy: `min-height: 0` beats the global button{min-height:40px} (Add new does the same
+     inline), and dropping `font: inherit` stops the section's 16px body font being pulled in, where
+     Add new's tabs take the bare button default. Matching a design means matching what it does NOT
+     set, too. */
   min-height: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  font: inherit;
   font-weight: 500;
   cursor: pointer;
 }
@@ -1686,22 +1690,33 @@ a.card:hover {
   color: var(--warn);
 }
 
-/* Same shape as .btn-primary, amber. Its label always ends with the amount, so the last thing read
-   before pressing is the number. */
+/* Amber twin of .btn-primary, at .btn-sm's size — Record matches the Add new section it copies,
+   which is small-size throughout (owner, 2026-08-24). Its label always ends with the amount, so the
+   last thing read before pressing is the number. */
 .btn-money {
   border: 1px solid var(--warn);
   background: var(--warn);
   color: #fff;
-  border-radius: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  font: inherit;
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 .btn-money:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Every control inside Record is SMALL, matching Add new on the car-fitment page field for field:
+   32px tall, 6px/10px padding, full width. The page default is the large 40px size, which made
+   Record read as a heavier, different-looking form than the one it was modelled on. Scoped here
+   rather than changed globally — the large size is right everywhere else. */
+.record-fields input,
+.record-fields select {
+  min-height: 32px;
+  padding: 6px 10px;
+  width: 100%;
 }
 
 /* เงินสด / โอน — a two-way segmented control, not a select: there are exactly two answers and one
@@ -1719,6 +1734,9 @@ a.card:hover {
   color: var(--text-muted);
   font: inherit;
   font-size: 13.5px;
+  /* Same reason as .record-tab: the global button min-height would push this to 42px, out of line
+     with every other control in the section. */
+  min-height: 0;
   padding: 0 14px;
   cursor: pointer;
 }
