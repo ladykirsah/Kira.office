@@ -86,3 +86,7 @@ sources: [session 2026-08-09]
   these removed the old side effect where "Active on Shopee" also published to AirPlus — it did so
   only because it was the single way to publish from that page. See
   [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Product page: **Shopee ID** removed (permanently "—" with no Shopee API), and the
+  "Shopee" field became **Status**, carrying a tag per channel — `Active on AirPlus` /
+  `Active on Shopee`. See [back-office/products](back-office/products.md).

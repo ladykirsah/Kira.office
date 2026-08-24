@@ -167,3 +167,21 @@ that looks like a deliberate decision, and an unrecognised status is left alone.
 
 The **Add product** page is unaffected: it renders neither switch (PartDetails draws each only when
 its handler is supplied) and keeps its explicit *Save as draft* / *Publish* buttons.
+
+## The product page's Status field (owner, 2026-08-24)
+
+The Identifiers block on a product's page lost **Shopee ID** and its "Shopee" field. In their place,
+one **Status** field carrying a tag per sales channel:
+
+| Channel | Live | Not live |
+| --- | --- | --- |
+| AirPlus (first — it is the owner's own shop) | `Active on AirPlus` | `Not on AirPlus` |
+| Shopee | `Active on Shopee` | `Not on Shopee` |
+
+`channelTags(status, shopeeListed)` in `apps/admin/src/lib/productStatus.ts`. AirPlus is live when
+the storefront would show it (`status === "active"`); Shopee when the listing flag is set. Neither
+implies the other, which is the point of showing both.
+
+**Shopee ID was removed, not hidden:** there is no Shopee API to link an id to, so the field was
+permanently "—". `shopee_item_id` is still carried through save so existing values are preserved
+rather than wiped — the same treatment the edit form already gave it.

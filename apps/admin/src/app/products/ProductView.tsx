@@ -8,6 +8,7 @@ import { BarcodePreview } from "./BarcodePreview";
 import { CopyButton } from "./CopyButton";
 import { ProfitPeek } from "./ProfitPeek";
 import { canSeeProfit } from "@l-shopee/core";
+import { channelTags } from "@/lib/productStatus";
 import { useStaffRole } from "../StaffRoleProvider";
 
 const n0 = (x: number | undefined | null): number => (Number.isFinite(x) ? (x as number) : 0);
@@ -257,19 +258,15 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
                 "—"
               )}
             </Field>
-            <Field label="Shopee ID">
-              {p.shopeeItemId ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  {p.shopeeItemId}
-                  <CopyButton value={p.shopeeItemId} label="Shopee ID" />
-                </span>
-              ) : (
-                "—"
-              )}
-            </Field>
-            <Field label="Shopee">
-              <span className={p.shopeeListed ? "pill on" : "pill off"}>
-                {p.shopeeListed ? "Active on Shopee" : "Not listed"}
+            {/* "Shopee ID" was removed on 2026-08-24 (owner): there is no Shopee API to link an id
+                to, so the field was permanently "—" and taught nobody anything. */}
+            <Field label="Status">
+              <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+                {channelTags(p.status, p.shopeeListed).map((t) => (
+                  <span key={t.label} className={`pill ${t.cls}`}>
+                    {t.label}
+                  </span>
+                ))}
               </span>
             </Field>
           </div>
