@@ -76,7 +76,8 @@ so equal tabs are honest there. A day off and a cash advance are not: one is att
 is money leaving the shop. Equal tabs would give them equal weight and equal muscle memory, and a
 mis-tap would record ฿3,000 instead of a half day. So:
 
-- a divider marked **เงิน** separates time from money;
+- a divider separates time from money (it carried a **เงิน** label at first; the owner had it
+  removed 2026-08-24 — the amber already says which side you are on, and the word only repeated it);
 - the panel and the Save button turn **amber** whenever money is involved — amber on this page means
   something is about to leave the shop;
 - the Save button **always ends with the amount** (`บันทึกการเบิก ฿3,000`), so the last thing read

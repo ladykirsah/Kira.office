@@ -1664,14 +1664,7 @@ a.card:hover {
   width: 1px;
   align-self: stretch;
   background: var(--border);
-  margin-left: 4px;
-}
-.record-rule-label {
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-right: 4px;
+  margin: 0 4px;
 }
 
 /* The panel only exists while money is being recorded, so the colour is information rather than

@@ -19,7 +19,7 @@ import { monthLabel } from "@/lib/dayOff";
  * the same kind of thing, so equal tabs are honest there. A day off and a cash advance are not: one
  * is attendance, the other is money leaving the shop. Given equal tabs they would earn equal weight
  * and equal muscle memory, and a mis-tap would record ฿3,000 instead of a half day. So a divider
- * marked เงิน separates them, the panel and the button turn amber whenever money is involved, and
+ * separates them, the panel and the button turn amber whenever money is involved, and
  * the Save button always ENDS WITH THE AMOUNT — the last thing read before pressing is the number.
  *
  * The slip rule is the API's (`payoutProblem` in core): cash needs nothing, a transfer needs its
@@ -245,12 +245,7 @@ export function RecordSection({
         {(["off", "advance", "salary"] as const).map((t, i) => (
           <span key={t} style={{ display: "contents" }}>
             {/* The line the owner asked for: time on one side, money on the other. */}
-            {i === 1 && (
-              <>
-                <span className="record-rule" aria-hidden />
-                <span className="record-rule-label">เงิน</span>
-              </>
-            )}
+            {i === 1 && <span className="record-rule" aria-hidden />}
             <button
               type="button"
               className={`record-tab${t !== "off" ? " money" : ""}${tab === t ? " on" : ""}`}
