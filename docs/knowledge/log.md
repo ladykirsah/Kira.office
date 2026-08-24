@@ -94,3 +94,8 @@ sources: [session 2026-08-09]
 - **2026-08-24** — Pausing left the delete card: the **Live on AirPlus** switch and the row menu are
   now the only places, and the danger zone deletes only. This also unhid a bug — a paused product
   previously had no delete box at all. See [back-office/products](back-office/products.md).
+
+- **2026-08-24** — Tier profit unified in `lib/tierProfits.ts`, fixing **two live miscalculations**:
+  the edit form charged Shopee a commission based on the AirPlus price, and the products table
+  charged AirPlus a commission it does not pay. Four independent prices, one shared cost. See
+  [back-office/products](back-office/products.md).

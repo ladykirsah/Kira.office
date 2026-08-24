@@ -1,7 +1,8 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { totalCostSatang, commissionFeeSatang, profitSatang, marginPct } from "@/lib/pricing";
+import { totalCostSatang, marginPct } from "@/lib/pricing";
+import { tierProfits } from "@/lib/tierProfits";
 import { inputS } from "@/lib/inputStyles";
 
 export interface PricingForm {
@@ -94,13 +95,22 @@ export function PricingFields({
   const online = toSatang(form.onlineThb);
   const shopee = toSatang(form.shopeeThb);
   const commBp = Math.round((parseFloat(form.onlineCommPct) || 0) * 100);
-  const fee = commissionFeeSatang(online, commBp);
-  // Commission is a marketplace fee, so it belongs to Shopee (AC on Sales) — AirPlus is the
-  // owner's own shop and pays none.
-  const shopeeProfit = profitSatang(shopee, tc, fee);
-  const onlineProfit = profitSatang(online, tc, 0);
-  const b2cProfit = profitSatang(b2c, tc, 0);
-  const b2bProfit = profitSatang(b2b, tc, 0);
+  // One shared formula (lib/tierProfits): the four tiers share only the cost. This block used to
+  // charge Shopee a commission computed from the AIRPLUS price, which quietly coupled the two.
+  const {
+    b2c: b2cProfit,
+    b2b: b2bProfit,
+    airplus: onlineProfit,
+    shopee: shopeeProfit,
+  } = tierProfits({
+    costSatang: toSatang(form.costThb),
+    taxOnCost: form.taxOnCost,
+    b2cSatang: b2c,
+    b2bSatang: b2b,
+    airplusSatang: online,
+    shopeeSatang: shopee,
+    commissionBp: commBp,
+  });
 
   return (
     <div

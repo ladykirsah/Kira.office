@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { apiBase, type ProductDetail, type Fitment } from "@/lib/api";
 import { mmToCm } from "@/lib/parcel";
-import { totalCostSatang, commissionFeeSatang, profitSatang } from "@/lib/pricing";
+import { tierProfits } from "@/lib/tierProfits";
 import { BarcodePreview } from "./BarcodePreview";
 import { CopyButton } from "./CopyButton";
 import { ProfitPeek } from "./ProfitPeek";
@@ -159,16 +159,22 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
   const seesProfit = !!role && canSeeProfit(role);
 
   // Profits from the saved pricing (view mode).
-  const vTC = pr ? totalCostSatang(pr.itemCostSatang, Boolean(pr.taxOnCost)) : 0;
-  // AirPlus is the owner's own shop — no marketplace commission. The commission belongs to Shopee
-  // ("AC on Sales"), which is what it always measured.
-  const vOnlineProfit = pr ? profitSatang(pr.onlinePriceSatang, vTC, 0) : 0;
   const vShopee = n0(pr?.shopeePriceSatang);
-  const vShopeeProfit = pr
-    ? profitSatang(vShopee, vTC, commissionFeeSatang(vShopee, pr.onlineCommissionBp))
-    : 0;
-  const vB2cProfit = pr ? profitSatang(pr.targetPriceSatang, vTC, 0) : 0;
-  const vB2bProfit = pr ? profitSatang(pr.b2bPriceSatang, vTC, 0) : 0;
+  // One shared formula (lib/tierProfits): the four tiers share only the cost, and the marketplace
+  // commission is Shopee's alone, charged on its own price.
+  const vProfit = tierProfits({
+    costSatang: n0(pr?.itemCostSatang),
+    taxOnCost: Boolean(pr?.taxOnCost),
+    b2cSatang: n0(pr?.targetPriceSatang),
+    b2bSatang: n0(pr?.b2bPriceSatang),
+    airplusSatang: n0(pr?.onlinePriceSatang),
+    shopeeSatang: vShopee,
+    commissionBp: n0(pr?.onlineCommissionBp),
+  });
+  const vOnlineProfit = pr ? vProfit.airplus : 0;
+  const vShopeeProfit = pr ? vProfit.shopee : 0;
+  const vB2cProfit = pr ? vProfit.b2c : 0;
+  const vB2bProfit = pr ? vProfit.b2b : 0;
 
   // Part-detail tags: prefer the structured brand/system/part, else split the legacy category text.
   const structured = [p.brandName, p.usageName, p.typeName].filter(Boolean) as string[];

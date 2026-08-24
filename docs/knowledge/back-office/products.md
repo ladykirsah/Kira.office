@@ -197,3 +197,34 @@ product was NOT paused, because a paused product showed a "put it back on sale" 
 place — so **a paused product could not be deleted at all**. Being off the shop and being removable
 are unrelated; a paused product with no sales history deletes like any other. Splitting the controls
 fixed it as a side effect.
+
+## Tier profit: four independent prices, one shared cost
+
+Owner's rule, 2026-08-24: *"they are independent to calculate profit, they only based on the same
+cost."*
+
+`tierProfits()` in `apps/admin/src/lib/tierProfits.ts` is the single implementation:
+
+| Tier | Profit |
+| --- | --- |
+| Den Air Service (on-site B2C) | price − shared cost |
+| B2B | price − shared cost |
+| AirPlus | price − shared cost — **no commission**, it is the owner's own shop |
+| AC on Sales (Shopee) | price − shared cost − commission **on its own price** |
+
+The shared cost is `totalCostSatang(cost, taxOnCost)`, so the VAT-on-cost switch moves all four
+alike. Nothing else crosses between tiers.
+
+**Two live bugs this replaced.** The formula was written out three times — the edit form, the
+product page, the products table — and two had drifted, in *different* directions:
+
+- the **edit form** charged Shopee a commission worked out from the **AirPlus** price
+  (`commissionFeeSatang(online, …)` applied to `shopeeProfit`);
+- the **products table** charged **AirPlus** a commission it does not pay.
+
+On a worked example (cost ฿400, AirPlus ฿950, Shopee ฿1200, 5%): Shopee read ฿752.50 instead of
+฿740.00, and AirPlus read ฿502.50 instead of ฿550.00. The product page alone was right.
+
+The independence assertions in `tierProfits.test.ts` are the guard: changing one tier's price must
+not move any other tier's profit. Three copies of a formula are three chances to disagree, and this
+one took two of them.
