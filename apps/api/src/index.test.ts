@@ -206,6 +206,8 @@ function makeDb(canned: {
   variantById?: { id: string } | null;
   affiliateItems?: unknown[];
   affiliateItemById?: { id: string; imageKey: string | null } | null;
+  /** Who the staff-session lookup resolves to. Defaults to a super admin; pass null for nobody. */
+  staff?: { userId: string; email: string; name: string; role: string } | null;
 }) {
   const batched: { sql: string }[] = [];
   const runs: { sql: string; binds: unknown[] }[] = [];
@@ -290,6 +292,22 @@ function makeDb(canned: {
         return { results: [] as T[] };
       },
       async first<T = unknown>(): Promise<T | null> {
+        // Role-gated routes resolve the staff session before doing anything else. Default to an
+        // authenticated super admin so the hundreds of tests written before role enforcement keep
+        // testing what they were written to test; the authorisation rules themselves are covered
+        // against the REAL schema in "role enforcement on money, catalog and payment routes".
+        if (sql.includes("FROM staff_sessions s")) {
+          if (canned.staff === null) return null;
+          return {
+            userId: "u-test",
+            email: "boss@shop.test",
+            name: "Boss",
+            role: "super_admin",
+            sessionId: "s-test",
+            lastSeenAt: 0,
+            ...(canned.staff ?? {}),
+          } as T;
+        }
         if (sql.includes("COUNT(*) AS n FROM products WHERE"))
           return { n: canned.attrInUseCount ?? 0 } as T;
         // deleteAttribute guard for fitment-referenced kinds (car_models / car_brands): the name
@@ -382,6 +400,15 @@ function makeDb(canned: {
   } as unknown as D1Database;
   return { db, env: { DB: db } as unknown as Env, batched, runs, alls };
 }
+
+/**
+ * Headers for a request that carries a staff session.
+ *
+ * Role gates run BEFORE body parsing, so a request with no session is refused without ever being
+ * read. Tests that exercise a guarded route's behaviour have to sign in first — the token value is
+ * irrelevant to the canned mock, its presence is not.
+ */
+const AUTHED = { "X-Staff-Session": "test-token" };
 
 describe("services (bilingual name_en)", () => {
   it("listServices > selects name_en AS nameEn and returns the rows", async () => {
@@ -1581,7 +1608,14 @@ describe("api worker routes", () => {
     expect(((await res.json()) as { error?: string }).error).toBeTruthy();
   });
 
-  it("malformed JSON bodies on money/stock routes return 400, not 500", async () => {
+  it("malformed JSON bodies on money/stock routes never 500 — 400, or 401 behind a role gate", async () => {
+    // Original point: a bad body must not crash the Worker. Still true.
+    //
+    // Since role enforcement (2026-08-24) two of these sit behind a role gate, and a gate runs
+    // BEFORE the body is read — so an unauthenticated caller gets 401 and the body is never
+    // parsed. That ordering is deliberate: body-validation feedback is information, and someone
+    // who has not proved who they are should not be able to probe a route's expectations.
+    const guarded = new Set(["/products", "/products/p1/pricing"]);
     for (const [method, path] of [
       ["POST", "/stock/adjust"],
       ["POST", "/sync"],
@@ -1597,7 +1631,7 @@ describe("api worker routes", () => {
         {} as Env,
         ctx,
       );
-      expect(res.status, `${method} ${path}`).toBe(400);
+      expect(res.status, `${method} ${path}`).toBe(guarded.has(path) ? 401 : 400);
     }
   });
 
@@ -1694,7 +1728,7 @@ describe("api worker routes", () => {
       financeRefunds: { refundCount: 0, refundedSatang: 0 },
     });
     const prepare = vi.spyOn(db, "prepare");
-    await worker.fetch!(new Request("https://x/finance/summary"), env, ctx);
+    await worker.fetch!(new Request("https://x/finance/summary", { headers: AUTHED }), env, ctx);
     const sqls = prepare.mock.calls.map((c) => c[0] as string);
     expect(sqls.find((s) => s.includes("FROM onsite_sales WHERE sale_status"))).toContain(
       "stage = 'bill'",
@@ -1851,6 +1885,7 @@ describe("api worker routes", () => {
     const res = await worker.fetch!(
       new Request("https://x/customers/by-plate", {
         method: "PUT",
+        headers: AUTHED,
         body: JSON.stringify({ licensePlate: "1กก1234", phone: "0810000000" }),
       }),
       env,
@@ -1868,7 +1903,11 @@ describe("api worker routes", () => {
   it("PUT /customers/by-plate > 400 without a plate", async () => {
     const { env } = makeDb({});
     const res = await worker.fetch!(
-      new Request("https://x/customers/by-plate", { method: "PUT", body: JSON.stringify({}) }),
+      new Request("https://x/customers/by-plate", {
+        method: "PUT",
+        headers: AUTHED,
+        body: JSON.stringify({}),
+      }),
       env,
       ctx,
     );
@@ -1982,7 +2021,11 @@ describe("api worker routes", () => {
       financeProfit: { grossProfitSatang: 8000 },
       financeRefunds: { refundCount: 1, refundedSatang: 10700 },
     });
-    const res = await worker.fetch!(new Request("https://x/finance/summary"), env, ctx);
+    const res = await worker.fetch!(
+      new Request("https://x/finance/summary", { headers: AUTHED }),
+      env,
+      ctx,
+    );
     expect(await res.json()).toEqual({
       salesCount: 2,
       revenueSatang: 21400,
@@ -2417,6 +2460,7 @@ describe("api worker routes", () => {
     const res = await worker.fetch!(
       new Request("https://x/products/full", {
         method: "POST",
+        headers: AUTHED,
         body: JSON.stringify({
           productRef: "TG-1",
           name: "Evaporator",
@@ -2466,6 +2510,7 @@ describe("api worker routes", () => {
     const res = await worker.fetch!(
       new Request("https://x/products/full", {
         method: "POST",
+        headers: AUTHED,
         body: JSON.stringify({ productRef: "TG-1", name: "Evaporator", status: "draft" }),
       }),
       env,
@@ -2489,6 +2534,7 @@ describe("api worker routes", () => {
     const res = await worker.fetch!(
       new Request("https://x/products/full", {
         method: "POST",
+        headers: AUTHED,
         body: JSON.stringify({
           id: "p1",
           productRef: "NEW-REF",
@@ -8477,5 +8523,158 @@ describe("DELETE /products/:id — super admin only", () => {
     const res = await del(env);
     expect(res.status).toBe(401);
     expect(statusOf(raw)).toBe("active");
+  });
+});
+
+// ── The permission matrix, actually enforced (owner, 2026-08-24) ─────────────────────────────────
+// Until now `canViewFinance`, `canRefund`, `canWrite` and `canReviewPaymentRole` were defined and
+// unit-tested but never CALLED, so every rule below was decoration. These tests exercise the real
+// routes so a green permission test can no longer be mistaken for an enforced rule.
+//
+// Identity comes from the STAFF SESSION, not the Cloudflare Access email. Since per-staff logins
+// shipped, the Access email identifies whoever opened the host, not who is operating the admin —
+// and `MECHANIC_EMAILS` is unset in prod, so the email lists cannot recognise a mechanic at all.
+describe("role enforcement on money, catalog and payment routes", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function asRole(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Somchai','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,0,0)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const call = (env: Env, path: string, init: RequestInit = {}, token?: string) =>
+    worker.fetch!(
+      new Request(`https://x${path}`, {
+        ...init,
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { "X-Staff-Session": token } : {}),
+        },
+      }),
+      env,
+      ctx,
+    );
+
+  describe("Finance is the super admin's alone", () => {
+    for (const role of ["admin", "mechanic"]) {
+      it(`given a ${role} > 403 on the expenses list`, async () => {
+        const { env, token } = await asRole(role);
+        expect((await call(env, "/finance/expenses", {}, token)).status).toBe(403);
+      });
+      it(`given a ${role} > 403 on the finance summary`, async () => {
+        const { env, token } = await asRole(role);
+        expect((await call(env, "/finance/summary", {}, token)).status).toBe(403);
+      });
+    }
+    it("given the super admin > lets them through", async () => {
+      const { env, token } = await asRole("super_admin");
+      expect((await call(env, "/finance/expenses", {}, token)).status).toBe(200);
+    });
+    it("given no session > 401, never an open door", async () => {
+      const { env } = await asRole("super_admin");
+      expect((await call(env, "/finance/expenses")).status).toBe(401);
+    });
+  });
+
+  describe("refunds are the super admin's alone", () => {
+    // These routes already checked the Access email list, but that identifies whoever opened the
+    // host — not who is signed in. In this harness ACCESS_AUD is unset, so `isSuperAdmin` fails
+    // OPEN exactly as it does in local dev; only the staff-role check can refuse here.
+    for (const role of ["admin", "mechanic"]) {
+      it(`given a ${role} > 403 on an order refund`, async () => {
+        const { env, token } = await asRole(role);
+        const res = await call(env, "/orders/o1/refund", { method: "POST" }, token);
+        expect(res.status).toBe(403);
+      });
+      it(`given a ${role} > 403 on a claim refund`, async () => {
+        const { env, token } = await asRole(role);
+        expect((await call(env, "/claims/c1/refund", { method: "POST" }, token)).status).toBe(403);
+      });
+    }
+  });
+
+  describe("a mechanic reads the catalog but never changes it", () => {
+    it("given a mechanic > 403 editing a product", async () => {
+      const { env, token } = await asRole("mechanic");
+      const res = await call(
+        env,
+        "/products/p1",
+        { method: "PATCH", body: JSON.stringify({ name: "Renamed by a mechanic" }) },
+        token,
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("given an admin > allowed to edit a product; only DELETE is the owner's", async () => {
+      const { env, token } = await asRole("admin");
+      const res = await call(
+        env,
+        "/products/p1",
+        { method: "PATCH", body: JSON.stringify({ name: "Renamed by an admin" }) },
+        token,
+      );
+      expect(res.status).not.toBe(403);
+    });
+
+    it("given a mechanic > 403 changing a customer", async () => {
+      const { env, token } = await asRole("mechanic");
+      const res = await call(
+        env,
+        "/customers/by-plate",
+        { method: "PUT", body: JSON.stringify({ plate: "1กก1234", name: "X" }) },
+        token,
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe("a mechanic never signs off an online order's payment", () => {
+    it("given a mechanic marking an order paid > 403", async () => {
+      const { env, token } = await asRole("mechanic");
+      const res = await call(
+        env,
+        "/orders/o1",
+        { method: "PATCH", body: JSON.stringify({ paymentStatus: "paid" }) },
+        token,
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("given a mechanic touching a NON-payment field > allowed", async () => {
+      // The rule is about signing off money, not about locking a mechanic out of orders entirely.
+      const { env, token } = await asRole("mechanic");
+      const res = await call(
+        env,
+        "/orders/o1",
+        { method: "PATCH", body: JSON.stringify({ trackingNo: "TH123" }) },
+        token,
+      );
+      expect(res.status).not.toBe(403);
+    });
+
+    it("given an admin marking an order paid > allowed, that is the operational call", async () => {
+      const { env, token } = await asRole("admin");
+      const res = await call(
+        env,
+        "/orders/o1",
+        { method: "PATCH", body: JSON.stringify({ paymentStatus: "paid" }) },
+        token,
+      );
+      expect(res.status).not.toBe(403);
+    });
   });
 });

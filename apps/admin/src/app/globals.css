@@ -45,8 +45,12 @@ html[data-theme="dark"] {
   --primary-soft: #2c1a13;
   --primary-faint: #20140f;
   --danger: #ff6b6b;
-  --danger-soft: #241417; /* red-tinted wash sitting just above --surface in lightness */
-  --danger-border: #5e2f31;
+  /* The danger twin of --primary-soft, so the delete box reads as the same family as the active
+     menu item (which is --primary-soft + --primary). Derived, not eyeballed: --primary-soft is
+     --primary scaled per channel by ~[0.173, 0.213, 0.232]; the same scaling applied to --danger
+     (#ff6b6b) gives #2c1719 — identical lightness to #2c1a13, red hue instead of orange. */
+  --danger-soft: #2c1719;
+  --danger-border: #5c3033;
   --warn: #e0a93a;
   --ok: #56d364;
   --code-bg: #1e242c;

@@ -52,12 +52,38 @@ API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly tw
 | --- | --- |
 | `canManageStaff` | YES — every handler in `apps/api/src/staffRoutes.ts` re-checks it |
 | `canDeleteProduct` | YES — `DELETE /products/:id` in `index.ts` (added 2026-08-24) |
-| `canViewFinance`, `canViewSlips`, `canRefund`, `canReviewClaimRole`, `canReviewPaymentRole`, `canWrite`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
+| `canViewFinance` | YES — every `/finance/*` route (added 2026-08-24) |
+| `canRefund` | YES — `/(orders\|claims\|sales)/:id/refund` (added 2026-08-24) |
+| `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
+| `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
+| `canViewSlips`, `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
 
-The admin UI calls **none** of them: no page gates on role, so the menu is the only thing shaped by
-it. Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on
+Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on
 `canViewSlips`. Treat a green permission test as proof the FUNCTION is right, never as proof the
 RULE is applied — grep for the call site before believing any capability is enforced.
+
+## Why the new gates read the STAFF SESSION, not the Access email
+
+Two identity systems now coexist, and they answer different questions:
+
+| | Old — Access email list | New — staff session |
+| --- | --- | --- |
+| Identity | Cloudflare Access JWT email | `X-Staff-Session` → `users` row |
+| Roles from | `SUPER_ADMIN_EMAILS` / `MECHANIC_EMAILS` env | `users.role` |
+| Fails open? | **YES** — `isSuperAdmin`/`viewerRole` return full access when `ACCESS_AUD` is unset | No |
+
+Since per-staff logins shipped, the Access email says who opened the *host*, not who is operating
+the admin — several people can share one Access session and then sign in as different staff. And
+`MECHANIC_EMAILS` is UNSET in prod, so the email lists **cannot recognise a mechanic at all**,
+which makes every "a mechanic may not…" rule unenforceable on that path. All gates added on
+2026-08-24 therefore use `requireStaff` (`apps/api/src/index.ts`, helper `requireRole`).
+
+The refund routes keep their older `isSuperAdmin` email check as well — both must pass. Nothing was
+removed; a second, non-fail-open check was added in front.
+
+**Still on the old path (not migrated):** slip images via `privateFileAccess`, claim review via
+`canReviewClaim`, and `viewerIsSuperAdmin` / `viewerRole` in `GET /orders/:id`, which is what the
+order page uses to shape Zone A.
 
 ## Deleting a product: super admin only (owner, 2026-08-24)
 

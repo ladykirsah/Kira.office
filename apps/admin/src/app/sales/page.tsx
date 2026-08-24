@@ -27,6 +27,9 @@ import {
   type ChannelSales,
 } from "@/lib/salesSummary";
 import { PageHeader } from "../PageHeader";
+import { NoAccess } from "../NoAccess";
+import { useStaffRole } from "../StaffRoleProvider";
+import { canViewFinance } from "@l-shopee/core";
 import { SalesTable } from "./SalesTable";
 import { AirPlusOrders } from "./AirPlusOrders";
 import { ExpenseForm } from "./ExpenseForm";
@@ -72,6 +75,7 @@ const isFinanceOrder = (o: OrderRow): boolean => {
 };
 
 export default function SalesPage() {
+  const role = useStaffRole();
   const [sales, setSales] = useState<SaleRow[] | null>(null);
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
@@ -100,6 +104,11 @@ export default function SalesPage() {
     setSearch("");
     setTypeFilter("");
   }, [tab]);
+
+  // After the hooks, before anything that renders money. The menu already hides Finance from an
+  // admin and a mechanic; this catches a typed address or an old bookmark, so they get a plain
+  // answer instead of a page full of failed requests. The API refuses the data regardless.
+  if (!role || !canViewFinance(role)) return <NoAccess what="Finance" />;
 
   if (error) {
     return (
