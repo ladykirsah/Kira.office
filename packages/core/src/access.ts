@@ -35,16 +35,24 @@ export function isSuperAdmin(email: string | null, ctx: Omit<AccessContext, "ema
 export type PrivateFileAccess = "ok" | "forbidden" | "not_allowed";
 
 /**
- * Decide whether `key` may be served. Claim evidence is readable by any authenticated admin; a
- * payment slip is super-admin-only; anything outside those namespaces is refused outright so a
- * guessed key can never reach another object (backups, product images, etc.).
+ * Decide whether `key` may be served — the NAMESPACE policy, nothing else.
+ *
+ * Claim evidence is readable by any signed-in staff member; a customer's payment slip needs
+ * `canSeeSlips`; anything outside those namespaces is refused outright, so a guessed key can never
+ * reach another object (backups, product images, database dumps).
+ *
+ * WHO the caller is arrives as one boolean, decided by the route from the STAFF SESSION. Until
+ * 2026-08-24 this function took an Access email plus `accessConfigured` and answered "ok" for a
+ * bank slip whenever Access was unconfigured — a fail-open default on customer financial PII. The
+ * Access email had also stopped naming whoever is operating the admin, since several people can
+ * share one Access session and then sign in as different staff.
  */
-export function privateFileAccess(key: string, ctx: AccessContext): PrivateFileAccess {
+export function privateFileAccess(key: string, canSeeSlips: boolean): PrivateFileAccess {
   if (/^claim\//.test(key)) return "ok";
   // Our OUTGOING refund transfer slip — proof we paid the customer back, not their bank PII, and shown
   // to the customer too. Any admin, like claim evidence. (Checked before slip/ so the hyphen is safe.)
   if (/^refund-slip\//.test(key)) return "ok";
-  if (/^slip\//.test(key)) return isSuperAdmin(ctx.email, ctx) ? "ok" : "forbidden";
+  if (/^slip\//.test(key)) return canSeeSlips ? "ok" : "forbidden";
   return "not_allowed";
 }
 

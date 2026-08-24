@@ -28,6 +28,11 @@
   --ring: rgba(191, 60, 29, 0.32);
   --radius: 12px;
   --shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
+  /* Card hover. Derived from --border, not picked: hovering STRENGTHENS the edge, which on a light
+     page means darkening it (by ~[20,18,16] per channel) and on a dark page means lightening it by
+     the same step. Same effect, mirrored — a fixed literal only worked on one of the two. */
+  --border-hover: #cfd4da;
+  --shadow-hover: 0 6px 16px rgba(16, 24, 40, 0.1);
   --sidebar-w: 232px;
 }
 
@@ -56,6 +61,8 @@ html[data-theme="dark"] {
   --code-bg: #1e242c;
   --ring: rgba(255, 122, 82, 0.4);
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --border-hover: #3e434b; /* --border lightened by the same step light mode darkens by */
+  --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.55); /* a soft dark shadow is invisible on dark */
 }
 html[data-theme="dark"] .btn-primary,
 html[data-theme="dark"] .btn-danger {
@@ -1168,8 +1175,8 @@ a.card {
 }
 a.card:hover {
   text-decoration: none;
-  border-color: #cfd4da;
-  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.1);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-hover);
   transform: translateY(-2px);
   transition: all 0.18s ease-out;
 }

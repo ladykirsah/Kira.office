@@ -36,3 +36,9 @@ sources: [session 2026-08-09]
   the **staff session** (not the Access email, which cannot see mechanics in prod). Finance also
   gains a `NoAccess` page. [auth/roles-model](auth/roles-model.md) rewritten with the enforced/not
   table and the two-identity-systems explanation.
+
+- **2026-08-24** — Bank slips moved onto the staff session (owner: same rule, better identity):
+  `privateFileAccess(key, canSeeSlips)` takes a capability instead of an email context, removing a
+  fail-open that served customer bank PII whenever `ACCESS_AUD` was unset. `a.card:hover`
+  tokenised, closing backlog item 7. Both dark values DERIVED from their light counterparts —
+  see [conventions/admin-design-tokens](conventions/admin-design-tokens.md).

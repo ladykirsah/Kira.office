@@ -6599,15 +6599,39 @@ describe("GET /file/:key — private order evidence serving", () => {
         key in objects ? { body: objects[key], httpMetadata: { contentType: "image/png" } } : null,
     } as unknown as R2Bucket;
   }
-  // Access unset here = local-dev fail-open, same as the rest of the API. The super-admin ENFORCEMENT
-  // (slip 403 for a non-super email) is unit-tested in packages/core/src/access.test.ts, because
-  // reaching this route as an authenticated non-super user needs a real Access JWT.
-  const env = (objects: Record<string, string>) =>
-    ({ IMAGES: bucketWith(objects) }) as unknown as Env;
+
+  /**
+   * DB double that resolves the staff session and nothing else — this route asks one question.
+   *
+   * Since 2026-08-24 the slip gate reads the STAFF ROLE, not the Access email list, so these tests
+   * sign in. The role-by-role enforcement lives in "GET /file/:key — slip images follow the staff
+   * role", which runs against the real migrated schema.
+   */
+  const dbAs = (role: string) =>
+    ({
+      prepare: () => ({
+        bind: () => ({
+          first: async () => ({
+            userId: "u1",
+            email: "s@shop.test",
+            name: "S",
+            role,
+            sessionId: "sess",
+            lastSeenAt: 0,
+          }),
+          run: async () => ({}),
+        }),
+      }),
+    }) as unknown as D1Database;
+
+  const env = (objects: Record<string, string>, role = "super_admin") =>
+    ({ IMAGES: bucketWith(objects), DB: dbAs(role) }) as unknown as Env;
+
+  const AUTH = { headers: { "X-Staff-Session": "t" } };
 
   it("serves a claim photo from the claim/ namespace", async () => {
     const res = await worker.fetch!(
-      new Request("https://x/file/claim/o1/1.png"),
+      new Request("https://x/file/claim/o1/1.png", AUTH),
       env({ "claim/o1/1.png": "PNGBYTES" }),
       ctx,
     );
@@ -6616,18 +6640,30 @@ describe("GET /file/:key — private order evidence serving", () => {
     expect(await res.text()).toBe("PNGBYTES");
   });
 
-  it("serves a slip when Access is off (local dev fail-open)", async () => {
+  it("serves a slip to a super admin", async () => {
     const res = await worker.fetch!(
-      new Request("https://x/file/slip/o1/1.png"),
+      new Request("https://x/file/slip/o1/1.png", AUTH),
       env({ "slip/o1/1.png": "SLIP" }),
       ctx,
     );
     expect(res.status).toBe(200);
   });
 
-  it("never serves a private file with a shared-cacheable header", async () => {
+  it("refuses a slip with NO session — the old local-dev fail-open is gone", async () => {
+    // This asserted 200 until 2026-08-24: with Access unconfigured, `isSuperAdmin` returned true
+    // and the route served a customer's bank slip to an unauthenticated caller. The rule did not
+    // change, its identity source did — and the new one has no open default.
     const res = await worker.fetch!(
       new Request("https://x/file/slip/o1/1.png"),
+      env({ "slip/o1/1.png": "SLIP" }),
+      ctx,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("never serves a private file with a shared-cacheable header", async () => {
+    const res = await worker.fetch!(
+      new Request("https://x/file/slip/o1/1.png", AUTH),
       env({ "slip/o1/1.png": "SLIP" }),
       ctx,
     );
@@ -6636,7 +6672,7 @@ describe("GET /file/:key — private order evidence serving", () => {
 
   it("404s for a key outside the allow-listed namespaces (no key can reach other objects)", async () => {
     const res = await worker.fetch!(
-      new Request("https://x/file/products/leak.png"),
+      new Request("https://x/file/products/leak.png", AUTH),
       env({ "products/leak.png": "SECRET" }),
       ctx,
     );
@@ -6645,7 +6681,7 @@ describe("GET /file/:key — private order evidence serving", () => {
 
   it("404s when the object is genuinely absent", async () => {
     const res = await worker.fetch!(
-      new Request("https://x/file/claim/o1/missing.png"),
+      new Request("https://x/file/claim/o1/missing.png", AUTH),
       env({}),
       ctx,
     );
@@ -8676,5 +8712,139 @@ describe("role enforcement on money, catalog and payment routes", () => {
       );
       expect(res.status).not.toBe(403);
     });
+  });
+});
+
+// ── Bank slips move onto the staff session (owner, 2026-08-24) ───────────────────────────────────
+// The RULE is unchanged and was already right: approving a payment is any admin's call, but the
+// customer's slip IMAGE — their bank, their account number — is the super admin's alone. Only the
+// identity behind it moved, from the Access email list (which fails open where Access is
+// unconfigured, and names whoever opened the host rather than whoever signed in) to the staff row.
+describe("GET /file/:key — slip images follow the staff role", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function asRole(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Somchai','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    // R2 stub: presence is irrelevant to the authorisation answer, which is what these assert.
+    const IMAGES = { get: async () => null };
+    return { env: { DB: db, IMAGES } as unknown as Env, token };
+  }
+
+  const get = (env: Env, key: string, token?: string) =>
+    worker.fetch!(
+      new Request(`https://x/file/${key}`, {
+        headers: token ? { "X-Staff-Session": token } : {},
+      }),
+      env,
+      ctx,
+    );
+
+  it("given a bank slip and the super admin > allowed through to storage", async () => {
+    const { env, token } = await asRole("super_admin");
+    // 404 = permitted, then the (empty) stub had no object. Anything but 403.
+    expect((await get(env, "slip/o1/1.jpg", token)).status).not.toBe(403);
+  });
+
+  for (const role of ["admin", "mechanic"]) {
+    it(`given a bank slip and a ${role} > 403, they never see the customer's bank details`, async () => {
+      const { env, token } = await asRole(role);
+      expect((await get(env, "slip/o1/1.jpg", token)).status).toBe(403);
+    });
+  }
+
+  it("given no staff session > 401, never the old fail-open", async () => {
+    // The replaced path answered "ok" for a slip whenever ACCESS_AUD was unset — exactly this
+    // harness's configuration. That default is gone.
+    const { env } = await asRole("super_admin");
+    expect((await get(env, "slip/o1/1.jpg")).status).toBe(401);
+  });
+
+  it("given claim evidence and a mechanic > allowed; it is not bank PII", async () => {
+    const { env, token } = await asRole("mechanic");
+    expect((await get(env, "claim/o1/1.jpg", token)).status).not.toBe(403);
+  });
+
+  it("given our outgoing refund slip and an admin > allowed; it is proof WE paid, not their PII", async () => {
+    const { env, token } = await asRole("admin");
+    expect((await get(env, "refund-slip/o1/1.jpg", token)).status).not.toBe(403);
+  });
+
+  it("given any other namespace > 404 even for the super admin, so a guessed key reaches nothing", async () => {
+    const { env, token } = await asRole("super_admin");
+    expect((await get(env, "backups/db.json", token)).status).toBe(404);
+  });
+});
+
+// ── The order page's slip gate follows the staff role too ────────────────────────────────────────
+// `viewerIsSuperAdmin` is what hides the slip preview in the UI and redacts the customer's refund
+// bank details from the response. It read the Access email list; it now reads the staff session.
+// Resolved OPTIONALLY rather than required: an order should still render for anyone allowed to see
+// the page, it just carries less. Absence of a session therefore means "not a super admin", never
+// "assume yes" — the same fail-CLOSED direction as the file route.
+describe("GET /orders/:id — the slip gate follows the staff role", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function seedOrderAndRole(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Somchai','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO sales_orders
+           (id, channel, external_order_id, imported_at,
+            refund_bank_name, refund_account_no, refund_account_name)
+         VALUES ('o1','airplus','AP-1',?,'SCB','1234567890','ลูกค้า ทดสอบ')`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { env: { DB: db } as unknown as Env, token };
+  }
+
+  const detail = async (env: Env, token?: string) => {
+    const res = await worker.fetch!(
+      new Request("https://x/orders/o1", { headers: token ? { "X-Staff-Session": token } : {} }),
+      env,
+      ctx,
+    );
+    return (await res.json()) as {
+      viewerIsSuperAdmin: boolean;
+      order: { refundAccountNo: string | null };
+    };
+  };
+
+  it("given the super admin > may see slips, and the bank details come through", async () => {
+    const { env, token } = await seedOrderAndRole("super_admin");
+    const body = await detail(env, token);
+    expect(body.viewerIsSuperAdmin).toBe(true);
+    expect(body.order.refundAccountNo).toBe("1234567890");
+  });
+
+  for (const role of ["admin", "mechanic"]) {
+    it(`given a ${role} > no slips, and the customer's account number is stripped`, async () => {
+      const { env, token } = await seedOrderAndRole(role);
+      const body = await detail(env, token);
+      expect(body.viewerIsSuperAdmin).toBe(false);
+      expect(body.order.refundAccountNo).toBeNull();
+    });
+  }
+
+  it("given no session > treated as NOT a super admin, never assumed yes", async () => {
+    const { env } = await seedOrderAndRole("super_admin");
+    const body = await detail(env);
+    expect(body.viewerIsSuperAdmin).toBe(false);
+    expect(body.order.refundAccountNo).toBeNull();
   });
 });
