@@ -5,15 +5,24 @@ import { currentStaff, staffToken, STAFF_SESSION_HEADER } from "@/lib/staffSessi
 import { apiFetch } from "@/lib/apiFetch";
 import { StaffProfileEditor, type StaffProfile } from "./StaffProfileEditor";
 import { type StaffPayment } from "./PaymentsTable";
+import type { DayOffRow } from "../../../DayOffTable";
+import { bangkokMonth } from "@l-shopee/core";
 
 export const dynamic = "force-dynamic";
 
-export default async function StaffProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StaffProfilePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ month?: string }>;
+}) {
   const me = await currentStaff();
   if (!me) redirect("/login");
   if (me.role !== "super_admin") redirect("/");
 
   const { id } = await params;
+  const month = (await searchParams).month || bangkokMonth(Date.now());
   const token = await staffToken();
   let profile: StaffProfile | null = null;
   let error: string | null = null;
@@ -42,11 +51,24 @@ export default async function StaffProfilePage({ params }: { params: Promise<{ i
     // Leave it empty — the profile is still worth showing.
   }
 
+  // Their days off for the month the URL asks for. Same treatment as payments: fetched here so the
+  // page arrives whole, and degraded to an empty list rather than failing the profile with it.
+  let days: DayOffRow[] = [];
+  try {
+    const res = await apiFetch(`/staff/${id}/days-off?month=${encodeURIComponent(month)}`, {
+      cache: "no-store",
+      headers: { [STAFF_SESSION_HEADER]: token ?? "" },
+    });
+    if (res.ok) days = ((await res.json()) as { days: DayOffRow[] }).days;
+  } catch {
+    // Leave it empty — the profile is still worth showing.
+  }
+
   // The header moves inside the editor when there IS a profile: Edit / Cancel / Save have to sit
   // next to the form state. On the error path there is no form, so the page draws its own.
   return profile ? (
     <main>
-      <StaffProfileEditor profile={profile} payments={payments} />
+      <StaffProfileEditor profile={profile} payments={payments} month={month} days={days} />
     </main>
   ) : (
     <main>

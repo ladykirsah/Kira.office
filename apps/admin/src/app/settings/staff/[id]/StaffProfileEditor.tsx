@@ -7,6 +7,8 @@ import { useToast } from "../../../ToastProvider";
 import { CopyButton } from "../../../products/CopyButton";
 import { SecretRow } from "./SecretRow";
 import { PaymentsTable, type StaffPayment } from "./PaymentsTable";
+import { StaffDaysOff } from "./StaffDaysOff";
+import type { DayOffRow } from "../../../DayOffTable";
 
 export interface StaffProfile {
   id: string;
@@ -126,9 +128,14 @@ const row: React.CSSProperties = {
 export function StaffProfileEditor({
   profile,
   payments,
+  month,
+  days,
 }: {
   profile: StaffProfile;
   payments: StaffPayment[];
+  /** The month the วันหยุด card is showing, from ?month= on the URL. */
+  month: string;
+  days: DayOffRow[];
 }) {
   const toast = useToast();
   const initial = {
@@ -417,6 +424,11 @@ export function StaffProfileEditor({
         </div>
 
         {/* Outside the Edit switch on purpose — see the note at the top of this file. */}
+        {/* Days off sit ABOVE Payments because they are what produced the wage below: a month's
+            เต็มวัน and ครึ่งวัน are subtracted from its working days. Reading downwards is
+            therefore cause then effect (owner, 2026-08-24). */}
+        <StaffDaysOff userId={profile.id} month={month} days={days} />
+
         {/* Wages paid, and the transfer slip for each — on the person, not the salary run
             (owner, 2026-08-04). Outside the Edit flow: a payment record is history, not a field. */}
         <section className="card">

@@ -603,6 +603,38 @@ export async function listTeamDaysOff(
 }
 
 /**
+ * ONE person's days off for a month — the super admin's view of them, on their profile.
+ *
+ * The team screen answers "who was off in August"; a profile answers "when was THIS person off",
+ * which is the question you have while looking at their wage. Filtering the team list in the page
+ * would have worked and been wrong in one specific way: `reason` is free text and someone will
+ * write why they were at a hospital in it, so shipping the whole team's reasons to a page that
+ * displays one of them hands the browser more than it needs.
+ *
+ * No `name` columns, unlike the team list — the page already knows whose profile it is.
+ * Super admin only, same as the team list: staff read their own at /staff/me/days-off.
+ */
+export async function listDaysOffFor(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  month: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const { results } = await db
+    .prepare(
+      `SELECT d.id, d.user_id AS userId, d.day, d.halves, d.reason
+         FROM staff_days_off d
+         JOIN users u ON u.id = d.user_id
+        WHERE d.user_id = ? AND substr(d.day, 1, 7) = ? AND u.deleted_at IS NULL
+        ORDER BY d.day DESC`,
+    )
+    .bind(userId, month)
+    .all();
+  return json({ days: results ?? [] });
+}
+
+/**
  * Delete a day off. SUPER ADMIN ONLY (owner, 5 Aug 2026) — staff may edit their own rows but never
  * remove one.
  *

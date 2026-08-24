@@ -107,6 +107,14 @@ sources: [session 2026-08-09]
   pending, the public shop still lists exactly the 10 active products, and the demo skincare
   product (`prod-demo`) returns 404. Rollback is the 8 recorded ids back to `archived`.
 
+- **2026-08-24** — **A person's profile now shows their วันหยุด.** One month at a time (month in
+  the URL), with add, edit and delete — the answer to "when was THIS person off" used to need the
+  team screen and a scan down a list of everybody. New `GET /staff/:id/days-off`, deliberately not
+  the team list filtered in the page: `reason` is free text. Sits above Payments, because a month's
+  days off are what produced that month's wage. เงินเบิกล่วงหน้า was designed with the owner the
+  same day and **parked** — it is a payroll change, not a screen. See
+  [back-office/staff-days-off](back-office/staff-days-off.md).
+
 - **2026-08-24** — **The practice copy now lets you in with one click.** Its separate database
   keeps its own password for the same email, which locked the owner out of their own practice twice
   in one day. `POST /staff/login-practice` needs no credential and is gated on `PRACTICE_COPY=1`

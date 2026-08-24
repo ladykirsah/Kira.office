@@ -138,6 +138,7 @@ import {
   setOwnPin,
   recordDayOff,
   recordDayOffFor,
+  listDaysOffFor,
   listMyDaysOff,
   listTeamDaysOff,
   deleteDayOff,
@@ -6257,6 +6258,17 @@ const worker = {
         return listTeamDaysOff(
           env.DB,
           who,
+          url.searchParams.get("month") ?? bangkokMonth(Date.now()),
+        );
+      }
+      // One person's month, for their profile. Distinct from /staff/days-off (everyone) and
+      // /staff/me/days-off (your own) — see listDaysOffFor for why it is not the team list filtered.
+      const daysOffOf = url.pathname.match(/^\/staff\/([^/]+)\/days-off$/);
+      if (daysOffOf && request.method === "GET") {
+        return listDaysOffFor(
+          env.DB,
+          who,
+          daysOffOf[1]!,
           url.searchParams.get("month") ?? bangkokMonth(Date.now()),
         );
       }
