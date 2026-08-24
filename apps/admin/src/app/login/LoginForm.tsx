@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PinInput } from "./PinInput";
+import { isLocalHost } from "@/lib/devApiMismatch";
 
 type Method = "pin" | "password";
 
@@ -53,6 +54,48 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
     setPin("");
     setPassword("");
     setError(null);
+  }
+
+  /**
+   * On a practice copy, offer the way in that needs no credential.
+   *
+   * Shown up front rather than after a failure, unlike the owner link below: on a practice copy
+   * this IS the everyday route, and hiding it behind a failed attempt is what cost the owner two
+   * sessions on 2026-08-24 — the second one with the "this is a practice copy" banner already on
+   * screen, because knowing why you are locked out does not unlock anything.
+   *
+   * An effect, not a render-time check: `window` does not exist on the server and reading it during
+   * render breaks hydration. The API refuses this door in production regardless of what is drawn
+   * here — this only decides whether to show a button, never whether it works.
+   */
+  const [practiceCopy, setPracticeCopy] = useState(false);
+  useEffect(() => {
+    setPracticeCopy(isLocalHost(window.location.hostname));
+  }, []);
+
+  async function signInToPractice() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/staff/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ practice: true }),
+      });
+      if (res.ok) {
+        window.location.href = next;
+        return;
+      }
+      // The API 404s this door unless it really is a practice copy. Say so plainly rather than
+      // "wrong password", which would send someone hunting for a credential that is not the issue.
+      setError(
+        "This copy is not set up for one-click sign-in. Add PRACTICE_COPY=1 to .dev.vars and restart it.",
+      );
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   /**
@@ -198,6 +241,23 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
             />
           </div>
         </>
+      )}
+
+      {practiceCopy && (
+        <div className="practice-door">
+          <button
+            type="button"
+            onClick={signInToPractice}
+            disabled={busy}
+            className="btn-primary"
+            style={{ width: "100%" }}
+          >
+            Sign in to the practice copy
+          </button>
+          <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0", textAlign: "center" }}>
+            No password — this copy runs on your computer and holds no real data.
+          </p>
+        </div>
       )}
 
       {expired && !error && (

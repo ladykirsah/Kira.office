@@ -107,6 +107,14 @@ sources: [session 2026-08-09]
   pending, the public shop still lists exactly the 10 active products, and the demo skincare
   product (`prod-demo`) returns 404. Rollback is the 8 recorded ids back to `archived`.
 
+- **2026-08-24** — **The practice copy now lets you in with one click.** Its separate database
+  keeps its own password for the same email, which locked the owner out of their own practice twice
+  in one day. `POST /staff/login-practice` needs no credential and is gated on `PRACTICE_COPY=1`
+  plus Access being unconfigured — production ships `"0"` explicitly and a test over
+  `wrangler.jsonc` fails the build if any environment stops saying so. There is deliberately **no**
+  hostname check: `wrangler dev` rewrites the Host header, so locally the Worker believes it is
+  `api.homeseeker.me`. See [auth/practice-copy-sign-in](auth/practice-copy-sign-in.md).
+
 - **2026-08-24** — **A dead session bought a silent, nameless back office.** The middleware gates
   on the session cookie merely EXISTING — it has no database — so a revoked, expired or
   deleted-user cookie rendered every page in full, with an empty name badge, no redirect and no

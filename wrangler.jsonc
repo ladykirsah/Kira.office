@@ -26,6 +26,13 @@
   "observability": { "enabled": true },
   "durable_objects": { "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
+  // Production says NO to the practice-copy door, out loud, rather than leaving it unset.
+  // `POST /staff/login-practice` hands out a super-admin session with no credential; it is correct
+  // on a throwaway local database and a catastrophe anywhere else. An absent variable means "nobody
+  // happened to set it"; this says "this deployment refuses". `.dev.vars` overrides it to "1"
+  // locally and is gitignored, so it never travels. A test over this file (practiceCopyGate.test.ts)
+  // fails the build if any environment here stops saying it — including a newly added one.
+  "vars": { "PRACTICE_COPY": "0" },
   "d1_databases": [
     {
       "binding": "DB",
@@ -84,6 +91,8 @@
         "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }],
       },
       "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
+      // Staging refuses it too — see the note on the top-level "vars".
+      "vars": { "PRACTICE_COPY": "0" },
       "d1_databases": [
         {
           "binding": "DB",

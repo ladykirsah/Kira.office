@@ -4,9 +4,14 @@ import { STAFF_COOKIE, STAFF_COOKIE_MAX_AGE } from "@/lib/staffSession";
 /**
  * Sign in — two doors, one handler.
  *
- *   { email, password }  → /staff/login        (the full sign-in)
- *   { pin }              → /staff/login-pin    (quick login; the PIN carries no email by design)
- *   { owner: true }      → /staff/login-access (the owner, on Cloudflare Access alone)
+ *   { email, password }  → /staff/login          (the full sign-in)
+ *   { pin }              → /staff/login-pin      (quick login; the PIN carries no email by design)
+ *   { owner: true }      → /staff/login-access   (the owner, on Cloudflare Access alone)
+ *   { practice: true }   → /staff/login-practice (a LOCAL practice copy, no credential at all)
+ *
+ * The practice door decides nothing here. This route relays it and the API refuses with a 404
+ * unless all three of `isPracticeCopy`'s conditions hold — the admin app is not the security
+ * boundary and must not be mistaken for one.
  *
  * WHY THIS EXISTS RATHER THAN POSTING STRAIGHT TO THE API: the session cookie has to be set on the
  * admin origin, and a Set-Cookie from api.airplusauto.com would belong to the wrong host. So the
@@ -14,21 +19,36 @@ import { STAFF_COOKIE, STAFF_COOKIE_MAX_AGE } from "@/lib/staffSession";
  * never reaches client JavaScript — the cookie is httpOnly.
  */
 export async function POST(request: Request): Promise<Response> {
-  let body: { email?: string; password?: string; pin?: string; owner?: boolean };
+  let body: {
+    email?: string;
+    password?: string;
+    pin?: string;
+    owner?: boolean;
+    practice?: boolean;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return Response.json({ error: "invalid request" }, { status: 400 });
   }
 
-  const usingOwner = body.owner === true;
-  const usingPin = !usingOwner && typeof body.pin === "string" && body.pin.length > 0;
-  const path = usingOwner ? "/staff/login-access" : usingPin ? "/staff/login-pin" : "/staff/login";
-  const payload = usingOwner
-    ? {}
-    : usingPin
-      ? { pin: body.pin }
-      : { email: body.email ?? "", password: body.password ?? "" };
+  const usingPractice = body.practice === true;
+  const usingOwner = !usingPractice && body.owner === true;
+  const usingPin =
+    !usingOwner && !usingPractice && typeof body.pin === "string" && body.pin.length > 0;
+  const path = usingPractice
+    ? "/staff/login-practice"
+    : usingOwner
+      ? "/staff/login-access"
+      : usingPin
+        ? "/staff/login-pin"
+        : "/staff/login";
+  const payload =
+    usingOwner || usingPractice
+      ? {}
+      : usingPin
+        ? { pin: body.pin }
+        : { email: body.email ?? "", password: body.password ?? "" };
 
   /**
    * The owner door proves nothing by itself — the proof is the Access JWT, which Cloudflare puts on

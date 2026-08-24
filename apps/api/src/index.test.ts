@@ -9478,3 +9478,122 @@ describe("POST /products/full — channel changes are super-admin only", () => {
     expect(res.status).toBe(201);
   });
 });
+
+/**
+ * The practice copy's one-click sign-in.
+ *
+ * WHY IT EXISTS: the owner was locked out of their OWN practice copy twice on 2026-08-24 — the
+ * local database carries its own staff rows and its own password for the same email address, so a
+ * perfectly correct production password is rejected by an identical-looking screen. A password on a
+ * throwaway database that only this machine can reach protects nothing and costs whole sessions.
+ *
+ * WHAT IT MUST NEVER DO is exist in production, where it would hand out a super-admin session for
+ * free. `isPracticeCopy` is the gate (three conditions, all required); these tests cover the route
+ * honouring it. A refusal is 404, not 403: outside a practice copy the route does not exist at all,
+ * so nothing advertises that there is a door here to rattle.
+ */
+describe("POST /staff/login-practice", () => {
+  const PRACTICE = { PRACTICE_COPY: "1" };
+  const call = (env: Record<string, unknown>, origin = "http://localhost:8788") =>
+    worker.fetch!(
+      new Request(`${origin}/staff/login-practice`, { method: "POST" }),
+      env as unknown as Env,
+      ctx,
+    );
+
+  it("given a practice copy with an existing super admin > signs in as them", async () => {
+    const db = migratedDb();
+    db.exec(
+      `INSERT INTO users (id, name, email, role, status, created_at, failed_attempts)
+       VALUES ('u-owner', 'Lady Kirsah', 'lady@practice.local', 'super_admin', 'active', 1000, 0)`,
+    );
+    const res = await call({ ...PRACTICE, DB: asD1(db) });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { token: string; staff: { role: string; email: string } };
+    expect(body.staff.role).toBe("super_admin");
+    expect(body.staff.email).toBe("lady@practice.local");
+    expect(body.token).toMatch(/^[0-9a-f]{64}$/);
+    // A real, usable session — not a token that looks right and resolves to nobody.
+    const rows = db.prepare(`SELECT COUNT(*) AS n FROM staff_sessions`).get() as { n: number };
+    expect(rows.n).toBe(1);
+  });
+
+  it("given a practice copy with an EMPTY database > creates the owner and signs in", async () => {
+    // The documented state of a fresh practice copy: migrations applied, no seed script, no users.
+    // Refusing here would leave the owner with no way in at all, which is the bug being fixed.
+    const db = migratedDb();
+    const res = await call({ ...PRACTICE, DB: asD1(db) });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { staff: { role: string } };
+    expect(body.staff.role).toBe("super_admin");
+    const n = db.prepare(`SELECT COUNT(*) AS n FROM users WHERE role='super_admin'`).get() as {
+      n: number;
+    };
+    expect(n.n).toBe(1);
+  });
+
+  it("given two super admins > signs in as the earliest, deterministically", async () => {
+    const db = migratedDb();
+    db.exec(
+      `INSERT INTO users (id, name, email, role, status, created_at, failed_attempts) VALUES
+         ('u-second', 'Second', 'b@practice.local', 'super_admin', 'active', 2000, 0),
+         ('u-first',  'First',  'a@practice.local', 'super_admin', 'active', 1000, 0)`,
+    );
+    const res = await call({ ...PRACTICE, DB: asD1(db) });
+    expect(((await res.json()) as { staff: { email: string } }).staff.email).toBe(
+      "a@practice.local",
+    );
+  });
+
+  it("given a deactivated super admin > does not sign in as them", async () => {
+    const db = migratedDb();
+    db.exec(
+      `INSERT INTO users (id, name, email, role, status, created_at, failed_attempts) VALUES
+         ('u-off', 'Switched off', 'off@practice.local', 'super_admin', 'inactive', 1000, 0)`,
+    );
+    const res = await call({ ...PRACTICE, DB: asD1(db) });
+    expect(res.status).toBe(200);
+    // Falls through to creating a usable owner rather than handing back a dead account.
+    expect(((await res.json()) as { staff: { email: string } }).staff.email).not.toBe(
+      "off@practice.local",
+    );
+  });
+
+  it("given NO opt-in > 404, the route does not exist", async () => {
+    const db = migratedDb();
+    const res = await call({ DB: asD1(db) });
+    expect(res.status).toBe(404);
+  });
+
+  it("given production's explicit refusal > 404", async () => {
+    // Production ships PRACTICE_COPY="0" in wrangler.jsonc's deployed vars, asserted by a test over
+    // that file. There is no hostname condition — wrangler dev rewrites the Host header, so no such
+    // check can be made correct. See isPracticeCopy.
+    const db = migratedDb();
+    const res = await call({ PRACTICE_COPY: "0", DB: asD1(db) });
+    expect(res.status).toBe(404);
+  });
+
+  it("given Cloudflare Access configured > 404 even with the opt-in", async () => {
+    const db = migratedDb();
+    const res = await call(
+      {
+        ...PRACTICE,
+        ACCESS_AUD: "aud",
+        ACCESS_TEAM_DOMAIN: "x.cloudflareaccess.com",
+        DB: asD1(db),
+      },
+      "http://localhost:8788",
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("given a refused request > writes no session and creates no user", async () => {
+    const db = migratedDb();
+    await call({ DB: asD1(db) });
+    const s = db.prepare(`SELECT COUNT(*) AS n FROM staff_sessions`).get() as { n: number };
+    const u = db.prepare(`SELECT COUNT(*) AS n FROM users`).get() as { n: number };
+    expect(s.n).toBe(0);
+    expect(u.n).toBe(0);
+  });
+});

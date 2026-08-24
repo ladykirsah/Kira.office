@@ -34,3 +34,12 @@ SHOPEE_REDIRECT_URL="http://localhost:8787/api/shopee/callback"
 # Changing it re-buckets that day's visitors (each visitor counts twice for the day it changes), so
 # set it once and leave it.
 TRACK_SALT=""
+
+# Marks this checkout as a LOCAL PRACTICE COPY and enables the login page's
+# "Sign in to the practice copy" button — a super-admin session with no password.
+#
+# Safe here and ONLY here: the practice database is a throwaway on your own machine, it answers
+# only on localhost, and the API refuses this door unless all three of isPracticeCopy's conditions
+# hold (this variable, no Cloudflare Access, a loopback hostname). Production has never had it and
+# must never get it — do not add it with `wrangler secret put`.
+PRACTICE_COPY=1
