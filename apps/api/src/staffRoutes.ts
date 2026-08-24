@@ -25,6 +25,8 @@ import {
   slipIsExpired,
   isLeaveHalves,
   leaveModeLabel,
+  payoutProblem,
+  settleMonth,
 } from "@l-shopee/core";
 import type { StaffIdentity } from "./staffSession";
 import { revokeAllStaffSessions } from "./staffSession";
@@ -603,6 +605,189 @@ export async function listTeamDaysOff(
 }
 
 /**
+ * ONE person's days off for a month — the super admin's view of them, on their profile.
+ *
+ * The team screen answers "who was off in August"; a profile answers "when was THIS person off",
+ * which is the question you have while looking at their wage. Filtering the team list in the page
+ * would have worked and been wrong in one specific way: `reason` is free text and someone will
+ * write why they were at a hospital in it, so shipping the whole team's reasons to a page that
+ * displays one of them hands the browser more than it needs.
+ *
+ * No `name` columns, unlike the team list — the page already knows whose profile it is.
+ * Super admin only, same as the team list: staff read their own at /staff/me/days-off.
+ */
+export async function listDaysOffFor(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  month: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const { results } = await db
+    .prepare(
+      `SELECT d.id, d.user_id AS userId, d.day, d.halves, d.reason
+         FROM staff_days_off d
+         JOIN users u ON u.id = d.user_id
+        WHERE d.user_id = ? AND substr(d.day, 1, 7) = ? AND u.deleted_at IS NULL
+        ORDER BY d.day DESC`,
+    )
+    .bind(userId, month)
+    .all();
+  return json({ days: results ?? [] });
+}
+
+/**
+ * เงินเบิกล่วงหน้า — salary handed over before payday (owner, 2026-08-24).
+ *
+ * Money leaving the shop, so recording and removing one is the super admin's alone; staff read
+ * their own totals but never write one.
+ *
+ * THE SLIP RULE IS NOT RE-DERIVED HERE. `payoutProblem` in core owns it — cash needs nothing,
+ * a transfer needs its slip — so the advance form and the wage form cannot drift into disagreeing
+ * about what counts as proof, and the sentence the screen shows is the same either way.
+ */
+export interface AdvanceInput {
+  period?: string;
+  givenOn?: string;
+  amountSatang?: number;
+  method?: string;
+  slipKey?: string | null;
+  note?: string | null;
+}
+
+export async function recordAdvance(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  input: AdvanceInput,
+  now: number,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+
+  const period = input.period ?? "";
+  const givenOn = input.givenOn ?? "";
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    return json({ error: "period must look like 2026-08" }, 400);
+  }
+  // A plain Bangkok day, like staff_days_off.day — never parsed into a Date, so it cannot shift.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(givenOn)) {
+    return json({ error: "givenOn must look like 2026-08-22" }, 400);
+  }
+  const amountSatang = input.amountSatang ?? 0;
+  if (!Number.isInteger(amountSatang) || amountSatang <= 0) {
+    return json({ error: "an advance needs an amount above zero" }, 400);
+  }
+  const problem = payoutProblem({ method: input.method, slipKey: input.slipKey ?? null });
+  if (problem) return json({ error: problem }, 400);
+
+  const person = await db
+    .prepare(
+      `SELECT COALESCE(name_th, name) AS name FROM users WHERE id = ? AND deleted_at IS NULL`,
+    )
+    .bind(userId)
+    .first<{ name: string }>();
+  if (!person) return json({ error: "no such person" }, 404);
+
+  // A PAID month is a record of what was handed over, not a running total. The payslip froze the
+  // advance figure at the moment of payment; letting another in afterwards would leave the payslip
+  // and the advance list disagreeing, with nothing to say which one lied.
+  const paid = await db
+    .prepare(`SELECT paid_at FROM staff_payslips WHERE user_id = ? AND period = ?`)
+    .bind(userId, period)
+    .first<{ paid_at: number | null }>();
+  if (paid?.paid_at != null) {
+    return json({ error: "that month has already been paid" }, 409);
+  }
+
+  await db
+    .prepare(
+      `INSERT INTO staff_advances
+         (id, user_id, period, given_on, amount_satang, method, slip_key, note, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      userId,
+      period,
+      givenOn,
+      amountSatang,
+      input.method as string,
+      input.slipKey ?? null,
+      input.note?.trim() || null,
+      actor.userId,
+      now,
+    )
+    .run();
+
+  // The person's NAME and the amount — this line is read by a human in the activity log, and
+  // "an advance was recorded" without either is a line nobody can act on.
+  await logActivity(
+    db,
+    actor.userId,
+    "advance_recorded",
+    `${person.name} · ${period} · ${(amountSatang / 100).toLocaleString("en-US")} บาท`,
+    now,
+  );
+  return json({ ok: true });
+}
+
+/** One person's advances for a month, newest first, plus the total that comes off their wage. */
+export async function listAdvancesFor(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+  period: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const { results } = await db
+    .prepare(
+      `SELECT id, given_on AS givenOn, amount_satang AS amountSatang, method,
+              slip_key AS slipKey, note
+         FROM staff_advances
+        WHERE user_id = ? AND period = ?
+        ORDER BY given_on DESC, created_at DESC`,
+    )
+    .bind(userId, period)
+    .all<{ amountSatang: number }>();
+  const advances = results ?? [];
+  return json({
+    advances,
+    totalSatang: advances.reduce((n, a) => n + a.amountSatang, 0),
+  });
+}
+
+/**
+ * Remove an advance. Super admin only, and for the same reason deleting a day off is: it puts money
+ * back into what will be handed over on payday.
+ */
+export async function deleteAdvance(
+  db: D1Database,
+  actor: StaffIdentity,
+  id: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const row = await db
+    .prepare(
+      `SELECT a.id, a.period, a.amount_satang AS amountSatang, COALESCE(u.name_th, u.name) AS name
+         FROM staff_advances a LEFT JOIN users u ON u.id = a.user_id
+        WHERE a.id = ?`,
+    )
+    .bind(id)
+    .first<{ id: string; period: string; amountSatang: number; name: string | null }>();
+  if (!row) return json({ error: "no such advance" }, 404);
+
+  await db.prepare(`DELETE FROM staff_advances WHERE id = ?`).bind(id).run();
+  await logActivity(
+    db,
+    actor.userId,
+    "advance_deleted",
+    `${row.name ?? "?"} · ${row.period} · ${(row.amountSatang / 100).toLocaleString("en-US")} บาท`,
+    Date.now(),
+  );
+  return json({ ok: true });
+}
+
+/**
  * Delete a day off. SUPER ADMIN ONLY (owner, 5 Aug 2026) — staff may edit their own rows but never
  * remove one.
  *
@@ -823,9 +1008,16 @@ export async function salaryMonth(
 /**
  * Mark one person's month as paid — and FREEZE it.
  *
- * The payslip stores the day rate, the days off and the amount as they stand right now, rather than
- * a pointer to the person's current rate. A raise in September must never quietly rewrite what
- * August actually paid; a paid month is a record of a payment, not a live calculation.
+ * The payslip stores the day rate, the days off, the amount AND the advances as they stand right
+ * now, rather than a pointer to anything live. A raise in September must never quietly rewrite what
+ * August actually paid; a paid month is a record of a payment, not a live calculation. `recordAdvance`
+ * refuses a paid month for the other half of the same reason.
+ *
+ * THE SLIP RULE CHANGED, 2026-08-24. It used to be required unconditionally, which is wrong for a
+ * shop that mostly hands over cash: it pushed people into not recording the payment at all, or
+ * attaching something meaningless to get past the form, and a rule people route around is not a
+ * control. Now it follows `payoutProblem` in core — cash needs nothing, a transfer needs its slip —
+ * exactly as an advance does, so the two forms cannot drift apart on what counts as proof.
  */
 export async function markSalaryPaid(
   db: D1Database,
@@ -833,25 +1025,40 @@ export async function markSalaryPaid(
   userId: string,
   period: string,
   now: number,
-  /** The stored transfer slip. Required: a wage is not recorded as paid without proof of it. */
-  slipKey: string | null,
+  payout: {
+    method: unknown;
+    slipKey: string | null;
+    /** The day the money actually changed hands — not necessarily today. "YYYY-MM-DD". */
+    paidOn?: string;
+  },
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
     return json({ error: "period must look like 2026-07" }, 400);
   }
-  if (!slipKey) return json({ error: "a transfer slip is required to confirm a payment" }, 400);
+  const problem = payoutProblem({ method: payout.method, slipKey: payout.slipKey });
+  if (problem) return json({ error: problem }, 400);
+  if (payout.paidOn && !/^\d{4}-\d{2}-\d{2}$/.test(payout.paidOn)) {
+    return json({ error: "paidOn must look like 2026-09-05" }, 400);
+  }
 
   const person = await db
     .prepare(
       `SELECT day_rate_satang AS dayRateSatang,
               COALESCE(name_th, name) AS name,
               COALESCE((SELECT SUM(d.halves) FROM staff_days_off d
-                         WHERE d.user_id = users.id AND substr(d.day, 1, 7) = ?), 0) AS offHalves
+                         WHERE d.user_id = users.id AND substr(d.day, 1, 7) = ?), 0) AS offHalves,
+              COALESCE((SELECT SUM(a.amount_satang) FROM staff_advances a
+                         WHERE a.user_id = users.id AND a.period = ?), 0) AS advanceSatang
          FROM users WHERE id = ? AND deleted_at IS NULL`,
     )
-    .bind(period, userId)
-    .first<{ dayRateSatang: number | null; name: string; offHalves: number }>();
+    .bind(period, period, userId)
+    .first<{
+      dayRateSatang: number | null;
+      name: string;
+      offHalves: number;
+      advanceSatang: number;
+    }>();
   if (!person) return json({ error: "no such person" }, 404);
   if (person.dayRateSatang == null) {
     return json({ error: "set a day rate for this person first" }, 400);
@@ -862,18 +1069,25 @@ export async function markSalaryPaid(
     period,
     offHalves: person.offHalves,
   });
+  const settled = settleMonth({
+    earnedSatang: pay.amountSatang,
+    advanceSatang: person.advanceSatang,
+  });
+
   await db
     .prepare(
       `INSERT INTO staff_payslips (id, user_id, period, day_rate_satang, days_in_month,
-                                   off_halves, working_halves, amount_satang, paid_at, created_at,
-                                   slip_key, slip_uploaded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   off_halves, working_halves, amount_satang, advance_satang,
+                                   method, paid_at, created_at, slip_key, slip_uploaded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, period) DO UPDATE SET
          day_rate_satang = excluded.day_rate_satang,
          days_in_month = excluded.days_in_month,
          off_halves = excluded.off_halves,
          working_halves = excluded.working_halves,
          amount_satang = excluded.amount_satang,
+         advance_satang = excluded.advance_satang,
+         method = excluded.method,
          paid_at = excluded.paid_at,
          slip_key = excluded.slip_key,
          slip_uploaded_at = excluded.slip_uploaded_at`,
@@ -887,52 +1101,156 @@ export async function markSalaryPaid(
       person.offHalves,
       pay.workingHalves,
       pay.amountSatang,
+      person.advanceSatang,
+      payout.method as string,
       now,
       now,
-      slipKey,
-      now,
+      payout.slipKey ?? null,
+      payout.slipKey ? now : null,
     )
     .run();
 
-  // The person's NAME, not their id — this line is read by a human in the activity log.
-  await logActivity(db, actor.userId, "salary_paid", `${person.name} · ${period}`, now);
-  return json({ ok: true, amountSatang: pay.amountSatang, paidAt: now });
+  // The person's NAME and what actually changed hands — this line is read by a human in the
+  // activity log, and the gross would be the wrong number to remember a cash handover by.
+  await logActivity(
+    db,
+    actor.userId,
+    "salary_paid",
+    `${person.name} · ${period} · ${(settled.dueSatang / 100).toLocaleString("en-US")} บาท`,
+    now,
+  );
+  return json({
+    ok: true,
+    earnedSatang: pay.amountSatang,
+    advanceSatang: person.advanceSatang,
+    dueSatang: settled.dueSatang,
+    owedSatang: settled.owedSatang,
+    paidAt: now,
+  });
 }
 
 /**
- * One person's wage history — every month they have been paid for, newest first.
+ * One person's wage, month by month — salary, advances, and what is actually still due.
  *
  * This lives on the person rather than on the salary run (owner, 2026-08-04): the salary table
  * answers "who do I still owe this month", and a wage history answers "what has this person been
- * paid", which is a question about them. Readable by the owner and by that person.
+ * paid", which is a question about them.
  *
- * `hasSlip` is false both before a slip exists and after the image has been swept at three months.
- * The payment itself is never removed.
+ * IT NO LONGER LISTS PAID MONTHS ONLY (owner, 2026-08-24). That was fine while a month's figure
+ * could not change before payday; an advance changes it the moment it is handed over, so the month
+ * you are standing in has to be here too — otherwise the one number you want, "what do I owe on
+ * the 5th", is the one number the table will not show.
+ *
+ * A PAID month reports what the payslip FROZE. An unpaid one is computed live. Never the reverse:
+ * recomputing a paid month is how a September raise, or a September advance, would quietly rewrite
+ * what August actually handed over.
+ *
+ * `hasSlip` is false both before a slip exists and after the image has been swept at three months —
+ * and now also for a cash payment, which never had one. The payment itself is never removed.
  */
 export async function staffPayments(
   db: D1Database,
   actor: StaffIdentity,
   userId: string,
+  /** The month "now" falls in, so the running month appears even with nothing recorded against it. */
+  currentPeriod: string,
 ): Promise<Response> {
   if (!canManageStaff(actor.role) && actor.userId !== userId) return forbidden();
-  const { results } = await db
+
+  const person = await db
+    .prepare(`SELECT day_rate_satang AS dayRateSatang FROM users WHERE id = ?`)
+    .bind(userId)
+    .first<{ dayRateSatang: number | null }>();
+
+  const slips = await db
     .prepare(
       `SELECT period, amount_satang AS amountSatang, day_rate_satang AS dayRateSatang,
               working_halves AS workingHalves, off_halves AS offHalves,
+              advance_satang AS advanceSatang, method,
               paid_at AS paidAt, slip_key AS slipKey
          FROM staff_payslips
-        WHERE user_id = ? AND paid_at IS NOT NULL
-        ORDER BY period DESC`,
+        WHERE user_id = ? AND paid_at IS NOT NULL`,
     )
     .bind(userId)
-    .all<{ slipKey: string | null; [k: string]: unknown }>();
+    .all<{
+      period: string;
+      amountSatang: number;
+      dayRateSatang: number;
+      workingHalves: number;
+      offHalves: number;
+      advanceSatang: number;
+      method: string | null;
+      paidAt: number;
+      slipKey: string | null;
+    }>();
 
-  // slip_key itself never leaves the server — it is an R2 path, and the image is served by its own
-  // route. The page only needs to know whether there is one to link to.
-  const payments = (results ?? []).map(({ slipKey, ...row }) => ({
-    ...row,
-    hasSlip: slipKey !== null,
-  }));
+  const advances = await db
+    .prepare(
+      `SELECT period, SUM(amount_satang) AS total FROM staff_advances
+        WHERE user_id = ? GROUP BY period`,
+    )
+    .bind(userId)
+    .all<{ period: string; total: number }>();
+
+  const daysOff = await db
+    .prepare(
+      `SELECT substr(day, 1, 7) AS period, SUM(halves) AS offHalves FROM staff_days_off
+        WHERE user_id = ? GROUP BY substr(day, 1, 7)`,
+    )
+    .bind(userId)
+    .all<{ period: string; offHalves: number }>();
+
+  const paidBy = new Map((slips.results ?? []).map((r) => [r.period, r]));
+  const advanceBy = new Map((advances.results ?? []).map((r) => [r.period, r.total]));
+  const offBy = new Map((daysOff.results ?? []).map((r) => [r.period, r.offHalves]));
+
+  // Every month worth a row: one that was paid, one with an advance against it, and the month we
+  // are standing in — which may have nothing recorded yet and still needs to show what is coming.
+  const periods = new Set<string>([...paidBy.keys(), ...advanceBy.keys(), currentPeriod]);
+
+  const payments = [...periods]
+    .sort((a, b) => b.localeCompare(a))
+    .map((period) => {
+      const slip = paidBy.get(period);
+      if (slip) {
+        const settled = settleMonth({
+          earnedSatang: slip.amountSatang,
+          advanceSatang: slip.advanceSatang,
+        });
+        return {
+          period,
+          dayRateSatang: slip.dayRateSatang,
+          offHalves: slip.offHalves,
+          workingHalves: slip.workingHalves,
+          earnedSatang: slip.amountSatang,
+          advanceSatang: slip.advanceSatang,
+          ...settled,
+          paidAt: slip.paidAt,
+          method: slip.method,
+          hasSlip: slip.slipKey !== null,
+        };
+      }
+      const rate = person?.dayRateSatang ?? 0;
+      const pay = payForMonth({
+        dayRateSatang: rate,
+        period,
+        offHalves: offBy.get(period) ?? 0,
+      });
+      const advanceSatang = advanceBy.get(period) ?? 0;
+      return {
+        period,
+        dayRateSatang: rate,
+        offHalves: offBy.get(period) ?? 0,
+        workingHalves: pay.workingHalves,
+        earnedSatang: pay.amountSatang,
+        advanceSatang,
+        ...settleMonth({ earnedSatang: pay.amountSatang, advanceSatang }),
+        paidAt: null,
+        method: null,
+        hasSlip: false,
+      };
+    });
+
   return json({ payments });
 }
 

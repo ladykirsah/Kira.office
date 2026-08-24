@@ -1621,6 +1621,106 @@ a.card:hover {
   border-bottom: 1px solid var(--border);
 }
 
+/* ── Record section on a staff profile (owner, 2026-08-24) ────────────────────────────────────
+   Design B of three: the Add new flow from the car-fitment page, but with time and money visibly
+   separated. A day off and a cash advance are not the same kind of thing, and equal tabs would give
+   them equal weight and equal muscle memory — a mis-tap recording ฿3,000 instead of a half day.
+   Amber, never --primary: red marks the one "you are here" control per view, and this is a warning
+   about what a control DOES, not about where you are. */
+.record-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.record-tab {
+  padding: 8px 14px;
+  border-radius: 9px;
+  /* Two things here defeat something inherited that made these tabs 9px taller than the Add new
+     tabs they copy: `min-height: 0` beats the global button{min-height:40px} (Add new does the same
+     inline), and dropping `font: inherit` stops the section's 16px body font being pulled in, where
+     Add new's tabs take the bare button default. Matching a design means matching what it does NOT
+     set, too. */
+  min-height: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+}
+.record-tab.on {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+/* The money tabs take the same coral as any other active tab (owner, 2026-08-24). They were amber
+   for a while; the panel behind the form and the Save button still carry that, which is where the
+   colour is doing work — on the tab it only made the row look like two different controls. */
+.record-rule {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+/* The frame around a "fill this in and Save" block: Record's money forms, and the วันหยุด form on
+   a person's own profile. Named for what it does rather than for money — it was `.record-money`
+   while the two money tabs were amber, and stopped being about money when the owner took the amber
+   out (2026-08-24). --primary-faint is the token for exactly this: a grouped panel that belongs to
+   the page rather than warning about it. */
+.fill-panel {
+  background: var(--primary-faint);
+  border: 1px solid var(--primary-soft);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+/* Every control inside Record is SMALL, matching Add new on the car-fitment page field for field:
+   32px tall, 6px/10px padding, full width. The page default is the large 40px size, which made
+   Record read as a heavier, different-looking form than the one it was modelled on. Scoped here
+   rather than changed globally — the large size is right everywhere else. */
+.record-fields input,
+.record-fields select {
+  min-height: 32px;
+  padding: 6px 10px;
+  width: 100%;
+}
+
+/* เงินสด / โอน — a two-way segmented control, not a select: there are exactly two answers and one
+   of them changes what the form asks for next. */
+.pay-method {
+  /* A field like the ones beside it: full column width and the same 10px corner as an input. It was
+     inline-flex at 8px, which left it narrower than its neighbours and rounded differently — the
+     two halves now split the column evenly instead. */
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 32px;
+}
+.pay-method button {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  /* Same reason as .record-tab: the global button min-height would push this to 42px, out of line
+     with every other control in the section. */
+  min-height: 0;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.pay-method button.on {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* Second line in a list table's Status cell: what is stopping this product from selling.
    Sits under the pill, in the same muted register as the reference code under a product name —
    it is context for the pill, never a competing label. Green only for "ready to sell", which is

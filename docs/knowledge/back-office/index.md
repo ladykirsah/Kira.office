@@ -23,6 +23,7 @@ Admin-side domain knowledge for Kira.office: the product catalog, stock tracking
 | [onsite-pos](onsite-pos.md) | draft\|quotation\|bill on one row, one id space — fence bill ids on EVERY write/delete; one /sync money path; read-only reprint; PR #81 customer+payment flow; pos/page.tsx traps |
 | [airplus-insight](airplus-insight.md) | Shopee-parity analytics (PR #124, migration 0087), super-admin only; day-rotating visitor hash = privacy by construction; NEVER rotate TRACK_SALT |
 | [dashboard-shortcuts](dashboard-shortcuts.md) | Order summary frame + manual Shopee stock worklist (PRs #111/#113, migration 0080 shopee_synced_at) |
+| [staff-days-off](staff-days-off.md) | วันหยุด on three screens (own / team / a person's profile); เต็มวัน·ครึ่งวัน cost a day, เข้าสาย does not; **only the owner may delete** — deleting gives back a day's wage; เงินเบิกล่วงหน้า designed but PARKED |
 | [shopee-integration-strategy](shopee-integration-strategy.md) | PARKED on owner manually setting Shopee SKUs = Kira codes; matcher = exact-match-or-skip, never name-guess; signing/planner/ingest helpers already in repo |
 
 Neighbouring areas: [platform](../platform/index.md) · [operations](../operations/index.md) · [auth](../auth/index.md) · [commerce](../commerce/index.md) · [storefront](../storefront/index.md) · [conventions](../conventions/index.md)

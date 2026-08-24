@@ -8,6 +8,7 @@ import {
   recordDayOffFor,
   listMyDaysOff,
   listTeamDaysOff,
+  listDaysOffFor,
   deleteDayOff,
   updateDayOff,
 } from "./staffRoutes";
@@ -330,5 +331,70 @@ describe("updateDayOff > editing a row in place", () => {
     );
     expect(res.status).toBe(400);
     expect(db.prepare(`SELECT halves FROM staff_days_off`).get()).toMatchObject({ halves: 2 });
+  });
+});
+
+/**
+ * ONE person's month, for the super admin's view of them.
+ *
+ * The team screen answers "who was off in August"; a profile answers "when was THIS person off",
+ * which is the question you have while looking at their wage. Filtering the team list in the page
+ * would have worked and been wrong in one specific way: the reason field is free text and someone
+ * will write why they were at a hospital in it, so shipping the whole team's reasons to a page that
+ * displays one person hands the browser more than it needs. Same rule as the team list —
+ * `canManageStaff`, super admin only.
+ */
+describe("listDaysOffFor > one person's month", () => {
+  it("given a month > then only that person, only that month, newest first", async () => {
+    const db = migratedDb();
+    seedUser(db, "boss", "super_admin");
+    seedUser(db, "u1", "mechanic", "สมชาย");
+    seedUser(db, "u2", "mechanic", "น้ำฝน");
+    const d1 = asD1(db);
+    await recordDayOff(d1, who("u1", "mechanic"), { day: "2026-08-02", halves: 2 }, NOW);
+    await recordDayOff(d1, who("u1", "mechanic"), { day: "2026-08-21", halves: 1 }, NOW);
+    await recordDayOff(d1, who("u1", "mechanic"), { day: "2026-07-30", halves: 2 }, NOW);
+    await recordDayOff(d1, who("u2", "mechanic"), { day: "2026-08-09", halves: 2 }, NOW);
+
+    const res = await listDaysOffFor(d1, who("boss", "super_admin"), "u1", "2026-08");
+    const { days } = (await body(res)) as unknown as { days: { day: string }[] };
+    expect(days.map((d) => d.day)).toEqual(["2026-08-21", "2026-08-02"]);
+  });
+
+  it("given a month with nothing in it > then an empty list, not an error", async () => {
+    const db = migratedDb();
+    seedUser(db, "boss", "super_admin");
+    seedUser(db, "u1", "mechanic");
+    const res = await listDaysOffFor(asD1(db), who("boss", "super_admin"), "u1", "2026-08");
+    expect(res.status).toBe(200);
+    expect((await body(res)) as unknown as { days: unknown[] }).toEqual({ days: [] });
+  });
+
+  it("given an admin > then 403", async () => {
+    const db = migratedDb();
+    seedUser(db, "a1", "admin");
+    seedUser(db, "u1", "mechanic");
+    expect((await listDaysOffFor(asD1(db), who("a1", "admin"), "u1", "2026-08")).status).toBe(403);
+  });
+
+  it("given a mechanic asking about THEMSELVES > then still 403", async () => {
+    // Their own list is /staff/me/days-off. This route is the owner's view and stays that way, so
+    // the rule does not have to be re-derived per caller.
+    const db = migratedDb();
+    seedUser(db, "u1", "mechanic");
+    expect((await listDaysOffFor(asD1(db), who("u1", "mechanic"), "u1", "2026-08")).status).toBe(
+      403,
+    );
+  });
+
+  it("given a deleted person > then their rows are not returned", async () => {
+    const db = migratedDb();
+    seedUser(db, "boss", "super_admin");
+    seedUser(db, "gone", "mechanic");
+    const d1 = asD1(db);
+    await recordDayOff(d1, who("gone", "mechanic"), { day: "2026-08-05", halves: 2 }, NOW);
+    db.exec(`UPDATE users SET deleted_at = 1 WHERE id = 'gone'`);
+    const res = await listDaysOffFor(d1, who("boss", "super_admin"), "gone", "2026-08");
+    expect((await body(res)) as unknown as { days: unknown[] }).toEqual({ days: [] });
   });
 });

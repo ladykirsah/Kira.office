@@ -138,6 +138,7 @@ import {
   setOwnPin,
   recordDayOff,
   recordDayOffFor,
+  listDaysOffFor,
   listMyDaysOff,
   listTeamDaysOff,
   deleteDayOff,
@@ -149,6 +150,10 @@ import {
   salarySlipKey,
   purgeExpiredSalarySlips,
   staffPayments,
+  recordAdvance,
+  listAdvancesFor,
+  deleteAdvance,
+  type AdvanceInput,
   staffActivity,
   staffProfileFor,
   updateStaffProfile,
@@ -2511,6 +2516,9 @@ export const BACKUP_TABLES = [
   // NOT here — see BACKUP_EXCLUSIONS; restoring session tokens would revive revoked logins.
   "staff_days_off",
   "staff_payslips",
+  // Money handed over before payday (0089). Irreplaceable: it is the only record that a
+  // wage was partly paid early, and without it a payslip reads as if the full amount went out.
+  "staff_advances",
   "staff_activity",
 ];
 
@@ -6260,6 +6268,17 @@ const worker = {
           url.searchParams.get("month") ?? bangkokMonth(Date.now()),
         );
       }
+      // One person's month, for their profile. Distinct from /staff/days-off (everyone) and
+      // /staff/me/days-off (your own) — see listDaysOffFor for why it is not the team list filtered.
+      const daysOffOf = url.pathname.match(/^\/staff\/([^/]+)\/days-off$/);
+      if (daysOffOf && request.method === "GET") {
+        return listDaysOffFor(
+          env.DB,
+          who,
+          daysOffOf[1]!,
+          url.searchParams.get("month") ?? bangkokMonth(Date.now()),
+        );
+      }
       const dayOffFor = url.pathname.match(/^\/staff\/([^/]+)\/day-off$/);
       if (dayOffFor && request.method === "POST") {
         const body = await readJson<DayOffInput>(request);
@@ -6288,26 +6307,92 @@ const worker = {
       if (url.pathname === "/staff/salary" && request.method === "GET") {
         return salaryMonth(env.DB, who, url.searchParams.get("month") ?? "");
       }
-      // Confirming a payment carries its proof: the transfer slip is the raw body, the month is a
-      // query param. Same shape as the refund slips above, and the image lands in R2 before the
-      // payslip is written — so a payslip never claims a slip that failed to upload.
+      /**
+       * Confirming a wage payment. The month, the method and the day paid are query params; a
+       * TRANSFER additionally carries its slip as the raw image body.
+       *
+       * Cash sends no body at all (owner, 2026-08-24) — the shop mostly hands over cash, and
+       * demanding an image for it was pushing people into not recording the payment. The image,
+       * when there is one, still lands in R2 BEFORE the payslip is written, so a payslip never
+       * claims a slip that failed to upload. `markSalaryPaid` re-checks the rule itself.
+       */
       const paid = url.pathname.match(/^\/staff\/([^/]+)\/salary-paid$/);
       if (paid && request.method === "POST") {
+        const period = url.searchParams.get("period") ?? "";
+        const method = url.searchParams.get("method") ?? "";
+        const paidOn = url.searchParams.get("paidOn") ?? undefined;
+        let key: string | null = null;
+        if (method === "transfer") {
+          const bytes = await request.arrayBuffer();
+          const contentType = request.headers.get("content-type") ?? "";
+          if (!bytes.byteLength || !contentType.startsWith("image/")) {
+            return json({ error: "a transfer needs its slip attached" }, 400);
+          }
+          key = `salary-slip/${paid[1]!}/${period}/${crypto.randomUUID()}.jpg`;
+          await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+        }
+        return markSalaryPaid(env.DB, who, paid[1]!, period, Date.now(), {
+          method,
+          slipKey: key,
+          paidOn,
+        });
+      }
+
+      // One person's wage history. Lives on the person, not the salary run — see staffPayments.
+      // The current month travels with it so the month you are standing in appears even before
+      // anything has been recorded against it.
+      const payments = url.pathname.match(/^\/staff\/([^/]+)\/payments$/);
+      if (payments && request.method === "GET") {
+        return staffPayments(
+          env.DB,
+          who,
+          payments[1]!,
+          url.searchParams.get("month") ?? bangkokMonth(Date.now()),
+        );
+      }
+
+      /**
+       * เงินเบิกล่วงหน้า — salary taken before payday. Money out, so super admin only, enforced in
+       * each handler rather than by the route shape.
+       */
+      const advancesOf = url.pathname.match(/^\/staff\/([^/]+)\/advances$/);
+      if (advancesOf && request.method === "GET") {
+        return listAdvancesFor(
+          env.DB,
+          who,
+          advancesOf[1]!,
+          url.searchParams.get("month") ?? bangkokMonth(Date.now()),
+        );
+      }
+      if (advancesOf && request.method === "POST") {
+        const body = await readJson<AdvanceInput>(request);
+        return recordAdvance(env.DB, who, advancesOf[1]!, body ?? {}, Date.now());
+      }
+      /**
+       * Store an advance's slip and hand back its key, so the record that follows can name it.
+       *
+       * A separate step from POST /advances because an advance carries several fields and cannot
+       * also be a raw image body — unlike a wage payment, which has none and keeps that shape. The
+       * image lands in R2 FIRST for the same reason it does there: a record must never claim a slip
+       * whose upload failed.
+       */
+      const advanceSlip = url.pathname.match(/^\/staff\/([^/]+)\/advance-slip$/);
+      if (advanceSlip && request.method === "POST") {
+        if (who.role !== "super_admin") return json({ error: "forbidden" }, 403);
         const period = url.searchParams.get("period") ?? "";
         const bytes = await request.arrayBuffer();
         const contentType = request.headers.get("content-type") ?? "";
         if (!bytes.byteLength || !contentType.startsWith("image/")) {
-          return json({ error: "a transfer slip image is required" }, 400);
+          return json({ error: "a slip image is required" }, 400);
         }
-        const key = `salary-slip/${paid[1]!}/${period}/${crypto.randomUUID()}.jpg`;
+        const key = `advance-slip/${advanceSlip[1]!}/${period}/${crypto.randomUUID()}.jpg`;
         await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
-        return markSalaryPaid(env.DB, who, paid[1]!, period, Date.now(), key);
+        return json({ key });
       }
 
-      // One person's wage history. Lives on the person, not the salary run — see staffPayments.
-      const payments = url.pathname.match(/^\/staff\/([^/]+)\/payments$/);
-      if (payments && request.method === "GET") {
-        return staffPayments(env.DB, who, payments[1]!);
+      const advanceById = url.pathname.match(/^\/staff\/advances\/([^/]+)$/);
+      if (advanceById && request.method === "DELETE") {
+        return deleteAdvance(env.DB, who, advanceById[1]!);
       }
 
       // The slip image itself. The owner, or the person it paid — see salarySlipKey. Everything

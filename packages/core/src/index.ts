@@ -56,3 +56,4 @@ export * from "./dayOff";
 export * from "./ownerSignIn";
 export * from "./sellingPrice";
 export * from "./practiceCopyGate";
+export * from "./staffPayout";

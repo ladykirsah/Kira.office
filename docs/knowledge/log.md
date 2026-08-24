@@ -107,6 +107,23 @@ sources: [session 2026-08-09]
   pending, the public shop still lists exactly the 10 active products, and the demo skincare
   product (`prod-demo`) returns 404. Rollback is the 8 recorded ids back to `archived`.
 
+- **2026-08-24** — **Record section + เงินเบิกล่วงหน้า on the staff profile** (migration 0089).
+  Three tabs on the car page's Add new flow — วันหยุด · เบิกล่วงหน้า · จ่ายเงินเดือน — with time and
+  money split by a rule, an amber panel for money, and a Save button that always ends with the
+  amount. One slip rule for both money forms (`payoutProblem`): **cash needs nothing, a transfer
+  needs its slip** — which CHANGED marking a wage paid, where a slip used to be demanded
+  unconditionally. Payments now lists the running month and reads
+  **เงินเดือน − เบิกไปแล้ว = คงเหลือ**; over-advancing pays ฿0 and shows the excess red as owed.
+  See [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-24** — **A person's profile now shows their วันหยุด.** One month at a time (month in
+  the URL), with add, edit and delete — the answer to "when was THIS person off" used to need the
+  team screen and a scan down a list of everybody. New `GET /staff/:id/days-off`, deliberately not
+  the team list filtered in the page: `reason` is free text. Sits above Payments, because a month's
+  days off are what produced that month's wage. เงินเบิกล่วงหน้า was designed with the owner the
+  same day and **parked** — it is a payroll change, not a screen. See
+  [back-office/staff-days-off](back-office/staff-days-off.md).
+
 - **2026-08-24** — **The practice copy now lets you in with one click.** Its separate database
   keeps its own password for the same email, which locked the owner out of their own practice twice
   in one day. `POST /staff/login-practice` needs no credential and is gated on `PRACTICE_COPY=1`

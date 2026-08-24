@@ -6,6 +6,16 @@ import { useToast } from "../ToastProvider";
 import { DayOffTable, type DayOffEdit, type DayOffRow } from "../DayOffTable";
 import { monthLabel } from "@/lib/dayOff";
 
+/** One month's wage as this person sees it — see staffPayments on the API. */
+export interface MonthPay {
+  period: string;
+  earnedSatang: number;
+  advanceSatang: number;
+  dueSatang: number;
+  owedSatang: number;
+  paidAt: number | null;
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -39,7 +49,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function MyProfile({ profile }: { profile: Profile }) {
+export function MyProfile({
+  profile,
+  thisMonth,
+}: {
+  profile: Profile;
+  thisMonth: MonthPay | null;
+}) {
   const toast = useToast();
   const [shown, setShown] = useState(false);
   const [password, setPassword] = useState("");
@@ -234,7 +250,13 @@ export function MyProfile({ profile }: { profile: Profile }) {
           บันทึกได้เลย ไม่ต้องรออนุมัติ · บันทึกทีละวัน — หยุด 3 วันคือบันทึก 3 ครั้ง ·
           ย้อนหลังได้ถ้าลืมบันทึกวันที่หยุดไปแล้ว
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+        {/* The same coral frame Record uses on the owner's side (owner, 2026-08-24): one look for
+            "this is the bit you fill in and Save". There is no Record section on this page, so this
+            form IS the input point and should read like one. */}
+        <div
+          className="fill-panel"
+          style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}
+        >
           <div>
             <label
               className="muted"
@@ -329,6 +351,31 @@ export function MyProfile({ profile }: { profile: Profile }) {
           >
             <Row label="Day rate" value={`${baht(profile.dayRateSatang)} / day`} />
             <Row label="Paid" value="5th of each month" />
+            {/* Said here rather than discovered on payday (owner, 2026-08-24). Someone who took
+                salary early should be able to see what that leaves, without having to ask. */}
+            {thisMonth && (
+              <>
+                <Row label="เดือนนี้ทำได้" value={baht(thisMonth.earnedSatang)} />
+                <Row
+                  label="เบิกไปแล้ว"
+                  value={thisMonth.advanceSatang ? `−${baht(thisMonth.advanceSatang)}` : null}
+                />
+                <Row
+                  label="เหลือรับวันที่ 5"
+                  value={
+                    <b>
+                      {baht(thisMonth.dueSatang)}
+                      {thisMonth.owedSatang > 0 && (
+                        <span style={{ color: "var(--danger)", fontWeight: 600 }}>
+                          {" "}
+                          · ค้าง {baht(thisMonth.owedSatang)}
+                        </span>
+                      )}
+                    </b>
+                  }
+                />
+              </>
+            )}
             <Row
               label="Bank"
               value={
