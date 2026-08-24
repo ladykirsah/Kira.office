@@ -21,3 +21,8 @@ sources: [session 2026-08-09]
   a correct password rejected by a local practice copy, the four-worktree database drift behind it,
   and the `describePracticeCopy` banner now rendered from `layout.tsx` so it reaches `/login`.
   Linked from [auth/index](auth/index.md).
+
+- **2026-08-24** — [auth/roles-model](auth/roles-model.md): recorded that most `staffAuth`
+  permission helpers are defined and tested but **never called** (the file's own "enforced in the
+  API" claim is false), and added the new super-admin-only product delete
+  (`canDeleteProduct`, enforced on `DELETE /products/:id`).

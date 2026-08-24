@@ -3475,14 +3475,18 @@ describe("getProductDetail / updateProduct / setVariantPricing", () => {
     await expect(archiveProduct(db, "p1")).resolves.toBeUndefined();
   });
 
-  it("DELETE /products/:id archives the product", async () => {
+  it("DELETE /products/:id without a staff session > 401, it does not archive anything", async () => {
+    // This asserted `{ ok: true }` until 2026-08-24, when deleting became super-admin only. The
+    // old expectation WAS the bug: any caller reaching this Worker could archive any product.
+    // The authorised path is covered against the real schema in "DELETE /products/:id — super
+    // admin only", which needs a genuine session row the canned mock cannot provide.
     const { env } = makeDb({});
     const res = await worker.fetch!(
       new Request("https://x/products/p1", { method: "DELETE" }),
       env,
       ctx,
     );
-    expect(await res.json()).toEqual({ ok: true });
+    expect(res.status).toBe(401);
   });
 });
 
@@ -8400,5 +8404,78 @@ describe("staff activity names the person it is about, never their id", () => {
     const lines = await details(db);
     expect(lines.join(" ")).toContain("สมชาย");
     expect(lines.join(" ")).not.toContain(UUID);
+  });
+});
+
+// ── Deleting a product is super-admin only (owner, 2026-08-24) ───────────────────────────────────
+// Against the real migrated schema and a real session, not the canned mock: the point of these
+// tests is the AUTHORISATION boundary, and a mock that matches on sql.includes() would approve a
+// query that forgot it. The UI also hides the delete box for other roles, but a hidden control is
+// not a permission — this is where the rule is actually enforced.
+describe("DELETE /products/:id — super admin only", () => {
+  const NOW = 1_800_000_000_000;
+
+  async function withRole(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('u1', 'Somchai', 'somchai@shop.test', ?, 'active', ?)`,
+      )
+      .run(role, NOW);
+    raw
+      .prepare(
+        `INSERT INTO products (id, name, status, created_at, shopee_listed, weight_grams)
+         VALUES ('p1', 'คอมเพรสเซอร์ Denso 10PA17C', 'active', ?, 0, 0)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    return { raw, env: { DB: db } as unknown as Env, token };
+  }
+
+  const del = (env: Env, token?: string) =>
+    worker.fetch!(
+      new Request("https://x/products/p1", {
+        method: "DELETE",
+        headers: token ? { "X-Staff-Session": token } : {},
+      }),
+      env,
+      ctx,
+    );
+
+  const statusOf = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT status FROM products WHERE id = 'p1'`).get() as { status: string }).status;
+
+  it("given the super admin > archives the product", async () => {
+    const { raw, env, token } = await withRole("super_admin");
+    const res = await del(env, token);
+    expect(res.status).toBe(200);
+    expect(statusOf(raw)).toBe("archived");
+  });
+
+  it("given an admin > refuses, and the product survives", async () => {
+    // An admin runs the catalog day to day. Destroying part of it is the owner's call — and there
+    // is no restore screen, so a refusal here is the only thing standing between a slip and D1.
+    const { raw, env, token } = await withRole("admin");
+    const res = await del(env, token);
+    expect(res.status).toBe(403);
+    expect(statusOf(raw)).toBe("active");
+  });
+
+  it("given a mechanic > refuses, and the product survives", async () => {
+    const { raw, env, token } = await withRole("mechanic");
+    const res = await del(env, token);
+    expect(res.status).toBe(403);
+    expect(statusOf(raw)).toBe("active");
+  });
+
+  it("given no staff session at all > refuses rather than falling through", async () => {
+    // Cloudflare Access sits in front of the admin host, but the API is its own public hostname
+    // and has to defend itself. No session means no role, and no role must never mean "allowed".
+    const { raw, env } = await withRole("super_admin");
+    const res = await del(env);
+    expect(res.status).toBe(401);
+    expect(statusOf(raw)).toBe("active");
   });
 });

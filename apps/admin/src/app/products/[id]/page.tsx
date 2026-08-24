@@ -8,6 +8,7 @@ import { PageHeader } from "../../PageHeader";
 import { BackLink } from "../../BackLink";
 import { useToast } from "../../ToastProvider";
 import { ProductView } from "../ProductView";
+import { DeleteProductCard } from "../DeleteProductCard";
 
 /**
  * Read-only product detail. The products table and the "View product" scan mode land here; the
@@ -76,6 +77,9 @@ export default function ProductViewPage() {
         }
       />
       <ProductView detail={detail} />
+      {/* Bottom of the page, behind a typed word — never beside Edit. Deleting is a one-way door
+          (archive; no screen restores it), and this is a page people land on to READ. */}
+      <DeleteProductCard productId={id} />
     </main>
   );
 }

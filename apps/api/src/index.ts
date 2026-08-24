@@ -46,6 +46,7 @@ import {
   type RefundAction,
   viewerRole,
   canReviewClaim,
+  canDeleteProduct,
   type ViewerRole,
   canRecordDropOff,
   normalizePaymentStatus,
@@ -6945,6 +6946,14 @@ const worker = {
       return json({ ok: true });
     }
     if (productById && request.method === "DELETE") {
+      // Super admin alone (owner, 2026-08-24). Checked HERE, not only in the admin UI: this
+      // Worker is its own public hostname, and a hidden button is not a permission. Deleting
+      // archives the row and no screen restores it, so the refusal is the only safety net.
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      if (!canDeleteProduct(actor.role)) {
+        return json({ error: "forbidden", reason: "super_admin_only" }, 403);
+      }
       await archiveProduct(env.DB, productById[1]!);
       return json({ ok: true });
     }

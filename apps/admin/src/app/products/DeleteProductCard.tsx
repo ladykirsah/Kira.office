@@ -4,15 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputS } from "@/lib/inputStyles";
 import { archiveProduct } from "@/lib/api";
+import { isDeleteConfirmed } from "@/lib/deleteConfirm";
+import { canDeleteProduct } from "@l-shopee/core";
+import { useStaffRole } from "../StaffRoleProvider";
 import { useToast } from "../ToastProvider";
 
-/** Danger zone — type DELETE to archive (soft-delete) the product, then return to the list. */
+/**
+ * Danger zone — type DELETE to archive (soft-delete) the product, then return to the list.
+ *
+ * Renders nothing at all for anyone but the super admin (owner, 2026-08-24). Hidden rather than
+ * disabled: a greyed-out delete box invites "why can't I?", and the answer is not a fixable state.
+ * The API refuses the same request independently — this only spares people a control they cannot use.
+ */
 export function DeleteProductCard({ productId }: { productId: string }) {
   const router = useRouter();
   const toast = useToast();
+  const role = useStaffRole();
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
-  const armed = confirm === "DELETE";
+  const armed = isDeleteConfirmed(confirm);
 
   async function onDelete() {
     if (!armed || busy) return;
@@ -26,6 +36,9 @@ export function DeleteProductCard({ productId }: { productId: string }) {
       setBusy(false);
     }
   }
+
+  // Null role = signed out or not yet known. Absence of proof is not permission.
+  if (!role || !canDeleteProduct(role)) return null;
 
   return (
     <section className="danger-zone">

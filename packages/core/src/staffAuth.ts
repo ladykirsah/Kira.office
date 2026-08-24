@@ -174,8 +174,17 @@ export function passwordProblem(password: string): string | null {
 }
 
 /* ── Permissions ──────────────────────────────────────────────────────────────
- * The matrix the owner set on 2026-08-03. Every one of these is enforced in the API; the menu and
- * the page gating only mirror them, because a hidden link is not a permission.
+ * The matrix the owner set on 2026-08-03.
+ *
+ * WHAT IS ACTUALLY ENFORCED (checked repo-wide, 2026-08-24): `canManageStaff`, in every handler in
+ * apps/api/src/staffRoutes.ts, and `canDeleteProduct`, on DELETE /products/:id. The REST of this
+ * matrix is defined and unit-tested but **never called outside tests** — the admin UI gates no page
+ * on role, and slip-image access runs on the older isSuperAdmin email-list path, not canViewSlips.
+ *
+ * This comment previously claimed all of them were enforced. They were not, and stating otherwise
+ * turned a to-do list into false assurance. A rule only exists where it is CALLED: before relying
+ * on any helper below, grep for its call site. A hidden link was never a permission — and neither
+ * is a green test on a function nobody invokes.
  */
 
 /** Create staff, change a role, set or reset a password, deactivate. Super admin alone. */
@@ -190,6 +199,20 @@ export function canViewFinance(role: StaffRole): boolean {
 
 /** Customers' uploaded bank-slip images (their PII, not ours). Super admin alone. */
 export function canViewSlips(role: StaffRole): boolean {
+  return role === "super_admin";
+}
+
+/**
+ * Deleting a product from the catalog. Super admin alone (owner, 2026-08-24).
+ *
+ * Deliberately STRICTER than `canWrite(role, "products")`, which an admin passes. Editing a
+ * product is day-to-day catalog work and mistakes are typed over; deleting archives the row, every
+ * list filters archived rows out, and NO screen anywhere brings it back — undoing one means
+ * editing D1 by hand. A one-way door belongs to the person who owns the shop.
+ *
+ * Do not "simplify" this into canWrite: that would hand deletion back to every admin silently.
+ */
+export function canDeleteProduct(role: StaffRole): boolean {
   return role === "super_admin";
 }
 
