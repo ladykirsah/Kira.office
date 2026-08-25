@@ -50,6 +50,22 @@ describe("mustSignIn", () => {
     expect(mustSignIn("/products/login-cable", false)).toBe(true);
   });
 
+  /**
+   * The owner's rescue door (2026-08-25). Forgetting both the PIN and the password used to be
+   * survivable because Cloudflare Access stood in front of the whole admin and could prove who you
+   * were by email. Once that door comes off the everyday login, `/recover` is the one address it
+   * still covers — so this page must open for someone with no session, exactly like `/login`, or
+   * the rescue redirects to the very form they cannot get past.
+   */
+  it("given the rescue page and no session > then lets it render, because that is its whole job", () => {
+    expect(mustSignIn("/recover", false)).toBe(false);
+  });
+
+  it("given a path that merely starts with the letters of recover > then demands a sign-in", () => {
+    // Same trap as /loginhelp: a bare startsWith would open pages nobody meant to open.
+    expect(mustSignIn("/recovery-report", false)).toBe(true);
+  });
+
   it("given the login page with a query string > then lets it render", () => {
     expect(mustSignIn("/login?expired=1", false)).toBe(false);
   });
