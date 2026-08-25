@@ -44,7 +44,6 @@ import {
   type OrderMoney,
   classifyRefundAction,
   type RefundAction,
-  viewerRole,
   canReviewClaim,
   canDeleteProduct,
   canViewFinance,
@@ -62,7 +61,6 @@ import {
   canRecordDropOff,
   normalizePaymentStatus,
   privateFileAccess,
-  isSuperAdmin,
   validateExpenseInput,
   type ExpenseInput,
   isInsightPeriod,
@@ -6504,12 +6502,33 @@ const worker = {
       return json({ error: "not found" }, 404);
     }
 
+    /**
+     * THE GATE. A live staff session, or nothing.
+     *
+     * This used to be `requireAccess`, which reads "ACCESS_TEAM_DOMAIN / ACCESS_AUD are unset" as
+     * permission to proceed — fail-OPEN, so that a deployment which lost its Access configuration
+     * kept serving. That was defensible only while Cloudflare Access stood at the edge as the real
+     * lock. The owner's decision of 2026-08-25 makes the Kira.office PIN/password screen the
+     * everyday door, so the staff session has to carry the whole weight on its own and a missing
+     * configuration must read as refusal.
+     *
+     * `requireStaff` fails CLOSED in every direction: no database binding, no token, an unknown
+     * token, a revoked or expired session, a deactivated user, or a role the code does not
+     * recognise all end in 401. Nothing about it can be switched off by a variable going missing.
+     *
+     * `userEmail` is now the person actually operating the back office rather than whoever holds
+     * the shared Access session — the same correction the slip gate made on 2026-08-24 — so the
+     * audit log below names the operator.
+     */
     const isPublic = url.pathname.startsWith("/img/");
     let userEmail: string | null = null;
+    /** The operator, kept for the role decisions below — never re-derived from an email list. */
+    let viewerStaff: StaffIdentity | null = null;
     if (!isPublic) {
-      const gate = await requireAccess(request, env);
-      if (gate instanceof Response) return gate;
-      userEmail = gate.email;
+      const who = await requireStaff(request, env);
+      if (who instanceof Response) return who;
+      viewerStaff = who;
+      userEmail = who.email;
     }
     if (request.method !== "GET") {
       const entity = entityFromPath(url.pathname);
@@ -7558,15 +7577,13 @@ const worker = {
       // The page needs to know whether THIS viewer may see slip images, to gate the slip preview +
       // Documents actions. The decision itself (confirm/reject) stays open to any admin.
       //
-      // Read from the STAFF SESSION since 2026-08-24 (owner: same rule, better identity). Resolved
-      // OPTIONALLY, not required: the order should still render for anyone allowed on the page, it
-      // just carries less. No session therefore means "not a super admin" — fail CLOSED, because
-      // the alternative on customer bank details is to guess yes.
-      const viewer = await staffFromToken(
-        env.DB,
-        request.headers.get(STAFF_SESSION_HEADER) ?? "",
-        Date.now(),
-      );
+      // Read from the STAFF SESSION since 2026-08-24 (owner: same rule, better identity). It used
+      // to be looked up again right here, because reaching this route did not yet prove anyone had
+      // signed in — the gate ahead only checked Cloudflare Access. Since 2026-08-25 the gate IS the
+      // staff session, so the identity is already in hand: one lookup per request, and one source
+      // of truth. Absence still means "not a super admin", which is now unreachable rather than
+      // merely fail-closed.
+      const viewer = viewerStaff;
       const viewerIsSuperAdmin = viewer ? canViewSlips(viewer.role) : false;
       // The customer's refund payout account is financial PII: never send the number or holder name to
       // an admin who is not a super-admin. (Slip images are separately gated by the /file route.)
@@ -7577,11 +7594,11 @@ const worker = {
       }
       // The viewer's role gates the Zone-A actions client-side (claim = super-admin + mechanic;
       // payment/COD = super-admin + admin); the mechanic list populates the claim assignee dropdown.
-      const role: ViewerRole = viewerRole(userEmail, {
-        superAdminEmails: env.SUPER_ADMIN_EMAILS,
-        mechanicEmails: env.MECHANIC_EMAILS,
-        accessConfigured: !!env.ACCESS_AUD,
-      });
+      // From the SESSION, not the email lists. `viewerRole()` answered "super_admin" whenever
+      // ACCESS_AUD was unset — a local-dev convenience that becomes a promotion machine the moment
+      // the Cloudflare door comes off and production is "unconfigured" too. The staff row already
+      // records what this person is; no fallback can be more correct than that, so there is none.
+      const role: ViewerRole = viewer ? viewer.role : "mechanic";
       const mechanics = (env.MECHANIC_EMAILS ?? "")
         .split(/[,\s]+/)
         .map((m) => m.trim())
@@ -7615,12 +7632,10 @@ const worker = {
     // failed delivery or is already refunded, 400 if the slip image is missing.
     const orderRefund = url.pathname.match(/^\/orders\/([^/]+)\/refund$/);
     if (orderRefund && request.method === "POST") {
-      if (
-        !isSuperAdmin(userEmail, {
-          superAdminEmails: env.SUPER_ADMIN_EMAILS,
-          accessConfigured: !!env.ACCESS_AUD,
-        })
-      )
+      // Belt and braces behind the `canRefund` area gate above — but read from the SESSION. The
+      // email-list form returned TRUE whenever ACCESS_AUD was unset, so as a second line of defence
+      // it defended nothing in exactly the configuration this change creates.
+      if (!viewerStaff || !canRefund(viewerStaff.role))
         return json({ error: "super-admin only" }, 403);
       const bytes = await request.arrayBuffer();
       const contentType = request.headers.get("content-type") ?? "";
@@ -7640,12 +7655,10 @@ const worker = {
     // refunded, 400 if the slip is missing.
     const claimRefund = url.pathname.match(/^\/claims\/([^/]+)\/refund$/);
     if (claimRefund && request.method === "POST") {
-      if (
-        !isSuperAdmin(userEmail, {
-          superAdminEmails: env.SUPER_ADMIN_EMAILS,
-          accessConfigured: !!env.ACCESS_AUD,
-        })
-      )
+      // Belt and braces behind the `canRefund` area gate above — but read from the SESSION. The
+      // email-list form returned TRUE whenever ACCESS_AUD was unset, so as a second line of defence
+      // it defended nothing in exactly the configuration this change creates.
+      if (!viewerStaff || !canRefund(viewerStaff.role))
         return json({ error: "super-admin only" }, 403);
       const bytes = await request.arrayBuffer();
       const contentType = request.headers.get("content-type") ?? "";
@@ -7662,12 +7675,11 @@ const worker = {
     // super-admin may do it. 409 if the claim is not a rejection or already shipped back.
     const claimReturn = url.pathname.match(/^\/claims\/([^/]+)\/return-shipment$/);
     if (claimReturn && request.method === "POST") {
-      const role = viewerRole(userEmail, {
-        superAdminEmails: env.SUPER_ADMIN_EMAILS,
-        mechanicEmails: env.MECHANIC_EMAILS,
-        accessConfigured: !!env.ACCESS_AUD,
-      });
-      if (!canReviewClaim(role))
+      // The SESSION's role, not the email lists: `viewerRole()` returned "super_admin" whenever
+      // ACCESS_AUD was unset, which is precisely how a deployment looks once the Cloudflare door
+      // comes off — it would have handed claim assessment to every plain admin.
+      const role = viewerStaff?.role;
+      if (!role || !canReviewClaim(role))
         return json({ error: "claims are handled by a mechanic or super-admin" }, 403);
       const body = await readJson<{
         carrier?: string;
@@ -7710,12 +7722,11 @@ const worker = {
     const claimById = url.pathname.match(/^\/claims\/([^/]+)$/);
     if (claimById && request.method === "PATCH") {
       // Claims are the mechanic's and super-admin's call — never a plain admin's.
-      const role = viewerRole(userEmail, {
-        superAdminEmails: env.SUPER_ADMIN_EMAILS,
-        mechanicEmails: env.MECHANIC_EMAILS,
-        accessConfigured: !!env.ACCESS_AUD,
-      });
-      if (!canReviewClaim(role))
+      // The SESSION's role, not the email lists: `viewerRole()` returned "super_admin" whenever
+      // ACCESS_AUD was unset, which is precisely how a deployment looks once the Cloudflare door
+      // comes off — it would have handed claim assessment to every plain admin.
+      const role = viewerStaff?.role;
+      if (!role || !canReviewClaim(role))
         return json({ error: "claims are handled by a mechanic or super-admin" }, 403);
       const body = await readJson<{
         state?: string;

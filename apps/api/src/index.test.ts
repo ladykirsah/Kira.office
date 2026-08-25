@@ -413,6 +413,63 @@ function makeDb(canned: {
  */
 const AUTHED = { "X-Staff-Session": "test-token" };
 
+/**
+ * Call the Worker as a signed-in staff member.
+ *
+ * Since 2026-08-25 EVERY route but `/img/*` and the login endpoints demands a live staff session —
+ * the Kira.office PIN/password screen is the real lock now, not Cloudflare Access. Tests written
+ * before that change exercise route behaviour, not authentication, so they go through here and
+ * arrive as a signed-in super admin (the canned `staff_sessions` row above). A request that already
+ * carries its own session header is passed through untouched, so role-specific tests keep their
+ * own identity, and tests of the gate itself call `worker.fetch!` directly.
+ */
+const fetchAuthed = (req: Request, env: Env, c: ExecutionContext) =>
+  worker.fetch!(
+    req.headers.has("X-Staff-Session")
+      ? req
+      : new Request(req, { headers: { ...Object.fromEntries(req.headers), ...AUTHED } }),
+    envWithSession(env),
+    c,
+  );
+
+/**
+ * A staff session needs somewhere to be looked up.
+ *
+ * Routes backed by KV or R2 rather than D1 were written with envs that carry no `DB` at all, and
+ * `requireStaff` refuses outright when there is no database to verify against — correctly, since a
+ * gate that cannot check anybody must not wave them through. Supplying a session-only database is
+ * the test equivalent of signing in; envs that already have a `DB` are left exactly as they were.
+ */
+function envWithSession(env: Env): Env {
+  if ((env as { DB?: unknown }).DB) return env;
+  const db = {
+    prepare: () => {
+      const stmt = {
+        bind: () => stmt,
+        async first() {
+          return {
+            userId: "u-test",
+            email: "boss@shop.test",
+            name: "Boss",
+            role: "super_admin",
+            sessionId: "s-test",
+            lastSeenAt: Date.now(),
+          };
+        },
+        async all() {
+          return { results: [] };
+        },
+        async run() {
+          return { success: true };
+        },
+      };
+      return stmt;
+    },
+    batch: async () => [],
+  } as unknown as D1Database;
+  return { ...env, DB: db };
+}
+
 describe("services (bilingual name_en)", () => {
   it("listServices > selects name_en AS nameEn and returns the rows", async () => {
     const { db } = makeDb({
@@ -466,7 +523,7 @@ describe("services (bilingual name_en)", () => {
 
   it("POST /services > round-trips nameEn from the request body", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/services", {
         method: "POST",
         body: JSON.stringify({
@@ -488,7 +545,7 @@ describe("services (bilingual name_en)", () => {
 
   it("POST /services > rejects a missing name with 400", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/services", {
         method: "POST",
         body: JSON.stringify({ nameEn: "orphan", basePriceSatang: 100 }),
@@ -501,7 +558,7 @@ describe("services (bilingual name_en)", () => {
 
   it("PATCH /services/:id > persists the updated English name", async () => {
     const { env, runs } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/services/sv1", {
         method: "PATCH",
         body: JSON.stringify({ name: "Wash", nameEn: "Coil cleaning", basePriceSatang: 120000 }),
@@ -517,7 +574,7 @@ describe("services (bilingual name_en)", () => {
   it("POST /services > rejects a zero or absent price with 400", async () => {
     const { env } = makeDb({});
     for (const body of [{ name: "Free check", basePriceSatang: 0 }, { name: "No price" }]) {
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/services", { method: "POST", body: JSON.stringify(body) }),
         env,
         ctx,
@@ -528,7 +585,7 @@ describe("services (bilingual name_en)", () => {
 
   it("PATCH /services/:id > rejects a zero price with 400", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/services/sv1", {
         method: "PATCH",
         body: JSON.stringify({ name: "Wash", basePriceSatang: 0 }),
@@ -915,7 +972,7 @@ describe("PATCH /orders/:id (AirPlus fulfillment editor)", () => {
 
   it("updates an order's fulfilment status and returns the updated row", async () => {
     const { env, runs } = makeDb({ orderById: baseOrder });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/orders/o1", {
         method: "PATCH",
         body: JSON.stringify({ orderStatus: "เตรียมจัดส่ง" }),
@@ -931,7 +988,7 @@ describe("PATCH /orders/:id (AirPlus fulfillment editor)", () => {
 
   it("stamps ship_time_ms the first time a tracking number is set", async () => {
     const { env } = makeDb({ orderById: baseOrder });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/orders/o1", {
         method: "PATCH",
         body: JSON.stringify({
@@ -951,7 +1008,7 @@ describe("PATCH /orders/:id (AirPlus fulfillment editor)", () => {
 
   it("404s for a non-existent or non-AirPlus order", async () => {
     const { env } = makeDb({ orderById: null });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/orders/nope", {
         method: "PATCH",
         body: JSON.stringify({ orderStatus: "สำเร็จ" }),
@@ -990,14 +1047,14 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         createdAt: 1,
       };
       const { env } = makeDb({ banners: [banner] });
-      const res = await worker.fetch!(new Request("https://x/banners"), env, ctx);
+      const res = await fetchAuthed(new Request("https://x/banners"), env, ctx);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ banners: [banner] });
     });
 
     it("POST /banners > creates a banner and returns its id", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/banners", {
           method: "POST",
           body: JSON.stringify({ slot: "promo", linkUrl: "/collections/all", sortOrder: 2 }),
@@ -1014,7 +1071,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /banners > 400 for a slot outside hero|promo (the CHECK would reject it)", async () => {
       const { env } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/banners", { method: "POST", body: JSON.stringify({ slot: "top" }) }),
         env,
         ctx,
@@ -1024,7 +1081,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /banners/:id > updates only the supplied fields", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/banners/b1", {
           method: "PATCH",
           body: JSON.stringify({ status: "disabled" }),
@@ -1041,7 +1098,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /banners/:id/image > stores the image under banners/ and returns key + url", async () => {
       const { db } = makeDb({ bannerById: { id: "b1", imageKey: null } });
       const { bucket, puts } = fakeBucket();
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/banners/b1/image", {
           method: "POST",
           headers: { "content-type": "image/png" },
@@ -1059,7 +1116,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /banners/:id/image > 404 for an unknown banner, 400 for a bad image", async () => {
       const { bucket } = fakeBucket();
-      const missing = await worker.fetch!(
+      const missing = await fetchAuthed(
         new Request("https://x/banners/nope/image", {
           method: "POST",
           headers: { "content-type": "image/png" },
@@ -1069,7 +1126,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         ctx,
       );
       expect(missing.status).toBe(404);
-      const badType = await worker.fetch!(
+      const badType = await fetchAuthed(
         new Request("https://x/banners/b1/image", {
           method: "POST",
           headers: { "content-type": "image/gif" },
@@ -1087,7 +1144,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("DELETE /banners/:id > removes the row and its R2 image", async () => {
       const { db, runs } = makeDb({ bannerById: { id: "b1", imageKey: "banners/b1-x.png" } });
       const { bucket, deletes } = fakeBucket();
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/banners/b1", { method: "DELETE" }),
         { DB: db, IMAGES: bucket } as unknown as Env,
         ctx,
@@ -1109,7 +1166,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         redemptions: 3,
       };
       const { env } = makeDb({ coupons: [coupon] });
-      const res = await worker.fetch!(new Request("https://x/coupons"), env, ctx);
+      const res = await fetchAuthed(new Request("https://x/coupons"), env, ctx);
       expect(res.status).toBe(200);
       // The admin list must carry the coupon `name` (migration 0065) back to the table.
       const body = (await res.json()) as { coupons: { name?: string }[] };
@@ -1119,7 +1176,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /coupons > trims + uppercases the code before storing it", async () => {
       const { env, runs } = makeDb({ couponByCode: null });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons", {
           method: "POST",
           body: JSON.stringify({
@@ -1140,7 +1197,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /coupons > 409 when the (normalized) code already exists", async () => {
       const { env } = makeDb({ couponByCode: { id: "existing" } });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons", {
           method: "POST",
           body: JSON.stringify({ code: "save10", name: "Save 10", type: "percent", value: 1000 }),
@@ -1155,7 +1212,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /coupons > 400 for a missing code, bad type, or non-positive value", async () => {
       const bad = async (body: unknown) =>
         (
-          await worker.fetch!(
+          await fetchAuthed(
             new Request("https://x/coupons", { method: "POST", body: JSON.stringify(body) }),
             makeDb({}).env,
             ctx,
@@ -1169,7 +1226,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /coupons > stores the admin name", async () => {
       const { env, runs } = makeDb({ couponByCode: null });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons", {
           method: "POST",
           body: JSON.stringify({
@@ -1190,7 +1247,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /coupons > 400 when the name is missing or blank", async () => {
       const bad = async (body: unknown) =>
         (
-          await worker.fetch!(
+          await fetchAuthed(
             new Request("https://x/coupons", { method: "POST", body: JSON.stringify(body) }),
             makeDb({ couponByCode: null }).env,
             ctx,
@@ -1202,7 +1259,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /coupons/:id > updates the admin name (trimmed)", async () => {
       const { env, runs } = makeDb({ couponByCode: null });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons/c1", {
           method: "PATCH",
           body: JSON.stringify({ name: "  Renamed Promo  " }),
@@ -1218,7 +1275,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /coupons/:id > 400 for a blank name", async () => {
       const { env } = makeDb({ couponByCode: null });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons/c1", {
           method: "PATCH",
           body: JSON.stringify({ name: "   " }),
@@ -1231,7 +1288,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /coupons/:id > uppercases a new code", async () => {
       const { env, runs } = makeDb({ couponByCode: null });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons/c1", {
           method: "PATCH",
           body: JSON.stringify({ code: " summer " }),
@@ -1246,7 +1303,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /coupons/:id > 409 when the new code belongs to another coupon", async () => {
       const { env, runs } = makeDb({ couponByCode: { id: "other" } });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons/c1", {
           method: "PATCH",
           body: JSON.stringify({ code: "SUMMER" }),
@@ -1260,7 +1317,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("DELETE /coupons/:id > deletes a coupon that was never redeemed", async () => {
       const { env, runs } = makeDb({ couponRedemptions: 0 });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons/c1", { method: "DELETE" }),
         env,
         ctx,
@@ -1271,7 +1328,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("DELETE /coupons/:id > 409 once redeemed — financial history is never deleted", async () => {
       const { env, runs } = makeDb({ couponRedemptions: 2 });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/coupons/c1", { method: "DELETE" }),
         env,
         ctx,
@@ -1288,7 +1345,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         campaigns: [{ id: "k1", name: "7.7", startsAt: 1, endsAt: 2, status: "active" }],
         campaignPrices: [{ id: "p1", campaignId: "k1", productVariantId: "v1", soldCount: 0 }],
       });
-      const res = await worker.fetch!(new Request("https://x/campaigns"), env, ctx);
+      const res = await fetchAuthed(new Request("https://x/campaigns"), env, ctx);
       expect(res.status).toBe(200);
       const body = (await res.json()) as { campaigns: { id: string; prices: unknown[] }[] };
       expect(body.campaigns[0]!.id).toBe("k1");
@@ -1297,7 +1354,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /campaigns > creates a campaign shell and returns its id", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/campaigns", {
           method: "POST",
           body: JSON.stringify({ name: " 7.7 Flash ", startsAt: 1000, endsAt: 2000 }),
@@ -1314,7 +1371,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /campaigns > 400 without a name or a valid window", async () => {
       const bad = async (body: unknown) =>
         (
-          await worker.fetch!(
+          await fetchAuthed(
             new Request("https://x/campaigns", { method: "POST", body: JSON.stringify(body) }),
             makeDb({}).env,
             ctx,
@@ -1327,7 +1384,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /campaigns/:id > updates only the supplied fields", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/campaigns/k1", {
           method: "PATCH",
           body: JSON.stringify({ status: "disabled" }),
@@ -1341,7 +1398,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("DELETE /campaigns/:id > removes the campaign and its prices", async () => {
       const { env, batched } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/campaigns/k1", { method: "DELETE" }),
         env,
         ctx,
@@ -1353,7 +1410,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("POST /campaigns/:id/prices > attaches a variant at a flash price", async () => {
       const { env, runs } = makeDb({ variantById: { id: "v1" }, campaignPriceDup: null });
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/campaigns/k1/prices", {
           method: "POST",
           body: JSON.stringify({ productVariantId: "v1", campaignPriceSatang: 9900, stockCap: 10 }),
@@ -1370,7 +1427,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /campaigns/:id/prices > 404 unknown variant, 409 duplicate, 400 bad price", async () => {
       const post = async (canned: Parameters<typeof makeDb>[0], body: unknown): Promise<number> =>
         (
-          await worker.fetch!(
+          await fetchAuthed(
             new Request("https://x/campaigns/k1/prices", {
               method: "POST",
               body: JSON.stringify(body),
@@ -1398,7 +1455,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("DELETE /campaigns/:campaignId/prices/:priceId > detaches one product, not the campaign", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/campaigns/k1/prices/p1", { method: "DELETE" }),
         env,
         ctx,
@@ -1419,7 +1476,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         onlinePriceSatang: 250000,
       };
       const { env } = makeDb({ variantMatches: [hit], products: [{ id: "WRONG" }] });
-      const res = await worker.fetch!(new Request("https://x/variant-search?q=แอร์"), env, ctx);
+      const res = await fetchAuthed(new Request("https://x/variant-search?q=แอร์"), env, ctx);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ variants: [hit] });
     });
@@ -1429,14 +1486,14 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("GET /affiliate-items > lists cards with their click counts", async () => {
       const item = { id: "a1", title: "ปั๊มสูญญากาศ", source: "shopee", clicks: 7 };
       const { env } = makeDb({ affiliateItems: [item] });
-      const res = await worker.fetch!(new Request("https://x/affiliate-items"), env, ctx);
+      const res = await fetchAuthed(new Request("https://x/affiliate-items"), env, ctx);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ items: [item] });
     });
 
     it("POST /affiliate-items > creates a card and returns its id", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/affiliate-items", {
           method: "POST",
           body: JSON.stringify({
@@ -1459,7 +1516,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /affiliate-items > 400 for a missing title, non-https target, or unknown source", async () => {
       const bad = async (body: unknown) =>
         (
-          await worker.fetch!(
+          await fetchAuthed(
             new Request("https://x/affiliate-items", {
               method: "POST",
               body: JSON.stringify(body),
@@ -1476,7 +1533,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /affiliate-items/:id > updates only the supplied fields", async () => {
       const { env, runs } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/affiliate-items/a1", {
           method: "PATCH",
           body: JSON.stringify({ sortOrder: 3 }),
@@ -1492,7 +1549,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
     it("PATCH /affiliate-items/:id > 400 for a non-https target", async () => {
       const { env } = makeDb({});
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/affiliate-items/a1", {
           method: "PATCH",
           body: JSON.stringify({ targetUrl: "http://shopee.co.th/x" }),
@@ -1506,7 +1563,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("POST /affiliate-items/:id/image > stores the image under affiliate/", async () => {
       const { db } = makeDb({ affiliateItemById: { id: "a1", imageKey: null } });
       const { bucket, puts } = fakeBucket();
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/affiliate-items/a1/image", {
           method: "POST",
           headers: { "content-type": "image/png" },
@@ -1524,7 +1581,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     it("PATCH > 400 for any value a column's CHECK would refuse (never a D1 500)", async () => {
       const patch = async (path: string, body: unknown) =>
         (
-          await worker.fetch!(
+          await fetchAuthed(
             new Request(`https://x${path}`, { method: "PATCH", body: JSON.stringify(body) }),
             makeDb({}).env,
             ctx,
@@ -1545,7 +1602,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         affiliateItemById: { id: "a1", imageKey: "affiliate/a1-x.png" },
       });
       const { bucket, deletes } = fakeBucket();
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/affiliate-items/a1", { method: "DELETE" }),
         { DB: db, IMAGES: bucket } as unknown as Env,
         ctx,
@@ -1560,7 +1617,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
 
 describe("api worker routes", () => {
   it("GET /health > 200 ok", async () => {
-    const res = await worker.fetch!(new Request("https://x/health"), {} as Env, ctx);
+    const res = await fetchAuthed(new Request("https://x/health"), {} as Env, ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
@@ -1568,7 +1625,7 @@ describe("api worker routes", () => {
   });
 
   it("OPTIONS > 204 CORS preflight (no auth)", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/products", { method: "OPTIONS" }),
       {} as Env,
       ctx,
@@ -1578,7 +1635,7 @@ describe("api worker routes", () => {
   });
 
   it("POST /pricing/preview > computes profit via core", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/pricing/preview", {
         method: "POST",
         body: JSON.stringify({
@@ -1599,13 +1656,51 @@ describe("api worker routes", () => {
   });
 
   it("unknown route > 404", async () => {
-    const res = await worker.fetch!(new Request("https://x/nope"), {} as Env, ctx);
+    const res = await fetchAuthed(new Request("https://x/nope"), {} as Env, ctx);
     expect(res.status).toBe(404);
   });
 
   it("unexpected errors become a 500 with CORS + JSON, not an unhandled rejection", async () => {
-    // {} as Env has no DB; a DB-backed route throws inside — the boundary must catch it.
-    const res = await worker.fetch!(new Request("https://x/customers?q=x"), {} as Env, ctx);
+    // Used to lean on `{} as Env` having no DB. Every route now sits behind a staff session, and a
+    // session cannot be verified without a database — so a missing DB is a 401 long before any
+    // route runs, and the boundary would never be reached. Sign in against a database that
+    // verifies the session and then fails on the route's own query: the same crash, correctly
+    // staged, and it still has to come back as a 500 rather than an unhandled rejection.
+    const boom = () => {
+      throw new Error("database unavailable");
+    };
+    const db = {
+      prepare: (sql: string) => {
+        const stmt = {
+          bind: () => stmt,
+          async first() {
+            if (sql.includes("FROM staff_sessions s")) {
+              return {
+                userId: "u-test",
+                email: "boss@shop.test",
+                name: "Boss",
+                role: "super_admin",
+                sessionId: "s-test",
+                lastSeenAt: Date.now(),
+              };
+            }
+            return boom();
+          },
+          async all() {
+            return boom();
+          },
+          async run() {
+            return boom();
+          },
+        };
+        return stmt;
+      },
+    } as unknown as D1Database;
+    const res = await fetchAuthed(
+      new Request("https://x/customers?q=x"),
+      { DB: db } as unknown as Env,
+      ctx,
+    );
     expect(res.status).toBe(500);
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(((await res.json()) as { error?: string }).error).toBeTruthy();
@@ -1614,11 +1709,12 @@ describe("api worker routes", () => {
   it("malformed JSON bodies on money/stock routes never 500 — 400, or 401 behind a role gate", async () => {
     // Original point: a bad body must not crash the Worker. Still true.
     //
-    // Since role enforcement (2026-08-24) two of these sit behind a role gate, and a gate runs
-    // BEFORE the body is read — so an unauthenticated caller gets 401 and the body is never
-    // parsed. That ordering is deliberate: body-validation feedback is information, and someone
-    // who has not proved who they are should not be able to probe a route's expectations.
-    const guarded = new Set(["/products", "/products/p1/pricing"]);
+    // The 2026-08-24 version of this test split the list in two, because two routes sat behind a
+    // role gate and an unauthenticated caller got 401 before the body was ever read. Since
+    // 2026-08-25 EVERY route sits behind the staff session, so there is no longer a split to make
+    // here: signed in, all eight parse the body and answer 400. The other half of that property —
+    // that a stranger is refused before a route can leak what shape it expects — is now a
+    // first-class rule and is tested against the gate itself in `staffGate.test.ts`.
     for (const [method, path] of [
       ["POST", "/stock/adjust"],
       ["POST", "/sync"],
@@ -1629,17 +1725,17 @@ describe("api worker routes", () => {
       ["POST", "/import/products"],
       ["POST", "/products"],
     ] as const) {
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request(`https://x${path}`, { method, body: "not json{" }),
         {} as Env,
         ctx,
       );
-      expect(res.status, `${method} ${path}`).toBe(guarded.has(path) ? 401 : 400);
+      expect(res.status, `${method} ${path}`).toBe(400);
     }
   });
 
   it("pricing preview rejects a body without numeric price/quantity (no NaN result)", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/pricing/preview", { method: "POST", body: JSON.stringify({}) }),
       {} as Env,
       ctx,
@@ -1663,7 +1759,7 @@ describe("api worker routes", () => {
       carBrandsCsv: "Toyota,Honda",
     };
     const { env } = makeDb({ products: [row] });
-    const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/products"), env, ctx);
     expect(await res.json()).toEqual({ products: [row] });
   });
 
@@ -1673,7 +1769,7 @@ describe("api worker routes", () => {
     const live = { id: "p1", productRef: "A-1", name: "Live part", status: "active" };
     const deleted = { id: "p9", productRef: "OLD-1", name: "Deleted part", status: "archived" };
     const { env } = makeDb({ products: [live, deleted] });
-    const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/products"), env, ctx);
     const body = (await res.json()) as { products: { id: string }[] };
     expect(body.products.map((p) => p.id)).toEqual(["p1"]);
   });
@@ -1681,7 +1777,7 @@ describe("api worker routes", () => {
   it("GET /products/identifier-check > finds a product (any status) using the id", async () => {
     const match = { id: "p9", name: "Old part", productRef: "OLD-1", status: "archived" };
     const { env } = makeDb({ identifierMatch: match });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/products/identifier-check?kind=ref&value=DI-1"),
       env,
       ctx,
@@ -1691,7 +1787,7 @@ describe("api worker routes", () => {
 
   it("GET /products/identifier-check > returns null when nothing matches", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/products/identifier-check?kind=shopee&value=ZZ"),
       env,
       ctx,
@@ -1710,14 +1806,14 @@ describe("api worker routes", () => {
       grossProfitSatang: 4000,
     };
     const { env } = makeDb({ sales: [sale] });
-    const res = await worker.fetch!(new Request("https://x/sales"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/sales"), env, ctx);
     expect(await res.json()).toEqual({ sales: [sale] });
   });
 
   it("GET /sales > lists only finalized bills (drafts & quotations are fenced out)", async () => {
     const { db, env } = makeDb({ sales: [] });
     const prepare = vi.spyOn(db, "prepare");
-    await worker.fetch!(new Request("https://x/sales"), env, ctx);
+    await fetchAuthed(new Request("https://x/sales"), env, ctx);
     const salesSql = prepare.mock.calls
       .map((c) => c[0] as string)
       .find((s) => s.includes("FROM onsite_sales s"));
@@ -1731,7 +1827,7 @@ describe("api worker routes", () => {
       financeRefunds: { refundCount: 0, refundedSatang: 0 },
     });
     const prepare = vi.spyOn(db, "prepare");
-    await worker.fetch!(new Request("https://x/finance/summary", { headers: AUTHED }), env, ctx);
+    await fetchAuthed(new Request("https://x/finance/summary", { headers: AUTHED }), env, ctx);
     const sqls = prepare.mock.calls.map((c) => c[0] as string);
     expect(sqls.find((s) => s.includes("FROM onsite_sales WHERE sale_status"))).toContain(
       "stage = 'bill'",
@@ -1744,7 +1840,7 @@ describe("api worker routes", () => {
   it("POST /onsite/drafts > saves a draft with its lines and never touches stock", async () => {
     const { db, env } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/onsite/drafts", {
         method: "POST",
         body: JSON.stringify({
@@ -1768,7 +1864,7 @@ describe("api worker routes", () => {
 
   it("POST /onsite/drafts > persists the bill discount on a quotation (amount + raw %/฿, recomputed grand)", async () => {
     const { env, batched } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/onsite/drafts", {
         method: "POST",
         body: JSON.stringify({
@@ -1800,7 +1896,7 @@ describe("api worker routes", () => {
     // A bill id fed back into the draft-save path must not reopen the bill as an editable draft:
     // its header (stage/totals) must not be flipped and its lines must not be stripped/replaced.
     const { env, batched } = makeDb({ saleHeader: { stage: "bill" } });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/onsite/drafts", {
         method: "POST",
         body: JSON.stringify({
@@ -1821,7 +1917,7 @@ describe("api worker routes", () => {
   it("GET /onsite/drafts > lists only open drafts and quotations", async () => {
     const { db, env } = makeDb({ sales: [] });
     const prepare = vi.spyOn(db, "prepare");
-    await worker.fetch!(new Request("https://x/onsite/drafts"), env, ctx);
+    await fetchAuthed(new Request("https://x/onsite/drafts"), env, ctx);
     const sql = prepare.mock.calls
       .map((c) => c[0] as string)
       .find((s) => s.includes("FROM onsite_sales") && s.includes("stage IN"));
@@ -1831,7 +1927,7 @@ describe("api worker routes", () => {
   it("DELETE /onsite/drafts/:id > removes a draft but is fenced from bills", async () => {
     const { db, env } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/onsite/drafts/d1", { method: "DELETE" }),
       env,
       ctx,
@@ -1850,7 +1946,7 @@ describe("api worker routes", () => {
     // A bill id is a normal onsite_sales.id; the route does no stage pre-check. The header delete is
     // fenced by stage, so the LINE delete must be fenced the same way — otherwise passing a finalized
     // bill's id strips its items while the guarded header survives, leaving a corrupt, itemless bill.
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/onsite/drafts/s1", { method: "DELETE" }),
       env,
       ctx,
@@ -1869,7 +1965,7 @@ describe("api worker routes", () => {
         { lineType: "service", description: "Regas", quantity: 1, unitPriceSatang: 80000 },
       ],
     });
-    const res = await worker.fetch!(new Request("https://x/onsite/sales/s1"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/onsite/sales/s1"), env, ctx);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { sale: { saleNumber: string; lines: unknown[] } };
     expect(body.sale.saleNumber).toBe("DAS202607-04001");
@@ -1878,14 +1974,14 @@ describe("api worker routes", () => {
 
   it("GET /onsite/sales/:id > 404 when the bill is missing", async () => {
     const { env } = makeDb({ saleHeader: null });
-    const res = await worker.fetch!(new Request("https://x/onsite/sales/nope"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/onsite/sales/nope"), env, ctx);
     expect(res.status).toBe(404);
   });
 
   it("PUT /customers/by-plate > upserts by plate and never blanks an existing name/phone", async () => {
     const { db, env } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/customers/by-plate", {
         method: "PUT",
         headers: AUTHED,
@@ -1905,7 +2001,7 @@ describe("api worker routes", () => {
 
   it("PUT /customers/by-plate > 400 without a plate", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/customers/by-plate", {
         method: "PUT",
         headers: AUTHED,
@@ -1920,7 +2016,7 @@ describe("api worker routes", () => {
   it("GET /customers > lists cars from the directory ∪ bills, with bill stats joined", async () => {
     const { db, env } = makeDb({ sales: [] });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(new Request("https://x/customers?q=nav"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/customers?q=nav"), env, ctx);
     expect(res.status).toBe(200);
     const sql = prepare.mock.calls
       .map((c) => c[0] as string)
@@ -1959,7 +2055,7 @@ describe("api worker routes", () => {
         },
       ],
     });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/customers/5%E0%B8%88%E0%B8%887890"),
       env,
       ctx,
@@ -1976,7 +2072,7 @@ describe("api worker routes", () => {
       saleLines: [],
     });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/customers/5%E0%B8%88%E0%B8%887890"),
       env,
       ctx,
@@ -1996,7 +2092,7 @@ describe("api worker routes", () => {
       { variantId: "v1", sku: "S1", productName: "Cream", productRef: "C1", onHand: 20 },
     ];
     const { env } = makeDb({ stock });
-    const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/stock"), env, ctx);
     expect(await res.json()).toEqual({ stock });
   });
 
@@ -2014,7 +2110,7 @@ describe("api worker routes", () => {
       },
     ];
     const { env } = makeDb({ movements });
-    const res = await worker.fetch!(new Request("https://x/stock/movements"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/stock/movements"), env, ctx);
     expect(await res.json()).toEqual({ movements });
   });
 
@@ -2024,7 +2120,7 @@ describe("api worker routes", () => {
       financeProfit: { grossProfitSatang: 8000 },
       financeRefunds: { refundCount: 1, refundedSatang: 10700 },
     });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/finance/summary", { headers: AUTHED }),
       env,
       ctx,
@@ -2051,7 +2147,7 @@ describe("api worker routes", () => {
       },
     ];
     const { env } = makeDb({ orders });
-    const res = await worker.fetch!(new Request("https://x/orders"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/orders"), env, ctx);
     expect(await res.json()).toEqual({ orders });
   });
 
@@ -2060,7 +2156,7 @@ describe("api worker routes", () => {
       { variantId: "v1", productId: "p1", productRef: "C1", productName: "Cream", barcode: "885" },
     ];
     const { env } = makeDb({ barcodes });
-    const res = await worker.fetch!(new Request("https://x/barcodes"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/barcodes"), env, ctx);
     expect(await res.json()).toEqual({ barcodes });
   });
 
@@ -2077,7 +2173,7 @@ describe("api worker routes", () => {
         }),
       },
     } as unknown as Env;
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/stock/adjust", {
         method: "POST",
         body: JSON.stringify({ productVariantId: "v1", quantityDelta: 5 }),
@@ -2101,7 +2197,7 @@ describe("api worker routes", () => {
         }),
       },
     } as unknown as Env;
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/stock/adjust", {
         method: "POST",
         body: JSON.stringify({
@@ -2133,7 +2229,7 @@ describe("api worker routes", () => {
     // opening_balance is what Add-product sends for a new product's starting stock.
     const types = ["receive", "write_off", "correction", "manual_adjustment", "opening_balance"];
     for (const movementType of types) {
-      const res = await worker.fetch!(
+      const res = await fetchAuthed(
         new Request("https://x/stock/adjust", {
           method: "POST",
           body: JSON.stringify({ productVariantId: "v1", quantityDelta: 1, movementType }),
@@ -2148,7 +2244,7 @@ describe("api worker routes", () => {
 
   it("GET /terms/template > returns the stored template from KV", async () => {
     const env = { KV: { get: async () => "hello {{name}}" } } as unknown as Env;
-    const res = await worker.fetch!(new Request("https://x/terms/template"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/terms/template"), env, ctx);
     expect(await res.json()).toEqual({ template: "hello {{name}}" });
   });
 
@@ -2161,7 +2257,7 @@ describe("api worker routes", () => {
         },
       },
     } as unknown as Env;
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/terms/template", {
         method: "PUT",
         body: JSON.stringify({ template: "T {{x}}" }),
@@ -2190,7 +2286,7 @@ describe("api worker routes", () => {
       { id: "a", label: "ร้าน", promptpayId: "0812345678", isDefault: true },
       { id: "b", label: "แม่", promptpayId: "1234567890123" },
     ]);
-    await worker.fetch!(
+    await fetchAuthed(
       new Request("https://x/shop-info/denair", {
         method: "PUT",
         body: JSON.stringify({ name: "ร้าน", paymentMethods: methods }),
@@ -2199,7 +2295,7 @@ describe("api worker routes", () => {
       ctx,
     );
     expect(store.get("shop:denair:paymentMethods")).toBe(methods);
-    const res = await worker.fetch!(new Request("https://x/shop-info/denair"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/shop-info/denair"), env, ctx);
     const body = (await res.json()) as Record<string, string | null>;
     expect(body.paymentMethods).toBe(methods);
     expect(body.profile).toBe("denair");
@@ -2215,7 +2311,7 @@ describe("api worker routes", () => {
       ["denair", denair],
       ["airplus", airplus],
     ]) {
-      await worker.fetch!(
+      await fetchAuthed(
         new Request(`https://x/shop-info/${profile}`, {
           method: "PUT",
           body: JSON.stringify({ paymentMethods: methods }),
@@ -2225,10 +2321,10 @@ describe("api worker routes", () => {
       );
     }
     const d = (await (
-      await worker.fetch!(new Request("https://x/shop-info/denair"), env, ctx)
+      await fetchAuthed(new Request("https://x/shop-info/denair"), env, ctx)
     ).json()) as Record<string, string>;
     const a = (await (
-      await worker.fetch!(new Request("https://x/shop-info/airplus"), env, ctx)
+      await fetchAuthed(new Request("https://x/shop-info/airplus"), env, ctx)
     ).json()) as Record<string, string>;
     expect(d.paymentMethods).toBe(denair);
     expect(a.paymentMethods).toBe(airplus);
@@ -2238,13 +2334,13 @@ describe("api worker routes", () => {
   it("shop-info 404s an unknown profile instead of defaulting to one", async () => {
     // Defaulting would write one shop's settings into the other's namespace.
     const { env } = kvEnv();
-    const res = await worker.fetch!(new Request("https://x/shop-info/shopee"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/shop-info/shopee"), env, ctx);
     expect(res.status).toBe(404);
   });
 
   it("POST /payments > records an approved payment (label, account, amount, timestamps)", async () => {
     const { db, runs } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/payments", {
         method: "POST",
         body: JSON.stringify({
@@ -2269,7 +2365,7 @@ describe("api worker routes", () => {
   it("POST /payments > 400 on a missing method, bad amount, or malformed body", async () => {
     const bad = async (body: string) =>
       (
-        await worker.fetch!(
+        await fetchAuthed(
           new Request("https://x/payments", { method: "POST", body }),
           {} as Env,
           ctx,
@@ -2303,7 +2399,7 @@ describe("api worker routes", () => {
 
   it("POST /payments/clear > marks all uncleared payments reconciled (never deletes)", async () => {
     const { db, runs } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/payments/clear", { method: "POST" }),
       { DB: db } as unknown as Env,
       ctx,
@@ -2325,14 +2421,14 @@ describe("api worker routes", () => {
             : null,
       },
     } as unknown as Env;
-    const res = await worker.fetch!(new Request("https://x/img/products/p1/a.png"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/img/products/p1/a.png"), env, ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
   });
 
   it("GET /img/:key > 404 when the object is missing", async () => {
     const env = { IMAGES: { get: async () => null } } as unknown as Env;
-    const res = await worker.fetch!(new Request("https://x/img/products/p1/missing.png"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/img/products/p1/missing.png"), env, ctx);
     expect(res.status).toBe(404);
   });
 
@@ -2346,7 +2442,7 @@ describe("api worker routes", () => {
         },
       },
     } as unknown as Env;
-    const res = await worker.fetch!(new Request("https://x/img/backups/2026-06-27.json"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/img/backups/2026-06-27.json"), env, ctx);
     expect(res.status).toBe(404); // refused by the namespace allowlist…
     expect(readKey).toBeNull(); // …without ever reading the object
   });
@@ -2367,14 +2463,14 @@ describe("api worker routes", () => {
       "banners/b1-abc.png",
       "affiliate/a1-abc.png",
     ]) {
-      const res = await worker.fetch!(new Request(`https://x/img/${key}`), env, ctx);
+      const res = await fetchAuthed(new Request(`https://x/img/${key}`), env, ctx);
       expect(res.status, `${key} should be served`).toBe(200);
     }
   });
 
   it("GET /products/by-barcode/:code > 404 for an unknown barcode", async () => {
     const { env } = makeDb({ barcode: null });
-    const res = await worker.fetch!(new Request("https://x/products/by-barcode/nope"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/products/by-barcode/nope"), env, ctx);
     expect(res.status).toBe(404);
   });
 
@@ -2387,7 +2483,7 @@ describe("api worker routes", () => {
       name: "Cream",
     };
     const { env } = makeDb({ barcode: hit });
-    const res = await worker.fetch!(new Request("https://x/products/by-barcode/885"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/products/by-barcode/885"), env, ctx);
     expect(await res.json()).toEqual(hit);
   });
 
@@ -2401,7 +2497,7 @@ describe("api worker routes", () => {
       status: "archived",
     };
     const { env } = makeDb({ barcode: archived });
-    const res = await worker.fetch!(new Request("https://x/products/by-barcode/885"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/products/by-barcode/885"), env, ctx);
     expect(res.status).toBe(404);
   });
 
@@ -2423,7 +2519,7 @@ describe("api worker routes", () => {
       status: "archived",
     };
     const { env } = makeDb({ stock: [live, dead] });
-    const res = await worker.fetch!(new Request("https://x/stock"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/stock"), env, ctx);
     const body = (await res.json()) as { stock: { variantId: string }[] };
     expect(body.stock.map((s) => s.variantId)).toEqual(["v1"]);
   });
@@ -2452,7 +2548,7 @@ describe("api worker routes", () => {
       status: "archived",
     };
     const { env } = makeDb({ movements: [live, dead] });
-    const res = await worker.fetch!(new Request("https://x/stock/movements"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/stock/movements"), env, ctx);
     const body = (await res.json()) as { movements: { id: string }[] };
     expect(body.movements.map((m) => m.id)).toEqual(["m1"]);
   });
@@ -2460,7 +2556,7 @@ describe("api worker routes", () => {
   it("POST /products/full > writes product + pricing + fitments in ONE atomic batch", async () => {
     const { db, env } = makeDb({ existingProduct: null });
     const batchSpy = vi.spyOn(db, "batch");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/products/full", {
         method: "POST",
         headers: AUTHED,
@@ -2510,7 +2606,7 @@ describe("api worker routes", () => {
       variantRow: { id: "v-existing" },
     });
     const batchSpy = vi.spyOn(db, "batch");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/products/full", {
         method: "POST",
         headers: AUTHED,
@@ -2534,7 +2630,7 @@ describe("api worker routes", () => {
   it("POST /products/full with id > updates that row by id (edit; allows renaming the Product ID)", async () => {
     const { db, env } = makeDb({ variantRow: { id: "v1" } });
     const batchSpy = vi.spyOn(db, "batch");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/products/full", {
         method: "POST",
         headers: AUTHED,
@@ -2574,7 +2670,7 @@ describe("api worker routes", () => {
         }),
       },
     } as unknown as Env;
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/sync", {
         method: "POST",
         body: JSON.stringify({ sales: [{ clientUuid: "u1", lines: [] }] }),
@@ -2758,7 +2854,11 @@ describe("requireAccess (Cloudflare Access gate)", () => {
     expect((gate as Response).status).toBe(401);
   });
 
-  it("keeps /health public and rejects protected routes when configured without a token", async () => {
+  it("keeps /health public and rejects protected routes for a caller with no session", async () => {
+    // Access variables are still set here, but they are no longer what refuses: since 2026-08-25
+    // the Worker's gate is the staff session. `/health` stays public — the deploy check depends on
+    // it — and `/products` is refused because nobody signed in, which is now true whether or not
+    // Cloudflare Access is configured at all (see `staffGate.test.ts`).
     const env = { ACCESS_TEAM_DOMAIN: "t", ACCESS_AUD: "a" } as unknown as Env;
     expect((await worker.fetch!(new Request("https://x/health"), env, ctx)).status).toBe(200);
     expect((await worker.fetch!(new Request("https://x/products"), env, ctx)).status).toBe(401);
@@ -3730,14 +3830,14 @@ describe("part attributes (brand / car system / part name)", () => {
 
   it("GET /attributes returns the lists", async () => {
     const { env } = makeDb({ brands: [{ id: "b1", name: "DENSO" }] });
-    const res = await worker.fetch!(new Request("https://x/attributes"), env, ctx);
+    const res = await fetchAuthed(new Request("https://x/attributes"), env, ctx);
     const body = (await res.json()) as { brands: unknown[] };
     expect(body.brands).toEqual([{ id: "b1", name: "DENSO" }]);
   });
 
   it("POST /attributes/:kind rejects an unknown kind", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/attributes/nope", {
         method: "POST",
         body: JSON.stringify({ name: "x" }),
@@ -3750,7 +3850,7 @@ describe("part attributes (brand / car system / part name)", () => {
 
   it("POST /attributes/brand creates an option", async () => {
     const { env } = makeDb({ attrOption: null });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/attributes/brand", {
         method: "POST",
         body: JSON.stringify({ name: "Bosch" }),
@@ -3765,7 +3865,7 @@ describe("part attributes (brand / car system / part name)", () => {
   it("DELETE /attributes/brand/:id > 409 when products still use it (no silent blanking)", async () => {
     const { db, env } = makeDb({ attrInUseCount: 3 });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/attributes/brand/br1", { method: "DELETE" }),
       env,
       ctx,
@@ -3781,7 +3881,7 @@ describe("part attributes (brand / car system / part name)", () => {
   it("DELETE /attributes/brand/:id > 200 and deletes when no product uses it", async () => {
     const { db, env } = makeDb({ attrInUseCount: 0 });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/attributes/brand/br1", { method: "DELETE" }),
       env,
       ctx,
@@ -3801,7 +3901,7 @@ describe("part attributes (brand / car system / part name)", () => {
       fitmentInUseCount: 2,
     });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/car-fitment/models/cm-city", { method: "DELETE" }),
       env,
       ctx,
@@ -3819,7 +3919,7 @@ describe("part attributes (brand / car system / part name)", () => {
       fitmentInUseCount: 0,
     });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/car-fitment/models/cm-city", { method: "DELETE" }),
       env,
       ctx,
@@ -3833,7 +3933,7 @@ describe("part attributes (brand / car system / part name)", () => {
   it("DELETE /car-fitment/brands/:id > 409 when a product fitment still names the brand", async () => {
     const { db, env } = makeDb({ carBrandRow: { name: "Honda" }, fitmentInUseCount: 1 });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/car-fitment/brands/cb-honda", { method: "DELETE" }),
       env,
       ctx,
@@ -3873,7 +3973,7 @@ describe("part attributes (brand / car system / part name)", () => {
       fitmentInUseCount: 4,
     });
     const prepare = vi.spyOn(db, "prepare");
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/attributes/car_model/cm-city", { method: "DELETE" }),
       env,
       ctx,
@@ -4081,7 +4181,7 @@ describe("importCustomers (legacy customer Excel bulk upsert)", () => {
 
   it("POST /import/customers > 400 when the plate column is not mapped", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/import/customers", {
         method: "POST",
         body: JSON.stringify({ csv: "a,b\n1,2\n", mapping: { customer_name: "b" } }),
@@ -4158,7 +4258,7 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
 
   it("POST /import/customer-history > 400 when a required column is not mapped", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/import/customer-history", {
         method: "POST",
         body: JSON.stringify({ csv: "a\n1\n", mapping: { license_plate: "a" } }),
@@ -4185,7 +4285,7 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
         },
       ],
     });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/customers/%E0%B8%81%E0%B8%82%201234"),
       env,
       ctx,
@@ -4212,7 +4312,7 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
         { id: "h2", happenedAt: 99, description: "งาน A\nงาน B", note: null, linesJson: null },
       ],
     });
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/customers/%E0%B8%81%E0%B8%82%201234"),
       env,
       ctx,
@@ -4282,7 +4382,7 @@ describe("importCustomerVisits (structured bill-style legacy import)", () => {
 
   it("POST /import/customer-history with {visits} routes to the structured importer", async () => {
     const { env } = makeDb({});
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/import/customer-history", {
         method: "POST",
         body: JSON.stringify({
@@ -6633,7 +6733,7 @@ describe("GET /file/:key — private order evidence serving", () => {
   const AUTH = { headers: { "X-Staff-Session": "t" } };
 
   it("serves a claim photo from the claim/ namespace", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/file/claim/o1/1.png", AUTH),
       env({ "claim/o1/1.png": "PNGBYTES" }),
       ctx,
@@ -6644,7 +6744,7 @@ describe("GET /file/:key — private order evidence serving", () => {
   });
 
   it("serves a slip to a super admin", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/file/slip/o1/1.png", AUTH),
       env({ "slip/o1/1.png": "SLIP" }),
       ctx,
@@ -6665,7 +6765,7 @@ describe("GET /file/:key — private order evidence serving", () => {
   });
 
   it("never serves a private file with a shared-cacheable header", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/file/slip/o1/1.png", AUTH),
       env({ "slip/o1/1.png": "SLIP" }),
       ctx,
@@ -6674,7 +6774,7 @@ describe("GET /file/:key — private order evidence serving", () => {
   });
 
   it("404s for a key outside the allow-listed namespaces (no key can reach other objects)", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/file/products/leak.png", AUTH),
       env({ "products/leak.png": "SECRET" }),
       ctx,
@@ -6683,7 +6783,7 @@ describe("GET /file/:key — private order evidence serving", () => {
   });
 
   it("404s when the object is genuinely absent", async () => {
-    const res = await worker.fetch!(
+    const res = await fetchAuthed(
       new Request("https://x/file/claim/o1/missing.png", AUTH),
       env({}),
       ctx,
@@ -9153,11 +9253,35 @@ describe("GET /orders/:id — the slip gate follows the staff role", () => {
     });
   }
 
-  it("given no session > treated as NOT a super admin, never assumed yes", async () => {
+  it("given no session > refused outright, so there is nothing to assume about", async () => {
+    // Until 2026-08-25 a sessionless caller still received the page, merely stripped of slips and
+    // bank details — because Cloudflare Access stood in front and this gate only decided how MUCH
+    // to show. With the staff session now the only gate, there is no such caller: the order is not
+    // served at all. Strictly stronger than the old expectation, in the same direction.
     const { env } = await seedOrderAndRole("super_admin");
-    const body = await detail(env);
-    expect(body.viewerIsSuperAdmin).toBe(false);
-    expect(body.order.refundAccountNo).toBeNull();
+    const res = await worker.fetch!(new Request("https://x/orders/o1"), env, ctx);
+    expect(res.status).toBe(401);
+    expect(await res.text()).not.toContain("1234567890");
+  });
+
+  /**
+   * `viewerRole` drives the Zone-A buttons on the order page — who may assess a claim, who may
+   * approve a payment. It resolved from the SUPER_ADMIN_EMAILS / MECHANIC_EMAILS lists plus
+   * `accessConfigured`, and returned "super_admin" whenever Access was unconfigured. That default
+   * was written for local development, when Cloudflare Access stood at the edge in production and
+   * an unconfigured environment could only be a developer's laptop. Taking the Cloudflare door off
+   * makes "unconfigured" the shape of production too, and the default would then promote every
+   * signed-in mechanic. The session already knows this person's real role; use it.
+   */
+  it("given a mechanic and Access switched off > viewerRole stays mechanic, never super_admin", async () => {
+    const { env, token } = await seedOrderAndRole("mechanic");
+    const res = await worker.fetch!(
+      new Request("https://x/orders/o1", { headers: { "X-Staff-Session": token } }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { viewerRole: string }).viewerRole).toBe("mechanic");
   });
 });
 
@@ -9186,12 +9310,28 @@ describe("GET /products — every state the catalog has", () => {
         )
         .run(id, name, status, NOW);
     }
-    return { env: { DB: asD1(raw) } as unknown as Env };
+    return { env: { DB: asD1(raw) } as unknown as Env, raw };
+  }
+
+  /** A real session row, because this suite runs against the real schema, not the canned mock. */
+  async function signedIn(raw: DatabaseSync, env: Env) {
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u-cat','Boss','boss@shop.test','super_admin','active',?)`,
+      )
+      .run(NOW);
+    const { token } = await createStaffSession((env as { DB: D1Database }).DB, "u-cat", NOW);
+    return { "X-Staff-Session": token };
   }
 
   it("returns live, draft and paused alike — the tab decides what is shown, not the query", async () => {
-    const { env } = seeded();
-    const res = await worker.fetch!(new Request("https://x/products"), env, ctx);
+    const { env, raw } = seeded();
+    const res = await worker.fetch!(
+      new Request("https://x/products", { headers: await signedIn(raw, env) }),
+      env,
+      ctx,
+    );
     const body = (await res.json()) as { products: { id: string }[] };
     expect(body.products.map((p) => p.id).sort()).toEqual(["p-draft", "p-live", "p-paused"]);
   });
@@ -9802,7 +9942,7 @@ describe("POST /products/full — channel changes are super-admin only", () => {
 describe("POST /staff/login-practice", () => {
   const PRACTICE = { PRACTICE_COPY: "1" };
   const call = (env: Record<string, unknown>, origin = "http://localhost:8788") =>
-    worker.fetch!(
+    fetchAuthed(
       new Request(`${origin}/staff/login-practice`, { method: "POST" }),
       env as unknown as Env,
       ctx,
