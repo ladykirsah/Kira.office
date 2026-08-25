@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { menuPosition } from "@/lib/menuPosition";
+import { useT } from "../LangProvider";
 
 /**
  * Per-row "Action ▾" dropdown for the orders table. Only View today — the menu exists so the
@@ -14,6 +15,7 @@ import { menuPosition } from "@/lib/menuPosition";
  * absolutely-positioned menu on the last row is clipped by the frame instead of overhanging it.
  */
 export function OrderActionsMenu({ orderId }: { orderId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +68,7 @@ export function OrderActionsMenu({ orderId }: { orderId: string }) {
         aria-expanded={open}
         onClick={toggle}
       >
-        Actions
+        {t({ th: "จัดการ", en: "Actions" })}
         <svg
           width="12"
           height="12"
@@ -99,7 +101,7 @@ export function OrderActionsMenu({ orderId }: { orderId: string }) {
             }}
           >
             <a className="actions-item" role="menuitem" href={`/orders/${orderId}`}>
-              View
+              {t({ th: "ดู", en: "View" })}
             </a>
           </div>,
           document.body,

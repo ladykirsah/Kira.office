@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useId } from "react";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../LangProvider";
 
 /**
  * Creatable combobox: click to see the list, type to filter or enter a brand-new value. Built with
@@ -18,6 +19,7 @@ export function Combobox({
   options: string[];
   placeholder?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // Stable id so aria-controls can point at the popup; useId keeps two comboboxes on one
   // page from colliding.
@@ -62,7 +64,7 @@ export function Combobox({
       <button
         type="button"
         className="combo-caret"
-        aria-label="Toggle list"
+        aria-label={t({ th: "เปิด/ปิดรายการ", en: "Toggle list" })}
         tabIndex={-1}
         onClick={() => setOpen((o) => !o)}
       >

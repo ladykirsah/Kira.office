@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { adjustStock } from "@/lib/api";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 const Pencil = () => (
   <svg
@@ -72,6 +73,7 @@ export function StockCell({
   /** A mechanic reads the catalog; the count still shows, the pencil does not (owner, 2026-08-24). */
   readOnly?: boolean;
 }) {
+  const t = useT();
   const toast = useToast();
   const [current, setCurrent] = useState(onHand);
   const [editing, setEditing] = useState(false);
@@ -103,7 +105,7 @@ export function StockCell({
         setCurrent(res.quantityAfter);
         setEditing(false);
       } else {
-        toast(res.reason ?? "Stock not changed", "error");
+        toast(res.reason ?? t({ th: "สต็อกไม่เปลี่ยน", en: "Stock not changed" }), "error");
       }
     } catch (err) {
       toast((err as Error).message, "error");
@@ -132,8 +134,8 @@ export function StockCell({
         <button
           type="button"
           className="icon-btn"
-          aria-label="Save stock"
-          title="Save"
+          aria-label={t({ th: "บันทึกสต็อก", en: "Save stock" })}
+          title={t({ th: "บันทึก", en: "Save" })}
           disabled={busy}
           onClick={save}
           style={{ color: "var(--ok)" }}
@@ -160,8 +162,8 @@ export function StockCell({
         <button
           type="button"
           className="icon-btn"
-          aria-label="Edit stock"
-          title="Edit stock"
+          aria-label={t({ th: "แก้ไขสต็อก", en: t({ th: "แก้ไขสต็อก", en: "Edit stock" }) })}
+          title={t({ th: "แก้ไขสต็อก", en: "Edit stock" })}
           onClick={startEdit}
         >
           <Pencil />

@@ -49,10 +49,10 @@ describe("order summary cards > every status a card counts is real", () => {
 describe("order summary cards > the owner's sections", () => {
   it("reads Pending · To ship · In transit · Refund, in that order", () => {
     expect(ORDER_SUMMARY_CARDS.map(orderSummaryCardLabel)).toEqual([
-      "Pending",
-      "To ship",
-      "In transit",
-      "Refund",
+      { th: "รอดำเนินการ", en: "Pending" },
+      { th: "เตรียมจัดส่ง", en: "To ship" },
+      { th: "กำลังจัดส่ง", en: "In transit" },
+      { th: "คืนเงิน", en: "Refund" },
     ]);
   });
 
@@ -98,7 +98,9 @@ describe("order summary cards > clicking one cannot land on a view that hides it
     // from the tab it opens (Refund → the "Refund & claim" tab), but if the names match the card must
     // show exactly what that tab shows, or two things with one name would disagree about the page.
     for (const card of ORDER_SUMMARY_CARDS) {
-      if (orderSummaryCardLabel(card) === ORDER_TAB_LABELS[card.tab]) {
+      const label = orderSummaryCardLabel(card);
+      const tab = ORDER_TAB_LABELS[card.tab];
+      if (label.en === tab.en && label.th === tab.th) {
         expect(cardIsWholeTab(card)).toBe(true);
       }
     }

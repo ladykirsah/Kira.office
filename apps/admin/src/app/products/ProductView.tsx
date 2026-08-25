@@ -10,6 +10,7 @@ import { ProfitPeek } from "./ProfitPeek";
 import { canSeeProfit } from "@l-shopee/core";
 import { channelTags } from "@/lib/productStatus";
 import { useStaffRole } from "../StaffRoleProvider";
+import { useT } from "../LangProvider";
 
 const n0 = (x: number | undefined | null): number => (Number.isFinite(x) ? (x as number) : 0);
 const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
@@ -149,6 +150,7 @@ const overviewGrid = {
  * edit page's view mode, so the two never drift.
  */
 export function ProductView({ detail }: { detail: ProductDetail }) {
+  const t = useT();
   const p = detail.product;
   const pr = detail.pricing;
   const held = detail.held ?? 0;
@@ -205,8 +207,8 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
         <div style={overviewGrid}>
           {/* Column 1 — Part & stock */}
           <div>
-            <div style={groupHead}>Part &amp; Stock</div>
-            <Field label="Part details">
+            <div style={groupHead}>{t({ th: "อะไหล่และสต็อก", en: "Part & Stock" })}</div>
+            <Field label={t({ th: "รายละเอียดอะไหล่", en: "Part details" })}>
               {partTags.length ? (
                 <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
                   {partTags.map((t, i) => (
@@ -221,10 +223,10 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
             </Field>
             {/* Two figures, per the owner's design: what can be sold, and what is paused. Held
                 stock is already excluded from on-hand (holds are negative ledger deltas). */}
-            <Field label="Stock on hand">
+            <Field label={t({ th: "คงเหลือ", en: "Stock on hand" })}>
               <strong style={{ fontSize: 20 }}>{detail.onHand ?? 0}</strong>
             </Field>
-            <Field label="Stock on hold">
+            <Field label={t({ th: "ถูกจอง", en: "Stock on hold" })}>
               <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
                 <strong
                   style={{ fontSize: 20, color: held > 0 ? "var(--text)" : "var(--text-faint)" }}
@@ -238,10 +240,12 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
                 )}
               </span>
             </Field>
-            <Field label="Weight">{p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}</Field>
+            <Field label={t({ th: "น้ำหนัก", en: "Weight" })}>
+              {p.weightGrams ? `${p.weightGrams / 1000} kg` : "—"}
+            </Field>
             {/* Box size feeds the shipping-fee calc (volumetric weight w×l×h/5000), alongside
                 weight — shown here read-only so the parcel data is visible without opening Edit. */}
-            <Field label="Box size (W×L×H)">
+            <Field label={t({ th: "ขนาดกล่อง (ก×ย×ส)", en: "Box size (W×L×H)" })}>
               {p.widthMm && p.lengthMm && p.heightMm
                 ? `${mmToCm(p.widthMm)} × ${mmToCm(p.lengthMm)} × ${mmToCm(p.heightMm)} cm`
                 : "—"}
@@ -250,13 +254,16 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
 
           {/* Column 2 — Identifiers */}
           <div>
-            <div style={groupHead}>Identifiers</div>
-            <Field label="Product ID">
+            <div style={groupHead}>{t({ th: "รหัสอ้างอิง", en: "Identifiers" })}</div>
+            <Field label={t({ th: "รหัสสินค้า", en: "Product ID" })}>
               {p.productRef ? (
                 <div style={{ display: "grid", gap: 6 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                     {p.productRef}
-                    <CopyButton value={p.productRef} label="Product ID" />
+                    <CopyButton
+                      value={p.productRef}
+                      label={t({ th: "รหัสสินค้า", en: "Product ID" })}
+                    />
                   </span>
                   <BarcodePreview value={p.productRef} />
                 </div>
@@ -266,11 +273,11 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
             </Field>
             {/* "Shopee ID" was removed on 2026-08-24 (owner): there is no Shopee API to link an id
                 to, so the field was permanently "—" and taught nobody anything. */}
-            <Field label="Status">
+            <Field label={t({ th: "สถานะ", en: "Status" })}>
               <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-                {channelTags(p.status, p.shopeeListed).map((t) => (
-                  <span key={t.label} className={`pill ${t.cls}`}>
-                    {t.label}
+                {channelTags(p.status, p.shopeeListed).map((tag) => (
+                  <span key={tag.label.en} className={`pill ${tag.cls}`}>
+                    {t(tag.label)}
                   </span>
                 ))}
               </span>
@@ -297,7 +304,7 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
             background: "var(--surface)",
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Pricing</div>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>{t({ th: "ราคา", en: "Pricing" })}</div>
           {[
             {
               label: "Den Air Service",
@@ -340,7 +347,9 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
               background: "var(--surface)",
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Fits these cars</div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              {t({ th: "ใช้ได้กับรถรุ่นนี้", en: "Fits these cars" })}
+            </div>
             <table className="ftbl">
               <colgroup>
                 <col style={{ width: "34%" }} />
@@ -349,9 +358,9 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
               </colgroup>
               <thead>
                 <tr>
-                  <th>Brand</th>
-                  <th>Model</th>
-                  <th>Years</th>
+                  <th>{t({ th: "ยี่ห้อ", en: "Brand" })}</th>
+                  <th>{t({ th: "รุ่น", en: "Model" })}</th>
+                  <th>{t({ th: "ปี", en: "Years" })}</th>
                 </tr>
               </thead>
               <tbody>

@@ -10,6 +10,7 @@ import {
 } from "@/lib/categoryCascade";
 import { Combobox } from "./Combobox";
 import { BarcodePreview } from "./BarcodePreview";
+import { useT } from "../LangProvider";
 
 export interface PartForm {
   brand: string;
@@ -49,6 +50,7 @@ export function PartDetails({
   refWarning?: string | null;
   shopeeWarning?: string | null;
 }) {
+  const t = useT();
   const warn = (msg: string | null | undefined) =>
     msg ? <small style={{ color: "var(--danger)", fontSize: 12 }}>{msg}</small> : null;
 
@@ -68,7 +70,7 @@ export function PartDetails({
         background: "var(--surface)",
       }}
     >
-      <span style={{ fontWeight: 600 }}>Part details</span>
+      <span style={{ fontWeight: 600 }}>{t({ th: "รายละเอียดอะไหล่", en: "Part details" })}</span>
 
       <div
         style={{
@@ -78,30 +80,30 @@ export function PartDetails({
         }}
       >
         <label style={field}>
-          Part brand
+          {t({ th: "ยี่ห้ออะไหล่", en: "Part brand" })}
           <Combobox
             value={value.brand}
             onChange={(v) => onChange({ brand: v })}
             options={names(attributes?.brands)}
-            placeholder="e.g. DENSO"
+            placeholder={t({ th: "เช่น DENSO", en: "e.g. DENSO" })}
           />
         </label>
         <label style={field}>
-          Match car system
+          {t({ th: "ระบบรถที่ใช้ได้", en: "Match car system" })}
           <Combobox
             value={value.usage}
             onChange={(v) => onChange(systemChangePatch(attributes, v, value.type))}
             options={names(attributes?.usages)}
-            placeholder="e.g. A/C"
+            placeholder={t({ th: "เช่น แอร์", en: "e.g. A/C" })}
           />
         </label>
         <label style={field}>
-          Part name
+          {t({ th: "ชื่ออะไหล่", en: "Part name" })}
           <Combobox
             value={value.type}
             onChange={(v) => onChange(categoryPickPatch(attributes, v, value.usage))}
             options={categoryNamesForSystem(attributes, value.usage)}
-            placeholder="e.g. Evaporator"
+            placeholder={t({ th: "เช่น ตู้แอร์", en: "e.g. Evaporator" })}
           />
         </label>
       </div>
@@ -122,7 +124,7 @@ export function PartDetails({
         }}
       >
         <label style={field}>
-          Product ID
+          {t({ th: "รหัสสินค้า", en: "Product ID" })}
           <input
             value={productRef}
             onChange={(e) => onProductRefChange(e.target.value)}
@@ -130,12 +132,15 @@ export function PartDetails({
               // A USB scanner ends a scan with Enter — don't let that submit the form.
               if (e.key === "Enter") e.preventDefault();
             }}
-            placeholder="type or scan the part no."
+            placeholder={t({ th: "พิมพ์หรือสแกนรหัสอะไหล่", en: "type or scan the part no." })}
             style={inputL}
           />
           {warn(refWarning)}
           <small className="muted" style={{ fontSize: 12 }}>
-            Type it, or scan the part’s barcode — the barcode is created from this.
+            {t({
+              th: "พิมพ์เอง หรือสแกนบาร์โค้ดของอะไหล่ — บาร์โค้ดสร้างจากรหัสนี้",
+              en: "Type it, or scan the part’s barcode — the barcode is created from this.",
+            })}
           </small>
         </label>
         {productRef.trim() ? <BarcodePreview value={productRef.trim()} /> : null}
@@ -162,7 +167,7 @@ export function PartDetails({
             />
             <span className="slider" />
           </span>
-          <span>Live on AirPlus</span>
+          <span>{t({ th: "วางขายบน AirPlus", en: "Live on AirPlus" })}</span>
           <small className="muted" style={{ fontSize: 12 }}>
             — customers can see it in your shop
           </small>
@@ -179,7 +184,7 @@ export function PartDetails({
             />
             <span className="slider" />
           </span>
-          <span>Live on Shopee</span>
+          <span>{t({ th: "วางขายบน Shopee", en: "Live on Shopee" })}</span>
           <small className="muted" style={{ fontSize: 12 }}>
             — marks it listed; pause it on Shopee itself by hand
           </small>

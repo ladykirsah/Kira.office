@@ -8,6 +8,7 @@ import { deleteProductForever } from "@/lib/api";
 import { isDeleteConfirmed } from "@/lib/deleteConfirm";
 import { useStaffRole } from "../StaffRoleProvider";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 /**
  * Deleting a product for good — and only that.
@@ -29,6 +30,7 @@ import { useToast } from "../ToastProvider";
  * box invites "why can't I?", and the answer is not a fixable state. The API refuses independently.
  */
 export function DeleteProductCard({ productId }: { productId: string }) {
+  const t = useT();
   const router = useRouter();
   const toast = useToast();
   const role = useStaffRole();
@@ -43,7 +45,7 @@ export function DeleteProductCard({ productId }: { productId: string }) {
     setBusy(true);
     try {
       await deleteProductForever(productId);
-      toast("Product deleted", "success");
+      toast(t({ th: "ลบสินค้าแล้ว", en: "Product deleted" }), "success");
       router.push("/products");
     } catch (err) {
       toast((err as Error).message, "error");
@@ -54,11 +56,12 @@ export function DeleteProductCard({ productId }: { productId: string }) {
   return (
     <section className="danger-zone">
       <div>
-        <div className="danger-zone-title">Delete product</div>
+        <div className="danger-zone-title">{t({ th: "ลบสินค้า", en: "Delete product" })}</div>
         <p className="danger-zone-text">
           Removes this product completely. Only possible if it has never been sold — if it has, take
-          it off the shop with <strong>Live on AirPlus</strong> instead, which keeps everything.
-          This cannot be undone: type <strong>DELETE</strong> to confirm.
+          it off the shop with{" "}
+          <strong>{t({ th: "วางขายบน AirPlus", en: "Live on AirPlus" })}</strong> instead, which
+          keeps everything. This cannot be undone: type <strong>DELETE</strong> to confirm.
         </p>
       </div>
 
@@ -66,8 +69,8 @@ export function DeleteProductCard({ productId }: { productId: string }) {
         <input
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          placeholder="Type DELETE"
-          aria-label="Type DELETE to confirm"
+          placeholder={t({ th: "พิมพ์ DELETE", en: "Type DELETE" })}
+          aria-label={t({ th: "พิมพ์ DELETE เพื่อยืนยัน", en: "Type DELETE to confirm" })}
           style={{ ...inputS, width: 200 }}
         />
         <button
@@ -76,7 +79,7 @@ export function DeleteProductCard({ productId }: { productId: string }) {
           disabled={!armed || busy}
           onClick={onDelete}
         >
-          Delete product
+          {t({ th: "ลบสินค้า", en: "Delete product" })}
         </button>
       </div>
     </section>

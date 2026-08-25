@@ -6,7 +6,9 @@ import type { StaffRole } from "@l-shopee/core";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageToggle } from "./LanguageToggle";
 import { DevApiBanner } from "./DevApiBanner";
+import { useT } from "./LangProvider";
 
 /**
  * The app frame — sidebar, top bar, content.
@@ -26,6 +28,7 @@ export function AppShell({
   /** Undefined until someone signs in — the shell is not rendered for them anyway. */
   role?: StaffRole;
 }) {
+  const t = useT();
   const bare = usePathname() === "/login";
   // Signed out (or on the login page) there is no menu to draw — and no role to draw it for.
   if (bare || !role) return <>{children}</>;
@@ -36,8 +39,14 @@ export function AppShell({
       <div className="main">
         <header className="topbar">
           <MobileNav role={role} />
-          <span className="muted topbar-tagline">Den Air Service + AirPlus back office</span>
+          <span className="muted topbar-tagline">
+            {t({
+              th: "ระบบหลังร้าน Den Air Service + AirPlus",
+              en: "Den Air Service + AirPlus back office",
+            })}
+          </span>
           {identity}
+          <LanguageToggle />
           <ThemeToggle />
         </header>
         <div className="content">

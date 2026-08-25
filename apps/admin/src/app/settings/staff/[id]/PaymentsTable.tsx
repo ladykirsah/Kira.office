@@ -6,6 +6,7 @@ import { Icon } from "../../../Icon";
 import { Modal } from "../../../Modal";
 import { MonthYearPicker } from "../../../MonthYearPicker";
 import { CopyButton } from "../../../products/CopyButton";
+import { useT, useLang } from "../../../LangProvider";
 
 /** One advance, as the ledger shows it. The slip key never leaves the API — only whether one exists. */
 export interface StaffAdvance {
@@ -59,9 +60,9 @@ const salarySlipUrl = (userId: string, period: string) =>
   `/api/worker/staff/${userId}/salary-slip?period=${period}`;
 const advanceSlipUrl = (id: string) => `/api/worker/staff/advances/${id}/slip`;
 
-function monthLabel(period: string): string {
+function monthLabel(period: string, lang: "th" | "en"): string {
   const [y, m] = period.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -69,9 +70,9 @@ function monthLabel(period: string): string {
 }
 
 /** "2026-09-05" → "5 Sep 2026". Split, never parsed — a plain Bangkok day cannot be allowed to shift. */
-function dayLabel(iso: string): string {
+function dayLabel(iso: string, lang: "th" | "en"): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, d!)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y!, m! - 1, d!)).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -79,8 +80,10 @@ function dayLabel(iso: string): string {
   });
 }
 
-const methodLabel = (method: string | null) =>
-  method === "cash" ? "เงินสด" : method === "transfer" ? "โอน" : null;
+const METHOD_WORDS = {
+  cash: { th: "เงินสด", en: "Cash" },
+  transfer: { th: "โอน", en: "Transfer" },
+} as const;
 
 /**
  * One person's wage for ONE month, as a ledger (owner, 2026-08-25).
@@ -116,6 +119,10 @@ export function PaymentsTable({
   /** Omitted on any page that is not the owner's HRM view — see the note above. */
   bank?: StaffBank;
 }) {
+  const t = useT();
+  const lang = useLang();
+  const methodLabel = (m: string | null) =>
+    m === "cash" || m === "transfer" ? t(METHOD_WORDS[m]) : null;
   // Which slip is open in the popup, or null. One at a time, like the order page.
   const [open, setOpen] = useState<{ url: string; title: string; file: string } | null>(null);
   /**
@@ -146,14 +153,14 @@ export function PaymentsTable({
         marginBottom: 12,
       }}
     >
-      <h2 style={{ margin: 0, fontSize: 16 }}>Payments</h2>
+      <h2 style={{ margin: 0, fontSize: 16 }}>{t({ th: "รายการจ่ายเงิน", en: "Payments" })}</h2>
       {/* English names and the western year, matching this table's own month headings. The วันหยุด
           card above is Thai and carries its own — each says what its neighbours say rather than
           following one global setting. */}
       <MonthYearPicker
         value={showMonth}
-        lang="en"
-        label="Month shown"
+        lang={lang}
+        label={t({ th: "เดือนที่แสดง", en: "Month shown" })}
         currentYear={currentYear}
         onChange={setShowMonth}
       />
@@ -174,7 +181,7 @@ export function PaymentsTable({
       }}
     >
       <span className="muted" style={{ fontSize: 13 }}>
-        Pay into
+        {t({ th: "โอนเข้าบัญชี", en: "Pay into" })}
       </span>
       <span style={{ fontSize: 14 }}>
         {[bank.name, bank.accountName].filter(Boolean).join(" · ")}
@@ -208,8 +215,13 @@ export function PaymentsTable({
         {header}
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>
           {payments.length === 0
-            ? "No wages recorded yet."
-            : `Nothing recorded for ${showMonth ? monthLabel(showMonth) : "that month"}.`}
+            ? t({ th: "ยังไม่มีรายการจ่ายเงิน", en: "No wages recorded yet." })
+            : showMonth
+              ? t({
+                  th: `ไม่มีรายการของ${monthLabel(showMonth, "th")}`,
+                  en: `Nothing recorded for ${monthLabel(showMonth, "en")}.`,
+                })
+              : t({ th: "ไม่มีรายการของเดือนนั้น", en: "Nothing recorded for that month." })}
         </p>
       </>
     );
@@ -218,7 +230,7 @@ export function PaymentsTable({
   const due = salaryDueDate(month.period);
   const paidPill = (paid: boolean) => (
     <span className="role-pill" style={{ color: paid ? "var(--ok)" : "var(--warn)" }}>
-      {paid ? "Paid" : "Unpaid"}
+      {paid ? t({ th: "จ่ายแล้ว", en: "Paid" }) : t({ th: "ยังไม่จ่าย", en: "Unpaid" })}
     </span>
   );
 
@@ -247,8 +259,8 @@ export function PaymentsTable({
             type="button"
             className="icon-btn"
             onClick={() => setOpen(slip)}
-            aria-label={`ดูสลิป ${slip.title}`}
-            title="View"
+            aria-label={t({ th: `ดูสลิป ${slip.title}`, en: `View the slip for ${slip.title}` })}
+            title={t({ th: "ดู", en: "View" })}
           >
             <Icon name="view" />
           </button>
@@ -256,8 +268,11 @@ export function PaymentsTable({
             className="icon-btn"
             href={slip.url}
             download={slip.file}
-            aria-label={`บันทึกสลิป ${slip.title}`}
-            title="Save"
+            aria-label={t({
+              th: `บันทึกสลิป ${slip.title}`,
+              en: `Save the slip for ${slip.title}`,
+            })}
+            title={t({ th: "บันทึก", en: "Save" })}
           >
             <Icon name="save" />
           </a>
@@ -276,12 +291,12 @@ export function PaymentsTable({
         <table className="products-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th style={{ textAlign: "right" }}>Day rate</th>
-              <th style={{ textAlign: "right" }}>Working days</th>
-              <th style={{ textAlign: "right" }}>Amount</th>
-              <th style={{ textAlign: "right" }}>Status</th>
-              <th style={{ textAlign: "right" }}>Paid by</th>
+              <th>{t({ th: "วันที่", en: "Date" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "วันทำงาน", en: "Working days" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "จำนวนเงิน", en: "Amount" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "สถานะ", en: "Status" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "วิธีจ่าย", en: "Paid by" })}</th>
             </tr>
           </thead>
           <tbody>
@@ -291,9 +306,9 @@ export function PaymentsTable({
                 by eye. */}
             <tr>
               <td>
-                {due ? dayLabel(due) : "—"}
+                {due ? dayLabel(due, lang) : "—"}
                 <span className="muted" style={{ display: "block", fontSize: 12 }}>
-                  Salary · {monthLabel(month.period)}
+                  {t({ th: "เงินเดือน", en: "Salary" })} · {monthLabel(month.period, lang)}
                 </span>
               </td>
               <td className="num">{baht(month.dayRateSatang)}</td>
@@ -309,7 +324,7 @@ export function PaymentsTable({
                     month.hasSlip
                       ? {
                           url: salarySlipUrl(userId, month.period),
-                          title: `เงินเดือน · ${monthLabel(month.period)}`,
+                          title: `${t({ th: "เงินเดือน", en: "Salary" })} · ${monthLabel(month.period, lang)}`,
                           file: `wage-slip-${month.period}.jpg`,
                         }
                       : null,
@@ -325,9 +340,9 @@ export function PaymentsTable({
             {month.advances.map((a) => (
               <tr key={a.id}>
                 <td>
-                  {dayLabel(a.givenOn)}
+                  {dayLabel(a.givenOn, lang)}
                   <span className="muted" style={{ display: "block", fontSize: 12 }}>
-                    เบิกล่วงหน้า
+                    {t({ th: "เบิกล่วงหน้า", en: "Advance" })}
                   </span>
                 </td>
                 <td colSpan={2} className="muted" style={{ fontSize: 13, textAlign: "center" }}>
@@ -341,7 +356,7 @@ export function PaymentsTable({
                     a.hasSlip
                       ? {
                           url: advanceSlipUrl(a.id),
-                          title: `เบิกล่วงหน้า · ${dayLabel(a.givenOn)}`,
+                          title: `${t({ th: "เบิกล่วงหน้า", en: "Advance" })} · ${dayLabel(a.givenOn, lang)}`,
                           file: `advance-slip-${a.givenOn}.jpg`,
                         }
                       : null,
@@ -354,7 +369,7 @@ export function PaymentsTable({
                 over on the 5th, which is the number you came to this table for. */}
             <tr>
               <td colSpan={3} style={{ fontWeight: 700 }}>
-                Total
+                {t({ th: "คงเหลือ", en: "Total" })}
               </td>
               <td className="num" style={{ fontWeight: 700 }}>
                 {baht(month.dueSatang)}
@@ -370,7 +385,7 @@ export function PaymentsTable({
                       fontWeight: 600,
                     }}
                   >
-                    ค้าง {baht(month.owedSatang)}
+                    {t({ th: "ค้าง", en: "Owed" })} {baht(month.owedSatang)}
                   </span>
                 )}
               </td>
@@ -383,10 +398,13 @@ export function PaymentsTable({
       {bankBlock}
 
       {open && (
-        <Modal title={`สลิป${open.title}`} onClose={() => setOpen(null)}>
+        <Modal
+          title={t({ th: `สลิป${open.title}`, en: `Slip · ${open.title}` })}
+          onClose={() => setOpen(null)}
+        >
           <img
             src={open.url}
-            alt={`สลิป ${open.title}`}
+            alt={t({ th: `สลิป ${open.title}`, en: `Slip for ${open.title}` })}
             style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
           />
         </Modal>

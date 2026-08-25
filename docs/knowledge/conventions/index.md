@@ -18,6 +18,7 @@ How work gets done in Kira.office: the owner-locked design system, the working a
 - [admin-locked-patterns](admin-locked-patterns.md) — owner-locked patterns with their incidents: PageHeader page structure, list table (products = THE pattern), two icon-button variants (never redefine `.icon-btn`), button box + anchor gotcha + BackLink placement, FilePickButton, DateTimeField, order-detail Zone A/B, MobileNav + nav.ts single source
 - [admin-consistency-backlog](admin-consistency-backlog.md) — ranked open list of design-system violations and the messiest files
 - [storefront-home-conventions](storefront-home-conventions.md) — Home v2's 13-section order, 16px gutter system, bilingual eyebrows; CI history (teal → coral → red DENSO pending)
+- [bilingual-admin](bilingual-admin.md) — the Thai/English switch: a cookie the server reads (not localStorage, and why), `{ th, en }` written at the point of use, the owner's chosen words, what deliberately stays one language (printed label, DELETE, filter values, names), and the detector + test that keeps a cleared screen cleared
 
 ## Working with the owner
 

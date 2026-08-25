@@ -7,6 +7,7 @@ import { useToast } from "../../../ToastProvider";
 import { DayOffTable, type DayOffEdit, type DayOffRow } from "../../../DayOffTable";
 import { monthLabel } from "@/lib/dayOff";
 import { MonthYearPicker } from "../../../MonthYearPicker";
+import { useT, useLang } from "../../../LangProvider";
 
 /**
  * One person's วันหยุด, on their profile (owner, 2026-08-24).
@@ -43,6 +44,8 @@ export function StaffDaysOff({
   /** Passed down rather than read from a clock here, so a render is never a moving target. */
   currentYear: number;
 }) {
+  const t = useT();
+  const lang = useLang();
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,7 +54,7 @@ export function StaffDaysOff({
     const res = await fetch(url, { credentials: "include", ...init });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
-      toast(data.error || "ทำรายการไม่สำเร็จ", "error");
+      toast(data.error || t({ th: "ทำรายการไม่สำเร็จ", en: "That didn't work." }), "error");
       return false;
     }
     toast(ok, "success");
@@ -72,7 +75,9 @@ export function StaffDaysOff({
         }}
       >
         <div>
-          <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>วันหยุด</h2>
+          <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>
+            {t({ th: "วันหยุด", en: "Days off" })}
+          </h2>
           <p className="muted" style={{ fontSize: 13, margin: 0 }}>
             {monthLabel(month)} · {summariseDaysOff(days).label}
           </p>
@@ -90,8 +95,8 @@ export function StaffDaysOff({
             looked at before, which is the house rule for filters everywhere else. */}
         <MonthYearPicker
           value={month}
-          lang="th"
-          label="เดือนของวันหยุด"
+          lang={lang}
+          label={t({ th: "เดือนของวันหยุด", en: "Month of days off" })}
           currentYear={currentYear}
           onChange={(period) => {
             const url = new URLSearchParams(window.location.search);
@@ -119,7 +124,7 @@ export function StaffDaysOff({
                   reason: next.reason || undefined,
                 }),
               },
-              "บันทึกแล้ว",
+              t({ th: "บันทึกแล้ว", en: "Saved" }),
             );
           } finally {
             setBusy(null);
@@ -131,7 +136,7 @@ export function StaffDaysOff({
             await call(
               `/api/worker/staff/days-off/${row.id}`,
               { method: "DELETE" },
-              "ลบวันหยุดแล้ว",
+              t({ th: "ลบวันหยุดแล้ว", en: "Day off deleted" }),
             );
           } finally {
             setBusy(null);
@@ -140,9 +145,11 @@ export function StaffDaysOff({
       />
 
       <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
-        ลบได้ที่นี่ — เพราะการลบวันหยุดคือการคืนค่าแรงหนึ่งวัน จึงเป็นสิทธิ์ของเจ้าของ ·
-        พนักงานแก้ไขของตัวเองได้ แต่ลบไม่ได้ · เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน{" "}
-        <b>เข้าสาย ไม่หักเงิน</b>
+        {t({
+          th: "ลบได้ที่นี่ — เพราะการลบวันหยุดคือการคืนค่าแรงหนึ่งวัน จึงเป็นสิทธิ์ของเจ้าของ · พนักงานแก้ไขของตัวเองได้ แต่ลบไม่ได้ · เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน ",
+          en: "Deleting is yours alone — removing a day off gives back a day's wage. Staff may correct their own rows but never delete one. Full and half days come off that month's working days; ",
+        })}
+        <b>{t({ th: "เข้าสาย ไม่หักเงิน", en: "arriving late costs nothing" })}</b>
       </p>
     </section>
   );

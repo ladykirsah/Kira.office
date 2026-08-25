@@ -8,6 +8,7 @@ import { tableText } from "@/lib/tableText";
 import { TableFrame } from "../TableFrame";
 import { OrderActionsMenu } from "../orders/OrderActionsMenu";
 import { ExpenseRows } from "./ExpenseRows";
+import { useT } from "../LangProvider";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
@@ -29,6 +30,7 @@ export function AirPlusOrders({
   onExpenseEdited?: (e: ExpenseRow) => void;
   onExpenseDeleted?: (id: string) => void;
 }) {
+  const t = useT();
   if (orders.length === 0 && expenses.length === 0) {
     return (
       <div className="empty">
@@ -94,7 +96,7 @@ export function AirPlusOrders({
                   <div style={tableText.body2}>{dateTH(o.orderCreatedAt ?? o.importedAt)}</div>
                 </td>
                 <td>
-                  <span className={`pill ${badge.pill}`}>{badge.label}</span>
+                  <span className={`pill ${badge.pill}`}>{t(badge.label)}</span>
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <OrderActionsMenu orderId={o.id} />

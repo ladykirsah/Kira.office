@@ -1,4 +1,5 @@
 import type { ProductRow } from "./api";
+import type { Phrase } from "./lang";
 
 /**
  * "What is stopping this product from selling?" — the second line in the Status cell.
@@ -18,28 +19,48 @@ import type { ProductRow } from "./api";
  * the same thing twice in one cell reads as a bug, not as emphasis.
  */
 export interface ReadinessNote {
-  text: string;
+  text: Phrase;
   /** Nothing missing AND not live — the "you could put this back on sale" cue. Drawn in green. */
   ready: boolean;
 }
 
 /** The gaps, in a fixed order so the line reads the same way every time. */
-function gaps(p: ProductRow): { short: string; long: string }[] {
+function gaps(p: ProductRow): { short: Phrase; long: Phrase }[] {
   const live = p.status === "active";
-  const out: { short: string; long: string }[] = [];
-  if (!p.imageKey) out.push({ short: "no photo", long: "No photo" });
-  if (p.onlinePriceSatang <= 0) out.push({ short: "no price", long: "No price" });
+  const out: { short: Phrase; long: Phrase }[] = [];
+  if (!p.imageKey)
+    out.push({
+      short: { th: "ไม่มีรูป", en: "no photo" },
+      long: { th: "ไม่มีรูป", en: "No photo" },
+    });
+  if (p.onlinePriceSatang <= 0)
+    out.push({
+      short: { th: "ไม่มีราคา", en: "no price" },
+      long: { th: "ไม่มีราคา", en: "No price" },
+    });
   // Only when the pill is not already saying it — see the note above.
-  if (!live && p.onHand <= 0) out.push({ short: "no stock", long: "No stock" });
+  if (!live && p.onHand <= 0)
+    out.push({
+      short: { th: "ไม่มีสต็อก", en: "no stock" },
+      long: { th: "ไม่มีสต็อก", en: "No stock" },
+    });
   return out;
 }
 
 export function readinessNote(p: ProductRow): ReadinessNote | null {
   const found = gaps(p);
-  if (found.length) return { text: found.map((g) => g.short).join(" · "), ready: false };
+  if (found.length) {
+    return {
+      text: {
+        th: found.map((g) => g.short.th).join(" · "),
+        en: found.map((g) => g.short.en).join(" · "),
+      },
+      ready: false,
+    };
+  }
   // Nothing missing. A live product is already selling, so there is nothing worth a line.
   if (p.status === "active") return null;
-  return { text: "ready to sell", ready: true };
+  return { text: { th: "พร้อมขาย", en: "ready to sell" }, ready: true };
 }
 
 /**
@@ -49,6 +70,6 @@ export function readinessNote(p: ProductRow): ReadinessNote | null {
  */
 export function readinessValues(p: ProductRow): string[] {
   const found = gaps(p);
-  if (found.length) return found.map((g) => g.long);
+  if (found.length) return found.map((g) => g.long.en);
   return p.status === "active" ? [] : ["Ready to sell"];
 }

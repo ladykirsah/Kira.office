@@ -20,6 +20,8 @@ import { formatUpdatedAt } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
 import { card, sectionTitle } from "./cardStyles";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
 
 /**
  * Zone A for the ACTIVE defect claim — full-width on top for its whole life. No pre-approve gate:
@@ -38,15 +40,16 @@ import { card, sectionTitle } from "./cardStyles";
  */
 
 /** The action verb on each transition button (the target state). */
-const ACTION_LABEL: Record<ClaimState, string> = {
-  requested: "แจ้งเคลม",
-  approved: "อนุมัติเคลม", // legacy state, no longer entered
-  received: "ได้รับสินค้าแล้ว",
-  mechanic_approved: "อนุมัติเคลม",
-  mechanic_rejected: "ปฏิเสธ",
-  shipped: "จัดส่งสินค้าเคลม",
-  done: "เสร็จสิ้น",
-  cancelled: "ยกเลิก",
+const ACTION_LABEL: Record<ClaimState, Phrase> = {
+  requested: { th: "แจ้งเคลม", en: "Claim raised" },
+  // legacy state, no longer entered
+  approved: { th: "อนุมัติเคลม", en: "Claim approved" },
+  received: { th: "ได้รับสินค้าแล้ว", en: "Item received" },
+  mechanic_approved: { th: "อนุมัติเคลม", en: "Claim approved" },
+  mechanic_rejected: { th: "ปฏิเสธ", en: "Rejected" },
+  shipped: { th: "จัดส่งสินค้าเคลม", en: "Claim item sent" },
+  done: { th: "เสร็จสิ้น", en: "Done" },
+  cancelled: { th: "ยกเลิก", en: "Cancelled" },
 };
 
 /** Moves the customer must be told the reason for. */
@@ -86,9 +89,12 @@ export function ClaimReviewSection({
   viewerRole: OrderDetail["viewerRole"];
   viewerIsSuperAdmin: boolean;
   mechanics: string[];
+  /** Already translated by OrderDetailView — see the note there. */
+  /** Already translated by OrderDetailView — see the note there. */
   status: { pill: string; label: string };
   onError: (m: string) => void;
 }) {
+  const t = useT();
   const [assignee, setAssignee] = useState(claim.assigneeName ?? "");
   const [reason, setReason] = useState("");
   const [denyTarget, setDenyTarget] = useState<ClaimState | null>(null);
@@ -198,7 +204,7 @@ export function ClaimReviewSection({
   const shipFieldsGrid = (
     <div style={{ display: "grid", gap: 10 }}>
       <label style={{ display: "grid", gap: 4 }}>
-        <span style={tableText.subtitle}>ขนส่ง</span>
+        <span style={tableText.subtitle}>{t({ th: "ขนส่ง", en: "Carrier" })}</span>
         <select
           value={carrier}
           onChange={(e) => setCarrier(e.target.value)}
@@ -212,7 +218,7 @@ export function ClaimReviewSection({
         </select>
       </label>
       <label style={{ display: "grid", gap: 4 }}>
-        <span style={tableText.subtitle}>เลขพัสดุ</span>
+        <span style={tableText.subtitle}>{t({ th: "เลขพัสดุ", en: "Tracking no." })}</span>
         <input
           value={trackingNo}
           onChange={(e) => setTrackingNo(e.target.value)}
@@ -221,7 +227,9 @@ export function ClaimReviewSection({
         />
       </label>
       <label style={{ display: "grid", gap: 4 }}>
-        <span style={tableText.subtitle}>ค่าจัดส่ง (บาท)</span>
+        <span style={tableText.subtitle}>
+          {t({ th: "ค่าจัดส่ง (บาท)", en: "Shipping fee (฿)" })}
+        </span>
         <input
           value={shippingFee}
           onChange={(e) => setShippingFee(e.target.value)}
@@ -246,12 +254,15 @@ export function ClaimReviewSection({
         }}
       >
         <div>
-          <div style={{ ...sectionTitle, marginBottom: 6 }}>จัดการเคลมสินค้า</div>
+          <div style={{ ...sectionTitle, marginBottom: 6 }}>
+            {t({ th: "จัดการเคลมสินค้า", en: "Handle the claim" })}
+          </div>
           <span className={`pill ${status.pill}`}>{status.label}</span>
         </div>
         {isClaimState(claim.state) && (
           <span style={tableText.subtitle}>
-            สถานะเคลม: {ACTION_LABEL[claim.state] ?? claim.state}
+            {t({ th: "สถานะเคลม", en: "Claim state" })}:{" "}
+            {ACTION_LABEL[claim.state] ? t(ACTION_LABEL[claim.state]) : claim.state}
           </span>
         )}
       </div>
@@ -266,43 +277,62 @@ export function ClaimReviewSection({
       >
         {/* the defect: product, date, the customer's chosen resolution, reason, evidence */}
         <div style={card}>
-          <div style={sectionTitle}>รายละเอียดการเคลม</div>
+          <div style={sectionTitle}>{t({ th: "รายละเอียดการเคลม", en: "Claim details" })}</div>
           <div style={{ fontSize: 14, lineHeight: 1.9 }}>
             <div>
-              <span style={tableText.subtitle}>สินค้า</span> · {claimedNames || "—"}
+              <span style={tableText.subtitle}>{t({ th: "สินค้า", en: "Product" })}</span> ·{" "}
+              {claimedNames || "—"}
             </div>
             <div>
-              <span style={tableText.subtitle}>แจ้งเมื่อ</span> · {formatUpdatedAt(claim.createdAt)}
+              <span style={tableText.subtitle}>{t({ th: "แจ้งเมื่อ", en: "Raised" })}</span> ·{" "}
+              {formatUpdatedAt(claim.createdAt)}
             </div>
 
             {/* the customer's choice, above the reason */}
             {claim.resolution && (
               <div style={{ marginTop: 6 }}>
-                <span style={tableText.subtitle}>ลูกค้าเลือก</span> ·{" "}
-                {isRefund ? "รับเงินคืน" : "เปลี่ยนสินค้าใหม่"}
+                <span style={tableText.subtitle}>
+                  {t({ th: "ลูกค้าเลือก", en: "Customer chose" })}
+                </span>{" "}
+                ·{" "}
+                {isRefund
+                  ? t({ th: "รับเงินคืน", en: "a refund" })
+                  : t({ th: "เปลี่ยนสินค้าใหม่", en: "a replacement" })}
               </div>
             )}
             {claim.resolution &&
               (isRefund ? (
                 <div style={tableText.subtitle}>
                   {!viewerIsSuperAdmin
-                    ? "บัญชีรับเงินคืน · เฉพาะผู้ดูแลระดับสูง"
+                    ? t({
+                        th: "บัญชีรับเงินคืน · เฉพาะผู้ดูแลระดับสูง",
+                        en: "Refund account · super admin only",
+                      })
                     : order.refundAccountNo
-                      ? `บัญชี · ${order.refundBankName} · ${order.refundAccountNo} · ${order.refundAccountName}`
-                      : "รอลูกค้าแจ้งบัญชีรับเงินคืน"}
+                      ? `${t({ th: "บัญชี", en: "Account" })} · ${order.refundBankName} · ${order.refundAccountNo} · ${order.refundAccountName}`
+                      : t({
+                          th: "รอลูกค้าแจ้งบัญชีรับเงินคืน",
+                          en: "Waiting for the customer's refund account",
+                        })}
                 </div>
               ) : (
-                <div style={tableText.subtitle}>ส่งไปที่ · {formatAddress(shipTo)}</div>
+                <div style={tableText.subtitle}>
+                  {t({ th: "ส่งไปที่", en: "Send to" })} · {formatAddress(shipTo)}
+                </div>
               ))}
 
             {claim.reasonNote && (
               <div style={{ marginTop: 4 }}>
-                <span style={tableText.subtitle}>เหตุผลลูกค้า</span> · {claim.reasonNote}
+                <span style={tableText.subtitle}>
+                  {t({ th: "เหตุผลลูกค้า", en: "Customer's reason" })}
+                </span>{" "}
+                · {claim.reasonNote}
               </div>
             )}
             {claim.assigneeName && (
               <div>
-                <span style={tableText.subtitle}>ผู้รับผิดชอบ</span> · {claim.assigneeName}
+                <span style={tableText.subtitle}>{t({ th: "ผู้รับผิดชอบ", en: "In charge" })}</span>{" "}
+                · {claim.assigneeName}
               </div>
             )}
           </div>
@@ -326,7 +356,7 @@ export function ClaimReviewSection({
                   <a key={k} href={privateFileUrl(k)} target="_blank" rel="noreferrer">
                     <img
                       src={privateFileUrl(k)}
-                      alt="หลักฐานการเคลม"
+                      alt={t({ th: "หลักฐานการเคลม", en: "Claim evidence" })}
                       style={{
                         width: 84,
                         height: 84,
@@ -344,28 +374,43 @@ export function ClaimReviewSection({
 
         {/* the current step's action — mechanic + super-admin only */}
         <div style={card}>
-          <div style={sectionTitle}>ดำเนินการ</div>
+          <div style={sectionTitle}>{t({ th: "ดำเนินการ", en: "Next step" })}</div>
           {!mayAct ? (
-            <div style={tableText.subtitle}>เฉพาะช่างและผู้ดูแลระดับสูง</div>
+            <div style={tableText.subtitle}>
+              {t({ th: "เฉพาะช่างและผู้ดูแลระดับสูง", en: "Mechanics and super admins only" })}
+            </div>
           ) : atResolution ? (
             isRefund ? (
               // Refund resolution — money out + the customer's bank are the super-admin's alone.
               !viewerIsSuperAdmin ? (
-                <div style={tableText.subtitle}>รอผู้ดูแลระดับสูงคืนเงินให้ลูกค้า</div>
+                <div style={tableText.subtitle}>
+                  {t({
+                    th: "รอผู้ดูแลระดับสูงคืนเงินให้ลูกค้า",
+                    en: "Waiting for a super admin to refund the customer",
+                  })}
+                </div>
               ) : !order.refundAccountNo ? (
-                <div style={tableText.subtitle}>รอลูกค้าแจ้งบัญชีรับเงินคืนก่อนจึงจะคืนเงินได้</div>
+                <div style={tableText.subtitle}>
+                  {t({
+                    th: "รอลูกค้าแจ้งบัญชีรับเงินคืนก่อนจึงจะคืนเงินได้",
+                    en: "The customer's refund account is needed first",
+                  })}
+                </div>
               ) : !showResolve ? (
                 <button
                   type="button"
                   className="btn-primary btn-sm"
                   onClick={() => setShowResolve(true)}
                 >
-                  อนุมัติการเคลม
+                  {t({ th: "อนุมัติการเคลม", en: "Approve the claim" })}
                 </button>
               ) : (
                 <>
                   <div style={{ ...tableText.subtitle, marginBottom: 10 }}>
-                    โอนเงินเต็มจำนวนแล้วแนบสลิปการโอนเพื่อยืนยัน
+                    {t({
+                      th: "โอนเงินเต็มจำนวนแล้วแนบสลิปการโอนเพื่อยืนยัน",
+                      en: "Transfer the full amount, then attach the slip to confirm",
+                    })}
                   </div>
                   {/* The same picker the affiliate/refund editors use: a styled ＋ button over a hidden
                       input, beside the primary action — no raw "Choose File" control. */}
@@ -383,7 +428,8 @@ export function ClaimReviewSection({
                       onClick={() => slipRef.current?.click()}
                       style={{ whiteSpace: "nowrap" }}
                     >
-                      ＋ {slip ? slip.name.slice(0, 18) : "เลือกสลิป"}
+                      ＋{" "}
+                      {slip ? slip.name.slice(0, 18) : t({ th: "เลือกสลิป", en: "Choose a slip" })}
                     </button>
                     <button
                       type="button"
@@ -391,7 +437,9 @@ export function ClaimReviewSection({
                       disabled={busy !== null || !slip}
                       onClick={() => void refund()}
                     >
-                      {busy === "refund" ? "กำลังบันทึก…" : "ยืนยันการคืนเงิน"}
+                      {busy === "refund"
+                        ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                        : t({ th: "ยืนยันการคืนเงิน", en: "Confirm the refund" })}
                     </button>
                   </div>
                 </>
@@ -403,7 +451,7 @@ export function ClaimReviewSection({
                 className="btn-primary btn-sm"
                 onClick={() => setShowResolve(true)}
               >
-                จัดส่งสินค้าเคลม
+                {t({ th: "จัดส่งสินค้าเคลม", en: "Send the claim item" })}
               </button>
             ) : (
               <>
@@ -415,7 +463,9 @@ export function ClaimReviewSection({
                   onClick={() => void shipReplacement()}
                   style={{ marginTop: 10 }}
                 >
-                  {busy === "shipped" ? "กำลังบันทึก…" : "ยืนยันการจัดส่ง"}
+                  {busy === "shipped"
+                    ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                    : t({ th: "ยืนยันการจัดส่ง", en: "Confirm the shipment" })}
                 </button>
               </>
             )
@@ -425,14 +475,17 @@ export function ClaimReviewSection({
             !showResolve ? (
               <>
                 <div style={{ ...tableText.subtitle, marginBottom: 10 }}>
-                  เคลมไม่ผ่านเงื่อนไข — ส่งสินค้าคืนให้ลูกค้า
+                  {t({
+                    th: "เคลมไม่ผ่านเงื่อนไข — ส่งสินค้าคืนให้ลูกค้า",
+                    en: "Claim not covered — send the item back to the customer",
+                  })}
                 </div>
                 <button
                   type="button"
                   className="btn-primary btn-sm"
                   onClick={() => setShowResolve(true)}
                 >
-                  จัดส่งสินค้าคืน
+                  {t({ th: "จัดส่งสินค้าคืน", en: "Send the item back" })}
                 </button>
               </>
             ) : (
@@ -445,25 +498,31 @@ export function ClaimReviewSection({
                   onClick={() => void shipReturn()}
                   style={{ marginTop: 10 }}
                 >
-                  {busy === "returned" ? "กำลังบันทึก…" : "ยืนยันการจัดส่งคืน"}
+                  {busy === "returned"
+                    ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                    : t({ th: "ยืนยันการจัดส่งคืน", en: "Confirm the return" })}
                 </button>
               </>
             )
           ) : nexts.length === 0 ? (
-            <div style={tableText.subtitle}>ไม่มีขั้นตอนถัดไป</div>
+            <div style={tableText.subtitle}>
+              {t({ th: "ไม่มีขั้นตอนถัดไป", en: "No next step" })}
+            </div>
           ) : (
             <>
               {/* Assign the case only at the inspection step (ผลการตรวจสอบ); arrival needs no owner. */}
               {claim.state === "received" && (
                 <>
-                  <div style={{ ...tableText.subtitle, marginBottom: 4 }}>ผู้รับผิดชอบ</div>
+                  <div style={{ ...tableText.subtitle, marginBottom: 4 }}>
+                    {t({ th: "ผู้รับผิดชอบ", en: "In charge" })}
+                  </div>
                   <select
-                    aria-label="ผู้รับผิดชอบ"
+                    aria-label={t({ th: "ผู้รับผิดชอบ", en: "In charge" })}
                     value={assignee}
                     onChange={(e) => setAssignee(e.target.value)}
                     style={{ ...inputS, width: "100%", marginBottom: 12 }}
                   >
-                    <option value="">— ยังไม่ระบุ —</option>
+                    <option value="">— {t({ th: "ยังไม่ระบุ", en: "not set" })} —</option>
                     {mechanics.map((m) => (
                       <option key={m} value={m}>
                         {m}
@@ -481,7 +540,7 @@ export function ClaimReviewSection({
                     disabled={busy !== null}
                     onClick={() => void go(s)}
                   >
-                    {busy === s ? "กำลังบันทึก…" : ACTION_LABEL[s]}
+                    {busy === s ? t({ th: "กำลังบันทึก…", en: "Saving…" }) : t(ACTION_LABEL[s])}
                   </button>
                 ))}
                 {deny.map((s) => (
@@ -492,19 +551,24 @@ export function ClaimReviewSection({
                     disabled={busy !== null}
                     onClick={() => setDenyTarget((d) => (d === s ? null : s))}
                   >
-                    {ACTION_LABEL[s]}
+                    {t(ACTION_LABEL[s])}
                   </button>
                 ))}
               </div>
               {denyTarget && (
                 <div style={{ marginTop: 14 }}>
-                  <div style={{ ...tableText.subtitle, marginBottom: 4 }}>เหตุผล (แจ้งลูกค้า)</div>
+                  <div style={{ ...tableText.subtitle, marginBottom: 4 }}>
+                    {t({ th: "เหตุผล (แจ้งลูกค้า)", en: "Reason (shown to the customer)" })}
+                  </div>
                   <textarea
                     autoFocus
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     rows={2}
-                    placeholder="เช่น ไม่เข้าเงื่อนไขการรับประกัน, ลูกค้าใช้งานผิดวิธี…"
+                    placeholder={t({
+                      th: "เช่น ไม่เข้าเงื่อนไขการรับประกัน, ลูกค้าใช้งานผิดวิธี…",
+                      en: "e.g. not covered by warranty, used incorrectly…",
+                    })}
                     style={{ width: "100%", ...inputS, minHeight: 52 }}
                   />
                   <button
@@ -514,10 +578,15 @@ export function ClaimReviewSection({
                     onClick={() => void go(denyTarget, reason)}
                     style={{ marginTop: 8 }}
                   >
-                    {busy === denyTarget ? "กำลังบันทึก…" : "ยืนยัน"}
+                    {busy === denyTarget
+                      ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                      : t({ th: "ยืนยัน", en: "Confirm" })}
                   </button>
                   <div style={{ ...tableText.subtitle, marginTop: 8 }}>
-                    ลูกค้าจะเห็นเหตุผลบนหน้าติดตามคำสั่งซื้อ
+                    {t({
+                      th: "ลูกค้าจะเห็นเหตุผลบนหน้าติดตามคำสั่งซื้อ",
+                      en: "The customer sees this reason on their order tracking page",
+                    })}
                   </div>
                 </div>
               )}

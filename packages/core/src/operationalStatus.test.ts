@@ -5,6 +5,7 @@ import {
   operationalStatusLabel,
   operationalStatusLabelTh,
   type OperationalStatus,
+  operationalStatusPhrase,
 } from "./operationalStatus";
 
 /**
@@ -188,5 +189,30 @@ describe("operationalStatus > labels", () => {
       expect(operationalStatusLabel(s).length).toBeGreaterThan(0);
       expect(operationalStatusLabelTh(s).length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * Both languages together, for the bilingual switch (owner, 2026-08-25).
+ *
+ * The Thai was written into this file long before there was a toggle, precisely so the switch would
+ * be wiring rather than a rewrite. This is the guard that keeps it true: a status added later with
+ * only an English label is the easy mistake, and it would reach the screen as a blank pill.
+ */
+describe("operationalStatusPhrase", () => {
+  it("given a status > then the owner's own words on both sides", () => {
+    expect(operationalStatusPhrase("to_ship")).toEqual({ th: "เตรียมจัดส่ง", en: "To ship" });
+    expect(operationalStatusPhrase("claim_pending")).toEqual({
+      th: "รอการอนุมัติจากช่าง",
+      en: "Claim pending",
+    });
+  });
+
+  it("says every status in both languages, with none left blank", () => {
+    const missing = OPERATIONAL_STATUSES.filter((s) => {
+      const p = operationalStatusPhrase(s);
+      return !p.th.trim() || !p.en.trim();
+    });
+    expect(missing).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatBahtTrim } from "@/lib/format";
+import { useT } from "../LangProvider";
 
 /**
  * One price tier in the products table: the price with a press-and-hold eye that reveals its profit
@@ -15,6 +16,7 @@ export function PriceProfitCell({
   /** null = this viewer may not see margin (a mechanic). The eye is not drawn at all. */
   profitSatang: number | null;
 }) {
+  const t = useT();
   const [show, setShow] = useState(false);
   const hide = () => setShow(false);
 
@@ -35,8 +37,8 @@ export function PriceProfitCell({
         <span style={{ fontWeight: 600 }}>{formatBahtTrim(priceSatang)}</span>
         <button
           type="button"
-          aria-label="Hold to reveal profit"
-          title="Hold to see profit"
+          aria-label={t({ th: "กดค้างเพื่อดูกำไร", en: "Hold to reveal profit" })}
+          title={t({ th: "กดค้างเพื่อดูกำไร", en: "Hold to see profit" })}
           onPointerDown={() => setShow(true)}
           onPointerUp={hide}
           onPointerLeave={hide}

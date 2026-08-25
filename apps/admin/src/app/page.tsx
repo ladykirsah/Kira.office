@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "./PageHeader";
+import { serverT } from "@/lib/serverLang";
 import { fetchOrders, fetchShopeeWorklist, type ShopeeWorklistItem } from "@/lib/api";
 import { shopeeWorklistErrorText } from "@/lib/shopeeWorklist";
 import { DASHBOARD_CARDS } from "@/lib/dashboardCards";
@@ -31,6 +32,7 @@ const sectionLabel = {
 } as const;
 
 export default async function DashboardPage() {
+  const t = await serverT();
   // The dashboard must open even when the order API is down — a broken counts fetch drops the frame to
   // a quiet line and leaves the nav grid working, rather than erroring the whole page.
   let counts: Record<SummaryCardKey, number> | null = null;
@@ -53,11 +55,20 @@ export default async function DashboardPage() {
 
   return (
     <main>
-      <PageHeader title="Dashboard" subtitle="Welcome back. Here's what's waiting." />
+      <PageHeader
+        title={t({ th: "ภาพรวม", en: "Dashboard" })}
+        subtitle={t({
+          th: "ยินดีต้อนรับกลับมา นี่คือสิ่งที่รออยู่",
+          en: "Welcome back. Here's what's waiting.",
+        })}
+      />
 
       {/* The /orders summary frame, duplicated: each card carries its live count and links to the
           same filtered Orders view clicking it there would open. */}
-      <section aria-label="Needs your action" style={{ marginTop: 18 }}>
+      <section
+        aria-label={t({ th: "ต้องจัดการ", en: "Needs your action" })}
+        style={{ marginTop: 18 }}
+      >
         <div
           style={{
             display: "flex",
@@ -67,7 +78,7 @@ export default async function DashboardPage() {
             marginBottom: 12,
           }}
         >
-          <h2 style={sectionLabel}>Needs your action</h2>
+          <h2 style={sectionLabel}>{t({ th: "ต้องจัดการ", en: "Needs your action" })}</h2>
           <Link
             href="/orders"
             style={{
@@ -77,7 +88,7 @@ export default async function DashboardPage() {
               textDecoration: "none",
             }}
           >
-            Open Orders →
+            {t({ th: "เปิดหน้าออเดอร์ →", en: "Open Orders →" })}
           </Link>
         </div>
 
@@ -96,7 +107,7 @@ export default async function DashboardPage() {
                     color: "inherit",
                   }}
                 >
-                  <div style={summaryLabel}>{orderSummaryCardLabel(card)}</div>
+                  <div style={summaryLabel}>{t(orderSummaryCardLabel(card))}</div>
                   <div
                     style={{ ...summaryNumber, color: summaryNumberColor(value, card.activeColor) }}
                   >
@@ -108,7 +119,10 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="muted" style={{ fontSize: 14 }}>
-            Order counts are unavailable right now.
+            {t({
+              th: "ตอนนี้ดึงจำนวนออเดอร์ไม่ได้",
+              en: "Order counts are unavailable right now.",
+            })}
           </div>
         )}
       </section>
@@ -116,8 +130,13 @@ export default async function DashboardPage() {
       {/* Always on the dashboard, even with nothing to do (owner's request, 2026-08-03): a section
           that disappears can't be trusted — you can't tell "nothing to update" from "the block is
           gone again". Three answers, never mixed: the checklist, "No updates.", or why we failed. */}
-      <section aria-label="Update on Shopee" style={{ marginTop: 34 }}>
-        <div style={{ ...sectionLabel, marginBottom: 12 }}>Update on Shopee</div>
+      <section
+        aria-label={t({ th: "อัปเดตใน Shopee", en: "Update on Shopee" })}
+        style={{ marginTop: 34 }}
+      >
+        <div style={{ ...sectionLabel, marginBottom: 12 }}>
+          {t({ th: "อัปเดตใน Shopee", en: "Update on Shopee" })}
+        </div>
         {worklistError ? (
           <div className="empty">
             <div className="empty-icon" aria-hidden>
@@ -130,16 +149,18 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <div style={{ ...sectionLabel, marginTop: 34, marginBottom: 12 }}>Go to</div>
+      <div style={{ ...sectionLabel, marginTop: 34, marginBottom: 12 }}>
+        {t({ th: "ไปที่", en: "Go to" })}
+      </div>
       <div className="card-grid">
         {DASHBOARD_CARDS.map((s) => (
           <a key={s.href} href={s.href} className="card">
             <div style={{ fontSize: 28, lineHeight: 1 }} aria-hidden>
               {s.icon}
             </div>
-            <div style={{ fontWeight: 600, marginTop: 10 }}>{s.title}</div>
+            <div style={{ fontWeight: 600, marginTop: 10 }}>{t(s.title)}</div>
             <div className="muted" style={{ fontSize: 14 }}>
-              {s.desc}
+              {t(s.desc)}
             </div>
           </a>
         ))}

@@ -759,6 +759,15 @@ export async function listAdvancesFor(
 /**
  * Remove an advance. Super admin only, and for the same reason deleting a day off is: it puts money
  * back into what will be handed over on payday.
+ *
+ * NOT ONCE THE MONTH IS PAID (owner, 2026-08-25). `recordAdvance` has always refused a paid month;
+ * this did not, and the asymmetry was the bug: the payslip FROZE `advance_satang` at the moment of
+ * payment, so removing a row afterwards leaves the frozen figure and the surviving rows disagreeing
+ * with nothing to say which one is the truth. The wage ledger shows it plainly — it lists the rows
+ * but takes its Total from the frozen figure, so the column would simply stop adding up.
+ *
+ * A paid month is a record of what was handed over, not a running total. Correcting one means
+ * correcting the payment.
  */
 export async function deleteAdvance(
   db: D1Database,
@@ -768,13 +777,29 @@ export async function deleteAdvance(
   if (!canManageStaff(actor.role)) return forbidden();
   const row = await db
     .prepare(
-      `SELECT a.id, a.period, a.amount_satang AS amountSatang, COALESCE(u.name_th, u.name) AS name
+      `SELECT a.id, a.user_id AS userId, a.period, a.amount_satang AS amountSatang,
+              COALESCE(u.name_th, u.name) AS name
          FROM staff_advances a LEFT JOIN users u ON u.id = a.user_id
         WHERE a.id = ?`,
     )
     .bind(id)
-    .first<{ id: string; period: string; amountSatang: number; name: string | null }>();
+    .first<{
+      id: string;
+      userId: string;
+      period: string;
+      amountSatang: number;
+      name: string | null;
+    }>();
   if (!row) return json({ error: "no such advance" }, 404);
+
+  // The same check, and the same 409, that recordAdvance makes on the way in — see the note above.
+  const paid = await db
+    .prepare(`SELECT paid_at FROM staff_payslips WHERE user_id = ? AND period = ?`)
+    .bind(row.userId, row.period)
+    .first<{ paid_at: number | null }>();
+  if (paid?.paid_at != null) {
+    return json({ error: "that month has already been paid" }, 409);
+  }
 
   await db.prepare(`DELETE FROM staff_advances WHERE id = ?`).bind(id).run();
   await logActivity(

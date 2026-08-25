@@ -1,4 +1,5 @@
 import type { StaffRole } from "@l-shopee/core";
+import type { Phrase } from "@/lib/lang";
 
 /**
  * The one description of the admin's navigation — used by the desktop sidebar and by the phone
@@ -8,13 +9,19 @@ import type { StaffRole } from "@l-shopee/core";
 export interface NavLink {
   href: string;
   icon: string;
-  label: string;
+  /**
+   * BOTH LANGUAGES, written here (owner, 2026-08-25). The menu is the one thing on every screen, so
+   * it is where a half-translated app shows worst. Several are the owner's own words rather than a
+   * translation — ทำบิล for Point of Sale, สินค้านายหน้า for Affiliate Promote — because the shop
+   * already has a name for the thing and it is not the dictionary's.
+   */
+  label: Phrase;
   /** Shorter label for the phone's bottom bar, where a slot is ~97px wide. */
-  short?: string;
+  short?: Phrase;
 }
 
 export interface NavGroup {
-  section: string;
+  section: Phrase;
   links: NavLink[];
 }
 
@@ -31,22 +38,37 @@ export interface NavGroup {
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    section: "Daily Uses",
+    section: { th: "งานประจำวัน", en: "Daily Uses" },
     links: [
-      { href: "/scan", icon: "📷", label: "Scan here", short: "Scan" },
-      { href: "/orders", icon: "🧾", label: "AirPlus Orders", short: "Orders" },
-      { href: "/pos", icon: "🛒", label: "Point of Sale", short: "POS" },
-      { href: "/payment", icon: "💸", label: "Payment" },
-      { href: "/customers", icon: "👥", label: "Customers" },
+      {
+        href: "/scan",
+        icon: "📷",
+        label: { th: "สแกน", en: "Scan here" },
+        short: { th: "สแกน", en: "Scan" },
+      },
+      {
+        href: "/orders",
+        icon: "🧾",
+        label: { th: "ออเดอร์ AirPlus", en: "AirPlus Orders" },
+        short: { th: "ออเดอร์", en: "Orders" },
+      },
+      {
+        href: "/pos",
+        icon: "🛒",
+        label: { th: "ทำบิล", en: "Point of Sale" },
+        short: { th: "ทำบิล", en: "POS" },
+      },
+      { href: "/payment", icon: "💸", label: { th: "การชำระเงิน", en: "Payment" } },
+      { href: "/customers", icon: "👥", label: { th: "ลูกค้า", en: "Customers" } },
     ],
   },
   {
-    section: "Stock",
+    section: { th: "สต็อก", en: "Stock" },
     links: [
-      { href: "/products", icon: "📦", label: "Products" },
-      { href: "/products/new", icon: "➕", label: "Add product" },
-      { href: "/barcodes", icon: "🏷️", label: "Barcodes" },
-      { href: "/stock", icon: "📊", label: "Stock movements" },
+      { href: "/products", icon: "📦", label: { th: "สินค้า", en: "Products" } },
+      { href: "/products/new", icon: "➕", label: { th: "เพิ่มสินค้า", en: "Add product" } },
+      { href: "/barcodes", icon: "🏷️", label: { th: "บาร์โค้ด", en: "Barcodes" } },
+      { href: "/stock", icon: "📊", label: { th: "รายการสต็อก", en: "Stock movements" } },
       // /import (product CSV) is deliberately NOT listed: it only carries product_ref, name and
       // description, so every row still needs opening by hand — the owner adds products through
       // Add product instead (2026-07-29). The page still works if a bulk supplier list ever needs
@@ -54,15 +76,19 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    section: "AirPlus Marketing",
+    section: { th: "การตลาด AirPlus", en: "AirPlus Marketing" },
     links: [
       // First in the section on purpose: you read what the shop did, then reach for the levers
       // below it. Shopee's own Business Insights sits the same way relative to its marketing tools.
-      { href: "/insights", icon: "📈", label: "Insight" },
-      { href: "/settings/affiliate-items", icon: "🤝", label: "Affiliate Promote" },
-      { href: "/settings/banners", icon: "🖼️", label: "Banners" },
-      { href: "/settings/coupons", icon: "🎟️", label: "Coupons" },
-      { href: "/settings/campaigns", icon: "⚡", label: "Flash sales" },
+      { href: "/insights", icon: "📈", label: { th: "ภาพรวม AirPlus", en: "Insight" } },
+      {
+        href: "/settings/affiliate-items",
+        icon: "🤝",
+        label: { th: "สินค้านายหน้า", en: "Affiliate Promote" },
+      },
+      { href: "/settings/banners", icon: "🖼️", label: { th: "แบนเนอร์", en: "Banners" } },
+      { href: "/settings/coupons", icon: "🎟️", label: { th: "คูปอง", en: "Coupons" } },
+      { href: "/settings/campaigns", icon: "⚡", label: { th: "แฟลชเซล", en: "Flash sales" } },
       // There is no "Affiliate income" page any more. It was a stub that always printed ฿0: Shopee
       // pays affiliate commission through their own portal and there is no API into it, so the
       // figure could never become real. The honest number we DO own — outbound clicks — already
@@ -70,19 +96,31 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    section: "Overall management",
+    section: { th: "การจัดการทั่วไป", en: "Overall management" },
     links: [
-      { href: "/settings/shop", icon: "🏪", label: "Shop info" },
+      { href: "/settings/shop", icon: "🏪", label: { th: "ข้อมูลร้าน", en: "Shop info" } },
       // Next to Shop info (owner, 2026-08-04): the shop and the people in it are the same errand.
       // Super admin only.
-      { href: "/settings/staff", icon: "👤", label: "Staff" },
-      { href: "/sales", icon: "💰", label: "Finance" },
-      { href: "/settings/services", icon: "🔧", label: "Service Setup" },
+      { href: "/settings/staff", icon: "👤", label: { th: "พนักงาน", en: "Staff" } },
+      { href: "/sales", icon: "💰", label: { th: "การเงิน", en: "Finance" } },
+      {
+        href: "/settings/services",
+        icon: "🔧",
+        label: { th: "ตั้งค่าบริการ", en: "Service Setup" },
+      },
       // Warranty used to be its own entry; it now lives on the Product categories card on Part
       // setup, so a category is created complete (title + photo + warranty) in one place.
-      { href: "/settings/attributes", icon: "🧩", label: "Part setup" },
-      { href: "/settings/car-fitment", icon: "🚗", label: "Car fitment" },
-      { href: "/terms", icon: "📝", label: "Terms" },
+      {
+        href: "/settings/attributes",
+        icon: "🧩",
+        label: { th: "ตั้งค่าอะไหล่", en: "Part setup" },
+      },
+      {
+        href: "/settings/car-fitment",
+        icon: "🚗",
+        label: { th: "รุ่นรถที่ใช้ได้", en: "Car fitment" },
+      },
+      { href: "/terms", icon: "📝", label: { th: "เงื่อนไข", en: "Terms" } },
     ],
   },
 ];

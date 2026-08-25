@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useId } from "react";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../LangProvider";
 
 export interface Generation {
   name: string;
@@ -35,6 +36,7 @@ export function FitmentModelPicker({
   onPick: (g: Generation) => void;
   placeholder?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // Stable id so aria-controls can point at the popup; useId keeps two comboboxes on one
   // page from colliding.
@@ -99,7 +101,7 @@ export function FitmentModelPicker({
       <button
         type="button"
         className="combo-caret"
-        aria-label="Toggle list"
+        aria-label={t({ th: "เปิด/ปิดรายการ", en: "Toggle list" })}
         tabIndex={-1}
         onClick={() => setOpen((o) => !o)}
       >

@@ -32,6 +32,7 @@ import { formatUpdatedAt } from "@/lib/format";
 import { FitmentSection } from "../../FitmentSection";
 import { DeleteProductCard } from "../../DeleteProductCard";
 import { totalCostSatang } from "@/lib/pricing";
+import { useT } from "../../../LangProvider";
 
 const field = { display: "grid", gap: 4 } as const;
 const n0 = (x: number | undefined | null): number => (Number.isFinite(x) ? (x as number) : 0);
@@ -39,6 +40,7 @@ const thb = (satang: number) => (n0(satang) / 100).toFixed(2);
 const toSatang = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
 export default function EditProductPage() {
+  const t = useT();
   const role = useStaffRole();
   const id = useParams().id as string;
   const toast = useToast();
@@ -140,7 +142,7 @@ export default function EditProductPage() {
   async function save(e?: FormEvent) {
     e?.preventDefault();
     if (!productRef.trim()) {
-      toast("Product ID is required", "error");
+      toast(t({ th: "ต้องมีรหัสสินค้า", en: "Product ID is required" }), "error");
       return;
     }
     setBusy(true);
@@ -190,10 +192,11 @@ export default function EditProductPage() {
             movementType: "manual_adjustment",
             reason: "edited from product page",
           });
-          if (!res.applied) toast(res.reason ?? "Stock not changed", "error");
+          if (!res.applied)
+            toast(res.reason ?? t({ th: "สต็อกไม่เปลี่ยน", en: "Stock not changed" }), "error");
         }
       }
-      toast("Saved ✓", "success");
+      toast(t({ th: "บันทึกแล้ว ✓", en: "Saved ✓" }), "success");
       await load();
       setEditing(false);
     } catch (err) {
@@ -211,7 +214,7 @@ export default function EditProductPage() {
   if (loading)
     return (
       <main>
-        <h1>Product</h1>
+        <h1>{t({ th: "สินค้า", en: "Product" })}</h1>
         <div className="skeleton skeleton-row" style={{ width: "50%" }} />
         <div className="skeleton skeleton-row" style={{ width: "90%" }} />
         <div className="skeleton skeleton-row" style={{ width: "70%" }} />
@@ -221,10 +224,10 @@ export default function EditProductPage() {
   if (!detail)
     return (
       <main>
-        <h1>Product</h1>
-        <p className="muted">Not found.</p>
+        <h1>{t({ th: "สินค้า", en: "Product" })}</h1>
+        <p className="muted">{t({ th: "ไม่พบสินค้า", en: "Not found." })}</p>
         <p>
-          <BackLink href="/products">Products</BackLink>
+          <BackLink href="/products">{t({ th: "สินค้า", en: "Products" })}</BackLink>
         </p>
       </main>
     );
@@ -255,7 +258,11 @@ export default function EditProductPage() {
       <PageHeader
         title={p.name}
         subtitle={p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
-        below={editing ? undefined : <BackLink href="/products">Products</BackLink>}
+        below={
+          editing ? undefined : (
+            <BackLink href="/products">{t({ th: "สินค้า", en: "Products" })}</BackLink>
+          )
+        }
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
             {editing && (
@@ -266,16 +273,16 @@ export default function EditProductPage() {
                   setEditing(false); // back to view mode (stay on the product)
                 }}
               >
-                Cancel
+                {t({ th: "ยกเลิก", en: "Cancel" })}
               </button>
             )}
             {editing ? (
               <button type="button" className="btn-primary" onClick={() => save()} disabled={busy}>
-                Save
+                {t({ th: "บันทึก", en: "Save" })}
               </button>
             ) : (
               <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
-                Edit
+                {t({ th: "แก้ไข", en: "Edit" })}
               </button>
             )}
           </div>
@@ -294,12 +301,12 @@ export default function EditProductPage() {
             }}
           >
             <div style={{ ...field, gridColumn: "1 / -1" }}>
-              <span style={{ fontWeight: 600 }}>Photos</span>
+              <span style={{ fontWeight: 600 }}>{t({ th: "รูปภาพ", en: "Photos" })}</span>
               <ProductGallery productId={id} initial={detail.images} />
             </div>
 
             <label style={field}>
-              Product name *
+              {t({ th: "ชื่อสินค้า *", en: "Product name *" })}
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -309,19 +316,22 @@ export default function EditProductPage() {
             </label>
 
             <label style={field}>
-              Description
+              {t({ th: "รายละเอียด", en: "Description" })}
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
-                placeholder="Short spec — refrigerant, type, fitment note…"
+                placeholder={t({
+                  th: "สเปคสั้น ๆ — น้ำยา ประเภท รุ่นที่ใช้ได้…",
+                  en: "Short spec — refrigerant, type, fitment note…",
+                })}
                 style={{ width: "100%", resize: "vertical" }}
               />
             </label>
 
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
               <label style={field}>
-                Stock on hand
+                {t({ th: "คงเหลือ", en: "Stock on hand" })}
                 <input
                   value={stockQty}
                   onChange={(e) => setStockQty(e.target.value)}
@@ -336,7 +346,7 @@ export default function EditProductPage() {
                 </small>
               </label>
               <label style={field}>
-                Weight (kg)
+                {t({ th: "น้ำหนัก (กก.)", en: "Weight (kg)" })}
                 <input
                   value={weightKg}
                   onChange={(e) => setWeightKg(e.target.value)}
@@ -346,7 +356,7 @@ export default function EditProductPage() {
               </label>
               {/* Box size, not part size — carriers rate on volumetric weight (w×l×h/5000). */}
               <label style={field}>
-                Box size (cm) — W × L × H
+                {t({ th: "ขนาดกล่อง (ซม.) — ก × ย × ส", en: "Box size (cm) — W × L × H" })}
                 <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {(
                     [

@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { totalCostSatang, marginPct } from "@/lib/pricing";
 import { tierProfits } from "@/lib/tierProfits";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../LangProvider";
 
 export interface PricingForm {
   costThb: string;
@@ -98,6 +99,7 @@ export function PricingFields({
    */
   sellingReadOnly?: boolean;
 }) {
+  const t = useT();
   const tc = totalCostSatang(toSatang(form.costThb), form.taxOnCost);
   const b2c = toSatang(form.b2cThb);
   const b2b = toSatang(form.b2bThb);
@@ -132,7 +134,7 @@ export function PricingFields({
         background: "var(--surface)",
       }}
     >
-      <div style={{ fontWeight: 600 }}>Pricing</div>
+      <div style={{ fontWeight: 600 }}>{t({ th: "ราคา", en: "Pricing" })}</div>
 
       <div
         style={{
@@ -150,7 +152,7 @@ export function PricingFields({
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="muted" style={{ fontSize: 12 }}>
-              Item cost ฿
+              {t({ th: "ต้นทุนสินค้า ฿", en: "Item cost ฿" })}
             </span>
             <Money
               value={form.costThb}
@@ -171,12 +173,12 @@ export function PricingFields({
               />
               <span className="slider" />
             </span>
-            <span style={{ fontSize: 12 }}>Add VAT 7%</span>
+            <span style={{ fontSize: 12 }}>{t({ th: "บวก VAT 7%", en: "Add VAT 7%" })}</span>
           </label>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <span className="muted" style={{ fontSize: 12 }}>
-            Total cost · base
+            {t({ th: "ต้นทุนรวม · ฐาน", en: "Total cost · base" })}
           </span>
           <span style={{ fontSize: 16, fontWeight: 600 }}>{baht(tc)}</span>
         </div>
@@ -193,11 +195,11 @@ export function PricingFields({
           </colgroup>
           <thead>
             <tr>
-              <th>Tier</th>
-              <th>Price (฿)</th>
-              <th>Commission</th>
-              <th>Profit</th>
-              <th>Margin</th>
+              <th>{t({ th: "ระดับ", en: "Tier" })}</th>
+              <th>{t({ th: "ราคา (฿)", en: "Price (฿)" })}</th>
+              <th>{t({ th: "ค่าคอมฯ", en: "Commission" })}</th>
+              <th>{t({ th: "กำไร", en: "Profit" })}</th>
+              <th>{t({ th: "อัตรากำไร", en: "Margin" })}</th>
             </tr>
           </thead>
           <tbody>

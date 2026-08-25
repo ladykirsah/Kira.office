@@ -31,6 +31,7 @@ import {
   staffPayments,
   recordAdvance,
   advanceSlipKey,
+  deleteAdvance,
 } from "./staffRoutes";
 import {
   hashPassword,
@@ -8307,6 +8308,94 @@ describe("wage transfer slips", () => {
     expect(await salarySlipKey(db, mech, "s1", "2026-07")).toBe("salary-slip/s1/x.jpg");
     const other = { ...mech, userId: "s2", email: "s2@shop.test" };
     expect(await salarySlipKey(db, other, "s1", "2026-07")).toBeNull();
+  });
+});
+
+describe("deleteAdvance — a paid month is a record, not a running total", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?,NULL)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('s1','Somchai','s@shop.test','mechanic','active',?,40000)`,
+      )
+      .run(NOW);
+    // Recorded BEFORE the month is paid, because recordAdvance already refuses a paid one — which
+    // is the whole reason this asymmetry mattered.
+    await recordAdvance(
+      db,
+      boss,
+      "s1",
+      { period: "2026-07", givenOn: "2026-07-09", amountSatang: 200_000, method: "cash" },
+      NOW,
+    );
+    const { id } = raw
+      .prepare(`SELECT id FROM staff_advances WHERE given_on = '2026-07-09'`)
+      .get() as { id: string };
+    return { raw, db, id };
+  }
+
+  const countAdvances = (raw: ReturnType<typeof migratedDb>) =>
+    (raw.prepare(`SELECT count(*) AS n FROM staff_advances`).get() as { n: number }).n;
+
+  it("given the month is not paid yet > then the advance goes, and the wage grows back", async () => {
+    const { raw, db, id } = await seed();
+    expect((await deleteAdvance(db, boss, id)).status).toBe(200);
+    expect(countAdvances(raw)).toBe(0);
+  });
+
+  it("given the month has been paid > then refuses, and the advance survives", async () => {
+    const { raw, db, id } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/jul.jpg",
+    });
+
+    const res = await deleteAdvance(db, boss, id);
+    expect(res.status).toBe(409);
+    // The row must still be there. A refusal that deleted anyway would be worse than no guard.
+    expect(countAdvances(raw)).toBe(1);
+  });
+
+  /**
+   * The reason the guard exists at all: the payslip FROZE `advance_satang` at payment. Letting the
+   * row go afterwards leaves the frozen figure and the surviving rows disagreeing, with nothing to
+   * say which one is the truth — and the wage ledger, which sums the rows on screen but takes its
+   * Total from the frozen figure, would stop adding up.
+   */
+  it("given the month has been paid > then the payslip and the rows still agree", async () => {
+    const { db, id } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-07", NOW, {
+      method: "transfer",
+      slipKey: "salary-slip/s1/jul.jpg",
+    });
+    await deleteAdvance(db, boss, id);
+
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as {
+      payments: { period: string; advanceSatang: number; advances: { amountSatang: number }[] }[];
+    };
+    const july = body.payments.find((p) => p.period === "2026-07")!;
+    expect(july.advances.reduce((n, a) => n + a.amountSatang, 0)).toBe(july.advanceSatang);
+  });
+
+  it("given an id that does not exist > then still 404, not 409", async () => {
+    const { db } = await seed();
+    expect((await deleteAdvance(db, boss, "no-such-advance")).status).toBe(404);
   });
 });
 

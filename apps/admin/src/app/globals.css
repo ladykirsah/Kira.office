@@ -1165,9 +1165,19 @@ html[data-theme="dark"] .pill.info {
 .theme-toggle {
   margin-left: auto;
   min-height: 36px;
-  padding: 6px 12px;
+  /* Snug to the glyph (owner, 2026-08-25: "length fit content"). An emoji is ~18px, so 9px each
+     side makes a 36px box — square, and the same size as the control height rather than a wider
+     slab around one character. */
+  padding: 6px 9px;
   font-size: 18px;
   line-height: 1;
+}
+/* THE SECOND ONE MUST NOT ALSO PUSH (owner, 2026-08-25). `margin-left: auto` was written when this
+   was the only button in the top bar, and it did the right thing: shove it to the right edge. Once
+   the language toggle joined it, flexbox split the free space BETWEEN the two autos and stood them
+   73px apart. The pair now travels together, with a normal gap. */
+.theme-toggle + .theme-toggle {
+  margin-left: 6px;
 }
 a.card {
   color: inherit;

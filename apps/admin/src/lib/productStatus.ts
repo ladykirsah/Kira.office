@@ -1,8 +1,10 @@
 import type { ProductRow } from "./api";
+import type { Phrase } from "./lang";
 import { stockStatus } from "./stock";
 
 export interface StatusTag {
-  label: string;
+  /** Both languages — the owner's own words (2026-08-25): วางขาย, หยุดขาย, เหลือน้อย, หมด. */
+  label: Phrase;
   /** pill modifier class — see `.pill.*` in globals.css */
   cls: "on" | "off" | "pause" | "warn" | "bad";
 }
@@ -28,13 +30,13 @@ export interface StatusTag {
 export function productStatusTag(p: Pick<ProductRow, "status" | "onHand">): StatusTag {
   // Three states since 2026-08-24: active, draft, paused. "archived" was retired into paused
   // (migration 0088) — anything not active and not draft reads Paused, including a stale row.
-  if (p.status === "draft") return { label: "Draft", cls: "off" };
-  if (p.status !== "active") return { label: "Paused", cls: "pause" };
+  if (p.status === "draft") return { label: { th: "แบบร่าง", en: "Draft" }, cls: "off" };
+  if (p.status !== "active") return { label: { th: "หยุดขาย", en: "Paused" }, cls: "pause" };
 
   const stock = stockStatus(p.onHand);
-  if (stock === "out") return { label: "Out", cls: "bad" };
-  if (stock === "low") return { label: "Low", cls: "warn" };
-  return { label: "Live", cls: "on" };
+  if (stock === "out") return { label: { th: "หมด", en: "Out" }, cls: "bad" };
+  if (stock === "low") return { label: { th: "เหลือน้อย", en: "Low" }, cls: "warn" };
+  return { label: { th: "วางขาย", en: "Live" }, cls: "on" };
 }
 
 /**
@@ -69,10 +71,10 @@ export function isNotLive(status: string): boolean {
 export function channelTags(status: string, shopeeListed: number): StatusTag[] {
   return [
     status === "active"
-      ? { label: "Active on AirPlus", cls: "on" }
-      : { label: "Not on AirPlus", cls: "off" },
+      ? { label: { th: "วางขายบน AirPlus", en: "Active on AirPlus" }, cls: "on" }
+      : { label: { th: "ไม่ได้วางขายบน AirPlus", en: "Not on AirPlus" }, cls: "off" },
     shopeeListed === 1
-      ? { label: "Active on Shopee", cls: "on" }
-      : { label: "Not on Shopee", cls: "off" },
+      ? { label: { th: "วางขายบน Shopee", en: "Active on Shopee" }, cls: "on" }
+      : { label: { th: "ไม่ได้วางขายบน Shopee", en: "Not on Shopee" }, cls: "off" },
   ];
 }
