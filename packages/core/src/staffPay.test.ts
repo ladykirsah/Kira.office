@@ -193,14 +193,16 @@ describe("lockable roles", () => {
     expect(roleCanBeLocked("mechanic")).toBe(true);
   });
 
-  it("given an admin or super admin > then they are never locked out (owner, 9 Aug 2026)", () => {
-    // A locked-out admin has no way back in — the recovery for a lock is "ask a super admin", and
-    // when the super admin is the locked one that is nobody. A 24-hour wall in front of the person
-    // who runs the shop costs more than the brute-force protection is worth HERE, because
-    // Cloudflare Access already stands in front of the admin: reaching this login form at all
-    // requires passing an email one-time code first.
-    expect(roleCanBeLocked("admin")).toBe(false);
-    expect(roleCanBeLocked("super_admin")).toBe(false);
+  it("given an admin or super admin > then they lock too (owner, 25 Aug 2026, reversing 9 Aug)", () => {
+    // Exempt from 9 Aug 2026 on two supports, both since removed. (1) "A locked-out admin has no way
+    // back — the recovery is 'ask a super admin', which is nobody when the super admin is the locked
+    // one": there is now `/recover`, where Cloudflare Access proves the owner by a code to their
+    // mailbox and signs them back in unaided. (2) "Access already stands in front of the admin, so
+    // reaching this form requires an email code first": the owner is making the Kira.office form the
+    // everyday door, so the form goes on the open internet and this lock becomes the whole defence.
+    // An account that can never lock, behind a six-digit PIN, is a million guesses nothing counts.
+    expect(roleCanBeLocked("admin")).toBe(true);
+    expect(roleCanBeLocked("super_admin")).toBe(true);
   });
 
   it("given an unknown role > then it CAN be locked", () => {

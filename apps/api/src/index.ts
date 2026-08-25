@@ -1,6 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 import { insightsFor } from "./insights";
 import {
+  clientAddress,
+  loginThrottleKey,
+  recordLoginFailure,
+  clearLoginFailures,
+  refuseIfThrottled,
+} from "./loginThrottle";
+import {
   type ClaimResolution,
   orderStatusForClaim,
   actorFor,
@@ -6155,9 +6162,17 @@ const worker = {
     // use at cutover. Nothing here reads business data — the worst an anonymous caller can do is
     // spend one of the three attempts that lock the account for a day.
     if (url.pathname === "/staff/login" && request.method === "POST") {
+      const now = Date.now();
+      const throttleKey = loginThrottleKey(clientAddress(request));
+      const shut = await refuseIfThrottled(env.DB, throttleKey, now);
+      if (shut) return shut;
       const body = await readJson<{ email?: string; password?: string }>(request);
-      const out = await loginStaff(env.DB, body?.email ?? "", body?.password ?? "", Date.now());
-      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
+      const out = await loginStaff(env.DB, body?.email ?? "", body?.password ?? "", now);
+      if (!out.ok) {
+        await recordLoginFailure(env.DB, throttleKey, now);
+        return json({ error: "invalid", reason: out.reason }, 401);
+      }
+      await clearLoginFailures(env.DB, throttleKey);
       return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
     }
 
@@ -6203,10 +6218,24 @@ const worker = {
     }
 
     if (url.pathname === "/staff/login-pin" && request.method === "POST") {
+      /**
+       * The throttle matters MOST here. A PIN that matches nobody never reaches an account, so the
+       * three-strike account lock never sees it — every wrong guess is free, and there are only
+       * 999,999 of them. Checked before the pepper, so a caller who is already shut out learns
+       * nothing about how this route is configured.
+       */
+      const now = Date.now();
+      const throttleKey = loginThrottleKey(clientAddress(request));
+      const shut = await refuseIfThrottled(env.DB, throttleKey, now);
+      if (shut) return shut;
       if (!env.STAFF_PIN_PEPPER) return json({ error: "pin_login_unavailable" }, 503);
       const body = await readJson<{ pin?: string }>(request);
-      const out = await loginWithPin(env.DB, body?.pin ?? "", Date.now(), env.STAFF_PIN_PEPPER);
-      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
+      const out = await loginWithPin(env.DB, body?.pin ?? "", now, env.STAFF_PIN_PEPPER);
+      if (!out.ok) {
+        await recordLoginFailure(env.DB, throttleKey, now);
+        return json({ error: "invalid", reason: out.reason }, 401);
+      }
+      await clearLoginFailures(env.DB, throttleKey);
       return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
     }
 

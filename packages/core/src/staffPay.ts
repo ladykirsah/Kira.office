@@ -129,26 +129,29 @@ export function isLocked(state: LockState, now: number): boolean {
 }
 
 /**
- * Whose account may be locked out after three failed sign-ins.
+ * Whose account may be locked out after three failed sign-ins. EVERYONE (owner, 25 Aug 2026).
  *
- * Admins and super admins are exempt (owner, 9 Aug 2026). The lock's only recovery is "ask a super
- * admin to reset it" — which is nobody when the locked-out person IS the super admin, and a 24-hour
- * wall in front of whoever runs the shop costs more than it protects. It cost exactly that on the
- * day this was written.
+ * Admins and super admins were exempt from 9 Aug 2026, on two supports that have both since gone:
  *
- * What makes the trade sound HERE rather than anywhere: Cloudflare Access already stands in front of
- * the admin, so reaching the login form at all means passing a one-time code sent to an approved
- * mailbox. The lock is a second fence behind a locked gate, and it was the fence catching the owner.
+ *  1. **"The lock's only recovery is 'ask a super admin'"** — nobody, when the locked-out person IS
+ *     the super admin. There is now `/recover`: Cloudflare Access covers that one address, proves
+ *     the owner by a code to their mailbox, and signs them back in without needing another person.
+ *     A lock is no longer a wall the owner cannot climb.
+ *  2. **"Cloudflare Access already stands in front of the admin"** — so reaching the login form at
+ *     all meant passing a one-time code, and the lock was a second fence behind a locked gate. The
+ *     owner has now made the Kira.office form the everyday door. The gate is coming off. The fence
+ *     is the whole defence, and an account that can NEVER be locked, behind a six-digit PIN, is a
+ *     million guesses that nothing counts.
  *
- * Mechanics keep it. Theirs is a 6-digit PIN typed at a shared counter machine — the one credential
- * in this system somebody could realistically stand and guess — and if one is locked out, an admin
- * is right there to clear it.
+ * So the exemption is withdrawn, in the same change that makes it safe to withdraw. Mechanics were
+ * never exempt: theirs is a PIN typed at a shared counter machine — the one credential somebody
+ * could realistically stand and guess — and an admin is right there to clear it.
  *
  * An unrecognised role KEEPS the lock: a role added later should inherit the protection, not lose it
- * by being unlisted.
+ * by being unlisted. That is now the only rule there is.
  */
-export function roleCanBeLocked(role: string | null | undefined): boolean {
-  return role !== "admin" && role !== "super_admin";
+export function roleCanBeLocked(_role: string | null | undefined): boolean {
+  return true;
 }
 
 /* ── Wage-slip retention ──────────────────────────────────────────────────────────────────────
