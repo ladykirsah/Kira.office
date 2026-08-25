@@ -78,9 +78,16 @@ export function StaffDaysOff({
           </p>
         </div>
         {/* This table's OWN month, and nothing else's (owner, 2026-08-24) — Payments below carries
-            a separate one, and Record above works from the dates typed into it. The month lives in
-            the URL, so every month is its own address: bookmarkable, and the back button behaves.
-            Thai names and พ.ศ., matching the heading two inches to the left. */}
+            a separate one, and Record above works from the dates typed into it. Thai names and
+            พ.ศ., matching the heading two inches to the left.
+
+            REPLACE, AND DON'T SCROLL (owner, 2026-08-25: "make sure time setting here function the
+            same"). The month stays in the URL because that keeps every month its own address, but a
+            plain push made this behave nothing like the Payments picker beside it: the page came
+            back scrolled to the top, so picking a month threw the card you were reading a thousand
+            pixels below the fold. `scroll: false` keeps the card under your finger, and `replace`
+            keeps a filter out of the history — Back returns to the staff list, not to the month you
+            looked at before, which is the house rule for filters everywhere else. */}
         <MonthYearPicker
           value={month}
           lang="th"
@@ -89,7 +96,7 @@ export function StaffDaysOff({
           onChange={(period) => {
             const url = new URLSearchParams(window.location.search);
             url.set("month", period);
-            router.push(`/settings/staff/${userId}?${url}`);
+            router.replace(`/settings/staff/${userId}?${url}`, { scroll: false });
           }}
         />
       </div>

@@ -20,6 +20,26 @@ export function daysInMonth(period: string): number {
   return new Date(Date.UTC(year!, month!, 0)).getUTCDate();
 }
 
+/**
+ * When a month's wage is handed over: the **5th of the month after it** (owner, 2026-08-25).
+ *
+ * A fixed rule, not a record of what happened — August's row reads 5 September whether the money
+ * actually moved on the 5th, the 8th, or not yet at all. The owner was asked directly and chose the
+ * rule over the real date: payday is a promise the shop makes, and a date that shifts when you are
+ * late reads as though the promise moved with it. What DID happen is on the row's status and its
+ * slip.
+ *
+ * Returns null for anything that is not a real 'YYYY-MM', because a wage date guessed from
+ * nonsense is worse than no date at all.
+ */
+export function salaryDueDate(period: string): string | null {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return null;
+  const [year, month] = period.split("-").map(Number);
+  // December rolls into January of the next year, which is why this counts rather than adding one.
+  const next = new Date(Date.UTC(year!, month!, 5));
+  return next.toISOString().slice(0, 10);
+}
+
 /** Halves actually worked: the month, less time recorded off, never below zero. */
 export function workingHalves(days: number, offHalves: number): number {
   return Math.max(0, days * 2 - offHalves);

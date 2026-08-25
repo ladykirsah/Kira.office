@@ -156,3 +156,45 @@ sources: [session 2026-08-09]
   while the edit page's own save (`POST /products/full`) did the same thing and answered 200.
   `refuseChannelChange()` now guards the save too, and the edit page hides both channel switches
   from anyone but the super admin. See [back-office/products](back-office/products.md).
+
+- **2026-08-25** — **The วันหยุด month picker threw the page to the top.** It navigated with
+  `router.push`, so picking a month reloaded the page scrolled to the top — measured at scroll
+  975 → 0, putting the card you were reading 1,089px below the fold — while the Payments picker
+  beside it never moved. `router.replace(url, { scroll: false })`: the card stays under your
+  finger, and Back leaves the page instead of walking back through every month you looked at. The
+  month stays in the URL. Still open: the team screen (Staff → วันหยุด) has the same push and is
+  still on a bare `<input type="month">`. See
+  [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-25** — **Payments became a ledger.** One row per month with a single advance column
+  became one month opened out: the salary (always dated the 5th of the following month), every
+  advance that came out of it with its own date, note, method and slip, and a Total that is the
+  column added up. The Total is what is still to hand over, and the bank account sits under it —
+  read-only with a copy button, editing left in the Pay card. `staffPayments` now returns advances
+  one by one instead of a monthly sum. Along the way: advance slips could be uploaded since 0089 but
+  never viewed, because no route served them — `GET /staff/advances/:id/slip` now does. Still open:
+  `deleteAdvance` does not refuse a paid month the way `recordAdvance` does, so deleting an advance
+  after payday leaves the frozen payslip figure and the surviving rows disagreeing. See
+  [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-25** — **`/me` took the HRM page's shape.** Your details + Pay abreast, then วันหยุด with
+  its own month picker, then the same wage ledger, then Signing in. The one intended difference: no
+  Record section — the day-off submission form moved to the BOTTOM of the วันหยุด card, so you read
+  the month before adding to it. A person's own bank account is now shown in full rather than masked
+  (owner's call: hiding it from them protects nobody), while the "Pay into" block under the Total
+  stays HRM-only. See [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-25** — **`/me`'s Signing in card stopped being bespoke.** It kept an input box
+  permanently open under each secret with a greyed-out Change beside it; it now uses the same
+  `SecretRow` the staff-profile page does, with two actions and nothing else — an eye to view, a
+  word to change. `SecretRow` gained an optional `generate` (absent = the box opens empty, no ↻, for
+  someone setting their own) and an `actionLabel` ("change" rather than "reset"). Validation moved
+  into Save so no button ever greys out. See
+  [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-25** — **A new password or PIN is typed twice.** On `/me` only: two boxes on one line,
+  and Save refuses a disagreeing pair before anything reaches the server. `confirmationProblem`
+  compares the entries the way they will be *stored* (trimmed), so a stray trailing space is not a
+  mismatch, and an empty second box gets its own message rather than being called a mismatch. The
+  owner resetting somebody else's still sees one box — a generated value is on screen to be read.
+  See [back-office/staff-days-off](back-office/staff-days-off.md).
