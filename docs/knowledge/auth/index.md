@@ -12,11 +12,11 @@ sources: [docs/knowledge/auth/]
 
 Identity for Kira.office is layered: Cloudflare Access (email OTP) at the edge of the **admin** host → the API verifies the forwarded JWT itself → email-list roles → a staff password/PIN login on top. Read in this order:
 
-- [access-model](access-model.md) — ONE Access app on the admin host; API verifies the forwarded JWT; NEVER edge-gate the API host; team domain + AUD values; how to (not) find the AUD.
-- [require-access-fail-open](require-access-fail-open.md) — `requireAccess()` fails OPEN when `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` are unset; the secrets are load-bearing; public routes; secret-propagation flap; emergency rollback.
+- [access-model](access-model.md) — ONE Access app on the admin host; the API's gate is the STAFF SESSION since 25 Aug 2026, not the forwarded JWT; NEVER edge-gate the API host; team domain + AUD values; how to (not) find the AUD.
+- [require-access-fail-open](require-access-fail-open.md) — RETIRED as the gate (25 Aug 2026): `requireAccess()` still fails OPEN, so never put it in front of a route again; what replaced each fail-open helper; the old `secret delete` rollback no longer works; public routes; secret-propagation flap.
 - [access-destination-replace-trap](access-destination-replace-trap.md) — editing an Access destination silently unprotects the old hostname; add-then-verify with curl; owner-dashboard-only (agent tokens get 10000 errors).
 - [roles-model](roles-model.md) — live 3-role email-list model (`viewerRole`), NOT the dormant rbac.ts; per-capability gates; slip images = super-admin only; `MECHANIC_EMAILS` unset in prod.
-- [staff-login-and-lockout](staff-login-and-lockout.md) — password/PIN login; the Workers 100k PBKDF2 ceiling and the unverifiable-210k trap; per-role lockout (#129); uniform errors; latent email-case bug; recovery tool.
+- [staff-login-and-lockout](staff-login-and-lockout.md) — PBKDF2 100k ceiling; EVERY role locks after 3 tries since 25 Aug 2026 (reversing the 9 Aug admin exemption, because `/recover` now exists); the per-caller 20-per-15-min throttle that catches PIN guesses the account lock never sees; uniform errors; bootstrap gap; read the row first.
 - [owner-access-sign-in](owner-access-sign-in.md) — `POST /staff/login-access`; `canSignInAsOwner` fails CLOSED and must NEVER be replaced by `isSuperAdmin`; prod dependency on `SUPER_ADMIN_EMAILS`.
 - [owner-lockout-incident](owner-lockout-incident.md) — 9 Aug 2026: the three structural bugs, the real root cause (stored hash matched nothing), and the read-the-row-first lesson.
 - [dead-session-silent-access](dead-session-silent-access.md) — 24 Aug 2026: a cookie outliving its session drew the whole back office for nobody, with no redirect and no message; `mustSignIn` + `x-kira-path` make the layout's answer the one that decides, and `?next=` is finally honoured (and sanitised).

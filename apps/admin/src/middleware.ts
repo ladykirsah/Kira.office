@@ -42,8 +42,16 @@ export function middleware(request: NextRequest): NextResponse {
 export const config = {
   /**
    * Everything except: the login page and its route handlers (unreachable when signed out would be
-   * a deadlock), Next's own assets, and /img proxying — product images are public by design and
-   * gating them would break the storefront's <img> tags.
+   * a deadlock), the owner's rescue page (same reason, and it is the ONLY way back when both the
+   * PIN and the password are gone — see `isRecoverPath` in lib/signedInGate.ts), Next's own assets,
+   * and /img proxying — product images are public by design and gating them would break the
+   * storefront's <img> tags.
+   *
+   * These are PREFIX exclusions, so `/recovery-anything` escapes this pass too. That is not a hole:
+   * the layout's `mustSignIn` matches exactly, so such a page is still sent to the sign-in form,
+   * and the API refuses its data either way.
    */
-  matcher: ["/((?!login|api/staff/login|api/staff/logout|api/worker/img|_next|favicon|icon).*)"],
+  matcher: [
+    "/((?!login|recover|api/staff/login|api/staff/logout|api/worker/img|_next|favicon|icon).*)",
+  ],
 };

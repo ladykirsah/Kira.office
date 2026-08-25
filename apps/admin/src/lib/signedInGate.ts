@@ -27,6 +27,24 @@ function isLoginPath(path: string): boolean {
 }
 
 /**
+ * The owner's rescue door — the one page whose entire purpose is to be reachable when the login
+ * form is not.
+ *
+ * Forgetting both the PIN and the password used to be survivable because Cloudflare Access stood in
+ * front of the whole admin and had already proved who the visitor was, by a code to their mailbox,
+ * before the login page was even reachable. Since 2026-08-25 the everyday door is the Kira.office
+ * form, and Access is being narrowed to cover this address alone. Sending a signed-out visitor from
+ * here to `/login` would send them to the exact form they cannot get past.
+ *
+ * Matched the same careful way as the login page — exact, or a sub-path under a trailing slash.
+ * `/recovery-report` is not the rescue page, and a bare `startsWith` would have opened it.
+ */
+function isRecoverPath(path: string): boolean {
+  const bare = path.split("?")[0]!;
+  return bare === "/recover" || bare.startsWith("/recover/");
+}
+
+/**
  * Must this request be sent to the sign-in page?
  *
  * `path` is null when the middleware did not handle the request — assets, and the login route
@@ -36,7 +54,7 @@ function isLoginPath(path: string): boolean {
 export function mustSignIn(path: string | null, signedIn: boolean): boolean {
   if (signedIn) return false;
   if (path === null) return false;
-  return !isLoginPath(path);
+  return !isLoginPath(path) && !isRecoverPath(path);
 }
 
 /**

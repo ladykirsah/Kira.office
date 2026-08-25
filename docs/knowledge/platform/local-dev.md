@@ -13,7 +13,15 @@ sources: ["kira-office-local-preview-recipe.md", "kira-dashboard-notifications-p
 ## The admin + API recipe (fully self-contained, no Cloudflare Access, no prod)
 
 1. `npm ci` at repo root.
-2. Root `.dev.vars` with `ACCESS_TEAM_DOMAIN=""` and `ACCESS_AUD=""` (blank → `requireAccess` **fails open**, so the local API needs no JWT — see [auth](../auth/index.md) for why that fail-open exists) + a dummy `AUTH_SECRET`.
+2. Root `.dev.vars` with `ACCESS_TEAM_DOMAIN=""` and `ACCESS_AUD=""` (blank, so no Cloudflare Access
+   JWT is needed) **plus `PRACTICE_COPY="1"`** and a dummy `AUTH_SECRET`. The blank Access variables
+   used to be the whole story, because `requireAccess` failed open; since 25 Aug 2026 the gate is
+   the staff session and it fails CLOSED, so a local API answers **401 to everything** until you
+   sign in. `PRACTICE_COPY="1"` is what makes that possible on an empty database — it enables the
+   one-click, credential-free `POST /staff/login-practice`, which needs BOTH that explicit `"1"` and
+   Access being unconfigured, and which every deployed environment refuses by shipping `"0"`. See
+   [practice-copy-sign-in](../auth/practice-copy-sign-in.md) and
+   [require-access-fail-open](../auth/require-access-fail-open.md).
 3. `apps/admin/.env.local` → `NEXT_PUBLIC_API_BASE=http://localhost:8788` (Next auto-loads it).
 4. `npx wrangler d1 migrations apply kira-office --local` (migrations in `packages/db/migrations`).
 5. Start via `.claude/launch.json`: `api` (wrangler dev, :8788), `admin` (:3010, autoPort), `storefront` (:3002).

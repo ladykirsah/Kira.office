@@ -59,6 +59,9 @@ export async function POST(request: Request): Promise<Response> {
    * Forwarded, never minted here: this route only relays what Cloudflare already signed, and the API
    * verifies it against Cloudflare's keys before believing a word of it.
    */
+  // Stamped by Cloudflare on the browser's request to THIS origin, and forwarded below.
+  const clientIp = request.headers.get("cf-connecting-ip") ?? "";
+
   const accessJwt =
     request.headers.get("Cf-Access-Jwt-Assertion") ??
     /(?:^|;\s*)CF_Authorization=([^;]+)/.exec(request.headers.get("cookie") ?? "")?.[1] ??
@@ -71,6 +74,20 @@ export async function POST(request: Request): Promise<Response> {
       headers: {
         "content-type": "application/json",
         ...(accessJwt ? { "Cf-Access-Jwt-Assertion": accessJwt } : {}),
+        /**
+         * Who is actually signing in, carried across the server-to-server hop.
+         *
+         * The API throttles failed sign-ins per caller (see apps/api/src/loginThrottle.ts), and a
+         * subrequest need not carry the edge's `cf-connecting-ip` — so without this the API would
+         * be counting the admin WORKER, and every member of staff would share one bucket. Twenty
+         * fumbles between them, or one attacker aiming at this proxy, would then shut the whole
+         * shop out of its own tills.
+         *
+         * Safe to forward because the API prefers `cf-connecting-ip` whenever it has one, and only
+         * falls back to this. A request off the internet always has the edge's header, so nobody
+         * can pick their own bucket by setting this.
+         */
+        ...(clientIp ? { "x-kira-client-ip": clientIp } : {}),
       },
       body: JSON.stringify(payload),
     });

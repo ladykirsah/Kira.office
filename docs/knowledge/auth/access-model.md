@@ -1,18 +1,34 @@
 ---
 type: infrastructure
-title: Cloudflare Access model — one app on the admin host, JWT verified by the API
-description: How admin auth works end to end; why the API hostname must never be edge-gated
+title: Cloudflare Access model — one app on the admin host; the API's gate is the staff session
+description: How admin auth works end to end since the staff session replaced the Access JWT as the API's gate; why the API hostname must never be edge-gated
 tags: [cloudflare-access, jwt, admin, api, zero-trust]
-timestamp: 2026-08-09
+timestamp: 2026-08-25
 status: live
-sources: [kira-office-access-login-setup.md, kira-office-api-is-unauthenticated.md, docs/KIRA_OFFICE_ACCESS_SETUP.md]
+sources: [kira-office-access-login-setup.md, kira-office-api-is-unauthenticated.md, docs/KIRA_OFFICE_ACCESS_SETUP.md, apps/api/src/index.ts, session 2026-08-25]
 ---
 
 # Cloudflare Access model
 
 ## What it is
 
-There is exactly **ONE Cloudflare Access application**, and it sits on the **admin hostname**. The admin's `/api/*` worker proxy forwards the `Cf-Access-Jwt-Assertion` header, and the **API worker verifies that JWT itself** via `requireAccess()` (`apps/api/src/index.ts`), checking it against `ACCESS_AUD` — which is the *admin* app's Application Audience tag. Identity therefore flows: visitor → email OTP at the Access edge → JWT → admin proxy → API `verifyAccessJwt`.
+There is exactly **ONE Cloudflare Access application**, and it sits on the **admin hostname**.
+
+**Since 25 Aug 2026 it is no longer what the API checks.** The gate on every non-public API route is
+`requireStaff` — a live Kira.office staff session (PIN or password), which fails CLOSED. Access
+still stands at the admin's edge as an outer door, but nothing in the API depends on it being
+configured, which is the precondition for taking that door off at all
+([require-access-fail-open](require-access-fail-open.md) for what changed and why).
+
+Identity now flows: visitor → (Access email OTP, while the door is still up) → Kira.office PIN or
+password → `staff_sessions` row → `X-Staff-Session` header on every admin→API call → `requireStaff`.
+The admin's `apiFetch` and `/api/worker` proxy already forwarded that header on both the browser and
+server-rendered paths, so no plumbing changed.
+
+The **old** model, for reading older code and commits: the admin proxy forwarded
+`Cf-Access-Jwt-Assertion`, and the API verified that JWT via `requireAccess()` against `ACCESS_AUD`
+— the *admin* app's Application Audience tag. That path survives in exactly one place,
+`POST /staff/login-access`, the owner's recovery door ([owner-access-sign-in](owner-access-sign-in.md)).
 
 ## Why the API host is NEVER edge-gated
 
@@ -21,7 +37,10 @@ Do **not** put an edge Access app on the API hostname. Two things break:
 1. **Storefront product photos die.** `/img/*` on the API host serves public images to storefront `<img>` tags. Edge Access would 403 them *before* the worker's `isPublic` check ever runs.
 2. **The admin proxy's server-side fetches break** — server-to-server calls do not carry the visitor's Access cookie.
 
-The API instead gates in code: `isPublic` routes (`/health`, `/img/*`) pass, everything else requires the forwarded JWT. See [require-access-fail-open](require-access-fail-open.md) for the load-bearing caveat.
+The API instead gates in code: `isPublic` routes (`/health`, `/`, `/img/*`) and the four
+`/staff/login*` endpoints pass, everything else requires a live staff session. Both reasons above
+still hold, and a third has been added: the storefront reads D1 and R2 through its own bindings and
+touches the API only for `/img/*`, so it holds no session and must never need one.
 
 ## Configuration identifiers (not credentials)
 
