@@ -1,6 +1,7 @@
 import { fetchOrders } from "@/lib/api";
 import { PageHeader } from "../PageHeader";
 import { OrdersTable } from "./OrdersTable";
+import { serverT } from "@/lib/serverLang";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function OrdersPage({
   // frame; read it on the server and pass it down, so OrdersTable never needs useSearchParams.
   searchParams: Promise<{ card?: string }>;
 }) {
+  const t = await serverT();
   const { card } = await searchParams;
 
   let orders;
@@ -19,8 +21,10 @@ export default async function OrdersPage({
   } catch (err) {
     return (
       <main>
-        <h1>Orders</h1>
-        <p style={{ color: "var(--danger)" }}>Could not load orders: {(err as Error).message}</p>
+        <h1>{t({ th: "ออเดอร์", en: "Orders" })}</h1>
+        <p style={{ color: "var(--danger)" }}>
+          {t({ th: "โหลดออเดอร์ไม่สำเร็จ", en: "Could not load orders" })}: {(err as Error).message}
+        </p>
       </main>
     );
   }
@@ -29,7 +33,10 @@ export default async function OrdersPage({
 
   return (
     <main>
-      <PageHeader title={`Orders (${airplusCount})`} subtitle="AirPlus order management" />
+      <PageHeader
+        title={`${t({ th: "ออเดอร์", en: "Orders" })} (${airplusCount})`}
+        subtitle={t({ th: "จัดการออเดอร์ AirPlus", en: "AirPlus order management" })}
+      />
       <OrdersTable orders={orders} initialCardKey={card ?? null} />
     </main>
   );

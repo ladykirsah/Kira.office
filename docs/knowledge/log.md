@@ -198,3 +198,20 @@ sources: [session 2026-08-09]
   mismatch, and an empty second box gets its own message rather than being called a mismatch. The
   owner resetting somebody else's still sees one box — a generated value is on screen to be read.
   See [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-25** — **Deleting an advance from a paid month is refused.** `recordAdvance` had always
+  returned 409 for an already-paid month; `deleteAdvance` had not. The payslip freezes
+  `advance_satang` at payment, so removing a row afterwards left the frozen figure and the surviving
+  rows disagreeing — the failing test measured the rows summing to ฿0 against a payslip still
+  reporting ฿2,000. Both calls now make the same check. See
+  [back-office/staff-days-off](back-office/staff-days-off.md).
+
+- **2026-08-25** — **The back office speaks Thai and English.** A flag beside the moon, a `kira-lang`
+  cookie the server reads, and `{ th, en }` written at the point of use rather than keys in a
+  dictionary. Thai is the default. Done: the frame, dashboard, orders list, order detail, products
+  and the product forms; the order statuses needed no translating because the owner's Thai was
+  already sitting in `operationalStatus.ts` waiting for exactly this. Screen-by-screen review by eye
+  kept missing strings, so `lib/untranslated.ts` now finds them by reading source — its first run
+  reported 896 across 81 files, 24 of them in screens already called finished — and
+  `untranslated.test.ts` fails if a cleared folder regains any. Roughly 790 strings remain, all
+  outside the cleared screens. See [conventions/bilingual-admin](conventions/bilingual-admin.md).

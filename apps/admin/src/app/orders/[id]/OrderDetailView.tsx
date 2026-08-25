@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Phrase } from "@/lib/lang";
 import {
   isClaimState,
   isTerminalClaimState,
@@ -27,6 +28,7 @@ import { inputS } from "@/lib/inputStyles";
 import { PageHeader } from "../../PageHeader";
 import { BackLink } from "../../BackLink";
 import { card, sectionTitle } from "./cardStyles";
+import { useT } from "../../LangProvider";
 
 function dt(ms: number | null): string {
   if (!ms) return "—";
@@ -134,9 +136,10 @@ function Row({
  * charged more than the carrier billed, which is a real gain and is not clamped away upstream.
  * "On us −฿20" would read as nonsense, so the sign picks the label instead of the value.
  */
-function shortfallLabel(shortfallSatang: number | null): string {
-  if (shortfallSatang != null && shortfallSatang < 0) return "Shipping gain";
-  return "Shipping on us";
+function shortfallLabel(shortfallSatang: number | null): Phrase {
+  if (shortfallSatang != null && shortfallSatang < 0)
+    return { th: "ได้กำไรค่าส่ง", en: "Shipping gain" };
+  return { th: "ร้านออกค่าส่งให้", en: "Shipping on us" };
 }
 
 function shortfallValue(shortfallSatang: number | null): string {
@@ -187,7 +190,9 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
     viewerRole,
     mechanics,
   } = detail;
-  const status = operationalStatusBadge(order.orderStatus, order.paymentStatus);
+  const t = useT();
+  const rawStatus = operationalStatusBadge(order.orderStatus, order.paymentStatus);
+  const status = { pill: rawStatus.pill, label: t(rawStatus.label) };
   // "Verifying" is Zone A too: a slip is waiting on a confirm/reject decision.
   const isVerifying = operationalStatus(order.orderStatus, order.paymentStatus) === "verifying";
   // "COD pending" is Zone A: a watch-tier COD order awaits the staff approve/deny decision.
@@ -215,7 +220,9 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
   // Payment method, derived (no separate column): COD orders collect on delivery, everything else is
   // a bank transfer / PromptPay slip.
   const isCod = ["cod", "cod_confirmed", "cod_collected"].includes(order.paymentStatus ?? "");
-  const paymentMethod = isCod ? "เก็บเงินปลายทาง" : "โอนเงิน / สลิป";
+  const paymentMethod = isCod
+    ? t({ th: "เก็บเงินปลายทาง", en: "Cash on delivery" })
+    : t({ th: "โอนเงิน / สลิป", en: "Transfer / slip" });
 
   /**
    * The timeline as a progress stepper (owner, 31 Jul): oldest → newest, dated from history, with the
@@ -259,11 +266,12 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         title={order.externalOrderId}
         subtitle={
           <>
-            สั่งซื้อเมื่อ {dt(order.orderCreatedAt ?? order.importedAt)} ·{" "}
+            {t({ th: "สั่งซื้อเมื่อ", en: "Ordered" })}{" "}
+            {dt(order.orderCreatedAt ?? order.importedAt)} ·{" "}
             <span className={`pill ${status.pill}`}>{status.label}</span>
           </>
         }
-        below={<BackLink href="/orders">All orders</BackLink>}
+        below={<BackLink href="/orders">{t({ th: "ออเดอร์ทั้งหมด", en: "All orders" })}</BackLink>}
       />
 
       {err && (
@@ -341,7 +349,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
           {/* Customer — the block that replaces Shopee's buyer card. Tier and credit are here
               because they are what decide whether this customer gets COD at all. */}
           <div style={card}>
-            <div style={sectionTitle}>Customer</div>
+            <div style={sectionTitle}>{t({ th: "ลูกค้า", en: "Customer" })}</div>
             {customer ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -354,7 +362,8 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                     </span>
                   )}
                   <span style={tableText.subtitle}>
-                    สำเร็จ {customer.completeCount} · ไม่สำเร็จ {customer.incompleteCount}
+                    {t({ th: "สำเร็จ", en: "Complete" })} {customer.completeCount} ·{" "}
+                    {t({ th: "ไม่สำเร็จ", en: "Incomplete" })} {customer.incompleteCount}
                   </span>
                 </div>
                 <div style={{ ...tableText.body2, marginTop: 4 }}>
@@ -371,7 +380,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
           {/* Shipping — three sections 16px apart: address, payment method, carrier. The label
               buttons used to live here; they moved to Documents, which carries them at every stage. */}
           <div style={card}>
-            <div style={sectionTitle}>Shipping</div>
+            <div style={sectionTitle}>{t({ th: "การจัดส่ง", en: "Shipping" })}</div>
             {address ? (
               <div style={tableText.body2}>
                 <div style={{ fontWeight: 600 }}>
@@ -390,21 +399,25 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                 </div>
               </div>
             ) : (
-              <div style={tableText.subtitle}>No address on this order</div>
+              <div style={tableText.subtitle}>
+                {t({ th: "ออเดอร์นี้ไม่มีที่อยู่", en: "No address on this order" })}
+              </div>
             )}
 
             <div style={{ marginTop: 16 }}>
-              <div style={tableText.subtitle}>Payment method</div>
+              <div style={tableText.subtitle}>
+                {t({ th: "วิธีชำระเงิน", en: "Payment method" })}
+              </div>
               <div style={tableText.body2}>{paymentMethod}</div>
             </div>
 
             <div style={{ marginTop: 16, display: "flex", gap: 24, flexWrap: "wrap" }}>
               <div>
-                <div style={tableText.subtitle}>Carrier</div>
+                <div style={tableText.subtitle}>{t({ th: "ขนส่ง", en: "Carrier" })}</div>
                 <div style={tableText.body2}>{order.carrier ?? "—"}</div>
               </div>
               <div>
-                <div style={tableText.subtitle}>Tracking no.</div>
+                <div style={tableText.subtitle}>{t({ th: "เลขพัสดุ", en: "Tracking no." })}</div>
                 {order.trackingNo ? (
                   <div
                     style={{ ...tableText.body2, display: "flex", alignItems: "center", gap: 4 }}
@@ -417,14 +430,14 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                 )}
               </div>
               <div>
-                <div style={tableText.subtitle}>Shipped</div>
+                <div style={tableText.subtitle}>{t({ th: "ส่งเมื่อ", en: "Shipped" })}</div>
                 <div style={tableText.body2}>{dt(order.shipTimeMs)}</div>
               </div>
               {/* What the carrier actually billed, on the record itself — the card that answers
                   "what happened to this parcel" should not make you scroll to the money block for
                   the last figure of the four. */}
               <div>
-                <div style={tableText.subtitle}>Real charge</div>
+                <div style={tableText.subtitle}>{t({ th: "ค่าส่งจริง", en: "Real charge" })}</div>
                 <div style={tableText.body2}>
                   {order.shippingRealSatang == null
                     ? "—"
@@ -436,15 +449,15 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
 
           {/* Items */}
           <div style={card}>
-            <div style={sectionTitle}>Items</div>
+            <div style={sectionTitle}>{t({ th: "รายการสินค้า", en: "Items" })}</div>
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead>
                   <tr>
-                    <th>Product</th>
-                    <th>Unit</th>
-                    <th>Qty</th>
-                    <th>Total</th>
+                    <th>{t({ th: "สินค้า", en: "Product" })}</th>
+                    <th>{t({ th: "ราคา/ชิ้น", en: "Unit" })}</th>
+                    <th>{t({ th: "จำนวน", en: "Qty" })}</th>
+                    <th>{t({ th: "รวม", en: "Total" })}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -482,26 +495,36 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             }}
           >
             <div style={card}>
-              <div style={sectionTitle}>Customer paid</div>
-              <Row label="Subtotal" value={formatBahtTrim(order.subtotalSatang)} />
+              <div style={sectionTitle}>{t({ th: "ลูกค้าจ่าย", en: "Customer paid" })}</div>
+              <Row
+                label={t({ th: "ยอดสินค้า", en: "Subtotal" })}
+                value={formatBahtTrim(order.subtotalSatang)}
+              />
               {order.discountTotalSatang > 0 && (
                 <Row
-                  label="Coupon discount"
+                  label={t({ th: "ส่วนลดคูปอง", en: "Coupon discount" })}
                   value={`− ${formatBahtTrim(order.discountTotalSatang)}`}
                 />
               )}
-              <Row label="Shipping" value={`+ ${formatBahtTrim(order.shippingFeeSatang)}`} />
+              <Row
+                label={t({ th: "ค่าจัดส่ง", en: "Shipping" })}
+                value={`+ ${formatBahtTrim(order.shippingFeeSatang)}`}
+              />
               <div style={totalRule} />
-              <Row label="Total Amount" value={formatBahtTrim(money.customerPaidSatang)} strong />
+              <Row
+                label={t({ th: "ยอดรวมทั้งสิ้น", en: "Total Amount" })}
+                value={formatBahtTrim(money.customerPaidSatang)}
+                strong
+              />
             </div>
 
             {/* Shipping money — the owner's four figures (auto cal / offered / charged / on us) plus
                 the real charge, without which "On us" is a number with no arithmetic behind it. Sits
                 beside "Customer paid" — the two money-in panels share the top row. */}
             <div style={card}>
-              <div style={sectionTitle}>Shipping fee</div>
+              <div style={sectionTitle}>{t({ th: "ค่าจัดส่ง", en: "Shipping fee" })}</div>
               <Row
-                label="Auto calculated"
+                label={t({ th: "คำนวณอัตโนมัติ", en: "Auto calculated" })}
                 value={formatBahtTrim(order.shippingAutoSatang)}
                 hint="from linked system with Flash express"
                 muted
@@ -510,14 +533,17 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                   is why there is no separate flag to disagree with. */}
               {order.shippingOfferSatang != null && (
                 <Row
-                  label="Offered to customer"
+                  label={t({ th: "เสนอลูกค้า", en: "Offered to customer" })}
                   value={formatBahtTrim(order.shippingOfferSatang)}
                   hint="shared-fee order"
                 />
               )}
-              <Row label="Charged to customer" value={formatBahtTrim(order.shippingFeeSatang)} />
               <Row
-                label="Real charge"
+                label={t({ th: "เก็บจากลูกค้า", en: "Charged to customer" })}
+                value={formatBahtTrim(order.shippingFeeSatang)}
+              />
+              <Row
+                label={t({ th: "ค่าส่งจริง", en: "Real charge" })}
                 value={
                   order.shippingRealSatang == null ? "—" : formatBahtTrim(order.shippingRealSatang)
                 }
@@ -529,7 +555,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
               />
               <div style={totalRule} />
               <Row
-                label={shortfallLabel(money.shippingShortfallSatang)}
+                label={t(shortfallLabel(money.shippingShortfallSatang))}
                 value={shortfallValue(money.shippingShortfallSatang)}
                 strong
               />
@@ -544,17 +570,21 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
           {/* Financial summary — full width below the top row; its goods → cost → shipping shortfall →
               profit statement runs longer than a single column, so it gets the whole width. */}
           <div style={card}>
-            <div style={sectionTitle}>Financial summary</div>
+            <div style={sectionTitle}>{t({ th: "สรุปการเงิน", en: "Financial summary" })}</div>
             <Row
-              label="Subtotal after discount"
+              label={t({ th: "ยอดหลังหักส่วนลด", en: "Subtotal after discount" })}
               value={formatBahtTrim(money.goodsAfterDiscountSatang)}
             />
-            <Row label="Item(s) cost" value={`− ${formatBahtTrim(money.itemCostSatang)}`} muted />
+            <Row
+              label={t({ th: "ต้นทุนสินค้า", en: "Item(s) cost" })}
+              value={`− ${formatBahtTrim(money.itemCostSatang)}`}
+              muted
+            />
             {/* The shortfall, NOT the full carrier charge: this panel starts from goods after
                 discount, which excludes the fee the customer paid. Deducting the whole ฿90 here
                 would drop their contribution and read profit low by exactly that fee. */}
             <Row
-              label={shortfallLabel(money.shippingShortfallSatang)}
+              label={t(shortfallLabel(money.shippingShortfallSatang))}
               value={shortfallValue(money.shippingShortfallSatang)}
               hint={
                 money.shippingShortfallSatang == null
@@ -565,7 +595,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
             />
             <div style={totalRule} />
             <Row
-              label="Profit"
+              label={t({ th: "กำไร", en: "Profit" })}
               value={money.profitSatang == null ? "—" : formatBahtTrim(money.profitSatang)}
               hint={marginHint(money.profitSatang, money.goodsAfterDiscountSatang)}
               strong
@@ -587,12 +617,12 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         {/* ── right rail: note + timeline ──────────────────────────────────────────── */}
         <div>
           <div style={card}>
-            <div style={sectionTitle}>Note</div>
+            <div style={sectionTitle}>{t({ th: "บันทึก", en: "Note" })}</div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
-              placeholder="บันทึกภายใน…"
+              placeholder={t({ th: "บันทึกภายใน…", en: "Internal note…" })}
               style={{ width: "100%", ...inputS, minHeight: 68 }}
             />
             <button
@@ -619,7 +649,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
 
           {/* Progress stepper: oldest → newest, dot on the current status (owner, 31 Jul). */}
           <div style={card}>
-            <div style={sectionTitle}>Timeline</div>
+            <div style={sectionTitle}>{t({ th: "ไทม์ไลน์", en: "Timeline" })}</div>
             {stages.map((s, i) => (
               <StepRow key={s.key} stage={s} last={i === stages.length - 1} />
             ))}
@@ -669,6 +699,7 @@ function ClaimsSection({
   order: OrderDetail["order"];
   viewerIsSuperAdmin: boolean;
 }) {
+  const t = useT();
   if (claims.length === 0) return null;
 
   const nameFor = (c: OrderDetail["claims"][number]) =>
@@ -683,7 +714,7 @@ function ClaimsSection({
 
   return (
     <div style={card}>
-      <div style={sectionTitle}>สรุปการเคลม</div>
+      <div style={sectionTitle}>{t({ th: "สรุปการเคลม", en: "Claim summary" })}</div>
       {claims.map((c, i) => {
         const state = isClaimState(c.state) ? c.state : null;
         const isRefund = c.resolution === "refund";
@@ -713,47 +744,67 @@ function ClaimsSection({
 
             <div style={{ fontSize: 14, lineHeight: 1.9 }}>
               <div>
-                <span style={tableText.subtitle}>สินค้า</span> · {nameFor(c) || "—"}
+                <span style={tableText.subtitle}>{t({ th: "สินค้า", en: "Product" })}</span> ·{" "}
+                {nameFor(c) || "—"}
               </div>
               {/* What the customer asked for, and the detail they submitted for it — kept even on a
                   rejected claim so the whole request is on record. */}
               {c.resolution && (
                 <>
                   <div>
-                    <span style={tableText.subtitle}>ลูกค้าเลือก</span> ·{" "}
-                    {isRefund ? "รับเงินคืน" : "เปลี่ยนสินค้าใหม่"}
+                    <span style={tableText.subtitle}>
+                      {t({ th: "ลูกค้าเลือก", en: "Customer chose" })}
+                    </span>{" "}
+                    ·{" "}
+                    {isRefund
+                      ? t({ th: "รับเงินคืน", en: "a refund" })
+                      : t({ th: "เปลี่ยนสินค้าใหม่", en: "a replacement" })}
                   </div>
                   {isRefund ? (
                     <div>
-                      <span style={tableText.subtitle}>บัญชีรับเงินคืน</span> ·{" "}
+                      <span style={tableText.subtitle}>
+                        {t({ th: "บัญชีรับเงินคืน", en: "Refund account" })}
+                      </span>{" "}
+                      ·{" "}
                       {!viewerIsSuperAdmin
-                        ? "เฉพาะผู้ดูแลระดับสูง"
+                        ? t({ th: "เฉพาะผู้ดูแลระดับสูง", en: "Super admin only" })
                         : order.refundAccountNo
                           ? `${order.refundBankName} · ${order.refundAccountNo} · ${order.refundAccountName}`
                           : "—"}
                     </div>
                   ) : (
                     <div>
-                      <span style={tableText.subtitle}>ที่อยู่จัดส่ง</span> · {claimAddress(shipTo)}
+                      <span style={tableText.subtitle}>
+                        {t({ th: "ที่อยู่จัดส่ง", en: "Shipping address" })}
+                      </span>{" "}
+                      · {claimAddress(shipTo)}
                     </div>
                   )}
                 </>
               )}
               {c.reasonNote && (
                 <div>
-                  <span style={tableText.subtitle}>เหตุผลลูกค้า</span> · {c.reasonNote}
+                  <span style={tableText.subtitle}>
+                    {t({ th: "เหตุผลลูกค้า", en: "Customer's reason" })}
+                  </span>{" "}
+                  · {c.reasonNote}
                 </div>
               )}
               {/* The mechanic on the case — shown for an approved claim AND a rejected one. */}
               {(c.assigneeName || c.mechanicName) && (
                 <div>
-                  <span style={tableText.subtitle}>ช่างผู้รับผิดชอบ</span> ·{" "}
-                  {c.assigneeName || c.mechanicName}
+                  <span style={tableText.subtitle}>
+                    {t({ th: "ช่างผู้รับผิดชอบ", en: "Mechanic in charge" })}
+                  </span>{" "}
+                  · {c.assigneeName || c.mechanicName}
                 </div>
               )}
               {isReturn && c.adminNote && (
                 <div>
-                  <span style={tableText.subtitle}>เหตุผลปฏิเสธ</span> · {c.adminNote}
+                  <span style={tableText.subtitle}>
+                    {t({ th: "เหตุผลปฏิเสธ", en: "Reason for rejecting" })}
+                  </span>{" "}
+                  · {c.adminNote}
                 </div>
               )}
             </div>
@@ -778,7 +829,7 @@ function ClaimsSection({
                     <a key={k} href={privateFileUrl(k)} target="_blank" rel="noreferrer">
                       <img
                         src={privateFileUrl(k)}
-                        alt="หลักฐานการเคลม"
+                        alt={t({ th: "หลักฐานการเคลม", en: "Claim evidence" })}
                         style={{
                           width: 72,
                           height: 72,
@@ -798,7 +849,7 @@ function ClaimsSection({
               {isRefund ? (
                 <>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>
-                    คืนเงินแล้ว{" "}
+                    {t({ th: "คืนเงินแล้ว", en: "Refunded" })}{" "}
                     {order.refundSatang != null ? formatBahtTrim(order.refundSatang) : ""}
                   </div>
                   <div style={tableText.subtitle}>
@@ -808,7 +859,7 @@ function ClaimsSection({
                   {viewerIsSuperAdmin && order.refundSlipImageKey && (
                     <img
                       src={privateFileUrl(order.refundSlipImageKey)}
-                      alt="สลิปการคืนเงิน"
+                      alt={t({ th: "สลิปการคืนเงิน", en: "Refund slip" })}
                       style={{
                         marginTop: 8,
                         maxWidth: 220,
@@ -822,17 +873,21 @@ function ClaimsSection({
               ) : c.trackingNo ? (
                 <>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>
-                    {isReturn ? "ส่งสินค้าคืนลูกค้าแล้ว" : "จัดส่งสินค้าใหม่แล้ว"}
+                    {isReturn
+                      ? t({ th: "ส่งสินค้าคืนลูกค้าแล้ว", en: "Returned to the customer" })
+                      : t({ th: "จัดส่งสินค้าใหม่แล้ว", en: "Replacement sent" })}
                   </div>
                   <div style={tableText.subtitle}>
                     {[c.carrier, c.trackingNo].filter(Boolean).join(" · ")}
                     {c.shippingFeeSatang != null
-                      ? ` · ค่าจัดส่ง ${formatBahtTrim(c.shippingFeeSatang)}`
+                      ? ` · ${t({ th: "ค่าจัดส่ง", en: "shipping" })} ${formatBahtTrim(c.shippingFeeSatang)}`
                       : ""}
                   </div>
                 </>
               ) : (
-                <div style={tableText.subtitle}>ปิดการเคลมแล้ว</div>
+                <div style={tableText.subtitle}>
+                  {t({ th: "ปิดการเคลมแล้ว", en: "Claim closed" })}
+                </div>
               )}
             </div>
           </div>

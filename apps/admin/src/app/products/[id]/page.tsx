@@ -11,6 +11,7 @@ import { ProductView } from "../ProductView";
 import { canWrite } from "@l-shopee/core";
 import { useStaffRole } from "../../StaffRoleProvider";
 import { DeleteProductCard } from "../DeleteProductCard";
+import { useT } from "../../LangProvider";
 
 /**
  * Read-only product detail. The products table and the "View product" scan mode land here; the
@@ -18,6 +19,7 @@ import { DeleteProductCard } from "../DeleteProductCard";
  * button through to `/products/[id]/edit`.
  */
 export default function ProductViewPage() {
+  const t = useT();
   const id = useParams().id as string;
   const role = useStaffRole();
   // A mechanic reads product details and edits nothing (owner, 2026-08-24).
@@ -47,7 +49,7 @@ export default function ProductViewPage() {
   if (loading)
     return (
       <main>
-        <h1>Product</h1>
+        <h1>{t({ th: "สินค้า", en: "Product" })}</h1>
         <div className="skeleton skeleton-row" style={{ width: "50%" }} />
         <div className="skeleton skeleton-row" style={{ width: "90%" }} />
         <div className="skeleton skeleton-row" style={{ width: "70%" }} />
@@ -57,10 +59,10 @@ export default function ProductViewPage() {
   if (!detail)
     return (
       <main>
-        <h1>Product</h1>
-        <p className="muted">Not found.</p>
+        <h1>{t({ th: "สินค้า", en: "Product" })}</h1>
+        <p className="muted">{t({ th: "ไม่พบสินค้า", en: "Not found." })}</p>
         <p>
-          <BackLink href="/products">Products</BackLink>
+          <BackLink href="/products">{t({ th: "สินค้า", en: "Products" })}</BackLink>
         </p>
       </main>
     );
@@ -71,13 +73,17 @@ export default function ProductViewPage() {
     <main>
       <PageHeader
         title={p.name}
-        subtitle={p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
-        below={<BackLink href="/products">Products</BackLink>}
+        subtitle={
+          p.updatedAt
+            ? `${t({ th: "แก้ไขล่าสุด", en: "Last updated date" })}: ${formatUpdatedAt(p.updatedAt)}`
+            : p.productRef
+        }
+        below={<BackLink href="/products">{t({ th: "สินค้า", en: "Products" })}</BackLink>}
         action={
           mayEdit ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
               <a className="btn-primary" href={`/products/${id}/edit?edit=1`}>
-                Edit
+                {t({ th: "แก้ไข", en: "Edit" })}
               </a>
             </div>
           ) : undefined

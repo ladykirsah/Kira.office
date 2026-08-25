@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
+import { useT } from "./LangProvider";
 
 /**
  * A centred overlay for a "View" popup. Closes on backdrop click, the ✕, or Escape.
@@ -19,6 +20,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -80,8 +82,8 @@ export function Modal({
             type="button"
             className="icon-btn"
             onClick={onClose}
-            aria-label="Close"
-            title="Close"
+            aria-label={t({ th: "ปิด", en: "Close" })}
+            title={t({ th: "ปิด", en: "Close" })}
           >
             <Icon name="close" />
           </button>

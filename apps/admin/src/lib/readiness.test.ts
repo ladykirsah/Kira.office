@@ -44,31 +44,37 @@ describe("readinessNote", () => {
 
   it("given a paused product with nothing missing > then ready to sell", () => {
     expect(readinessNote(row({ status: "paused" }))).toEqual({
-      text: "ready to sell",
+      text: { th: "พร้อมขาย", en: "ready to sell" },
       ready: true,
     });
   });
 
   it("given a draft with nothing missing > then ready to sell", () => {
-    expect(readinessNote(row({ status: "draft" }))).toEqual({ text: "ready to sell", ready: true });
+    expect(readinessNote(row({ status: "draft" }))).toEqual({
+      text: { th: "พร้อมขาย", en: "ready to sell" },
+      ready: true,
+    });
   });
 
   it("given a paused product with no photo > then says no photo", () => {
     expect(readinessNote(row({ status: "paused", imageKey: null }))).toEqual({
-      text: "no photo",
+      text: { th: "ไม่มีรูป", en: "no photo" },
       ready: false,
     });
   });
 
   it("given a LIVE product with no photo > then still says no photo", () => {
     // The owner asked for every tab: a product selling without a picture is worth flagging.
-    expect(readinessNote(row({ imageKey: null }))).toEqual({ text: "no photo", ready: false });
+    expect(readinessNote(row({ imageKey: null }))).toEqual({
+      text: { th: "ไม่มีรูป", en: "no photo" },
+      ready: false,
+    });
   });
 
   it("given a paused product with no stock > then says no stock", () => {
     // "Paused" says nothing about stock, so the line has to.
     expect(readinessNote(row({ status: "paused", onHand: 0 }))).toEqual({
-      text: "no stock",
+      text: { th: "ไม่มีสต็อก", en: "no stock" },
       ready: false,
     });
   });
@@ -83,7 +89,7 @@ describe("readinessNote", () => {
 
   it("given no online price > then says no price, live or not", () => {
     expect(readinessNote(row({ onlinePriceSatang: 0 }))).toEqual({
-      text: "no price",
+      text: { th: "ไม่มีราคา", en: "no price" },
       ready: false,
     });
   });
@@ -91,7 +97,10 @@ describe("readinessNote", () => {
   it("given several gaps > then lists them photo, price, stock in that order", () => {
     expect(
       readinessNote(row({ status: "paused", imageKey: null, onlinePriceSatang: 0, onHand: 0 })),
-    ).toEqual({ text: "no photo · no price · no stock", ready: false });
+    ).toEqual({
+      text: { th: "ไม่มีรูป · ไม่มีราคา · ไม่มีสต็อก", en: "no photo · no price · no stock" },
+      ready: false,
+    });
   });
 
   it("given the real Isuzu D-Max row > then no photo and no stock", () => {
@@ -100,13 +109,13 @@ describe("readinessNote", () => {
       readinessNote(
         row({ status: "paused", imageKey: null, onHand: 0, onlinePriceSatang: 249000 }),
       ),
-    ).toEqual({ text: "no photo · no stock", ready: false });
+    ).toEqual({ text: { th: "ไม่มีรูป · ไม่มีสต็อก", en: "no photo · no stock" }, ready: false });
   });
 
   it("given negative stock > then still counts as no stock", () => {
     // A ledger can go negative on a miscount; it is not "some stock".
     expect(readinessNote(row({ status: "paused", onHand: -2 }))).toEqual({
-      text: "no stock",
+      text: { th: "ไม่มีสต็อก", en: "no stock" },
       ready: false,
     });
   });

@@ -5,6 +5,7 @@ import { LEAVE_MODES, leaveModeLabel, type LeaveHalves } from "@l-shopee/core";
 import { thaiShortDate } from "@/lib/dayOff";
 import { inputS } from "@/lib/inputStyles";
 import { Icon } from "./Icon";
+import { useT } from "./LangProvider";
 
 /**
  * The day-off list, edited in place (owner, 5 Aug 2026).
@@ -78,6 +79,7 @@ export function DayOffTable({
 }) {
   // Only ever one row open: two would put two unsaved versions on screen with no way to tell which
   // one the reader should believe.
+  const t = useT();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<DayOffEdit>({ day: "", halves: 2, reason: "" });
 
@@ -93,10 +95,10 @@ export function DayOffTable({
       <table style={{ width: "100%" }}>
         <thead>
           <tr>
-            {showWho && <th>พนักงาน</th>}
-            <th>วันที่</th>
-            <th>ลาแบบ</th>
-            <th>เหตุผล</th>
+            {showWho && <th>{t({ th: "พนักงาน", en: "Who" })}</th>}
+            <th>{t({ th: "วันที่", en: "Date" })}</th>
+            <th>{t({ th: "ลาแบบ", en: "Type" })}</th>
+            <th>{t({ th: "เหตุผล", en: "Reason" })}</th>
             <th />
           </tr>
         </thead>
@@ -104,7 +106,7 @@ export function DayOffTable({
           {rows.length === 0 && (
             <tr>
               <td colSpan={cols} className="muted">
-                ยังไม่มีวันหยุดในเดือนนี้
+                {t({ th: "ยังไม่มีวันหยุดในเดือนนี้", en: "No days off this month." })}
               </td>
             </tr>
           )}
@@ -116,7 +118,7 @@ export function DayOffTable({
                 <td>
                   <input
                     type="date"
-                    aria-label="วันที่"
+                    aria-label={t({ th: "วันที่", en: "Date" })}
                     style={{ ...inputS, width: "100%" }}
                     value={draft.day}
                     onChange={(e) => setDraft({ ...draft, day: e.target.value })}
@@ -124,7 +126,7 @@ export function DayOffTable({
                 </td>
                 <td>
                   <select
-                    aria-label="ลาแบบ"
+                    aria-label={t({ th: "ลาแบบ", en: "Type" })}
                     style={{ ...inputS, width: "100%" }}
                     value={draft.halves}
                     onChange={(e) =>
@@ -140,8 +142,8 @@ export function DayOffTable({
                 </td>
                 <td>
                   <input
-                    aria-label="เหตุผล"
-                    placeholder="เหตุผล"
+                    aria-label={t({ th: "เหตุผล", en: "Reason" })}
+                    placeholder={t({ th: "เหตุผล", en: "Reason" })}
                     style={{ ...inputS, width: "100%" }}
                     value={draft.reason}
                     onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
@@ -158,10 +160,12 @@ export function DayOffTable({
                         setEditing(null);
                       }}
                     >
-                      {busy === row.id ? "กำลังบันทึก…" : "บันทึก"}
+                      {busy === row.id
+                        ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                        : t({ th: "บันทึก", en: "Save" })}
                     </button>
                     <button type="button" className="btn-sm" onClick={() => setEditing(null)}>
-                      ยกเลิก
+                      {t({ th: "ยกเลิก", en: "Cancel" })}
                     </button>
                   </div>
                 </td>
@@ -208,8 +212,11 @@ export function DayOffTable({
                     <button
                       type="button"
                       className="icon-btn"
-                      aria-label={`แก้ไขวันหยุด ${thaiShortDate(row.day)}`}
-                      title="แก้ไข"
+                      aria-label={t({
+                        th: `แก้ไขวันหยุด ${thaiShortDate(row.day)}`,
+                        en: `Edit the day off on ${thaiShortDate(row.day)}`,
+                      })}
+                      title={t({ th: "แก้ไข", en: "Edit" })}
                       onClick={() => open(row)}
                     >
                       <Icon name="edit" />
@@ -218,8 +225,11 @@ export function DayOffTable({
                       <button
                         type="button"
                         className="icon-btn"
-                        aria-label={`ลบวันหยุด ${thaiShortDate(row.day)}`}
-                        title="ลบ"
+                        aria-label={t({
+                          th: `ลบวันหยุด ${thaiShortDate(row.day)}`,
+                          en: `Delete the day off on ${thaiShortDate(row.day)}`,
+                        })}
+                        title={t({ th: "ลบ", en: "Delete" })}
                         disabled={busy === row.id}
                         onClick={() => onDelete(row)}
                       >

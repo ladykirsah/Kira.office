@@ -3,9 +3,11 @@
 import { useEffect, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import { chooseBarcodeFormat } from "@/lib/barcode";
+import { useT } from "../LangProvider";
 
 /** Live, scannable barcode rendered from a typed value. EAN-13 for 13 digits, else Code 128. */
 export function BarcodePreview({ value }: { value: string }) {
+  const t = useT();
   const ref = useRef<SVGSVGElement>(null);
   const format = chooseBarcodeFormat(value);
   const v = value.trim();
@@ -27,7 +29,11 @@ export function BarcodePreview({ value }: { value: string }) {
   }, [v, format]);
 
   if (!format) {
-    return <small className="muted">Enter a barcode to preview.</small>;
+    return (
+      <small className="muted">
+        {t({ th: "ใส่บาร์โค้ดเพื่อดูตัวอย่าง", en: "Enter a barcode to preview." })}
+      </small>
+    );
   }
 
   return (

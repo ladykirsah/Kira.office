@@ -9,6 +9,8 @@ import { currentStaff } from "@/lib/staffSession";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { mustSignIn, GATED_PATH_HEADER, EXPIRED_PARAM } from "@/lib/signedInGate";
+import { serverLang } from "@/lib/serverLang";
+import { LangProvider } from "./LangProvider";
 
 export const metadata = {
   title: "Kira.office — Admin",
@@ -22,6 +24,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Read once here rather than in every page: the top bar shows who is signed in on every screen,
   // which is what makes a shared counter tablet safe to use.
   const staff = await currentStaff();
+  // Read here, once, and handed down: every screen has to agree with the <html lang> above it, and
+  // a client component that guessed for itself would disagree with the server on first render.
+  const lang = await serverLang();
 
   // And it is the sign-in check, because it is the only place that has asked the API who the token
   // belongs to. The middleware can only see that a cookie exists; a cookie outliving its session
@@ -34,18 +39,20 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   }
 
   return (
-    <html lang="th" suppressHydrationWarning>
+    <html lang={lang} suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* Above everything, including /login, which renders outside AppShell. */}
         <PracticeCopyBanner />
-        <StaffRoleProvider role={staff?.role ?? null}>
-          <ToastProvider>
-            <AppShell role={staff?.role} identity={staff ? <StaffChip staff={staff} /> : null}>
-              {children}
-            </AppShell>
-          </ToastProvider>
-        </StaffRoleProvider>
+        <LangProvider lang={lang}>
+          <StaffRoleProvider role={staff?.role ?? null}>
+            <ToastProvider>
+              <AppShell role={staff?.role} identity={staff ? <StaffChip staff={staff} /> : null}>
+                {children}
+              </AppShell>
+            </ToastProvider>
+          </StaffRoleProvider>
+        </LangProvider>
       </body>
     </html>
   );

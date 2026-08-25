@@ -381,7 +381,7 @@ export function MyProfile({
           label="Password"
           value={profile.password}
           hasValue={profile.hasPassword === 1}
-          actionLabel="change"
+          actionLabel={{ th: "เปลี่ยน", en: "change" }}
           confirm
           onSave={async (next) => {
             // Checked HERE rather than by grey-ing out Save (owner, 2026-08-25): a dead button does
@@ -398,7 +398,7 @@ export function MyProfile({
           label="6-digit PIN"
           value={profile.pin}
           hasValue={profile.hasPin === 1}
-          actionLabel="change"
+          actionLabel={{ th: "เปลี่ยน", en: "change" }}
           confirm
           inputMode="numeric"
           maxLength={6}

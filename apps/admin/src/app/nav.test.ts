@@ -6,7 +6,7 @@ const allHrefs = NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href));
 
 describe("NAV_GROUPS", () => {
   it("groups every page by the job it does, in the owner's order (2026-08-03)", () => {
-    expect(NAV_GROUPS.map((g) => [g.section, g.links.map((l) => l.label)])).toEqual([
+    expect(NAV_GROUPS.map((g) => [g.section.en, g.links.map((l) => l.label.en)])).toEqual([
       ["Daily Uses", ["Scan here", "AirPlus Orders", "Point of Sale", "Payment", "Customers"]],
       ["Stock", ["Products", "Add product", "Barcodes", "Stock movements"]],
       ["AirPlus Marketing", ["Insight", "Affiliate Promote", "Banners", "Coupons", "Flash sales"]],
@@ -19,6 +19,24 @@ describe("NAV_GROUPS", () => {
 
   it("lists no page twice", () => {
     expect(new Set(allHrefs).size).toBe(allHrefs.length);
+  });
+
+  /**
+   * The menu is on every screen, so a nav entry that was never translated is the most visible
+   * possible half-finished job (owner, 2026-08-25). Adding a page and writing only the English is
+   * the easy mistake; this is what catches it.
+   */
+  it("says every entry in both languages", () => {
+    const missing = NAV_GROUPS.flatMap((g) => [
+      ...(g.section.th.trim() && g.section.en.trim() ? [] : [`section ${g.section.en}`]),
+      ...g.links.flatMap((l) => [
+        ...(l.label.th.trim() && l.label.en.trim() ? [] : [l.href]),
+        ...(l.short === undefined || (l.short.th.trim() && l.short.en.trim())
+          ? []
+          : [`${l.href} (short)`]),
+      ]),
+    ]);
+    expect(missing).toEqual([]);
   });
 });
 
@@ -103,7 +121,7 @@ describe("navGroupsFor", () => {
 
   it("drops a section that ends up empty rather than leaving a bare heading", () => {
     // A mechanic gets nothing from Marketing or Overall management; those headings must not survive.
-    const sections = navGroupsFor("mechanic").map((g) => g.section);
+    const sections = navGroupsFor("mechanic").map((g) => g.section.en);
     expect(sections).toEqual(["Daily Uses", "Stock"]);
   });
 

@@ -27,6 +27,7 @@ import { ProductGallery } from "../ProductGallery";
 import { PricingFields, type PricingForm, toSatang } from "../PricingFields";
 import { FitmentSection } from "../FitmentSection";
 import { buildProductName, canBuildProductName } from "@l-shopee/core";
+import { useT } from "../../LangProvider";
 
 const field = { display: "grid", gap: 4 } as const;
 
@@ -62,8 +63,9 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 
 /** Add product — same sections as the editor (photos, description, part details, fitments, pricing).
  *  Work auto-saves as a draft in the background (so nothing is lost between sessions); the explicit
- *  "Publish" button makes it active. Photos are held locally and uploaded on Publish. */
+ *  The Publish button makes it active. Photos are held locally and uploaded on Publish. */
 export default function NewProductPage() {
+  const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = useState("");
@@ -110,7 +112,7 @@ export default function NewProductPage() {
       .catch(() => setCarTree([]));
   }, []);
 
-  // Pre-fill from "Scan here → Add new product": /products/new?ref=CODE seeds the Product ID (which
+  // Pre-fill from t({ th: "สแกน → เพิ่มสินค้าใหม่", en: "Scan here → Add new product" }): /products/new?ref=CODE seeds the Product ID (which
   // is also the barcode source). Read once from the URL — window.location avoids useSearchParams'
   // Suspense requirement, matching how the edit page reads its ?edit flag.
   useEffect(() => {
@@ -268,7 +270,13 @@ export default function NewProductPage() {
       lastSavedSig.current = "";
       setSaveState("idle");
       setSavedCount((n) => n + 1);
-      toast(`Published “${name}” — ready for the next one`, "success");
+      toast(
+        t({
+          th: `บันทึก “${name}” แล้ว — พร้อมเพิ่มชิ้นถัดไป`,
+          en: `Published “${name}” — ready for the next one`,
+        }),
+        "success",
+      );
       window.scrollTo({ top: 0, behavior: "smooth" });
       nameRef.current?.focus();
     } catch (err) {
@@ -281,8 +289,11 @@ export default function NewProductPage() {
   return (
     <main>
       <PageHeader
-        title="Add product"
-        subtitle="New product — your work auto-saves as a draft. Publish when it's ready."
+        title={t({ th: "เพิ่มสินค้า", en: "Add product" })}
+        subtitle={t({
+          th: "สินค้าใหม่ — ระบบเก็บเป็นแบบร่างให้อัตโนมัติ กด บันทึก เมื่อพร้อมวางขาย",
+          en: "New product — your work auto-saves as a draft. Publish when it's ready.",
+        })}
         action={
           <div style={{ display: "flex", gap: 12, alignItems: "center", flex: "none" }}>
             {saveState !== "idle" && (
@@ -295,10 +306,13 @@ export default function NewProductPage() {
                 }}
               >
                 {saveState === "saving"
-                  ? "Saving draft…"
+                  ? t({ th: "กำลังบันทึกแบบร่าง…", en: "Saving draft…" })
                   : saveState === "saved"
-                    ? "Draft saved ✓"
-                    : "Couldn't save draft — will retry"}
+                    ? t({ th: "บันทึกแบบร่างแล้ว ✓", en: "Draft saved ✓" })
+                    : t({
+                        th: "บันทึกแบบร่างไม่สำเร็จ — จะลองใหม่",
+                        en: "Couldn't save draft — will retry",
+                      })}
               </span>
             )}
             {savedCount > 0 && (
@@ -308,12 +322,12 @@ export default function NewProductPage() {
             )}
             {/* Draft is auto-saved, so leaving keeps it — this is "close", not "discard". */}
             <button type="button" onClick={() => router.push("/products")} disabled={busy}>
-              Close
+              {t({ th: "ปิด", en: "Close" })}
             </button>
             {/* Publishing makes it active and stays on the page ready for the next product (listing
                 happens in runs). */}
             <button type="button" className="btn-primary" onClick={() => publish()} disabled={busy}>
-              Publish
+              {t({ th: "บันทึก", en: "Publish" })}
             </button>
           </div>
         }
@@ -335,7 +349,8 @@ export default function NewProductPage() {
         {savedCount > 0 && carrySummary(part, fitments.length) && (
           <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 10 }}>
             <span className="muted" style={{ fontSize: 13 }}>
-              Carried from last product: <strong>{carrySummary(part, fitments.length)}</strong>
+              {t({ th: "ยกมาจากสินค้าก่อนหน้า:", en: "Carried from last product:" })}{" "}
+              <strong>{carrySummary(part, fitments.length)}</strong>
             </span>
             <button
               type="button"
@@ -346,13 +361,13 @@ export default function NewProductPage() {
                 setFitments([]);
               }}
             >
-              Clear
+              {t({ th: "ล้าง", en: "Clear" })}
             </button>
           </div>
         )}
 
         <div style={{ ...field, gridColumn: "1 / -1" }}>
-          <span style={{ fontWeight: 600 }}>Photos</span>
+          <span style={{ fontWeight: 600 }}>{t({ th: "รูปภาพ", en: "Photos" })}</span>
           <ProductGallery
             key={`next-${savedCount}`}
             productId=""
@@ -365,7 +380,7 @@ export default function NewProductPage() {
         {/* Not a <label> wrapper any more: a button inside a label steals the label's click. */}
         <div style={{ ...field, gridColumn: "1 / -1" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <label htmlFor="product-name">Product name *</label>
+            <label htmlFor="product-name">{t({ th: "ชื่อสินค้า *", en: "Product name *" })}</label>
             <button
               type="button"
               onClick={() => setName(buildProductName(nameInput))}
@@ -386,7 +401,7 @@ export default function NewProductPage() {
                 cursor: canAutoName ? "pointer" : "not-allowed",
               }}
             >
-              Auto Naming
+              {t({ th: "ตั้งชื่ออัตโนมัติ", en: "Auto Naming" })}
             </button>
           </div>
           <input
@@ -400,19 +415,22 @@ export default function NewProductPage() {
         </div>
 
         <label style={{ ...field, gridColumn: "1 / -1" }}>
-          Description
+          {t({ th: "รายละเอียด", en: "Description" })}
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            placeholder="Short spec — refrigerant, type, fitment note…"
+            placeholder={t({
+              th: "สเปคสั้น ๆ — น้ำยา ประเภท รุ่นที่ใช้ได้…",
+              en: "Short spec — refrigerant, type, fitment note…",
+            })}
             style={{ width: "100%", resize: "vertical" }}
           />
         </label>
 
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", gridColumn: "1 / -1" }}>
           <label style={field}>
-            Stock on hand
+            {t({ th: "คงเหลือ", en: "Stock on hand" })}
             <input
               value={stockQty}
               onChange={(e) => setStockQty(e.target.value)}
@@ -421,7 +439,7 @@ export default function NewProductPage() {
             />
           </label>
           <label style={field}>
-            Weight (kg)
+            {t({ th: "น้ำหนัก (กก.)", en: "Weight (kg)" })}
             <input
               value={weightKg}
               onChange={(e) => setWeightKg(e.target.value)}
@@ -433,7 +451,7 @@ export default function NewProductPage() {
           {/* Box size, not part size. Carriers rate on volumetric weight (w×l×h/5000), so a big
               light part bills by its box — without all three there is no shipping quote at all. */}
           <label style={field}>
-            Box size (cm) — W × L × H
+            {t({ th: "ขนาดกล่อง (ซม.) — ก × ย × ส", en: "Box size (cm) — W × L × H" })}
             <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
               {(
                 [

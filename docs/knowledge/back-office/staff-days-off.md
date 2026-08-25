@@ -246,11 +246,16 @@ the same bank details. Verified end to end: upload → 200, fetch → 200 with t
 whether one exists. A sum cannot say which day money went, whether it was cash, or whether there is
 a slip to show for it.
 
-> **Known gap, not fixed here.** `recordAdvance` refuses a month that is already paid (409), but
-> `deleteAdvance` does not. Delete an advance from a paid month and the payslip's frozen
-> `advance_satang` and the surviving rows disagree, with nothing to say which is right. The ledger
-> shows `dueSatang`, which comes from the frozen figure, so the column would stop adding up on
-> screen. Flagged to the owner 25 Aug; the fix is to refuse the delete the same way.
+**A paid month refuses BOTH ways** (fixed 2026-08-25). `recordAdvance` had always returned 409 for
+an already-paid month; `deleteAdvance` had not, and the asymmetry was the bug. The payslip freezes
+`advance_satang` at the moment of payment, so removing a row afterwards left the frozen figure and
+the surviving rows disagreeing with nothing to say which was true — and the ledger showed it plainly,
+listing the rows while taking its Total from the frozen figure, so the column stopped adding up.
+
+The failing test measured exactly that before the fix: after deleting, the visible rows summed to ฿0
+while the payslip still reported ฿2,000. Both calls now make the same check and return the same 409.
+A paid month is a record of what was handed over, not a running total; correcting one means
+correcting the payment.
 
 ## The Record section (owner, 2026-08-24)
 

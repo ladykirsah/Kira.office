@@ -18,10 +18,21 @@ export type SummaryCardKey = OrderSummaryCard["key"];
  *   - every status a card counts lives in the tab that card opens, so clicking a card can never land
  *     on a view that hides what it counted.
  */
+import type { Phrase } from "./lang";
+
 export interface OrderSummaryCard {
   key: "pending" | "toship" | "intransit" | "refund";
-  /** What the card says. Explicit because a multi-status section has no single status label to use. */
-  label: string;
+  /**
+   * What the card says, in both languages. Explicit because a multi-status section has no single
+   * status label to use.
+   *
+   * The Thai comes from the project's OWN documented lifecycle words (docs/knowledge/commerce/
+   * order-lifecycle.md) — เตรียมจัดส่ง, กำลังจัดส่ง, คืนเงิน — rather than a fresh translation, so
+   * the dashboard, the order tabs and the docs cannot end up calling one state three things.
+   * รอดำเนินการ is the owner's, for the one bucket the lifecycle has no word for: orders waiting on
+   * a payment DECISION rather than on a shipment.
+   */
+  label: Phrase;
   /** The operational statuses this card counts. One for a single-status card, several for a group. */
   statuses: readonly OperationalStatus[];
   /** The tab this card opens — always one that contains every status in `statuses`. */
@@ -34,15 +45,21 @@ export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
   // Waiting on a payment decision — a slip to review (verifying) or a COD to approve.
   {
     key: "pending",
-    label: "Pending",
+    label: { th: "รอดำเนินการ", en: "Pending" },
     statuses: ["cod_pending", "verifying"],
     tab: "pending",
     activeColor: "var(--warn)",
   },
-  { key: "toship", label: "To ship", statuses: ["to_ship"], tab: "toship", activeColor: "#2563eb" },
+  {
+    key: "toship",
+    label: { th: "เตรียมจัดส่ง", en: "To ship" },
+    statuses: ["to_ship"],
+    tab: "toship",
+    activeColor: "#2563eb",
+  },
   {
     key: "intransit",
-    label: "In transit",
+    label: { th: "กำลังจัดส่ง", en: "In transit" },
     statuses: ["in_transit"],
     tab: "shipped",
     activeColor: "#2563eb",
@@ -51,7 +68,7 @@ export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
   // rejected). Everything money might have to flow back out of — the one bucket `fail` stays out of.
   {
     key: "refund",
-    label: "Refund",
+    label: { th: "คืนเงิน", en: "Refund" },
     statuses: ["return", "claim_pending", "claimed", "refunded", "claim_rejected"],
     tab: "refundclaim",
     activeColor: "var(--danger)",
@@ -59,7 +76,7 @@ export const ORDER_SUMMARY_CARDS: readonly OrderSummaryCard[] = [
 ];
 
 /** What the card says — its explicit section name. */
-export function orderSummaryCardLabel(card: OrderSummaryCard): string {
+export function orderSummaryCardLabel(card: OrderSummaryCard): Phrase {
   return card.label;
 }
 

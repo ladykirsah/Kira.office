@@ -19,28 +19,51 @@ import { channelActionLabel } from "./channelActions";
  */
 describe("channelActionLabel", () => {
   it("given a product live on AirPlus > offers to pause it", () => {
-    expect(channelActionLabel("AirPlus", true)).toBe("Pause on AirPlus");
+    expect(channelActionLabel("AirPlus", true)).toEqual({
+      th: "หยุดขายบน AirPlus",
+      en: "Pause on AirPlus",
+    });
   });
 
   it("given a product paused on AirPlus > offers to make it live", () => {
-    expect(channelActionLabel("AirPlus", false)).toBe("Live on AirPlus");
+    expect(channelActionLabel("AirPlus", false)).toEqual({
+      th: "วางขายบน AirPlus",
+      en: "Live on AirPlus",
+    });
   });
 
   it("given a product live on Shopee > offers to pause it", () => {
-    expect(channelActionLabel("Shopee", true)).toBe("Pause on Shopee");
+    expect(channelActionLabel("Shopee", true)).toEqual({
+      th: "หยุดขายบน Shopee",
+      en: "Pause on Shopee",
+    });
   });
 
   it("given a product paused on Shopee > offers to make it live", () => {
-    expect(channelActionLabel("Shopee", false)).toBe("Live on Shopee");
+    expect(channelActionLabel("Shopee", false)).toEqual({
+      th: "วางขายบน Shopee",
+      en: "Live on Shopee",
+    });
   });
 
   it("the four labels are exactly these, in the owner's words", () => {
     // One assertion that fails loudly if any of them is reworded.
-    expect([
-      channelActionLabel("AirPlus", true),
-      channelActionLabel("AirPlus", false),
-      channelActionLabel("Shopee", true),
-      channelActionLabel("Shopee", false),
-    ]).toEqual(["Pause on AirPlus", "Live on AirPlus", "Pause on Shopee", "Live on Shopee"]);
+    expect(
+      [
+        channelActionLabel("AirPlus", true),
+        channelActionLabel("AirPlus", false),
+        channelActionLabel("Shopee", true),
+        channelActionLabel("Shopee", false),
+      ].map((l) => l.en),
+    ).toEqual(["Pause on AirPlus", "Live on AirPlus", "Pause on Shopee", "Live on Shopee"]);
+    // The Thai pair is equally the owner's (2026-08-25) and drifts just as easily.
+    expect(
+      [
+        channelActionLabel("AirPlus", true),
+        channelActionLabel("AirPlus", false),
+        channelActionLabel("Shopee", true),
+        channelActionLabel("Shopee", false),
+      ].map((l) => l.th),
+    ).toEqual(["หยุดขายบน AirPlus", "วางขายบน AirPlus", "หยุดขายบน Shopee", "วางขายบน Shopee"]);
   });
 });

@@ -5,6 +5,7 @@ import { formatBahtTrim } from "@/lib/format";
 import { shopeeStatusBadge } from "@/lib/badges";
 import { tableText } from "@/lib/tableText";
 import { TableFrame } from "../TableFrame";
+import { useT } from "../LangProvider";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const feePct = (bp: number) => `${parseFloat((bp / 100).toFixed(2))}%`;
@@ -12,6 +13,7 @@ const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 
 /** Read-only table of online marketplace orders (Shopee today, AirPlus later) for a channel section. */
 export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
+  const t = useT();
   if (orders.length === 0) {
     return (
       <div className="empty">
@@ -83,7 +85,7 @@ export function OnlineOrders({ orders }: { orders: OrderRow[] }) {
                   <div style={tableText.subtitle}>~ {dateTH(shipMs + 10 * DAY_MS)}</div>
                 </td>
                 <td>
-                  <span className={`pill ${badge.pill}`}>{badge.label}</span>
+                  <span className={`pill ${badge.pill}`}>{t(badge.label)}</span>
                 </td>
               </tr>
             );

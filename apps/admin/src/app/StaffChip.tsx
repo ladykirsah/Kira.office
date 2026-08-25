@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SignedInStaff } from "@/lib/staffSession";
+import { useT } from "./LangProvider";
+import type { Phrase } from "@/lib/lang";
 
-const ROLE_LABEL: Record<SignedInStaff["role"], string> = {
-  super_admin: "Super admin",
-  admin: "Admin",
-  mechanic: "Mechanic",
+const ROLE_LABEL: Record<SignedInStaff["role"], Phrase> = {
+  super_admin: { th: "เจ้าของร้าน", en: "Super admin" },
+  admin: { th: "ผู้ดูแล", en: "Admin" },
+  mechanic: { th: "ช่าง", en: "Mechanic" },
 };
 
 /**
@@ -17,6 +19,7 @@ const ROLE_LABEL: Record<SignedInStaff["role"], string> = {
  * anyone takes money on it.
  */
 export function StaffChip({ staff }: { staff: SignedInStaff }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -51,16 +54,16 @@ export function StaffChip({ staff }: { staff: SignedInStaff }) {
         onClick={() => setOpen((v) => !v)}
       >
         <span className="staff-chip-name">{staff.name}</span>
-        <span className="staff-chip-role">{ROLE_LABEL[staff.role]}</span>
+        <span className="staff-chip-role">{t(ROLE_LABEL[staff.role])}</span>
         <span aria-hidden>▾</span>
       </button>
       {open && (
         <div className="staff-chip-menu" role="menu">
           <a className="staff-chip-item" href="/me" role="menuitem">
-            My profile
+            {t({ th: "โปรไฟล์ของฉัน", en: "My profile" })}
           </a>
           <button type="button" className="staff-chip-item" role="menuitem" onClick={signOut}>
-            Sign out
+            {t({ th: "ออกจากระบบ", en: "Sign out" })}
           </button>
         </div>
       )}

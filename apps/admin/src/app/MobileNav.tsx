@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { navGroupsFor, PRIMARY_TABS, activeHref, nextBarVisible } from "./nav";
 import type { StaffRole } from "@l-shopee/core";
+import { useT } from "./LangProvider";
 
 /** Menu glyph: a list — a dot and a line per row, i.e. the pages behind it. */
 const MenuIcon = () => (
@@ -35,6 +36,7 @@ const MenuIcon = () => (
  *   · the bar slides away while scrolling down a long list and returns on the way up
  */
 export function MobileNav({ role }: { role: StaffRole }) {
+  const say = useT();
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [barVisible, setBarVisible] = useState(true);
@@ -81,7 +83,7 @@ export function MobileNav({ role }: { role: StaffRole }) {
       <button
         type="button"
         className="mnav-burger"
-        aria-label="Open menu"
+        aria-label={say({ th: "เปิดเมนู", en: "Open menu" })}
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
@@ -94,13 +96,13 @@ export function MobileNav({ role }: { role: StaffRole }) {
       {open && (
         <>
           <div className="mnav-scrim" onClick={() => setOpen(false)} aria-hidden />
-          <nav className="mnav-drawer" aria-label="Main">
+          <nav className="mnav-drawer" aria-label={say({ th: "เมนูหลัก", en: "Main" })}>
             <Link className="brand" href="/" onClick={() => setOpen(false)}>
               Kira.office
             </Link>
             {groups.map((g) => (
-              <div key={g.section}>
-                <div className="nav-section-label">{g.section}</div>
+              <div key={g.section.en}>
+                <div className="nav-section-label">{say(g.section)}</div>
                 {g.links.map((l) => (
                   <a
                     key={l.href}
@@ -111,7 +113,7 @@ export function MobileNav({ role }: { role: StaffRole }) {
                     <span className="ico" aria-hidden>
                       {l.icon}
                     </span>
-                    {l.label}
+                    {say(l.label)}
                   </a>
                 ))}
               </div>
@@ -122,7 +124,7 @@ export function MobileNav({ role }: { role: StaffRole }) {
 
       <nav
         className={barVisible ? "mnav-tabs" : "mnav-tabs hidden"}
-        aria-label="Quick access"
+        aria-label={say({ th: "เมนูลัด", en: "Quick access" })}
         aria-hidden={!barVisible}
       >
         {PRIMARY_TABS.map((t) => (
@@ -136,7 +138,7 @@ export function MobileNav({ role }: { role: StaffRole }) {
             <span className="em" aria-hidden>
               {t.icon}
             </span>
-            {t.short ?? t.label}
+            {say(t.short ?? t.label)}
           </a>
         ))}
       </nav>

@@ -13,6 +13,7 @@ import { tableText } from "@/lib/tableText";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
+import { useT } from "../LangProvider";
 
 type Tab = "all" | "airplus" | "notlive" | "low" | "out";
 
@@ -20,25 +21,34 @@ type Tab = "all" | "airplus" | "notlive" | "low" | "out";
 const DIMENSIONS = [
   {
     key: "brand",
-    label: "Part brand",
+    label: { th: "ยี่ห้ออะไหล่", en: "Part brand" },
     values: (p: ProductRow) => (p.brandName ? [p.brandName] : []),
   },
   {
     key: "usage",
-    label: "Match system",
+    label: { th: "ระบบที่ใช้ได้", en: "Match system" },
     values: (p: ProductRow) => (p.usageName ? [p.usageName] : []),
   },
-  { key: "type", label: "Part name", values: (p: ProductRow) => (p.typeName ? [p.typeName] : []) },
-  { key: "car", label: "Car brand", values: (p: ProductRow) => p.carBrands },
+  {
+    key: "type",
+    label: { th: "ชื่ออะไหล่", en: "Part name" },
+    values: (p: ProductRow) => (p.typeName ? [p.typeName] : []),
+  },
+  {
+    key: "car",
+    label: { th: "ยี่ห้อรถ", en: "Car brand" },
+    values: (p: ProductRow) => p.carBrands,
+  },
   /**
    * Not a property of the part — a property of how finished its record is. It earns a place beside
    * the others because it is the one the Not live tab is actually worked from: "show me everything
    * missing a photo" is the whole job, and it was previously eight products opened one at a time.
    */
-  { key: "readiness", label: "Readiness", values: readinessValues },
+  { key: "readiness", label: { th: "ความพร้อมขาย", en: "Readiness" }, values: readinessValues },
 ] as const;
 
 export function ProductsTable({ products }: { products: ProductRow[] }) {
+  const t = useT();
   const role = useStaffRole();
   // A mechanic reads the catalog to do counter work: one list, no filters to manage it by, no
   // margin, nothing to click into (owner, 2026-08-24). The API enforces each of these itself — the
@@ -120,13 +130,21 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
   return (
     <>
       <div className="tabs">
-        <TabBtn id="all" label="All" n={products.length} />
+        <TabBtn id="all" label={t({ th: "ทั้งหมด", en: "All" })} n={products.length} />
         {managesCatalog && (
           <>
-            <TabBtn id="airplus" label="On AirPlus" n={onAirPlus.length} />
-            <TabBtn id="notlive" label="Not live" n={notLive.length} />
-            <TabBtn id="low" label="Low stock" n={lowStock.length} />
-            <TabBtn id="out" label="Out of stock" n={outOfStock.length} />
+            <TabBtn
+              id="airplus"
+              label={t({ th: "อยู่บน AirPlus", en: "On AirPlus" })}
+              n={onAirPlus.length}
+            />
+            <TabBtn
+              id="notlive"
+              label={t({ th: "ยังไม่วางขาย", en: "Not live" })}
+              n={notLive.length}
+            />
+            <TabBtn id="low" label={t({ th: "เหลือน้อย", en: "Low stock" })} n={lowStock.length} />
+            <TabBtn id="out" label={t({ th: "หมด", en: "Out of stock" })} n={outOfStock.length} />
           </>
         )}
       </div>
@@ -150,7 +168,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         >
           <input
             className="tbar-input"
-            placeholder="Search code or name…"
+            placeholder={t({ th: "ค้นหารหัสหรือชื่อสินค้า…", en: "Search code or name…" })}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             style={{
@@ -162,7 +180,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             }}
           />
           <select
-            aria-label="Sort by"
+            aria-label={t({ th: "เรียงตาม", en: "Sort by" })}
             value={sortBy}
             onChange={(e) => {
               setSortBy(e.target.value);
@@ -174,16 +192,16 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               fontWeight: sortBy ? 500 : 400,
             }}
           >
-            <option value="">Sort by…</option>
+            <option value="">{t({ th: "เรียงตาม…", en: "Sort by…" })}</option>
             {DIMENSIONS.map((d) => (
               <option key={d.key} value={d.key}>
-                {d.label}
+                {t(d.label)}
               </option>
             ))}
           </select>
           {dim && (
             <select
-              aria-label="Filter"
+              aria-label={t({ th: "กรอง", en: "Filter" })}
               value={filterVal}
               onChange={(e) => setFilterVal(e.target.value)}
               style={{
@@ -192,7 +210,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                 fontWeight: filterVal ? 500 : 400,
               }}
             >
-              <option value="">{`All ${dim.label.toLowerCase()}`}</option>
+              <option value="">
+                {t({ th: `${t(dim.label)}ทั้งหมด`, en: `All ${dim.label.en.toLowerCase()}` })}
+              </option>
               {filterOptions.map((v) => (
                 <option key={v} value={v}>
                   {v}
@@ -207,7 +227,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             <div className="empty-icon">📦</div>
             {products.length === 0
               ? "No products yet. Add one or import a CSV."
-              : "No products match."}
+              : t({ th: "ไม่มีสินค้าที่ตรงกับที่เลือก", en: "No products match." })}
           </div>
         ) : (
           <div className="products-scroll" ref={scrollRef}>
@@ -234,13 +254,13 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               <thead>
                 <tr>
                   <th align="left" className="freeze-col">
-                    Product
+                    {t({ th: "สินค้า", en: "Product" })}
                   </th>
-                  <th align="left">Online price</th>
-                  <th align="left">B2C price</th>
-                  <th align="center">Stock</th>
-                  <th align="left">Status</th>
-                  <th align="left">Action</th>
+                  <th align="left">{t({ th: "ราคาออนไลน์", en: "Online price" })}</th>
+                  <th align="left">{t({ th: "ราคา B2C", en: "B2C price" })}</th>
+                  <th align="center">{t({ th: "คงเหลือ", en: "Stock" })}</th>
+                  <th align="left">{t({ th: "สถานะ", en: "Status" })}</th>
+                  <th align="left">{t({ th: "จัดการ", en: "Action" })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,10 +376,10 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                           const note = readinessNote(p);
                           return (
                             <>
-                              <span className={`pill ${s.cls}`}>{s.label}</span>
+                              <span className={`pill ${s.cls}`}>{t(s.label)}</span>
                               {note && (
                                 <span className={note.ready ? "why ready" : "why"}>
-                                  {note.text}
+                                  {t(note.text)}
                                 </span>
                               )}
                             </>

@@ -9,8 +9,13 @@ describe("DASHBOARD_CARDS", () => {
     // The one that caught us: the menu said "AirPlus Orders" while the card still said "Orders".
     const mismatched = DASHBOARD_CARDS.filter((c) => {
       const navLabel = navLabelByHref.get(c.href);
-      return navLabel !== undefined && navLabel !== c.title;
-    }).map((c) => `${c.href}: card "${c.title}" vs menu "${navLabelByHref.get(c.href)}"`);
+      if (navLabel === undefined) return false;
+      return navLabel.th !== c.title.th || navLabel.en !== c.title.en;
+    }).map(
+      (c) =>
+        `${c.href}: card "${c.title.th}/${c.title.en}" vs menu ` +
+        `"${navLabelByHref.get(c.href)?.th}/${navLabelByHref.get(c.href)?.en}"`,
+    );
     expect(mismatched).toEqual([]);
   });
 

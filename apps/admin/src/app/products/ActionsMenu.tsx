@@ -7,9 +7,10 @@ import { setProductPaused, setProductShopeeListed } from "@/lib/api";
 import { channelActionLabel } from "@/lib/channelActions";
 import { useStaffRole } from "../StaffRoleProvider";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 /**
- * Per-row "Actions ▾" menu: edit the product, or take it off one sales channel.
+ * Per-row t({ th: "จัดการ ▾", en: "Actions ▾" }) menu: edit the product, or take it off one sales channel.
  *
  * THE TWO CHANNELS PAUSE INDEPENDENTLY, which is why this is two items and not one:
  *
@@ -38,6 +39,7 @@ export function ActionsMenu({
   status: string;
   shopeeListed: number;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -94,7 +96,7 @@ export function ActionsMenu({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        Actions
+        {t({ th: "จัดการ", en: "Actions" })}
         <svg
           width="12"
           height="12"
@@ -115,11 +117,11 @@ export function ActionsMenu({
         <div className="actions-menu" role="menu">
           {mayEdit ? (
             <a className="actions-item" role="menuitem" href={`/products/${productId}/edit?edit=1`}>
-              Edit
+              {t({ th: "แก้ไข", en: "Edit" })}
             </a>
           ) : (
             <a className="actions-item" role="menuitem" href={`/products/${productId}`}>
-              View
+              {t({ th: "ดู", en: "View" })}
             </a>
           )}
 
@@ -132,11 +134,13 @@ export function ActionsMenu({
               onClick={() =>
                 run(
                   () => setProductPaused(productId, liveOnAirPlus),
-                  liveOnAirPlus ? "Paused on AirPlus" : "Live on AirPlus",
+                  liveOnAirPlus
+                    ? t({ th: "หยุดขายบน AirPlus", en: "Paused on AirPlus" })
+                    : t({ th: "วางขายบน AirPlus", en: "Live on AirPlus" }),
                 )
               }
             >
-              {channelActionLabel("AirPlus", liveOnAirPlus)}
+              {t(channelActionLabel("AirPlus", liveOnAirPlus))}
             </button>
           )}
 
@@ -149,11 +153,13 @@ export function ActionsMenu({
               onClick={() =>
                 run(
                   () => setProductShopeeListed(productId, !listed),
-                  listed ? "Paused on Shopee" : "Live on Shopee",
+                  listed
+                    ? t({ th: "หยุดขายบน Shopee", en: "Paused on Shopee" })
+                    : t({ th: "วางขายบน Shopee", en: "Live on Shopee" }),
                 )
               }
             >
-              {channelActionLabel("Shopee", listed)}
+              {t(channelActionLabel("Shopee", listed))}
             </button>
           )}
         </div>

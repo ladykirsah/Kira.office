@@ -23,40 +23,40 @@ describe("productStatusTag", () => {
   const of = (status: string, onHand = 10) => productStatusTag({ status, onHand });
 
   it("given active with healthy stock > Live", () => {
-    expect(of("active", 10)).toEqual({ label: "Live", cls: "on" });
+    expect(of("active", 10)).toEqual({ label: { th: "วางขาย", en: "Live" }, cls: "on" });
   });
 
   it("given active but out of stock > Out — live, and customers cannot buy it", () => {
-    expect(of("active", 0)).toEqual({ label: "Out", cls: "bad" });
-    expect(of("active", -2)).toEqual({ label: "Out", cls: "bad" });
+    expect(of("active", 0)).toEqual({ label: { th: "หมด", en: "Out" }, cls: "bad" });
+    expect(of("active", -2)).toEqual({ label: { th: "หมด", en: "Out" }, cls: "bad" });
   });
 
   it("given active and running low > Low", () => {
-    expect(of("active", 1)).toEqual({ label: "Low", cls: "warn" });
-    expect(of("active", 3)).toEqual({ label: "Low", cls: "warn" });
+    expect(of("active", 1)).toEqual({ label: { th: "เหลือน้อย", en: "Low" }, cls: "warn" });
+    expect(of("active", 3)).toEqual({ label: { th: "เหลือน้อย", en: "Low" }, cls: "warn" });
   });
 
   it("given draft > Draft, whatever the stock says", () => {
     // Not live means stock is not the headline: nobody can buy it either way.
-    expect(of("draft", 0).label).toBe("Draft");
-    expect(of("draft", 50).label).toBe("Draft");
+    expect(of("draft", 0).label).toEqual({ th: "แบบร่าง", en: "Draft" });
+    expect(of("draft", 50).label).toEqual({ th: "แบบร่าง", en: "Draft" });
   });
 
   it("given paused > Paused, whatever the stock says", () => {
-    expect(of("paused", 0).label).toBe("Paused");
-    expect(of("paused", 50).label).toBe("Paused");
+    expect(of("paused", 0).label).toEqual({ th: "หยุดขาย", en: "Paused" });
+    expect(of("paused", 50).label).toEqual({ th: "หยุดขาย", en: "Paused" });
   });
 
   it("given the old 'archived' value > Paused; the two were collapsed into one state", () => {
     // Owner, 2026-08-24: "Archived = Paused globally, and delete = gone." Migration 0088 rewrites
     // every stored 'archived' to 'paused'; this is the belt-and-braces reading of a stale row.
-    expect(of("archived", 0).label).toBe("Paused");
-    expect(of("archived", 50).label).toBe("Paused");
+    expect(of("archived", 0).label).toEqual({ th: "หยุดขาย", en: "Paused" });
+    expect(of("archived", 50).label).toEqual({ th: "หยุดขาย", en: "Paused" });
   });
 
   it("given an unrecognised status > Paused, never Live", () => {
     // Same reasoning as isNotLive: the safe default is "not in front of customers".
-    expect(of("hidden", 10).label).toBe("Paused");
+    expect(of("hidden", 10).label).toEqual({ th: "หยุดขาย", en: "Paused" });
   });
 
   it("every label matches a tab, so the column explains where a row lives", () => {
@@ -67,7 +67,8 @@ describe("productStatusTag", () => {
       of("paused").label,
       of("draft").label,
     ];
-    expect(labels).toEqual(["Live", "Low", "Out", "Paused", "Draft"]);
+    expect(labels.map((l) => l.en)).toEqual(["Live", "Low", "Out", "Paused", "Draft"]);
+    expect(labels.map((l) => l.th)).toEqual(["วางขาย", "เหลือน้อย", "หมด", "หยุดขาย", "แบบร่าง"]);
   });
 });
 
@@ -116,38 +117,41 @@ describe("isNotLive", () => {
 describe("channelTags", () => {
   it("given live on both > both tags read Active", () => {
     expect(channelTags("active", 1)).toEqual([
-      { label: "Active on AirPlus", cls: "on" },
-      { label: "Active on Shopee", cls: "on" },
+      { label: { th: "วางขายบน AirPlus", en: "Active on AirPlus" }, cls: "on" },
+      { label: { th: "วางขายบน Shopee", en: "Active on Shopee" }, cls: "on" },
     ]);
   });
 
   it("given live on neither > both tags read Not on", () => {
     expect(channelTags("draft", 0)).toEqual([
-      { label: "Not on AirPlus", cls: "off" },
-      { label: "Not on Shopee", cls: "off" },
+      { label: { th: "ไม่ได้วางขายบน AirPlus", en: "Not on AirPlus" }, cls: "off" },
+      { label: { th: "ไม่ได้วางขายบน Shopee", en: "Not on Shopee" }, cls: "off" },
     ]);
   });
 
   it("given AirPlus only > the channels are reported independently", () => {
     expect(channelTags("active", 0)).toEqual([
-      { label: "Active on AirPlus", cls: "on" },
-      { label: "Not on Shopee", cls: "off" },
+      { label: { th: "วางขายบน AirPlus", en: "Active on AirPlus" }, cls: "on" },
+      { label: { th: "ไม่ได้วางขายบน Shopee", en: "Not on Shopee" }, cls: "off" },
     ]);
   });
 
   it("given Shopee only > likewise, and being on Shopee never implies being live in the shop", () => {
     expect(channelTags("draft", 1)).toEqual([
-      { label: "Not on AirPlus", cls: "off" },
-      { label: "Active on Shopee", cls: "on" },
+      { label: { th: "ไม่ได้วางขายบน AirPlus", en: "Not on AirPlus" }, cls: "off" },
+      { label: { th: "วางขายบน Shopee", en: "Active on Shopee" }, cls: "on" },
     ]);
   });
 
   it("given paused > not on AirPlus; only `active` counts as live", () => {
-    expect(channelTags("paused", 0)[0]).toEqual({ label: "Not on AirPlus", cls: "off" });
+    expect(channelTags("paused", 0)[0]).toEqual({
+      label: { th: "ไม่ได้วางขายบน AirPlus", en: "Not on AirPlus" },
+      cls: "off",
+    });
   });
 
   it("AirPlus is always listed first — it is the owner's own shop", () => {
-    expect(channelTags("active", 1).map((t) => t.label)).toEqual([
+    expect(channelTags("active", 1).map((t) => t.label.en)).toEqual([
       "Active on AirPlus",
       "Active on Shopee",
     ]);

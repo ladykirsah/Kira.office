@@ -9,6 +9,7 @@ import { SecretRow } from "./SecretRow";
 import { PaymentsTable, type StaffPayment } from "./PaymentsTable";
 import { StaffDaysOff } from "./StaffDaysOff";
 import { RecordSection } from "./RecordSection";
+import { useT } from "../../../LangProvider";
 import type { DayOffRow } from "../../../DayOffTable";
 
 export interface StaffProfile {
@@ -141,6 +142,7 @@ export function StaffProfileEditor({
   const toast = useToast();
   // The year the year-dropdowns offer, taken once here rather than inside each control, so nothing
   // on this page can disagree about what "this year" is mid-render.
+  const t = useT();
   const currentYear = Number(month.slice(0, 4)) || new Date().getFullYear();
   const initial = {
     nameTh: profile.nameTh ?? "",
@@ -265,7 +267,9 @@ export function StaffProfileEditor({
             these stack rather than squeeze on a narrow screen. */}
         <div className="profile-cols">
           <section className="card">
-            <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Details</h2>
+            <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>
+              {t({ th: "ข้อมูล", en: "Details" })}
+            </h2>
 
             {editing ? (
               <>
@@ -330,7 +334,7 @@ export function StaffProfileEditor({
 
                 <dl style={readingList}>
                   <Reading
-                    label="Emergency contact"
+                    label={t({ th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency contact" })}
                     value={
                       profile.emergencyPhone ? (
                         <>
@@ -348,7 +352,7 @@ export function StaffProfileEditor({
           </section>
 
           <section className="card">
-            <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Pay</h2>
+            <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>{t({ th: "ค่าแรง", en: "Pay" })}</h2>
 
             {editing ? (
               <>
@@ -391,10 +395,16 @@ export function StaffProfileEditor({
               </>
             ) : (
               <dl style={readingList}>
-                <Reading label="Day rate" value={baht(profile.dayRateSatang)} />
-                <Reading label="Paid" value="5th of each month" />
                 <Reading
-                  label="Bank"
+                  label={t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}
+                  value={baht(profile.dayRateSatang)}
+                />
+                <Reading
+                  label={t({ th: "จ่ายวันที่", en: "Paid" })}
+                  value={t({ th: "ทุกวันที่ 5 ของเดือน", en: "5th of each month" })}
+                />
+                <Reading
+                  label={t({ th: "ธนาคาร", en: "Bank" })}
                   value={
                     profile.bankName || profile.bankAccountName || profile.bankAccountNo ? (
                       /* Three lines, in the order you'd read them onto a transfer form. The account
@@ -460,7 +470,9 @@ export function StaffProfileEditor({
         </section>
 
         <section className="card">
-          <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Signing in</h2>
+          <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>
+            {t({ th: "การเข้าสู่ระบบ", en: "Signing in" })}
+          </h2>
 
           <SecretRow
             label="Password"

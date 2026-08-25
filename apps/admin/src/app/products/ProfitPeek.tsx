@@ -1,19 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "../LangProvider";
 
 const baht = (s: number) => `฿${(s / 100).toFixed(2)}`;
 
 /** Press-and-hold the eye to reveal profit; release to hide it (keeps margins off-screen at a glance). */
 export function ProfitPeek({ value }: { value: number }) {
+  const t = useT();
   const [show, setShow] = useState(false);
   const hide = () => setShow(false);
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
       <button
         type="button"
-        aria-label="Hold to reveal profit"
-        title="Hold to see profit"
+        aria-label={t({ th: "กดค้างเพื่อดูกำไร", en: "Hold to reveal profit" })}
+        title={t({ th: "กดค้างเพื่อดูกำไร", en: "Hold to see profit" })}
         onPointerDown={() => setShow(true)}
         onPointerUp={hide}
         onPointerLeave={hide}

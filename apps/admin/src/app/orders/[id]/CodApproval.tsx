@@ -4,6 +4,7 @@ import { useState } from "react";
 import { decideCod, type OrderDetail } from "@/lib/api";
 import { tableText } from "@/lib/tableText";
 import { card, sectionTitle } from "./cardStyles";
+import { useT } from "../../LangProvider";
 
 /**
  * Zone A for a `cod_pending` order: the staff decision on collect-on-delivery. Only watch-tier orders
@@ -20,9 +21,11 @@ export function CodApprovalSection({
   order: OrderDetail["order"];
   /** COD approval is the super-admin's + admin's action; a mechanic sees it read-only. */
   canAct: boolean;
+  /** Already translated by OrderDetailView — see the note there. */
   status: { pill: string; label: string };
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<null | "approve" | "deny">(null);
 
   async function decide(decision: "approve" | "deny") {
@@ -48,7 +51,9 @@ export function CodApprovalSection({
       }}
     >
       <div>
-        <div style={{ ...sectionTitle, marginBottom: 6 }}>อนุมัติเก็บเงินปลายทาง</div>
+        <div style={{ ...sectionTitle, marginBottom: 6 }}>
+          {t({ th: "อนุมัติเก็บเงินปลายทาง", en: "Approve cash on delivery" })}
+        </div>
         <span className={`pill ${status.pill}`}>{status.label}</span>
       </div>
       {canAct ? (
@@ -59,7 +64,9 @@ export function CodApprovalSection({
             disabled={busy !== null}
             onClick={() => void decide("approve")}
           >
-            {busy === "approve" ? "กำลังอนุมัติ…" : "ตกลง"}
+            {busy === "approve"
+              ? t({ th: "กำลังอนุมัติ…", en: "Approving…" })
+              : t({ th: "ตกลง", en: "Approve" })}
           </button>
           <button
             type="button"
@@ -67,11 +74,15 @@ export function CodApprovalSection({
             disabled={busy !== null}
             onClick={() => void decide("deny")}
           >
-            {busy === "deny" ? "กำลังปฏิเสธ…" : "ปฏิเสธ"}
+            {busy === "deny"
+              ? t({ th: "กำลังปฏิเสธ…", en: "Rejecting…" })
+              : t({ th: "ปฏิเสธ", en: "Reject" })}
           </button>
         </div>
       ) : (
-        <div style={tableText.subtitle}>เฉพาะผู้ดูแลระดับสูงและผู้ดูแล</div>
+        <div style={tableText.subtitle}>
+          {t({ th: "เฉพาะผู้ดูแลระดับสูงและผู้ดูแล", en: "Super admin and admin only" })}
+        </div>
       )}
     </div>
   );

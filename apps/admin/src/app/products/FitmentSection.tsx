@@ -3,6 +3,7 @@
 import { Combobox } from "./Combobox";
 import { FitmentModelPicker, type Generation } from "./FitmentModelPicker";
 import type { Fitment, CarBrandTree } from "@/lib/api";
+import { useT } from "../LangProvider";
 
 /** "Fits these cars" frame — one row per compatible vehicle generation (brand + model · era). */
 export function FitmentSection({
@@ -14,6 +15,7 @@ export function FitmentSection({
   onChange: (next: Fitment[]) => void;
   carTree: CarBrandTree[];
 }) {
+  const t = useT();
   const patch = (i: number, p: Partial<Fitment>) =>
     onChange(fitments.map((f, j) => (j === i ? { ...f, ...p } : f)));
   const add = () =>
@@ -40,10 +42,14 @@ export function FitmentSection({
         background: "var(--surface)",
       }}
     >
-      <span style={{ fontWeight: 600 }}>Fits these cars</span>
+      <span style={{ fontWeight: 600 }}>
+        {t({ th: "ใช้ได้กับรถรุ่นนี้", en: "Fits these cars" })}
+      </span>
       <small className="muted" style={{ marginTop: -4 }}>
-        One part can fit several vehicles — add each compatible model. If it fits two generations of
-        the same model, add a row for each.
+        {t({
+          th: "อะไหล่ชิ้นเดียวใส่ได้หลายรุ่น — เพิ่มทีละรุ่นที่ใส่ได้ ถ้าใส่ได้สองเจเนอเรชันของรุ่นเดียวกัน ให้เพิ่มแยกบรรทัด",
+          en: "One part can fit several vehicles — add each compatible model. If it fits two generations of the same model, add a row for each.",
+        })}
       </small>
       <table className="ftbl">
         <colgroup>
@@ -53,8 +59,8 @@ export function FitmentSection({
         </colgroup>
         <thead>
           <tr>
-            <th>Car brand</th>
-            <th>Model</th>
+            <th>{t({ th: "ยี่ห้อรถ", en: "Car brand" })}</th>
+            <th>{t({ th: "รุ่น", en: "Model" })}</th>
             <th />
           </tr>
         </thead>
@@ -62,7 +68,7 @@ export function FitmentSection({
           {fitments.length === 0 && (
             <tr>
               <td colSpan={3} className="muted" style={{ textAlign: "left" }}>
-                No cars yet — add one below.
+                {t({ th: "ยังไม่มีรถ — เพิ่มด้านล่าง", en: "No cars yet — add one below." })}
               </td>
             </tr>
           )}
@@ -73,7 +79,7 @@ export function FitmentSection({
                   value={f.carBrand ?? ""}
                   onChange={(v) => patch(i, { carBrand: v })}
                   options={brandNames}
-                  placeholder="e.g. Toyota"
+                  placeholder={t({ th: "เช่น Toyota", en: "e.g. Toyota" })}
                 />
               </td>
               <td>
@@ -81,14 +87,14 @@ export function FitmentSection({
                   value={f}
                   options={gensFor(f.carBrand)}
                   onPick={(g) => patch(i, { carModel: g.name, yearFrom: g.from, yearTo: g.to })}
-                  placeholder="e.g. Vios · 2007 – 2013"
+                  placeholder={t({ th: "เช่น Vios · 2007 – 2013", en: "e.g. Vios · 2007 – 2013" })}
                 />
               </td>
               <td>
                 <button
                   type="button"
                   className="icon-del"
-                  aria-label="Remove car"
+                  aria-label={t({ th: "ลบรถรุ่นนี้", en: "Remove car" })}
                   onClick={() => remove(i)}
                 >
                   <svg
@@ -119,7 +125,7 @@ export function FitmentSection({
         onClick={add}
         style={{ justifySelf: "start", marginTop: 4 }}
       >
-        + Add car
+        + {t({ th: "เพิ่มรถ", en: "Add car" })}
       </button>
     </div>
   );

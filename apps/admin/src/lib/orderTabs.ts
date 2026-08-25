@@ -1,4 +1,5 @@
 import type { OperationalStatus } from "@l-shopee/core";
+import type { Phrase } from "./lang";
 
 export type OrderTab =
   "unpaid" | "pending" | "toship" | "shipped" | "completed" | "cancelfail" | "refundclaim";
@@ -8,14 +9,16 @@ export type OrderTab =
  * stated in terms of the LABEL — "if a card reads the same as a tab, it is that tab" — so label
  * equality has to be something a test can check.
  */
-export const ORDER_TAB_LABELS: Record<OrderTab, string> = {
-  unpaid: "Unpaid",
-  pending: "Pending",
-  toship: "To ship",
-  shipped: "In transit",
-  completed: "Completed",
-  cancelfail: "Cancel & fail",
-  refundclaim: "Refund & claim",
+export const ORDER_TAB_LABELS: Record<OrderTab, Phrase> = {
+  // From the project's documented lifecycle (docs/knowledge/commerce/order-lifecycle.md) wherever it
+  // has a word, so a tab, a dashboard card and the docs cannot call one state three things.
+  unpaid: { th: "รอชำระเงิน", en: "Unpaid" },
+  pending: { th: "รอดำเนินการ", en: "Pending" },
+  toship: { th: "เตรียมจัดส่ง", en: "To ship" },
+  shipped: { th: "กำลังจัดส่ง", en: "In transit" },
+  completed: { th: "สำเร็จ", en: "Completed" },
+  cancelfail: { th: "ยกเลิก & ส่งไม่สำเร็จ", en: "Cancel & fail" },
+  refundclaim: { th: "คืนเงิน & เคลม", en: "Refund & claim" },
 };
 
 /**

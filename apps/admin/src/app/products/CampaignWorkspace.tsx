@@ -4,6 +4,7 @@ import { useState } from "react";
 import { commissionFeeSatang, profitSatang, marginPct } from "@/lib/pricing";
 import { toSatang, baht } from "./PricingFields";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../LangProvider";
 
 interface Scenario {
   price: string;
@@ -20,6 +21,7 @@ export function CampaignWorkspace({
   defaultProfitSatang: number;
   defaultPriceSatang: number;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<Scenario[]>([
     { price: "102", comm: "10" },
     { price: "99", comm: "12" },
@@ -32,7 +34,9 @@ export function CampaignWorkspace({
   return (
     <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontWeight: 600 }}>Campaign workspace</span>
+        <span style={{ fontWeight: 600 }}>
+          {t({ th: "พื้นที่ทำแคมเปญ", en: "Campaign workspace" })}
+        </span>
         <span className="pill soft">scratch · not saved</span>
       </div>
       <div
@@ -61,12 +65,12 @@ export function CampaignWorkspace({
             </colgroup>
             <thead>
               <tr>
-                <th>Try</th>
-                <th>Default (฿)</th>
-                <th>Price (฿)</th>
-                <th>Comm.</th>
-                <th>Profit</th>
-                <th>Margin</th>
+                <th>{t({ th: "ลองราคา", en: "Try" })}</th>
+                <th>{t({ th: "ราคาปกติ (฿)", en: "Default (฿)" })}</th>
+                <th>{t({ th: "ราคา (฿)", en: "Price (฿)" })}</th>
+                <th>{t({ th: "ค่าคอมฯ", en: "Comm." })}</th>
+                <th>{t({ th: "กำไร", en: "Profit" })}</th>
+                <th>{t({ th: "อัตรากำไร", en: "Margin" })}</th>
                 <th />
               </tr>
             </thead>

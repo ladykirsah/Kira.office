@@ -1,3 +1,5 @@
+import type { Phrase } from "./lang";
+
 /** The two places a product can be sold. */
 export type SalesChannel = "AirPlus" | "Shopee";
 
@@ -13,6 +15,10 @@ export type SalesChannel = "AirPlus" | "Shopee";
  *
  * @param live whether the product is live on that channel at the moment
  */
-export function channelActionLabel(channel: SalesChannel, live: boolean): string {
-  return `${live ? "Pause" : "Live"} on ${channel}`;
+export function channelActionLabel(channel: SalesChannel, live: boolean): Phrase {
+  // The channel's NAME is not translated — AirPlus and Shopee are names, not words. Only the verb
+  // in front of it changes, which keeps this reading as one pair of words in either language.
+  return live
+    ? { th: `หยุดขายบน ${channel}`, en: `Pause on ${channel}` }
+    : { th: `วางขายบน ${channel}`, en: `Live on ${channel}` };
 }

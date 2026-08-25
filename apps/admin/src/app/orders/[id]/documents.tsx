@@ -7,6 +7,7 @@ import { card, sectionTitle } from "./cardStyles";
 import { DocRow, Modal } from "./docKit";
 import { ShippingLabelDoc } from "./ShipmentActions";
 import { Icon } from "../../Icon";
+import { useT } from "../../LangProvider";
 
 /**
  * The order's files, one card in the right rail under Note. Which rows appear is decided by the pure
@@ -31,6 +32,7 @@ export function DocumentsCard({
   viewerIsSuperAdmin: boolean;
   onError: (message: string) => void;
 }) {
+  const t = useT();
   // Every claim's photos, flattened — the View gallery shows them all, the count drives the row.
   const claimPhotos = claims.flatMap((c) => c.photoKeys);
   const docs = orderDocuments({
@@ -41,7 +43,7 @@ export function DocumentsCard({
 
   return (
     <div style={card}>
-      <div style={sectionTitle}>Documents</div>
+      <div style={sectionTitle}>{t({ th: "เอกสาร", en: "Documents" })}</div>
       {docs.map((d, i) => {
         const first = i === 0;
         if (d.kind === "shipping_label") {
@@ -90,6 +92,7 @@ function ClaimEvidenceDoc({
   photoKeys: string[];
   first?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -101,8 +104,8 @@ function ClaimEvidenceDoc({
             type="button"
             className="icon-btn"
             onClick={() => setOpen(true)}
-            aria-label="View"
-            title="View"
+            aria-label={t({ th: "ดู", en: "View" })}
+            title={t({ th: "ดู", en: "View" })}
           >
             <Icon name="view" />
           </button>
@@ -124,7 +127,7 @@ function ClaimEvidenceDoc({
               >
                 <img
                   src={privateFileUrl(k)}
-                  alt={`หลักฐาน ${i + 1}`}
+                  alt={t({ th: `หลักฐาน ${i + 1}`, en: `Evidence ${i + 1}` })}
                   style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
                 />
                 <a
@@ -132,7 +135,7 @@ function ClaimEvidenceDoc({
                   href={privateFileUrl(k)}
                   download
                   aria-label={`Save photo ${i + 1}`}
-                  title="Save"
+                  title={t({ th: "บันทึก", en: "Save" })}
                 >
                   <Icon name="save" />
                 </a>
@@ -161,10 +164,21 @@ function SlipDoc({
   canView: boolean;
   first?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
-  if (!slipKey) return <DocRow first={first} label={label} sub="ยังไม่มีสลิป" />;
+  if (!slipKey)
+    return (
+      <DocRow first={first} label={label} sub={t({ th: "ยังไม่มีสลิป", en: "No slip yet" })} />
+    );
   // A bank slip is super-admin-only; a regular admin sees that one exists but not the image.
-  if (!canView) return <DocRow first={first} label={label} sub="เฉพาะผู้ดูแลระดับสูง" />;
+  if (!canView)
+    return (
+      <DocRow
+        first={first}
+        label={label}
+        sub={t({ th: "เฉพาะผู้ดูแลระดับสูง", en: "Super admin only" })}
+      />
+    );
   return (
     <>
       <DocRow
@@ -176,8 +190,8 @@ function SlipDoc({
               type="button"
               className="icon-btn"
               onClick={() => setOpen(true)}
-              aria-label="View"
-              title="View"
+              aria-label={t({ th: "ดู", en: "View" })}
+              title={t({ th: "ดู", en: "View" })}
             >
               <Icon name="view" />
             </button>
@@ -185,8 +199,8 @@ function SlipDoc({
               className="icon-btn"
               href={privateFileUrl(slipKey)}
               download
-              aria-label="Save"
-              title="Save"
+              aria-label={t({ th: "บันทึก", en: "Save" })}
+              title={t({ th: "บันทึก", en: "Save" })}
             >
               <Icon name="save" />
             </a>
@@ -197,7 +211,7 @@ function SlipDoc({
         <Modal title={label} onClose={() => setOpen(false)}>
           <img
             src={privateFileUrl(slipKey)}
-            alt="สลิปการชำระเงิน"
+            alt={t({ th: "สลิปการชำระเงิน", en: "Payment slip" })}
             style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
           />
         </Modal>

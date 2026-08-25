@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { confirmationProblem } from "@/lib/secretConfirm";
+import type { Phrase } from "@/lib/lang";
 import { useToast } from "../../../ToastProvider";
+import { useT } from "../../../LangProvider";
 
 /**
  * One credential, one row: the value hidden behind dots, an eye to reveal it, and a reset.
@@ -27,7 +29,7 @@ export function SecretRow({
   hasValue,
   generate,
   onSave,
-  actionLabel = "reset",
+  actionLabel = { th: "รีเซ็ต", en: "reset" },
   confirm = false,
   hint,
   inputMode,
@@ -41,7 +43,7 @@ export function SecretRow({
   generate?: () => string;
   onSave: (next: string) => Promise<boolean>;
   /** The word on the button that opens the box. "reset" when acting on somebody else's. */
-  actionLabel?: string;
+  actionLabel?: Phrase;
   /**
    * Ask for the value TWICE before saving. For a secret the person types themselves: a generated
    * one is on screen to be read, so there is nothing to mistype and a second box is only friction.
@@ -52,6 +54,7 @@ export function SecretRow({
   maxLength?: number;
 }) {
   const toast = useToast();
+  const t = useT();
   const [shown, setShown] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [again, setAgain] = useState("");
@@ -87,9 +90,11 @@ export function SecretRow({
         <div className="secret-line">
           <code className="secret-value">
             {!hasValue ? (
-              <span className="faint">not set</span>
+              <span className="faint">{t({ th: "ยังไม่ตั้ง", en: "not set" })}</span>
             ) : shown ? (
-              (value ?? <span className="faint">can&rsquo;t be shown</span>)
+              (value ?? (
+                <span className="faint">{t({ th: "แสดงไม่ได้", en: "can't be shown" })}</span>
+              ))
             ) : (
               "••••••••"
             )}
@@ -98,14 +103,18 @@ export function SecretRow({
             type="button"
             className="icon-btn"
             aria-pressed={shown}
-            aria-label={shown ? `Hide ${label}` : `Show ${label}`}
+            aria-label={
+              shown
+                ? t({ th: `ซ่อน${label}`, en: `Hide ${label}` })
+                : t({ th: `แสดง${label}`, en: `Show ${label}` })
+            }
             disabled={!hasValue}
             onClick={() => setShown((v) => !v)}
           >
             {shown ? <EyeOff /> : <Eye />}
           </button>
           <button type="button" className="text-btn" onClick={() => setDraft(generate?.() ?? "")}>
-            {actionLabel}
+            {t(actionLabel)}
           </button>
         </div>
       ) : (
@@ -122,7 +131,9 @@ export function SecretRow({
               if (e.key === "Escape") close();
               if (e.key === "Enter") void save();
             }}
-            placeholder={confirm ? `New ${label.toLowerCase()}` : undefined}
+            placeholder={
+              confirm ? t({ th: `${label}ใหม่`, en: `New ${label.toLowerCase()}` }) : undefined
+            }
             style={{ flex: 1, minWidth: 150 }}
           />
           {/* The second box sits on the SAME line as the first (owner's control sizing), so the two
@@ -132,7 +143,7 @@ export function SecretRow({
               value={again}
               inputMode={inputMode}
               maxLength={maxLength}
-              placeholder="พิมพ์อีกครั้ง"
+              placeholder={t({ th: "พิมพ์อีกครั้ง", en: "Type it again" })}
               onChange={(e) =>
                 setAgain(
                   inputMode === "numeric" ? e.target.value.replace(/\D/g, "") : e.target.value,
@@ -149,17 +160,17 @@ export function SecretRow({
             <button
               type="button"
               className="icon-btn"
-              aria-label={`Generate another ${label}`}
+              aria-label={t({ th: `สุ่ม${label}ใหม่`, en: `Generate another ${label}` })}
               onClick={() => setDraft(generate())}
             >
               ↻
             </button>
           )}
           <button type="button" className="text-btn" disabled={busy} onClick={save}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? t({ th: "กำลังบันทึก…", en: "Saving…" }) : t({ th: "บันทึก", en: "Save" })}
           </button>
           <button type="button" className="text-btn muted-btn" onClick={close}>
-            Cancel
+            {t({ th: "ยกเลิก", en: "Cancel" })}
           </button>
         </div>
       )}

@@ -26,6 +26,7 @@ import { OPERATIONAL_STATUSES, operationalStatus, operationalStatusLabel } from 
 import { OrderActionsMenu } from "./OrderActionsMenu";
 
 import type { OrderTab } from "@/lib/orderTabs";
+import { useT } from "../LangProvider";
 
 type Tab = "all" | OrderTab;
 /** Derived from the card table so the two can never list different keys. */
@@ -70,6 +71,7 @@ export function OrdersTable({
   initialCardKey?: string | null;
 }) {
   const initialCard = summaryCardFromKey(initialCardKey);
+  const t = useT();
   const [tab, setTab] = useState<Tab>(initialCard ? initialCard.tab : "all");
   // Mirror toggleSummary's landing exactly: a whole-tab card needs no separate filter (its tab IS it),
   // and the date range widens to all-time so an all-time count doesn't open onto an empty Today.
@@ -163,7 +165,8 @@ export function OrdersTable({
 
   // Label from the same table the summary cards read, so "same label ⇒ same page" is enforced by
   // there being one label. "All" is not a status filter, so it is the only one written here.
-  const tabLabel = (id: Tab) => (id === "all" ? "All" : ORDER_TAB_LABELS[id]);
+  const tabLabel = (id: Tab) =>
+    t(id === "all" ? { th: "ทั้งหมด", en: "All" } : ORDER_TAB_LABELS[id]);
 
   const TabBtn = ({ id }: { id: Tab }) => (
     <button
@@ -214,7 +217,7 @@ export function OrdersTable({
           }
         }}
       >
-        <div style={summaryLabel}>{orderSummaryCardLabel(card)}</div>
+        <div style={summaryLabel}>{t(orderSummaryCardLabel(card))}</div>
         <div style={{ ...summaryNumber, color: summaryNumberColor(value, card.activeColor) }}>
           {value}
         </div>
@@ -259,7 +262,10 @@ export function OrdersTable({
         <div style={toolbarStyle}>
           <input
             className="tbar-input"
-            placeholder="Search order ID, name, phone..."
+            placeholder={t({
+              th: "ค้นหาเลขออเดอร์ ชื่อ เบอร์โทร…",
+              en: "Search order ID, name, phone...",
+            })}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             style={{
@@ -271,7 +277,7 @@ export function OrdersTable({
             }}
           />
           <select
-            aria-label="Sort by"
+            aria-label={t({ th: "เรียงตาม", en: "Sort by" })}
             value={sortBy}
             onChange={(e) => {
               setSortBy(e.target.value);
@@ -283,13 +289,13 @@ export function OrdersTable({
               fontWeight: sortBy ? 500 : 400,
             }}
           >
-            <option value="">Sort by...</option>
-            <option value="status">Status</option>
-            <option value="payment">Payment</option>
+            <option value="">{t({ th: "เรียงตาม…", en: "Sort by..." })}</option>
+            <option value="status">{t({ th: "สถานะ", en: "Status" })}</option>
+            <option value="payment">{t({ th: "การชำระเงิน", en: "Payment" })}</option>
           </select>
           {sortBy && (
             <select
-              aria-label="Filter"
+              aria-label={t({ th: "กรอง", en: "Filter" })}
               value={filterVal}
               onChange={(e) => setFilterVal(e.target.value)}
               style={{
@@ -298,29 +304,35 @@ export function OrdersTable({
                 fontWeight: filterVal ? 500 : 400,
               }}
             >
-              <option value="">Filter...</option>
+              <option value="">{t({ th: "กรอง…", en: "Filter..." })}</option>
               {/* Offer the same seven the Status column shows — filtering by a raw order_status the
                   column never displays would be filtering by an invisible field. */}
-              <optgroup label="Status">
+              <optgroup label={t({ th: "สถานะ", en: "Status" })}>
                 {OPERATIONAL_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {operationalStatusLabel(s)}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="Payment">
-                <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
-                <option value="cod">COD</option>
-                <option value="cod_confirmed">COD Approved</option>
-                <option value="cod_collected">COD Collected</option>
-                <option value="cod_denied">COD Denied</option>
-                <option value="refunded">Refunded</option>
+              <optgroup label={t({ th: "การชำระเงิน", en: "Payment" })}>
+                <option value="pending">{t({ th: "รอชำระเงิน", en: "Pending" })}</option>
+                <option value="paid">{t({ th: "ชำระแล้ว", en: "Paid" })}</option>
+                <option value="cod">{t({ th: "เก็บเงินปลายทาง", en: "COD" })}</option>
+                <option value="cod_confirmed">
+                  {t({ th: "อนุมัติเก็บปลายทาง", en: "COD Approved" })}
+                </option>
+                <option value="cod_collected">
+                  {t({ th: "เก็บเงินแล้ว", en: "COD Collected" })}
+                </option>
+                <option value="cod_denied">
+                  {t({ th: "ปฏิเสธเก็บปลายทาง", en: "COD Denied" })}
+                </option>
+                <option value="refunded">{t({ th: "คืนเงินแล้ว", en: "Refunded" })}</option>
               </optgroup>
             </select>
           )}
           <select
-            aria-label="Date range"
+            aria-label={t({ th: "ช่วงวันที่", en: "Date range" })}
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
             style={{
@@ -329,19 +341,19 @@ export function OrdersTable({
               fontWeight: datePreset !== "all" ? 500 : 400,
             }}
           >
-            <option value="all">All time</option>
-            <option value="today">Today</option>
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="month">This month</option>
-            <option value="lastmonth">Last month</option>
-            <option value="custom">Custom...</option>
+            <option value="all">{t({ th: "ทั้งหมด", en: "All time" })}</option>
+            <option value="today">{t({ th: "วันนี้", en: "Today" })}</option>
+            <option value="7d">{t({ th: "7 วันล่าสุด", en: "Last 7 days" })}</option>
+            <option value="30d">{t({ th: "30 วันล่าสุด", en: "Last 30 days" })}</option>
+            <option value="month">{t({ th: "เดือนนี้", en: "This month" })}</option>
+            <option value="lastmonth">{t({ th: "เดือนก่อน", en: "Last month" })}</option>
+            <option value="custom">{t({ th: "กำหนดเอง…", en: "Custom..." })}</option>
           </select>
         </div>
         {datePreset === "custom" && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
-              From
+              {t({ th: "ตั้งแต่", en: "From" })}
             </label>
             <input
               type="date"
@@ -362,18 +374,20 @@ export function OrdersTable({
         {view.length === 0 ? (
           <div className="empty">
             <div className="empty-icon">🧾</div>
-            {airplus.length === 0 ? "No AirPlus orders yet." : "No orders match."}
+            {airplus.length === 0
+              ? t({ th: "ยังไม่มีออเดอร์ AirPlus", en: "No AirPlus orders yet." })
+              : t({ th: "ไม่มีออเดอร์ที่ตรงกับที่เลือก", en: "No orders match." })}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                  <th align="left">Action</th>
+                  <th>{t({ th: "ออเดอร์", en: "Order" })}</th>
+                  <th>{t({ th: "ลูกค้า", en: "Customer" })}</th>
+                  <th>{t({ th: "ยอดรวม", en: "Total" })}</th>
+                  <th>{t({ th: "สถานะ", en: "Status" })}</th>
+                  <th align="left">{t({ th: "จัดการ", en: "Action" })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,10 +430,10 @@ export function OrdersTable({
                         <div style={{ fontWeight: 700, ...tableText.body2 }}>
                           {formatBahtTrim(o.grandTotalSatang)}
                         </div>
-                        <div style={tableText.subtitle}>{psBadge.label}</div>
+                        <div style={tableText.subtitle}>{t(psBadge.label)}</div>
                       </td>
                       <td>
-                        <span className={`pill ${osBadge.pill}`}>{osBadge.label}</span>
+                        <span className={`pill ${osBadge.pill}`}>{t(osBadge.label)}</span>
                       </td>
                       <td>
                         <OrderActionsMenu orderId={o.id} />

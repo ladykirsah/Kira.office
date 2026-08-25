@@ -7,9 +7,10 @@
  * new+pending waits on the customer to transfer, new+cod waits on the OWNER to approve COD, and
  * new+verifying means they already paid and are waiting on us. All three are order_status 'new'.
  *
- * Kira.office is English today, so `operationalStatusLabel` is the one the UI renders;
- * `operationalStatusLabelTh` carries the owner's Thai so the planned bilingual switch is a toggle
- * rather than a rewrite. AirPlus (the storefront) is Thai.
+ * THE PLANNED SWITCH ARRIVED (2026-08-25). The admin renders `operationalStatusPhrase` and picks a
+ * side from the language toggle; the two single-language functions remain for callers that want one
+ * (and the storefront, which is Thai only). Writing the Thai here before there was any toggle is
+ * what made that day's work wiring rather than a rewrite.
  */
 export type OperationalStatus =
   // ── payment ──
@@ -85,6 +86,18 @@ export function operationalStatusLabel(s: OperationalStatus): string {
 
 export function operationalStatusLabelTh(s: OperationalStatus): string {
   return TH[s];
+}
+
+/**
+ * Both at once, for the admin's language toggle (2026-08-25) — the thing the two maps above were
+ * written for.
+ *
+ * Deliberately NOT typed as the admin's `Phrase`: core cannot import from an app, and TypeScript is
+ * structural, so `{ th, en }` is accepted by `t()` on the other side without either package having
+ * to know about the other. The shape is the contract.
+ */
+export function operationalStatusPhrase(s: OperationalStatus): { th: string; en: string } {
+  return { th: TH[s], en: EN[s] };
 }
 
 /** Payment values meaning the money is settled enough to pack and send. */

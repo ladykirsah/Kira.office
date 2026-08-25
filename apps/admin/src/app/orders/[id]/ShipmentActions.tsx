@@ -11,6 +11,7 @@ import { inputS } from "@/lib/inputStyles";
 import { card, sectionTitle } from "./cardStyles";
 import { DocRow, Modal } from "./docKit";
 import { Icon } from "../../Icon";
+import { useT } from "../../LangProvider";
 
 /**
  * Everything that happens to a parcel on its way out the door.
@@ -43,6 +44,8 @@ interface SectionProps extends ShipmentProps {
    * pill would fork the colour mapping in lib/badges — the owner picked those colours deliberately
    * (only three states earn one) and a second copy would not follow when they change.
    */
+  /** Already translated by OrderDetailView — see the note there. */
+  /** Already translated by OrderDetailView — see the note there. */
   status: { pill: string; label: string };
 }
 
@@ -82,6 +85,7 @@ function LabelButtons({
   busyFile: "pdf" | "png" | null;
   saveFile: (kind: "pdf" | "png") => void;
 }) {
+  const t = useT();
   return (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       <button
@@ -90,7 +94,9 @@ function LabelButtons({
         disabled={busyFile !== null}
         onClick={() => saveFile("pdf")}
       >
-        {busyFile === "pdf" ? "Saving…" : "Save label PDF"}
+        {busyFile === "pdf"
+          ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+          : t({ th: "บันทึกใบปะหน้า PDF", en: "Save label PDF" })}
       </button>
       <button
         type="button"
@@ -98,7 +104,9 @@ function LabelButtons({
         disabled={busyFile !== null}
         onClick={() => saveFile("png")}
       >
-        {busyFile === "png" ? "Saving…" : "Save label PNG"}
+        {busyFile === "png"
+          ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+          : t({ th: "บันทึกใบปะหน้า PNG", en: "Save label PNG" })}
       </button>
     </div>
   );
@@ -106,6 +114,7 @@ function LabelButtons({
 
 /** The full-width section at the top of the page, while the order is waiting to go out. */
 export function ShipmentSection({ order, address, lines, shop, status, onError }: SectionProps) {
+  const t = useT();
   const { labelRef, busyFile, saveFile } = useLabelExport(order.externalOrderId, onError);
 
   return (
@@ -121,7 +130,9 @@ export function ShipmentSection({ order, address, lines, shop, status, onError }
         }}
       >
         <div>
-          <div style={{ ...sectionTitle, marginBottom: 6 }}>Shipment</div>
+          <div style={{ ...sectionTitle, marginBottom: 6 }}>
+            {t({ th: "การจัดส่ง", en: "Shipment" })}
+          </div>
           <span className={`pill ${status.pill}`}>{status.label}</span>
         </div>
         <LabelButtons busyFile={busyFile} saveFile={saveFile} />
@@ -137,7 +148,7 @@ export function ShipmentSection({ order, address, lines, shop, status, onError }
       >
         <DropOffCard order={order} onError={onError} />
         <div style={card}>
-          <div style={sectionTitle}>Shipping label</div>
+          <div style={sectionTitle}>{t({ th: "ใบปะหน้าพัสดุ", en: "Shipping label" })}</div>
           {/* overflow-x rather than a fluid width: the label is a fixed 378px so the capture is
               predictable, and a squeezed column should scroll it, not reflow what gets printed. */}
           <div style={{ overflowX: "auto" }}>
@@ -170,6 +181,7 @@ export function ShippingLabelDoc({
   shop,
   onError,
 }: ShipmentProps & { label: string; first?: boolean }) {
+  const t = useT();
   const { labelRef, busyFile, saveFile } = useLabelExport(order.externalOrderId, onError);
   const [open, setOpen] = useState(false);
 
@@ -184,8 +196,8 @@ export function ShippingLabelDoc({
               type="button"
               className="icon-btn"
               onClick={() => setOpen(true)}
-              aria-label="View"
-              title="View"
+              aria-label={t({ th: "ดู", en: "View" })}
+              title={t({ th: "ดู", en: "View" })}
             >
               <Icon name="view" />
             </button>
@@ -194,8 +206,12 @@ export function ShippingLabelDoc({
               className="icon-btn"
               disabled={busyFile !== null}
               onClick={() => saveFile("png")}
-              aria-label="Save PNG"
-              title={busyFile === "png" ? "Saving…" : "Save PNG"}
+              aria-label={t({ th: "บันทึก PNG", en: "Save PNG" })}
+              title={
+                busyFile === "png"
+                  ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                  : t({ th: "บันทึก PNG", en: "Save PNG" })
+              }
             >
               <Icon name="save" />
             </button>
@@ -223,6 +239,7 @@ function DropOffCard({
   order: OrderDetail["order"];
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const [carrier, setCarrier] = useState<string>(order.carrier ?? DEFAULT_CARRIER);
   const [trackingNo, setTrackingNo] = useState(order.trackingNo ?? "");
   const [realBaht, setRealBaht] = useState("");
@@ -249,7 +266,7 @@ function DropOffCard({
 
   return (
     <div style={card}>
-      <div style={sectionTitle}>Record drop-off</div>
+      <div style={sectionTitle}>{t({ th: "บันทึกการส่งของ", en: "Record drop-off" })}</div>
       <div
         style={{
           display: "grid",
@@ -258,7 +275,7 @@ function DropOffCard({
         }}
       >
         <label style={field}>
-          <span style={tableText.subtitle}>Carrier</span>
+          <span style={tableText.subtitle}>{t({ th: "ขนส่ง", en: "Carrier" })}</span>
           <select value={carrier} onChange={(e) => setCarrier(e.target.value)} style={inputS}>
             {CARRIERS.map((c) => (
               <option key={c} value={c}>
@@ -268,7 +285,7 @@ function DropOffCard({
           </select>
         </label>
         <label style={field}>
-          <span style={tableText.subtitle}>Tracking number</span>
+          <span style={tableText.subtitle}>{t({ th: "เลขพัสดุ", en: "Tracking number" })}</span>
           <input
             value={trackingNo}
             onChange={(e) => setTrackingNo(e.target.value)}
@@ -277,7 +294,7 @@ function DropOffCard({
           />
         </label>
         <label style={field}>
-          <span style={tableText.subtitle}>Real charge ฿</span>
+          <span style={tableText.subtitle}>{t({ th: "ค่าส่งจริง ฿", en: "Real charge ฿" })}</span>
           {/* A placeholder, never a prefilled value: an amount nobody typed is an amount that could
               be saved by accident, and it lands in the owner's profit figure. */}
           <input
@@ -297,7 +314,9 @@ function DropOffCard({
           disabled={!canSave}
           onClick={() => void save()}
         >
-          {saving ? "Saving…" : "Save drop-off"}
+          {saving
+            ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+            : t({ th: "บันทึกการส่งของ", en: "Save drop-off" })}
         </button>
       </div>
 
@@ -311,10 +330,17 @@ function DropOffCard({
           alignItems: "baseline",
         }}
       >
-        <span style={{ ...sectionTitle, marginBottom: 0, whiteSpace: "nowrap" }}>On save</span>
+        <span style={{ ...sectionTitle, marginBottom: 0, whiteSpace: "nowrap" }}>
+          {t({ th: "เมื่อบันทึก", en: "On save" })}
+        </span>
         <span style={tableText.subtitle}>
-          Order moves to <strong>In transit</strong>, the timeline gets one “จัดส่งแล้ว” entry,{" "}
-          <strong>On us</strong> and <strong>Profit</strong> recalculate, and the tracking link
+          {t({
+            th: "ออเดอร์จะเปลี่ยนเป็น กำลังจัดส่ง และไทม์ไลน์จะได้หนึ่งรายการ “จัดส่งแล้ว”",
+            en: "Order moves to In transit, and the timeline gets one “จัดส่งแล้ว” entry",
+          })}{" "}
+          <strong>{t({ th: "ร้านออกค่าส่งให้", en: "On us" })}</strong>{" "}
+          {t({ th: "และ", en: "and" })} <strong>{t({ th: "กำไร", en: "Profit" })}</strong>{" "}
+          {t({ th: "จะคำนวณใหม่ และลิงก์ติดตามพัสดุ", en: "recalculate, and the tracking link" })}
           appears on this page.
         </span>
       </div>

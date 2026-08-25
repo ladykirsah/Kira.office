@@ -80,33 +80,54 @@ describe("saleTypeBadge", () => {
 
 describe("shopeeStatusBadge", () => {
   it("สำเร็จแล้ว > Complete/green", () =>
-    expect(shopeeStatusBadge("สำเร็จแล้ว")).toEqual({ pill: "good", label: "Complete" }));
+    expect(shopeeStatusBadge("สำเร็จแล้ว")).toEqual({
+      pill: "good",
+      label: { th: "สำเร็จ", en: "Complete" },
+    }));
   it("buyer-received (mentions refund) > Shipped/blue, not Refund", () =>
     expect(
       shopeeStatusBadge(
         "ผู้ซื้อได้รับสินค้าแล้ว โปรดทราบว่าผู้ซื้อสามารถยื่นคำขอคืนเงิน/คืนสินค้าได้จนถึง 2026-07-03",
       ),
-    ).toEqual({ pill: "info", label: "Shipped" }));
+    ).toEqual({ pill: "info", label: { th: "จัดส่งแล้ว", en: "Shipped" } }));
   it("กำลังจัดส่ง > Shipping/yellow", () =>
-    expect(shopeeStatusBadge("กำลังจัดส่ง")).toEqual({ pill: "warn", label: "Shipping" }));
+    expect(shopeeStatusBadge("กำลังจัดส่ง")).toEqual({
+      pill: "warn",
+      label: { th: "กำลังจัดส่ง", en: "Shipping" },
+    }));
   it("ยกเลิกแล้ว > Cancelled/gray", () =>
-    expect(shopeeStatusBadge("ยกเลิกแล้ว")).toEqual({ pill: "off", label: "Cancelled" }));
+    expect(shopeeStatusBadge("ยกเลิกแล้ว")).toEqual({
+      pill: "off",
+      label: { th: "ยกเลิก", en: "Cancelled" },
+    }));
   it("คืนเงินสำเร็จ > Refund/red", () =>
     expect(shopeeStatusBadge("การคืนเงิน/คืนสินค้าสำเร็จ")).toEqual({
       pill: "bad",
-      label: "Refund",
+      label: { th: "คืนเงิน", en: "Refund" },
     }));
 });
 
 describe("airplusStatusBadge (Refund=gray, Cancelled=red — opposite of Shopee)", () => {
   it("done > Done/green", () =>
-    expect(airplusStatusBadge("done")).toEqual({ pill: "good", label: "Done" }));
+    expect(airplusStatusBadge("done")).toEqual({
+      pill: "good",
+      label: { th: "สำเร็จ", en: "Done" },
+    }));
   it("shipping > Shipping/yellow", () =>
-    expect(airplusStatusBadge("shipping")).toEqual({ pill: "warn", label: "Shipping" }));
+    expect(airplusStatusBadge("shipping")).toEqual({
+      pill: "warn",
+      label: { th: "กำลังจัดส่ง", en: "Shipping" },
+    }));
   it("refund > Refund/gray", () =>
-    expect(airplusStatusBadge("refund")).toEqual({ pill: "off", label: "Refund" }));
+    expect(airplusStatusBadge("refund")).toEqual({
+      pill: "off",
+      label: { th: "คืนเงิน", en: "Refund" },
+    }));
   it("cancelled > Cancelled/red", () =>
-    expect(airplusStatusBadge("cancelled")).toEqual({ pill: "bad", label: "Cancelled" }));
+    expect(airplusStatusBadge("cancelled")).toEqual({
+      pill: "bad",
+      label: { th: "ยกเลิก", en: "Cancelled" },
+    }));
 });
 
 describe("operationalStatusBadge (the /orders Status column)", () => {
@@ -117,36 +138,54 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
    * complete green" cannot quietly undo that.
    */
   it("COD pending is amber — waiting on the owner's COD decision", () =>
-    expect(operationalStatusBadge("new", "cod")).toEqual({ pill: "warn", label: "COD pending" }));
+    expect(operationalStatusBadge("new", "cod")).toEqual({
+      pill: "warn",
+      label: { th: "รอการอนุมัติ", en: "COD pending" },
+    }));
 
   it("BC pending is amber too — a bank-transfer slip to verify", () =>
     expect(operationalStatusBadge("new", "verifying")).toEqual({
       pill: "warn",
-      label: "BC pending",
+      label: { th: "กำลังตรวจสอบ", en: "BC pending" },
     }));
 
   it("To ship is blue — waiting to be packed and sent", () =>
     expect(operationalStatusBadge("confirmed", "paid")).toEqual({
       pill: "info",
-      label: "To ship",
+      label: { th: "เตรียมจัดส่ง", en: "To ship" },
     }));
 
   it("Return is red — ตีกลับ, the parcel came back and needs handling", () =>
     expect(operationalStatusBadge("delivery_failed", "paid")).toEqual({
       pill: "bad",
-      label: "Return",
+      label: { th: "ตีกลับ", en: "Return" },
     }));
 
   it("everything else is gray, because nothing is waiting on the owner", () => {
-    expect(operationalStatusBadge("new", "pending")).toEqual({ pill: "off", label: "Unpaid" });
-    expect(operationalStatusBadge("shipped", "paid")).toEqual({ pill: "off", label: "In transit" });
-    expect(operationalStatusBadge("delivered", "paid")).toEqual({ pill: "off", label: "Complete" });
-    expect(operationalStatusBadge("cancelled", "pending")).toEqual({ pill: "off", label: "Fail" });
+    expect(operationalStatusBadge("new", "pending")).toEqual({
+      pill: "off",
+      label: { th: "ยังไม่ชำระเงิน", en: "Unpaid" },
+    });
+    expect(operationalStatusBadge("shipped", "paid")).toEqual({
+      pill: "off",
+      label: { th: "กำลังจัดส่ง", en: "In transit" },
+    });
+    expect(operationalStatusBadge("delivered", "paid")).toEqual({
+      pill: "off",
+      label: { th: "สำเร็จ", en: "Complete" },
+    });
+    expect(operationalStatusBadge("cancelled", "pending")).toEqual({
+      pill: "off",
+      label: { th: "ไม่สำเร็จ", en: "Fail" },
+    });
     expect(operationalStatusBadge("claim_pending", "paid")).toEqual({
       pill: "off",
-      label: "Claim pending",
+      label: { th: "รอการอนุมัติจากช่าง", en: "Claim pending" },
     });
-    expect(operationalStatusBadge("claimed", "refunded")).toEqual({ pill: "off", label: "Refund" });
+    expect(operationalStatusBadge("claimed", "refunded")).toEqual({
+      pill: "off",
+      label: { th: "คืนเงิน", en: "Refund" },
+    });
   });
 
   it("exactly the four action states are coloured", () => {
@@ -174,8 +213,14 @@ describe("operationalStatusBadge (the /orders Status column)", () => {
   });
 
   it("given pre-0069 Thai data > stays gray and shows the raw value rather than guessing", () =>
-    expect(operationalStatusBadge("ใหม่", "รอชำระเงิน")).toEqual({ pill: "off", label: "ใหม่" }));
+    expect(operationalStatusBadge("ใหม่", "รอชำระเงิน")).toEqual({
+      pill: "off",
+      label: { th: "ใหม่", en: "ใหม่" },
+    }));
 
   it("given nothing at all > shows a dash", () =>
-    expect(operationalStatusBadge(null, null)).toEqual({ pill: "off", label: "—" }));
+    expect(operationalStatusBadge(null, null)).toEqual({
+      pill: "off",
+      label: { th: "—", en: "—" },
+    }));
 });
