@@ -53,6 +53,7 @@ import { ServiceSelect } from "./ServiceSelect";
 import { flushOutbox, type OutboxStore } from "@/lib/outbox";
 import { createIdbStore } from "@/lib/outbox-idb";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 type AddKind = "product" | "service" | "addon";
 type AddMethod = "scan" | "code" | "search";
@@ -209,6 +210,7 @@ function SaveMenu({
   onPng: () => void;
   onDraft: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
 
@@ -255,7 +257,7 @@ function SaveMenu({
         onClick={() => setOpen((v) => !v)}
         style={{ width: 132 }}
       >
-        Save ▾
+        {t({ th: "บันทึก ▾", en: "Save ▾" })}
       </button>
       {open && (
         <div
@@ -284,7 +286,10 @@ function SaveMenu({
           >
             📄
             <span>
-              Create PDF<span style={sub}>downloads the bill as a PDF file</span>
+              {t({ th: "สร้าง PDF", en: "Create PDF" })}
+              <span style={sub}>
+                {t({ th: "ดาวน์โหลดบิลเป็นไฟล์ PDF", en: "downloads the bill as a PDF file" })}
+              </span>
             </span>
           </button>
           <button
@@ -298,7 +303,13 @@ function SaveMenu({
           >
             🖼️
             <span>
-              Save PNG<span style={sub}>downloads it as an image, ready to send</span>
+              {t({ th: "บันทึก PNG", en: "Save PNG" })}
+              <span style={sub}>
+                {t({
+                  th: "ดาวน์โหลดเป็นรูป พร้อมส่งให้ลูกค้า",
+                  en: "downloads it as an image, ready to send",
+                })}
+              </span>
             </span>
           </button>
           <button
@@ -312,7 +323,10 @@ function SaveMenu({
           >
             📝
             <span>
-              Save draft<span style={sub}>park it and finish later</span>
+              {t({ th: "บันทึกฉบับร่าง", en: "Save draft" })}
+              <span style={sub}>
+                {t({ th: "พักไว้ก่อน แล้วค่อยทำต่อ", en: "park it and finish later" })}
+              </span>
             </span>
           </button>
         </div>
@@ -493,6 +507,7 @@ function CartItem({
   onTier: (t: PriceTier) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const isService = line.kind === "service";
   const tags = line.tags ?? [];
   const miniInput: CSSProperties = { width: 66, fontSize: 13, padding: "5px 8px", minHeight: 0 };
@@ -514,7 +529,7 @@ function CartItem({
           </div>
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
             {isService ? (
-              <span style={chip("service")}>Service</span>
+              <span style={chip("service")}>{t({ th: "บริการ", en: "Service" })}</span>
             ) : (
               tags.map((t, i) => (
                 <span key={i} style={chip("part")}>
@@ -535,7 +550,7 @@ function CartItem({
       <button
         type="button"
         onClick={onRemove}
-        aria-label="Remove"
+        aria-label={t({ th: "ลบ", en: "Remove" })}
         style={{
           position: "absolute",
           top: 10,
@@ -560,7 +575,7 @@ function CartItem({
         {!isService && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <span className="muted" style={{ fontSize: 11 }}>
-              Price
+              {t({ th: "ราคา", en: "Price" })}
             </span>
             {(() => {
               // Wholesale switch: off = retail (B2C), on = wholesale (B2B). Flipping reprices the line.
@@ -570,7 +585,7 @@ function CartItem({
                   type="button"
                   role="switch"
                   aria-checked={wholesale}
-                  aria-label="Wholesale price (B2B)"
+                  aria-label={t({ th: "ราคาช่าง", en: "Wholesale price (B2B)" })}
                   onClick={() => onTier(wholesale ? "retail" : "wholesale")}
                   style={{
                     display: "inline-flex",
@@ -616,7 +631,7 @@ function CartItem({
                       color: wholesale ? "var(--primary)" : "var(--text-muted)",
                     }}
                   >
-                    Wholesale (B2B)
+                    {t({ th: "ราคาช่าง", en: "Wholesale (B2B)" })}
                   </span>
                 </button>
               );
@@ -642,7 +657,7 @@ function CartItem({
                 onPrice(Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100)))
               }
               style={miniInput}
-              title="Unit price"
+              title={t({ th: "ราคาต่อหน่วย", en: "Unit price" })}
             />
             <span>×</span>
             <input
@@ -651,7 +666,7 @@ function CartItem({
               value={line.quantity}
               onChange={(e) => onQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
               style={{ ...miniInput, width: 48, textAlign: "center" }}
-              title="Quantity"
+              title={t({ th: "จำนวน", en: "Quantity" })}
             />
             <span>pcs.</span>
           </div>
@@ -693,6 +708,7 @@ interface PosDraft {
 /** A mock QR graphic (3 finder patterns + scattered modules). Stands in until the shop uploads a
  * real contact QR in Shop info. Deterministic so it doesn't flicker on re-render. */
 function QrPlaceholder({ size = 80 }: { size?: number }) {
+  const t = useT();
   const N = 21;
   const c = size / N;
   const rects: ReactNode[] = [];
@@ -721,7 +737,7 @@ function QrPlaceholder({ size = 80 }: { size?: number }) {
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       style={{ background: "#fff", display: "block", flex: "none" }}
-      aria-label="Contact QR (sample)"
+      aria-label={t({ th: "QR ติดต่อ (ตัวอย่าง)", en: "Contact QR (sample)" })}
     >
       {rects}
     </svg>
@@ -795,6 +811,7 @@ function BillDoc({
         grandQuote: "Estimate",
         note: "Note",
         thanks: "*** Thank you ***",
+        contactQr: "Contact QR",
       }
     : {
         saleId: "เลขที่บิล",
@@ -813,6 +830,7 @@ function BillDoc({
         grandQuote: "รวมโดยประมาณ",
         note: "หมายเหตุ",
         thanks: "*** ขอบคุณที่ใช้บริการ ***",
+        contactQr: "QR ติดต่อ",
       };
 
   // Contact QR: the uploaded image when set, otherwise the sample placeholder.
@@ -820,7 +838,7 @@ function BillDoc({
     shop.qrKey ? (
       <img
         src={imageUrl(shop.qrKey)}
-        alt="Contact QR"
+        alt={t.contactQr}
         width={size}
         height={size}
         style={{ display: "block", objectFit: "contain" }}
@@ -950,17 +968,19 @@ function BillDoc({
       {discountSatang > 0 && (
         <>
           <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
-            <span>Subtotal</span>
+            <span>{t.subtotal}</span>
             <span>฿{amt(subtotalSatang)}</span>
           </div>
           <div style={{ display: "flex", gap: 24, fontSize: 12, color: muted }}>
-            <span>Discount</span>
+            <span>{t.discount}</span>
             <span>−฿{amt(discountSatang)}</span>
           </div>
         </>
       )}
       <div style={{ display: "flex", alignItems: "baseline", gap: 24 }}>
-        <span style={{ fontWeight: 700, letterSpacing: 1 }}>{isQuote ? "ESTIMATE" : "TOTAL"}</span>
+        <span style={{ fontWeight: 700, letterSpacing: 1 }}>
+          {isQuote ? t.grandQuote : t.grandCash}
+        </span>
         <span style={{ fontSize: 19, fontWeight: 700 }}>฿{amt(totalSatang)}</span>
       </div>
     </div>
@@ -1012,7 +1032,7 @@ function BillDoc({
               borderRadius: 4,
             }}
           >
-            {headEn}
+            {en ? headEn : headTh}
           </div>
           <div style={{ fontSize: 12, color: "#52525b", marginTop: 7 }}>{dateLabel}</div>
           {saleNumber && (
@@ -1128,7 +1148,7 @@ function BillDoc({
           }}
         >
           <div>
-            <span style={{ fontWeight: 600 }}>Note:</span> {note}
+            <span style={{ fontWeight: 600 }}>{t.note}:</span> {note}
           </div>
         </div>
       )}
@@ -1137,6 +1157,7 @@ function BillDoc({
 }
 
 export default function PosPage() {
+  const t = useT();
   const toast = useToast();
 
   const [addKind, setAddKind] = useState<AddKind>("product");
@@ -1901,7 +1922,10 @@ export default function PosPage() {
       setLastQuoteId(qtNo);
       setActiveDraftId(draftId);
       await reloadDrafts();
-      toast(`Quotation ${qtNo} saved ✓`, "success");
+      toast(
+        t({ th: `บันทึกใบเสนอราคา ${qtNo} แล้ว ✓`, en: `Quotation ${qtNo} saved ✓` }),
+        "success",
+      );
     } catch {
       toast("Couldn't save the quotation (offline?).", "error");
     } finally {
@@ -1954,7 +1978,7 @@ export default function PosPage() {
         className="bill-no-print"
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
       >
-        <h1 style={{ margin: 0 }}>Point of Sale</h1>
+        <h1 style={{ margin: 0 }}>{t({ th: "ทำบิล", en: "Point of Sale" })}</h1>
       </div>
       {pending > 0 && (
         <p style={{ color: "var(--warn)", margin: 0 }} className="bill-no-print">
@@ -1978,7 +2002,9 @@ export default function PosPage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>🗂 Saved drafts &amp; quotations</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>
+              🗂 {t({ th: "ฉบับร่างและใบเสนอราคาที่บันทึกไว้", en: "Saved drafts & quotations" })}
+            </span>
             <span className="pill off">{drafts.length}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1997,7 +2023,9 @@ export default function PosPage() {
                   }}
                 >
                   <span className={`pill ${d.stage === "quotation" ? "soft" : "off"}`}>
-                    {d.stage === "quotation" ? (d.saleNumber ?? "Quotation") : "Draft"}
+                    {d.stage === "quotation"
+                      ? (d.saleNumber ?? t({ th: "ใบเสนอราคา", en: "Quotation" }))
+                      : t({ th: "ฉบับร่าง", en: "Draft" })}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14 }}>{d.vehicle || d.licensePlate || "Walk-in"}</div>
@@ -2011,13 +2039,13 @@ export default function PosPage() {
                     className="btn-primary btn-sm"
                     onClick={() => reopenDraft(d)}
                   >
-                    Reopen
+                    {t({ th: "ทำบิลต่อ", en: "Reopen" })}
                   </button>
                   <button
                     type="button"
                     className="btn-soft btn-sm"
                     onClick={() => discardDraft(d)}
-                    aria-label="Delete draft"
+                    aria-label={t({ th: "ลบฉบับร่าง", en: "Delete draft" })}
                   >
                     ✕
                   </button>
@@ -2044,7 +2072,7 @@ export default function PosPage() {
           <div className="pos-groups-scroll">
             {/* ── Step 1 · Setup — document type, paper, language ── */}
             <div id="pos-group-1" className="pos-step-group">
-              <StepHead n={1} label="Setup" />
+              <StepHead n={1} label={t({ th: "ตั้งค่า", en: "Setup" })} />
               <div style={card}>
                 {/* Document type — Cash bill vs Quotation */}
                 <div
@@ -2075,7 +2103,9 @@ export default function PosPage() {
                           minHeight: 0,
                         }}
                       >
-                        {d === "bill" ? "💵 Cash bill" : "📝 Quotation"}
+                        {d === "bill"
+                          ? t({ th: "💵 บิลเงินสด", en: "💵 Cash bill" })
+                          : t({ th: "📝 ใบเสนอราคา", en: "📝 Quotation" })}
                       </button>
                     );
                   })}
@@ -2084,7 +2114,7 @@ export default function PosPage() {
                 {/* Paper — Invoice vs Receipt */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                    Paper
+                    {t({ th: "ขนาดกระดาษ", en: "Paper" })}
                   </span>
                   {(["invoice", "thermal"] as BillStyle[]).map((s) => {
                     const active = billStyle === s;
@@ -2105,7 +2135,9 @@ export default function PosPage() {
                           minHeight: 0,
                         }}
                       >
-                        {s === "invoice" ? "📄 Invoice" : "🧾 Receipt"}
+                        {s === "invoice"
+                          ? t({ th: "📄 ใบแจ้งหนี้", en: "📄 Invoice" })
+                          : t({ th: "🧾 ใบเสร็จ", en: "🧾 Receipt" })}
                       </button>
                     );
                   })}
@@ -2114,7 +2146,7 @@ export default function PosPage() {
                 {/* Language — Thai is the default */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                    Language
+                    {t({ th: "ภาษาในบิล", en: "Language" })}
                   </span>
                   {(["th", "en"] as BillLang[]).map((l) => {
                     const active = billLang === l;
@@ -2145,12 +2177,12 @@ export default function PosPage() {
 
             {/* ── Step 2 · Info — date + vehicle ── */}
             <div id="pos-group-2" className="pos-step-group">
-              <StepHead n={2} label="Info" />
+              <StepHead n={2} label={t({ th: "ข้อมูล", en: "Info" })} />
               <div style={card}>
                 <fieldset disabled={reprintMode} style={LOCK_FIELDSET}>
                   {/* Date */}
                   <div style={{ marginBottom: 14 }}>
-                    <div style={fieldLabel}>Date</div>
+                    <div style={fieldLabel}>{t({ th: "วันที่", en: "Date" })}</div>
                     <input
                       type="date"
                       value={billDate}
@@ -2161,7 +2193,7 @@ export default function PosPage() {
 
                   {/* Vehicle — brand → model → year + plate */}
                   <div style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                    <div style={fieldLabel}>Vehicle</div>
+                    <div style={fieldLabel}>{t({ th: "รถ", en: "Vehicle" })}</div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <select
                         value={carBrandId}
@@ -2172,7 +2204,7 @@ export default function PosPage() {
                         }}
                         style={{ flex: "1 1 130px", ...inputS }}
                       >
-                        <option value="">Brand…</option>
+                        <option value="">{t({ th: "ยี่ห้อ…", en: "Brand…" })}</option>
                         {carFitment.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.name}
@@ -2189,7 +2221,9 @@ export default function PosPage() {
                         style={{ flex: "1 1 130px", ...inputS }}
                       >
                         <option value="">
-                          {selectedBrand && brandModels.length === 0 ? "No models" : "Model…"}
+                          {selectedBrand && brandModels.length === 0
+                            ? t({ th: "ไม่มีรุ่น", en: "No models" })
+                            : t({ th: "รุ่น…", en: "Model…" })}
                         </option>
                         {brandModels.map((m) => (
                           <option key={m.id} value={m.id}>
@@ -2206,7 +2240,7 @@ export default function PosPage() {
                         disabled={!selectedModel}
                         style={{ flex: "0 1 104px", ...inputS }}
                       >
-                        <option value="">Year…</option>
+                        <option value="">{t({ th: "ปี…", en: "Year…" })}</option>
                         {yearOptions.map((y) => (
                           <option key={y} value={y}>
                             {y}
@@ -2217,20 +2251,23 @@ export default function PosPage() {
                     {/* Plate number + province belong together — both are printed on the physical
                       plate (same number repeats across provinces). Mileage is service info. */}
                     <div style={{ marginTop: 12 }}>
-                      <div style={fieldLabel}>Plate</div>
+                      <div style={fieldLabel}>{t({ th: "ทะเบียน", en: "Plate" })}</div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <input
                           value={plate}
                           onChange={(e) => setPlate(e.target.value)}
-                          placeholder="License plate"
+                          placeholder={t({ th: "ทะเบียนรถ", en: "License plate" })}
                           style={{ flex: 1, minWidth: 0 }}
                         />
                         <input
                           value={province}
                           onChange={(e) => setProvince(e.target.value)}
-                          placeholder="จังหวัด (บนป้ายทะเบียน)"
+                          placeholder={t({
+                            th: "จังหวัด (บนป้ายทะเบียน)",
+                            en: "Province (as on the plate)",
+                          })}
                           list="thai-provinces"
-                          aria-label="Plate province"
+                          aria-label={t({ th: "จังหวัดบนป้ายทะเบียน", en: "Plate province" })}
                           style={{ width: 200 }}
                         />
                         <datalist id="thai-provinces">
@@ -2241,14 +2278,14 @@ export default function PosPage() {
                       </div>
                     </div>
                     <div style={{ marginTop: 12 }}>
-                      <div style={fieldLabel}>Mileage</div>
+                      <div style={fieldLabel}>{t({ th: "เลขไมล์", en: "Mileage" })}</div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <input
                           value={mileage}
                           onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
-                          placeholder="Mileage"
+                          placeholder={t({ th: "เลขไมล์", en: "Mileage" })}
                           inputMode="numeric"
-                          aria-label="Mileage (km)"
+                          aria-label={t({ th: "เลขไมล์ (กม.)", en: "Mileage (km)" })}
                           style={{ width: 160 }}
                         />
                         <span className="muted">km</span>
@@ -2268,14 +2305,14 @@ export default function PosPage() {
                       }}
                     >
                       <div style={{ ...fieldLabel, display: "flex", alignItems: "center", gap: 8 }}>
-                        New customer
+                        {t({ th: "ลูกค้าใหม่", en: "New customer" })}
                         <span className="pill soft">new plate</span>
                       </div>
                       <input
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Customer name"
-                        aria-label="Customer name"
+                        placeholder={t({ th: "ชื่อลูกค้า", en: "Customer name" })}
+                        aria-label={t({ th: "ชื่อลูกค้า", en: "Customer name" })}
                         style={{ width: "100%", marginBottom: 8 }}
                       />
                       {phones.map((ph, i) => (
@@ -2297,8 +2334,8 @@ export default function PosPage() {
                             <button
                               type="button"
                               className="icon-btn"
-                              aria-label="Remove this number"
-                              title="Remove"
+                              aria-label={t({ th: "ลบเบอร์นี้", en: "Remove this number" })}
+                              title={t({ th: "ลบ", en: "Remove" })}
                               onClick={() => setPhones((xs) => xs.filter((_, j) => j !== i))}
                               style={{ color: "var(--danger)" }}
                             >
@@ -2312,7 +2349,7 @@ export default function PosPage() {
                         className="btn-soft btn-sm"
                         onClick={() => setPhones((xs) => [...xs, ""])}
                       >
-                        + Add number
+                        + {t({ th: "เพิ่มเบอร์", en: "Add number" })}
                       </button>
                     </div>
                   )}
@@ -2322,21 +2359,21 @@ export default function PosPage() {
 
             {/* ── Step 3 · Items — add items, cart, discount ── */}
             <div id="pos-group-3" className="pos-step-group">
-              <StepHead n={3} label="Items" />
+              <StepHead n={3} label={t({ th: "รายการ", en: "Items" })} />
               <div style={card}>
                 <fieldset disabled={reprintMode} style={LOCK_FIELDSET}>
                   {/* Add item — Product / Service toggle switches the workspace */}
                   <div style={{ marginBottom: 14 }}>
-                    <div style={fieldLabel}>Add item</div>
+                    <div style={fieldLabel}>{t({ th: "เพิ่มรายการ", en: "Add item" })}</div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                       <Seg active={addKind === "product"} onClick={() => setAddKind("product")}>
-                        📦 Product
+                        📦 {t({ th: "สินค้า", en: "Product" })}
                       </Seg>
                       <Seg active={addKind === "service"} onClick={() => setAddKind("service")}>
-                        🔧 Service
+                        🔧 {t({ th: "บริการ", en: "Service" })}
                       </Seg>
                       <Seg active={addKind === "addon"} onClick={() => setAddKind("addon")}>
-                        ➕ Add-on
+                        ➕ {t({ th: "รายการเพิ่ม", en: "Add-on" })}
                       </Seg>
                     </div>
                     <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
@@ -2351,13 +2388,13 @@ export default function PosPage() {
                       <div>
                         <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
                           <Tab active={method === "scan"} onClick={() => setMethod("scan")}>
-                            📷 Scan barcode
+                            📷 {t({ th: "สแกนบาร์โค้ด", en: "Scan barcode" })}
                           </Tab>
                           <Tab active={method === "code"} onClick={() => setMethod("code")}>
-                            ⌨️ Type code
+                            ⌨️ {t({ th: "พิมพ์รหัส", en: "Type code" })}
                           </Tab>
                           <Tab active={method === "search"} onClick={() => setMethod("search")}>
-                            🔍 Search
+                            🔍 {t({ th: "ค้นหา", en: "Search" })}
                           </Tab>
                         </div>
 
@@ -2373,7 +2410,10 @@ export default function PosPage() {
                               autoFocus
                               value={scanVal}
                               onChange={(e) => setScanVal(e.target.value)}
-                              placeholder="Scan or paste a barcode…"
+                              placeholder={t({
+                                th: "สแกนหรือวางบาร์โค้ด…",
+                                en: "Scan or paste a barcode…",
+                              })}
                               style={{ flex: 1, ...inputS }}
                             />
                             <button
@@ -2382,7 +2422,7 @@ export default function PosPage() {
                               disabled={busy}
                               style={inputS}
                             >
-                              Add
+                              {t({ th: "เพิ่ม", en: "Add" })}
                             </button>
                           </form>
                         )}
@@ -2398,11 +2438,14 @@ export default function PosPage() {
                             <input
                               value={codeVal}
                               onChange={(e) => setCodeVal(e.target.value)}
-                              placeholder="Type a product code…"
+                              placeholder={t({
+                                th: "พิมพ์รหัสสินค้า…",
+                                en: "Type a product code…",
+                              })}
                               style={{ flex: 1, ...inputS }}
                             />
                             <button type="submit" className="btn-soft" style={inputS}>
-                              Add
+                              {t({ th: "เพิ่ม", en: "Add" })}
                             </button>
                           </form>
                         )}
@@ -2413,7 +2456,10 @@ export default function PosPage() {
                               autoFocus
                               value={searchQ}
                               onChange={(e) => setSearchQ(e.target.value)}
-                              placeholder="Search by product name or code…"
+                              placeholder={t({
+                                th: "ค้นหาด้วยชื่อหรือรหัสสินค้า…",
+                                en: "Search by product name or code…",
+                              })}
                               style={{ width: "100%", ...inputS }}
                             />
                             {searchQ.trim() && (
@@ -2475,7 +2521,7 @@ export default function PosPage() {
                     {/* Service workspace */}
                     {addKind === "service" && (
                       <div>
-                        <div style={fieldLabel}>Add service</div>
+                        <div style={fieldLabel}>{t({ th: "เพิ่มบริการ", en: "Add service" })}</div>
                         <ServiceSelect services={services} value={svcId} onSelect={selectService} />
 
                         {/* Add — the price is set on the item in the cart below */}
@@ -2487,7 +2533,7 @@ export default function PosPage() {
                             onClick={addService}
                             style={{ ...inputS, padding: "8px 16px" }}
                           >
-                            Add
+                            {t({ th: "เพิ่ม", en: "Add" })}
                           </button>
                         </div>
                       </div>
@@ -2506,7 +2552,7 @@ export default function PosPage() {
                           autoFocus
                           value={addonName}
                           onChange={(e) => setAddonName(e.target.value)}
-                          placeholder="Item name…"
+                          placeholder={t({ th: "ชื่อรายการ…", en: "Item name…" })}
                           style={{ flex: 1, ...inputS }}
                         />
                         <input
@@ -2522,7 +2568,7 @@ export default function PosPage() {
                           disabled={!addonName.trim()}
                           style={inputS}
                         >
-                          Add
+                          {t({ th: "เพิ่ม", en: "Add" })}
                         </button>
                       </form>
                     )}
@@ -2539,7 +2585,10 @@ export default function PosPage() {
                     <div style={fieldLabel}>Items ({lines.length})</div>
                     {lines.length === 0 ? (
                       <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-                        No items yet. Add a product or service above.
+                        {t({
+                          th: "ยังไม่มีรายการ เพิ่มสินค้าหรือบริการด้านบน",
+                          en: "No items yet. Add a product or service above.",
+                        })}
                       </p>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2570,7 +2619,7 @@ export default function PosPage() {
                     }}
                   >
                     <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginRight: 2 }}>
-                      Discount
+                      {t({ th: "ส่วนลด", en: "Discount" })}
                     </span>
                     <input
                       value={discountValue}
@@ -2638,7 +2687,7 @@ export default function PosPage() {
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note to the bill…"
+              placeholder={t({ th: "เพิ่มหมายเหตุลงในบิล…", en: "Add a note to the bill…" })}
               rows={2}
               style={{ width: "100%", fontFamily: "inherit", marginBottom: 10 }}
             />
@@ -2665,7 +2714,7 @@ export default function PosPage() {
                     }}
                     style={{ flex: 1 }}
                   >
-                    Exit
+                    {t({ th: "ออก", en: "Exit" })}
                   </button>
                   <button
                     type="button"
@@ -2674,7 +2723,7 @@ export default function PosPage() {
                     disabled={lines.length === 0}
                     style={{ flex: 1 }}
                   >
-                    Create PDF
+                    {t({ th: "สร้าง PDF", en: "Create PDF" })}
                   </button>
                 </div>
               </div>
@@ -2694,7 +2743,7 @@ export default function PosPage() {
                     disabled={busy || lines.length === 0}
                     style={{ width: "100%" }}
                   >
-                    Save quotation
+                    {t({ th: "บันทึกใบเสนอราคา", en: "Save quotation" })}
                   </button>
                 ) : (
                   <button
@@ -2704,7 +2753,7 @@ export default function PosPage() {
                     disabled={busy || lines.length === 0}
                     style={{ width: "100%" }}
                   >
-                    Go to payment →
+                    {t({ th: "ไปหน้าชำระเงิน →", en: "Go to payment →" })}
                   </button>
                 )}
               </div>

@@ -147,7 +147,7 @@ export function CampaignWorkspace({
           </table>
         </div>
         <button type="button" className="btn-sm" onClick={add} style={{ marginTop: 10 }}>
-          + Add scenario
+          + {t({ th: "เพิ่มสถานการณ์", en: "Add scenario" })}
         </button>
       </div>
     </div>

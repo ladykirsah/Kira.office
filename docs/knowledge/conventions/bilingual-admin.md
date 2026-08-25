@@ -42,10 +42,22 @@ The rule: **what a person reads translates; what a machine matches does not.**
 | | |
 | --- | --- |
 | The printed shipping label | read by a Thai courier and a Thai recipient — which language the operator is reading has nothing to do with it |
+| The POS bill and quotation | they have their own switch, `billLang`, chosen per document — that language belongs to the customer holding the bill, not to whoever is at the till |
 | `DELETE` in the delete confirmation | the code compares that exact word; only the instruction around it translates |
 | Readiness filter values | they identify a row's state; if they moved with the language a set filter would stop matching |
 | AirPlus · Shopee · Kira.office · Den Air Service | names, not words. Only the verb in front changes: วางขายบน AirPlus |
 | The language button's own labels | a button offering Thai says so in Thai, as the English side says "Switch to English" in English |
+
+## The POS already had a language, and it means something else
+
+`billLang` selects Thai or English for the **printed** bill and quotation. Wiring the app toggle
+into it would print English bills for Thai customers the moment an operator switched their own
+screen. The guard in `untranslated.test.ts` excuses the bill's words **by name** rather than
+excusing the file, so the POS screen around them is still watched.
+
+Looking at it turned up four bugs that predate any of this: the **thermal receipt** had `CASH BILL`,
+`TOTAL`, `Subtotal`, `Discount` and `Note:` typed in by hand, so a Thai customer's receipt printed
+English while the A4 size — using the same dictionary correctly — did not.
 
 ## Words the owner chose
 
@@ -57,6 +69,7 @@ Asked directly rather than guessed, because the shop already had a name for most
 | Dashboard | **ภาพรวม** · **ต้องจัดการ** (Needs your action) · **รอดำเนินการ** (Pending) |
 | Wages | **รายการจ่ายเงิน** (Payments) · **คงเหลือ** (Total) · **วิธีจ่าย** (Paid by) |
 | Products | **วางขาย** (Live) · **หยุดขาย** (Paused) · **เหลือน้อย / หมด** (Low / Out) · **ไม่มีรูป → พร้อมขาย** |
+| POS | **ทำบิล** · **ฉบับร่าง / ทำบิลต่อ** (draft / reopen) · **ราคาช่าง** (wholesale) · **ไปหน้าชำระเงิน** |
 
 Order statuses were NOT re-invented: เตรียมจัดส่ง, กำลังจัดส่ง, คืนเงิน come from
 [commerce/order-lifecycle](../commerce/order-lifecycle.md), and the 13 operational statuses were
@@ -86,8 +99,8 @@ Deliberate single-language files go in `DELIBERATE` with the reason, never silen
 ## Done, and not done
 
 **Done:** the frame (menu, top bar, both toggles, Modal), dashboard, orders list, order detail,
-products list and product forms.
+products list, product forms, and the POS.
 
-**Not done:** POS (79), coupons (53), customers (47), shop settings (44), the staff forms (~76),
-and the rest — roughly **790 strings**. The storefront was never in scope: the owner chose back
+**Not done:** coupons (53), customers (47), shop settings (44), the staff forms (~76), and the
+rest — roughly **790 strings**. The storefront was never in scope: the owner chose back
 office only.

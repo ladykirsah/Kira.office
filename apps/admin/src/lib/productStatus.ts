@@ -30,7 +30,7 @@ export interface StatusTag {
 export function productStatusTag(p: Pick<ProductRow, "status" | "onHand">): StatusTag {
   // Three states since 2026-08-24: active, draft, paused. "archived" was retired into paused
   // (migration 0088) — anything not active and not draft reads Paused, including a stale row.
-  if (p.status === "draft") return { label: { th: "แบบร่าง", en: "Draft" }, cls: "off" };
+  if (p.status === "draft") return { label: { th: "ฉบับร่าง", en: "Draft" }, cls: "off" };
   if (p.status !== "active") return { label: { th: "หยุดขาย", en: "Paused" }, cls: "pause" };
 
   const stock = stockStatus(p.onHand);

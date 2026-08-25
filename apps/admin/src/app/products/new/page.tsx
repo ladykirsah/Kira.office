@@ -291,7 +291,7 @@ export default function NewProductPage() {
       <PageHeader
         title={t({ th: "เพิ่มสินค้า", en: "Add product" })}
         subtitle={t({
-          th: "สินค้าใหม่ — ระบบเก็บเป็นแบบร่างให้อัตโนมัติ กด บันทึก เมื่อพร้อมวางขาย",
+          th: "สินค้าใหม่ — ระบบเก็บเป็นฉบับร่างให้อัตโนมัติ กด บันทึก เมื่อพร้อมวางขาย",
           en: "New product — your work auto-saves as a draft. Publish when it's ready.",
         })}
         action={
@@ -306,11 +306,11 @@ export default function NewProductPage() {
                 }}
               >
                 {saveState === "saving"
-                  ? t({ th: "กำลังบันทึกแบบร่าง…", en: "Saving draft…" })
+                  ? t({ th: "กำลังบันทึกฉบับร่าง…", en: "Saving draft…" })
                   : saveState === "saved"
-                    ? t({ th: "บันทึกแบบร่างแล้ว ✓", en: "Draft saved ✓" })
+                    ? t({ th: "บันทึกฉบับร่างแล้ว ✓", en: "Draft saved ✓" })
                     : t({
-                        th: "บันทึกแบบร่างไม่สำเร็จ — จะลองใหม่",
+                        th: "บันทึกฉบับร่างไม่สำเร็จ — จะลองใหม่",
                         en: "Couldn't save draft — will retry",
                       })}
               </span>

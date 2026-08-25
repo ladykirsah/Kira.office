@@ -215,3 +215,12 @@ sources: [session 2026-08-09]
   reported 896 across 81 files, 24 of them in screens already called finished — and
   `untranslated.test.ts` fails if a cleared folder regains any. Roughly 790 strings remain, all
   outside the cleared screens. See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-08-25** — **POS speaks both languages, and its printed receipt stopped lying.** The screen is
+  bilingual (ทำบิล · ฉบับร่าง / ทำบิลต่อ · ราคาช่าง · ไปหน้าชำระเงิน). The POS already had its OWN
+  language switch, `billLang`, for the bill and quotation — that language belongs to the customer
+  holding the bill, not the person at the till, so the app toggle was deliberately kept out of it.
+  Four real bugs surfaced while looking: the **thermal receipt** printed `CASH BILL`, `TOTAL`,
+  `Subtotal`, `Discount` and `Note:` in English on a Thai bill, while the A4 size used the
+  dictionary correctly. And "draft" is now one word app-wide — ฉบับร่าง, the owner's — where products
+  had แบบร่าง. See [conventions/bilingual-admin](conventions/bilingual-admin.md).

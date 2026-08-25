@@ -38,8 +38,8 @@ describe("productStatusTag", () => {
 
   it("given draft > Draft, whatever the stock says", () => {
     // Not live means stock is not the headline: nobody can buy it either way.
-    expect(of("draft", 0).label).toEqual({ th: "แบบร่าง", en: "Draft" });
-    expect(of("draft", 50).label).toEqual({ th: "แบบร่าง", en: "Draft" });
+    expect(of("draft", 0).label).toEqual({ th: "ฉบับร่าง", en: "Draft" });
+    expect(of("draft", 50).label).toEqual({ th: "ฉบับร่าง", en: "Draft" });
   });
 
   it("given paused > Paused, whatever the stock says", () => {
@@ -68,7 +68,7 @@ describe("productStatusTag", () => {
       of("draft").label,
     ];
     expect(labels.map((l) => l.en)).toEqual(["Live", "Low", "Out", "Paused", "Draft"]);
-    expect(labels.map((l) => l.th)).toEqual(["วางขาย", "เหลือน้อย", "หมด", "หยุดขาย", "แบบร่าง"]);
+    expect(labels.map((l) => l.th)).toEqual(["วางขาย", "เหลือน้อย", "หมด", "หยุดขาย", "ฉบับร่าง"]);
   });
 });
 

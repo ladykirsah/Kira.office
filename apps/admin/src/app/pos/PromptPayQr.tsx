@@ -2,6 +2,7 @@
 
 import qrcode from "qrcode-generator";
 import { buildPromptPayPayload } from "@l-shopee/core";
+import { useT } from "../LangProvider";
 
 /**
  * Scan-to-pay PromptPay QR for the printed bill: EMVCo payload (from @l-shopee/core, TDD'd +
@@ -17,6 +18,7 @@ export function PromptPayQr({
   amountSatang: number;
   size: number;
 }) {
+  const t = useT();
   let modules: boolean[][];
   try {
     const payload = buildPromptPayPayload({ target: promptpayId, amountSatang });
@@ -43,7 +45,7 @@ export function PromptPayQr({
       height={size}
       shapeRendering="crispEdges"
       role="img"
-      aria-label="PromptPay QR"
+      aria-label={t({ th: "QR พร้อมเพย์", en: "PromptPay QR" })}
     >
       <rect width={box} height={box} fill="#fff" />
       <path d={d} fill="#000" />
