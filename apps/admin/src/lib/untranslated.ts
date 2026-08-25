@@ -37,7 +37,9 @@ function stripComments(src: string): string {
 
 /** Is this a phrase a person reads, rather than something a machine matches? */
 export function isUserFacing(value: string): boolean {
-  const v = value.trim();
+  // Leading emoji and punctuation are stripped before judging: "💵 Cash bill" is a phrase a person
+  // reads, but it does not START with a capital, so the test below skipped four POS buttons.
+  const v = value.trim().replace(/^[^\p{L}]+/u, "");
   if (v.length < 3) return false;
   if (NAMES.includes(v)) return false;
   if (THAI.test(v)) return true;
@@ -61,7 +63,7 @@ export function findUntranslated(source: string): Untranslated[] {
   for (const m of src.matchAll(attr)) {
     if (isUserFacing(m[2]!)) out.push({ line: at(m.index), text: `${m[1]}="${m[2]}"` });
   }
-  for (const m of src.matchAll(/(.)>\s*([^<>{}\n][^<>{}]*?)\s*</g)) {
+  for (const m of src.matchAll(/(.)>[ \t]*([^<>{}\n][^<>{}\n]*?)[ \t]*</g)) {
     // `=>` is an arrow, not a JSX tag: `() => Promise<void>` was being read as the word "Promise"
     // sitting on a screen.
     if (m[1] === "=") continue;

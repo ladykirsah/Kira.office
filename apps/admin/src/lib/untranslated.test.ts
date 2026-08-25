@@ -68,6 +68,7 @@ const CLEARED = [
   "app/LanguageToggle.tsx",
   "app/Modal.tsx",
   "app/page.tsx",
+  "app/pos",
 ];
 
 /**
@@ -81,13 +82,53 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), "..");
  * Text that is deliberately ONE language, with the reason. Not a to-do list — each of these would be
  * a bug if it were translated.
  */
-const DELIBERATE: Record<string, string> = {
+interface Exception {
+  reason: string;
+  /**
+   * When present, ONLY these exact strings are excused and the rest of the file is still guarded.
+   * A whole-file exception would stop watching the screen that shares it — the POS bill lives in
+   * the same file as the POS screen.
+   */
+  texts?: string[];
+}
+
+const DELIBERATE: Record<string, Exception> = {
   // The sticker that goes on the parcel. It is read by a Thai courier and a Thai recipient; which
   // language the person at the screen is reading has nothing to do with it.
-  "app/orders/[id]/ShipmentActions.tsx": "the printed shipping label",
+  "app/orders/[id]/ShipmentActions.tsx": { reason: "the printed shipping label" },
   // The button that offers Thai says so IN Thai, exactly as the English side says "Switch to
   // English" in English. A label naming a language must be written in that language.
-  "app/LanguageToggle.tsx": "each label names its own language",
+  "app/LanguageToggle.tsx": { reason: "each label names its own language" },
+  // The POS bill and quotation already had their OWN Thai/English switch (`billLang`), chosen per
+  // document. That language belongs to the CUSTOMER receiving the bill, not to whoever is standing
+  // at the till — wiring the UI toggle into it would print English bills for Thai customers. Only
+  // the document's own words are excused; the POS screen around them is still guarded.
+  "app/pos/page.tsx": {
+    reason: "the printed bill and quotation carry their own billLang",
+    texts: [
+      "ใบเสนอราคา",
+      "บิลเงินสด",
+      "เลขที่บิล",
+      "วันที่",
+      "รถ",
+      "ทะเบียน",
+      "เลขไมล์",
+      "รายการ",
+      "จำนวน",
+      "ราคา",
+      "รวม",
+      "ยังไม่มีรายการ",
+      "รวมย่อย",
+      "ส่วนลด",
+      "รวมทั้งสิ้น",
+      "รวมโดยประมาณ",
+      "หมายเหตุ",
+      "*** ขอบคุณที่ใช้บริการ ***",
+      "QR ติดต่อ",
+      // The billLang buttons: each names its own language, as the app's own toggle does.
+      "ไทย",
+    ],
+  },
 };
 
 function filesUnder(rel: string): string[] {
@@ -120,13 +161,15 @@ describe("the finished screens say everything in both languages", () => {
 
   for (const rel of CLEARED) {
     it(`${rel} has no untranslated text left`, () => {
-      const misses = filesUnder(rel)
-        .filter((f) => !(f.split("/src/")[1]! in DELIBERATE))
-        .flatMap((f) =>
-          findUntranslated(readFileSync(f, "utf8")).map(
-            (m) => `${f.split("/src/")[1]}:${m.line}: ${m.text}`,
-          ),
-        );
+      const misses = filesUnder(rel).flatMap((f) => {
+        const key = f.split("/src/")[1]!;
+        const ex = DELIBERATE[key];
+        if (ex && !ex.texts) return [];
+        const excused = new Set(ex?.texts ?? []);
+        return findUntranslated(readFileSync(f, "utf8"))
+          .filter((m) => !excused.has(m.text.replace(/^bare Thai: /, "")))
+          .map((m) => `${key}:${m.line}: ${m.text}`);
+      });
       expect(misses).toEqual([]);
     });
   }
