@@ -29,6 +29,8 @@ import {
   purgeExpiredSalarySlips,
   salarySlipKey,
   staffPayments,
+  recordAdvance,
+  advanceSlipKey,
 } from "./staffRoutes";
 import {
   hashPassword,
@@ -8308,6 +8310,85 @@ describe("wage transfer slips", () => {
   });
 });
 
+describe("advanceSlipKey — an advance's slip can finally be looked at", () => {
+  const NOW = 1_800_000_000_000;
+  const boss = {
+    userId: "boss",
+    email: "boss@shop.test",
+    name: "Boss",
+    role: "super_admin",
+  } as const;
+  const mech = { userId: "s1", email: "s@shop.test", name: "Somchai", role: "mechanic" } as const;
+
+  async function seed() {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('boss','Boss','boss@shop.test','super_admin','active',?,NULL)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('s1','Somchai','s@shop.test','mechanic','active',?,40000)`,
+      )
+      .run(NOW);
+    await recordAdvance(
+      db,
+      boss,
+      "s1",
+      {
+        period: "2026-07",
+        givenOn: "2026-07-09",
+        amountSatang: 200_000,
+        method: "transfer",
+        slipKey: "advance-slip/s1/x.jpg",
+      },
+      NOW,
+    );
+    const { id } = raw
+      .prepare(`SELECT id FROM staff_advances WHERE given_on = '2026-07-09'`)
+      .get() as { id: string };
+    return { raw, db, id };
+  }
+
+  it("given the owner > then the stored key", async () => {
+    const { db, id } = await seed();
+    expect(await advanceSlipKey(db, boss, id)).toBe("advance-slip/s1/x.jpg");
+  });
+
+  it("given the person the money went to > then their own proof of payment", async () => {
+    const { db, id } = await seed();
+    expect(await advanceSlipKey(db, mech, id)).toBe("advance-slip/s1/x.jpg");
+  });
+
+  // Everything you may not see is the same null, which the route turns into the same 404 — so this
+  // cannot be used to probe who was advanced what.
+  it("given anybody else > then null, exactly like an advance that does not exist", async () => {
+    const { db, id } = await seed();
+    const other = { ...mech, userId: "s2", email: "s2@shop.test" };
+    expect(await advanceSlipKey(db, other, id)).toBeNull();
+    expect(await advanceSlipKey(db, boss, "no-such-advance")).toBeNull();
+  });
+
+  it("given a cash advance > then null, because there is no slip to show", async () => {
+    const { raw, db } = await seed();
+    await recordAdvance(
+      db,
+      boss,
+      "s1",
+      { period: "2026-07", givenOn: "2026-07-11", amountSatang: 50_000, method: "cash" },
+      NOW,
+    );
+    const { id } = raw
+      .prepare(`SELECT id FROM staff_advances WHERE given_on = '2026-07-11'`)
+      .get() as { id: string };
+    expect(await advanceSlipKey(db, boss, id)).toBeNull();
+  });
+});
+
 describe("staffPayments — one person's wage history", () => {
   const NOW = 1_800_000_000_000;
   const boss = {
@@ -8382,6 +8463,97 @@ describe("staffPayments — one person's wage history", () => {
     expect((await staffPayments(db, mech, "s1", "2026-07")).status).toBe(200);
     const other = { ...mech, userId: "s2", email: "s2@shop.test" };
     expect((await staffPayments(db, other, "s1", "2026-07")).status).toBe(403);
+  });
+
+  // The wage table reads as a ledger: the month's salary, then every advance that came out of it,
+  // then what is left to hand over. That needs the advances ONE BY ONE — a monthly sum cannot say
+  // which day the money went, whether it was cash, or whether a slip exists for it.
+  it("given a month with two advances > then lists both, newest first, with method and slip", async () => {
+    const { db } = await seed();
+    await recordAdvance(
+      db,
+      boss,
+      "s1",
+      { period: "2026-07", givenOn: "2026-07-09", amountSatang: 200_000, method: "cash" },
+      NOW,
+    );
+    await recordAdvance(
+      db,
+      boss,
+      "s1",
+      {
+        period: "2026-07",
+        givenOn: "2026-07-21",
+        amountSatang: 150_000,
+        method: "transfer",
+        slipKey: "advance-slip/s1/x.jpg",
+        note: "ค่าเทอมลูก",
+      },
+      NOW,
+    );
+
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as {
+      payments: {
+        period: string;
+        advanceSatang: number;
+        advances: {
+          id: string;
+          givenOn: string;
+          amountSatang: number;
+          method: string;
+          hasSlip: boolean;
+          note: string | null;
+        }[];
+      }[];
+    };
+    const july = body.payments.find((p) => p.period === "2026-07")!;
+    expect(july.advances.map((a) => a.givenOn)).toEqual(["2026-07-21", "2026-07-09"]);
+    expect(july.advances[0]!.amountSatang).toBe(150_000);
+    expect(july.advances[0]!.method).toBe("transfer");
+    expect(july.advances[0]!.hasSlip).toBe(true);
+    expect(july.advances[0]!.note).toBe("ค่าเทอมลูก");
+    expect(july.advances[1]!.hasSlip).toBe(false);
+    // The rows must add up to the figure the summary line already reported, or the ledger's Total
+    // would disagree with the column above it.
+    expect(july.advances.reduce((n, a) => n + a.amountSatang, 0)).toBe(july.advanceSatang);
+  });
+
+  it("given a month with no advances > then an empty list, never a missing one", async () => {
+    const { db } = await seed();
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as {
+      payments: { period: string; advances: unknown[] }[];
+    };
+    expect(body.payments.find((p) => p.period === "2026-07")!.advances).toEqual([]);
+  });
+
+  // The slip key itself never leaves the API — it names an R2 object, and the row only needs to
+  // know whether there is one to offer.
+  it("never hands out the advance's slip key, only whether one exists", async () => {
+    const { db } = await seed();
+    await recordAdvance(
+      db,
+      boss,
+      "s1",
+      {
+        period: "2026-07",
+        givenOn: "2026-07-09",
+        amountSatang: 200_000,
+        method: "transfer",
+        slipKey: "advance-slip/s1/x.jpg",
+      },
+      NOW,
+    );
+    const res = await staffPayments(db, boss, "s1", "2026-07");
+    const raw = await res.clone().text();
+    const body = (await res.json()) as {
+      payments: { period: string; advances: { hasSlip: boolean }[] }[];
+    };
+    // Assert the row is actually THERE first — otherwise "the key is absent" would pass simply
+    // because advances were not reported at all.
+    const july = body.payments.find((p) => p.period === "2026-07")!;
+    expect(july.advances).toHaveLength(1);
+    expect(july.advances[0]!.hasSlip).toBe(true);
+    expect(raw).not.toContain("advance-slip/s1/x.jpg");
   });
 });
 

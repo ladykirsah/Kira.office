@@ -1148,6 +1148,16 @@ export async function markSalaryPaid(
  * `hasSlip` is false both before a slip exists and after the image has been swept at three months —
  * and now also for a cash payment, which never had one. The payment itself is never removed.
  */
+/** One advance, as the wage ledger shows it. Never carries the slip key — see below. */
+interface AdvanceLine {
+  id: string;
+  givenOn: string;
+  amountSatang: number;
+  method: string;
+  hasSlip: boolean;
+  note: string | null;
+}
+
 export async function staffPayments(
   db: D1Database,
   actor: StaffIdentity,
@@ -1184,13 +1194,27 @@ export async function staffPayments(
       slipKey: string | null;
     }>();
 
+  // ONE ROW PER ADVANCE, not a monthly sum (owner, 2026-08-25). The wage table reads as a ledger —
+  // the month's salary, then every advance that came out of it — and a sum cannot say which day the
+  // money went, whether it was cash, or whether there is a slip to show for it.
   const advances = await db
     .prepare(
-      `SELECT period, SUM(amount_satang) AS total FROM staff_advances
-        WHERE user_id = ? GROUP BY period`,
+      `SELECT id, period, given_on AS givenOn, amount_satang AS amountSatang,
+              method, slip_key AS slipKey, note
+         FROM staff_advances
+        WHERE user_id = ?
+        ORDER BY given_on DESC, created_at DESC`,
     )
     .bind(userId)
-    .all<{ period: string; total: number }>();
+    .all<{
+      id: string;
+      period: string;
+      givenOn: string;
+      amountSatang: number;
+      method: string;
+      slipKey: string | null;
+      note: string | null;
+    }>();
 
   const daysOff = await db
     .prepare(
@@ -1201,7 +1225,27 @@ export async function staffPayments(
     .all<{ period: string; offHalves: number }>();
 
   const paidBy = new Map((slips.results ?? []).map((r) => [r.period, r]));
-  const advanceBy = new Map((advances.results ?? []).map((r) => [r.period, r.total]));
+  // The slip KEY stays here — it names an R2 object, and the row only needs to know whether there
+  // is one to offer. The image itself comes from its own gated route.
+  const advanceRowsBy = new Map<string, AdvanceLine[]>();
+  for (const a of advances.results ?? []) {
+    const list = advanceRowsBy.get(a.period) ?? [];
+    list.push({
+      id: a.id,
+      givenOn: a.givenOn,
+      amountSatang: a.amountSatang,
+      method: a.method,
+      hasSlip: a.slipKey !== null,
+      note: a.note,
+    });
+    advanceRowsBy.set(a.period, list);
+  }
+  const advanceBy = new Map(
+    [...advanceRowsBy].map(([period, list]) => [
+      period,
+      list.reduce((n, a) => n + a.amountSatang, 0),
+    ]),
+  );
   const offBy = new Map((daysOff.results ?? []).map((r) => [r.period, r.offHalves]));
 
   // Every month worth a row: one that was paid, one with an advance against it, and the month we
@@ -1228,6 +1272,7 @@ export async function staffPayments(
           paidAt: slip.paidAt,
           method: slip.method,
           hasSlip: slip.slipKey !== null,
+          advances: advanceRowsBy.get(period) ?? [],
         };
       }
       const rate = person?.dayRateSatang ?? 0;
@@ -1248,6 +1293,7 @@ export async function staffPayments(
         paidAt: null,
         method: null,
         hasSlip: false,
+        advances: advanceRowsBy.get(period) ?? [],
       };
     });
 
@@ -1275,6 +1321,31 @@ export async function salarySlipKey(
     .bind(userId, period)
     .first<{ slipKey: string | null }>();
   return row?.slipKey ?? null;
+}
+
+/**
+ * The stored slip for ONE advance, or null if there isn't one you may see.
+ *
+ * Uploading an advance's slip has worked since migration 0089; looking at it never did, because no
+ * route ever served it. The wage ledger asks for it by row (owner, 2026-08-25), so here it is.
+ *
+ * Same shape as `salarySlipKey`, deliberately: the owner, or the person the money went to — an
+ * advance is that person's own proof of payment too. "No such advance", "not yours" and "cash, so
+ * there is no slip" all return the same null, which the route turns into the same 404, so this
+ * cannot be used to probe who was advanced what.
+ */
+export async function advanceSlipKey(
+  db: D1Database,
+  actor: StaffIdentity,
+  id: string,
+): Promise<string | null> {
+  const row = await db
+    .prepare(`SELECT user_id AS userId, slip_key AS slipKey FROM staff_advances WHERE id = ?`)
+    .bind(id)
+    .first<{ userId: string; slipKey: string | null }>();
+  if (!row) return null;
+  if (!canManageStaff(actor.role) && actor.userId !== row.userId) return null;
+  return row.slipKey ?? null;
 }
 
 /**

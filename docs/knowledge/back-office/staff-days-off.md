@@ -69,6 +69,7 @@ used to get it wrong.
 | `POST /staff/:id/day-off` | record for someone — super admin |
 | `PATCH /staff/days-off/:id` | edit — own row, or super admin |
 | `DELETE /staff/days-off/:id` | **super admin only** |
+| `GET /staff/advances/:id/slip` | one advance's slip — owner, or the person it paid (2026-08-25) |
 
 `listDaysOffFor` is deliberately not "the team list, filtered in the page": `reason` is free text and
 someone will write why they were at a hospital in it, so shipping the whole team's reasons to a page
@@ -89,7 +90,7 @@ a URL or the API stays `YYYY-MM` in the western calendar — **2569 must never r
 
 | | Its setting does |
 | --- | --- |
-| วันหยุด | picks the month it lists (in the URL, so back and bookmarks work) |
+| วันหยุด | picks the month it lists — the month stays in the URL, so a month is still a bookmarkable address |
 | Payments | **filters** to the month picked; a month with nothing against it says so by name |
 | Record | none. The two entry tabs take their month from the date typed into them; จ่ายเงินเดือน has its own, because the month you are paying FOR is not the day you pay it |
 
@@ -97,11 +98,159 @@ One coupling had to be cut for that to be true: the wage table asks the API for 
 month**, not the one วันหยุด is browsing. Passing the browsed month made the วันหยุด picker quietly
 add and drop rows from Payments.
 
+**Both pickers behave the same way in the hand** (owner, 25 Aug: *"make sure time setting here
+function the same"*). They are built differently — Payments filters a list it already holds, วันหยุด
+fetches the month from the server — and that difference is fine, because only one month of days off
+is ever loaded. What was *not* fine was that the difference showed:
+
+| | Before | Now |
+| --- | --- | --- |
+| The page when you pick a month | **jumped to the top** — measured: scroll 975 → 0, leaving the card you were reading 1,089px below the fold | stays exactly where it was |
+| Back, after looking at three months | four presses to leave the page | **one** — Back returns to the staff list |
+
+`router.replace(url, { scroll: false })` is the whole fix. `scroll: false` because a control has to
+stay under the finger that just used it; `replace` because a filter is not a place you travel to,
+which is the same rule the storefront's filters follow. The month keeps its place in the URL, so
+nothing was given up to get it.
+
+Revisiting a month you already looked at re-reads the database rather than replaying a cached
+payload — verified, and it holds because the page is `force-dynamic` and the fetch is `no-store`.
+
 Payments **jumped and highlighted** for a few hours first, on the argument that a wage history is
 read by comparing one month against the one before, so hiding the rest takes away the reason you
 opened it. The owner used it and asked for filtering (25 Aug). That settles it, and the reasoning is
 worth keeping: the question people bring to this table is *"what about that month"*, not *"how do
 the months compare"* — and it is the person using it daily who knows which.
+
+## One page shape, both sides (owner, 2026-08-25)
+
+*"Apply 1st page (super admin HRM) to the 2nd one (self-manage), with only one change."* `/me` now
+has the staff profile's layout — two cards abreast, then วันหยุด, then the wage ledger, then Signing
+in — so what the owner learns on one transfers to the other.
+
+| | HRM (`/settings/staff/:id`) | Own page (`/me`) |
+| --- | --- | --- |
+| Top | Details + Pay | Your details + Pay |
+| Entry | **Record**, three tabs | **no Record** — the day-off form sits at the BOTTOM of the วันหยุด card |
+| วันหยุด | month picker, edit, **delete** | month picker, edit, **no delete** |
+| Payments | ledger + "Pay into" account | ledger, **no** "Pay into" |
+| Bank | full number, in Pay | **full number**, in Pay |
+
+**The form moved below the table.** It used to sit above it, which asked you to record a day before
+you could see which days you had already recorded. Below, you read the month and then add to it.
+
+**No Record section here, and that is the one intended difference.** On the owner's side Record is
+the single input point and the วันหยุด card only reads; a person's own page has one thing to enter,
+so a three-tab chooser for it would be furniture.
+
+**The bank account shows in full on a person's own page** (owner, asked directly). It was masked
+(····7890). Hiding someone's own account number from them protects nobody, and showing it lets them
+check the shop is paying into the right one. The "Pay into" block under the Total stays HRM-only —
+that one belongs to whoever is *making* the transfer.
+
+**Staff see every advance row, notes and slips** (owner, asked directly). They were there when the
+money was handed over and they gave the reason; seeing it back is how they check it was recorded
+right. `staffPayments` already allowed self and nobody else, so no permission changed — the rows
+simply carry more than a monthly sum now.
+
+The two month pickers on `/me` are independent, exactly as on the HRM page. `/me`'s วันหยุด picker
+is local state and refetches, rather than the URL: nothing on that page is server-rendered per
+month, so a refetch does the whole job without a navigation.
+
+## Signing in: view, and change (owner, 2026-08-25)
+
+*"Function here is messy · 2 function requested here — view, change."* `/me` had a hand-rolled
+version of this card: each secret showed its dots, a Show button, **and a permanently open input
+box** with a greyed-out Change beside it. A form standing open when you are not filling anything in
+reads as a job left half done, and the grey button never said what it wanted.
+
+It now uses `SecretRow` — the same component the owner's staff-profile page already used, and the
+last card on `/me` that was still bespoke. Two actions, nothing else: the eye reveals, the word
+opens the box.
+
+Two backward-compatible additions made it serve both sides:
+
+| | Somebody else's (HRM) | Your own (`/me`) |
+| --- | --- | --- |
+| The button says | **reset** | **change** — nobody resets their own |
+| Opening it | proposes a generated value, with ↻ for another | opens **empty**; no ↻ — you are choosing it, not being handed it |
+
+**A new secret is typed twice** (owner, 2026-08-25). Two boxes on one line — the new value, then
+`พิมพ์อีกครั้ง` — and Save refuses a pair that disagrees before anything reaches the server.
+
+Why here and nowhere else on the page: every other mistake can be read back off the screen and
+corrected. A password can only be read back by someone who is *still signed in*, and a typo'd
+password is precisely the thing that stops you being signed in. It is the one lockout the app can
+inflict on itself.
+
+`confirmationProblem` (`lib/secretConfirm.ts`) carries two decisions worth keeping:
+
+- **An empty second box gets a different message from a mismatch.** "They don't match" is both wrong
+  and faintly accusing when the person has simply not reached the second box yet.
+- **The pair is compared the way it will be STORED, not the way it was typed.** The password saves
+  trimmed, so a stray trailing space is not a mismatch — rejecting two entries that would save
+  identically is a wrong answer whose cause is invisible on screen.
+
+The owner's side gets **no** second box: a generated value is on screen to be read, so there is
+nothing to mistype and the extra field would be pure friction. That is what the `confirm` prop
+separates.
+
+**Validation moved into Save**, which is what keeps "change is always available always" true (the
+owner's words, same day). Nothing greys out; a password under 8 characters or a PIN that is not six
+digits is told so, the box stays open with what you typed still in it, and nothing reaches the
+server. Verified: `12` in the PIN box warns and sends no request.
+
+The PIN was already recoverable — `ownProfile` decrypts it exactly like the password — so the
+missing reveal was an oversight in the page, never a limitation.
+
+## Payments is a ledger, not a summary (owner, 2026-08-25)
+
+The owner's words: *"I want this table to be like real calculation that include both of salary and
+advance paid."* It was one row per month with the advance as a single column. Now one month is
+opened out into the payments that make it up:
+
+| Date | Day rate | Working days | Amount | Status | Paid by |
+| --- | --- | --- | --- | --- | --- |
+| 5 Sept 2026 · Salary | ฿500 | 30 (1 off) | ฿15,000 | Unpaid | — |
+| 20 Aug 2026 · เบิกล่วงหน้า | ซ่อมรถ (spans both) | | −฿1,500 | Paid | โอน + slip |
+| 8 Aug 2026 · เบิกล่วงหน้า | ค่าเทอมลูก (spans both) | | −฿2,000 | Paid | เงินสด |
+| **Total** | | | **฿11,500** | | |
+
+**The salary date is always the 5th of the following month** — `salaryDueDate` in core. A rule, not
+a record: the row reads 5 September whether the money moved on the 5th, the 8th, or not yet. The
+owner was asked directly and chose the rule over the real date, because payday is a promise the shop
+makes and a date that slides when you are late reads as though the promise slid too. What actually
+happened is on the row's status and its slip.
+
+**The Total is what is still to hand over**, also the owner's call when asked. The alternative was a
+Total of the whole month's wage with the salary row showing the net — both add up, but this one
+keeps the salary row checkable: ฿500 × 30 is right there and equals the ฿15,000 beside it, so the
+month can be verified by eye without knowing what an advance is.
+
+**An advance's note takes the two columns the salary row uses for its working.** An advance has no
+day rate and no working days, and leaving those cells blank read as missing data rather than as not
+applicable.
+
+**The bank account sits under the Total, read-only, with a copy button** — that is the moment you
+need it, having just read what to pay. Editing stays in the **Pay** card (owner's choice): two
+places to change one field is exactly what was removed from the วันหยุด card. It is passed only by
+the owner's HRM view; `/me` is the person's own page and has no Total to sit under.
+
+**Advance slips could be uploaded but never looked at.** `POST /staff/:id/advance-slip` has worked
+since migration 0089; nothing ever served the image back. Asking for slips on advance rows exposed
+it, so `GET /staff/advances/:id/slip` now exists — same gate as a wage slip (the owner, or the
+person the money went to), same `private` caching, because it is the same kind of document carrying
+the same bank details. Verified end to end: upload → 200, fetch → 200 with the bytes.
+
+**`staffPayments` returns advances one by one**, not a monthly sum, and never the slip key — only
+whether one exists. A sum cannot say which day money went, whether it was cash, or whether there is
+a slip to show for it.
+
+> **Known gap, not fixed here.** `recordAdvance` refuses a month that is already paid (409), but
+> `deleteAdvance` does not. Delete an advance from a paid month and the payslip's frozen
+> `advance_satang` and the surviving rows disagree, with nothing to say which is right. The ledger
+> shows `dueSatang`, which comes from the frozen figure, so the column would stop adding up on
+> screen. Flagged to the owner 25 Aug; the fix is to refuse the delete the same way.
 
 ## The Record section (owner, 2026-08-24)
 

@@ -445,7 +445,18 @@ export function StaffProfileEditor({
         {/* The heading lives inside PaymentsTable, so it can share a row with that table's own month
             picker — the same shape the วันหยุด card uses. */}
         <section className="card">
-          <PaymentsTable userId={profile.id} payments={payments} currentYear={currentYear} />
+          <PaymentsTable
+            userId={profile.id}
+            payments={payments}
+            currentYear={currentYear}
+            /* The account to pay INTO, shown under the Total where you actually need it. Only the
+               owner's HRM view passes this — /me is the person's own page and has no Total. */
+            bank={{
+              name: profile.bankName,
+              accountNo: profile.bankAccountNo,
+              accountName: profile.bankAccountName,
+            }}
+          />
         </section>
 
         <section className="card">

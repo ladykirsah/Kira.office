@@ -13,6 +13,7 @@ import {
   slipIsExpired,
   SLIP_RETENTION_MONTHS,
   roleCanBeLocked,
+  salaryDueDate,
 } from "./staffPay";
 
 describe("daysInMonth", () => {
@@ -206,5 +207,26 @@ describe("lockable roles", () => {
     // Fail safe: a role this doesn't recognise keeps the protection rather than losing it.
     expect(roleCanBeLocked("something_new")).toBe(true);
     expect(roleCanBeLocked(null)).toBe(true);
+  });
+});
+
+describe("salaryDueDate", () => {
+  it("given a month > then the 5th of the month after it", () => {
+    expect(salaryDueDate("2026-08")).toBe("2026-09-05");
+  });
+
+  it("given December > then rolls into the next year", () => {
+    expect(salaryDueDate("2026-12")).toBe("2027-01-05");
+  });
+
+  it("given a February > then still the 5th, short month or not", () => {
+    expect(salaryDueDate("2026-02")).toBe("2026-03-05");
+    expect(salaryDueDate("2024-01")).toBe("2024-02-05");
+  });
+
+  it("given a malformed period > then null rather than an invented date", () => {
+    expect(salaryDueDate("")).toBeNull();
+    expect(salaryDueDate("2026-13")).toBeNull();
+    expect(salaryDueDate("August")).toBeNull();
   });
 });

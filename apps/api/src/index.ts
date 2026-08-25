@@ -148,6 +148,7 @@ import {
   salaryMonth,
   markSalaryPaid,
   salarySlipKey,
+  advanceSlipKey,
   purgeExpiredSalarySlips,
   staffPayments,
   recordAdvance,
@@ -6388,6 +6389,24 @@ const worker = {
         const key = `advance-slip/${advanceSlip[1]!}/${period}/${crypto.randomUUID()}.jpg`;
         await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
         return json({ key });
+      }
+
+      // The slip for ONE advance. Uploading has worked since 0089; looking at it never did, because
+      // this route did not exist. Same gate and the same private caching as a wage slip — it is the
+      // same kind of document, carrying the same bank details.
+      const advanceSlipGet = url.pathname.match(/^\/staff\/advances\/([^/]+)\/slip$/);
+      if (advanceSlipGet && request.method === "GET") {
+        const key = await advanceSlipKey(env.DB, who, advanceSlipGet[1]!);
+        if (!key) return json({ error: "not found" }, 404);
+        const object = await retryRead(() => env.IMAGES.get(key));
+        if (!object) return json({ error: "not found" }, 404);
+        return new Response(object.body, {
+          headers: {
+            ...responseHeaders,
+            "content-type": object.httpMetadata?.contentType ?? "image/jpeg",
+            "cache-control": "private, max-age=60",
+          },
+        });
       }
 
       const advanceById = url.pathname.match(/^\/staff\/advances\/([^/]+)$/);

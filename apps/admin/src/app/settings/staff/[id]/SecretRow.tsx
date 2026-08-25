@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { confirmationProblem } from "@/lib/secretConfirm";
+import { useToast } from "../../../ToastProvider";
 
 /**
  * One credential, one row: the value hidden behind dots, an eye to reveal it, and a reset.
@@ -11,6 +13,13 @@ import { useState } from "react";
  *
  * Reset only PROPOSES a value: it fills an editable box and nothing is written until Save. That is
  * what makes a stray click harmless, so there is no separate "are you sure" step.
+ *
+ * ALSO SERVES A PERSON CHANGING THEIR OWN (owner, 2026-08-25: "function here is messy · 2 function
+ * requested here — view, change"). `/me` had a hand-rolled version of this card with a permanently
+ * open input box under each secret; it now uses this component, so both sides of the app behave the
+ * same. Without `generate` the action opens an EMPTY box and the ↻ is not drawn — you are choosing
+ * your own password, not being handed one — and `actionLabel` lets that button read "change" rather
+ * than "reset", because nobody resets their own.
  */
 export function SecretRow({
   label,
@@ -18,6 +27,8 @@ export function SecretRow({
   hasValue,
   generate,
   onSave,
+  actionLabel = "reset",
+  confirm = false,
   hint,
   inputMode,
   maxLength,
@@ -26,22 +37,46 @@ export function SecretRow({
   /** The revealed value, or null when there is nothing stored / no key to read it with. */
   value: string | null;
   hasValue: boolean;
-  generate: () => string;
+  /** Omit when the person is setting their OWN secret: the box opens empty and offers no ↻. */
+  generate?: () => string;
   onSave: (next: string) => Promise<boolean>;
+  /** The word on the button that opens the box. "reset" when acting on somebody else's. */
+  actionLabel?: string;
+  /**
+   * Ask for the value TWICE before saving. For a secret the person types themselves: a generated
+   * one is on screen to be read, so there is nothing to mistype and a second box is only friction.
+   */
+  confirm?: boolean;
   hint?: string;
   inputMode?: "numeric";
   maxLength?: number;
 }) {
+  const toast = useToast();
   const [shown, setShown] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
+  const [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false);
 
+  function close() {
+    setDraft(null);
+    setAgain("");
+  }
+
   async function save() {
-    if (!draft) return;
+    if (draft === null) return;
+    // The two boxes are checked BEFORE onSave, so a mismatch never reaches the server and never
+    // counts as an attempt. Save itself is never disabled (owner, 2026-08-25) — it explains.
+    if (confirm) {
+      const problem = confirmationProblem(draft, again);
+      if (problem) {
+        toast(problem, "error");
+        return;
+      }
+    }
     setBusy(true);
     const ok = await onSave(draft);
     setBusy(false);
-    if (ok) setDraft(null);
+    if (ok) close();
   }
 
   return (
@@ -69,8 +104,8 @@ export function SecretRow({
           >
             {shown ? <EyeOff /> : <Eye />}
           </button>
-          <button type="button" className="text-btn" onClick={() => setDraft(generate())}>
-            reset
+          <button type="button" className="text-btn" onClick={() => setDraft(generate?.() ?? "")}>
+            {actionLabel}
           </button>
         </div>
       ) : (
@@ -84,23 +119,46 @@ export function SecretRow({
               setDraft(inputMode === "numeric" ? e.target.value.replace(/\D/g, "") : e.target.value)
             }
             onKeyDown={(e) => {
-              if (e.key === "Escape") setDraft(null);
+              if (e.key === "Escape") close();
               if (e.key === "Enter") void save();
             }}
+            placeholder={confirm ? `New ${label.toLowerCase()}` : undefined}
             style={{ flex: 1, minWidth: 150 }}
           />
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={`Generate another ${label}`}
-            onClick={() => setDraft(generate())}
-          >
-            ↻
-          </button>
+          {/* The second box sits on the SAME line as the first (owner's control sizing), so the two
+              read as one question asked twice rather than as two separate fields. */}
+          {confirm && (
+            <input
+              value={again}
+              inputMode={inputMode}
+              maxLength={maxLength}
+              placeholder="พิมพ์อีกครั้ง"
+              onChange={(e) =>
+                setAgain(
+                  inputMode === "numeric" ? e.target.value.replace(/\D/g, "") : e.target.value,
+                )
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Escape") close();
+                if (e.key === "Enter") void save();
+              }}
+              style={{ flex: 1, minWidth: 150 }}
+            />
+          )}
+          {generate && (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Generate another ${label}`}
+              onClick={() => setDraft(generate())}
+            >
+              ↻
+            </button>
+          )}
           <button type="button" className="text-btn" disabled={busy} onClick={save}>
             {busy ? "Saving…" : "Save"}
           </button>
-          <button type="button" className="text-btn muted-btn" onClick={() => setDraft(null)}>
+          <button type="button" className="text-btn muted-btn" onClick={close}>
             Cancel
           </button>
         </div>
