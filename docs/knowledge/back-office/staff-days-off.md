@@ -90,12 +90,18 @@ a URL or the API stays `YYYY-MM` in the western calendar — **2569 must never r
 | | Its setting does |
 | --- | --- |
 | วันหยุด | picks the month it lists (in the URL, so back and bookmarks work) |
-| Payments | **jumps to and highlights** a month — every month stays listed, because a wage history is read by comparing one month against the one before |
+| Payments | **filters** to the month picked; a month with nothing against it says so by name |
 | Record | none. The two entry tabs take their month from the date typed into them; จ่ายเงินเดือน has its own, because the month you are paying FOR is not the day you pay it |
 
 One coupling had to be cut for that to be true: the wage table asks the API for the **real current
 month**, not the one วันหยุด is browsing. Passing the browsed month made the วันหยุด picker quietly
 add and drop rows from Payments.
+
+Payments **jumped and highlighted** for a few hours first, on the argument that a wage history is
+read by comparing one month against the one before, so hiding the rest takes away the reason you
+opened it. The owner used it and asked for filtering (25 Aug). That settles it, and the reasoning is
+worth keeping: the question people bring to this table is *"what about that month"*, not *"how do
+the months compare"* — and it is the person using it daily who knows which.
 
 ## The Record section (owner, 2026-08-24)
 

@@ -71,12 +71,14 @@ export function PaymentsTable({
   /**
    * This table's OWN month setting, independent of the วันหยุด card's (owner, 2026-08-24).
    *
-   * It JUMPS, it does not filter: the chosen month is highlighted and scrolled to, and every other
-   * month stays on the table. A wage history is read by comparing one month against the one before
-   * it, so hiding the others to "find" one would take away the reason you opened it. Owner's call,
-   * and the foundation for more work on this table.
+   * It FILTERS: pick July and the table shows July. It jumped-and-highlighted for a few hours first
+   * — my argument was that a wage history is read by comparing one month against the one before, so
+   * hiding the rest takes away the reason you opened it. The owner used it and asked for filtering
+   * (25 Aug), which settles it: the question people bring to this table is "what about that month",
+   * not "how do the months compare".
    */
-  const [jumpTo, setJumpTo] = useState<string>(payments[0]?.period ?? "");
+  const [showMonth, setShowMonth] = useState<string>(payments[0]?.period ?? "");
+  const shown = payments.filter((p) => p.period === showMonth);
 
   /**
    * Heading and picker on one row, the same shape the วันหยุด card uses (owner, 2026-08-24). The
@@ -99,21 +101,26 @@ export function PaymentsTable({
           card above is Thai and carries its own — each says what its neighbours say rather than
           following one global setting. */}
       <MonthYearPicker
-        value={jumpTo}
+        value={showMonth}
         lang="en"
-        label="Jump to month"
+        label="Month shown"
         currentYear={currentYear}
-        onChange={setJumpTo}
+        onChange={setShowMonth}
       />
     </div>
   );
 
-  if (payments.length === 0) {
+  // A month with nothing against it is the normal case once any month can be picked, so it says so
+  // rather than drawing an empty table — and it names the month, so it reads as an answer rather
+  // than as something being broken.
+  if (shown.length === 0) {
     return (
       <>
         {header}
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-          No wages recorded yet.
+          {payments.length === 0
+            ? "No wages recorded yet."
+            : `Nothing recorded for ${showMonth ? monthLabel(showMonth) : "that month"}.`}
         </p>
       </>
     );
@@ -141,28 +148,8 @@ export function PaymentsTable({
             </tr>
           </thead>
           <tbody>
-            {payments.map((p) => (
-              <tr
-                key={p.period}
-                ref={(el) => {
-                  // Bring the chosen month into view without hiding the rest. Only when it is not
-                  // already on screen, so picking a visible month does not yank the page about.
-                  if (el && p.period === jumpTo) {
-                    const r = el.getBoundingClientRect();
-                    if (r.top < 0 || r.bottom > window.innerHeight) {
-                      el.scrollIntoView({ block: "center", behavior: "smooth" });
-                    }
-                  }
-                }}
-                style={
-                  p.period === jumpTo
-                    ? {
-                        background: "var(--primary-faint)",
-                        outline: "1px solid var(--primary-soft)",
-                      }
-                    : undefined
-                }
-              >
+            {shown.map((p) => (
+              <tr key={p.period}>
                 <td style={{ fontWeight: 600 }}>{monthLabel(p.period)}</td>
                 <td className="num">{baht(p.dayRateSatang)}</td>
                 <td className="num">{p.offHalves ? days(p.offHalves) : "0"}</td>
