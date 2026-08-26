@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { PIN_LENGTH, boxDigits, setBoxDigit, spreadPaste } from "@/lib/pinBoxes";
+import { useT } from "../LangProvider";
 
 /**
  * Six boxes, split 3 + 3 — a PIN pad rather than a text field (owner, 2026-08-04).
@@ -20,6 +21,7 @@ import { PIN_LENGTH, boxDigits, setBoxDigit, spreadPaste } from "@/lib/pinBoxes"
  * clearing a middle box leaves a hole instead of shuffling the later digits left.
  */
 export function PinInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const t = useT();
   const boxes = useRef<(HTMLInputElement | null)[]>([]);
   const digits = boxDigits(value);
 
@@ -62,7 +64,11 @@ export function PinInput({ value, onChange }: { value: string; onChange: (next: 
   }
 
   return (
-    <div className="pin-boxes" role="group" aria-label="6-digit PIN">
+    <div
+      className="pin-boxes"
+      role="group"
+      aria-label={t({ th: "รหัส 6 หลัก", en: "6-digit PIN" })}
+    >
       {digits.map((digit, i) => (
         <input
           key={i}
@@ -74,7 +80,10 @@ export function PinInput({ value, onChange }: { value: string; onChange: (next: 
           inputMode="numeric"
           autoComplete={i === 0 ? "one-time-code" : "off"}
           // No maxLength: it would silently truncate a pasted PIN before onChange ever sees it.
-          aria-label={`PIN digit ${i + 1} of ${PIN_LENGTH}`}
+          aria-label={t({
+            th: `หลักที่ ${i + 1} จาก ${PIN_LENGTH}`,
+            en: `PIN digit ${i + 1} of ${PIN_LENGTH}`,
+          })}
           autoFocus={i === 0}
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}

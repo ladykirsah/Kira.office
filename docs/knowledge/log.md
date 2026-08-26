@@ -233,3 +233,10 @@ sources: [session 2026-08-09]
   to start with a capital. Behind them sat about **65 pieces of English on screens already declared
   finished**, mostly pop-up messages. All fixed. See
   [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-08-26** — **The sign-in screen speaks Thai, and carries its own flag.** It was the first
+  thing anybody saw and the last thing entirely in English. It sits outside the app frame, so the
+  language button had to come with it — otherwise the choice could only be made after signing in.
+  Owner's words: **เข้าใช้งาน**, **รหัส 6 หลัก** (the letters "PIN" dropped), **ทางเข้าฉุกเฉิน**. The page
+  titles moved to `generateMetadata()`, since a title that depends on a cookie cannot be a constant.
+  See [conventions/bilingual-admin](conventions/bilingual-admin.md).

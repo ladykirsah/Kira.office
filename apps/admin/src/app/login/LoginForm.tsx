@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PinInput } from "./PinInput";
 import { isLocalHost } from "@/lib/devApiMismatch";
+import { useT } from "../LangProvider";
 
 type Method = "pin" | "password";
 
@@ -12,6 +13,7 @@ type Method = "pin" | "password";
  * method can never be submitted alongside the other.
  */
 export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; next?: string }) {
+  const t = useT();
   const [method, setMethod] = useState<Method>("pin");
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
@@ -89,10 +91,15 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
       // The API 404s this door unless it really is a practice copy. Say so plainly rather than
       // "wrong password", which would send someone hunting for a credential that is not the issue.
       setError(
-        "This copy is not set up for one-click sign-in. Add PRACTICE_COPY=1 to .dev.vars and restart it.",
+        t({
+          th: "เครื่องนี้ยังไม่ได้ตั้งให้เข้าใช้งานแบบคลิกเดียว — เพิ่ม PRACTICE_COPY=1 ใน .dev.vars แล้วเริ่มใหม่",
+          en: "This copy is not set up for one-click sign-in. Add PRACTICE_COPY=1 to .dev.vars and restart it.",
+        }),
       );
     } catch {
-      setError("Something went wrong. Try again.");
+      setError(
+        t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -122,11 +129,19 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
       const body = (await res.json().catch(() => ({}))) as { reason?: string };
       setError(
         body.reason === "access_not_configured"
-          ? "Owner sign-in needs Cloudflare Access switched on for this site."
-          : "This sign-in is only for the shop owner's email address.",
+          ? t({
+              th: "ทางเข้าของเจ้าของร้านต้องเปิด Cloudflare Access ให้เว็บนี้ก่อน",
+              en: "Owner sign-in needs Cloudflare Access switched on for this site.",
+            })
+          : t({
+              th: "ทางเข้านี้ใช้ได้เฉพาะอีเมลของเจ้าของร้าน",
+              en: "This sign-in is only for the shop owner's email address.",
+            }),
       );
     } catch {
-      setError("Something went wrong. Try again.");
+      setError(
+        t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -150,30 +165,52 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
       }
       const body = (await res.json().catch(() => ({}))) as { reason?: string; error?: string };
       if (body.error === "unreachable") {
-        setError("Can't reach the server. Check the connection and try again.");
+        setError(
+          t({
+            th: "ติดต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่",
+            en: "Can't reach the server. Check the connection and try again.",
+          }),
+        );
       } else if (body.reason === "locked") {
-        setError("This account is locked for 24 hours after 3 failed tries.");
+        setError(
+          t({
+            th: "ใส่ผิด 3 ครั้ง บัญชีนี้ถูกล็อก 24 ชั่วโมง",
+            en: "This account is locked for 24 hours after 3 failed tries.",
+          }),
+        );
         setShowOwner(true);
       } else if (body.reason === "needs_reset") {
         // NOT "wrong password". This account's credential was hashed above the platform's PBKDF2
         // ceiling and can never be verified, however correctly it is typed — saying "wrong" sends
         // someone retyping a password that is right (owner locked out of prod, 9 Aug 2026).
         setError(
-          "This login needs resetting — it can't be checked, even if it's correct. Ask a super admin to set a new password or PIN.",
+          t({
+            th: "บัญชีนี้ต้องตั้งรหัสใหม่ — ระบบตรวจไม่ได้ ถึงจะใส่ถูกก็ตาม ให้ซูเปอร์แอดมินตั้งรหัสผ่านหรือรหัส 6 หลักให้ใหม่",
+            en: "This login needs resetting — it can't be checked, even if it's correct. Ask a super admin to set a new password or PIN.",
+          }),
         );
         setShowOwner(true);
       } else if (body.reason === "pin_login_unavailable") {
-        setError("PIN sign-in isn't set up yet. Use email and password.");
+        setError(
+          t({
+            th: "ยังไม่ได้เปิดให้เข้าด้วยรหัส 6 หลัก ใช้อีเมลกับรหัสผ่านแทน",
+            en: "PIN sign-in isn't set up yet. Use email and password.",
+          }),
+        );
       } else {
         setError(
-          method === "pin" ? "That PIN doesn't match anyone." : "Email or password is wrong.",
+          method === "pin"
+            ? t({ th: "ไม่มีใครใช้รหัสนี้", en: "That PIN doesn't match anyone." })
+            : t({ th: "อีเมลหรือรหัสผ่านไม่ถูกต้อง", en: "Email or password is wrong." }),
         );
         // Surfaced only once something has actually failed, so the everyday login stays the obvious
         // one and this reads as what it is: the way out of being stuck.
         setShowOwner(true);
       }
     } catch {
-      setError("Something went wrong. Try again.");
+      setError(
+        t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -184,7 +221,11 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
 
   return (
     <form onSubmit={submit}>
-      <div className="login-tabs" role="tablist" aria-label="Sign-in method">
+      <div
+        className="login-tabs"
+        role="tablist"
+        aria-label={t({ th: "วิธีเข้าใช้งาน", en: "Sign-in method" })}
+      >
         <button
           type="button"
           role="tab"
@@ -192,7 +233,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
           className={method === "pin" ? "login-tab on" : "login-tab"}
           onClick={() => switchTo("pin")}
         >
-          PIN
+          {t({ th: "รหัส 6 หลัก", en: "PIN" })}
         </button>
         <button
           type="button"
@@ -201,20 +242,20 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
           className={method === "password" ? "login-tab on" : "login-tab"}
           onClick={() => switchTo("password")}
         >
-          Password
+          {t({ th: "รหัสผ่าน", en: "Password" })}
         </button>
       </div>
 
       {method === "pin" ? (
         <div style={{ marginBottom: 18 }}>
-          <div className="login-label">6-digit PIN</div>
+          <div className="login-label">{t({ th: "รหัส 6 หลัก", en: "6-digit PIN" })}</div>
           <PinInput value={pin} onChange={setPin} />
         </div>
       ) : (
         <>
           <div style={{ marginBottom: 14 }}>
             <label className="login-label" htmlFor="email">
-              Email
+              {t({ th: "อีเมล", en: "Email" })}
             </label>
             <input
               id="email"
@@ -228,7 +269,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
           </div>
           <div style={{ marginBottom: 18 }}>
             <label className="login-label" htmlFor="password">
-              Password
+              {t({ th: "รหัสผ่าน", en: "Password" })}
             </label>
             <input
               id="password"
@@ -252,17 +293,23 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
             className="btn-primary"
             style={{ width: "100%" }}
           >
-            Sign in to the practice copy
+            {t({ th: "เข้าใช้งานเครื่องซ้อม", en: "Sign in to the practice copy" })}
           </button>
           <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0", textAlign: "center" }}>
-            No password — this copy runs on your computer and holds no real data.
+            {t({
+              th: "ไม่ต้องใช้รหัส — เครื่องนี้รันอยู่บนคอมของคุณ และไม่มีข้อมูลจริง",
+              en: "No password — this copy runs on your computer and holds no real data.",
+            })}
           </p>
         </div>
       )}
 
       {expired && !error && (
         <div role="status" className="login-error login-note">
-          You were signed out. Please sign in again.
+          {t({
+            th: "ระบบพาออกจากระบบแล้ว กรุณาเข้าใช้งานอีกครั้ง",
+            en: "You were signed out. Please sign in again.",
+          })}
         </div>
       )}
 
@@ -279,7 +326,9 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         style={{ width: "100%" }}
         disabled={!canSubmit}
       >
-        {busy ? "Signing in…" : "Sign in"}
+        {busy
+          ? t({ th: "กำลังเข้าใช้งาน…", en: "Signing in…" })
+          : t({ th: "เข้าใช้งาน", en: "Sign in" })}
       </button>
 
       {showOwner && (
@@ -299,10 +348,13 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
               padding: 4,
             }}
           >
-            I&rsquo;m the shop owner — sign me in
+            {t({ th: "เป็นเจ้าของร้าน — เข้าใช้งานเลย", en: "I’m the shop owner — sign me in" })}
           </button>
           <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>
-            Uses the email you already verified to reach this page.
+            {t({
+              th: "ใช้อีเมลที่ยืนยันตัวตนไว้แล้วตอนเข้าหน้านี้",
+              en: "Uses the email you already verified to reach this page.",
+            })}
           </p>
         </div>
       )}

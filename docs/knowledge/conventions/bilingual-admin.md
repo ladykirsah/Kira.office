@@ -102,6 +102,18 @@ Looking at it turned up four bugs that predate any of this: the **thermal receip
 `TOTAL`, `Subtotal`, `Discount` and `Note:` typed in by hand, so a Thai customer's receipt printed
 English while the A4 size — using the same dictionary correctly — did not.
 
+## The sign-in screen carries its own language button
+
+It is the one screen OUTSIDE the app frame, so the flag in the top bar does not exist there. Until
+2026-08-26 that meant the first thing anybody ever saw was the only thing still entirely in English,
+and the language could only be changed *after* signing in — which is the wrong way round. The same
+`<LanguageToggle />` now sits at the top of both `/login` and `/recover`; nothing new was needed, the
+cookie and the refresh work identically outside the frame.
+
+Their `<title>` had to move from `export const metadata` to `generateMetadata()`, because a title
+that depends on a cookie cannot be a constant. Both pages are already `force-dynamic`, so this costs
+nothing.
+
 ## Words the owner chose
 
 Asked directly rather than guessed, because the shop already had a name for most of them.
@@ -114,6 +126,7 @@ Asked directly rather than guessed, because the shop already had a name for most
 | Products | **วางขาย** (Live) · **หยุดขาย** (Paused) · **เหลือน้อย / หมด** (Low / Out) · **ไม่มีรูป → พร้อมขาย** |
 | POS | **ทำบิล** · **ฉบับร่าง / ทำบิลต่อ** (draft / reopen) · **ราคาช่าง** (wholesale) · **ไปหน้าชำระเงิน** |
 | Coupons | **โค้ด** (code) · **จำนวนส่วนลด** (quota) · **สิทธิ์ต่อคน** (per customer) · **ส่วนลดสูงสุด** (max cap) |
+| Sign-in | **เข้าใช้งาน** (sign in) · **รหัส 6 หลัก** (the PIN — the letters "PIN" dropped entirely) · **ทางเข้าฉุกเฉิน** (owner rescue) |
 
 Order statuses were NOT re-invented: เตรียมจัดส่ง, กำลังจัดส่ง, คืนเงิน come from
 [commerce/order-lifecycle](../commerce/order-lifecycle.md), and the 13 operational statuses were
@@ -143,11 +156,10 @@ Deliberate single-language files go in `DELIBERATE` with the reason, never silen
 ## Done, and not done
 
 **Done:** the frame (menu, top bar, both toggles, Modal), dashboard, orders list, order detail,
-products list, product forms, the POS, and coupons — plus the shared pieces those screens render
-(`ConfirmButton`, `DateTimeField`, `NoAccess`), each of which had been English on every screen using it.
+products list, product forms, the POS, coupons, and **the sign-in and rescue screens** — plus the
+shared pieces those screens render (`ConfirmButton`, `DateTimeField`, `NoAccess`), each of which had
+been English on every screen using it.
 
 **Not done:** customers (47), shop settings (44), the staff forms (~76), affiliate items (42),
-`AttributeManager` (40), banners (31), and the rest — roughly **740 strings**. The **sign-in screen**
-is on that list and worth doing early: it is the first thing a Thai mechanic sees, and it is entirely
-in English. The storefront was never in scope: the owner chose back
+`AttributeManager` (40), banners (31), and the rest — roughly **700 strings**. The storefront was never in scope: the owner chose back
 office only.

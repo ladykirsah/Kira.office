@@ -2,11 +2,16 @@ import { redirect } from "next/navigation";
 import { currentStaff } from "@/lib/staffSession";
 import { safeNextPath, EXPIRED_PARAM } from "@/lib/signedInGate";
 import { LoginForm } from "./LoginForm";
+import { LanguageToggle } from "../LanguageToggle";
+import { serverT } from "@/lib/serverLang";
 
 // Always fresh: whether someone is already signed in decides whether this page should exist at all.
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Sign in — Kira.office" };
+export async function generateMetadata() {
+  const t = await serverT();
+  return { title: t({ th: "เข้าใช้งาน — Kira.office", en: "Sign in — Kira.office" }) };
+}
 
 export default async function LoginPage({
   searchParams,
@@ -33,16 +38,26 @@ export default async function LoginPage({
    * an empty name badge and no explanation at all.
    */
   const expired = one(EXPIRED_PARAM) === "1";
+  const t = await serverT();
 
   return (
     <main className="login-page">
       <div className="login-box">
+        {/* THE ONE SCREEN OUTSIDE THE APP FRAME, so it carries its own language button (owner,
+            2026-08-26). Without it the choice could only be made after signing in — which is the
+            wrong way round for the first screen anybody ever sees. */}
+        <div style={{ display: "flex", marginBottom: 4 }}>
+          <LanguageToggle />
+        </div>
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div className="brand" style={{ fontSize: 22 }}>
             Kira.office
           </div>
           <div className="muted" style={{ fontSize: 13.5 }}>
-            Den Air Service + AirPlus back office
+            {t({
+              th: "ระบบหลังร้าน Den Air Service + AirPlus",
+              en: "Den Air Service + AirPlus back office",
+            })}
           </div>
         </div>
 
@@ -51,7 +66,10 @@ export default async function LoginPage({
         </div>
 
         <p className="muted" style={{ fontSize: 12.5, textAlign: "center", marginTop: 16 }}>
-          Forgotten your password? Ask the owner to set a new one.
+          {t({
+            th: "ลืมรหัสผ่าน? ให้เจ้าของร้านตั้งให้ใหม่",
+            en: "Forgotten your password? Ask the owner to set a new one.",
+          })}
         </p>
       </div>
     </main>

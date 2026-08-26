@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "../LangProvider";
 
 /**
  * The owner's way back in when neither the PIN nor the password works.
@@ -15,6 +16,7 @@ import { useState } from "react";
  * who you are, and the page has to explain itself before it acts.
  */
 export function RecoverForm({ next }: { next: string }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,11 +38,19 @@ export function RecoverForm({ next }: { next: string }) {
       const body = (await res.json().catch(() => ({}))) as { reason?: string };
       setError(
         body.reason === "access_not_configured"
-          ? "This rescue needs Cloudflare Access switched on for this address. It is not set up yet — ask for it to be turned on before relying on this page."
-          : "This rescue is only for the shop owner's email address. Sign in with your PIN or password instead.",
+          ? t({
+              th: "ทางเข้าฉุกเฉินนี้ต้องเปิด Cloudflare Access ให้ที่อยู่นี้ก่อน ตอนนี้ยังไม่ได้เปิด — ให้เปิดก่อน อย่าเพิ่งพึ่งหน้านี้",
+              en: "This rescue needs Cloudflare Access switched on for this address. It is not set up yet — ask for it to be turned on before relying on this page.",
+            })
+          : t({
+              th: "ทางเข้าฉุกเฉินนี้ใช้ได้เฉพาะอีเมลของเจ้าของร้าน ให้เข้าด้วยรหัส 6 หลักหรือรหัสผ่านแทน",
+              en: "This rescue is only for the shop owner's email address. Sign in with your PIN or password instead.",
+            }),
       );
     } catch {
-      setError("Something went wrong. Try again.");
+      setError(
+        t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -60,7 +70,9 @@ export function RecoverForm({ next }: { next: string }) {
         onClick={signInAsOwner}
         disabled={busy}
       >
-        {busy ? "Signing in…" : "Sign in as the owner"}
+        {busy
+          ? t({ th: "กำลังเข้าใช้งาน…", en: "Signing in…" })
+          : t({ th: "เข้าใช้งานเป็นเจ้าของร้าน", en: "Sign in as the owner" })}
       </button>
     </>
   );
