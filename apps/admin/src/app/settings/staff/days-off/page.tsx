@@ -4,6 +4,7 @@ import { PageHeader } from "../../../PageHeader";
 import { currentStaff, staffToken, STAFF_SESSION_HEADER } from "@/lib/staffSession";
 import { apiFetch } from "@/lib/apiFetch";
 import { StaffTabs } from "../StaffTabs";
+import { serverT } from "@/lib/serverLang";
 import { TeamDaysOff, type TeamPerson } from "./TeamDaysOff";
 import type { DayOffRow } from "../../../DayOffTable";
 
@@ -26,6 +27,7 @@ export default async function DaysOffPage({
   if (me.role !== "super_admin") redirect("/");
 
   const month = (await searchParams).month || bangkokMonth(Date.now());
+  const t = await serverT();
   const token = await staffToken();
   const headers = { [STAFF_SESSION_HEADER]: token ?? "" };
 
@@ -43,12 +45,21 @@ export default async function DaysOffPage({
     if (d.ok) days = ((await d.json()) as { days: DayOffRow[] }).days;
     if (p.ok) people = ((await p.json()) as { staff: TeamPerson[] }).staff ?? [];
   } catch {
-    error = "ยังโหลดข้อมูลไม่ได้ ลองใหม่อีกครั้ง";
+    error = t({
+      th: "ยังโหลดข้อมูลไม่ได้ ลองใหม่อีกครั้ง",
+      en: "Couldn't load this yet. Try again.",
+    });
   }
 
   return (
     <>
-      <PageHeader title="Staff" subtitle="วันหยุดของทีม — ใครหยุดวันไหนบ้าง" />
+      <PageHeader
+        title={t({ th: "พนักงาน", en: "Staff" })}
+        subtitle={t({
+          th: "วันหยุดของทีม — ใครหยุดวันไหนบ้าง",
+          en: "The team's days off — who is away and when.",
+        })}
+      />
       <StaffTabs active="days-off" />
       {error ? (
         <p className="muted">{error}</p>

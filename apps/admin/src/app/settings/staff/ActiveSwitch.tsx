@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "../../ToastProvider";
+import { useT } from "../../LangProvider";
 
 /**
  * On / Off, straight from the table (owner, 2026-08-03). On = active, Off = paused.
@@ -24,6 +25,7 @@ export function ActiveSwitch({
   const [on, setOn] = useState(active);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  const t = useT();
 
   async function toggle() {
     const next = !on;
@@ -39,17 +41,22 @@ export function ActiveSwitch({
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         setOn(!next);
-        toast(data.error || "Couldn't change that.", "error");
+        toast(data.error || t({ th: "เปลี่ยนไม่สำเร็จ", en: "Couldn't change that." }), "error");
         return;
       }
       toast(
-        next ? `${name} switched on` : `${name} switched off — signed out everywhere`,
+        next
+          ? t({ th: `เปิดใช้งาน ${name} แล้ว`, en: `${name} switched on` })
+          : t({
+              th: `ปิดใช้งาน ${name} แล้ว — ออกจากระบบทุกเครื่อง`,
+              en: `${name} switched off — signed out everywhere`,
+            }),
         "success",
       );
       setTimeout(() => location.reload(), 600);
     } catch {
       setOn(!next);
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
     } finally {
       setBusy(false);
     }
@@ -58,19 +65,28 @@ export function ActiveSwitch({
   return (
     <label
       className="switch switch-wide"
-      title={disabled ? "You can't switch yourself off" : undefined}
+      title={
+        disabled
+          ? t({ th: "ปิดใช้งานตัวเองไม่ได้", en: "You can't switch yourself off" })
+          : undefined
+      }
     >
       <input
         type="checkbox"
         checked={on}
         disabled={disabled || busy}
         onChange={toggle}
-        aria-label={`${name} is ${on ? "on" : "off"}`}
+        aria-label={t({
+          th: `${name} ${on ? "เปิดอยู่" : "ปิดอยู่"}`,
+          en: `${name} is ${on ? "on" : "off"}`,
+        })}
       />
       <span className="switch-track" aria-hidden>
         <span className="switch-knob" />
       </span>
-      <span className="switch-text">{on ? "On" : "Off"}</span>
+      <span className="switch-text">
+        {on ? t({ th: "เปิด", en: "On" }) : t({ th: "ปิด", en: "Off" })}
+      </span>
     </label>
   );
 }

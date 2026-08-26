@@ -4,6 +4,9 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useToast } from "../../../ToastProvider";
 import { CopyButton } from "../../../products/CopyButton";
+import { useT, useLang } from "../../../LangProvider";
+import { ROLE_LABEL } from "@/lib/roleLabel";
+import type { Lang } from "@/lib/lang";
 import { FilePickButton } from "../../../FilePickButton";
 
 export interface SalaryRow {
@@ -20,12 +23,6 @@ export interface SalaryRow {
   bankAccountNo: string | null;
 }
 
-const ROLE_LABEL: Record<SalaryRow["role"], string> = {
-  super_admin: "Super admin",
-  admin: "Admin",
-  mechanic: "Mechanic",
-};
-
 const baht = (satang: number) => `฿${(satang / 100).toLocaleString("en-US")}`;
 /** Halves as days: 58 → "29", 59 → "29½". Nobody wants to read 29.5 on a wage sheet. */
 const days = (halves: number) => {
@@ -33,9 +30,9 @@ const days = (halves: number) => {
   return halves % 2 ? `${whole || ""}½` : String(whole);
 };
 
-function monthLabel(period: string): string {
+function monthLabel(period: string, lang: Lang): string {
   const [y, m] = period.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -47,9 +44,9 @@ function shift(period: string, by: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 /** Wages for a month are paid on the 5th of the next one. */
-function payDate(period: string): string {
+function payDate(period: string, lang: Lang): string {
   const [y, m] = period.split("-").map(Number);
-  return new Date(Date.UTC(y!, m!, 5)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y!, m!, 5)).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
     day: "numeric",
     month: "long",
     timeZone: "UTC",
@@ -70,6 +67,8 @@ export function SalaryTable({
   const [paying, setPaying] = useState<string | null>(null);
   const [slip, setSlip] = useState<File | null>(null);
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
 
   function openPay(userId: string) {
     setPaying(userId);
@@ -95,13 +94,16 @@ export function SalaryTable({
       );
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "Couldn't mark that paid.", "error");
+        toast(
+          data.error || t({ th: "บันทึกว่าจ่ายแล้วไม่สำเร็จ", en: "Couldn't mark that paid." }),
+          "error",
+        );
         return;
       }
       toast(`${row.name} marked paid`, "success");
       setTimeout(() => location.reload(), 500);
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
     } finally {
       setBusy(null);
     }
@@ -116,7 +118,10 @@ export function SalaryTable({
         <div className="empty-icon" aria-hidden>
           💵
         </div>
-        Nobody has a day rate yet. Set one from People → Actions → Set day rate.
+        {t({
+          th: "ยังไม่มีใครตั้งค่าแรงต่อวัน — ตั้งได้ที่ คนในร้าน → จัดการ → ตั้งค่าแรงต่อวัน",
+          en: "Nobody has a day rate yet. Set one from People → Actions → Set day rate.",
+        })}
       </div>
     );
   }
@@ -140,20 +145,23 @@ export function SalaryTable({
         <Link
           className="icon-btn icon-btn-24"
           href={`?month=${shift(period, -1)}`}
-          aria-label="Previous month"
+          aria-label={t({ th: "เดือนก่อนหน้า", en: "Previous month" })}
         >
           ‹
         </Link>
-        <span style={{ fontSize: 19, fontWeight: 700 }}>{monthLabel(period)}</span>
+        <span style={{ fontSize: 19, fontWeight: 700 }}>{monthLabel(period, lang)}</span>
         <Link
           className="icon-btn icon-btn-24"
           href={`?month=${shift(period, 1)}`}
-          aria-label="Next month"
+          aria-label={t({ th: "เดือนถัดไป", en: "Next month" })}
         >
           ›
         </Link>
         <span className="muted" style={{ fontSize: 13.5 }}>
-          {daysInMonth} days · pay date {payDate(period)}
+          {t({
+            th: `เดือนนี้ ${daysInMonth} วัน · จ่ายวันที่ ${payDate(period, lang)}`,
+            en: `${daysInMonth} days · pay date ${payDate(period, lang)}`,
+          })}
         </span>
       </div>
 
@@ -175,12 +183,12 @@ export function SalaryTable({
           </colgroup>
           <thead>
             <tr>
-              <th>Person</th>
-              <th style={{ textAlign: "right" }}>Day rate</th>
-              <th style={{ textAlign: "right" }}>Days off</th>
-              <th style={{ textAlign: "right" }}>Working days</th>
-              <th style={{ textAlign: "right" }}>Salary</th>
-              <th style={{ textAlign: "right" }} aria-label="Actions" />
+              <th>{t({ th: "พนักงาน", en: "Person" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "วันหยุด", en: "Days off" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "วันทำงาน", en: "Working days" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "เงินเดือน", en: "Salary" })}</th>
+              <th style={{ textAlign: "right" }} aria-label={t({ th: "จัดการ", en: "Actions" })} />
             </tr>
           </thead>
           <tbody>
@@ -188,7 +196,7 @@ export function SalaryTable({
               <Fragment key={r.userId}>
                 <tr>
                   <td>
-                    {r.name} <span className="muted">· {ROLE_LABEL[r.role]}</span>
+                    {r.name} <span className="muted">· {t(ROLE_LABEL[r.role]!)}</span>
                   </td>
                   <td className="num">{baht(r.dayRateSatang)}</td>
                   <td className="num">{r.offHalves ? days(r.offHalves) : "0"}</td>
@@ -203,7 +211,7 @@ export function SalaryTable({
                       // The state, not the date (owner, 2026-08-04) — same pill as the person's
                       // own Payments table. When it was paid is on the slip.
                       <span className="role-pill" style={{ color: "var(--ok)" }}>
-                        Paid
+                        {t({ th: "จ่ายแล้ว", en: "Paid" })}
                       </span>
                     ) : (
                       <button
@@ -212,7 +220,7 @@ export function SalaryTable({
                         disabled={paying === r.userId}
                         onClick={() => openPay(r.userId)}
                       >
-                        Pay
+                        {t({ th: "จ่าย", en: "Pay" })}
                       </button>
                     )}
                   </td>
@@ -226,7 +234,7 @@ export function SalaryTable({
                     <td colSpan={6}>
                       <div className="pay-grid">
                         <div>
-                          <div className="pay-label">Into</div>
+                          <div className="pay-label">{t({ th: "โอนเข้า", en: "Into" })}</div>
                           {r.bankAccountNo ? (
                             <div style={{ display: "grid", gap: 2, fontSize: 14 }}>
                               <span>{r.bankName}</span>
@@ -239,26 +247,40 @@ export function SalaryTable({
                                 }}
                               >
                                 {r.bankAccountNo}
-                                <CopyButton value={r.bankAccountNo} label="the account number" />
+                                <CopyButton
+                                  value={r.bankAccountNo}
+                                  label={t({ th: "เลขที่บัญชี", en: "the account number" })}
+                                />
                               </span>
                             </div>
                           ) : (
                             <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-                              No bank account yet — add one on their profile first.
+                              {t({
+                                th: "ยังไม่มีบัญชีธนาคาร — ไปเพิ่มที่หน้าโปรไฟล์ของเขาก่อน",
+                                en: "No bank account yet — add one on their profile first.",
+                              })}
                             </p>
                           )}
                         </div>
 
                         <div>
-                          <div className="pay-label">Transfer slip</div>
+                          <div className="pay-label">
+                            {t({ th: "สลิปการโอน", en: "Transfer slip" })}
+                          </div>
                           <FilePickButton
                             file={slip}
                             onPick={setSlip}
-                            label={`Transfer slip for ${r.name}`}
+                            label={t({
+                              th: `สลิปการโอนของ ${r.name}`,
+                              en: `Transfer slip for ${r.name}`,
+                            })}
                             disabled={busy === r.userId}
                           />
                           <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>
-                            Kept for 3 months, then deleted.
+                            {t({
+                              th: "เก็บไว้ 3 เดือน แล้วลบทิ้ง",
+                              en: "Kept for 3 months, then deleted.",
+                            })}
                           </p>
                         </div>
 
@@ -271,16 +293,25 @@ export function SalaryTable({
                             onClick={() => setPaying(null)}
                             disabled={busy === r.userId}
                           >
-                            Cancel
+                            {t({ th: "ยกเลิก", en: "Cancel" })}
                           </button>
                           <button
                             type="button"
                             className="btn-primary btn-sm"
                             disabled={!slip || busy === r.userId}
                             onClick={() => confirmPaid(r)}
-                            title={slip ? undefined : "Attach the transfer slip first"}
+                            title={
+                              slip
+                                ? undefined
+                                : t({
+                                    th: "แนบสลิปการโอนก่อน",
+                                    en: "Attach the transfer slip first",
+                                  })
+                            }
                           >
-                            {busy === r.userId ? "Saving…" : "Confirm paid"}
+                            {busy === r.userId
+                              ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                              : t({ th: "ยืนยันว่าจ่ายแล้ว", en: "Confirm paid" })}
                           </button>
                         </div>
                       </div>
@@ -290,13 +321,15 @@ export function SalaryTable({
               </Fragment>
             ))}
             <tr className="salary-total">
-              <td>Total</td>
+              <td>{t({ th: "รวม", en: "Total" })}</td>
               <td />
               <td className="num">{days(rows.reduce((n, r) => n + r.offHalves, 0)) || "0"}</td>
               <td className="num">{days(rows.reduce((n, r) => n + r.workingHalves, 0))}</td>
               <td className="num">{baht(total)}</td>
               <td className="num muted" style={{ fontWeight: 400 }}>
-                {unpaid === 0 ? "all paid" : `${unpaid} unpaid`}
+                {unpaid === 0
+                  ? t({ th: "จ่ายครบแล้ว", en: "all paid" })
+                  : t({ th: `ยังไม่จ่าย ${unpaid} คน`, en: `${unpaid} unpaid` })}
               </td>
             </tr>
           </tbody>

@@ -4,6 +4,7 @@ import { currentStaff, staffToken, STAFF_SESSION_HEADER } from "@/lib/staffSessi
 import { apiFetch } from "@/lib/apiFetch";
 import { StaffTabs } from "./StaffTabs";
 import { PeopleTable, type StaffRow } from "./PeopleTable";
+import { serverT } from "@/lib/serverLang";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function StaffPage() {
   // anyway. This just turns a 403-shaped empty page into an honest redirect.
   if (me.role !== "super_admin") redirect("/");
 
+  const t = await serverT();
   const token = await staffToken();
   let staff: StaffRow[] = [];
   let error: string | null = null;
@@ -23,14 +25,26 @@ export default async function StaffPage() {
       headers: { [STAFF_SESSION_HEADER]: token ?? "" },
     });
     if (res.ok) staff = ((await res.json()) as { staff: StaffRow[] }).staff;
-    else error = `Couldn't load the staff list (HTTP ${res.status})`;
+    else
+      error = t({
+        th: `โหลดรายชื่อพนักงานไม่ได้ (HTTP ${res.status})`,
+        en: `Couldn't load the staff list (HTTP ${res.status})`,
+      });
   } catch (e) {
-    error = (e as Error).message || "Couldn't reach the server.";
+    error =
+      (e as Error).message ||
+      t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." });
   }
 
   return (
     <main>
-      <PageHeader title="Staff" subtitle="Who can open Kira.office, and what they can reach." />
+      <PageHeader
+        title={t({ th: "พนักงาน", en: "Staff" })}
+        subtitle={t({
+          th: "ใครเปิด Kira.office ได้บ้าง และเปิดถึงไหน",
+          en: "Who can open Kira.office, and what they can reach.",
+        })}
+      />
       {/* PeopleTable draws its own tab row, because Add person sits on it and needs the table's
           state. The error path has no button, so it draws the plain tabs. */}
       {error ? (

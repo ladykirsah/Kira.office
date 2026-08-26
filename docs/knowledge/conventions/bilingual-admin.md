@@ -114,6 +114,28 @@ Their `<title>` had to move from `export const metadata` to `generateMetadata()`
 that depends on a cookie cannot be a constant. Both pages are already `force-dynamic`, so this costs
 nothing.
 
+## The staff section, and text that is not on the screen it appears on
+
+Two thirds of that area was already Thai — written Thai-only, so it showed Thai to an English reader
+as surely as an English screen shows English to a Thai one. Translation goes both ways.
+
+Three things there could not be fixed on the screen at all:
+
+- **`packages/core/dayOff.ts`** builds the sentence "หยุดไปแล้ว 2 วันครึ่ง". It now takes a language
+  and says "2½ days taken" too — a half written as `½` rather than `2.5`, because a decimal point
+  next to money invites being read as money. `leaveModeLabel` deliberately stays **Thai only**: the
+  API writes it into the activity log, and a record already written cannot depend on who reads it a
+  month later. Screens use the new `leaveModePhrase`.
+- **`lib/dayOff.ts`'s `monthLabel`** returned "สิงหาคม 2569". The YEAR had to move with the language
+  too — 2569 is the Buddhist era, which is what a Thai reader expects and the wrong number entirely
+  for anyone else.
+- **Three copies of the role names** — the top-bar chip, the profile editor, the /me page — two of
+  them English-only. Now one `lib/roleLabel.ts`. `super_admin` reads as **เจ้าของร้าน**, because in
+  this shop there is exactly one and that is what everybody calls them.
+
+Dates were the quiet half of this: `toLocaleDateString("en-GB")` was hard-coded in six places, so a
+Thai screen printed English months. They follow the reader now.
+
 ## Words the owner chose
 
 Asked directly rather than guessed, because the shop already had a name for most of them.
@@ -127,6 +149,7 @@ Asked directly rather than guessed, because the shop already had a name for most
 | POS | **ทำบิล** · **ฉบับร่าง / ทำบิลต่อ** (draft / reopen) · **ราคาช่าง** (wholesale) · **ไปหน้าชำระเงิน** |
 | Coupons | **โค้ด** (code) · **จำนวนส่วนลด** (quota) · **สิทธิ์ต่อคน** (per customer) · **ส่วนลดสูงสุด** (max cap) |
 | Sign-in | **เข้าใช้งาน** (sign in) · **รหัส 6 หลัก** (the PIN — the letters "PIN" dropped entirely) · **ทางเข้าฉุกเฉิน** (owner rescue) |
+| Staff | **เพิ่มรายการต่างๆ** (Record) · **ประวัติการทำงาน** (Activity) · **คนในร้าน** (People) · **เจ้าของร้าน / ผู้ดูแล / ช่าง** (the three roles) |
 
 Order statuses were NOT re-invented: เตรียมจัดส่ง, กำลังจัดส่ง, คืนเงิน come from
 [commerce/order-lifecycle](../commerce/order-lifecycle.md), and the 13 operational statuses were
@@ -156,10 +179,11 @@ Deliberate single-language files go in `DELIBERATE` with the reason, never silen
 ## Done, and not done
 
 **Done:** the frame (menu, top bar, both toggles, Modal), dashboard, orders list, order detail,
-products list, product forms, the POS, coupons, and **the sign-in and rescue screens** — plus the
-shared pieces those screens render (`ConfirmButton`, `DateTimeField`, `NoAccess`), each of which had
-been English on every screen using it.
+products list, product forms, the POS, coupons, the sign-in and rescue screens, and **the whole staff
+section** (people, salary, days off, activity, each person's page, and /me) — plus the shared pieces
+those screens render (`ConfirmButton`, `DateTimeField`, `NoAccess`), each of which had been English
+on every screen using it.
 
-**Not done:** customers (47), shop settings (44), the staff forms (~76), affiliate items (42),
-`AttributeManager` (40), banners (31), and the rest — roughly **700 strings**. The storefront was never in scope: the owner chose back
+**Not done:** customers, shop settings, affiliate items, `AttributeManager`, banners, campaigns,
+car-fitment, barcodes, scan, sales and insights — roughly **450 strings**. The storefront was never in scope: the owner chose back
 office only.

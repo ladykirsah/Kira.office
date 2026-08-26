@@ -201,6 +201,9 @@ export function findUntranslated(source: string): Untranslated[] {
     if (m[1] === "=") continue;
     const text = m[2]!.trim().replace(/\s+/g, " ");
     if (/(^|\s)(const|let|var|return|function)\s+\w+\s*[=;]/.test(text)) continue;
+    // …and a CONDITION between two branches is code too: `) : (tab === "advance" ? a : b) ? (`.
+    // Nothing anybody reads contains `===`, and prose does not put a `?` and a `:` in one breath.
+    if (/===|!==|&&|\|\||\?[^?]*:/.test(text)) continue;
     if (isUserFacing(text)) add(m.index, text);
   }
 
@@ -209,6 +212,10 @@ export function findUntranslated(source: string): Untranslated[] {
     const value = m[1]!;
     if (alreadyReported(m.index)) continue;
     if (src[m.index + m[0].length] === ":") continue; // an object key, read by no one
+    // A BACKTICK OR A ${…} INSIDE DOUBLE QUOTES means the quotes did not pair the way they look.
+    // `${d ?? ""}` twice on one line leaves the second quote of the first pair and the first of the
+    // second facing each other, and everything between them — code — reads as a sentence.
+    if (value.includes("`") || value.includes("${")) continue;
     const before = src.slice(Math.max(0, m.index - 400), m.index);
     if (insidePhrase(before) || machineSlot(before)) continue;
     if (THAI.test(value)) add(m.index, `bare Thai: ${value}`);

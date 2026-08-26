@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LEAVE_MODES, summariseDaysOff, type LeaveHalves } from "@l-shopee/core";
 import { useToast } from "../../../ToastProvider";
+import { useT, useLang } from "../../../LangProvider";
 import { DayOffTable, type DayOffEdit, type DayOffRow } from "../../../DayOffTable";
 import { monthLabel } from "@/lib/dayOff";
 
@@ -34,6 +35,8 @@ export function TeamDaysOff({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
   const [busy, setBusy] = useState<string | null>(null);
   const [who, setWho] = useState(people[0]?.id ?? "");
   const [day, setDay] = useState("");
@@ -44,7 +47,7 @@ export function TeamDaysOff({
     const res = await fetch(url, { credentials: "include", ...init });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
-      toast(data.error || "ทำรายการไม่สำเร็จ", "error");
+      toast(data.error || t({ th: "ทำรายการไม่สำเร็จ", en: "That didn't work." }), "error");
       return false;
     }
     toast(ok, "success");
@@ -55,9 +58,14 @@ export function TeamDaysOff({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <section className="card">
-        <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>บันทึกให้พนักงาน</h2>
+        <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>
+          {t({ th: "บันทึกให้พนักงาน", en: "Record for someone" })}
+        </h2>
         <p className="muted" style={{ fontSize: 13.5, margin: "0 0 14px" }}>
-          เมื่อพนักงานลืมบันทึกเอง — บันทึกทีละวันเหมือนกัน
+          {t({
+            th: "เมื่อพนักงานลืมบันทึกเอง — บันทึกทีละวันเหมือนกัน",
+            en: "For when they forgot to record it themselves — one day at a time, as they would.",
+          })}
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
@@ -65,7 +73,7 @@ export function TeamDaysOff({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              พนักงาน
+              {t({ th: "พนักงาน", en: "Person" })}
             </label>
             <select value={who} onChange={(e) => setWho(e.target.value)}>
               {people.map((p) => (
@@ -80,7 +88,7 @@ export function TeamDaysOff({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              วันที่
+              {t({ th: "วันที่", en: "Date" })}
             </label>
             <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
           </div>
@@ -89,7 +97,7 @@ export function TeamDaysOff({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              ลาแบบ
+              {t({ th: "ลาแบบ", en: "Kind of leave" })}
             </label>
             <select
               value={halves}
@@ -97,7 +105,7 @@ export function TeamDaysOff({
             >
               {LEAVE_MODES.map((m) => (
                 <option key={m.halves} value={m.halves}>
-                  {m.th}
+                  {lang === "th" ? m.th : m.en}
                 </option>
               ))}
             </select>
@@ -107,12 +115,13 @@ export function TeamDaysOff({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              เหตุผล <span className="faint">(ไม่บังคับ)</span>
+              {t({ th: "เหตุผล", en: "Reason" })}{" "}
+              <span className="muted">{t({ th: "(ไม่บังคับ)", en: "(optional)" })}</span>
             </label>
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="เช่น ไข้"
+              placeholder={t({ th: "เช่น ไข้", en: "e.g. fever" })}
               style={{ width: "100%" }}
             />
           </div>
@@ -130,7 +139,7 @@ export function TeamDaysOff({
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ day, halves, reason: reason || undefined }),
                   },
-                  "บันทึกแล้ว",
+                  t({ th: "บันทึกแล้ว", en: "Saved" }),
                 );
                 if (ok) {
                   setDay("");
@@ -141,7 +150,9 @@ export function TeamDaysOff({
               }
             }}
           >
-            {busy === "new" ? "กำลังบันทึก…" : "บันทึก"}
+            {busy === "new"
+              ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+              : t({ th: "บันทึก", en: "Save" })}
           </button>
         </div>
       </section>
@@ -158,16 +169,18 @@ export function TeamDaysOff({
           }}
         >
           <div>
-            <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>วันหยุดของทีม</h2>
+            <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>
+              {t({ th: "วันหยุดของทีม", en: "The team's days off" })}
+            </h2>
             <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-              {monthLabel(month)} · {summariseDaysOff(days).label}
+              {monthLabel(month, lang)} · {summariseDaysOff(days, lang).label}
             </p>
           </div>
           {/* A plain link per month keeps every month its own URL — bookmarkable, and the back
               button behaves. */}
           <input
             type="month"
-            aria-label="เดือน"
+            aria-label={t({ th: "เดือน", en: "Month" })}
             defaultValue={month}
             onChange={(e) => {
               if (e.target.value) router.push(`/settings/staff/days-off?month=${e.target.value}`);
@@ -194,7 +207,7 @@ export function TeamDaysOff({
                     reason: next.reason || undefined,
                   }),
                 },
-                "บันทึกแล้ว",
+                t({ th: "บันทึกแล้ว", en: "Saved" }),
               );
             } finally {
               setBusy(null);
@@ -206,7 +219,7 @@ export function TeamDaysOff({
               await call(
                 `/api/worker/staff/days-off/${row.id}`,
                 { method: "DELETE" },
-                "ลบวันหยุดแล้ว",
+                t({ th: "ลบวันหยุดแล้ว", en: "Day off deleted" }),
               );
             } finally {
               setBusy(null);
@@ -215,8 +228,11 @@ export function TeamDaysOff({
         />
 
         <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
-          ลบได้เฉพาะที่นี่ — พนักงานแก้ไขของตัวเองได้อย่างเดียว ·
-          เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน <b>เข้าสาย ไม่หักเงิน</b>
+          {t({
+            th: "ลบได้เฉพาะที่นี่ — พนักงานแก้ไขของตัวเองได้อย่างเดียว · เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน ",
+            en: "Only here can a day off be deleted — staff can edit their own and nothing more. Full and half days come off that month's working days. ",
+          })}
+          <b>{t({ th: "เข้าสาย ไม่หักเงิน", en: "Arriving late costs nothing." })}</b>
         </p>
       </section>
     </div>

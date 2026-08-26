@@ -2,18 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "../../ToastProvider";
+import { useT } from "../../LangProvider";
+import { ROLE_LABEL } from "@/lib/roleLabel";
 
-const ROLES = [
-  { value: "super_admin", label: "Super admin" },
-  { value: "admin", label: "Admin" },
-  { value: "mechanic", label: "Mechanic" },
-] as const;
-
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  admin: "Admin",
-  mechanic: "Mechanic",
-};
+const ROLES = ["super_admin", "admin", "mechanic"] as const;
 
 /**
  * The Role column, in two modes (owner, 2026-08-03).
@@ -41,6 +33,7 @@ export function RoleCell({
   const [value, setValue] = useState(role);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  const t = useT();
 
   // Leaving edit mode discards whatever was picked — nothing is saved until Save is pressed.
   useEffect(() => {
@@ -71,13 +64,17 @@ export function RoleCell({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "Couldn't change that role.", "error");
+        toast(
+          data.error || t({ th: "เปลี่ยนตำแหน่งไม่สำเร็จ", en: "Couldn't change that role." }),
+          "error",
+        );
         return;
       }
-      toast(`Role changed to ${ROLE_LABEL[value] ?? value}`, "success");
+      const named = ROLE_LABEL[value] ? t(ROLE_LABEL[value]!) : value;
+      toast(t({ th: `เปลี่ยนตำแหน่งเป็น ${named}`, en: `Role changed to ${named}` }), "success");
       setTimeout(() => location.reload(), 500);
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
     } finally {
       setBusy(false);
     }
@@ -86,7 +83,7 @@ export function RoleCell({
   if (!editing) {
     return (
       <span className={off ? "role-pill off" : `role-pill ${role}`}>
-        {ROLE_LABEL[role] ?? role}
+        {ROLE_LABEL[role] ? t(ROLE_LABEL[role]!) : role}
       </span>
     );
   }
@@ -99,16 +96,16 @@ export function RoleCell({
         disabled={busy}
         autoFocus
         onChange={(e) => setValue(e.target.value)}
-        aria-label="Role"
+        aria-label={t({ th: "ตำแหน่ง", en: "Role" })}
       >
         {ROLES.map((r) => (
-          <option key={r.value} value={r.value}>
-            {r.label}
+          <option key={r} value={r}>
+            {t(ROLE_LABEL[r]!)}
           </option>
         ))}
       </select>
       <button type="button" className="text-btn" disabled={busy} onClick={save}>
-        {busy ? "Saving…" : "Save"}
+        {busy ? t({ th: "กำลังบันทึก…", en: "Saving…" }) : t({ th: "บันทึก", en: "Save" })}
       </button>
     </span>
   );

@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SignedInStaff } from "@/lib/staffSession";
 import { useT } from "./LangProvider";
-import type { Phrase } from "@/lib/lang";
-
-const ROLE_LABEL: Record<SignedInStaff["role"], Phrase> = {
-  super_admin: { th: "เจ้าของร้าน", en: "Super admin" },
-  admin: { th: "ผู้ดูแล", en: "Admin" },
-  mechanic: { th: "ช่าง", en: "Mechanic" },
-};
+import { ROLE_LABEL } from "@/lib/roleLabel";
 
 /**
  * Who is signed in, in the top bar on every page.
