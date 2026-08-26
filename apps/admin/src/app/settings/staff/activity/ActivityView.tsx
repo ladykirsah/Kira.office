@@ -215,20 +215,18 @@ export function ActivityView({
             <div key={g.heading}>
               <div className="activity-day">{g.heading}</div>
               <div className="products-scroll">
-                <table className="products-table">
+                <table className="products-table activity-table">
                   <tbody>
                     {g.rows.map((row) => {
                       const d = describe(row, t);
                       return (
                         <tr key={row.id}>
-                          <td className="muted num" style={{ width: 78 }}>
-                            {time(row.createdAt)}
-                          </td>
+                          <td className="muted num activity-time">{time(row.createdAt)}</td>
                           <td className="activity-person">
                             {row.name}{" "}
                             <span className="muted activity-role">{t(ROLE_LABEL[row.role]!)}</span>
                           </td>
-                          <td>
+                          <td className="activity-what">
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                               <span
                                 aria-hidden

@@ -106,7 +106,12 @@ function machineSlot(before: string): boolean {
     /\bcase\s*$/.test(tail) || // case "ArrowDown":
     /\bfont(Family|-family)?\s*[:=]\s*$/i.test(tail) || // fontFamily: "Thonburi"
     /\bfrom\s*$/.test(tail) || // import … from "…"
-    /\b(import|require)\(\s*$/.test(tail)
+    /\b(import|require)\(\s*$/.test(tail) ||
+    // className="muted num activity-time" — a class LIST, which the two-word rule in
+    // readsLikeProse cannot tell from a sentence once it runs to three names. Settled by the slot
+    // it sits in instead: nothing anyone reads on a screen is ever written here. `{` for the
+    // braced form, className={`btn ${size}`}.
+    /\bclassName\s*=\s*\{?\s*$/.test(tail)
   );
 }
 

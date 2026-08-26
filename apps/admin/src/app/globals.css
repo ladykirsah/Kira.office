@@ -1937,10 +1937,21 @@ a.card:hover {
   padding: 14px 12px 6px;
 }
 
-/* Who did it. On a wide screen the name and the role sit on one line, separated by a middle dot
-   that CSS owns rather than the markup — so the phone can simply drop it. Down there the role
-   moves under the name instead, which is the whole point: "· Super admin" is the widest thing in
-   this column and it is the least urgent, so it stops setting the column's width. */
+/* Three columns on a wide screen — time · who · what — and the middle dot between the name and
+   the role is drawn by CSS rather than written into the markup.
+
+   On a phone there is no third column to give. 375px cannot be split three ways and still hold a
+   sentence, so the row folds into TWO: the time down the left, and everything else stacked on the
+   right — who on the first line, what they did on the second. The sentence is the part anyone
+   actually reads, so it gets the full width instead of a third of it.
+
+   The fold is done by turning the ROW into a grid, which means the cells stop drawing their own
+   bottom borders (two cells stacked = two lines across the row); the row draws the one border
+   instead. Scoped to .activity-table on purpose — .products-table is the locked list pattern and
+   every other page wears it. */
+.activity-time {
+  width: 78px;
+}
 .activity-person {
   white-space: nowrap;
 }
@@ -1948,11 +1959,33 @@ a.card:hover {
   content: "· ";
 }
 @media (max-width: 741px) {
-  .activity-role {
-    display: block;
+  .activity-table tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 12px;
+    align-items: start;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
   }
-  .activity-role::before {
-    content: none;
+  .activity-table tbody td {
+    padding: 0;
+    border-bottom: 0;
+  }
+  /* The time sits beside both lines, not above one of them — and gives up its desktop width,
+     which reserved 78px for a five-character clock that needs 44. Those 34px are the difference
+     between the two lines fitting and both of them wrapping again. */
+  .activity-table .activity-time {
+    grid-row: 1 / span 2;
+    width: auto;
+  }
+  .activity-table .activity-person {
+    grid-row: 1;
+    /* A long name may wrap down here rather than push the row off the screen sideways. */
+    white-space: normal;
+  }
+  .activity-table .activity-what {
+    grid-row: 2;
+    margin-top: 3px;
   }
 }
 
