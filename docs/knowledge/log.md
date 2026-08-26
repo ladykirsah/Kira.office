@@ -264,3 +264,13 @@ sources: [session 2026-08-09]
   already at 0089, not "0075 and probably further". That stale bullet is now replaced by a verified
   one plus a number→feature map. Apply touched nothing that existed: 1 user row, 0 carrying a key.
   See [operations/d1-migration-discipline](operations/d1-migration-discipline.md).
+
+- **2026-08-26** — **The admin has a phone type scale.** Owner, looking at the staff activity log
+  on a phone: *"too big for mobile and nowhere to focus."* Both halves were true and only the
+  second one mattered — every line in a row was 16px, so the row read as one grey block. The
+  sentence now stays biggest (15px) and the time and name step back (12px / 13.5px), and the page
+  header comes down app-wide (26→21px headline, 40→24px of air). All existing sizes; no new step.
+  `PageHeader.tsx` had to give up its inline styles first — a media query cannot reach those. Cost
+  one round to the oldest CSS trap in the file: a media query adds no specificity, so phone
+  overrides written ABOVE a component's own block lose to it silently.
+  See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

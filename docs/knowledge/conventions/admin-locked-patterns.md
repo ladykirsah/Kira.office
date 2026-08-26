@@ -77,3 +77,21 @@ Breakpoint math: sidebar 232px + content floor 510px = 742, so the media query i
 **`apps/admin/src/app/nav.ts` is the SINGLE source of navigation** (groups, `activeHref`, `PRIMARY_TABS`, `nextBarVisible`); the sidebar and phone menu both read it — never re-list links in a component.
 
 Owner rejected: bordered-div ☰ ("ugly icon"), the coral-tile button, and repeating the page name in the bar (the h1 already shows it).
+
+## Phone type step-down (owner, 2026-08-26)
+
+Same 741px line. The desktop scale is built for a 1280px column — 26px headline over 16px body with 40px of air under it — and on a 375px screen that headline is a seventh of the width, so the page opens on its own title instead of its content. Owner: *"too big for mobile and nowhere to focus."*
+
+| | wide | phone |
+|---|---|---|
+| `h1` | 26px | **21px** |
+| `.page-subtitle` | 16px | **14px** |
+| `.page-header` bottom margin | 40px | **24px** |
+| `.page-header-titles` gap | 12px | **8px** |
+| `.tab` | 15px | **13.5px** |
+
+The steps NARROW rather than shrink flat (26→21 is a bigger cut than 16→14): the complaint was the absence of hierarchy, not the absolute size, so what matters is the distance between the levels. Every phone size is one the admin already used — no new step was invented.
+
+`PageHeader.tsx` carried its layout in inline styles, which a media query cannot override; it now wears `.page-header` / `.page-header-titles` / `.page-subtitle` at the same values. Anything that must change on a phone has to be reachable from CSS first.
+
+**The trap that cost a round here: a media query adds NO specificity.** `.staff-tab` mobile overrides written at line ~1320 did nothing, silently, because the base `.staff-tab` sits at line ~1872 and identical specificity means the later rule wins. Phone overrides for a component must sit **after** that component's own block, not with the other phone rules near the top. Same family as the duplicate-`.icon-btn` incident in [admin-design-tokens](admin-design-tokens.md).

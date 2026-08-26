@@ -101,6 +101,21 @@ h1 {
   /* Page headline → content gap, app-wide. */
   margin: 0 0 40px;
 }
+/* PageHeader.tsx, in CSS rather than inline so the phone rule further down can reach it. The
+   numbers are the ones it carried inline; nothing about the wide screen changes. */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+.page-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
 h2 {
   font-size: 18px;
   font-weight: 600;
@@ -1308,6 +1323,33 @@ a.card:hover {
     padding-bottom: 78px;
   }
 
+  /* THE PHONE'S TYPE STEP-DOWN (owner, 2026-08-26: "too big for mobile and nowhere to focus").
+     App-wide on purpose — the header is one component on every page, so a size that only came
+     down on Staff would read as a mistake next to the rest.
+
+     The desktop scale is built for a 1280px column: 26px headline over 16px body, with 40px of
+     air under it. On a 375px screen that headline is a seventh of the width and the air is a
+     twentieth of the height, so the page opens on its own title instead of its content. The steps
+     narrow rather than shrink flat — 26→21 is a bigger cut than 16→14 — because the point is
+     the DISTANCE between them, not the size. */
+  h1 {
+    font-size: 21px;
+  }
+  .page-header {
+    margin-bottom: 24px;
+  }
+  .page-header-titles {
+    gap: 8px;
+  }
+  .page-subtitle {
+    font-size: 14px;
+  }
+  /* 15px also made "Days off" wrap inside its own tab, which broke the row's baseline. */
+  .tab {
+    font-size: 13.5px;
+    padding: 9px 11px;
+  }
+
   /* Drawn exactly like the theme toggle it shares the bar with — same surface, border and
      radius — so the two controls read as a pair with the brand centred between them. */
   .mnav-burger {
@@ -1843,6 +1885,24 @@ a.card:hover {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
+}
+
+/* The Staff segmented tabs are already 13.5px — on a phone this one is width, not type. The four
+   of them need 345px inside a 343px column, and losing by two turns "Days off" into two lines and
+   the whole row into a two-storey control. Tighter padding and gap buy back the space, and nowrap
+   means a label breaks the ROW's width before it breaks itself, where it can be seen and fixed.
+
+   This block sits AFTER the rules above and not with the other phone rules further up the file,
+   because a media query adds no specificity: `.staff-tab` at line 1872 would simply have won, and
+   the identical rules written earlier did nothing at all until they were moved down here. */
+@media (max-width: 741px) {
+  .staff-tabs {
+    gap: 4px;
+  }
+  .staff-tab {
+    padding: 6px 11px;
+    white-space: nowrap;
+  }
 }
 
 /* Role reads on the pill itself — there is no separate status column (owner, 2026-08-03). */
