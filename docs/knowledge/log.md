@@ -224,3 +224,12 @@ sources: [session 2026-08-09]
   `Subtotal`, `Discount` and `Note:` in English on a Thai bill, while the A4 size used the
   dictionary correctly. And "draft" is now one word app-wide — ฉบับร่าง, the owner's — where products
   had แบบร่าง. See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-08-26** — **Coupons speak both languages, and the finder stopped lying about the rest.**
+  The coupons screen is done in the owner's words (โค้ด · จำนวนส่วนลด · สิทธิ์ต่อคน · ส่วนลดสูงสุด),
+  along with the two refusals that used to arrive from the server in English. But the real find was
+  that the finder had **five blind spots** — wrapped lines, phrases inside braces, pop-up messages,
+  backtick labels, and text split by a count — plus a sixth at the other end: a phrase does not have
+  to start with a capital. Behind them sat about **65 pieces of English on screens already declared
+  finished**, mostly pop-up messages. All fixed. See
+  [conventions/bilingual-admin](conventions/bilingual-admin.md).

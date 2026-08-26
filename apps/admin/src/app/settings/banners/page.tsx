@@ -237,7 +237,7 @@ function BannerItem({
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               <DateTimeField
                 label="Starts"
-                base="Edit banner start"
+                base={{ th: "แก้ไขวันเริ่มแบนเนอร์", en: "Edit banner start" }}
                 date={startDate}
                 time={startTime}
                 onDate={setStartDate}
@@ -245,7 +245,7 @@ function BannerItem({
               />
               <DateTimeField
                 label="Ends"
-                base="Edit banner end"
+                base={{ th: "แก้ไขวันสิ้นสุดแบนเนอร์", en: "Edit banner end" }}
                 date={endDate}
                 time={endTime}
                 onDate={setEndDate}
@@ -491,7 +491,7 @@ function AddBannerForm({
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <DateTimeField
             label="Starts"
-            base="New banner start"
+            base={{ th: "วันเริ่มแบนเนอร์ใหม่", en: "New banner start" }}
             date={startDate}
             time={startTime}
             onDate={setStartDate}
@@ -499,7 +499,7 @@ function AddBannerForm({
           />
           <DateTimeField
             label="Ends"
-            base="New banner end"
+            base={{ th: "วันสิ้นสุดแบนเนอร์ใหม่", en: "New banner end" }}
             date={endDate}
             time={endTime}
             onDate={setEndDate}

@@ -169,7 +169,7 @@ export function PartDetails({
           </span>
           <span>{t({ th: "วางขายบน AirPlus", en: "Live on AirPlus" })}</span>
           <small className="muted" style={{ fontSize: 12 }}>
-            — customers can see it in your shop
+            {t({ th: "— ลูกค้าเห็นสินค้านี้ในร้าน", en: "— customers can see it in your shop" })}
           </small>
         </label>
       ) : null}
@@ -186,7 +186,10 @@ export function PartDetails({
           </span>
           <span>{t({ th: "วางขายบน Shopee", en: "Live on Shopee" })}</span>
           <small className="muted" style={{ fontSize: 12 }}>
-            — marks it listed; pause it on Shopee itself by hand
+            {t({
+              th: "— ทำเครื่องหมายว่าลงขายแล้ว · ถ้าจะหยุดขายต้องไปปิดใน Shopee เอง",
+              en: "— marks it listed; pause it on Shopee itself by hand",
+            })}
           </small>
         </label>
       ) : null}

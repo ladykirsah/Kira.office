@@ -226,7 +226,10 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           <div className="empty">
             <div className="empty-icon">📦</div>
             {products.length === 0
-              ? "No products yet. Add one or import a CSV."
+              ? t({
+                  th: "ยังไม่มีสินค้า — เพิ่มเอง หรือนำเข้าไฟล์ CSV",
+                  en: "No products yet. Add one or import a CSV.",
+                })
               : t({ th: "ไม่มีสินค้าที่ตรงกับที่เลือก", en: "No products match." })}
           </div>
         ) : (

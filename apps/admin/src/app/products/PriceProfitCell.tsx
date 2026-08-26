@@ -74,10 +74,12 @@ export function PriceProfitCell({
       <span style={{ fontSize: 12, minHeight: 15 }}>
         {show ? (
           <strong style={{ color: profitSatang >= 0 ? "var(--ok)" : "var(--danger)" }}>
-            profit {formatBahtTrim(profitSatang)}
+            {t({ th: "กำไร", en: "profit" })} {formatBahtTrim(profitSatang)}
           </strong>
         ) : (
-          <span style={{ color: "var(--text-faint)" }}>hold to see profit</span>
+          <span style={{ color: "var(--text-faint)" }}>
+            {t({ th: "กดค้างเพื่อดูกำไร", en: "hold to see profit" })}
+          </span>
         )}
       </span>
     </div>
