@@ -279,6 +279,11 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                     shopeeSatang: 0,
                     commissionBp: p.onlineCommissionBp,
                   });
+                  // What is stopping this product from selling. Shown on every tab, not just Not
+                  // live (owner, 2026-08-24) — a product selling without a picture is worth
+                  // flagging too. `readinessNote` is what keeps it from repeating the status pill:
+                  // it stays quiet about stock whenever the pill already reads Out.
+                  const note = readinessNote(p);
                   return (
                     <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
                       <td className="freeze-col">
@@ -345,6 +350,17 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                                 <div style={tableText.subtitle}>{p.productRef}</div>
                               );
                             })()}
+                            {/* What is stopping this product from selling, under the thing it is
+                                about (owner, 2026-08-26). It sat beside the pill until now, in the
+                                narrowest column on the row, where three short notes broke onto
+                                three lines and read as a paragraph. Here it has the width to stay
+                                one line of "note · note · note", and the Status column goes back to
+                                being a pill and nothing else (DESIGN_SYSTEM rule 7). */}
+                            {note && (
+                              <span className={note.ready ? "why ready" : "why"}>
+                                {t(note.text)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -371,22 +387,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                       <td>
                         {(() => {
                           const s = productStatusTag(p);
-                          // The pill says WHICH tab this row belongs to; the line under it says what
-                          // is stopping the product from selling. On every tab, not just Not live
-                          // (owner, 2026-08-24) — a product selling without a picture is worth
-                          // flagging too. `readinessNote` is what keeps the two from repeating each
-                          // other: it stays quiet about stock whenever the pill already reads Out.
-                          const note = readinessNote(p);
-                          return (
-                            <>
-                              <span className={`pill ${s.cls}`}>{t(s.label)}</span>
-                              {note && (
-                                <span className={note.ready ? "why ready" : "why"}>
-                                  {t(note.text)}
-                                </span>
-                              )}
-                            </>
-                          );
+                          return <span className={`pill ${s.cls}`}>{t(s.label)}</span>;
                         })()}
                       </td>
                       <td>

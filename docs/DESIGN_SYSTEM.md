@@ -97,7 +97,9 @@ ellipsis and a `title` holding the full text, and under it a row of `.tag.tag-sm
 centred or right-aligned per column, and **an empty value is an em dash in `.muted`, never a blank
 cell** — blank reads as broken.
 
-**7. Status is a pill; actions are one menu.** The state column uses a pill/tag, never colour alone.
+**7. Status is a pill; actions are one menu.** The state column uses a pill/tag, never colour alone,
+and holds nothing else — a row's readiness note (`.why`) goes under the name in the identity cell,
+where it has the width to stay on one line and stays visible on a phone without scrolling sideways.
 The last column is a single `Actions` dropdown — not a row of buttons that grows every time
 something is added. Inline editors (stock, price) live in their own cell and keep a neutral focus
 ring.

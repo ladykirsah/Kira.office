@@ -274,3 +274,11 @@ sources: [session 2026-08-09]
   one round to the oldest CSS trap in the file: a media query adds no specificity, so phone
   overrides written ABOVE a component's own block lose to it silently.
   See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-26** — **The readiness note moved out of the Status column.** "no photo · no price ·
+  no stock" sat under the pill, in the narrowest column on the row, where three two-word notes
+  broke onto three lines and read as a paragraph. Owner moved it under the product name. It now
+  stays one line, and on a phone it rides inside the FROZEN column — so the reason a product is
+  not selling is readable without scrolling sideways to reach Status at all. The pill answers
+  which tab the row is on; the note answers what is stopping it. Rules 5 and 7 of the locked list
+  table amended together. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

@@ -28,10 +28,12 @@ The products table is THE list-table pattern for the whole admin. Reference: `ap
 2. One framed section holds toolbar + table
 3. Toolbar = search, then "Sort by…", then a filter that only appears once a sort is picked (unset = faint/400, set = text/500)
 4. `table-layout:fixed` + min-width so the table scrolls sideways instead of squeezing; identity column frozen, its divider shown only while overflowing
-5. Identity cell = 56px thumbnail + ellipsised 600-weight name link + `.tag.tag-sm` chips
+5. Identity cell = 56px thumbnail + ellipsised 600-weight name link + `.tag.tag-sm` chips, then the row's readiness note (`.why`) last
 6. Empty value = em dash in `.muted`, never blank
-7. Status is a pill; actions are ONE dropdown
+7. Status is a pill and NOTHING ELSE; actions are ONE dropdown
 8. `.empty` state distinguishes "none yet" from "none match"
+
+Rules 5 and 7 were amended together on 26 Aug 2026 (owner). `.why` — "no photo · no price · no stock" — used to sit under the pill, in the narrowest column on the row, where three two-word notes broke onto three lines and read as a paragraph. It belongs under the thing it is about: in the identity cell it stays one line, and on a phone it rides inside the FROZEN column, so the reason a product is not selling is visible without scrolling sideways to reach Status at all. The pill answers "which tab is this row on"; the note answers "what is stopping it" — different questions, and only the second one needs room.
 
 Before building ANY record-list screen, read the doc section and copy the products table. Known gap as of 4 Aug: the Staff People table predates the lock (no tabs/toolbar/frozen column).
 
