@@ -1994,10 +1994,19 @@ a.card:hover {
    because a media query adds no specificity: `.staff-tab` at line 1872 would simply have won, and
    the identical rules written earlier did nothing at all until they were moved down here. */
 @media (max-width: 741px) {
+  /* `width: fit-content` is right on a laptop, where a full-width segmented control would stretch
+     four short words across a thousand pixels. On a phone it leaves the row hugging its text and
+     stopping short of the card below it, which reads as a mistake rather than a choice — so down
+     here it takes the whole width and the four share it equally (owner, 2026-08-27).
+     Equal widths mean the text has to be centred: left-aligned words in a stretched box look like
+     the box failed to shrink. */
   .staff-tabs {
+    width: auto;
     gap: 4px;
   }
   .staff-tab {
+    flex: 1;
+    text-align: center;
     padding: 6px 11px;
     white-space: nowrap;
   }
