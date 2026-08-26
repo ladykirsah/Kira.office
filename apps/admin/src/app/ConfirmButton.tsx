@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useT } from "./LangProvider";
 
 /** A button that arms an inline confirm step instead of using window.confirm. */
 export function ConfirmButton({
   onConfirm,
   children,
-  confirmLabel = "Confirm",
+  confirmLabel,
   disabled,
   className,
   ariaLabel,
@@ -14,6 +15,7 @@ export function ConfirmButton({
 }: {
   onConfirm: () => void;
   children: ReactNode;
+  /** The armed button's word. Defaults to a plain "confirm" in the reader's language. */
   confirmLabel?: string;
   disabled?: boolean;
   /** Styling for the trigger button (e.g. "icon-btn" for an icon-only trigger). */
@@ -23,6 +25,7 @@ export function ConfirmButton({
   /** Notified when the inline confirm is shown/hidden — e.g. to hide sibling controls while armed. */
   onArmedChange?: (armed: boolean) => void;
 }) {
+  const t = useT();
   const [armed, setArmed] = useState(false);
   const arm = (next: boolean) => {
     setArmed(next);
@@ -39,10 +42,10 @@ export function ConfirmButton({
             onConfirm();
           }}
         >
-          {confirmLabel}
+          {confirmLabel ?? t({ th: "ยืนยัน", en: "Confirm" })}
         </button>
         <button className="btn-sm" onClick={() => arm(false)}>
-          Cancel
+          {t({ th: "ยกเลิก", en: "Cancel" })}
         </button>
       </span>
     );

@@ -124,7 +124,14 @@ export function StockCell({
           autoFocus
           className="stock-input"
           disabled={busy}
-          title={held > 0 ? `Sellable count — ${held} on hold is separate` : undefined}
+          title={
+            held > 0
+              ? t({
+                  th: `จำนวนที่ขายได้ — กันไว้ ${held} ชิ้น นับแยกต่างหาก`,
+                  en: `Sellable count — ${held} on hold is separate`,
+                })
+              : undefined
+          }
           onKeyDown={(e) => {
             if (e.key === "Enter") save();
             else if (e.key === "Escape") setEditing(false);
@@ -152,10 +159,13 @@ export function StockCell({
       {held > 0 && (
         <span
           className="muted"
-          title={`${held} on hold — paused, not for sale`}
+          title={t({
+            th: `กันไว้ ${held} ชิ้น — ไม่ได้ขาย`,
+            en: `${held} on hold — paused, not for sale`,
+          })}
           style={{ fontSize: 11, whiteSpace: "nowrap" }}
         >
-          +{held} held
+          +{held} {t({ th: "กันไว้", en: "held" })}
         </span>
       )}
       {!readOnly && (

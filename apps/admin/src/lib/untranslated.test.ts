@@ -47,6 +47,167 @@ describe("findUntranslated", () => {
   it("ignores comments, which are for us and not for the screen", () => {
     expect(findUntranslated(`// Save the order first\n/* Then Publish it */`)).toEqual([]);
   });
+
+  /**
+   * A comment at the END of a line of code, which the first version did not strip. One of these —
+   * `) : // Exchange resolution — ship the replacement …` — was reported as text on a screen.
+   */
+  it("ignores a comment sitting at the end of a line of code", () => {
+    const src = [
+      "        </div>",
+      "      )",
+      "    ) : // Exchange resolution — ship the replacement with a carrier.",
+      "    !showResolve ? (",
+      "      <div>",
+    ].join("\n");
+    expect(findUntranslated(src)).toEqual([]);
+    // and does not mistake the slashes in a link for the start of one
+    expect(findUntranslated(`const u = "https://airplusauto.com/Orders";`)).toEqual([]);
+  });
+
+  /**
+   * THE FOUR BLIND SPOTS, found by reading the coupons screen after the finder called it clean
+   * (2026-08-26). Each one had let real English through on screens already declared finished.
+   */
+  it("finds text that prettier wrapped onto its own line", () => {
+    const src = [
+      '<button className="btn-sm" onClick={() => arm(false)}>',
+      "  Cancel",
+      "</button>",
+    ].join("\n");
+    expect(findUntranslated(src).map((f) => f.text)).toContain("Cancel");
+  });
+
+  it("finds a sentence wrapped across several lines", () => {
+    const src = ["<p>", "  No coupons yet.", "  Add one above.", "</p>"].join("\n");
+    expect(findUntranslated(src).map((f) => f.text)).toContain("No coupons yet. Add one above.");
+  });
+
+  it("finds a phrase picked inside braces rather than written as JSX text", () => {
+    const found = findUntranslated(`<button>{busy ? "Saving…" : "Save note"}</button>`).map(
+      (f) => f.text,
+    );
+    expect(found).toContain("Saving…");
+    expect(found).toContain("Save note");
+  });
+
+  /** A toast is a screen. It was invisible to the finder because it is not JSX at all. */
+  it("finds the words in a message that pops up", () => {
+    const src = `toast("Draft saved — reopen it any time.", "success");`;
+    expect(findUntranslated(src).map((f) => f.text)).toContain("Draft saved — reopen it any time.");
+  });
+
+  it("finds a label built with a backtick", () => {
+    expect(findUntranslated("const l = `Added ${p.name}`;").map((f) => f.text)).toContain(
+      "Added ${p.name}",
+    );
+  });
+
+  /**
+   * AND THE FALSE ALARMS THAT COME WITH THEM. A finder that cries wolf gets ignored, which is the
+   * same as not having one — so each of these is a test, not a note.
+   */
+  it("says nothing about the name of a key on the keyboard", () => {
+    expect(findUntranslated(`if (e.key === "Escape") close();`)).toEqual([]);
+    expect(findUntranslated(`if (e.key !== "Enter") return;`)).toEqual([]);
+    expect(findUntranslated(`switch (e.key) { case "ArrowDown": next(); }`)).toEqual([]);
+  });
+
+  it("says nothing about the name of a font", () => {
+    expect(findUntranslated(`fontFamily: "Helvetica Neue"`)).toEqual([]);
+    expect(findUntranslated(`font: "12px Thonburi"`)).toEqual([]);
+  });
+
+  it("says nothing about the English half of a pair, however it is written", () => {
+    expect(findUntranslated(`t({ th: "บันทึกแล้ว", en: "Saved" })`)).toEqual([]);
+    expect(findUntranslated("t({ th: `หลักฐาน ${i}`, en: `Evidence ${i}` })")).toEqual([]);
+    // prettier puts a long phrase on its own line, leaving `th:` a line behind it
+    expect(
+      findUntranslated(`t({\n  th: "รายการนี้ถูกลบไปแล้ว",\n  en: "That item is gone",\n})`),
+    ).toEqual([]);
+  });
+
+  /**
+   * A phrase does not have to start with a capital. `"paused — not for sale"` and `"hold to see
+   * profit"` were both sitting in English under a product, and neither begins with one.
+   */
+  it("finds a phrase that happens to start lowercase", () => {
+    const found = findUntranslated(`<span>{stopped ? "paused — not for sale" : ""}</span>`).map(
+      (f) => f.text,
+    );
+    expect(found).toContain("paused — not for sale");
+  });
+
+  /**
+   * Text with a NUMBER in the middle of it: `Items ({lines.length})`. The matcher ran from one tag
+   * to the next, and an expression between them ended the run — so this heading sat in English on
+   * the POS screen with everything around it in Thai.
+   */
+  it("finds text broken in half by a count", () => {
+    const found = findUntranslated(`<div style={fieldLabel}>Items ({lines.length})</div>`).map(
+      (f) => f.text,
+    );
+    expect(found.join(" ")).toContain("Items");
+  });
+
+  it("finds text that comes after the count rather than before it", () => {
+    const found = findUntranslated(`<span>{held} on hold, separate</span>`).map((f) => f.text);
+    expect(found.join(" ")).toContain("on hold, separate");
+  });
+
+  /**
+   * `>` is a tag in JSX and GREATER-THAN in everything else. Reading `held > 0 ? …` as a tag turned
+   * the middle of a comparison into a phrase.
+   */
+  it("says nothing about a greater-than sign", () => {
+    expect(findUntranslated("const x = held > 0 ? `keep ${held}` : ``;")).toEqual([]);
+    expect(findUntranslated("const y = n >= 3 ? `over ${n}` : ``;")).toEqual([]);
+  });
+
+  /**
+   * The wrapped-text matcher reaches from one `>` to the next `<`, which can step straight over the
+   * code BETWEEN two JSX branches: `); const p = detail.product; return (` was reported as a phrase.
+   */
+  it("says nothing about the code sitting between two pieces of JSX", () => {
+    const src = [
+      "      </main>",
+      "    );",
+      "",
+      "  const p = detail.product;",
+      "",
+      "  return (",
+      "    <main>",
+    ].join("\n");
+    expect(findUntranslated(src)).toEqual([]);
+  });
+
+  /**
+   * AND WHERE THAT STOPS. Two lowercase words is where class names live, so the line is drawn at
+   * three — which means a two-word fragment like `" · editing now"` gets past this and has to be
+   * caught by reading the file. A known hole, kept deliberately: the alternative reported every
+   * `className="pill soft"` in the app and would have made the whole thing worth ignoring.
+   */
+  it("leaves two lowercase words alone, because that is what class names look like", () => {
+    expect(findUntranslated(`<span className="pill soft" />`)).toEqual([]);
+    expect(findUntranslated(`<button className="btn-danger btn-sm" />`)).toEqual([]);
+  });
+
+  it("still says nothing about a style value, which is lowercase too", () => {
+    expect(findUntranslated(`border: "1px solid var(--border)"`)).toEqual([]);
+    expect(findUntranslated(`style={{ display: "inline-flex" }}`)).toEqual([]);
+    expect(findUntranslated(`margin: "0 0 12px"`)).toEqual([]);
+  });
+
+  /** The words come out of `t({ })`; the backticks only glue them to a name. */
+  it("says nothing about a backtick label whose words are already a pair", () => {
+    const src =
+      'aria-label={`${open ? t({ th: "ย่อ", en: "Collapse" }) : t({ th: "ขยาย", en: "Expand" })} ${name}`}';
+    expect(findUntranslated(src)).toEqual([]);
+  });
+
+  it("says nothing about the key of an object, which no one reads", () => {
+    expect(findUntranslated(`headers: { "Content-Type": "application/json" }`)).toEqual([]);
+  });
 });
 
 /**
@@ -69,6 +230,11 @@ const CLEARED = [
   "app/Modal.tsx",
   "app/page.tsx",
   "app/pos",
+  "app/settings/coupons",
+  // Shared pieces the coupons screen renders, each of which was English on every screen using it.
+  "app/ConfirmButton.tsx",
+  "app/DateTimeField.tsx",
+  "app/NoAccess.tsx",
 ];
 
 /**
@@ -92,7 +258,16 @@ interface Exception {
   texts?: string[];
 }
 
+/** Written into the stock ledger as the REASON for a movement — stored, never shown to anyone. */
+const AUDIT = (text: string): Exception => ({
+  reason: "an audit trail written into the stock ledger, not a screen",
+  texts: [text],
+});
+
 const DELIBERATE: Record<string, Exception> = {
+  "app/products/StockCell.tsx": AUDIT("edited from products table"),
+  "app/products/[id]/edit/page.tsx": AUDIT("edited from product page"),
+  "app/products/new/page.tsx": AUDIT("created from Add product"),
   // The sticker that goes on the parcel. It is read by a Thai courier and a Thai recipient; which
   // language the person at the screen is reading has nothing to do with it.
   "app/orders/[id]/ShipmentActions.tsx": { reason: "the printed shipping label" },
@@ -125,8 +300,28 @@ const DELIBERATE: Record<string, Exception> = {
       "หมายเหตุ",
       "*** ขอบคุณที่ใช้บริการ ***",
       "QR ติดต่อ",
+      // …and the same document in English. The finder reads BOTH halves of the dictionary now, so
+      // both halves have to be named here.
+      "Sales ID",
+      "Date",
+      "Vehicle",
+      "Plate",
+      "Mileage",
+      "Item",
+      "Qty",
+      "Price",
+      "Amount",
+      "No items yet",
+      "Subtotal",
+      "Discount",
+      "Total",
+      "Estimate",
+      "Note",
+      "*** Thank you ***",
+      "Contact QR",
       // The billLang buttons: each names its own language, as the app's own toggle does.
       "ไทย",
+      "English",
     ],
   },
 };

@@ -347,12 +347,13 @@ const LOCK_FIELDSET: CSSProperties = {
 
 /** Clickable horizontal step timeline at the top of the POS builder — jumps to each group. */
 const POS_STEPS = [
-  { n: 1, label: "Setup" },
-  { n: 2, label: "Info" },
-  { n: 3, label: "Items" },
+  { n: 1, label: { th: "ตั้งค่า", en: "Setup" } },
+  { n: 2, label: { th: "ข้อมูล", en: "Info" } },
+  { n: 3, label: { th: "รายการ", en: "Items" } },
 ] as const;
 
 function StepTimeline({ locked = false }: { locked?: boolean }) {
+  const t = useT();
   // Reprint locks Info + Items (steps 2 & 3): those dots read as inactive and don't navigate.
   const isLocked = (n: number) => locked && n !== 1;
   const go = (n: number) =>
@@ -375,14 +376,26 @@ function StepTimeline({ locked = false }: { locked?: boolean }) {
     >
       {POS_STEPS.map((s, i) => {
         const lockedStep = isLocked(s.n);
+        const step = t(s.label);
         return (
           <Fragment key={s.n}>
             <button
               type="button"
               onClick={() => (lockedStep ? undefined : go(s.n))}
               disabled={lockedStep}
-              title={lockedStep ? `${s.label} is locked while reprinting` : `Go to ${s.label}`}
-              aria-label={lockedStep ? `${s.label} (locked)` : `Go to ${s.label}`}
+              title={
+                lockedStep
+                  ? t({
+                      th: `${step} ถูกล็อกไว้ระหว่างพิมพ์ซ้ำ`,
+                      en: `${step} is locked while reprinting`,
+                    })
+                  : t({ th: `ไปที่${step}`, en: `Go to ${step}` })
+              }
+              aria-label={
+                lockedStep
+                  ? t({ th: `${step} (ล็อกอยู่)`, en: `${step} (locked)` })
+                  : t({ th: `ไปที่${step}`, en: `Go to ${step}` })
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -449,6 +462,7 @@ function chip(kind: "part" | "service"): CSSProperties {
 /** A small rendered barcode (EAN-13 for 13 digits, else CODE128). Drawn off-screen to a data URL so
  * list re-renders can't blank it; renders nothing if the value won't encode. */
 function BarcodePreview({ value }: { value: string }) {
+  const t = useT();
   const [src, setSrc] = useState("");
   useEffect(() => {
     if (!value) {
@@ -482,7 +496,7 @@ function BarcodePreview({ value }: { value: string }) {
   return (
     <img
       src={src}
-      alt={`Barcode ${value}`}
+      alt={t({ th: `บาร์โค้ด ${value}`, en: `Barcode ${value}` })}
       style={{ maxWidth: 124, height: "auto", display: "block" }}
     />
   );
@@ -1283,11 +1297,29 @@ export default function PosPage() {
     async function flush() {
       const r = await flushOutbox(store, (sale) => syncSale(sale));
       if (cancelled) return;
-      if (r.synced) toast(`Synced ${r.synced} queued sale(s)`, "success");
+      if (r.synced)
+        toast(
+          t({
+            th: `ส่งบิลที่ค้างไว้แล้ว ${r.synced} บิล`,
+            en: `Synced ${r.synced} queued sale(s)`,
+          }),
+          "success",
+        );
       if (r.failed) {
         // Say WHY: a 401, a stock conflict, and a network error need very different responses.
-        const why = r.reasons.join("; ") || "network error — will retry when back online";
-        toast(`${r.failed} queued sale(s) could not sync — ${why}`, "error");
+        const why =
+          r.reasons.join("; ") ||
+          t({
+            th: "เน็ตมีปัญหา — จะลองใหม่เมื่อกลับมาออนไลน์",
+            en: "network error — will retry when back online",
+          });
+        toast(
+          t({
+            th: `บิลที่ค้างไว้ ${r.failed} บิลส่งไม่สำเร็จ — ${why}`,
+            en: `${r.failed} queued sale(s) could not sync — ${why}`,
+          }),
+          "error",
+        );
       }
       setPending((await store.all()).length);
     }
@@ -1415,7 +1447,10 @@ export default function PosPage() {
         }
         setReprint({ saleNumber: bill.saleNumber, vehicle: bill.vehicle ?? "" });
       } catch {
-        toast("Couldn't load the bill to reprint.", "error");
+        toast(
+          t({ th: "เปิดบิลเพื่อพิมพ์ซ้ำไม่ได้", en: "Couldn't load the bill to reprint." }),
+          "error",
+        );
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1432,9 +1467,19 @@ export default function PosPage() {
       try {
         const match = (await listDrafts()).find((d) => d.id === id);
         if (match) reopenDraft(match);
-        else toast("Those scanned items are no longer available.", "error");
+        else
+          toast(
+            t({
+              th: "รายการที่สแกนไว้ไม่มีแล้ว",
+              en: "Those scanned items are no longer available.",
+            }),
+            "error",
+          );
       } catch {
-        toast("Couldn't open the scanned items.", "error");
+        toast(
+          t({ th: "เปิดรายการที่สแกนไว้ไม่ได้", en: "Couldn't open the scanned items." }),
+          "error",
+        );
       } finally {
         const url = new URL(window.location.href);
         url.searchParams.delete("draft");
@@ -1548,7 +1593,7 @@ export default function PosPage() {
         },
       ];
     });
-    toast(`Added ${p.name}`, "success");
+    toast(t({ th: `เพิ่ม ${p.name} แล้ว`, en: `Added ${p.name}` }), "success");
   }
 
   /** Switch one line between B2C/B2B and reprice it. */
@@ -1583,7 +1628,7 @@ export default function PosPage() {
     try {
       const found = await lookupBarcode(v);
       if (!found) {
-        toast(`Unknown barcode: ${v}`, "error");
+        toast(t({ th: `ไม่รู้จักบาร์โค้ด ${v}`, en: `Unknown barcode: ${v}` }), "error");
         return;
       }
       const prod = products.find((p) => p.id === found.productId);
@@ -1610,7 +1655,7 @@ export default function PosPage() {
           unitCostSatang: prod?.itemCostSatang || 0,
         },
       ]);
-      toast(`Added ${found.name}`, "success");
+      toast(t({ th: `เพิ่ม ${found.name} แล้ว`, en: `Added ${found.name}` }), "success");
       setScanVal("");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -1624,7 +1669,13 @@ export default function PosPage() {
     if (!v) return;
     const p = products.find((x) => x.productRef.toLowerCase() === v);
     if (!p) {
-      toast(`No product with code “${codeVal.trim()}”.`, "error");
+      toast(
+        t({
+          th: `ไม่มีสินค้ารหัส “${codeVal.trim()}”`,
+          en: `No product with code “${codeVal.trim()}”.`,
+        }),
+        "error",
+      );
       return;
     }
     addProductLine(p);
@@ -1654,7 +1705,7 @@ export default function PosPage() {
         unitPriceSatang: price,
       },
     ]);
-    toast(`Added ${serviceName}`, "success");
+    toast(t({ th: `เพิ่ม ${serviceName} แล้ว`, en: `Added ${serviceName}` }), "success");
     setSvcId("");
     setSvcPrice("");
   }
@@ -1668,7 +1719,7 @@ export default function PosPage() {
       ...ls,
       { uid: crypto.randomUUID(), kind: "service", name, quantity: 1, unitPriceSatang: price },
     ]);
-    toast(`Added ${name}`, "success");
+    toast(t({ th: `เพิ่ม ${name} แล้ว`, en: `Added ${name}` }), "success");
     setAddonName("");
     setAddonPrice("");
   }
@@ -1708,12 +1759,25 @@ export default function PosPage() {
     try {
       const result = await syncSale(sale);
       if (result.ok) return true;
-      toast(result.message ?? "Server rejected the sale — check the items and try again.", "error");
+      toast(
+        result.message ??
+          t({
+            th: "เซิร์ฟเวอร์ไม่รับบิลนี้ — ตรวจรายการแล้วลองใหม่",
+            en: "Server rejected the sale — check the items and try again.",
+          }),
+        "error",
+      );
       return false;
     } catch {
       await store.add(sale);
       setPending((await store.all()).length);
-      toast("Offline — sale saved, will sync when back online.", "info");
+      toast(
+        t({
+          th: "ออฟไลน์ — บันทึกบิลไว้แล้ว จะส่งให้เมื่อกลับมาออนไลน์",
+          en: "Offline — sale saved, will sync when back online.",
+        }),
+        "info",
+      );
       return true;
     }
   }
@@ -1733,7 +1797,7 @@ export default function PosPage() {
       if (kind === "pdf") await saveBillPdf(node, name);
       else await saveBillPng(node, name);
     } catch {
-      toast("Could not save the file", "error");
+      toast(t({ th: "บันทึกไฟล์ไม่ได้", en: "Could not save the file" }), "error");
       return;
     }
     await fileBillInHistory();
@@ -1804,9 +1868,15 @@ export default function PosPage() {
       setLastQuoteId(qtNo);
       setActiveDraftId(draftId);
       await reloadDrafts();
-      toast(`Saved ✓ filed as ${qtNo}`, "success");
+      toast(t({ th: `บันทึกแล้ว ✓ เลขที่ ${qtNo}`, en: `Saved ✓ filed as ${qtNo}` }), "success");
     } catch {
-      toast("File saved, but couldn't add it to the customer's history (offline?).", "error");
+      toast(
+        t({
+          th: "บันทึกไฟล์แล้ว แต่เพิ่มเข้าประวัติลูกค้าไม่ได้ (ออฟไลน์?)",
+          en: "File saved, but couldn't add it to the customer's history (offline?).",
+        }),
+        "error",
+      );
     }
   }
 
@@ -1852,7 +1922,7 @@ export default function PosPage() {
         setActiveDraftId,
       });
       setDraftId(crypto.randomUUID()); // the next cart is a fresh draft
-      toast("Sale saved ✓", "success");
+      toast(t({ th: "บันทึกบิลแล้ว ✓", en: "Sale saved ✓" }), "success");
       setLines([]);
       setPlate("");
       setProvince("");
@@ -1905,9 +1975,18 @@ export default function PosPage() {
       await saveDraft(buildDraftInput("draft"));
       setActiveDraftId(draftId);
       await reloadDrafts();
-      toast("Draft saved — reopen it any time.", "success");
+      toast(
+        t({
+          th: "บันทึกฉบับร่างแล้ว — เปิดต่อได้ทุกเมื่อ",
+          en: "Draft saved — reopen it any time.",
+        }),
+        "success",
+      );
     } catch {
-      toast("Couldn't save the draft (offline?).", "error");
+      toast(
+        t({ th: "บันทึกฉบับร่างไม่ได้ (ออฟไลน์?)", en: "Couldn't save the draft (offline?)." }),
+        "error",
+      );
     } finally {
       setBusy(false);
     }
@@ -1927,7 +2006,13 @@ export default function PosPage() {
         "success",
       );
     } catch {
-      toast("Couldn't save the quotation (offline?).", "error");
+      toast(
+        t({
+          th: "บันทึกใบเสนอราคาไม่ได้ (ออฟไลน์?)",
+          en: "Couldn't save the quotation (offline?).",
+        }),
+        "error",
+      );
     } finally {
       setBusy(false);
     }
@@ -1959,7 +2044,7 @@ export default function PosPage() {
     // Adopt the number it was already filed under, so saving it again updates that same history
     // entry rather than issuing a second quotation for one bill.
     setExportQuoteNo(d.stage === "quotation" ? (d.saleNumber ?? null) : null);
-    toast("Draft reopened.", "success");
+    toast(t({ th: "เปิดฉบับร่างแล้ว", en: "Draft reopened." }), "success");
   }
 
   async function discardDraft(d: OpenDraft) {
@@ -1968,7 +2053,7 @@ export default function PosPage() {
       setDrafts((ds) => ds.filter((x) => x.id !== d.id));
       if (activeDraftId === d.id) setActiveDraftId(null);
     } catch {
-      toast("Couldn't delete the draft.", "error");
+      toast(t({ th: "ลบฉบับร่างไม่ได้", en: "Couldn't delete the draft." }), "error");
     }
   }
 
@@ -2028,10 +2113,13 @@ export default function PosPage() {
                       : t({ th: "ฉบับร่าง", en: "Draft" })}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14 }}>{d.vehicle || d.licensePlate || "Walk-in"}</div>
+                    <div style={{ fontSize: 14 }}>
+                      {d.vehicle || d.licensePlate || t({ th: "ลูกค้าทั่วไป", en: "Walk-in" })}
+                    </div>
                     <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-                      {formatBahtTrim(d.grandTotalSatang)} · {d.lines.length} item(s)
-                      {active ? " · editing now" : ""}
+                      {formatBahtTrim(d.grandTotalSatang)} · {d.lines.length}{" "}
+                      {t({ th: "รายการ", en: "item(s)" })}
+                      {active ? t({ th: " · กำลังแก้ไข", en: " · editing now" }) : ""}
                     </div>
                   </div>
                   <button
@@ -2325,8 +2413,16 @@ export default function PosPage() {
                             onChange={(e) =>
                               setPhones((xs) => xs.map((p, j) => (j === i ? e.target.value : p)))
                             }
-                            placeholder={i === 0 ? "Phone number" : "Another number"}
-                            aria-label={i === 0 ? "Phone number" : `Phone number ${i + 1}`}
+                            placeholder={
+                              i === 0
+                                ? t({ th: "เบอร์โทร", en: "Phone number" })
+                                : t({ th: "เบอร์อื่น", en: "Another number" })
+                            }
+                            aria-label={
+                              i === 0
+                                ? t({ th: "เบอร์โทร", en: "Phone number" })
+                                : t({ th: `เบอร์โทร ${i + 1}`, en: `Phone number ${i + 1}` })
+                            }
                             inputMode="tel"
                             style={{ flex: 1, minWidth: 0 }}
                           />
@@ -2378,10 +2474,19 @@ export default function PosPage() {
                     </div>
                     <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
                       {addKind === "product"
-                        ? "Scan a barcode, type the code, or search your catalog."
+                        ? t({
+                            th: "สแกนบาร์โค้ด พิมพ์รหัส หรือค้นหาจากคลังสินค้า",
+                            en: "Scan a barcode, type the code, or search your catalog.",
+                          })
                         : addKind === "service"
-                          ? "Pick a saved service. For a one-off, use Add-on."
-                          : "A one-off item not in your catalog — type a name and price."}
+                          ? t({
+                              th: "เลือกบริการที่บันทึกไว้ · ถ้าเป็นงานครั้งเดียว ใช้รายการเพิ่ม",
+                              en: "Pick a saved service. For a one-off, use Add-on.",
+                            })
+                          : t({
+                              th: "รายการครั้งเดียวที่ไม่มีในคลัง — พิมพ์ชื่อกับราคา",
+                              en: "A one-off item not in your catalog — type a name and price.",
+                            })}
                     </p>
 
                     {addKind === "product" && (
@@ -2582,7 +2687,9 @@ export default function PosPage() {
                       borderTop: "1px solid var(--border)",
                     }}
                   >
-                    <div style={fieldLabel}>Items ({lines.length})</div>
+                    <div style={fieldLabel}>
+                      {t({ th: `รายการ (${lines.length})`, en: `Items (${lines.length})` })}
+                    </div>
                     {lines.length === 0 ? (
                       <p className="muted" style={{ fontSize: 13, margin: 0 }}>
                         {t({

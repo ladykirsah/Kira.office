@@ -49,10 +49,12 @@ export function ProfitPeek({ value }: { value: number }) {
       </button>
       {show ? (
         <strong style={{ color: value >= 0 ? "var(--ok)" : "var(--danger)" }}>
-          profit {baht(value)}
+          {t({ th: "กำไร", en: "profit" })} {baht(value)}
         </strong>
       ) : (
-        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>hold to see profit</span>
+        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
+          {t({ th: "กดค้างเพื่อดูกำไร", en: "hold to see profit" })}
+        </span>
       )}
     </span>
   );

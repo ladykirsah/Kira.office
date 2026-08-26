@@ -52,6 +52,7 @@ function yearStr(f: Fitment): string {
 
 /** View-mode gallery: a 350px main image (defaults to the cover) with thumbnails to switch. */
 function StaticFrames({ images, name }: { images: ProductDetail["images"]; name: string }) {
+  const t = useT();
   const [active, setActive] = useState(0);
 
   if (images.length === 0) {
@@ -112,7 +113,10 @@ function StaticFrames({ images, name }: { images: ProductDetail["images"]; name:
               key={img.id}
               type="button"
               onClick={() => setActive(i)}
-              aria-label={`Show image ${i + 1}${i === 0 ? " (cover)" : ""}`}
+              aria-label={t({
+                th: `ดูรูปที่ ${i + 1}${i === 0 ? " (รูปหน้าปก)" : ""}`,
+                en: `Show image ${i + 1}${i === 0 ? " (cover)" : ""}`,
+              })}
               style={{
                 width: 110,
                 height: 110,
@@ -235,7 +239,7 @@ export function ProductView({ detail }: { detail: ProductDetail }) {
                 </strong>
                 {held > 0 && (
                   <span className="muted" style={{ fontSize: 12 }}>
-                    paused — not for sale
+                    {t({ th: "กันไว้ — ไม่ได้ขาย", en: "paused — not for sale" })}
                   </span>
                 )}
               </span>

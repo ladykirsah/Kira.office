@@ -49,7 +49,7 @@ export function BarcodePreview({ value }: { value: string }) {
     >
       <svg
         ref={ref}
-        aria-label={`Barcode ${v}`}
+        aria-label={t({ th: `บาร์โค้ด ${v}`, en: `Barcode ${v}` })}
         style={{ display: "block", maxWidth: "100%", height: "auto" }}
       />
     </span>

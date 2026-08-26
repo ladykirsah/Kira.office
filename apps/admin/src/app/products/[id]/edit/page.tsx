@@ -209,7 +209,12 @@ export default function EditProductPage() {
   // After the hooks. A mechanic edits nothing (owner, 2026-08-24) — the menu already hides the way
   // in, this catches a typed address or an old bookmark. The API refuses their writes regardless.
   if (role && !canWrite(role, "products"))
-    return <NoAccess what="Editing products" who="the shop owner and admins" />;
+    return (
+      <NoAccess
+        what={{ th: "แก้ไขสินค้า", en: "Editing products" }}
+        who={{ th: "เจ้าของร้านและแอดมิน", en: "the shop owner and admins" }}
+      />
+    );
 
   if (loading)
     return (
@@ -257,7 +262,14 @@ export default function EditProductPage() {
     <main>
       <PageHeader
         title={p.name}
-        subtitle={p.updatedAt ? `Last updated date: ${formatUpdatedAt(p.updatedAt)}` : p.productRef}
+        subtitle={
+          p.updatedAt
+            ? t({
+                th: `อัปเดตล่าสุด ${formatUpdatedAt(p.updatedAt)}`,
+                en: `Last updated date: ${formatUpdatedAt(p.updatedAt)}`,
+              })
+            : p.productRef
+        }
         below={
           editing ? undefined : (
             <BackLink href="/products">{t({ th: "สินค้า", en: "Products" })}</BackLink>
@@ -340,9 +352,14 @@ export default function EditProductPage() {
                   style={{ ...inputS, width: 140 }}
                 />
                 <small className="muted">
-                  now {detail.onHand ?? 0} sellable
-                  {detail.held > 0 ? ` · ${detail.held} on hold, separate` : ""} · change logged as
-                  adjustment
+                  {t({
+                    th: `ตอนนี้ขายได้ ${detail.onHand ?? 0} ชิ้น${
+                      detail.held > 0 ? ` · กันไว้ ${detail.held} ชิ้น นับแยก` : ""
+                    } · การแก้ไขจะบันทึกเป็นการปรับยอด`,
+                    en: `now ${detail.onHand ?? 0} sellable${
+                      detail.held > 0 ? ` · ${detail.held} on hold, separate` : ""
+                    } · change logged as adjustment`,
+                  })}
                 </small>
               </label>
               <label style={field}>
@@ -372,7 +389,10 @@ export default function EditProductPage() {
                         onChange={(e) => set(e.target.value)}
                         inputMode="decimal"
                         placeholder={label}
-                        aria-label={`Box ${label} in centimetres`}
+                        aria-label={t({
+                          th: `กล่อง ${label} เป็นเซนติเมตร`,
+                          en: `Box ${label} in centimetres`,
+                        })}
                         style={{ ...inputS, width: 64 }}
                       />
                     </span>

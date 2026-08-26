@@ -47,7 +47,7 @@ export function ProductGallery({
         MAX,
       );
       if (next === buffer) {
-        toast(`Up to ${MAX} images`, "error");
+        toast(t({ th: `ใส่รูปได้สูงสุด ${MAX} รูป`, en: `Up to ${MAX} images` }), "error");
         return;
       }
       onBufferChange(next);
