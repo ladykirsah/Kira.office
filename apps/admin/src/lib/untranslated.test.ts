@@ -231,6 +231,10 @@ const CLEARED = [
   "app/page.tsx",
   "app/pos",
   "app/settings/coupons",
+  // The two screens OUTSIDE the app frame. They are the first thing anybody sees, and until
+  // 2026-08-26 they were the only ones still entirely in English.
+  "app/login",
+  "app/recover",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
   "app/DateTimeField.tsx",
