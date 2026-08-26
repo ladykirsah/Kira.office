@@ -134,7 +134,7 @@ function ClaimEvidenceDoc({
                   className="icon-btn"
                   href={privateFileUrl(k)}
                   download
-                  aria-label={`Save photo ${i + 1}`}
+                  aria-label={t({ th: `บันทึกรูปที่ ${i + 1}`, en: `Save photo ${i + 1}` })}
                   title={t({ th: "บันทึก", en: "Save" })}
                 >
                   <Icon name="save" />

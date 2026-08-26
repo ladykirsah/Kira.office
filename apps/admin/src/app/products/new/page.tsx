@@ -33,6 +33,7 @@ const field = { display: "grid", gap: 4 } as const;
 
 /** Debounced check: warn if another product (any status) already uses this Product ID / barcode / Shopee ID. */
 function useIdentifierCheck(kind: IdentifierKind, value: string): string | null {
+  const t = useT();
   const [warn, setWarn] = useState<string | null>(null);
   useEffect(() => {
     const v = value.trim();
@@ -41,11 +42,18 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
       return;
     }
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const m = await checkIdentifier(kind, v);
         if (!cancelled) {
-          setWarn(m ? `Already used by “${m.name}” (${m.productRef} · ${m.status})` : null);
+          setWarn(
+            m
+              ? t({
+                  th: `ใช้ไปแล้วกับ “${m.name}” (${m.productRef} · ${m.status})`,
+                  en: `Already used by “${m.name}” (${m.productRef} · ${m.status})`,
+                })
+              : null,
+          );
         }
       } catch {
         if (!cancelled) setWarn(null);
@@ -53,8 +61,9 @@ function useIdentifierCheck(kind: IdentifierKind, value: string): string | null 
     }, 400);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, value]);
   return warn;
 }
@@ -387,8 +396,14 @@ export default function NewProductPage() {
               disabled={!canAutoName}
               title={
                 canAutoName
-                  ? "Compose the name from the part type, fitments, brand and code"
-                  : "Fill in the part type, at least one fitment, and the product code first"
+                  ? t({
+                      th: "ตั้งชื่อจากประเภทอะไหล่ รุ่นรถ ยี่ห้อ และรหัสสินค้า",
+                      en: "Compose the name from the part type, fitments, brand and code",
+                    })
+                  : t({
+                      th: "กรอกประเภทอะไหล่ รุ่นรถอย่างน้อยหนึ่งรุ่น และรหัสสินค้าก่อน",
+                      en: "Fill in the part type, at least one fitment, and the product code first",
+                    })
               }
               style={{
                 background: "none",
@@ -467,7 +482,10 @@ export default function NewProductPage() {
                     onChange={(e) => set(e.target.value)}
                     inputMode="decimal"
                     placeholder={label}
-                    aria-label={`Box ${label} in centimetres`}
+                    aria-label={t({
+                      th: `กล่อง ${label} เป็นเซนติเมตร`,
+                      en: `Box ${label} in centimetres`,
+                    })}
                     style={{ ...inputS, width: 72 }}
                   />
                 </span>

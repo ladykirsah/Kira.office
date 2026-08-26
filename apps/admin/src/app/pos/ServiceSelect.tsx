@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ServiceRow } from "@/lib/api";
+import { useT } from "../LangProvider";
 
 /**
  * Service picker styled like the products "Actions" dropdown: a full-width button that opens a
@@ -21,6 +22,7 @@ export function ServiceSelect({
   value: string;
   onSelect: (id: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -59,9 +61,8 @@ export function ServiceSelect({
   }, [open]);
 
   const placeholder = value === "";
-  const label = placeholder
-    ? "Choose a service…"
-    : (services.find((s) => s.id === value)?.name ?? "Choose a service…");
+  const prompt = t({ th: "เลือกบริการ…", en: "Choose a service…" });
+  const label = placeholder ? prompt : (services.find((s) => s.id === value)?.name ?? prompt);
 
   function choose(id: string) {
     onSelect(id);

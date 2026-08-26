@@ -434,7 +434,7 @@ export default function CampaignsPage() {
           </div>
           <DateTimeField
             label="Starts"
-            base="Start"
+            base={{ th: "เริ่ม", en: "Start" }}
             date={startDate}
             time={startTime}
             onDate={setStartDate}
@@ -442,7 +442,7 @@ export default function CampaignsPage() {
           />
           <DateTimeField
             label="Ends"
-            base="End"
+            base={{ th: "สิ้นสุด", en: "End" }}
             date={endDate}
             time={endTime}
             onDate={setEndDate}

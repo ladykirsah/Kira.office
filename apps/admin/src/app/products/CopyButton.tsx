@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "../LangProvider";
 
 const CopyIcon = () => (
   <svg
@@ -37,6 +38,7 @@ const CheckIcon = () => (
 
 /** Frameless icon button that copies `value` to the clipboard, with a brief ✓ confirmation. */
 export function CopyButton({ value, label }: { value: string; label?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -54,8 +56,12 @@ export function CopyButton({ value, label }: { value: string; label?: string }) 
       type="button"
       className="icon-btn"
       onClick={copy}
-      aria-label={copied ? "Copied" : `Copy ${label ?? value}`}
-      title={copied ? "Copied" : "Copy"}
+      aria-label={
+        copied
+          ? t({ th: "คัดลอกแล้ว", en: "Copied" })
+          : t({ th: `คัดลอก ${label ?? value}`, en: `Copy ${label ?? value}` })
+      }
+      title={copied ? t({ th: "คัดลอกแล้ว", en: "Copied" }) : t({ th: "คัดลอก", en: "Copy" })}
       style={copied ? { color: "var(--ok)" } : undefined}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}

@@ -48,6 +48,49 @@ The rule: **what a person reads translates; what a machine matches does not.**
 | AirPlus · Shopee · Kira.office · Den Air Service | names, not words. Only the verb in front changes: วางขายบน AirPlus |
 | The language button's own labels | a button offering Thai says so in Thai, as the English side says "Switch to English" in English |
 
+## The finder was lying, and here is how it was caught
+
+It called the coupons screen clean while a third of it was English (2026-08-26). Reading that screen
+by hand turned up **five** places text hides that it never looked at:
+
+| Where | Example |
+|---|---|
+| Wrapped onto its own line by prettier | `<button>`⏎`  Cancel`⏎`</button>` |
+| Chosen inside braces | `{busy ? "Saving…" : "Save note"}` |
+| A message that pops up | `toast("Draft saved — reopen it any time.")` |
+| Built with a backtick | `` `Added ${p.name}` `` |
+| Split in half by a count | `Items ({lines.length})` |
+
+So it stopped asking "is this somewhere I know about" and started asking "does this read like
+something a person reads" — **every** string literal is judged now, wherever it sits. A sixth hole
+came from the other end: a phrase does not have to start with a capital (`"paused — not for sale"`,
+`"hold to see profit"`), and the old rule required one.
+
+That turned up **about 65 pieces of English on screens already declared finished** — most of them
+pop-up messages, which is exactly where an eye-sweep never looks because you have to make something
+go wrong to see them.
+
+**A finder that cries wolf gets ignored, which is the same as not having one.** So each exclusion is
+a test, not a note: keyboard key names (`e.key === "Escape"`), font names, import paths, object keys,
+the English half of a `t({ })` pair, the code between two JSX branches, and `>` when it means greater
+than rather than a tag. Two limits are deliberate and written into the tests:
+
+- **Two lowercase words are left alone**, because that is what class names look like (`pill soft`,
+  `btn-danger btn-sm`). A two-word fragment like `" · editing now"` gets past and has to be caught
+  by reading.
+- Text broken into more than two pieces by expressions is only partly seen.
+
+## Refusals the server makes, said again on the screen
+
+The API answers a duplicate coupon code and a delete-of-a-redeemed-coupon with a 409 — **in English**,
+because a request carries no opinion about who is reading it. Both answers are already knowable from
+what is on the screen (the list of codes, the redemption count), so they are decided in
+`lib/couponRefusal.ts` and spoken in the reader's language. The 409 stays as the backstop for the gap
+between the check and the request — another till can claim a code in between.
+
+Pure functions rather than lines inside a button, so both refusals can be proved without a redeemed
+coupon to click on.
+
 ## The POS already had a language, and it means something else
 
 `billLang` selects Thai or English for the **printed** bill and quotation. Wiring the app toggle
@@ -70,6 +113,7 @@ Asked directly rather than guessed, because the shop already had a name for most
 | Wages | **รายการจ่ายเงิน** (Payments) · **คงเหลือ** (Total) · **วิธีจ่าย** (Paid by) |
 | Products | **วางขาย** (Live) · **หยุดขาย** (Paused) · **เหลือน้อย / หมด** (Low / Out) · **ไม่มีรูป → พร้อมขาย** |
 | POS | **ทำบิล** · **ฉบับร่าง / ทำบิลต่อ** (draft / reopen) · **ราคาช่าง** (wholesale) · **ไปหน้าชำระเงิน** |
+| Coupons | **โค้ด** (code) · **จำนวนส่วนลด** (quota) · **สิทธิ์ต่อคน** (per customer) · **ส่วนลดสูงสุด** (max cap) |
 
 Order statuses were NOT re-invented: เตรียมจัดส่ง, กำลังจัดส่ง, คืนเงิน come from
 [commerce/order-lifecycle](../commerce/order-lifecycle.md), and the 13 operational statuses were
@@ -99,8 +143,11 @@ Deliberate single-language files go in `DELIBERATE` with the reason, never silen
 ## Done, and not done
 
 **Done:** the frame (menu, top bar, both toggles, Modal), dashboard, orders list, order detail,
-products list, product forms, and the POS.
+products list, product forms, the POS, and coupons — plus the shared pieces those screens render
+(`ConfirmButton`, `DateTimeField`, `NoAccess`), each of which had been English on every screen using it.
 
-**Not done:** coupons (53), customers (47), shop settings (44), the staff forms (~76), and the
-rest — roughly **790 strings**. The storefront was never in scope: the owner chose back
+**Not done:** customers (47), shop settings (44), the staff forms (~76), affiliate items (42),
+`AttributeManager` (40), banners (31), and the rest — roughly **740 strings**. The **sign-in screen**
+is on that list and worth doing early: it is the first thing a Thai mechanic sees, and it is entirely
+in English. The storefront was never in scope: the owner chose back
 office only.

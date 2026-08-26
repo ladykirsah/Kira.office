@@ -37,7 +37,9 @@ export function CampaignWorkspace({
         <span style={{ fontWeight: 600 }}>
           {t({ th: "พื้นที่ทำแคมเปญ", en: "Campaign workspace" })}
         </span>
-        <span className="pill soft">scratch · not saved</span>
+        <span className="pill soft">
+          {t({ th: "พื้นที่ทดลอง · ไม่ได้บันทึก", en: "scratch · not saved" })}
+        </span>
       </div>
       <div
         style={{
@@ -119,7 +121,10 @@ export function CampaignWorkspace({
                       <button
                         type="button"
                         className="icon-del"
-                        aria-label={`Remove scenario ${String.fromCharCode(65 + i)}`}
+                        aria-label={t({
+                          th: `ลบสถานการณ์ ${String.fromCharCode(65 + i)}`,
+                          en: `Remove scenario ${String.fromCharCode(65 + i)}`,
+                        })}
                         onClick={() => remove(i)}
                       >
                         <svg

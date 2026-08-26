@@ -108,7 +108,7 @@ export default function SalesPage() {
   // After the hooks, before anything that renders money. The menu already hides Finance from an
   // admin and a mechanic; this catches a typed address or an old bookmark, so they get a plain
   // answer instead of a page full of failed requests. The API refuses the data regardless.
-  if (!role || !canViewFinance(role)) return <NoAccess what="Finance" />;
+  if (!role || !canViewFinance(role)) return <NoAccess what={{ th: "การเงิน", en: "Finance" }} />;
 
   if (error) {
     return (

@@ -160,12 +160,22 @@ function marginHint(profitSatang: number | null, goodsSatang: number): string | 
  * leans one way consistently, the rate card's volumetric divisor is wrong, and these rows are the
  * evidence for it.
  */
-function quoteGap(autoSatang: number, realSatang: number | null): string | null {
+function quoteGap(autoSatang: number, realSatang: number | null): Phrase | null {
   if (realSatang == null) return null;
   const gap = realSatang - autoSatang;
   if (gap === 0) return null;
-  const dir = gap > 0 ? "under" : "over";
-  return `Our quote was ${formatBahtTrim(Math.abs(gap))} ${dir} what Flash charged.`;
+  // A PHRASE rather than a sentence: this is a plain function, not a component, so it cannot reach
+  // the reader's language itself. It hands both sides back and lets the screen pick.
+  const amount = formatBahtTrim(Math.abs(gap));
+  return gap > 0
+    ? {
+        th: `เราคิดค่าส่งต่ำกว่าที่ Flash เก็บจริง ${amount}`,
+        en: `Our quote was ${amount} under what Flash charged.`,
+      }
+    : {
+        th: `เราคิดค่าส่งสูงกว่าที่ Flash เก็บจริง ${amount}`,
+        en: `Our quote was ${amount} over what Flash charged.`,
+      };
 }
 
 const TIER_PILL: Record<string, string> = {
@@ -191,6 +201,8 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
     mechanics,
   } = detail;
   const t = useT();
+  // Worked out once: it was being computed twice, once to ask whether to show it and once to show it.
+  const gap = quoteGap(order.shippingAutoSatang, order.shippingRealSatang);
   const rawStatus = operationalStatusBadge(order.orderStatus, order.paymentStatus);
   const status = { pill: rawStatus.pill, label: t(rawStatus.label) };
   // "Verifying" is Zone A too: a slip is waiting on a confirm/reject decision.
@@ -526,7 +538,10 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
               <Row
                 label={t({ th: "คำนวณอัตโนมัติ", en: "Auto calculated" })}
                 value={formatBahtTrim(order.shippingAutoSatang)}
-                hint="from linked system with Flash express"
+                hint={t({
+                  th: "จากระบบที่เชื่อมกับ Flash Express",
+                  en: "from linked system with Flash express",
+                })}
                 muted
               />
               {/* Only on a shared-fee order. A null offered fee IS the marker for a normal one, which
@@ -549,8 +564,8 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                 }
                 hint={
                   order.shippingRealSatang == null
-                    ? "recorded at drop-off"
-                    : (order.carrier ?? "carrier not recorded")
+                    ? t({ th: "บันทึกตอนส่งของเข้าขนส่ง", en: "recorded at drop-off" })
+                    : (order.carrier ?? t({ th: "ไม่ได้บันทึกขนส่ง", en: "carrier not recorded" }))
                 }
               />
               <div style={totalRule} />
@@ -559,9 +574,9 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
                 value={shortfallValue(money.shippingShortfallSatang)}
                 strong
               />
-              {quoteGap(order.shippingAutoSatang, order.shippingRealSatang) && (
+              {gap && (
                 <div style={{ ...tableText.subtitle, marginTop: 8, color: "var(--warn)" }}>
-                  {quoteGap(order.shippingAutoSatang, order.shippingRealSatang)}
+                  {t(gap)}
                 </div>
               )}
             </div>
@@ -588,8 +603,11 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
               value={shortfallValue(money.shippingShortfallSatang)}
               hint={
                 money.shippingShortfallSatang == null
-                  ? "no drop-off recorded yet"
-                  : `${formatBahtTrim(order.shippingRealSatang ?? 0)} real − ${formatBahtTrim(order.shippingFeeSatang)} charged`
+                  ? t({ th: "ยังไม่ได้บันทึกการส่งเข้าขนส่ง", en: "no drop-off recorded yet" })
+                  : t({
+                      th: `จ่ายจริง ${formatBahtTrim(order.shippingRealSatang ?? 0)} − เก็บลูกค้า ${formatBahtTrim(order.shippingFeeSatang)}`,
+                      en: `${formatBahtTrim(order.shippingRealSatang ?? 0)} real − ${formatBahtTrim(order.shippingFeeSatang)} charged`,
+                    })
               }
               muted
             />
@@ -632,7 +650,11 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
               onClick={() => void saveNote()}
               style={{ marginTop: 8 }}
             >
-              {noteSaving ? "Saving…" : noteSaved ? "✓ Saved" : "Save note"}
+              {noteSaving
+                ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                : noteSaved
+                  ? t({ th: "✓ บันทึกแล้ว", en: "✓ Saved" })
+                  : t({ th: "บันทึกโน้ต", en: "Save note" })}
             </button>
           </div>
 
