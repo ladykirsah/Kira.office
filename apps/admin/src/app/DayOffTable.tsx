@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { LEAVE_MODES, leaveModeLabel, type LeaveHalves } from "@l-shopee/core";
+import { LEAVE_MODES, leaveModePhrase, type LeaveHalves } from "@l-shopee/core";
 import { thaiShortDate } from "@/lib/dayOff";
 import { inputS } from "@/lib/inputStyles";
 import { Icon } from "./Icon";
-import { useT } from "./LangProvider";
+import { useT, useLang } from "./LangProvider";
 
 /**
  * The day-off list, edited in place (owner, 5 Aug 2026).
@@ -38,6 +38,7 @@ export interface DayOffEdit {
 
 /** Weighted by what the mode COSTS, so a glance down the column shows how much of the month went. */
 function ModePill({ halves }: { halves: number }) {
+  const t = useT();
   const style =
     halves === 2
       ? { background: "var(--primary-soft)", color: "var(--primary)" }
@@ -56,7 +57,7 @@ function ModePill({ halves }: { halves: number }) {
         ...style,
       }}
     >
-      {leaveModeLabel(halves as LeaveHalves)}
+      {t(leaveModePhrase(halves as LeaveHalves))}
     </span>
   );
 }
@@ -80,6 +81,7 @@ export function DayOffTable({
   // Only ever one row open: two would put two unsaved versions on screen with no way to tell which
   // one the reader should believe.
   const t = useT();
+  const lang = useLang();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<DayOffEdit>({ day: "", halves: 2, reason: "" });
 
@@ -135,7 +137,7 @@ export function DayOffTable({
                   >
                     {LEAVE_MODES.map((m) => (
                       <option key={m.halves} value={m.halves}>
-                        {m.th}
+                        {lang === "th" ? m.th : m.en}
                       </option>
                     ))}
                   </select>

@@ -240,3 +240,11 @@ sources: [session 2026-08-09]
   Owner's words: **เข้าใช้งาน**, **รหัส 6 หลัก** (the letters "PIN" dropped), **ทางเข้าฉุกเฉิน**. The page
   titles moved to `generateMetadata()`, since a title that depends on a cookie cannot be a constant.
   See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-08-26** — **The whole staff section reads both ways.** 246 strings, not the ~76 the older
+  finder reported. Two thirds of the area was already Thai — written Thai-only, which shows Thai to
+  an English reader exactly as an English screen shows English to a Thai one. The interesting part
+  was text that is not on the screen it appears on: `core/dayOff.ts` builds "หยุดไปแล้ว 2 วันครึ่ง"
+  and now says "2½ days taken" as well, `monthLabel` had the Buddhist year baked in, six places
+  hard-coded `toLocaleDateString("en-GB")`, and the role names existed in three copies of which two
+  were English-only. See [conventions/bilingual-admin](conventions/bilingual-admin.md).

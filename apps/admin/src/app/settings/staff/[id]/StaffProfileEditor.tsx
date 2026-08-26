@@ -11,6 +11,9 @@ import { StaffDaysOff } from "./StaffDaysOff";
 import { RecordSection } from "./RecordSection";
 import { useT } from "../../../LangProvider";
 import type { DayOffRow } from "../../../DayOffTable";
+import { ROLE_LABEL } from "@/lib/roleLabel";
+import { useLang } from "../../../LangProvider";
+import type { Lang, Phrase } from "@/lib/lang";
 
 export interface StaffProfile {
   id: string;
@@ -37,12 +40,6 @@ export interface StaffProfile {
   hasPassword: number;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  admin: "Admin",
-  mechanic: "Mechanic",
-};
-
 // Same alphabet the API generates from — no I, l, 1, O or 0, because these get read out loud.
 const PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function generatePassword(): string {
@@ -64,12 +61,22 @@ function generatePin(): string {
 /** A date input wants 'YYYY-MM-DD'; the database holds milliseconds. */
 const toDateInput = (ms: number | null) => (ms ? new Date(ms).toISOString().slice(0, 10) : "");
 const fromDateInput = (v: string) => (v ? Date.parse(`${v}T00:00:00Z`) : null);
-const longDate = (ms: number | null) =>
+const longDate = (ms: number | null, lang: Lang) =>
   ms
-    ? new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+    ? new Date(ms).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
     : null;
-const baht = (satang: number | null) =>
-  satang == null ? null : `฿${(satang / 100).toLocaleString("en-US")} / day`;
+/** A day rate reads "per day" in the reader's language, so this takes the translator. */
+const baht = (satang: number | null, t: (p: Phrase) => string) =>
+  satang == null
+    ? null
+    : t({
+        th: `฿${(satang / 100).toLocaleString("en-US")} / วัน`,
+        en: `฿${(satang / 100).toLocaleString("en-US")} / day`,
+      });
 
 /** An editable field: label above the control, optional hint below. */
 function Field({
@@ -143,6 +150,7 @@ export function StaffProfileEditor({
   // The year the year-dropdowns offer, taken once here rather than inside each control, so nothing
   // on this page can disagree about what "this year" is mid-render.
   const t = useT();
+  const lang = useLang();
   const currentYear = Number(month.slice(0, 4)) || new Date().getFullYear();
   const initial = {
     nameTh: profile.nameTh ?? "",
@@ -169,14 +177,14 @@ export function StaffProfileEditor({
       const res = await fetch(`/api/worker/staff/${path}`, { credentials: "include", ...init });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "That didn't work.", "error");
+        toast(data.error || t({ th: "ทำรายการไม่สำเร็จ", en: "That didn't work." }), "error");
         return false;
       }
       toast(ok, "success");
       if (reload) setTimeout(() => location.reload(), 600);
       return true;
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
       return false;
     } finally {
       setBusy(null);
@@ -194,7 +202,7 @@ export function StaffProfileEditor({
     // Baht in the box, satang in the database — the same split every other amount here uses.
     const dayRateSatang = rate === "" ? null : Math.round(Number(rate) * 100);
     if (dayRateSatang !== null && !Number.isFinite(dayRateSatang)) {
-      toast("Day rate must be a number.", "error");
+      toast(t({ th: "ค่าแรงต่อวันต้องเป็นตัวเลข", en: "Day rate must be a number." }), "error");
       return;
     }
     await call(
@@ -216,7 +224,7 @@ export function StaffProfileEditor({
           bankAccountName: form.bankAccountName,
         }),
       },
-      "Saved",
+      t({ th: "บันทึกแล้ว", en: "Saved" }),
     );
   }
 
@@ -227,24 +235,26 @@ export function StaffProfileEditor({
     <>
       <PageHeader
         title={profile.nameTh || profile.name}
-        subtitle={`${ROLE_LABEL[profile.role] ?? profile.role}${
-          profile.status === "active" ? "" : " · switched off"
+        subtitle={`${ROLE_LABEL[profile.role] ? t(ROLE_LABEL[profile.role]!) : profile.role}${
+          profile.status === "active" ? "" : t({ th: " · ปิดใช้งานอยู่", en: " · switched off" })
         }`}
-        below={<BackLink href="/settings/staff">Staff</BackLink>}
+        below={<BackLink href="/settings/staff">{t({ th: "พนักงาน", en: "Staff" })}</BackLink>}
         action={
           editing ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
               <button type="button" onClick={cancel} disabled={!!saving}>
-                Cancel
+                {t({ th: "ยกเลิก", en: "Cancel" })}
               </button>
               <button type="button" className="btn-primary" onClick={save} disabled={!!saving}>
-                {saving ? "Saving…" : "Save"}
+                {saving
+                  ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+                  : t({ th: "บันทึก", en: "Save" })}
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
               <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
-                Edit
+                {t({ th: "แก้ไข", en: "Edit" })}
               </button>
             </div>
           )
@@ -255,9 +265,16 @@ export function StaffProfileEditor({
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {locked && (
           <div className="salary-note">
-            <strong>Locked until {new Date(profile.lockedUntil!).toLocaleString("en-GB")}.</strong>{" "}
-            Three failed sign-ins in a row. Resetting their password below lets them straight back
-            in.
+            <strong>
+              {t({
+                th: `ล็อกถึง ${new Date(profile.lockedUntil!).toLocaleString("th-TH")}`,
+                en: `Locked until ${new Date(profile.lockedUntil!).toLocaleString("en-GB")}.`,
+              })}
+            </strong>{" "}
+            {t({
+              th: "เพราะเข้าใช้งานผิดติดกัน 3 ครั้ง · ตั้งรหัสผ่านให้ใหม่ด้านล่างแล้วเข้าได้ทันที",
+              en: "Three failed sign-ins in a row. Resetting their password below lets them straight back in.",
+            })}
           </div>
         )}
 
@@ -274,15 +291,21 @@ export function StaffProfileEditor({
             {editing ? (
               <>
                 <div style={row}>
-                  <Field label="ชื่อ (Thai name)">
+                  <Field label={t({ th: "ชื่อ (ภาษาไทย)", en: "Name (Thai)" })}>
                     <input value={form.nameTh} onChange={set("nameTh")} style={{ width: "100%" }} />
                   </Field>
-                  <Field label="Name (English)">
+                  <Field label={t({ th: "ชื่อ (ภาษาอังกฤษ)", en: "Name (English)" })}>
                     <input value={form.nameEn} onChange={set("nameEn")} style={{ width: "100%" }} />
                   </Field>
                 </div>
                 <div style={row}>
-                  <Field label="Email" hint="This is what they type to sign in.">
+                  <Field
+                    label={t({ th: "อีเมล", en: "Email" })}
+                    hint={t({
+                      th: "อีเมลนี้คือสิ่งที่เขาใช้เข้าใช้งาน",
+                      en: "This is what they type to sign in.",
+                    })}
+                  >
                     <input
                       type="email"
                       value={form.email}
@@ -290,13 +313,13 @@ export function StaffProfileEditor({
                       style={{ width: "100%" }}
                     />
                   </Field>
-                  <Field label="Phone">
+                  <Field label={t({ th: "เบอร์โทร", en: "Phone" })}>
                     <input value={form.phone} onChange={set("phone")} style={{ width: "100%" }} />
                   </Field>
                 </div>
                 {/* Started belongs with who they are, not with who to call in an emergency. */}
                 <div style={row}>
-                  <Field label="Started">
+                  <Field label={t({ th: "เริ่มงาน", en: "Started" })}>
                     <input type="date" value={form.startedOn} onChange={set("startedOn")} />
                   </Field>
                 </div>
@@ -304,14 +327,21 @@ export function StaffProfileEditor({
                 <hr className="field-divider" />
 
                 <div style={{ ...row, marginBottom: 0 }}>
-                  <Field label="Emergency contact — name">
+                  <Field
+                    label={t({ th: "ผู้ติดต่อฉุกเฉิน — ชื่อ", en: "Emergency contact — name" })}
+                  >
                     <input
                       value={form.emergencyName}
                       onChange={set("emergencyName")}
                       style={{ width: "100%" }}
                     />
                   </Field>
-                  <Field label="Emergency contact — phone">
+                  <Field
+                    label={t({
+                      th: "ผู้ติดต่อฉุกเฉิน — เบอร์โทร",
+                      en: "Emergency contact — phone",
+                    })}
+                  >
                     <input
                       value={form.emergencyPhone}
                       onChange={set("emergencyPhone")}
@@ -323,11 +353,20 @@ export function StaffProfileEditor({
             ) : (
               <>
                 <dl style={readingList}>
-                  <Reading label="ชื่อ (Thai)" value={profile.nameTh} />
-                  <Reading label="Name (English)" value={profile.nameEn} />
-                  <Reading label="Email" value={profile.email} />
-                  <Reading label="Phone" value={profile.phone} />
-                  <Reading label="Started" value={longDate(profile.startedOn)} />
+                  <Reading
+                    label={t({ th: "ชื่อ (ภาษาไทย)", en: "Name (Thai)" })}
+                    value={profile.nameTh}
+                  />
+                  <Reading
+                    label={t({ th: "ชื่อ (ภาษาอังกฤษ)", en: "Name (English)" })}
+                    value={profile.nameEn}
+                  />
+                  <Reading label={t({ th: "อีเมล", en: "Email" })} value={profile.email} />
+                  <Reading label={t({ th: "เบอร์โทร", en: "Phone" })} value={profile.phone} />
+                  <Reading
+                    label={t({ th: "เริ่มงาน", en: "Started" })}
+                    value={longDate(profile.startedOn, lang)}
+                  />
                 </dl>
 
                 <hr className="field-divider" />
@@ -358,8 +397,11 @@ export function StaffProfileEditor({
               <>
                 <div style={row}>
                   <Field
-                    label="Day rate (฿)"
-                    hint="Salary = day rate × working days. Paid on the 5th."
+                    label={t({ th: "ค่าแรงต่อวัน (฿)", en: "Day rate (฿)" })}
+                    hint={t({
+                      th: "เงินเดือน = ค่าแรงต่อวัน × วันทำงาน · จ่ายวันที่ 5",
+                      en: "Salary = day rate × working days. Paid on the 5th.",
+                    })}
                   >
                     <input
                       inputMode="decimal"
@@ -368,7 +410,7 @@ export function StaffProfileEditor({
                       style={{ width: "100%" }}
                     />
                   </Field>
-                  <Field label="Bank">
+                  <Field label={t({ th: "ธนาคาร", en: "Bank" })}>
                     <input
                       value={form.bankName}
                       onChange={set("bankName")}
@@ -377,14 +419,14 @@ export function StaffProfileEditor({
                   </Field>
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Field label="Account number">
+                  <Field label={t({ th: "เลขที่บัญชี", en: "Account number" })}>
                     <input
                       value={form.bankAccountNo}
                       onChange={set("bankAccountNo")}
                       style={{ width: "100%" }}
                     />
                   </Field>
-                  <Field label="Account name">
+                  <Field label={t({ th: "ชื่อบัญชี", en: "Account name" })}>
                     <input
                       value={form.bankAccountName}
                       onChange={set("bankAccountName")}
@@ -397,7 +439,7 @@ export function StaffProfileEditor({
               <dl style={readingList}>
                 <Reading
                   label={t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}
-                  value={baht(profile.dayRateSatang)}
+                  value={baht(profile.dayRateSatang, t)}
                 />
                 <Reading
                   label={t({ th: "จ่ายวันที่", en: "Paid" })}
@@ -471,11 +513,11 @@ export function StaffProfileEditor({
 
         <section className="card">
           <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>
-            {t({ th: "การเข้าสู่ระบบ", en: "Signing in" })}
+            {t({ th: "การเข้าใช้งาน", en: "Signing in" })}
           </h2>
 
           <SecretRow
-            label="Password"
+            label={t({ th: "รหัสผ่าน", en: "Password" })}
             value={profile.password}
             hasValue={profile.hasPassword === 1}
             generate={generatePassword}
@@ -487,7 +529,10 @@ export function StaffProfileEditor({
                   headers: { "content-type": "application/json" },
                   body: JSON.stringify({ password: next }),
                 },
-                "Password reset — signed out everywhere, and any lock lifted",
+                t({
+                  th: "ตั้งรหัสผ่านใหม่แล้ว — ออกจากระบบทุกเครื่อง และปลดล็อกให้ด้วย",
+                  en: "Password reset — signed out everywhere, and any lock lifted",
+                }),
               )
             }
           />
@@ -495,13 +540,16 @@ export function StaffProfileEditor({
           <hr className="field-divider" />
 
           <SecretRow
-            label="6-digit PIN"
+            label={t({ th: "รหัส 6 หลัก", en: "6-digit PIN" })}
             value={profile.pin}
             hasValue={profile.hasPin === 1}
             generate={generatePin}
             inputMode="numeric"
             maxLength={6}
-            hint="Signs them in on its own, with no email. Resetting it signs them out everywhere."
+            hint={t({
+              th: "ใช้เข้าใช้งานได้เลย ไม่ต้องใส่อีเมล · ตั้งใหม่แล้วจะออกจากระบบทุกเครื่อง",
+              en: "Signs them in on its own, with no email. Resetting it signs them out everywhere.",
+            })}
             onSave={(next) =>
               call(
                 `${profile.id}/pin`,
@@ -510,7 +558,10 @@ export function StaffProfileEditor({
                   headers: { "content-type": "application/json" },
                   body: JSON.stringify({ pin: next }),
                 },
-                "PIN reset — signed out everywhere",
+                t({
+                  th: "ตั้งรหัส 6 หลักใหม่แล้ว — ออกจากระบบทุกเครื่อง",
+                  en: "PIN reset — signed out everywhere",
+                }),
               )
             }
           />

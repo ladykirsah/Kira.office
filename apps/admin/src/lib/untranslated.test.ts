@@ -168,6 +168,13 @@ describe("findUntranslated", () => {
    * The wrapped-text matcher reaches from one `>` to the next `<`, which can step straight over the
    * code BETWEEN two JSX branches: `); const p = detail.product; return (` was reported as a phrase.
    */
+  it("says nothing about a ternary sitting between two pieces of JSX", () => {
+    const src = ["      </p>", '    ) : (tab === "advance" ? paidA : paidB) ? (', "      <b>"].join(
+      "\n",
+    );
+    expect(findUntranslated(src)).toEqual([]);
+  });
+
   it("says nothing about the code sitting between two pieces of JSX", () => {
     const src = [
       "      </main>",
@@ -205,6 +212,17 @@ describe("findUntranslated", () => {
     expect(findUntranslated(src)).toEqual([]);
   });
 
+  /**
+   * Two empty strings on one line — `` `ก ${d ?? ""}`, en: `Recorded ${d ?? ""}` `` — and the naive
+   * quote pairing takes the SECOND quote of the first pair and the FIRST of the second, capturing
+   * the code between two templates as if it were a sentence.
+   */
+  it("says nothing about the gap between two templates on one line", () => {
+    const src =
+      'text: (d) => ({ th: `ลบวันหยุด — ${d ?? ""}`, en: `Deleted a day off — ${d ?? ""}` }),';
+    expect(findUntranslated(src)).toEqual([]);
+  });
+
   it("says nothing about the key of an object, which no one reads", () => {
     expect(findUntranslated(`headers: { "Content-Type": "application/json" }`)).toEqual([]);
   });
@@ -235,6 +253,9 @@ const CLEARED = [
   // 2026-08-26 they were the only ones still entirely in English.
   "app/login",
   "app/recover",
+  "app/settings/staff",
+  "app/me",
+  "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
   "app/DateTimeField.tsx",

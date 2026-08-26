@@ -4,6 +4,7 @@ import { BackLink } from "../../../BackLink";
 import { currentStaff, staffToken, STAFF_SESSION_HEADER } from "@/lib/staffSession";
 import { apiFetch } from "@/lib/apiFetch";
 import { StaffProfileEditor, type StaffProfile } from "./StaffProfileEditor";
+import { serverT } from "@/lib/serverLang";
 import { type StaffPayment } from "./PaymentsTable";
 import type { DayOffRow } from "../../../DayOffTable";
 import { bangkokMonth } from "@l-shopee/core";
@@ -23,6 +24,7 @@ export default async function StaffProfilePage({
 
   const { id } = await params;
   const month = (await searchParams).month || bangkokMonth(Date.now());
+  const t = await serverT();
   const token = await staffToken();
   let profile: StaffProfile | null = null;
   let error: string | null = null;
@@ -32,9 +34,15 @@ export default async function StaffProfilePage({
       headers: { [STAFF_SESSION_HEADER]: token ?? "" },
     });
     if (res.ok) profile = ((await res.json()) as { profile: StaffProfile }).profile;
-    else error = res.status === 404 ? "That person no longer exists." : `HTTP ${res.status}`;
+    else
+      error =
+        res.status === 404
+          ? t({ th: "ไม่มีคนนี้ในระบบแล้ว", en: "That person no longer exists." })
+          : `HTTP ${res.status}`;
   } catch (e) {
-    error = (e as Error).message || "Couldn't reach the server.";
+    error =
+      (e as Error).message ||
+      t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." });
   }
 
   // Their wage history. Fetched alongside the profile rather than by the client, so the page
@@ -76,7 +84,10 @@ export default async function StaffProfilePage({
     </main>
   ) : (
     <main>
-      <PageHeader title="Staff" below={<BackLink href="/settings/staff">Staff</BackLink>} />
+      <PageHeader
+        title={t({ th: "พนักงาน", en: "Staff" })}
+        below={<BackLink href="/settings/staff">{t({ th: "พนักงาน", en: "Staff" })}</BackLink>}
+      />
       <div className="empty">
         <div className="empty-icon" aria-hidden>
           ⚠

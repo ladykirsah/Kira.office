@@ -3,6 +3,7 @@ import { PageHeader } from "../../../PageHeader";
 import { currentStaff, staffToken, STAFF_SESSION_HEADER } from "@/lib/staffSession";
 import { apiFetch } from "@/lib/apiFetch";
 import { StaffTabs } from "../StaffTabs";
+import { serverT } from "@/lib/serverLang";
 import { SalaryTable, type SalaryRow } from "./SalaryTable";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function SalaryPage({
 
   // Opens on the month you're in (owner's choice) — its figures keep moving until the month ends.
   const period = (await searchParams).month || currentPeriod();
+  const t = await serverT();
   const token = await staffToken();
 
   let rows: SalaryRow[] = [];
@@ -39,15 +41,26 @@ export default async function SalaryPage({
       rows = body.rows;
       daysInMonth = body.daysInMonth;
     } else {
-      error = `Couldn't load the salary run (HTTP ${res.status})`;
+      error = t({
+        th: `โหลดรอบจ่ายเงินเดือนไม่ได้ (HTTP ${res.status})`,
+        en: `Couldn't load the salary run (HTTP ${res.status})`,
+      });
     }
   } catch (e) {
-    error = (e as Error).message || "Couldn't reach the server.";
+    error =
+      (e as Error).message ||
+      t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." });
   }
 
   return (
     <main>
-      <PageHeader title="Staff" subtitle="Who can open Kira.office, and what they can reach." />
+      <PageHeader
+        title={t({ th: "พนักงาน", en: "Staff" })}
+        subtitle={t({
+          th: "ใครเปิด Kira.office ได้บ้าง และเปิดถึงไหน",
+          en: "Who can open Kira.office, and what they can reach.",
+        })}
+      />
       <StaffTabs active="salary" />
       {error ? (
         <div className="empty">

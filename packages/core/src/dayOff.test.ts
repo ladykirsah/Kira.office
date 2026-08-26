@@ -3,6 +3,7 @@ import {
   LEAVE_MODES,
   isLeaveHalves,
   leaveModeLabel,
+  leaveModePhrase,
   daysOffLabel,
   summariseDaysOff,
   bangkokMonth,
@@ -116,5 +117,60 @@ describe("bangkokMonth", () => {
 
   it("given January > then it pads the month to two digits", () => {
     expect(bangkokMonth(at("2026-01-09T09:00:00"))).toBe("2026-01");
+  });
+});
+
+/**
+ * THE SAME SENTENCES, IN ENGLISH (owner, 2026-08-26: the back office reads both).
+ *
+ * The Thai forms above are unchanged and stay the default, because `leaveModeLabel` is also what the
+ * API writes into the activity log — a stored record cannot depend on who reads it later.
+ */
+describe("daysOffLabel, in English", () => {
+  it("counts whole days", () => {
+    expect(daysOffLabel(4, "en")).toBe("2 days");
+    expect(daysOffLabel(2, "en")).toBe("1 day");
+  });
+
+  it("says the half", () => {
+    expect(daysOffLabel(5, "en")).toBe("2½ days");
+    expect(daysOffLabel(1, "en")).toBe("half a day");
+  });
+
+  /** Nothing taken is a different statement from a measured zero — the caller words that itself. */
+  it("given nothing taken > then nothing said, in either language", () => {
+    expect(daysOffLabel(0, "en")).toBe("");
+    expect(daysOffLabel(0, "th")).toBe("");
+  });
+});
+
+describe("summariseDaysOff, in English", () => {
+  const rows = (...halves: number[]) => halves.map((h) => ({ halves: h }));
+
+  it("reads as one sentence", () => {
+    expect(summariseDaysOff(rows(2, 2, 1), "en").label).toBe("2½ days taken");
+  });
+
+  it("counts lateness separately, because it is never priced", () => {
+    expect(summariseDaysOff(rows(2, 0, 0), "en").label).toBe("1 day taken · late 2×");
+  });
+
+  it("given a month with nothing in it > then says so", () => {
+    expect(summariseDaysOff([], "en").label).toBe("no days off yet");
+  });
+
+  /** The numbers are the same sentence either way — only the words around them move. */
+  it("counts identically whichever language it is read in", () => {
+    const th = summariseDaysOff(rows(2, 1, 0), "th");
+    const en = summariseDaysOff(rows(2, 1, 0), "en");
+    expect(en.offHalves).toBe(th.offHalves);
+    expect(en.lateCount).toBe(th.lateCount);
+  });
+});
+
+describe("leaveModePhrase", () => {
+  it("hands back both languages, for a screen to choose from", () => {
+    expect(leaveModePhrase(2)).toEqual({ th: "เต็มวัน", en: "Full day" });
+    expect(leaveModePhrase(0)).toEqual({ th: "เข้าสาย", en: "Late" });
   });
 });

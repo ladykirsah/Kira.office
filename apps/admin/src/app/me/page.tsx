@@ -5,18 +5,15 @@ import { apiFetch } from "@/lib/apiFetch";
 import { MyProfile, type Profile } from "./MyProfile";
 import { type StaffPayment } from "../settings/staff/[id]/PaymentsTable";
 import { bangkokMonth } from "@l-shopee/core";
+import { ROLE_LABEL } from "@/lib/roleLabel";
+import { serverT } from "@/lib/serverLang";
 
 export const dynamic = "force-dynamic";
-
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  admin: "Admin",
-  mechanic: "Mechanic",
-};
 
 export default async function MePage() {
   const staff = await currentStaff();
   if (!staff) redirect("/login");
+  const t = await serverT();
 
   const token = await staffToken();
   let profile: Profile | null = null;
@@ -50,8 +47,10 @@ export default async function MePage() {
   return (
     <main>
       <PageHeader
-        title="My profile"
-        subtitle={`${profile?.nameTh || staff.name} · ${ROLE_LABEL[staff.role] ?? staff.role}`}
+        title={t({ th: "โปรไฟล์ของฉัน", en: "My profile" })}
+        subtitle={`${profile?.nameTh || staff.name} · ${
+          ROLE_LABEL[staff.role] ? t(ROLE_LABEL[staff.role]!) : staff.role
+        }`}
       />
       {profile ? (
         <MyProfile profile={profile} payments={payments} month={month} />
@@ -61,7 +60,10 @@ export default async function MePage() {
             ⚠
           </div>
           <span style={{ color: "var(--danger)" }}>
-            Couldn&rsquo;t load your profile. Try again in a moment.
+            {t({
+              th: "โหลดโปรไฟล์ของคุณไม่ได้ ลองใหม่อีกสักครู่",
+              en: "Couldn’t load your profile. Try again in a moment.",
+            })}
           </span>
         </div>
       )}

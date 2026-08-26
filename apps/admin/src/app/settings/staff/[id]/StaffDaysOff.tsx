@@ -79,7 +79,7 @@ export function StaffDaysOff({
             {t({ th: "วันหยุด", en: "Days off" })}
           </h2>
           <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-            {monthLabel(month)} · {summariseDaysOff(days).label}
+            {monthLabel(month, lang)} · {summariseDaysOff(days, lang).label}
           </p>
         </div>
         {/* This table's OWN month, and nothing else's (owner, 2026-08-24) — Payments below carries

@@ -50,11 +50,23 @@ export function thaiShortDate(iso: string): string {
   return `${day} ${MONTHS_SHORT[month - 1]} ${String(toBE(Number(m[1])) % 100).padStart(2, "0")}`;
 }
 
-/** "2026-08" → "สิงหาคม 2569", for the heading above a month's list. */
-export function monthLabel(month: string): string {
+/**
+ * "2026-08" → "สิงหาคม 2569", or "August 2026" for a reader in English.
+ *
+ * The YEAR moves with the language too: 2569 is the Buddhist era, which is the year a Thai reader
+ * expects and the wrong number entirely for anyone else.
+ */
+export function monthLabel(month: string, lang: "th" | "en" = "th"): string {
   const m = /^(\d{4})-(\d{2})$/.exec(month ?? "");
   if (!m) return "—";
   const n = Number(m[2]);
   if (n < 1 || n > 12) return "—";
-  return `${MONTHS_FULL[n - 1]} ${toBE(Number(m[1]))}`;
+  const year = Number(m[1]);
+  if (lang === "en")
+    return new Date(Date.UTC(year, n - 1, 1)).toLocaleDateString("en-GB", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  return `${MONTHS_FULL[n - 1]} ${toBE(year)}`;
 }

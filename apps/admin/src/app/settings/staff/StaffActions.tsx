@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "../../ToastProvider";
+import { useT } from "../../LangProvider";
 import type { StaffRow } from "./PeopleTable";
 
 /**
@@ -41,6 +42,7 @@ export function StaffActions({
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const toast = useToast();
+  const t = useT();
 
   function close() {
     setOpen(false);
@@ -81,13 +83,13 @@ export function StaffActions({
       const res = await fetch(`/api/worker/staff/${path}`, { credentials: "include", ...init });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "That didn't work.", "error");
+        toast(data.error || t({ th: "ทำรายการไม่สำเร็จ", en: "That didn't work." }), "error");
         return;
       }
       toast(okMessage, "success");
       if (reload) setTimeout(() => location.reload(), 500);
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
     } finally {
       setBusy(false);
     }
@@ -103,25 +105,29 @@ export function StaffActions({
         aria-haspopup="menu"
         onClick={() => (open ? close() : openMenu())}
       >
-        Actions ▾
+        {t({ th: "จัดการ", en: "Actions" })} ▾
       </button>
 
       {open && at && (
         <div className="row-menu" role="menu" style={{ top: at.top, right: at.right }}>
           <a className="row-menu-item" href={`/settings/staff/${row.id}`} role="menuitem">
-            View
+            {t({ th: "ดูข้อมูล", en: "View" })}
           </a>
           <button
             type="button"
             className="row-menu-item"
             disabled={isSelf}
-            title={isSelf ? "You can't change your own role" : undefined}
+            title={
+              isSelf
+                ? t({ th: "เปลี่ยนตำแหน่งตัวเองไม่ได้", en: "You can't change your own role" })
+                : undefined
+            }
             onClick={() => {
               onChangeRole();
               close();
             }}
           >
-            Change role
+            {t({ th: "เปลี่ยนตำแหน่ง", en: "Change role" })}
           </button>
 
           <div className="row-menu-sep" />
@@ -131,9 +137,17 @@ export function StaffActions({
               type="button"
               className="row-menu-item danger"
               disabled={busy}
-              onClick={() => void call(row.id, { method: "DELETE" }, `${row.name} deleted`)}
+              onClick={() =>
+                void call(
+                  row.id,
+                  { method: "DELETE" },
+                  t({ th: `ลบ ${row.name} แล้ว`, en: `${row.name} deleted` }),
+                )
+              }
             >
-              {busy ? "Deleting…" : "Really delete?"}
+              {busy
+                ? t({ th: "กำลังลบ…", en: "Deleting…" })
+                : t({ th: "ลบเลยใช่ไหม?", en: "Really delete?" })}
             </button>
           ) : (
             <button
@@ -141,9 +155,13 @@ export function StaffActions({
               className="row-menu-item danger"
               onClick={() => setArmed("delete")}
               disabled={busy || isSelf}
-              title={isSelf ? "You can't delete your own account" : undefined}
+              title={
+                isSelf
+                  ? t({ th: "ลบบัญชีตัวเองไม่ได้", en: "You can't delete your own account" })
+                  : undefined
+              }
             >
-              Delete
+              {t({ th: "ลบ", en: "Delete" })}
             </button>
           )}
         </div>

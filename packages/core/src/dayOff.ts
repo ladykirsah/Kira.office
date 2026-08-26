@@ -24,6 +24,9 @@ export interface LeaveMode {
 
 export type LeaveHalves = 0 | 1 | 2;
 
+/** Which language a sentence built here should come out in. Thai is the default, as everywhere. */
+export type DayOffLang = "th" | "en";
+
 /** Heaviest first, so the dropdown opens on the common case and lateness sits last. */
 export const LEAVE_MODES: readonly LeaveMode[] = [
   { halves: 2, th: "เต็มวัน", en: "Full day" },
@@ -42,8 +45,18 @@ export function isLeaveHalves(value: unknown): value is LeaveHalves {
   return value === 0 || value === 1 || value === 2;
 }
 
+/**
+ * THAI, ALWAYS — because this is also what the API writes into the activity log, and a record
+ * already written cannot depend on who reads it a month later. Screens use `leaveModePhrase`.
+ */
 export function leaveModeLabel(halves: LeaveHalves): string {
   return LEAVE_MODES.find((m) => m.halves === halves)?.th ?? "";
+}
+
+/** The same three words, both languages, for a screen to pick from. */
+export function leaveModePhrase(halves: LeaveHalves): { th: string; en: string } {
+  const mode = LEAVE_MODES.find((m) => m.halves === halves);
+  return { th: mode?.th ?? "", en: mode?.en ?? "" };
 }
 
 /**
@@ -52,10 +65,17 @@ export function leaveModeLabel(halves: LeaveHalves): string {
  * Returns an empty string for zero rather than "0 วัน" — nothing taken is a different statement from
  * a measured zero, and the caller has a better sentence for it.
  */
-export function daysOffLabel(halves: number): string {
+export function daysOffLabel(halves: number, lang: DayOffLang = "th"): string {
   if (halves <= 0) return "";
   const days = Math.floor(halves / 2);
   const half = halves % 2 === 1;
+  if (lang === "en") {
+    if (days === 0) return "half a day";
+    // "2½ days" rather than "2.5 days": this is read off a wage sheet, and a decimal point beside
+    // money invites it to be read as money.
+    const count = half ? `${days}½` : `${days}`;
+    return `${count} ${days === 1 && !half ? "day" : "days"}`;
+  }
   if (days === 0) return "ครึ่งวัน";
   return half ? `${days} วันครึ่ง` : `${days} วัน`;
 }
@@ -77,10 +97,17 @@ export interface DayOffSummary {
  * next reader to treat the two as one thing — and a month with three late mornings and no leave
  * must never read as time taken off.
  */
-export function summariseDaysOff(rows: readonly { halves: number }[]): DayOffSummary {
+export function summariseDaysOff(
+  rows: readonly { halves: number }[],
+  lang: DayOffLang = "th",
+): DayOffSummary {
   const offHalves = rows.reduce((n, r) => n + Math.max(0, r.halves), 0);
   const lateCount = rows.filter((r) => r.halves === 0).length;
-  const off = daysOffLabel(offHalves);
+  const off = daysOffLabel(offHalves, lang);
+  if (lang === "en") {
+    const late = lateCount > 0 ? ` · late ${lateCount}×` : "";
+    return { offHalves, lateCount, label: `${off ? `${off} taken` : "no days off yet"}${late}` };
+  }
   const late = lateCount > 0 ? ` · เข้าสาย ${lateCount} ครั้ง` : "";
   return {
     offHalves,

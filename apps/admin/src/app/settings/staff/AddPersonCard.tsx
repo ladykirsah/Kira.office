@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import { useToast } from "../../ToastProvider";
+import { useT } from "../../LangProvider";
+import { ROLE_LABEL } from "@/lib/roleLabel";
 
-const ROLES = [
-  { value: "super_admin", label: "Super admin" },
-  { value: "admin", label: "Admin" },
-  { value: "mechanic", label: "Mechanic" },
-] as const;
+const ROLES = ["super_admin", "admin", "mechanic"] as const;
 
 // Same alphabet the API generates from: no I, l, 1, O or 0, because the owner reads these out loud
 // or types them into a chat message.
@@ -26,6 +24,7 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  const t = useT();
 
   async function create() {
     setBusy(true);
@@ -46,12 +45,15 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "Couldn't create that account.", "error");
+        toast(
+          data.error || t({ th: "สร้างบัญชีไม่สำเร็จ", en: "Couldn't create that account." }),
+          "error",
+        );
         return;
       }
       onDone(nameTh.trim() || nameEn.trim() || email);
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
     } finally {
       setBusy(false);
     }
@@ -61,12 +63,12 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
 
   return (
     <div className="card" style={{ marginBottom: 16, maxWidth: 560 }}>
-      <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Add person</h2>
+      <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>{t({ th: "เพิ่มคน", en: "Add person" })}</h2>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 150 }}>
           <label className="login-label" htmlFor="nameTh">
-            ชื่อ (Thai name)
+            {t({ th: "ชื่อ (ภาษาไทย)", en: "Name (Thai)" })}
           </label>
           <input
             id="nameTh"
@@ -77,7 +79,7 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
         </div>
         <div style={{ flex: 1, minWidth: 150 }}>
           <label className="login-label" htmlFor="nameEn">
-            Name (English)
+            {t({ th: "ชื่อ (ภาษาอังกฤษ)", en: "Name (English)" })}
           </label>
           <input
             id="nameEn"
@@ -90,7 +92,7 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
 
       <div style={{ marginBottom: 12 }}>
         <label className="login-label" htmlFor="email">
-          Email — this is their username
+          {t({ th: "อีเมล — ใช้เป็นชื่อผู้ใช้ของเขา", en: "Email — this is their username" })}
         </label>
         <input
           id="email"
@@ -103,12 +105,12 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
 
       <div style={{ marginBottom: 12 }}>
         <label className="login-label" htmlFor="role">
-          Role
+          {t({ th: "ตำแหน่ง", en: "Role" })}
         </label>
         <select id="role" value={role} onChange={(e) => setRole(e.target.value)}>
           {ROLES.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
+            <option key={r} value={r}>
+              {t(ROLE_LABEL[r]!)}
             </option>
           ))}
         </select>
@@ -116,7 +118,7 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
 
       <div style={{ marginBottom: 16 }}>
         <label className="login-label" htmlFor="password">
-          Password
+          {t({ th: "รหัสผ่าน", en: "Password" })}
         </label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
@@ -126,17 +128,22 @@ export function AddPersonCard({ onDone }: { onDone: (name: string) => void }) {
             style={{ flex: 1, minWidth: 180 }}
           />
           <button type="button" className="btn-soft" onClick={() => setPassword(generate())}>
-            Generate
+            {t({ th: "สุ่มให้", en: "Generate" })}
           </button>
         </div>
         <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0" }}>
-          You can read this back any time from Actions → Show password.
+          {t({
+            th: "เปิดดูย้อนหลังได้ตลอดที่ จัดการ → ดูรหัสผ่าน",
+            en: "You can read this back any time from Actions → Show password.",
+          })}
         </p>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button type="button" className="btn-primary" disabled={!ready || busy} onClick={create}>
-          {busy ? "Creating…" : "Create account"}
+          {busy
+            ? t({ th: "กำลังสร้าง…", en: "Creating…" })
+            : t({ th: "สร้างบัญชี", en: "Create account" })}
         </button>
       </div>
     </div>

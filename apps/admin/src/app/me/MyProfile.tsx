@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LEAVE_MODES, summariseDaysOff, type LeaveHalves } from "@l-shopee/core";
 import { useToast } from "../ToastProvider";
+import { useT, useLang } from "../LangProvider";
 import { DayOffTable, type DayOffEdit, type DayOffRow } from "../DayOffTable";
 import { MonthYearPicker } from "../MonthYearPicker";
 import { SecretRow } from "../settings/staff/[id]/SecretRow";
@@ -58,6 +59,8 @@ export function MyProfile({
   month: string;
 }) {
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
   const [day, setDay] = useState("");
   const [halves, setHalves] = useState<LeaveHalves>(2);
   const [reason, setReason] = useState("");
@@ -101,10 +104,20 @@ export function MyProfile({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "แก้ไขไม่สำเร็จ ลองใหม่อีกครั้ง", "error");
+        toast(
+          data.error ||
+            t({
+              th: "แก้ไขไม่สำเร็จ ลองใหม่อีกครั้ง",
+              en: t({
+                th: "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง",
+                en: "That didn't work. Try again.",
+              }),
+            }),
+          "error",
+        );
         return;
       }
-      toast("บันทึกแล้ว", "success");
+      toast(t({ th: "บันทึกแล้ว", en: "Saved" }), "success");
       await refreshDays();
     } finally {
       setBusy(null);
@@ -125,7 +138,11 @@ export function MyProfile({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "That didn't work. Try again.", "error");
+        toast(
+          data.error ||
+            t({ th: "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง", en: "That didn't work. Try again." }),
+          "error",
+        );
         return false;
       }
       toast(okMessage, "success");
@@ -134,7 +151,7 @@ export function MyProfile({
       location.reload();
       return true;
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
       return false;
     }
   }
@@ -150,13 +167,17 @@ export function MyProfile({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "That didn't work. Try again.", "error");
+        toast(
+          data.error ||
+            t({ th: "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง", en: "That didn't work. Try again." }),
+          "error",
+        );
         return;
       }
       toast(okMessage, "success");
       after();
     } catch {
-      toast("Couldn't reach the server.", "error");
+      toast(t({ th: "ติดต่อเซิร์ฟเวอร์ไม่ได้", en: "Couldn't reach the server." }), "error");
     } finally {
       setBusy(null);
     }
@@ -174,7 +195,9 @@ export function MyProfile({
           add to it, which is the order you actually do it in. */}
       <div className="profile-cols">
         <section className="card">
-          <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Your details</h2>
+          <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>
+            {t({ th: "ข้อมูลของฉัน", en: "Your details" })}
+          </h2>
           <dl
             style={{
               display: "grid",
@@ -183,12 +206,15 @@ export function MyProfile({
               margin: 0,
             }}
           >
-            <Row label="ชื่อ (Thai)" value={profile.nameTh} />
-            <Row label="Name (English)" value={profile.nameEn} />
-            <Row label="Email" value={profile.email} />
-            <Row label="Phone" value={profile.phone} />
+            <Row label={t({ th: "ชื่อ (ภาษาไทย)", en: "Name (Thai)" })} value={profile.nameTh} />
             <Row
-              label="Emergency contact"
+              label={t({ th: "ชื่อ (ภาษาอังกฤษ)", en: "Name (English)" })}
+              value={profile.nameEn}
+            />
+            <Row label={t({ th: "อีเมล", en: "Email" })} value={profile.email} />
+            <Row label={t({ th: "เบอร์โทร", en: "Phone" })} value={profile.phone} />
+            <Row
+              label={t({ th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency contact" })}
               value={
                 profile.emergencyPhone ? (
                   <>
@@ -200,15 +226,18 @@ export function MyProfile({
                 ) : null
               }
             />
-            <Row label="Started" value={profile.startedOn ? thaiDate(profile.startedOn) : null} />
+            <Row
+              label={t({ th: "เริ่มงาน", en: "Started" })}
+              value={profile.startedOn ? thaiDate(profile.startedOn) : null}
+            />
           </dl>
           <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
-            Ask the owner to change any of these.
+            {t({ th: "ถ้าจะแก้ไข ให้บอกเจ้าของร้าน", en: "Ask the owner to change any of these." })}
           </p>
         </section>
 
         <section className="card">
-          <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Pay</h2>
+          <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>{t({ th: "ค่าแรง", en: "Pay" })}</h2>
           <dl
             style={{
               display: "grid",
@@ -218,15 +247,25 @@ export function MyProfile({
             }}
           >
             <Row
-              label="Day rate"
-              value={profile.dayRateSatang != null ? `${baht(profile.dayRateSatang)} / day` : null}
+              label={t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}
+              value={
+                profile.dayRateSatang != null
+                  ? t({
+                      th: `${baht(profile.dayRateSatang)} / วัน`,
+                      en: `${baht(profile.dayRateSatang)} / day`,
+                    })
+                  : null
+              }
             />
-            <Row label="Paid" value="5th of each month" />
+            <Row
+              label={t({ th: "จ่ายวันที่", en: "Paid" })}
+              value={t({ th: "ทุกวันที่ 5 ของเดือน", en: "5th of each month" })}
+            />
             {/* IN FULL, not masked (owner, 2026-08-25, asked directly). It is their own account and
                 hiding it from them protects nobody — while showing it lets them check at a glance
                 that the shop is paying into the right one. */}
             <Row
-              label="Bank"
+              label={t({ th: "ธนาคาร", en: "Bank" })}
               value={
                 profile.bankName || profile.bankAccountName || profile.bankAccountNo ? (
                   <div style={{ display: "grid", gap: 2 }}>
@@ -265,9 +304,11 @@ export function MyProfile({
           }}
         >
           <div>
-            <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>วันหยุด</h2>
+            <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>
+              {t({ th: "วันหยุด", en: "Days off" })}
+            </h2>
             <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-              {monthLabel(month)} · {summariseDaysOff(days).label}
+              {monthLabel(month, lang)} · {summariseDaysOff(days, lang).label}
             </p>
           </div>
           {/* This card's own month, Thai names and พ.ศ. to match the heading beside it — the same
@@ -276,8 +317,8 @@ export function MyProfile({
               navigation. */}
           <MonthYearPicker
             value={month}
-            lang="th"
-            label="เดือนของวันหยุด"
+            lang={lang}
+            label={t({ th: "เดือนของวันหยุด", en: "Month of the day off" })}
             currentYear={currentYear}
             onChange={setMonth}
           />
@@ -303,7 +344,7 @@ export function MyProfile({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              วันที่
+              {t({ th: "วันที่", en: "Date" })}
             </label>
             <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
           </div>
@@ -312,7 +353,7 @@ export function MyProfile({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              ลาแบบ
+              {t({ th: "ลาแบบ", en: "Kind of leave" })}
             </label>
             <select
               value={halves}
@@ -320,7 +361,7 @@ export function MyProfile({
             >
               {LEAVE_MODES.map((m) => (
                 <option key={m.halves} value={m.halves}>
-                  {m.th}
+                  {lang === "th" ? m.th : m.en}
                 </option>
               ))}
             </select>
@@ -330,12 +371,13 @@ export function MyProfile({
               className="muted"
               style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}
             >
-              เหตุผล <span className="faint">(ไม่บังคับ)</span>
+              {t({ th: "เหตุผล", en: "Reason" })}{" "}
+              <span className="muted">{t({ th: "(ไม่บังคับ)", en: "(optional)" })}</span>
             </label>
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="เช่น พาแม่ไปหาหมอ"
+              placeholder={t({ th: "เช่น พาแม่ไปหาหมอ", en: "e.g. taking mum to the doctor" })}
               style={{ width: "100%" }}
             />
           </div>
@@ -347,7 +389,7 @@ export function MyProfile({
               post(
                 "day-off",
                 { day, halves, reason: reason || undefined },
-                "บันทึกวันหยุดแล้ว",
+                t({ th: "บันทึกวันหยุดแล้ว", en: "Day off saved" }),
                 () => {
                   setDay("");
                   setReason("");
@@ -356,7 +398,9 @@ export function MyProfile({
               )
             }
           >
-            {busy === "day-off" ? "กำลังบันทึก…" : "บันทึก"}
+            {busy === "day-off"
+              ? t({ th: "กำลังบันทึก…", en: "Saving…" })
+              : t({ th: "บันทึก", en: "Save" })}
           </button>
         </div>
       </section>
@@ -368,7 +412,9 @@ export function MyProfile({
       </section>
 
       <section className="card">
-        <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Signing in</h2>
+        <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>
+          {t({ th: "การเข้าใช้งาน", en: "Signing in" })}
+        </h2>
 
         {/* TWO THINGS PER SECRET, AND ONLY TWO (owner, 2026-08-25: "function here is messy · 2
             function requested here — view, change"). What was messy was a permanently open input
@@ -378,7 +424,7 @@ export function MyProfile({
             This is the same SecretRow the owner's staff-profile page uses, which is the point — the
             card was the last one on this page still hand-rolled. */}
         <SecretRow
-          label="Password"
+          label={t({ th: "รหัสผ่าน", en: "Password" })}
           value={profile.password}
           hasValue={profile.hasPassword === 1}
           actionLabel={{ th: "เปลี่ยน", en: "change" }}
@@ -387,15 +433,25 @@ export function MyProfile({
             // Checked HERE rather than by grey-ing out Save (owner, 2026-08-25): a dead button does
             // not say what is wrong with what you typed.
             if (next.trim().length < 8) {
-              toast("รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร", "error");
+              toast(
+                t({
+                  th: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร",
+                  en: "A password must be at least 8 characters.",
+                }),
+                "error",
+              );
               return false;
             }
-            return await save("password", { password: next.trim() }, "Password changed");
+            return await save(
+              "password",
+              { password: next.trim() },
+              t({ th: "เปลี่ยนรหัสผ่านแล้ว", en: "Password changed" }),
+            );
           }}
         />
 
         <SecretRow
-          label="6-digit PIN"
+          label={t({ th: "รหัส 6 หลัก", en: "6-digit PIN" })}
           value={profile.pin}
           hasValue={profile.hasPin === 1}
           actionLabel={{ th: "เปลี่ยน", en: "change" }}
@@ -404,12 +460,22 @@ export function MyProfile({
           maxLength={6}
           onSave={async (next) => {
             if (!/^\d{6}$/.test(next)) {
-              toast("PIN ต้องเป็นตัวเลข 6 หลัก", "error");
+              toast(
+                t({ th: "รหัสต้องเป็นตัวเลข 6 หลัก", en: "The PIN must be 6 digits." }),
+                "error",
+              );
               return false;
             }
-            return await save("pin", { pin: next }, "PIN set");
+            return await save(
+              "pin",
+              { pin: next },
+              t({ th: "ตั้งรหัส 6 หลักแล้ว", en: "PIN set" }),
+            );
           }}
-          hint="The PIN signs you in on its own — no email needed. Three wrong tries locks the account for 24 hours."
+          hint={t({
+            th: "รหัส 6 หลักใช้เข้าใช้งานได้เลย ไม่ต้องใส่อีเมล · ใส่ผิด 3 ครั้ง บัญชีถูกล็อก 24 ชั่วโมง",
+            en: "The PIN signs you in on its own — no email needed. Three wrong tries locks the account for 24 hours.",
+          })}
         />
       </section>
     </div>

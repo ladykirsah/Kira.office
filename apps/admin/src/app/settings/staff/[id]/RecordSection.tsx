@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LEAVE_MODES, type LeaveHalves, type PayMethod } from "@l-shopee/core";
 import { useToast } from "../../../ToastProvider";
+import { useT, useLang } from "../../../LangProvider";
+import type { Phrase } from "@/lib/lang";
 import { FilePickButton } from "../../../FilePickButton";
 import type { StaffPayment } from "./PaymentsTable";
 import { MonthYearPicker } from "../../../MonthYearPicker";
@@ -42,10 +44,10 @@ const baht = (satang: number) => `฿${(satang / 100).toLocaleString("en-US")}`;
 const toSatang = (thb: string): number =>
   Math.round((parseFloat(thb.replace(/[, ]/g, "")) || 0) * 100);
 
-const label: Record<Tab, string> = {
-  off: "วันหยุด",
-  advance: "เบิกล่วงหน้า",
-  salary: "จ่ายเงินเดือน",
+const label: Record<Tab, Phrase> = {
+  off: { th: "วันหยุด", en: "Day off" },
+  advance: { th: "เบิกล่วงหน้า", en: "Advance" },
+  salary: { th: "จ่ายเงินเดือน", en: "Salary payment" },
 };
 
 function Field({
@@ -83,6 +85,8 @@ export function RecordSection({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
   const [tab, setTab] = useState<Tab>("off");
   const [busy, setBusy] = useState(false);
 
@@ -138,7 +142,7 @@ export function RecordSection({
       const res = await fetch(url, { credentials: "include", ...init });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        toast(data.error || "ทำรายการไม่สำเร็จ", "error");
+        toast(data.error || t({ th: "ทำรายการไม่สำเร็จ", en: "That didn't work." }), "error");
         return;
       }
       toast(ok, "success");
@@ -159,10 +163,13 @@ export function RecordSection({
 
   const saveText =
     tab === "off"
-      ? "บันทึกวันหยุด"
+      ? t({ th: "บันทึกวันหยุด", en: "Save the day off" })
       : tab === "advance"
-        ? `บันทึกการเบิก ${baht(amountSatang)}`
-        : `บันทึกการจ่าย ${baht(dueSatang)}`;
+        ? t({
+            th: `บันทึกการเบิก ${baht(amountSatang)}`,
+            en: `Save the ${baht(amountSatang)} advance`,
+          })
+        : t({ th: `บันทึกการจ่าย ${baht(dueSatang)}`, en: `Save the ${baht(dueSatang)} payment` });
 
   function submit() {
     if (tab === "off") {
@@ -173,7 +180,7 @@ export function RecordSection({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ day, halves, reason: reason || undefined }),
         },
-        "บันทึกวันหยุดแล้ว",
+        t({ th: "บันทึกวันหยุดแล้ว", en: "Day off saved" }),
       );
       return;
     }
@@ -184,7 +191,7 @@ export function RecordSection({
       const post = async () => {
         const slipKey = slip ? await uploadSlip(userId, advancePeriod, slip) : null;
         if (slip && !slipKey) {
-          toast("อัปโหลดสลิปไม่สำเร็จ", "error");
+          toast(t({ th: "อัปโหลดสลิปไม่สำเร็จ", en: "The slip didn't upload." }), "error");
           return;
         }
         await send(
@@ -201,7 +208,7 @@ export function RecordSection({
               note: note || undefined,
             }),
           },
-          "บันทึกการเบิกแล้ว",
+          t({ th: "บันทึกการเบิกแล้ว", en: "Advance saved" }),
         );
       };
       setBusy(true);
@@ -215,7 +222,7 @@ export function RecordSection({
       slip
         ? { method: "POST", headers: { "content-type": slip.type }, body: slip }
         : { method: "POST" },
-      "บันทึกการจ่ายแล้ว",
+      t({ th: "บันทึกการจ่ายแล้ว", en: "Payment saved" }),
     );
   }
 
@@ -229,7 +236,7 @@ export function RecordSection({
 
   const methodSwitch = (
     <>
-      <Field label="จ่ายด้วย">
+      <Field label={t({ th: "จ่ายด้วย", en: "Paid by" })}>
         <div className="pay-method">
           {(["cash", "transfer"] as const).map((m) => (
             <button
@@ -241,7 +248,7 @@ export function RecordSection({
                 if (m === "cash") setSlip(null);
               }}
             >
-              {m === "cash" ? "เงินสด" : "โอน"}
+              {m === "cash" ? t({ th: "เงินสด", en: "Cash" }) : t({ th: "โอน", en: "Transfer" })}
             </button>
           ))}
         </div>
@@ -250,11 +257,15 @@ export function RecordSection({
         <Field
           label={
             <>
-              สลิป <b>(ต้องแนบ)</b>
+              {t({ th: "สลิป", en: "Slip" })} <b>{t({ th: "(ต้องแนบ)", en: "(required)" })}</b>
             </>
           }
         >
-          <FilePickButton file={slip} onPick={setSlip} label="สลิปการโอน" />
+          <FilePickButton
+            file={slip}
+            onPick={setSlip}
+            label={t({ th: "สลิปการโอน", en: "Transfer slip" })}
+          />
         </Field>
       )}
     </>
@@ -262,20 +273,22 @@ export function RecordSection({
 
   return (
     <section className="card">
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Record</div>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>
+        {t({ th: "เพิ่มรายการต่างๆ", en: "Record" })}
+      </div>
 
       <div className="record-tabs">
-        {(["off", "advance", "salary"] as const).map((t, i) => (
-          <span key={t} style={{ display: "contents" }}>
+        {(["off", "advance", "salary"] as const).map((key, i) => (
+          <span key={key} style={{ display: "contents" }}>
             {/* The line the owner asked for: time on one side, money on the other. */}
             {i === 1 && <span className="record-rule" aria-hidden />}
             <button
               type="button"
-              className={`record-tab${t !== "off" ? " money" : ""}${tab === t ? " on" : ""}`}
-              aria-pressed={tab === t}
-              onClick={() => setTab(t)}
+              className={`record-tab${key !== "off" ? " money" : ""}${tab === key ? " on" : ""}`}
+              aria-pressed={tab === key}
+              onClick={() => setTab(key)}
             >
-              {label[t]}
+              {t(label[key])}
             </button>
           </span>
         ))}
@@ -284,17 +297,17 @@ export function RecordSection({
       <div className={isMoney ? "fill-panel" : undefined}>
         {tab === "off" && (
           <div className="record-fields" style={fields}>
-            <Field label="วันที่">
+            <Field label={t({ th: "วันที่", en: "Date" })}>
               <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
             </Field>
-            <Field label="ลาแบบ">
+            <Field label={t({ th: "ลาแบบ", en: "Kind of leave" })}>
               <select
                 value={halves}
                 onChange={(e) => setHalves(Number(e.target.value) as LeaveHalves)}
               >
                 {LEAVE_MODES.map((m) => (
                   <option key={m.halves} value={m.halves}>
-                    {m.th}
+                    {lang === "th" ? m.th : m.en}
                   </option>
                 ))}
               </select>
@@ -302,14 +315,15 @@ export function RecordSection({
             <Field
               label={
                 <>
-                  เหตุผล <span className="faint">(ไม่บังคับ)</span>
+                  {t({ th: "เหตุผล", en: "Reason" })}{" "}
+                  <span className="muted">{t({ th: "(ไม่บังคับ)", en: "(optional)" })}</span>
                 </>
               }
             >
               <input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="เช่น พาแม่ไปหาหมอ"
+                placeholder={t({ th: "เช่น พาแม่ไปหาหมอ", en: "e.g. taking mum to the doctor" })}
               />
             </Field>
           </div>
@@ -317,10 +331,10 @@ export function RecordSection({
 
         {tab === "advance" && (
           <div className="record-fields" style={fields}>
-            <Field label="วันที่">
+            <Field label={t({ th: "วันที่", en: "Date" })}>
               <input type="date" value={givenOn} onChange={(e) => setGivenOn(e.target.value)} />
             </Field>
-            <Field label="จำนวน (บาท)">
+            <Field label={t({ th: "จำนวน (บาท)", en: "Amount (฿)" })}>
               <input
                 inputMode="decimal"
                 value={amountThb}
@@ -332,14 +346,18 @@ export function RecordSection({
             <Field
               label={
                 <>
-                  หมายเหตุ <span className="faint">(ไม่บังคับ)</span>
+                  {t({ th: "หมายเหตุ", en: "Note" })}{" "}
+                  <span className="muted">{t({ th: "(ไม่บังคับ)", en: "(optional)" })}</span>
                 </>
               }
             >
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="เช่น ขอเบิกก่อนเปิดเทอม"
+                placeholder={t({
+                  th: "เช่น ขอเบิกก่อนเปิดเทอม",
+                  en: "e.g. before the school term starts",
+                })}
               />
             </Field>
           </div>
@@ -347,19 +365,19 @@ export function RecordSection({
 
         {tab === "salary" && (
           <div className="record-fields" style={fields}>
-            <Field label="เดือนที่จ่าย">
+            <Field label={t({ th: "เดือนที่จ่าย", en: "For the month of" })}>
               <MonthYearPicker
                 value={payPeriod}
-                lang="th"
-                label="เดือนที่จ่าย"
+                lang={lang}
+                label={t({ th: "เดือนที่จ่าย", en: "For the month of" })}
                 currentYear={currentYear}
                 onChange={setPayPeriod}
               />
             </Field>
-            <Field label="วันที่จ่าย">
+            <Field label={t({ th: "วันที่จ่าย", en: "Paid on" })}>
               <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
             </Field>
-            <Field label="ยอดจ่าย">
+            <Field label={t({ th: "ยอดจ่าย", en: "Amount due" })}>
               <input value={baht(dueSatang)} readOnly />
             </Field>
             {methodSwitch}
@@ -369,25 +387,36 @@ export function RecordSection({
 
       <div style={{ marginTop: 14 }}>
         <button type="button" className="btn-primary btn-sm" disabled={!canSave} onClick={submit}>
-          {busy ? "กำลังบันทึก…" : saveText}
+          {busy ? t({ th: "กำลังบันทึก…", en: "Saving…" }) : saveText}
         </button>
       </div>
 
       <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>
         {tab === "off" ? (
           <>
-            เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน <b>เข้าสาย ไม่หักเงิน</b>
+            {t({
+              th: "เต็มวันและครึ่งวันหักจากวันทำงานของเดือนนั้น ส่วน ",
+              en: "Full and half days come off that month's working days. ",
+            })}
+            <b>{t({ th: "เข้าสาย ไม่หักเงิน", en: "Arriving late costs nothing." })}</b>
           </>
         ) : (tab === "advance" ? advanceMonthIsPaid : payMonthIsPaid) ? (
           <>
-            เดือนนี้จ่ายไปแล้ว — <b>บันทึกเพิ่มไม่ได้</b> เพราะสลิปที่ออกไปแล้วจะไม่ตรงกัน
+            {t({ th: "เดือนนี้จ่ายไปแล้ว — ", en: "This month is already paid — " })}
+            <b>{t({ th: "บันทึกเพิ่มไม่ได้", en: "nothing more can be recorded" })}</b>
+            {t({
+              th: " เพราะสลิปที่ออกไปแล้วจะไม่ตรงกัน",
+              en: ", because the slip already handed over would no longer match.",
+            })}
           </>
         ) : method === "transfer" ? (
           <>
-            โอน — <b>ต้องแนบสลิป</b> ถึงจะบันทึกได้
+            {t({ th: "โอน — ", en: "Transfer — " })}
+            <b>{t({ th: "ต้องแนบสลิป", en: "the slip is required" })}</b>
+            {t({ th: " ถึงจะบันทึกได้", en: " before this can be saved." })}
           </>
         ) : (
-          <>เงินสด — ไม่ต้องแนบสลิป</>
+          <>{t({ th: "เงินสด — ไม่ต้องแนบสลิป", en: "Cash — no slip needed." })}</>
         )}
       </p>
     </section>
