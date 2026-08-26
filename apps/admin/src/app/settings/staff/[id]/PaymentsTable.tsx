@@ -107,6 +107,20 @@ const METHOD_WORDS = {
  * in the Pay card (owner's choice): two places to change one field is exactly what was removed from
  * the วันหยุด card, and re-adding it here would repeat the mistake.
  */
+/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
+ *  which the phone prints beside the value once the table becomes cards. `note` has no column of
+ *  its own — an advance borrows the two columns it has no values for, which is a fact about the
+ *  wide grid; on a card the borrowed space is gone and the note needs a name. */
+const COLUMN = {
+  date: { th: "วันที่", en: "Date" },
+  dayRate: { th: "ค่าแรงต่อวัน", en: "Day rate" },
+  workingDays: { th: "วันทำงาน", en: "Working days" },
+  amount: { th: "จำนวนเงิน", en: "Amount" },
+  status: { th: "สถานะ", en: "Status" },
+  paidBy: { th: "วิธีจ่าย", en: "Paid by" },
+  note: { th: "หมายเหตุ", en: "Note" },
+};
+
 export function PaymentsTable({
   userId,
   payments,
@@ -287,16 +301,16 @@ export function PaymentsTable({
     <>
       {header}
 
-      <div className="products-scroll">
-        <table className="products-table">
+      <div className="products-scroll list-cards-scroll">
+        <table className="products-table list-cards">
           <thead>
             <tr>
-              <th>{t({ th: "วันที่", en: "Date" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "วันทำงาน", en: "Working days" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "จำนวนเงิน", en: "Amount" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "สถานะ", en: "Status" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "วิธีจ่าย", en: "Paid by" })}</th>
+              <th>{t(COLUMN.date)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.dayRate)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.workingDays)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.amount)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.status)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.paidBy)}</th>
             </tr>
           </thead>
           <tbody>
@@ -311,11 +325,19 @@ export function PaymentsTable({
                   {t({ th: "เงินเดือน", en: "Salary" })} · {monthLabel(month.period, lang)}
                 </span>
               </td>
-              <td className="num">{baht(month.dayRateSatang)}</td>
-              <td className="num">{days(month.workingHalves)}</td>
-              <td className="num">{baht(month.earnedSatang)}</td>
-              <td style={{ textAlign: "right" }}>{paidPill(month.paidAt !== null)}</td>
-              <td style={{ textAlign: "right" }}>
+              <td className="num" data-label={t(COLUMN.dayRate)}>
+                {baht(month.dayRateSatang)}
+              </td>
+              <td className="num" data-label={t(COLUMN.workingDays)}>
+                {days(month.workingHalves)}
+              </td>
+              <td className="num" data-label={t(COLUMN.amount)}>
+                {baht(month.earnedSatang)}
+              </td>
+              <td data-label={t(COLUMN.status)} style={{ textAlign: "right" }}>
+                {paidPill(month.paidAt !== null)}
+              </td>
+              <td data-label={t(COLUMN.paidBy)} style={{ textAlign: "right" }}>
                 {month.paidAt === null ? (
                   <span className="faint">—</span>
                 ) : (
@@ -345,12 +367,21 @@ export function PaymentsTable({
                     {t({ th: "เบิกล่วงหน้า", en: "Advance" })}
                   </span>
                 </td>
-                <td colSpan={2} className="muted" style={{ fontSize: 13, textAlign: "center" }}>
+                <td
+                  colSpan={2}
+                  className="muted"
+                  data-label={t(COLUMN.note)}
+                  style={{ fontSize: 13, textAlign: "center" }}
+                >
                   {a.note || <span className="faint">—</span>}
                 </td>
-                <td className="num">−{baht(a.amountSatang)}</td>
-                <td style={{ textAlign: "right" }}>{paidPill(true)}</td>
-                <td style={{ textAlign: "right" }}>
+                <td className="num" data-label={t(COLUMN.amount)}>
+                  −{baht(a.amountSatang)}
+                </td>
+                <td data-label={t(COLUMN.status)} style={{ textAlign: "right" }}>
+                  {paidPill(true)}
+                </td>
+                <td data-label={t(COLUMN.paidBy)} style={{ textAlign: "right" }}>
                   {slipCell(
                     a.method,
                     a.hasSlip
@@ -371,7 +402,7 @@ export function PaymentsTable({
               <td colSpan={3} style={{ fontWeight: 700 }}>
                 {t({ th: "คงเหลือ", en: "Total" })}
               </td>
-              <td className="num" style={{ fontWeight: 700 }}>
+              <td className="num" data-label={t(COLUMN.amount)} style={{ fontWeight: 700 }}>
                 {baht(month.dueSatang)}
                 {/* Over-advanced: the month pays ฿0 and the excess is owed back. Red, because it is
                     the one figure on this table that means money is missing (owner's rule —

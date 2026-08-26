@@ -293,3 +293,13 @@ sources: [session 2026-08-09]
   purpose: `.products-table` is worn by six screens and the activity log already has its own phone
   layout this would fight. Products only, so far.
   See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **The rollout: Staff People, Salary and Payments became cards too.** Owner asked
+  to settle the small spots on the reference first, then adjust the rest — so Products got the two
+  fixes that came out of the review (no "Action · Actions" duplicate label; the Staff tab row fills
+  the phone's width) and the other three inherited them rather than repeating them. Three things
+  the rollout taught: a table's min-width has to be a custom property, because the phone rule must
+  set it to 0 and nothing overrides an inline style; a total row is just a card whose name is
+  "Total"; and an empty cell is furniture from the wide grid that should disappear on a card.
+  Desktop measured unchanged on all four. See
+  [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

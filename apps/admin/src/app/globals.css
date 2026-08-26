@@ -345,7 +345,10 @@ tbody tr:hover {
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  min-width: 966px;
+  /* Each table sets its own floor inline as `--list-min-width` (the sum of its columns). It is a
+     custom property rather than a plain inline `min-width` for one reason: the phone rule below
+     has to be able to set it to 0, and nothing in a stylesheet can override an inline style. */
+  min-width: var(--list-min-width, 0px);
 }
 /* The record's name in the identity cell. Ellipsised in a table, where the column is a fixed
    width and a long name would push every other column off. */
@@ -384,26 +387,36 @@ tbody tr:hover {
   .list-cards tbody tr:hover {
     background: none;
   }
-  /* The identity cell leads the card at full width and keeps no label — the name IS the label. */
   .list-cards tbody td {
     display: block;
     border-bottom: 0;
     padding: 0;
+    font-size: 15px;
+  }
+  /* An empty cell is furniture from the wide grid — a spacer holding a column this row has no
+     value for. In a table it keeps the shape; in a card it is a blank line for nothing. */
+  .list-cards tbody td:empty {
+    display: none;
   }
   /* A card has no columns left to protect, so the name stops being cut off and simply wraps. */
   .list-cards .list-name {
     white-space: normal;
     overflow: visible;
   }
-  .list-cards tbody td.freeze-col {
-    position: static;
-    background: none;
-    box-shadow: none;
+  /* The identity cell leads the card at full width and keeps no label — the name IS the label.
+     Keyed on POSITION, not on `.freeze-col`: only the widest tables freeze a column, and every
+     list table has a first cell. */
+  .list-cards tbody td:first-child {
     padding-bottom: 10px;
     margin-bottom: 8px;
     border-bottom: 1px solid var(--border);
   }
-  /* Every other cell is a name on the left and its value on the right. */
+  .list-cards tbody td.freeze-col {
+    position: static;
+    background: none;
+    box-shadow: none;
+  }
+  /* Every labelled cell is a name on the left and its value on the right. */
   .list-cards tbody td[data-label] {
     display: flex;
     align-items: center;
@@ -417,6 +430,15 @@ tbody tr:hover {
     color: var(--text-muted);
     font-size: 13px;
     flex: 0 0 auto;
+  }
+  /* Anything else that is not the identity — the actions cell, and a drawer row that spanned every
+     column. Deliberately unlabelled: a control already says what it does, and the wide screen's
+     header would have said it a second time (owner, 2026-08-27, on "Action · Actions"). Full
+     width, sitting right, where a control belongs. */
+  .list-cards tbody td:not([data-label]):not(:first-child) {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
   }
 }
 

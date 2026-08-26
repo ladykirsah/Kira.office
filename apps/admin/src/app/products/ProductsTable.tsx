@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
@@ -251,6 +252,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             <table
               className={`products-table list-cards${frozen ? " frozen" : ""}`}
               cellPadding={8}
+              style={{ "--list-min-width": "966px" } as CSSProperties}
             >
               <colgroup>
                 {/* Product (frozen, min 400px) flexes to fill; the rest are fixed px. The table
@@ -388,7 +390,9 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                           return <span className={`pill ${s.cls}`}>{t(s.label)}</span>;
                         })()}
                       </td>
-                      <td data-label={t(COLUMN.action)}>
+                      {/* No label: the button already says Actions, and the wide screen's column
+                          header would have said it a second time (owner, 2026-08-27). */}
+                      <td>
                         <ActionsMenu
                           productId={p.id}
                           status={p.status}

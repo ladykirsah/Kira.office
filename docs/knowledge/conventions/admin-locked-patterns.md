@@ -48,7 +48,24 @@ Two things make it work:
 - **`data-label` on every `td`**, printed by `td[data-label]::before { content: attr(data-label) }`. The labels live in ONE `COLUMN` map that the `th` row also reads, so a header and its phone label cannot drift apart.
 - **`display: block` on the table**, which makes the browser ignore `colgroup` and `table-layout` outright — the fixed column widths stop applying without being unset one at a time.
 
-**It is OPT-IN, and must stay that way.** `.products-table` is worn by six screens and one of them — the staff activity log — already has its own phone layout that this would fight. A screen joins by adding `list-cards` to the table, `list-cards-scroll` to the wrapper, and `data-label` to every cell. **Without the labels a card is a column of unexplained values, which is worse than the scroll it replaced.** Joined so far: Products only. Still on the old sideways scroll: Staff People, Salary, Payments, the product-edit table.
+**It is OPT-IN, and must stay that way.** `.products-table` is worn by six screens and one of them — the staff activity log — already has its own phone layout that this would fight. A screen joins by adding `list-cards` to the table, `list-cards-scroll` to the wrapper, and `data-label` to every cell. **Without the labels a card is a column of unexplained values, which is worse than the scroll it replaced.**
+
+**Joined (27 Aug 2026): Products, Staff People, Staff Salary, Staff Payments.** The activity log keeps its own two-column fold. (The product-edit page only *mentions* `products-table` in a comment; it has no such table.)
+
+How a card is built, once the labels are on:
+
+| cell | treatment |
+|---|---|
+| first (identity) | full width, NO label — the name is the label — with a divider under it |
+| `[data-label]` | label left, value right |
+| anything else | full width, right-aligned, no label — the actions cell, and any drawer row that spanned every column |
+| `:empty` | hidden — a spacer for a column this row has no value for is furniture from the wide grid |
+
+Three things learned building the four:
+
+- **No label on the actions cell.** The button already says what it does; the column header said it a second time, and the card read "Action · Actions" (owner spotted it).
+- **A table's min-width is `--list-min-width`, set inline per table**, not a plain inline `min-width`. The phone rule has to set it to 0, and nothing in a stylesheet can override an inline style. Products 966px, Salary 780px, People and Payments none.
+- **A total row is just a card whose name happens to be "Total".** Label its figures like any other row and it needs no special case; its empty spacer cells disappear on their own.
 
 `.list-name` (the identity link) also moved out of an inline style for this: ellipsised in a table where a long name would push the other columns off, wrapping freely in a card where there are no columns left to protect.
 
