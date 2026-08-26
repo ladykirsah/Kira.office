@@ -257,3 +257,10 @@ sources: [session 2026-08-09]
   copy stored, and — the two easy mistakes — the account lock does not apply in EITHER direction,
   and every failure gets the same answer so the door is not an oracle. Migration 0090.
   See [auth/emergency-key](auth/emergency-key.md).
+
+- **2026-08-26** — **Migration 0090 applied to prod**, owner-authorised, ahead of the merge as the
+  order rule requires. `migrations list --remote` first showed it as the ONLY pending file, which is
+  itself the answer to a question the discipline doc had been guessing at since 9 Aug — prod was
+  already at 0089, not "0075 and probably further". That stale bullet is now replaced by a verified
+  one plus a number→feature map. Apply touched nothing that existed: 1 user row, 0 carrying a key.
+  See [operations/d1-migration-discipline](operations/d1-migration-discipline.md).

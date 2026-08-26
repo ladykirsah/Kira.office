@@ -3,7 +3,7 @@ type: invariant
 title: D1 migration discipline
 description: Migrations are always manual, always BEFORE the merge; the numbering gap 0048–0052 is a live landmine on two parked branches.
 tags: [d1, migrations, wrangler, deploy-order, staging]
-timestamp: 2026-08-09
+timestamp: 2026-08-26
 status: live
 sources: [kira-office-deploy-paths.md, kira-financial-part-progress.md, kira-staging-blocked-on-access.md, kira-office-architecture.md, packages/db/migrations]
 ---
@@ -30,10 +30,16 @@ CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
 
 The account pin is mandatory (three accounts visible to the login — [prod-d1-access](prod-d1-access.md)). One old memory line cited account `8724aa41…` for this — **WRONG**; the correct account is `187ab61e…` (verified when applying 0064). Reads are safe (R2 tier); writes and `migrations apply --remote` are R1+ and owner-gated. Rollback safety net: **D1 Time Travel (30 days)**.
 
-## Current state (2026-08-09)
+## Current state (2026-08-26)
 
-- Repo migrations tip: **0087** (`0087_storefront_events.sql`) in `packages/db/migrations/` (verified in the worktree today).
-- Prod was migrated through **0075** by Jul 31 (financial part: 0068–0069 credit/status, 0071 claims, 0072 staff note, 0073 shipping money, 0074 `slip_image_key`, 0075 `payment_expires_at`), and later feature merges (claims resolution 0077–0079, Shopee sync 0080, expenses 0081, staff auth 0082–0086, Insight 0087) imply prod has advanced further — but **do not assume: run `migrations list --remote`** before relying on any column.
+- Repo migrations tip: **0090** (`0090_owner_recovery_key.sql`) in `packages/db/migrations/`.
+- **Prod is applied through 0090** — verified 26 Aug 2026 by `migrations list --remote` (which showed 0090 as the
+  only pending file, so prod already held 0076–0089) and then applying it: 7 commands, `users_recovery_lookup_unique`
+  present in `sqlite_master`, 1 user row, 0 carrying a key. This line is a snapshot like the one below it was —
+  **still run `migrations list --remote` rather than trusting it.**
+- What the recent numbers carry, for reading a column back to its migration: 0068–0069 credit/status, 0071 claims,
+  0072 staff note, 0073 shipping money, 0074 `slip_image_key`, 0075 `payment_expires_at`, 0077–0079 claims resolution,
+  0080 Shopee sync, 0081 expenses, 0082–0086 staff auth, 0087 Insight, 0089 staff advances, 0090 the owner's emergency key.
 - The stale note trap: comments inside old migration files can lie about current behaviour (e.g. the 0068 comment describes a credit model since rebuilt) — the migration is history, not documentation.
 
 ## The numbering gap 0048–0052 (blocked landmine)
