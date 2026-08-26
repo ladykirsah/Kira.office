@@ -17,6 +17,20 @@ import { useT } from "../LangProvider";
 
 type Tab = "all" | "airplus" | "notlive" | "low" | "out";
 
+/**
+ * The column names, written once. The `th` reads them for the wide screen and every `td` carries
+ * the matching one as `data-label`, which is what the phone prints beside the value once the table
+ * stops being a table — so a header and its phone label cannot drift apart.
+ */
+const COLUMN = {
+  product: { th: "สินค้า", en: "Product" },
+  online: { th: "ราคาออนไลน์", en: "Online price" },
+  b2c: { th: "ราคา B2C", en: "B2C price" },
+  stock: { th: "คงเหลือ", en: "Stock" },
+  status: { th: "สถานะ", en: "Status" },
+  action: { th: "จัดการ", en: "Action" },
+};
+
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
   {
@@ -233,16 +247,10 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               : t({ th: "ไม่มีสินค้าที่ตรงกับที่เลือก", en: "No products match." })}
           </div>
         ) : (
-          <div className="products-scroll" ref={scrollRef}>
+          <div className="products-scroll list-cards-scroll" ref={scrollRef}>
             <table
-              className={frozen ? "products-table frozen" : "products-table"}
+              className={`products-table list-cards${frozen ? " frozen" : ""}`}
               cellPadding={8}
-              style={{
-                borderCollapse: "collapse",
-                tableLayout: "fixed",
-                width: "100%",
-                minWidth: 966,
-              }}
             >
               <colgroup>
                 {/* Product (frozen, min 400px) flexes to fill; the rest are fixed px. The table
@@ -257,13 +265,13 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               <thead>
                 <tr>
                   <th align="left" className="freeze-col">
-                    {t({ th: "สินค้า", en: "Product" })}
+                    {t(COLUMN.product)}
                   </th>
-                  <th align="left">{t({ th: "ราคาออนไลน์", en: "Online price" })}</th>
-                  <th align="left">{t({ th: "ราคา B2C", en: "B2C price" })}</th>
-                  <th align="center">{t({ th: "คงเหลือ", en: "Stock" })}</th>
-                  <th align="left">{t({ th: "สถานะ", en: "Status" })}</th>
-                  <th align="left">{t({ th: "จัดการ", en: "Action" })}</th>
+                  <th align="left">{t(COLUMN.online)}</th>
+                  <th align="left">{t(COLUMN.b2c)}</th>
+                  <th align="center">{t(COLUMN.stock)}</th>
+                  <th align="left">{t(COLUMN.status)}</th>
+                  <th align="left">{t(COLUMN.action)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,17 +322,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                             </span>
                           )}
                           <div style={{ minWidth: 0 }}>
-                            <a
-                              href={`/products/${p.id}`}
-                              title={p.name}
-                              style={{
-                                fontWeight: 600,
-                                display: "block",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
+                            <a className="list-name" href={`/products/${p.id}`} title={p.name}>
                               {p.name}
                             </a>
                             {(() => {
@@ -364,19 +362,19 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.online)}>
                         <PriceProfitCell
                           priceSatang={p.onlinePriceSatang}
                           profitSatang={seesProfit ? onlineProfit : null}
                         />
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.b2c)}>
                         <PriceProfitCell
                           priceSatang={p.offlinePriceSatang}
                           profitSatang={seesProfit ? b2cProfit : null}
                         />
                       </td>
-                      <td align="center">
+                      <td data-label={t(COLUMN.stock)} align="center">
                         <StockCell
                           variantId={p.variantId}
                           onHand={p.onHand}
@@ -384,13 +382,13 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                           readOnly={!managesCatalog}
                         />
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.status)}>
                         {(() => {
                           const s = productStatusTag(p);
                           return <span className={`pill ${s.cls}`}>{t(s.label)}</span>;
                         })()}
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.action)}>
                         <ActionsMenu
                           productId={p.id}
                           status={p.status}

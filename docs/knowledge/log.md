@@ -282,3 +282,14 @@ sources: [session 2026-08-09]
   not selling is readable without scrolling sideways to reach Status at all. The pill answers
   which tab the row is on; the note answers what is stopping it. Rules 5 and 7 of the locked list
   table amended together. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **The list table stops being a table on a phone.** Owner: *"this table look dead
+  on mobile."* It was, and the locked pattern said so in writing: rule 4's sideways scroll is right
+  on a laptop and useless at 375px, because the frozen identity column alone takes 400px — wider
+  than the screen. You saw a column of names and nothing else; price, stock, status and actions all
+  sat off the right edge behind a scrollbar most people never find. Below 741px a `list-cards`
+  table now becomes one card per row, each cell printing its own column name from `data-label`,
+  with the labels living in ONE map the header reads too so the two cannot drift. OPT-IN on
+  purpose: `.products-table` is worn by six screens and the activity log already has its own phone
+  layout this would fight. Products only, so far.
+  See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

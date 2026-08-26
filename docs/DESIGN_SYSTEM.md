@@ -87,6 +87,8 @@ gives the identity column the slack and every other column a fixed px width. The
 `.freeze-col` — sticky left on `--surface`; its divider shadow appears only while the table actually
 overflows (the `.frozen` class), so it never draws a line for nothing.
 
+On a phone (≤741px) a list table marked `list-cards` stops being a table: each row becomes a card, the identity cell leads it full width, and every other cell prints its own column name from `data-label`. Opt-in per screen — a card without labels is worse than the scroll. Products is the reference.
+
 **5. The identity cell is picture + name + tags.** 56px square thumbnail (`--hover` background,
 6px radius, emoji placeholder when there's no image), the name as a 600-weight link on one line with
 ellipsis and a `title` holding the full text, and under it a row of `.tag.tag-sm` chips. No tags → a

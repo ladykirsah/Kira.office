@@ -322,6 +322,104 @@ tbody tr:hover {
   box-shadow: inset -1px 0 0 var(--border);
 }
 
+/* ── A LIST TABLE THAT STOPS BEING A TABLE ON A PHONE ────────────────────────────────────────
+ *
+ * These four lines were inline on <table> until 2026-08-26; they are unchanged, only reachable
+ * now, because a media query cannot override an inline style. Everything the wide screen does is
+ * exactly what it did before.
+ *
+ * Why it had to move: the frozen column takes 966 − 566 = 400px, which is WIDER THAN A PHONE. So
+ * on a phone the table showed one column — names and nothing else — with the price, the stock,
+ * the status and the actions all parked off the right edge behind a scrollbar most people never
+ * find. Owner: "this table look dead on mobile."
+ *
+ * Below 741px the row becomes a card and each cell prints its own column name from `data-label`,
+ * which is the whole reason the labels moved into one COLUMN map in the component: the header and
+ * the phone label are now the same string, so they cannot drift.
+ *
+ * OPT-IN, and deliberately so. `.products-table` is the shared list-table class worn by six
+ * screens, and one of them — the staff activity log — already has its own phone layout that this
+ * would fight. A screen joins by adding `list-cards` AND giving every cell a `data-label`;
+ * without the labels a card is a column of unexplained values, which is worse than the scroll. */
+.list-cards {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 966px;
+}
+/* The record's name in the identity cell. Ellipsised in a table, where the column is a fixed
+   width and a long name would push every other column off. */
+.list-name {
+  font-weight: 600;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 741px) {
+  .products-scroll.list-cards-scroll {
+    overflow-x: visible;
+  }
+  .list-cards {
+    display: block;
+    min-width: 0;
+  }
+  /* A table that is `display: block` ignores its own colgroup and table-layout, so the fixed
+     column widths stop applying without having to be unset one by one. */
+  .list-cards colgroup,
+  .list-cards thead {
+    display: none;
+  }
+  .list-cards tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .list-cards tbody tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .list-cards tbody tr:hover {
+    background: none;
+  }
+  /* The identity cell leads the card at full width and keeps no label — the name IS the label. */
+  .list-cards tbody td {
+    display: block;
+    border-bottom: 0;
+    padding: 0;
+  }
+  /* A card has no columns left to protect, so the name stops being cut off and simply wraps. */
+  .list-cards .list-name {
+    white-space: normal;
+    overflow: visible;
+  }
+  .list-cards tbody td.freeze-col {
+    position: static;
+    background: none;
+    box-shadow: none;
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  /* Every other cell is a name on the left and its value on the right. */
+  .list-cards tbody td[data-label] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    text-align: left;
+  }
+  .list-cards tbody td[data-label]::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-size: 13px;
+    flex: 0 0 auto;
+  }
+}
+
 /* Label-sheet preview: a scrollable frame with one A4 page per row, stacked vertically. */
 .sheet-preview {
   display: flex;

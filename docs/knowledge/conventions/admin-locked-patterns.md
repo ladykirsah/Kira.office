@@ -27,7 +27,7 @@ The products table is THE list-table pattern for the whole admin. Reference: `ap
 1. Counted tabs above the frame ("All (3)")
 2. One framed section holds toolbar + table
 3. Toolbar = search, then "Sort by…", then a filter that only appears once a sort is picked (unset = faint/400, set = text/500)
-4. `table-layout:fixed` + min-width so the table scrolls sideways instead of squeezing; identity column frozen, its divider shown only while overflowing
+4. `table-layout:fixed` + min-width so the table scrolls sideways instead of squeezing; identity column frozen, its divider shown only while overflowing — **on a phone it stops being a table at all, see below**
 5. Identity cell = 56px thumbnail + ellipsised 600-weight name link + `.tag.tag-sm` chips, then the row's readiness note (`.why`) last
 6. Empty value = em dash in `.muted`, never blank
 7. Status is a pill and NOTHING ELSE; actions are ONE dropdown
@@ -36,6 +36,21 @@ The products table is THE list-table pattern for the whole admin. Reference: `ap
 Rules 5 and 7 were amended together on 26 Aug 2026 (owner). `.why` — "no photo · no price · no stock" — used to sit under the pill, in the narrowest column on the row, where three two-word notes broke onto three lines and read as a paragraph. It belongs under the thing it is about: in the identity cell it stays one line, and on a phone it rides inside the FROZEN column, so the reason a product is not selling is visible without scrolling sideways to reach Status at all. The pill answers "which tab is this row on"; the note answers "what is stopping it" — different questions, and only the second one needs room.
 
 Before building ANY record-list screen, read the doc section and copy the products table. Known gap as of 4 Aug: the Staff People table predates the lock (no tabs/toolbar/frozen column).
+
+### On a phone the list table becomes cards (26 Aug 2026)
+
+Owner, looking at Products on a phone: *"this table look dead on mobile."* It was. Rule 4's sideways scroll is right on a laptop and useless on a 375px screen: the frozen column alone takes 966 − 566 = **400px, wider than the phone**, so the table showed one column of names with the price, stock, status and actions parked off the right edge behind a scrollbar most people never find.
+
+Below 741px a `list-cards` table becomes one card per row: identity cell full width at the top, then one labelled line per remaining cell, name left and value right. `overflow-x` goes back to `visible` — nothing scrolls sideways any more.
+
+Two things make it work:
+
+- **`data-label` on every `td`**, printed by `td[data-label]::before { content: attr(data-label) }`. The labels live in ONE `COLUMN` map that the `th` row also reads, so a header and its phone label cannot drift apart.
+- **`display: block` on the table**, which makes the browser ignore `colgroup` and `table-layout` outright — the fixed column widths stop applying without being unset one at a time.
+
+**It is OPT-IN, and must stay that way.** `.products-table` is worn by six screens and one of them — the staff activity log — already has its own phone layout that this would fight. A screen joins by adding `list-cards` to the table, `list-cards-scroll` to the wrapper, and `data-label` to every cell. **Without the labels a card is a column of unexplained values, which is worse than the scroll it replaced.** Joined so far: Products only. Still on the old sideways scroll: Staff People, Salary, Payments, the product-edit table.
+
+`.list-name` (the identity link) also moved out of an inline style for this: ellipsised in a table where a long name would push the other columns off, wrapping freely in a card where there are no columns left to protect.
 
 ## Icon buttons — exactly TWO variants (locked 4 Aug 2026)
 
