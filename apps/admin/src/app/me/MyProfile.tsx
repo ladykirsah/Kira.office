@@ -7,6 +7,7 @@ import { useT, useLang } from "../LangProvider";
 import { DayOffTable, type DayOffEdit, type DayOffRow } from "../DayOffTable";
 import { MonthYearPicker } from "../MonthYearPicker";
 import { SecretRow } from "../settings/staff/[id]/SecretRow";
+import { recoveryKeyProblem, RECOVERY_KEY_MIN } from "@l-shopee/core";
 import { CopyButton } from "../products/CopyButton";
 import { PaymentsTable, type StaffPayment } from "../settings/staff/[id]/PaymentsTable";
 import { monthLabel } from "@/lib/dayOff";
@@ -31,6 +32,12 @@ export interface Profile {
   pin: string | null;
   hasPin: number;
   hasPassword: number;
+  /**
+   * Whether an emergency key is set, and when — never the key. No readable copy of it is stored,
+   * so there is nothing here to leak even if a screen asked.
+   */
+  hasRecoveryKey: number;
+  recoverySetAt: number | null;
 }
 
 const baht = (satang: number) => `฿${(satang / 100).toLocaleString("en-US")}`;
@@ -477,6 +484,49 @@ export function MyProfile({
             en: "The PIN signs you in on its own — no email needed. Three wrong tries locks the account for 24 hours.",
           })}
         />
+
+        {/*
+          THE EMERGENCY KEY — the owner's alone (owner, 2026-08-26).
+
+          A second way back in, standing beside the emailed Cloudflare code rather than replacing
+          it, because the two fail differently: an emailed code is no use when the mailbox or
+          Cloudflare is itself what is broken, which is the situation this guards against.
+
+          Only drawn for the shop owner. The API refuses anyone else independently — this just
+          keeps a control off screens where it would only mislead.
+        */}
+        {profile.role === "super_admin" && (
+          <SecretRow
+            label={t({ th: "กุญแจฉุกเฉิน", en: "Emergency key" })}
+            /* No readable copy is kept, deliberately — so there is nothing to reveal, ever. */
+            value={null}
+            hasValue={profile.hasRecoveryKey === 1}
+            actionLabel={{ th: "เปลี่ยน", en: "change" }}
+            confirm
+            onSave={async (next) => {
+              const problem = recoveryKeyProblem(next);
+              if (problem) {
+                toast(
+                  t({
+                    th: `กุญแจต้องยาวอย่างน้อย ${RECOVERY_KEY_MIN} ตัวอักษร`,
+                    en: problem,
+                  }),
+                  "error",
+                );
+                return false;
+              }
+              return await save(
+                "recovery-key",
+                { key: next.trim() },
+                t({ th: "ตั้งกุญแจฉุกเฉินแล้ว", en: "Emergency key set" }),
+              );
+            }}
+            hint={t({
+              th: `ใช้เปิด "ทางเข้าฉุกเฉิน" ที่หน้าเข้าใช้งาน เมื่อรหัส 6 หลักและรหัสผ่านใช้ไม่ได้ · ตัวอักษร ตัวเลข หรือสัญลักษณ์ก็ได้ อย่างน้อย ${RECOVERY_KEY_MIN} ตัว · เก็บแบบอ่านย้อนหลังไม่ได้ ลืมแล้วต้องตั้งใหม่`,
+              en: `Opens the emergency entrance on the sign-in screen when neither your PIN nor your password will. Letters, numbers or symbols, at least ${RECOVERY_KEY_MIN} of them. It is stored so that nobody can read it back — forget it and you set a new one.`,
+            })}
+          />
+        )}
       </section>
     </div>
   );

@@ -7,6 +7,8 @@ import {
   STAFF_LOGIN_MAX_FAILURES,
   STAFF_LOGIN_WINDOW_MS,
   loginThrottleKey,
+  recoveryThrottleKey,
+  isRecoveryThrottled,
   isLoginThrottled,
   recordLoginFailure,
   clearLoginFailures,
@@ -224,5 +226,47 @@ describe("clientAddress", () => {
     // bucket is the safe direction — the alternative is inventing a unique key per request, which
     // is a throttle that never throttles.
     expect(clientAddress(req({}))).toBe("unknown");
+  });
+});
+
+/**
+ * THE EMERGENCY DOOR'S OWN BUDGET (owner, 2026-08-26: "slow them down, never lock").
+ *
+ * Its own bucket and its own, much smaller allowance. The everyday door tolerates twenty misses
+ * because a shop behind one address fumbles all day; the emergency door is used once in a year, by
+ * one person, who knows the key — so five is generous for them and ruinous for a guesser.
+ *
+ * And a separate bucket in both directions: a busy till must never spend the owner's rescue budget,
+ * and somebody grinding at the rescue must never lock the tills out of the shop.
+ */
+describe("the emergency key's throttle", () => {
+  const NOW = 1_800_000_000_000;
+
+  it("has its own bucket, which the everyday login cannot spend", () => {
+    expect(recoveryThrottleKey("1.2.3.4")).not.toBe(loginThrottleKey("1.2.3.4"));
+  });
+
+  it("shuts the door after five misses, where the everyday one allows twenty", async () => {
+    const db = asD1(migratedDb());
+    const key = recoveryThrottleKey("1.2.3.4");
+    for (let i = 0; i < 4; i++) await recordLoginFailure(db, key, NOW);
+    expect(await isRecoveryThrottled(db, key, NOW)).toBe(false);
+    await recordLoginFailure(db, key, NOW);
+    expect(await isRecoveryThrottled(db, key, NOW)).toBe(true);
+  });
+
+  /** Never a lock: fall quiet for a window and the door answers again. That was the owner's choice. */
+  it("opens again in the next window — it slows a guesser, it never locks the owner out", async () => {
+    const db = asD1(migratedDb());
+    const key = recoveryThrottleKey("1.2.3.4");
+    for (let i = 0; i < 6; i++) await recordLoginFailure(db, key, NOW);
+    expect(await isRecoveryThrottled(db, key, NOW)).toBe(true);
+    expect(await isRecoveryThrottled(db, key, NOW + STAFF_LOGIN_WINDOW_MS)).toBe(false);
+  });
+
+  it("five misses at the rescue leave the everyday door untouched", async () => {
+    const db = asD1(migratedDb());
+    for (let i = 0; i < 6; i++) await recordLoginFailure(db, recoveryThrottleKey("1.2.3.4"), NOW);
+    expect(await isLoginThrottled(db, loginThrottleKey("1.2.3.4"), NOW)).toBe(false);
   });
 });

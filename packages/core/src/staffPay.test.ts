@@ -4,6 +4,7 @@ import {
   workingHalves,
   payForMonth,
   pinProblem,
+  recoveryKeyProblem,
   LOCK_AFTER_FAILURES,
   LOCK_DURATION_MS,
   FAILURE_WINDOW_MS,
@@ -230,5 +231,53 @@ describe("salaryDueDate", () => {
     expect(salaryDueDate("")).toBeNull();
     expect(salaryDueDate("2026-13")).toBeNull();
     expect(salaryDueDate("August")).toBeNull();
+  });
+});
+
+/**
+ * THE OWNER'S EMERGENCY KEY (owner, 2026-08-26).
+ *
+ * A second way back in, independent of Cloudflare and of the owner's mailbox — for the case where
+ * one of THOSE is the thing that is broken. It is typed alone, with no email beside it, so it both
+ * names the person and proves them: exactly the PIN's shape, and exactly the PIN's danger.
+ *
+ * FOUR CHARACTERS IS THE OWNER'S OWN FLOOR. They asked for no minimum, heard what a one-character
+ * key means on the open internet, and set one. It is the single biggest thing standing between this
+ * door and a guesser, so it is a rule here rather than a hint on a screen.
+ */
+describe("recoveryKeyProblem", () => {
+  it("given four or more characters > then no objection", () => {
+    expect(recoveryKeyProblem("1234")).toBeNull();
+    expect(recoveryKeyProblem("a long passphrase nobody would guess")).toBeNull();
+  });
+
+  /** Letters, numbers, symbols, Thai — free form was the point. */
+  it("takes anything a keyboard can type", () => {
+    expect(recoveryKeyProblem("!@#$")).toBeNull();
+    expect(recoveryKeyProblem("กุญแจ")).toBeNull();
+    expect(recoveryKeyProblem("aB3!xY9_")).toBeNull();
+  });
+
+  it("given fewer than four > then refuses, and says the number", () => {
+    expect(recoveryKeyProblem("abc")).toContain("4");
+    expect(recoveryKeyProblem("1")).toContain("4");
+    expect(recoveryKeyProblem("")).toContain("4");
+  });
+
+  /**
+   * Judged on what would be STORED. Leading and trailing spaces are invisible on screen and
+   * impossible to retype reliably — " 12 " must not pass as four characters and then refuse to open
+   * the door it was set for.
+   */
+  it("given spaces doing the work > then counts only what survives them", () => {
+    expect(recoveryKeyProblem("  ab  ")).toContain("4");
+    expect(recoveryKeyProblem("    ")).toContain("4");
+    expect(recoveryKeyProblem("  abcd  ")).toBeNull();
+  });
+
+  /** A key made only of spaces in the middle is still a key; only the ends are trimmed. */
+  it("given spaces inside > then they count", () => {
+    expect(recoveryKeyProblem("a b")).toContain("4");
+    expect(recoveryKeyProblem("a  b")).toBeNull();
   });
 });

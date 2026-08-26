@@ -71,13 +71,41 @@ export function loginThrottleKey(address: string): string {
   return `staff-login:ip:${address}`;
 }
 
+/**
+ * Failures tolerated at the EMERGENCY door, per caller per window (owner, 2026-08-26).
+ *
+ * Five, against the everyday door's twenty. The numbers answer different questions. Twenty is what
+ * a whole shop behind one address fumbles in a quarter of an hour and still deserves to be let in.
+ * The emergency door is used perhaps once in a year, by one person, who is typing a key they chose
+ * — five is more than they will ever need and takes a guesser from hundreds of attempts an hour to
+ * under five hundred a day, against a key that is at minimum four characters.
+ *
+ * Not a lock, though: the window still expires. The owner's rule was slow them down, never lock —
+ * because this is the door for when you are ALREADY locked out, and a rescue that can itself be
+ * shut permanently by a stranger is not a rescue.
+ */
+export const RECOVERY_MAX_FAILURES = 5;
+
+/**
+ * Its own bucket, in both directions. A busy till must never spend the owner's rescue budget, and
+ * somebody grinding away at the rescue must never shut the tills out of the shop.
+ */
+export function recoveryThrottleKey(address: string): string {
+  return `staff-recovery:ip:${address}`;
+}
+
 /** Fixed-window bucketing, matching the storefront's `throttleWindowStart`. */
 function windowStart(now: number): number {
   return now - (now % STAFF_LOGIN_WINDOW_MS);
 }
 
 /** Is this caller currently shut out? Reads only — a check must never cost an attempt. */
-export async function isLoginThrottled(db: D1Database, key: string, now: number): Promise<boolean> {
+export async function isLoginThrottled(
+  db: D1Database,
+  key: string,
+  now: number,
+  max: number = STAFF_LOGIN_MAX_FAILURES,
+): Promise<boolean> {
   const row = await db
     .prepare(`SELECT count, window_started_at AS windowStartedAt FROM auth_throttle WHERE key = ?`)
     .bind(key)
@@ -85,7 +113,16 @@ export async function isLoginThrottled(db: D1Database, key: string, now: number)
   if (!row) return false;
   // A tally from a window that has passed is history, not evidence.
   if (row.windowStartedAt !== windowStart(now)) return false;
-  return row.count >= STAFF_LOGIN_MAX_FAILURES;
+  return row.count >= max;
+}
+
+/** The same reading, against the emergency door's smaller allowance. */
+export async function isRecoveryThrottled(
+  db: D1Database,
+  key: string,
+  now: number,
+): Promise<boolean> {
+  return isLoginThrottled(db, key, now, RECOVERY_MAX_FAILURES);
 }
 
 /**
@@ -124,8 +161,9 @@ export async function refuseIfThrottled(
   db: D1Database,
   key: string,
   now: number,
+  max: number = STAFF_LOGIN_MAX_FAILURES,
 ): Promise<Response | null> {
-  if (!(await isLoginThrottled(db, key, now))) return null;
+  if (!(await isLoginThrottled(db, key, now, max))) return null;
   const retryAfter = Math.ceil((windowStart(now) + STAFF_LOGIN_WINDOW_MS - now) / 1000);
   return new Response(JSON.stringify({ error: "too_many_attempts", retryAfter }), {
     status: 429,

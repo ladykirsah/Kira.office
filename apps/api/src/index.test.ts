@@ -7,6 +7,7 @@ import {
   requireStaff,
   STAFF_SESSION_HEADER,
   loginWithPin,
+  loginWithRecoveryKey,
 } from "./staffSession";
 import {
   listStaff,
@@ -37,6 +38,7 @@ import {
   hashPassword,
   sha256Hex,
   pinLookup,
+  recoveryLookup,
   LOCK_AFTER_FAILURES,
   LOCK_DURATION_MS,
 } from "@l-shopee/core";
@@ -10042,5 +10044,129 @@ describe("POST /staff/login-practice", () => {
     const u = db.prepare(`SELECT COUNT(*) AS n FROM users`).get() as { n: number };
     expect(s.n).toBe(0);
     expect(u.n).toBe(0);
+  });
+});
+
+// ── The owner's emergency key (owner, 2026-08-26) ────────────────────────────────────────────────
+// A second way in, beside the emailed Cloudflare code rather than instead of it. Typed alone, so it
+// names the owner as well as proves them — the PIN's shape, and the PIN's exposure.
+describe("loginWithRecoveryKey", () => {
+  const NOW = 1_800_000_000_000;
+  const PEPPER = "test-pepper";
+
+  async function seed(
+    people: { id: string; key?: string; role?: string; status?: string; locked?: number }[],
+  ) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    for (const p of people) {
+      const hashed = p.key ? await hashPassword(p.key, { iterations: 1000 }) : null;
+      raw
+        .prepare(
+          `INSERT INTO users (id, name, email, role, status, created_at,
+                              recovery_hash, recovery_salt, recovery_iterations, recovery_lookup,
+                              locked_until)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          p.id,
+          p.id,
+          `${p.id}@shop.test`,
+          p.role ?? "super_admin",
+          p.status ?? "active",
+          NOW,
+          hashed?.hash ?? null,
+          hashed?.salt ?? null,
+          hashed?.iterations ?? null,
+          p.key ? await recoveryLookup(p.key, PEPPER) : null,
+          p.locked ?? null,
+        );
+    }
+    return { raw, db };
+  }
+
+  it("the right key signs the owner in with nothing else typed", async () => {
+    const { db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
+    const out = await loginWithRecoveryKey(db, "rescue-me-2026", NOW, PEPPER);
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.identity.userId).toBe("owner");
+  });
+
+  it("given a wrong key > then refused", async () => {
+    const { db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
+    expect((await loginWithRecoveryKey(db, "rescue-me-2027", NOW, PEPPER)).ok).toBe(false);
+  });
+
+  /**
+   * THE WHOLE POINT OF THE DOOR. A locked account is exactly the state the owner is rescuing
+   * themselves from, so the lock must not close this one too — and the rescue lifts it, the same
+   * way the emailed-code door does.
+   */
+  it("given the account is locked > then it still opens, and the lock is lifted", async () => {
+    const { raw, db } = await seed([
+      { id: "owner", key: "rescue-me-2026", locked: NOW + 86_400_000 },
+    ]);
+    const out = await loginWithRecoveryKey(db, "rescue-me-2026", NOW, PEPPER);
+    expect(out.ok).toBe(true);
+    const after = raw
+      .prepare(
+        `SELECT locked_until AS lockedUntil, failed_attempts AS failed FROM users WHERE id = 'owner'`,
+      )
+      .get() as { lockedUntil: number | null; failed: number };
+    expect(after.lockedUntil).toBeNull();
+    expect(after.failed).toBe(0);
+  });
+
+  /**
+   * A wrong key must NOT count towards the account's three-strike lock. Otherwise three fat-fingered
+   * rescue attempts would lock the everyday PIN as well — the door would take down the thing it
+   * exists to stand in for.
+   */
+  it("given a wrong key > then the account's own strike count is untouched", async () => {
+    const { raw, db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
+    await loginWithRecoveryKey(db, "nope", NOW, PEPPER);
+    await loginWithRecoveryKey(db, "nope", NOW, PEPPER);
+    await loginWithRecoveryKey(db, "nope", NOW, PEPPER);
+    const after = raw
+      .prepare(
+        `SELECT failed_attempts AS failed, locked_until AS lockedUntil FROM users WHERE id = 'owner'`,
+      )
+      .get() as { failed: number; lockedUntil: number | null };
+    expect(after.failed).toBe(0);
+    expect(after.lockedUntil).toBeNull();
+  });
+
+  /** Only the shop owner. An admin or a mechanic holding a key must not open this door. */
+  it("given the key belongs to someone who is not the owner > then refused", async () => {
+    const { db } = await seed([{ id: "helper", key: "rescue-me-2026", role: "admin" }]);
+    expect((await loginWithRecoveryKey(db, "rescue-me-2026", NOW, PEPPER)).ok).toBe(false);
+  });
+
+  it("given the owner has been switched off > then refused", async () => {
+    const { db } = await seed([{ id: "owner", key: "rescue-me-2026", status: "inactive" }]);
+    expect((await loginWithRecoveryKey(db, "rescue-me-2026", NOW, PEPPER)).ok).toBe(false);
+  });
+
+  /**
+   * A key nobody holds and a key typed wrongly get the SAME answer. Anything else turns the door
+   * into an oracle that says whether an emergency key exists at all.
+   */
+  it("given no key is set anywhere > then the same refusal as a wrong one", async () => {
+    const { db } = await seed([{ id: "owner" }]);
+    const missing = await loginWithRecoveryKey(db, "anything", NOW, PEPPER);
+    const { db: db2 } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
+    const wrong = await loginWithRecoveryKey(db2, "anything", NOW, PEPPER);
+    expect(missing).toEqual(wrong);
+  });
+
+  /** Trimmed on the way in as well as on the way out, or a key set as "abcd " could never be typed. */
+  it("given stray spaces around the typed key > then it still opens", async () => {
+    const { db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
+    expect((await loginWithRecoveryKey(db, "  rescue-me-2026  ", NOW, PEPPER)).ok).toBe(true);
+  });
+
+  it("given a key shorter than the floor > then refused without touching the database", async () => {
+    const { db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
+    expect((await loginWithRecoveryKey(db, "abc", NOW, PEPPER)).ok).toBe(false);
   });
 });

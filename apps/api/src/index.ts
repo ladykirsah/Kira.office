@@ -3,6 +3,8 @@ import { insightsFor } from "./insights";
 import {
   clientAddress,
   loginThrottleKey,
+  recoveryThrottleKey,
+  RECOVERY_MAX_FAILURES,
   recordLoginFailure,
   clearLoginFailures,
   refuseIfThrottled,
@@ -125,6 +127,7 @@ export interface Env {
 import {
   loginStaff,
   loginWithPin,
+  loginWithRecoveryKey,
   signInAsOwner,
   requireStaff,
   signInToPracticeCopy,
@@ -169,6 +172,9 @@ import {
   type DayOffInput,
   type CreateStaffInput,
   type UpdateStaffInput,
+  logRecoveryLogin,
+  setOwnRecoveryKey,
+  clearOwnRecoveryKey,
 } from "./staffRoutes";
 export { resolveActor, requireRole, type ActorContext } from "./auth";
 
@@ -6239,6 +6245,37 @@ const worker = {
       return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
     }
 
+    /**
+     * THE OWNER'S EMERGENCY DOOR (owner, 2026-08-26). Beside the emailed Access code, not instead of
+     * it — the two fail differently, and this one is for when Cloudflare or the mailbox is what is
+     * broken.
+     *
+     * Its own, much smaller throttle budget: five misses a window against the everyday door's
+     * twenty, in a separate bucket so neither can spend the other's. Checked before anything else,
+     * so a caller already shut out learns nothing about how this route is configured — not even
+     * whether an emergency key exists.
+     */
+    if (url.pathname === "/staff/login-recovery" && request.method === "POST") {
+      const now = Date.now();
+      const throttleKey = recoveryThrottleKey(clientAddress(request));
+      const shut = await refuseIfThrottled(env.DB, throttleKey, now, RECOVERY_MAX_FAILURES);
+      if (shut) return shut;
+      if (!env.STAFF_PIN_PEPPER) return json({ error: "recovery_unavailable" }, 503);
+      const body = await readJson<{ key?: string }>(request);
+      const out = await loginWithRecoveryKey(env.DB, body?.key ?? "", now, env.STAFF_PIN_PEPPER);
+      if (!out.ok) {
+        await recordLoginFailure(env.DB, throttleKey, now);
+        // One answer for every failure — see loginWithRecoveryKey. No `reason` is echoed back,
+        // because the only thing a reason could tell a stranger is which guess was closer.
+        return json({ error: "invalid" }, 401);
+      }
+      await clearLoginFailures(env.DB, throttleKey);
+      // Written into the work history: an emergency sign-in is exactly the event the owner should
+      // be able to find afterwards, whether or not it was them.
+      await logRecoveryLogin(env.DB, out.identity.userId, now);
+      return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
+    }
+
     // ── Everything below needs a live staff session ─────────────────────────────────────────────
     // During the transition BOTH gates run: Cloudflare Access still guards the edge, and a staff
     // session is what identifies the person. Once Access comes off (Phase 5) this is the only gate,
@@ -6273,6 +6310,21 @@ const worker = {
           env.STAFF_PIN_PEPPER ?? "",
           env.STAFF_SECRET_KEY ?? "",
         );
+      }
+      // The owner's emergency key, set from their own profile. Super admin alone — enforced in the
+      // handler, not here, so the rule lives beside the write it guards.
+      if (url.pathname === "/staff/me/recovery-key" && request.method === "POST") {
+        const body = await readJson<{ key?: string }>(request);
+        return setOwnRecoveryKey(
+          env.DB,
+          who,
+          body?.key ?? "",
+          Date.now(),
+          env.STAFF_PIN_PEPPER ?? "",
+        );
+      }
+      if (url.pathname === "/staff/me/recovery-key" && request.method === "DELETE") {
+        return clearOwnRecoveryKey(env.DB, who, Date.now());
       }
       if (url.pathname === "/staff/me/day-off" && request.method === "POST") {
         const body = await readJson<DayOffInput>(request);

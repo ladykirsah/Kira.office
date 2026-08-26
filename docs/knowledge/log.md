@@ -248,3 +248,12 @@ sources: [session 2026-08-09]
   and now says "2½ days taken" as well, `monthLabel` had the Buddhist year baked in, six places
   hard-coded `toLocaleDateString("en-GB")`, and the role names existed in three copies of which two
   were English-only. See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-08-26** — **The owner gets a second way back in.** A self-set emergency key, beside the
+  emailed Cloudflare code rather than instead of it: the two fail differently, and this one works
+  when Cloudflare or the mailbox is what is broken. Asked for as "no minimum length"; the owner
+  heard what a one-character key means on a form the whole internet can reach and set four
+  themselves. Its own throttle (5 per 15 minutes, separate bucket), super admin alone, no readable
+  copy stored, and — the two easy mistakes — the account lock does not apply in EITHER direction,
+  and every failure gets the same answer so the door is not an oracle. Migration 0090.
+  See [auth/emergency-key](auth/emergency-key.md).

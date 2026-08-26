@@ -7,6 +7,7 @@ import { STAFF_COOKIE, STAFF_COOKIE_MAX_AGE } from "@/lib/staffSession";
  *   { email, password }  → /staff/login          (the full sign-in)
  *   { pin }              → /staff/login-pin      (quick login; the PIN carries no email by design)
  *   { owner: true }      → /staff/login-access   (the owner, on Cloudflare Access alone)
+ *   { key }              → /staff/login-recovery (the owner's emergency key — carries no email either)
  *   { practice: true }   → /staff/login-practice (a LOCAL practice copy, no credential at all)
  *
  * The practice door decides nothing here. This route relays it and the API refuses with a 404
@@ -23,6 +24,7 @@ export async function POST(request: Request): Promise<Response> {
     email?: string;
     password?: string;
     pin?: string;
+    key?: string;
     owner?: boolean;
     practice?: boolean;
   };
@@ -34,21 +36,31 @@ export async function POST(request: Request): Promise<Response> {
 
   const usingPractice = body.practice === true;
   const usingOwner = !usingPractice && body.owner === true;
+  const usingKey =
+    !usingOwner && !usingPractice && typeof body.key === "string" && body.key.length > 0;
   const usingPin =
-    !usingOwner && !usingPractice && typeof body.pin === "string" && body.pin.length > 0;
+    !usingOwner &&
+    !usingPractice &&
+    !usingKey &&
+    typeof body.pin === "string" &&
+    body.pin.length > 0;
   const path = usingPractice
     ? "/staff/login-practice"
     : usingOwner
       ? "/staff/login-access"
-      : usingPin
-        ? "/staff/login-pin"
-        : "/staff/login";
+      : usingKey
+        ? "/staff/login-recovery"
+        : usingPin
+          ? "/staff/login-pin"
+          : "/staff/login";
   const payload =
     usingOwner || usingPractice
       ? {}
-      : usingPin
-        ? { pin: body.pin }
-        : { email: body.email ?? "", password: body.password ?? "" };
+      : usingKey
+        ? { key: body.key }
+        : usingPin
+          ? { pin: body.pin }
+          : { email: body.email ?? "", password: body.password ?? "" };
 
   /**
    * The owner door proves nothing by itself — the proof is the Access JWT, which Cloudflare puts on
@@ -98,7 +110,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (!upstream.ok) {
-    const reason = (await upstream.json().catch(() => ({}))) as { reason?: string };
+    const reason = (await upstream.json().catch(() => ({}))) as { reason?: string; error?: string };
+    // A caller who has been slowed down is WAITING, not failing. Relayed as itself so the screen can
+    // say so — "wrong key" would send someone hunting for a key that was never the problem.
+    if (upstream.status === 429) {
+      return Response.json({ error: "too_many_attempts" }, { status: 429 });
+    }
     return Response.json({ error: "invalid", reason: reason.reason ?? "invalid" }, { status: 401 });
   }
 
