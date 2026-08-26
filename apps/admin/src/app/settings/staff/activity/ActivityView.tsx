@@ -224,8 +224,9 @@ export function ActivityView({
                           <td className="muted num" style={{ width: 78 }}>
                             {time(row.createdAt)}
                           </td>
-                          <td style={{ whiteSpace: "nowrap" }}>
-                            {row.name} <span className="muted">· {t(ROLE_LABEL[row.role]!)}</span>
+                          <td className="activity-person">
+                            {row.name}{" "}
+                            <span className="muted activity-role">{t(ROLE_LABEL[row.role]!)}</span>
                           </td>
                           <td>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>

@@ -1937,6 +1937,25 @@ a.card:hover {
   padding: 14px 12px 6px;
 }
 
+/* Who did it. On a wide screen the name and the role sit on one line, separated by a middle dot
+   that CSS owns rather than the markup — so the phone can simply drop it. Down there the role
+   moves under the name instead, which is the whole point: "· Super admin" is the widest thing in
+   this column and it is the least urgent, so it stops setting the column's width. */
+.activity-person {
+  white-space: nowrap;
+}
+.activity-role::before {
+  content: "· ";
+}
+@media (max-width: 741px) {
+  .activity-role {
+    display: block;
+  }
+  .activity-role::before {
+    content: none;
+  }
+}
+
 /* Role, changed in place from the staff table. */
 .role-select {
   min-height: 32px;
