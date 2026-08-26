@@ -1958,11 +1958,24 @@ a.card:hover {
 .activity-role::before {
   content: "· ";
 }
+/* The sentence, with its status dot. One line on a wide screen, so the dot centres against it. */
+.activity-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.activity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
 @media (max-width: 741px) {
   .activity-table tbody tr {
     display: grid;
     grid-template-columns: auto 1fr;
-    column-gap: 12px;
+    /* Wide enough that the clock reads as its own column rather than the first word of the line. */
+    column-gap: 18px;
     align-items: start;
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
@@ -1986,6 +1999,27 @@ a.card:hover {
   .activity-table .activity-what {
     grid-row: 2;
     margin-top: 3px;
+  }
+  /* A sentence that wraps down here leaves the dot centred BETWEEN its lines, floating against
+     nothing. It marks where the sentence starts, so it belongs on the first line — nudged down by
+     half a line so it sits against the letters rather than the top of the line box. */
+  .activity-table .activity-line {
+    align-items: flex-start;
+  }
+  .activity-table .activity-dot {
+    margin-top: calc((1lh - 7px) / 2);
+  }
+  /* Everything was 16px, so the row read as one grey block with nothing to land on. The sentence
+     is what anyone came to read: it stays the biggest thing, and the time and the name step back
+     to the sizes the rest of the admin already uses for supporting text. */
+  .activity-table .activity-time {
+    font-size: 12px;
+  }
+  .activity-table .activity-person {
+    font-size: 13.5px;
+  }
+  .activity-table .activity-what {
+    font-size: 15px;
   }
 }
 

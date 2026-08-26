@@ -227,16 +227,11 @@ export function ActivityView({
                             <span className="muted activity-role">{t(ROLE_LABEL[row.role]!)}</span>
                           </td>
                           <td className="activity-what">
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span className="activity-line">
                               <span
+                                className="activity-dot"
                                 aria-hidden
-                                style={{
-                                  width: 7,
-                                  height: 7,
-                                  borderRadius: "50%",
-                                  background: d.colour,
-                                  flex: "0 0 auto",
-                                }}
+                                style={{ background: d.colour }}
                               />
                               {d.text}
                             </span>
