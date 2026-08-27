@@ -8,6 +8,7 @@ import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
 import { ExpenseActionsMenu } from "./ExpenseActionsMenu";
 import { useT } from "../LangProvider";
+import { COLUMN } from "./columns";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 
@@ -24,6 +25,11 @@ function msToISO(ms: number): string {
  * as the identity, no Sales, a negative Profit, an "Expense" status) with an Actions ▾ menu.
  * Edit turns the row's own cells (Conversion / Amount / Date) into inputs; Save PUTs the change
  * (channel + note are preserved). Delete soft-deletes.
+ *
+ * The cells line up with the six columns of BOTH tables — identity · Sales · Profit · Date ·
+ * Status · Actions — and each carries its column's word as a `data-label`, because on a phone the
+ * header row is hidden and every row is read as a card. Without them an expense was a column of
+ * bare numbers sitting under nothing, while the sale rows above it read fine.
  */
 export function ExpenseRows({
   expenses,
@@ -93,12 +99,15 @@ export function ExpenseRows({
                 <div style={tableText.body2}>{e.conversion}</div>
               )}
             </td>
-            {/* Sales — expenses have none */}
-            <td>
+            {/* Sales — expenses have none, so the column is there and the figure is not */}
+            <td data-label={t(COLUMN.sales)}>
               <span className="muted">—</span>
             </td>
             {/* Amount (shown as a negative Profit); a baht input while editing */}
-            <td style={editing ? undefined : { color: "var(--danger)" }}>
+            <td
+              data-label={t(COLUMN.profit)}
+              style={editing ? undefined : { color: "var(--danger)" }}
+            >
               {editing ? (
                 <input
                   value={amount}
@@ -113,7 +122,7 @@ export function ExpenseRows({
               )}
             </td>
             {/* Date — a date picker while editing */}
-            <td style={{ whiteSpace: "nowrap" }}>
+            <td data-label={t(COLUMN.date)} style={{ whiteSpace: "nowrap" }}>
               {editing ? (
                 <input
                   type="date"
@@ -126,7 +135,7 @@ export function ExpenseRows({
                 <div style={tableText.body2}>{dateTH(e.occurredAt)}</div>
               )}
             </td>
-            <td>
+            <td data-label={t(COLUMN.status)}>
               <span className="pill bad">{t({ th: "ค่าใช้จ่าย", en: "Expense" })}</span>
             </td>
             {/* Actions — Save / Cancel while editing, else the Actions ▾ menu */}
