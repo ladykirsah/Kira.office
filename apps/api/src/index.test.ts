@@ -5078,9 +5078,9 @@ describe("migration 0071 > order_claims", () => {
     const db = migratedDb();
     // sales_order_lines.product_variant_id is NOT NULL and references product_variants, which in
     // turn references products — so a claim fixture needs the whole chain, not just the order.
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1', 'Coil', ?)`).run(
-      SQLITE_NOW,
-    );
+    db.prepare(
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF', 'Coil', ?)`,
+    ).run(SQLITE_NOW);
     const variant = db.prepare(
       `INSERT INTO product_variants (id, product_id, created_at) VALUES (?, 'p1', ?)`,
     );
@@ -5232,7 +5232,9 @@ describe("recordRefund (failed-delivery refund)", () => {
   function bounced(over: { orderStatus?: string; paymentStatus?: string } = {}) {
     const { orderStatus = "delivery_failed", paymentStatus = "paid" } = over;
     const db = migratedDb();
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอยล์เย็น',?)`).run(NOW);
+    db.prepare(
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF','คอยล์เย็น',?)`,
+    ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
     ).run(NOW);
@@ -5365,9 +5367,9 @@ describe("recordClaimRefund (claim resolved with money back)", () => {
   ) {
     const { state = "mechanic_approved", resolution = "refund", refundedAt = null } = over;
     const db = migratedDb();
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์',?)`).run(
-      NOW,
-    );
+    db.prepare(
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF','คอมเพรสเซอร์',?)`,
+    ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
     ).run(NOW);
@@ -5507,9 +5509,9 @@ describe("recordClaimReturnShipment (ship a rejected claim's product back)", () 
   function rejected(over: { state?: string; trackingNo?: string | null } = {}) {
     const { state = "mechanic_rejected", trackingNo = null } = over;
     const db = migratedDb();
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์',?)`).run(
-      NOW,
-    );
+    db.prepare(
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF','คอมเพรสเซอร์',?)`,
+    ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
     ).run(NOW);
@@ -5709,9 +5711,9 @@ describe("getOrderDetail (the /orders/:id read model)", () => {
   function seeded(opts: { withCustomer?: boolean; withClaim?: boolean } = {}) {
     const { withCustomer = true, withClaim = false } = opts;
     const db = migratedDb();
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอยล์ร้อน Vios',?)`).run(
-      NOW,
-    );
+    db.prepare(
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF','คอยล์ร้อน Vios',?)`,
+    ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
     ).run(NOW);
@@ -6081,7 +6083,9 @@ describe("createClaim (admin raises a claim on the customer's behalf)", () => {
 
   function seeded(orderStatus = "delivered") {
     const db = migratedDb();
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','Coil',?)`).run(NOW);
+    db.prepare(
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF','Coil',?)`,
+    ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, created_at) VALUES ('v1','p1',?), ('v2','p1',?)`,
     ).run(NOW, NOW);
@@ -6382,7 +6386,7 @@ describe("order shipping breakdown (migration 0073 + the drop-off write)", () =>
     } = opts;
     const db = migratedDb();
     db.prepare(
-      `INSERT INTO products (id, name, created_at) VALUES ('p1','คอมเพรสเซอร์ Denso',?)`,
+      `INSERT INTO products (id, product_ref, name, created_at) VALUES ('p1', 'p1-REF','คอมเพรสเซอร์ Denso',?)`,
     ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
@@ -6649,13 +6653,13 @@ describe("getOrderDetail > product brand on each line", () => {
       { id: string } | undefined;
     expect(denso?.id).toBeTruthy();
     db.prepare(
-      `INSERT INTO products (id, name, brand_id, created_at)
-       VALUES ('p1','คอมเพรสเซอร์ Denso 10PA17C',?,?)`,
+      `INSERT INTO products (id, product_ref, name, brand_id, created_at)
+       VALUES ('p1', 'p1-REF','คอมเพรสเซอร์ Denso 10PA17C',?,?)`,
     ).run(denso!.id, NOW);
     // Deliberately no brand_id — the case an INNER JOIN would silently delete.
     db.prepare(
-      `INSERT INTO products (id, name, brand_id, created_at)
-       VALUES ('p2','น้ำยาแอร์ R134a',NULL,?)`,
+      `INSERT INTO products (id, product_ref, name, brand_id, created_at)
+       VALUES ('p2', 'p2-REF','น้ำยาแอร์ R134a',NULL,?)`,
     ).run(NOW);
     db.prepare(
       `INSERT INTO product_variants (id, product_id, sku, created_at)
@@ -8917,8 +8921,8 @@ describe("DELETE /products/:id — super admin only", () => {
       .run(role, NOW);
     raw
       .prepare(
-        `INSERT INTO products (id, name, status, created_at, shopee_listed, weight_grams)
-         VALUES ('p1', 'คอมเพรสเซอร์ Denso 10PA17C', 'active', ?, 0, 0)`,
+        `INSERT INTO products (id, product_ref, name, status, created_at, shopee_listed, weight_grams)
+         VALUES ('p1', 'p1-REF', 'คอมเพรสเซอร์ Denso 10PA17C', 'active', ?, 0, 0)`,
       )
       .run(NOW);
     const { token } = await createStaffSession(db, "u1", NOW);
@@ -8998,8 +9002,8 @@ describe("role enforcement on money, catalog and payment routes", () => {
       .run(role, NOW);
     raw
       .prepare(
-        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
-         VALUES ('p1','Compressor','active',?,0,0)`,
+        `INSERT INTO products (id, product_ref,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1', 'p1-REF','Compressor','active',?,0,0)`,
       )
       .run(NOW);
     const { token } = await createStaffSession(db, "u1", NOW);
@@ -9307,10 +9311,10 @@ describe("GET /products — every state the catalog has", () => {
     ] as const) {
       raw
         .prepare(
-          `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
-           VALUES (?,?,?,?,0,0)`,
+          `INSERT INTO products (id,product_ref,name,status,created_at,shopee_listed,weight_grams)
+           VALUES (?,?,?,?,?,0,0)`,
         )
-        .run(id, name, status, NOW);
+        .run(id, `${id}-REF`, name, status, NOW);
     }
     return { env: { DB: asD1(raw) } as unknown as Env, raw };
   }
@@ -9362,8 +9366,8 @@ describe("DELETE /products/:id — a real delete, refused when there is history"
       .run(NOW);
     raw
       .prepare(
-        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
-         VALUES ('p1','Compressor','active',?,0,0)`,
+        `INSERT INTO products (id, product_ref,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1', 'p1-REF','Compressor','active',?,0,0)`,
       )
       .run(NOW);
     raw
@@ -9522,8 +9526,8 @@ describe("POST /products/:id/shopee/list|unlist — the Shopee listing flag", ()
       .run(role, NOW);
     raw
       .prepare(
-        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
-         VALUES ('p1','Compressor','active',?,?,0)`,
+        `INSERT INTO products (id, product_ref,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1', 'p1-REF','Compressor','active',?,?,0)`,
       )
       .run(NOW, listed);
     const { token } = await createStaffSession(db, "u1", NOW);
@@ -9593,8 +9597,8 @@ describe("product money: who may change a price, and who may see margin", () => 
       .run(role, NOW);
     raw
       .prepare(
-        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
-         VALUES ('p1','Compressor','active',?,0,0)`,
+        `INSERT INTO products (id, product_ref,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1', 'p1-REF','Compressor','active',?,0,0)`,
       )
       .run(NOW);
     raw
@@ -10168,5 +10172,56 @@ describe("loginWithRecoveryKey", () => {
   it("given a key shorter than the floor > then refused without touching the database", async () => {
     const { db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
     expect((await loginWithRecoveryKey(db, "abc", NOW, PEPPER)).ok).toBe(false);
+  });
+});
+
+/**
+ * THE PRODUCT ID IS THE PRODUCT'S IDENTITY, and until now only the app said so.
+ *
+ * `product_ref` has been nullable since it was added (0006), and migration 0018 — the one that made
+ * it "the SOLE product identifier" and the barcode's source — settled for enforcing that "at the
+ * app layer". Every route does check it. But a row written any other way (a hand-run SQL fix, a
+ * seed, a future import) could still land without one, and four screens then reached straight for
+ * `.toLowerCase()` on it and took themselves down (27 Aug 2026, PR #154). The screens are fixed;
+ * this stops the row being writable in the first place.
+ */
+describe("migration 0091 > a product cannot exist without a Product ID", () => {
+  const insert = (db: DatabaseSync, ref: string | null, id = "p1") =>
+    db
+      .prepare(
+        "INSERT INTO products (id, product_ref, name, status, created_at) VALUES (?, ?, ?, 'active', 0)",
+      )
+      .run(id, ref, "คอมเพรสเซอร์ Denso");
+
+  it("given a real Product ID > then the product saves", () => {
+    const db = migratedDb();
+    expect(() => insert(db, "AC-CMP-01")).not.toThrow();
+  });
+
+  it("given no Product ID at all > then the database refuses the row", () => {
+    const db = migratedDb();
+    expect(() => insert(db, null)).toThrow(/Product ID/);
+  });
+
+  /** A NOT NULL column could not have caught this one: "" is a value. */
+  it("given a blank Product ID > then the database refuses it just the same", () => {
+    const db = migratedDb();
+    expect(() => insert(db, "   ")).toThrow(/Product ID/);
+  });
+
+  it("given a saved product > then its Product ID cannot be taken away later", () => {
+    const db = migratedDb();
+    insert(db, "AC-CMP-01");
+    expect(() =>
+      db.prepare("UPDATE products SET product_ref = NULL WHERE id = 'p1'").run(),
+    ).toThrow(/Product ID/);
+  });
+
+  it("given a saved product > then renaming its Product ID still works", () => {
+    const db = migratedDb();
+    insert(db, "AC-CMP-01");
+    expect(() =>
+      db.prepare("UPDATE products SET product_ref = 'AC-CMP-02' WHERE id = 'p1'").run(),
+    ).not.toThrow();
   });
 });
