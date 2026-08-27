@@ -10,7 +10,7 @@ import { TableFrame } from "../TableFrame";
 import { OrderActionsMenu } from "../orders/OrderActionsMenu";
 import { ExpenseRows } from "./ExpenseRows";
 import { useT } from "../LangProvider";
-import type { Phrase } from "@/lib/lang";
+import { COLUMN } from "./columns";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
@@ -20,17 +20,6 @@ const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
  * same per-row "Actions ▾" dropdown the /orders table uses: View → the order's detail page, where
  * status / carrier / tracking are edited. Finance stays a money view; fulfilment lives on /orders.
  */
-/** Written once: the `th` reads them, every `td` carries the matching one as `data-label` for the
- *  phone's card layout — so a card always says exactly what the header above it says. */
-const COLUMN = {
-  orderId: { th: "เลขคำสั่งซื้อ", en: "Order ID" },
-  sales: { th: "ยอดขาย", en: "Sales" },
-  profit: { th: "กำไร", en: "Profit" },
-  date: { th: "วันที่", en: "Date" },
-  status: { th: "สถานะ", en: "Status" },
-  action: { th: "จัดการ", en: "Action" },
-} satisfies Record<string, Phrase>;
-
 export function AirPlusOrders({
   orders,
   expenses = [],

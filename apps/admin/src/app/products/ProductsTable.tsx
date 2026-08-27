@@ -11,6 +11,7 @@ import { canWrite, canSeeProfit } from "@l-shopee/core";
 import { useStaffRole } from "../StaffRoleProvider";
 import { stockStatus } from "@/lib/stock";
 import { tableText } from "@/lib/tableText";
+import { matchesText } from "@/lib/textSearch";
 import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
@@ -99,12 +100,8 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           : tab === "out"
             ? outOfStock
             : products;
-  const s = q.trim().toLowerCase();
-  const rows = s
-    ? byTab.filter(
-        (p) => p.productRef.toLowerCase().includes(s) || p.name.toLowerCase().includes(s),
-      )
-    : byTab;
+  const s = q.trim();
+  const rows = s ? byTab.filter((p) => matchesText(s, p.productRef, p.name)) : byTab;
 
   // Linked Sort by + Filter: the chosen dimension drives both the sort and the Filter's options.
   const dim = DIMENSIONS.find((d) => d.key === sortBy);

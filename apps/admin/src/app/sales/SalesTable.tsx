@@ -9,20 +9,9 @@ import { tableText } from "@/lib/tableText";
 import { SalesActionsMenu } from "./SalesActionsMenu";
 import { ExpenseRows } from "./ExpenseRows";
 import { useT } from "../LangProvider";
-import type { Phrase } from "@/lib/lang";
+import { COLUMN } from "./columns";
 
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
-/** Written once: the `th` reads them, every `td` carries the matching one as `data-label` for the
- *  phone's card layout — so a card always says exactly what the header above it says. */
-const COLUMN = {
-  job: { th: "งาน", en: "Job" },
-  sales: { th: "ยอดขาย", en: "Sales" },
-  profit: { th: "กำไร", en: "Profit" },
-  date: { th: "วันที่", en: "Date" },
-  status: { th: "สถานะ", en: "Status" },
-  action: { th: "จัดการ", en: "Action" },
-} satisfies Record<string, Phrase>;
-
 export function SalesTable({
   sales,
   expenses = [],

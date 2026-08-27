@@ -117,7 +117,7 @@ export function wrapLines(
 }
 
 /** File name for a single saved label image, e.g. "label-261470-0290-full-L.png". */
-export function labelFileName(code: string, version: LabelVersion, size: LabelSize): string {
+export function labelFileName(code: string | null, version: LabelVersion, size: LabelSize): string {
   const safe = (code ?? "")
     .replace(/[^A-Za-z0-9._-]+/g, "-")
     .replace(/-+/g, "-")
