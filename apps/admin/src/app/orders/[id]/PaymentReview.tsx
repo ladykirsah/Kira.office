@@ -4,6 +4,7 @@ import { useState } from "react";
 import { reviewOrderPayment, privateFileUrl, type OrderDetail } from "@/lib/api";
 import { tableText } from "@/lib/tableText";
 import { inputS } from "@/lib/inputStyles";
+import { canDecidePayment } from "@/lib/paymentDecision";
 import { card, sectionTitle } from "./cardStyles";
 import { useT } from "../../LangProvider";
 
@@ -33,6 +34,8 @@ export function PaymentReviewSection({
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState<null | "confirm" | "reject">(null);
   const slipKey = order.slipImageKey;
+  /** Role AND a slip actually attached — see canDecidePayment for why the two are separate. */
+  const canDecide = canDecidePayment(canAct, slipKey);
 
   async function decide(decision: "confirm" | "reject") {
     if (decision === "reject" && !reason.trim()) return;
@@ -49,6 +52,37 @@ export function PaymentReviewSection({
       setBusy(null);
     }
   }
+
+  /**
+   * The two choices, written once and rendered in two places (owner, 27 Aug 2026: put them in the
+   * header card, phone only). One React element used twice rather than two copies of the markup —
+   * a second copy is a second thing to forget when the wording or the disabled rule changes.
+   *
+   * Reject is a two-step: it only opens the reason box below, so a slip is never rejected in one
+   * careless click.
+   */
+  const decisionButtons = (
+    <>
+      <button
+        type="button"
+        className="btn-primary btn-sm"
+        disabled={busy !== null}
+        onClick={() => void decide("confirm")}
+      >
+        {busy === "confirm"
+          ? t({ th: "กำลังยืนยัน…", en: "Confirming…" })
+          : t({ th: "ยืนยันการชำระเงิน", en: "Confirm payment" })}
+      </button>
+      <button
+        type="button"
+        className="btn-soft btn-sm"
+        disabled={busy !== null}
+        onClick={() => setRejecting((r) => !r)}
+      >
+        {t({ th: "ปฏิเสธ", en: "Reject" })}
+      </button>
+    </>
+  );
 
   return (
     <>
@@ -68,6 +102,12 @@ export function PaymentReviewSection({
           </div>
           <span className={`pill ${status.pill}`}>{status.label}</span>
         </div>
+        {/* The decision lives HERE, beside the status, on every size (owner, 27 Aug 2026 — first
+            for the phone, then for the wide screen too). It is the same slot the shipment section
+            puts its label buttons in, so the two Zone-A sections now read alike.
+
+            Absent entirely when there is no slip to judge: see canDecidePayment. */}
+        {canDecide && <div className="actions-row">{decisionButtons}</div>}
       </div>
 
       <div
@@ -95,72 +135,55 @@ export function PaymentReviewSection({
           )}
         </div>
 
-        <div style={card}>
-          <div style={sectionTitle}>{t({ th: "ผลการตรวจสอบ", en: "Your decision" })}</div>
-          {!canAct && (
-            <div style={tableText.subtitle}>
-              {t({ th: "เฉพาะผู้ดูแลระดับสูงและผู้ดูแล", en: "Super admin and admin only" })}
-            </div>
-          )}
-          {/* The two choices together. Reject is a two-step: it just opens the reason box below,
-              so a slip is never rejected in one careless click. */}
-          <div style={{ display: canAct ? "flex" : "none", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn-primary btn-sm"
-              disabled={busy !== null}
-              onClick={() => void decide("confirm")}
-            >
-              {busy === "confirm"
-                ? t({ th: "กำลังยืนยัน…", en: "Confirming…" })
-                : t({ th: "ยืนยันการชำระเงิน", en: "Confirm payment" })}
-            </button>
-            <button
-              type="button"
-              className="btn-soft btn-sm"
-              disabled={busy !== null}
-              onClick={() => setRejecting((r) => !r)}
-            >
-              {t({ th: "ปฏิเสธ", en: "Reject" })}
-            </button>
-          </div>
+        {/* Nothing left in this card once the buttons move up — so it only exists when it has
+            something to say: the reason box after ปฏิเสธ, or the notice to a viewer who may not
+            decide. A titled empty box reads as a missing feature. */}
+        {(rejecting || !canAct) && (
+          <div style={card}>
+            <div style={sectionTitle}>{t({ th: "ผลการตรวจสอบ", en: "Your decision" })}</div>
+            {!canAct && (
+              <div style={tableText.subtitle}>
+                {t({ th: "เฉพาะผู้ดูแลระดับสูงและผู้ดูแล", en: "Super admin and admin only" })}
+              </div>
+            )}
 
-          {rejecting && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ ...tableText.subtitle, marginBottom: 4 }}>
-                {t({ th: "เหตุผลที่ปฏิเสธ (จำเป็น)", en: "Reason for rejecting (required)" })}
+            {rejecting && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ ...tableText.subtitle, marginBottom: 4 }}>
+                  {t({ th: "เหตุผลที่ปฏิเสธ (จำเป็น)", en: "Reason for rejecting (required)" })}
+                </div>
+                <textarea
+                  autoFocus
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  placeholder={t({
+                    th: "เช่น ยอดไม่ตรง, สลิปไม่ชัด…",
+                    en: "e.g. amount does not match, slip unreadable…",
+                  })}
+                  style={{ width: "100%", ...inputS, minHeight: 52 }}
+                />
+                <button
+                  type="button"
+                  className="btn-danger btn-sm"
+                  disabled={busy !== null || !reason.trim()}
+                  onClick={() => void decide("reject")}
+                  style={{ marginTop: 8 }}
+                >
+                  {busy === "reject"
+                    ? t({ th: "กำลังปฏิเสธ…", en: "Rejecting…" })
+                    : t({ th: "ยืนยันการปฏิเสธ", en: "Confirm rejection" })}
+                </button>
+                <div style={{ ...tableText.subtitle, marginTop: 8 }}>
+                  {t({
+                    th: "ปฏิเสธแล้วคำสั่งซื้อจะกลับไปที่ “รอชำระเงิน” และให้เวลาลูกค้าใหม่ 48 ชม.",
+                    en: "Rejecting sends the order back to “Unpaid” and gives the customer another 48 hours.",
+                  })}
+                </div>
               </div>
-              <textarea
-                autoFocus
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={2}
-                placeholder={t({
-                  th: "เช่น ยอดไม่ตรง, สลิปไม่ชัด…",
-                  en: "e.g. amount does not match, slip unreadable…",
-                })}
-                style={{ width: "100%", ...inputS, minHeight: 52 }}
-              />
-              <button
-                type="button"
-                className="btn-danger btn-sm"
-                disabled={busy !== null || !reason.trim()}
-                onClick={() => void decide("reject")}
-                style={{ marginTop: 8 }}
-              >
-                {busy === "reject"
-                  ? t({ th: "กำลังปฏิเสธ…", en: "Rejecting…" })
-                  : t({ th: "ยืนยันการปฏิเสธ", en: "Confirm rejection" })}
-              </button>
-              <div style={{ ...tableText.subtitle, marginTop: 8 }}>
-                {t({
-                  th: "ปฏิเสธแล้วคำสั่งซื้อจะกลับไปที่ “รอชำระเงิน” และให้เวลาลูกค้าใหม่ 48 ชม.",
-                  en: "Rejecting sends the order back to “Unpaid” and gives the customer another 48 hours.",
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

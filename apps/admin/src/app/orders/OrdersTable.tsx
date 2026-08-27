@@ -24,6 +24,7 @@ import {
 } from "@/lib/summaryCardStyles";
 import { OPERATIONAL_STATUSES, operationalStatus, operationalStatusLabel } from "@l-shopee/core";
 import { OrderActionsMenu } from "./OrderActionsMenu";
+import { OrderCards } from "./OrderCards";
 
 import type { OrderTab } from "@/lib/orderTabs";
 import { useT } from "../LangProvider";
@@ -54,8 +55,13 @@ const frameStyle = {
   background: "var(--surface)",
 } as const;
 
-/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
- *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
+/** The wide table's column headings, written once.
+ *
+ *  They used to be doing a second job: every `td` carried the matching one as `data-label` and the
+ *  phone printed it beside the value, because the table folded into label/value cards below 741px.
+ *  The phone has its own card now (OrderCards.tsx), so these are headings again — and `action` is
+ *  kept even though the phone's card has no such word, since the wide table's column still needs
+ *  naming. */
 const COLUMN = {
   order: { th: "ออเดอร์", en: "Order" },
   customer: { th: "ลูกค้า", en: "Customer" },
@@ -373,71 +379,81 @@ export function OrdersTable({
               : t({ th: "ไม่มีออเดอร์ที่ตรงกับที่เลือก", en: "No orders match." })}
           </div>
         ) : (
-          <div className="list-cards-scroll">
-            <table className="list-cards">
-              <thead>
-                <tr>
-                  <th>{t(COLUMN.order)}</th>
-                  <th>{t(COLUMN.customer)}</th>
-                  <th>{t(COLUMN.total)}</th>
-                  <th>{t(COLUMN.status)}</th>
-                  <th align="left">{t(COLUMN.action)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {view.map((o) => {
-                  // Status shows the owner's seven operational states, which need BOTH axes: a
-                  // new+pending order waits on the customer, new+cod waits on the owner's COD
-                  // approval, and both have order_status 'new'.
-                  const osBadge = operationalStatusBadge(o.orderStatus, o.paymentStatus);
-                  const psBadge = paymentStatusBadge(o.paymentStatus);
-                  return (
-                    <tr key={o.id}>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        {/* The order code links to the detail page, same target as the row's View
+          <>
+            {/* The phone gets its own card markup (design D) rather than the table folded into
+                label/value rows: it shows the goods, and no arrangement of these five cells can
+                produce a picture, a product line and a button. The table below is untouched and
+                simply hidden — which is why the wide screen cannot move. */}
+            <OrderCards orders={view} />
+            <div className="list-cards-scroll wide-only">
+              {/* No `list-cards` any more: that class exists to fold a row into a card, and this
+                  table never becomes one. Deliberately NOT `list-fixed` either — Orders has always
+                  been auto-sized, and fixed layout would hand every column an equal share. */}
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t(COLUMN.order)}</th>
+                    <th>{t(COLUMN.customer)}</th>
+                    <th>{t(COLUMN.total)}</th>
+                    <th>{t(COLUMN.status)}</th>
+                    <th align="left">{t(COLUMN.action)}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.map((o) => {
+                    // Status shows the owner's seven operational states, which need BOTH axes: a
+                    // new+pending order waits on the customer, new+cod waits on the owner's COD
+                    // approval, and both have order_status 'new'.
+                    const osBadge = operationalStatusBadge(o.orderStatus, o.paymentStatus);
+                    const psBadge = paymentStatusBadge(o.paymentStatus);
+                    return (
+                      <tr key={o.id}>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          {/* The order code links to the detail page, same target as the row's View
                             action — mirrors the product-name link on the Products table. */}
-                        <a
-                          href={`/orders/${o.id}`}
-                          title={o.externalOrderId}
-                          style={{
-                            fontWeight: 700,
-                            ...tableText.body2,
-                            display: "block",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {o.externalOrderId}
-                        </a>
-                        <div style={tableText.subtitle}>{formatDate(orderDate(o))}</div>
-                      </td>
-                      <td data-label={t(COLUMN.customer)}>
-                        <div style={{ fontWeight: 700, ...tableText.body2 }}>
-                          {o.customerCode || <span className="muted">—</span>}
-                        </div>
-                        <div style={tableText.subtitle}>
-                          {o.buyerUsername || <span className="muted">—</span>}
-                        </div>
-                      </td>
-                      <td data-label={t(COLUMN.total)}>
-                        <div style={{ fontWeight: 700, ...tableText.body2 }}>
-                          {formatBahtTrim(o.grandTotalSatang)}
-                        </div>
-                        <div style={tableText.subtitle}>{t(psBadge.label)}</div>
-                      </td>
-                      <td data-label={t(COLUMN.status)}>
-                        <span className={`pill ${osBadge.pill}`}>{t(osBadge.label)}</span>
-                      </td>
-                      <td>
-                        <OrderActionsMenu orderId={o.id} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          <a
+                            href={`/orders/${o.id}`}
+                            title={o.externalOrderId}
+                            style={{
+                              fontWeight: 700,
+                              ...tableText.body2,
+                              display: "block",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {o.externalOrderId}
+                          </a>
+                          <div style={tableText.subtitle}>{formatDate(orderDate(o))}</div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, ...tableText.body2 }}>
+                            {o.customerCode || <span className="muted">—</span>}
+                          </div>
+                          <div style={tableText.subtitle}>
+                            {o.buyerUsername || <span className="muted">—</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, ...tableText.body2 }}>
+                            {formatBahtTrim(o.grandTotalSatang)}
+                          </div>
+                          <div style={tableText.subtitle}>{t(psBadge.label)}</div>
+                        </td>
+                        <td>
+                          <span className={`pill ${osBadge.pill}`}>{t(osBadge.label)}</span>
+                        </td>
+                        <td>
+                          <OrderActionsMenu orderId={o.id} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </>

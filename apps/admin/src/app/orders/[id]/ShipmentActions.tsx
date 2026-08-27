@@ -147,7 +147,15 @@ export function ShipmentSection({ order, address, lines, shop, status, onError }
         }}
       >
         <DropOffCard order={order} onError={onError} />
-        <div style={card}>
+        {/* OFF-SCREEN ON A PHONE, not hidden (owner: hide it there, 27 Aug 2026). The label is a
+            fixed 378px so it never fitted a 375px screen anyway — it sat in a sideways scroller
+            nobody scrolls, under the two buttons that already save it.
+
+            `display: none` would have broken those buttons: `saveFile` rasterises THIS node with
+            html2canvas, and a hidden node has no layout to rasterise. So the phone rule moves it
+            out of view while leaving it laid out — the same trick the Documents card's own copy
+            uses a few lines below, and for the same reason. */}
+        <div className="phone-offscreen" style={card}>
           <div style={sectionTitle}>{t({ th: "ใบปะหน้าพัสดุ", en: "Shipping label" })}</div>
           {/* overflow-x rather than a fluid width: the label is a fixed 378px so the capture is
               predictable, and a squeezed column should scroll it, not reflow what gets printed. */}
