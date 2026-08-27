@@ -25,6 +25,17 @@ const ACTIONS: { key: AdjustAction; label: string; amountLabel: string }[] = [
   { key: "correction", label: "Correct to", amountLabel: "Counted" },
 ];
 
+/** The column names, written once: the `th` reads them, every `td` carries the matching one as
+ *  `data-label` for the phone's card layout. Plain strings, not `t({ })` — this page has not been
+ *  through the bilingual sweep yet, and the card must say exactly what the header says. */
+const COLUMN = {
+  when: "When",
+  product: "Product",
+  movement: "Movement",
+  qty: "Qty",
+  onHand: "On hand",
+};
+
 export default function StockMovementsPage() {
   const [stock, setStock] = useState<StockRow[] | null>(null);
   const [movements, setMovements] = useState<StockMovementRow[] | null>(null);
@@ -211,22 +222,22 @@ export default function StockMovementsPage() {
           <div className="empty-icon">🧾</div>No stock movements yet.
         </div>
       ) : (
-        <TableFrame>
-          <table>
+        <TableFrame cards>
+          <table className="list-cards">
             <thead>
               <tr>
-                <th>When</th>
-                <th>Product</th>
-                <th>Movement</th>
-                <th style={right}>Qty</th>
-                <th style={right}>On hand</th>
+                <th>{COLUMN.when}</th>
+                <th>{COLUMN.product}</th>
+                <th>{COLUMN.movement}</th>
+                <th style={right}>{COLUMN.qty}</th>
+                <th style={right}>{COLUMN.onHand}</th>
               </tr>
             </thead>
             <tbody>
               {movements.map((m) => (
                 <tr key={m.id}>
                   <td style={{ whiteSpace: "nowrap" }}>{formatUpdatedAt(m.createdAt)}</td>
-                  <td>
+                  <td data-label={COLUMN.product}>
                     {m.productName}
                     {m.sku && (
                       <span
@@ -240,8 +251,9 @@ export default function StockMovementsPage() {
                       </span>
                     )}
                   </td>
-                  <td>{movementLabel(m.movementType)}</td>
+                  <td data-label={COLUMN.movement}>{movementLabel(m.movementType)}</td>
                   <td
+                    data-label={COLUMN.qty}
                     style={{
                       ...right,
                       color: m.quantityDelta < 0 ? "var(--danger)" : "var(--ok)",
@@ -250,7 +262,9 @@ export default function StockMovementsPage() {
                   >
                     {m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta}
                   </td>
-                  <td style={right}>{m.quantityAfter}</td>
+                  <td data-label={COLUMN.onHand} style={right}>
+                    {m.quantityAfter}
+                  </td>
                 </tr>
               ))}
             </tbody>

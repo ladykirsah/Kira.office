@@ -50,7 +50,7 @@ Two things make it work:
 
 **It is OPT-IN, and must stay that way.** `.products-table` is worn by six screens and one of them — the staff activity log — already has its own phone layout that this would fight. A screen joins by adding `list-cards` to the table, `list-cards-scroll` to the wrapper, and `data-label` to every cell. **Without the labels a card is a column of unexplained values, which is worse than the scroll it replaced.**
 
-**Joined (27 Aug 2026): Products, Staff People, Staff Salary, Staff Payments.** The activity log keeps its own two-column fold. (The product-edit page only *mentions* `products-table` in a comment; it has no such table.)
+**Joined (27 Aug 2026): Products, Staff People, Staff Salary, Staff Payments, Orders, Stock movements, and all three Finance lists (on-site, AirPlus, Shopee).** Not joined: Customers and AirPlus Customers — see the end of this section — and the Finance CHANNEL SUMMARY, which is deliberately still a table (four narrow columns a person compares ACROSS; cards would destroy the comparison). Two app-wide phone rules were added so tables like it still fit: cells drop to 8px padding, and a table that is NOT `.list-cards` reads at 14px. The activity log keeps its own two-column fold. (The product-edit page only *mentions* `products-table` in a comment; it has no such table.)
 
 How a card is built, once the labels are on:
 
@@ -65,6 +65,8 @@ Three things learned building the four:
 
 - **No label on the actions cell.** The button already says what it does; the column header said it a second time, and the card read "Action · Actions" (owner spotted it).
 - **A table's min-width is `--list-min-width`, set inline per table**, not a plain inline `min-width`. The phone rule has to set it to 0, and nothing in a stylesheet can override an inline style. Products 966px, Salary 780px, People and Payments none.
+- **`TableFrame` takes a `cards` prop.** It wrapped its children in an inline `overflowX: auto`, which no media query can override; `cards` swaps that for `.list-cards-scroll`. Opt-in for the same reason as everything else here.
+- **A multi-part value needs the LABEL pinned, not the value pushed.** `justify-content: space-between` flung a stock row's product name and its code to opposite ends of the card with a hole between them. The label now takes `margin-right: auto` and everything else groups right, however many parts it has.
 - **A total row is just a card whose name happens to be "Total".** Label its figures like any other row and it needs no special case; its empty spacer cells disappear on their own.
 
 `.list-name` (the identity link) also moved out of an inline style for this: ellipsised in a table where a long name would push the other columns off, wrapping freely in a card where there are no columns left to protect.
@@ -131,3 +133,5 @@ A **segmented control fills the width on a phone** and hugs its content on a lap
 `PageHeader.tsx` carried its layout in inline styles, which a media query cannot override; it now wears `.page-header` / `.page-header-titles` / `.page-subtitle` at the same values. Anything that must change on a phone has to be reachable from CSS first.
 
 **The trap that cost a round here: a media query adds NO specificity.** `.staff-tab` mobile overrides written at line ~1320 did nothing, silently, because the base `.staff-tab` sits at line ~1872 and identical specificity means the later rule wins. Phone overrides for a component must sit **after** that component's own block, not with the other phone rules near the top. Same family as the duplicate-`.icon-btn` incident in [admin-design-tokens](admin-design-tokens.md).
+
+**Customers is deliberately NOT converted.** PR #151 (the bilingual sweep) rewrites 525 lines across `customers/page.tsx` and `customers/AirPlusCustomers.tsx` — every `th` and most cells, the exact lines a card conversion touches. Converting before it merges guarantees a conflict on nearly every line. Do Customers AFTER #151 lands, or on that branch — never in parallel.

@@ -303,3 +303,15 @@ sources: [session 2026-08-09]
   "Total"; and an empty cell is furniture from the wide grid that should disappear on a card.
   Desktop measured unchanged on all four. See
   [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **Orders, Stock and all three Finance lists became cards on a phone.** Owner's
+  four-screen rollout; three of the four landed. Measured broken first rather than assumed: Orders
+  532px inside 305px, Stock 484px, the Finance lists pinned at a 900px floor. The channel summary
+  is deliberately still a TABLE — four narrow columns compared across, where cards would destroy
+  the comparison — so two app-wide phone rules make tables like it fit instead: 8px cell padding,
+  and 14px text for any table that is not `.list-cards`. `TableFrame` gained a `cards` prop because
+  it wrapped its children in an inline `overflowX: auto` that no media query can reach. A
+  multi-part value (a product name AND its code) used to be flung to opposite ends of the card by
+  `space-between`; the label is now pinned left with `margin-right: auto` so every part of the
+  value stays grouped. **Customers was held back on purpose** — PR #151 rewrites 525 lines in
+  exactly those two files. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

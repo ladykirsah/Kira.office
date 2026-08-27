@@ -341,6 +341,9 @@ tbody tr:hover {
  * screens, and one of them — the staff activity log — already has its own phone layout that this
  * would fight. A screen joins by adding `list-cards` AND giving every cell a `data-label`;
  * without the labels a card is a column of unexplained values, which is worse than the scroll. */
+.list-cards-scroll {
+  overflow-x: auto;
+}
 .list-cards {
   border-collapse: collapse;
   table-layout: fixed;
@@ -360,7 +363,7 @@ tbody tr:hover {
   text-overflow: ellipsis;
 }
 @media (max-width: 741px) {
-  .products-scroll.list-cards-scroll {
+  .list-cards-scroll {
     overflow-x: visible;
   }
   .list-cards {
@@ -416,19 +419,27 @@ tbody tr:hover {
     background: none;
     box-shadow: none;
   }
-  /* Every labelled cell is a name on the left and its value on the right. */
+  /* Every labelled cell is a name on the left and its value on the right.
+     `justify-content: space-between` was wrong for a cell holding MORE THAN ONE thing — the stock
+     row's product name and its code were pushed to opposite ends of the card with a hole between
+     them. The label is pinned left with `margin-right: auto` instead, so every part of the value,
+     however many there are, stays grouped at the right. Wrapping lets a long value drop to its own
+     line rather than squeeze the label. */
   .list-cards tbody td[data-label] {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 2px 10px;
     padding: 5px 0;
-    text-align: left;
+    text-align: right;
   }
   .list-cards tbody td[data-label]::before {
     content: attr(data-label);
+    margin-right: auto;
     color: var(--text-muted);
     font-size: 13px;
+    text-align: left;
     flex: 0 0 auto;
   }
   /* Anything else that is not the identity — the actions cell, and a drawer row that spanned every
@@ -1441,6 +1452,22 @@ a.card:hover {
     padding: 16px;
     /* Clear the bottom bar (62px) so the last row is never trapped under it. */
     padding-bottom: 78px;
+  }
+
+  /* Table cells give back 4px a side on a phone. A table that has NOT opted into cards still has
+     to fit — the channel summary on Finance is four narrow columns that a person compares across,
+     so turning it into cards would destroy the comparison, but at desktop padding it clipped its
+     last column. 12px → 8px buys back 8px per column, which is the difference. */
+  th,
+  td {
+    padding: 8px;
+  }
+  /* And a table that still IS a table reads a step smaller, which is the last of the width the
+     channel summary needed to stop clipping its final column. Card tables are excluded — their
+     cells are already sized on their own scale further down. */
+  table:not(.list-cards) th,
+  table:not(.list-cards) td {
+    font-size: 14px;
   }
 
   /* THE PHONE'S TYPE STEP-DOWN (owner, 2026-08-26: "too big for mobile and nowhere to focus").
