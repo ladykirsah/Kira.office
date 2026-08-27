@@ -526,6 +526,14 @@ tbody tr:hover {
   gap: 14px;
 }
 
+/* The dashboard's four order-status counts. A class rather than an inline style so the phone can
+   have a say — an inline grid-template-columns cannot be overridden by a media query. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
 /* Tabs (Seller-Centre style) */
 .tabs {
   display: flex;
@@ -1477,6 +1485,24 @@ a.card:hover {
     padding: 16px;
     /* Clear the bottom bar (62px) so the last row is never trapped under it. */
     padding-bottom: 78px;
+  }
+
+  /* Two across, not four and not one (owner, 27 Aug 2026).
+
+     The four status counts at a quarter of a phone are ~78px wide, which is narrower than the
+     words in them — "รอดำเนินการ" broke over two lines and the number sat below a ragged label.
+     Two columns give each card ~166px, enough for its label on one line.
+
+     The shortcut cards had the opposite problem: `minmax(210px, …)` resolves to a single column
+     below ~430px, so six cards became six full-width slabs and the last of them was three screens
+     down. Two columns halve that scroll. */
+  .stat-grid,
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* 18px of padding a side out of a ~166px card leaves too little for the words inside it. */
+  .card-grid .card {
+    padding: 14px;
   }
 
   /* Table cells give back 4px a side on a phone. A table that has NOT opted into cards still has

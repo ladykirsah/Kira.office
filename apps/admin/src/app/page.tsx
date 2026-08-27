@@ -93,7 +93,7 @@ export default async function DashboardPage() {
         </div>
 
         {counts ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          <div className="stat-grid">
             {ORDER_SUMMARY_CARDS.map((card) => {
               const value = counts![card.key];
               return (
