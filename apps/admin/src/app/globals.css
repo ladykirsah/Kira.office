@@ -1457,6 +1457,13 @@ a.card:hover {
   display: none;
 }
 
+/* The phone's second row, wrapped in the markup so it can be pinned on its own down there. Up here
+   it must not exist: `contents` drops the box entirely and hands its children straight back to the
+   bar's flex layout, so a wide screen is byte-for-byte the bar it always was. */
+.topbar-row {
+  display: contents;
+}
+
 @media (max-width: 741px) {
   .app-shell {
     flex-direction: column;
@@ -1530,20 +1537,53 @@ a.card:hover {
     color: var(--text);
     flex-shrink: 0;
   }
-  /* Centred on the bar itself, so it doesn't drift with the widths either side of it. */
+  /* ── The bar becomes TWO rows (owner, 27 Aug 2026) ──────────────────────────────────────────
+     It was one line, with the name absolutely centred and therefore OUT of the flow — so nothing
+     reserved space for it and the staff chip was drawn over the top of it: 125px of overlap at
+     375px, only the tail of the word visible. The name now has a row to itself and takes up space,
+     which is what actually fixes it.
+
+     `contents` on the header hands both rows to `.main`, and that matters: a sticky element can
+     only stick INSIDE its parent's box, so while the rows were children of a 92px header the
+     pinned one would have scrolled away with it. As children of `.main` — which is the whole
+     page — it pins properly. */
+  .topbar {
+    display: contents;
+  }
+
+  /* Row one: the name, centred, at heading weight. It scrolls away with the page (owner's choice),
+     which is why the border below belongs to row two rather than here. */
   .mnav-brand {
-    display: block;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 0 16px;
+    background: var(--surface);
     color: var(--primary);
     font-weight: 700;
-    font-size: 17px;
+    font-size: 19px;
     letter-spacing: -0.01em;
     white-space: nowrap;
   }
   .mnav-brand:hover {
     text-decoration: none;
+  }
+
+  /* Row two: everything you press. Stays put, so ☰ and your own name are always a thumb away.
+     z-index 5 is the value the header itself carried, kept so the drawer and the bottom bar nested
+     inside it stack exactly as they did before. */
+  .topbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 5;
   }
 
   .mnav-scrim {

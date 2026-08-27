@@ -89,10 +89,6 @@ export function MobileNav({ role }: { role: StaffRole }) {
       >
         <MenuIcon />
       </button>
-      <Link className="mnav-brand" href="/">
-        Kira.office
-      </Link>
-
       {open && (
         <>
           <div className="mnav-scrim" onClick={() => setOpen(false)} aria-hidden />
