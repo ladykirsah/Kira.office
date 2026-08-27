@@ -267,6 +267,9 @@ const CLEARED = [
   "app/settings/staff",
   "app/me",
   "app/customers",
+  // Two of the four buttons on the phone's bottom bar, so they are touched constantly.
+  "app/scan",
+  "app/payment",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -320,6 +323,7 @@ const DELIBERATE: Record<string, Exception> = {
   "app/products/StockCell.tsx": AUDIT("edited from products table"),
   "app/products/[id]/edit/page.tsx": AUDIT("edited from product page"),
   "app/products/new/page.tsx": AUDIT("created from Add product"),
+  "app/scan/page.tsx": AUDIT("received via Scan here"),
   // The sticker that goes on the parcel. It is read by a Thai courier and a Thai recipient; which
   // language the person at the screen is reading has nothing to do with it.
   "app/orders/[id]/ShipmentActions.tsx": { reason: "the printed shipping label" },

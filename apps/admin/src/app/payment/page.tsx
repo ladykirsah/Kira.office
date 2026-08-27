@@ -13,12 +13,14 @@ import {
 import { parsePaymentMethods, defaultPaymentMethod, type PaymentMethod } from "@l-shopee/core";
 import { formatBahtTrim, formatUpdatedAt } from "@/lib/format";
 import { tableText } from "@/lib/tableText";
+import type { Phrase } from "@/lib/lang";
 import { inputL, inputS } from "@/lib/inputStyles";
 import { PromptPayQr } from "../pos/PromptPayQr";
 import { ConfirmButton } from "../ConfirmButton";
 import { PageHeader } from "../PageHeader";
 import { TableFrame } from "../TableFrame";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 import { clearHandoff, readHandoff, stashSettlement, type BillHandoff } from "@/lib/paymentHandoff";
 import { type PaymentTaken } from "@/lib/saleBuilder";
 
@@ -28,6 +30,9 @@ const card: React.CSSProperties = {
   borderRadius: 12,
   padding: "18px 20px",
 };
+/** Named once: the empty state quotes the button, so the two can never say different things. */
+const CREATE_QR: Phrase = { th: "สร้าง QR code", en: "Create QR code" };
+
 const fieldLabel: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
@@ -44,6 +49,7 @@ const fieldLabel: React.CSSProperties = {
  * verification / gateway) plugs in later via the payments.status field.
  */
 export default function PaymentPage() {
+  const t = useT();
   const toast = useToast();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [methodId, setMethodId] = useState("");
@@ -54,7 +60,7 @@ export default function PaymentPage() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null); // row with the slip input open
   const [slipQr, setSlipQr] = useState("");
   const [showRecent, setShowRecent] = useState(false); // Section 2 is internal — hidden by default
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Phrase | null>(null);
   const [busy, setBusy] = useState(false);
   // A bill handed over from the counter (client-side, so cash still works with no network).
   const [bill, setBill] = useState<BillHandoff | null>(null);
@@ -78,7 +84,10 @@ export default function PaymentPage() {
       setMethods(list);
       setMethodId(defaultPaymentMethod(list)?.id ?? "");
     } catch (e) {
-      setError(`ไม่สามารถโหลดบัญชีร้านได้ — ${(e as Error).message}`);
+      setError({
+        th: `ไม่สามารถโหลดบัญชีร้านได้ — ${(e as Error).message}`,
+        en: `Could not load the shop's accounts — ${(e as Error).message}`,
+      });
     }
   }, []);
 
@@ -93,7 +102,7 @@ export default function PaymentPage() {
         setPayments(v.payments);
         setSlipVerifyEnabled(v.slipVerifyEnabled);
       })
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError({ th: (e as Error).message, en: (e as Error).message }));
   }, [reloadShop]);
 
   async function refreshPayments() {
@@ -150,7 +159,10 @@ export default function PaymentPage() {
         amountSatang: qr.amountSatang,
       });
       toast(
-        `Payment approved — ${formatBahtTrim(qr.amountSatang)} → ${qr.method.label}`,
+        t({
+          th: `อนุมัติการชำระเงินแล้ว — ${formatBahtTrim(qr.amountSatang)} → ${qr.method.label}`,
+          en: `Payment approved — ${formatBahtTrim(qr.amountSatang)} → ${qr.method.label}`,
+        }),
         "success",
       );
       setQr(null);
@@ -169,7 +181,13 @@ export default function PaymentPage() {
     setBusy(true);
     try {
       const { cleared } = await clearPayments();
-      toast(`Cleared ${cleared} payment(s) — records kept for reconciliation`, "success");
+      toast(
+        t({
+          th: `ล้างรายการแล้ว ${cleared} รายการ — เก็บบันทึกไว้สำหรับกระทบยอด`,
+          en: `Cleared ${cleared} payment(s) — records kept for reconciliation`,
+        }),
+        "success",
+      );
       await refreshPayments();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -184,7 +202,7 @@ export default function PaymentPage() {
     setBusy(true);
     try {
       const out = await verifySlipForPayment(paymentId, qrData);
-      toast(`Slip verified ✓ ${out.ref}`, "success");
+      toast(t({ th: `ตรวจสอบสลิปแล้ว ✓ ${out.ref}`, en: `Slip verified ✓ ${out.ref}` }), "success");
       setVerifyingId(null);
       setSlipQr("");
       await refreshPayments();
@@ -198,8 +216,11 @@ export default function PaymentPage() {
   return (
     <main>
       <PageHeader
-        title="Payment"
-        subtitle="Den Air Service · take a PromptPay payment: pick the receiving account, enter the amount, create the QR, let the customer scan, then approve once their banking app confirms."
+        title={t({ th: "รับเงิน", en: "Payment" })}
+        subtitle={t({
+          th: "Den Air Service · รับเงินผ่านพร้อมเพย์: เลือกบัญชีที่จะรับเงิน ใส่จำนวนเงิน สร้าง QR ให้ลูกค้าสแกน แล้วกดอนุมัติเมื่อแอปธนาคารของลูกค้ายืนยันแล้ว",
+          en: "Den Air Service · take a PromptPay payment: pick the receiving account, enter the amount, create the QR, let the customer scan, then approve once their banking app confirms.",
+        })}
       />
 
       {/* A bill handed over from the counter: what is owed, and the two ways to settle it.
@@ -217,14 +238,17 @@ export default function PaymentPage() {
             style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}
           >
             <div>
-              <div style={fieldLabel}>Bill from the counter</div>
+              <div style={fieldLabel}>
+                {t({ th: "บิลจากหน้าร้าน", en: "Bill from the counter" })}
+              </div>
               <div style={{ fontWeight: 700, fontSize: 18, marginTop: 2 }}>{bill.saleNumber}</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                {[bill.plate, bill.vehicle].filter(Boolean).join(" · ") || "Walk-in"}
+                {[bill.plate, bill.vehicle].filter(Boolean).join(" · ") ||
+                  t({ th: "ลูกค้าหน้าร้าน", en: "Walk-in" })}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={fieldLabel}>Amount due</div>
+              <div style={fieldLabel}>{t({ th: "ยอดที่ต้องชำระ", en: "Amount due" })}</div>
               <div style={{ fontWeight: 700, fontSize: 24 }}>
                 {formatBahtTrim(bill.totalSatang)}
               </div>
@@ -235,12 +259,14 @@ export default function PaymentPage() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 220px" }}>
-              <div style={fieldLabel}>Cash — received by</div>
+              <div style={fieldLabel}>
+                {t({ th: "เงินสด — ผู้รับเงิน", en: "Cash — received by" })}
+              </div>
               <input
                 value={receivedBy}
                 onChange={(e) => setReceivedBy(e.target.value)}
-                placeholder="Staff name"
-                aria-label="Cash received by"
+                placeholder={t({ th: "ชื่อพนักงาน", en: "Staff name" })}
+                aria-label={t({ th: "ผู้รับเงินสด", en: "Cash received by" })}
                 style={{ ...inputL, width: "100%", marginTop: 4 }}
               />
             </div>
@@ -250,12 +276,14 @@ export default function PaymentPage() {
               disabled={busy}
               onClick={() => settle({ paymentMethod: "cash", receivedBy })}
             >
-              Confirm cash payment
+              {t({ th: "ยืนยันรับเงินสด", en: "Confirm cash payment" })}
             </button>
           </div>
           <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
-            For PromptPay, create the QR below — approving it completes this bill. Nothing is sold
-            until one of these is confirmed.
+            {t({
+              th: "ถ้าจ่ายผ่านพร้อมเพย์ ให้สร้าง QR ด้านล่าง — กดอนุมัติแล้วบิลนี้จะเสร็จสมบูรณ์ ยังไม่ถือว่าขายจนกว่าจะยืนยันอย่างใดอย่างหนึ่ง",
+              en: "For PromptPay, create the QR below — approving it completes this bill. Nothing is sold until one of these is confirmed.",
+            })}
           </p>
         </div>
       )}
@@ -279,14 +307,14 @@ export default function PaymentPage() {
             fontSize: 14,
           }}
         >
-          <span style={{ flex: "1 1 320px" }}>{error}</span>
+          <span style={{ flex: "1 1 320px" }}>{t(error)}</span>
           <button
             type="button"
             className="btn-sm"
             onClick={() => void reloadShop()}
             disabled={busy}
           >
-            ลองอีกครั้ง
+            {t({ th: "ลองอีกครั้ง", en: "Try again" })}
           </button>
         </div>
       )}
@@ -295,8 +323,14 @@ export default function PaymentPage() {
         <div className="empty">
           <div className="empty-icon">💳</div>
           {error
-            ? "Accounts could not be loaded — retry above. The payment history below is unaffected."
-            : "No PromptPay accounts yet — add them in Shop info → Den Air Service → Payment."}
+            ? t({
+                th: "โหลดบัญชีไม่สำเร็จ — ลองใหม่ด้านบน ประวัติการรับเงินด้านล่างยังใช้งานได้ตามปกติ",
+                en: "Accounts could not be loaded — retry above. The payment history below is unaffected.",
+              })
+            : t({
+                th: "ยังไม่มีบัญชีพร้อมเพย์ — เพิ่มได้ที่ ข้อมูลร้าน → Den Air Service → รับเงิน",
+                en: "No PromptPay accounts yet — add them in Shop info → Den Air Service → Payment.",
+              })}
         </div>
       ) : (
         <>
@@ -319,7 +353,7 @@ export default function PaymentPage() {
                   setQr(null); // a new account invalidates the shown QR
                 }}
                 style={{ ...inputL, width: "100%", marginTop: 6 }}
-                aria-label="Payment method"
+                aria-label={t({ th: "บัญชีที่รับเงิน", en: "Payment method" })}
               >
                 {methods.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -338,7 +372,7 @@ export default function PaymentPage() {
                 }}
                 placeholder="0.00"
                 inputMode="decimal"
-                aria-label="Amount (baht)"
+                aria-label={t({ th: "จำนวนเงิน (บาท)", en: "Amount (baht)" })}
                 style={{ ...inputL, width: "100%", marginTop: 6, fontSize: 22, fontWeight: 700 }}
               />
 
@@ -349,7 +383,7 @@ export default function PaymentPage() {
                 disabled={!method || amountSatang == null}
                 style={{ width: "100%", marginTop: 18 }}
               >
-                Create QR code
+                {t(CREATE_QR)}
               </button>
             </div>
 
@@ -366,7 +400,7 @@ export default function PaymentPage() {
               {qr ? (
                 <>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    สแกนจ่ายผ่านพร้อมเพย์
+                    {t({ th: "สแกนจ่ายผ่านพร้อมเพย์", en: "Scan to pay with PromptPay" })}
                   </div>
                   <div style={{ fontWeight: 700, marginTop: 2, marginBottom: 12, fontSize: 16 }}>
                     {formatBahtTrim(qr.amountSatang)} → {qr.method.label}
@@ -383,12 +417,15 @@ export default function PaymentPage() {
                     disabled={busy}
                     style={{ width: "100%", marginTop: 18 }}
                   >
-                    ✓ Approve payment
+                    ✓ {t({ th: "อนุมัติการชำระเงิน", en: "Approve payment" })}
                   </button>
                 </>
               ) : (
                 <div className="muted" style={{ fontSize: 13, padding: "24px 0" }}>
-                  Enter the amount and press “Create QR code”.
+                  {t({
+                    th: `ใส่จำนวนเงินแล้วกด “${t(CREATE_QR)}”`,
+                    en: `Enter the amount and press “${t(CREATE_QR)}”.`,
+                  })}
                 </div>
               )}
             </div>
@@ -402,13 +439,15 @@ export default function PaymentPage() {
               onClick={() => setShowRecent((s) => !s)}
               aria-expanded={showRecent}
             >
-              {showRecent ? "▾" : "▸"} Recent payments ({payments.length})
+              {showRecent ? "▾" : "▸"} {t({ th: "การรับเงินล่าสุด", en: "Recent payments" })} (
+              {payments.length})
             </button>
 
             {showRecent &&
               (payments.length === 0 ? (
                 <div className="empty" style={{ marginTop: 12 }}>
-                  <div className="empty-icon">🧾</div>No payments recorded yet.
+                  <div className="empty-icon">🧾</div>
+                  {t({ th: "ยังไม่มีบันทึกการรับเงิน", en: "No payments recorded yet." })}
                 </div>
               ) : (
                 <div style={{ marginTop: 12 }}>
@@ -417,22 +456,31 @@ export default function PaymentPage() {
                   <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
                     <ConfirmButton
                       className="btn-soft btn-sm"
-                      confirmLabel={`Clear all ${payments.length}?`}
+                      confirmLabel={t({
+                        th: `ล้างทั้งหมด ${payments.length} รายการ?`,
+                        en: `Clear all ${payments.length}?`,
+                      })}
                       onConfirm={clear}
                       disabled={busy}
                     >
-                      Clear
+                      {t({ th: "ล้าง", en: "Clear" })}
                     </ConfirmButton>
                   </div>
                   <TableFrame>
                     <table>
                       <thead>
                         <tr>
-                          <th>When</th>
-                          <th>Account</th>
-                          <th style={{ textAlign: "right" }}>Amount</th>
-                          <th>Status</th>
-                          {slipVerifyEnabled && <th style={{ textAlign: "right" }}>Action</th>}
+                          <th>{t({ th: "เมื่อไหร่", en: "When" })}</th>
+                          <th>{t({ th: "บัญชี", en: "Account" })}</th>
+                          <th style={{ textAlign: "right" }}>
+                            {t({ th: "จำนวนเงิน", en: "Amount" })}
+                          </th>
+                          <th>{t({ th: "สถานะ", en: "Status" })}</th>
+                          {slipVerifyEnabled && (
+                            <th style={{ textAlign: "right" }}>
+                              {t({ th: "จัดการ", en: "Action" })}
+                            </th>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
@@ -500,7 +548,10 @@ export default function PaymentPage() {
                                             if (e.key === "Enter") verifySlip(p.id);
                                             if (e.key === "Escape") setVerifyingId(null);
                                           }}
-                                          placeholder="Scan slip QR…"
+                                          placeholder={t({
+                                            th: "สแกน QR บนสลิป…",
+                                            en: "Scan slip QR…",
+                                          })}
                                           style={{ ...inputS, width: 180 }}
                                         />
                                         <button
@@ -509,7 +560,7 @@ export default function PaymentPage() {
                                           disabled={busy || !slipQr.trim()}
                                           onClick={() => verifySlip(p.id)}
                                         >
-                                          Confirm
+                                          {t({ th: "ยืนยัน", en: "Confirm" })}
                                         </button>
                                       </span>
                                     ) : (
@@ -522,7 +573,7 @@ export default function PaymentPage() {
                                           setSlipQr("");
                                         }}
                                       >
-                                        Verify slip
+                                        {t({ th: "ตรวจสอบสลิป", en: "Verify slip" })}
                                       </button>
                                     ))}
                                 </td>

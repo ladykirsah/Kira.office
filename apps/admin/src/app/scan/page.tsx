@@ -14,42 +14,58 @@ import { inputS } from "@/lib/inputStyles";
 import { formatBaht } from "@/lib/format";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
+import type { Phrase } from "@/lib/lang";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 import { ScanInput } from "./ScanInput";
 import { BarcodePreview } from "../products/BarcodePreview";
 
 type Mode = "add" | "view" | "hold" | "fill" | "pos";
 
+/** Module-level, so it carries PHRASES and each render translates them — a `useT()` cannot be
+ *  called out here. `title` doubles as the page subtitle once a mode is picked. */
 const MODES: {
   key: Mode;
   icon: string;
-  title: string;
-  desc: string;
+  title: Phrase;
+  desc: Phrase;
   ready: boolean;
 }[] = [
   {
     key: "add",
     icon: "🆕",
-    title: "Add new product",
-    desc: "Scan a part to start a new listing.",
+    title: { th: "เพิ่มสินค้าใหม่", en: "Add new product" },
+    desc: { th: "สแกนอะไหล่เพื่อเริ่มสร้างรายการใหม่", en: "Scan a part to start a new listing." },
     ready: true,
   },
-  { key: "view", icon: "🔍", title: "View product", desc: "Scan to open a product.", ready: true },
+  {
+    key: "view",
+    icon: "🔍",
+    title: { th: "ดูสินค้า", en: "View product" },
+    desc: { th: "สแกนเพื่อเปิดหน้าสินค้า", en: "Scan to open a product." },
+    ready: true,
+  },
   {
     key: "hold",
     icon: "⏸️",
-    title: "On hold",
-    desc: "Move stock to or from the hold.",
+    title: { th: "พักของ", en: "On hold" },
+    desc: { th: "ย้ายของเข้าหรือออกจากที่พัก", en: "Move stock to or from the hold." },
     ready: true,
   },
   {
     key: "fill",
     icon: "📥",
-    title: "Fill stock",
-    desc: "Receive stock into on hand.",
+    title: { th: "เติมสต๊อก", en: "Fill stock" },
+    desc: { th: "รับของเข้าสต๊อกคงเหลือ", en: "Receive stock into on hand." },
     ready: true,
   },
-  { key: "pos", icon: "🧾", title: "POS", desc: "Scan items to build a bill.", ready: true },
+  {
+    key: "pos",
+    icon: "🧾",
+    title: { th: "ขายหน้าร้าน", en: "POS" },
+    desc: { th: "สแกนสินค้าเพื่อสร้างบิล", en: "Scan items to build a bill." },
+    ready: true,
+  },
 ];
 
 const card = {
@@ -65,20 +81,26 @@ const card = {
  * Fill stock and POS finish on this page (built in later steps).
  */
 export default function ScanPage() {
+  const t = useT();
   const [mode, setMode] = useState<Mode | null>(null);
+  const picked = MODES.find((m) => m.key === mode);
 
   return (
     <main>
       <PageHeader
-        title="Scan here"
+        title={t({ th: "สแกนที่นี่", en: "Scan here" })}
         subtitle={
           mode === null
-            ? "Pick what you're scanning for."
-            : (MODES.find((m) => m.key === mode)?.title ?? "")
+            ? t({ th: "เลือกว่าจะสแกนเพื่ออะไร", en: "Pick what you're scanning for." })
+            : picked
+              ? t(picked.title)
+              : ""
         }
         below={
           mode === null ? undefined : (
-            <BackLink onClick={() => setMode(null)}>All scan modes</BackLink>
+            <BackLink onClick={() => setMode(null)}>
+              {t({ th: "โหมดสแกนทั้งหมด", en: "All scan modes" })}
+            </BackLink>
           )
         }
       />
@@ -95,13 +117,14 @@ export default function ScanPage() {
       ) : mode === "pos" ? (
         <PosMode />
       ) : (
-        <ComingSoon title={MODES.find((m) => m.key === mode)?.title ?? ""} />
+        <ComingSoon title={picked ? t(picked.title) : ""} />
       )}
     </main>
   );
 }
 
 function ModeMenu({ onPick }: { onPick: (m: Mode) => void }) {
+  const t = useT();
   return (
     <div
       style={{
@@ -116,7 +139,7 @@ function ModeMenu({ onPick }: { onPick: (m: Mode) => void }) {
           type="button"
           onClick={() => onPick(m.key)}
           disabled={!m.ready}
-          title={m.ready ? m.title : "Coming soon"}
+          title={m.ready ? t(m.title) : t({ th: "เร็วๆ นี้", en: "Coming soon" })}
           style={{
             ...card,
             textAlign: "left",
@@ -130,11 +153,11 @@ function ModeMenu({ onPick }: { onPick: (m: Mode) => void }) {
           <span style={{ fontSize: 26, lineHeight: 1 }}>{m.icon}</span>
           <span style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <span style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-              {m.title}
-              {!m.ready && <span className="pill off">Soon</span>}
+              {t(m.title)}
+              {!m.ready && <span className="pill off">{t({ th: "เร็วๆ นี้", en: "Soon" })}</span>}
             </span>
             <span className="muted" style={{ fontSize: 13 }}>
-              {m.desc}
+              {t(m.desc)}
             </span>
           </span>
         </button>
@@ -145,18 +168,23 @@ function ModeMenu({ onPick }: { onPick: (m: Mode) => void }) {
 
 /** Add new product: scan one code, then hand off to the new-product form with it pre-filled. */
 function AddMode() {
+  const t = useT();
   const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
 
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 460 }}>
-      <ScanInput onScan={setCode} buttonLabel="Scan" placeholder="Scan a new part's barcode…" />
+      <ScanInput
+        onScan={setCode}
+        buttonLabel={t({ th: "สแกน", en: "Scan" })}
+        placeholder={t({ th: "สแกนบาร์โค้ดอะไหล่ชิ้นใหม่…", en: "Scan a new part's barcode…" })}
+      />
       {code && (
         <div style={{ ...card, display: "grid", gap: 12 }}>
           {/* The scanned code is both the Product ID and the barcode source — one identifier. */}
           <div style={{ display: "grid", gap: 4 }}>
             <span className="muted" style={{ fontSize: 12 }}>
-              Product ID / barcode
+              {t({ th: "รหัสสินค้า / บาร์โค้ด", en: "Product ID / barcode" })}
             </span>
             <strong style={{ fontSize: 18 }}>{code}</strong>
           </div>
@@ -167,10 +195,10 @@ function AddMode() {
               className="btn-primary"
               onClick={() => router.push(`/products/new?ref=${encodeURIComponent(code)}`)}
             >
-              Add
+              {t({ th: "เพิ่ม", en: "Add" })}
             </button>
             <button type="button" onClick={() => setCode(null)}>
-              Scan another
+              {t({ th: "สแกนชิ้นต่อไป", en: "Scan another" })}
             </button>
           </div>
         </div>
@@ -181,6 +209,7 @@ function AddMode() {
 
 /** View product: scan one code, look it up, and open its detail page. */
 function ViewMode() {
+  const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -190,7 +219,10 @@ function ViewMode() {
     try {
       const found = await lookupBarcode(rawCode);
       if (!found) {
-        toast(`No product found for ${rawCode}`, "error");
+        toast(
+          t({ th: `ไม่พบสินค้าสำหรับ ${rawCode}`, en: `No product found for ${rawCode}` }),
+          "error",
+        );
         return;
       }
       router.push(`/products/${found.productId}`);
@@ -205,12 +237,12 @@ function ViewMode() {
     <div style={{ display: "grid", gap: 16, maxWidth: 460 }}>
       <ScanInput
         onScan={open}
-        buttonLabel="Open"
+        buttonLabel={t({ th: "เปิด", en: "Open" })}
         disabled={busy}
-        placeholder="Scan a product's barcode…"
+        placeholder={t({ th: "สแกนบาร์โค้ดสินค้า…", en: "Scan a product's barcode…" })}
       />
       <p className="muted" style={{ fontSize: 13 }}>
-        Scanning opens the product in view mode.
+        {t({ th: "สแกนแล้วจะเปิดหน้าสินค้าให้ดู", en: "Scanning opens the product in view mode." })}
       </p>
     </div>
   );
@@ -227,6 +259,16 @@ interface HoldRow {
 
 const numCell = { ...inputS, width: 78 } as const;
 
+/** The column label and the field's screen-reader name are the same words — one string each. */
+const TAKE_AWAY: Phrase = { th: "เอาออก", en: "Take away" };
+const BRING_BACK: Phrase = { th: "นำกลับ", en: "Bring back" };
+const RECEIVED: Phrase = { th: "รับเข้า", en: "Received" };
+/** Every mode's list uses the same two buttons, so they are written once. */
+const REMOVE: Phrase = { th: "เอาออก", en: "Remove" };
+const CLEAR: Phrase = { th: "ล้าง", en: "Clear" };
+const SUBMIT: Phrase = { th: "ยืนยัน", en: "Submit" };
+const QTY: Phrase = { th: "จำนวน", en: "Qty" };
+
 /**
  * On hold — a stock BUCKET, not a reservation. Scan several parts, then per row say how many to take
  * away (on hand ↓, on hold ↑) or bring back (on hand ↑, on hold ↓), and submit once. Held stock stops
@@ -237,6 +279,7 @@ const numCell = { ...inputS, width: 78 } as const;
  * would cancel out and silently do nothing.
  */
 function HoldMode() {
+  const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<HoldRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -245,7 +288,7 @@ function HoldMode() {
     try {
       const found = await lookupBarcode(code);
       if (!found) {
-        toast(`No product found for ${code}`, "error");
+        toast(t({ th: `ไม่พบสินค้าสำหรับ ${code}`, en: `No product found for ${code}` }), "error");
         return;
       }
       setRows((prev) =>
@@ -284,7 +327,13 @@ function HoldMode() {
       bringBack: toCount(r.bringBack),
     }));
     if (lines.every((l) => l.takeAway === 0 && l.bringBack === 0)) {
-      toast("Nothing to move — set an amount first", "error");
+      toast(
+        t({
+          th: "ยังไม่มีอะไรให้ย้าย — ใส่จำนวนก่อน",
+          en: "Nothing to move — set an amount first",
+        }),
+        "error",
+      );
       return;
     }
     setBusy(true);
@@ -311,16 +360,18 @@ function HoldMode() {
       <div style={{ maxWidth: 460 }}>
         <ScanInput
           onScan={add}
-          buttonLabel="Add"
-          placeholder="Scan parts to move…"
+          buttonLabel={t({ th: "เพิ่ม", en: "Add" })}
+          placeholder={t({ th: "สแกนอะไหล่ที่จะย้าย…", en: "Scan parts to move…" })}
           disabled={busy}
         />
       </div>
 
       {rows.length === 0 ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          Scan one or more parts. Stock on hold is paused — it is not sold on AirPlus or at the
-          counter until it is brought back.
+          {t({
+            th: "สแกนอะไหล่หนึ่งชิ้นหรือมากกว่า ของที่พักไว้จะถูกหยุดไว้ — ไม่ถูกขายบน AirPlus หรือหน้าร้านจนกว่าจะนำกลับมา",
+            en: "Scan one or more parts. Stock on hold is paused — it is not sold on AirPlus or at the counter until it is brought back.",
+          })}
         </p>
       ) : (
         <>
@@ -355,25 +406,25 @@ function HoldMode() {
                 </div>
                 <label style={{ display: "grid", gap: 3 }}>
                   <span className="muted" style={{ fontSize: 11 }}>
-                    Take away
+                    {t(TAKE_AWAY)}
                   </span>
                   <input
                     value={r.takeAway}
                     onChange={(e) => setQty(r.variantId, "takeAway", e.target.value)}
                     inputMode="numeric"
-                    aria-label={`Take away ${r.name}`}
+                    aria-label={`${t(TAKE_AWAY)} ${r.name}`}
                     style={numCell}
                   />
                 </label>
                 <label style={{ display: "grid", gap: 3 }}>
                   <span className="muted" style={{ fontSize: 11 }}>
-                    Bring back
+                    {t(BRING_BACK)}
                   </span>
                   <input
                     value={r.bringBack}
                     onChange={(e) => setQty(r.variantId, "bringBack", e.target.value)}
                     inputMode="numeric"
-                    aria-label={`Bring back ${r.name}`}
+                    aria-label={`${t(BRING_BACK)} ${r.name}`}
                     style={numCell}
                   />
                 </label>
@@ -393,7 +444,7 @@ function HoldMode() {
                   onClick={() => setRows((p) => p.filter((x) => x.variantId !== r.variantId))}
                   disabled={busy}
                 >
-                  Remove
+                  {t(REMOVE)}
                 </button>
               </div>
             ))}
@@ -401,10 +452,10 @@ function HoldMode() {
 
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="btn-primary" onClick={submit} disabled={busy}>
-              Submit
+              {t(SUBMIT)}
             </button>
             <button type="button" onClick={() => setRows([])} disabled={busy}>
-              Clear
+              {t(CLEAR)}
             </button>
           </div>
         </>
@@ -427,6 +478,7 @@ interface FillRow {
  * write-off). No hold interaction — moving stock to/from the hold is the On hold mode's job.
  */
 function FillMode() {
+  const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<FillRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -435,7 +487,7 @@ function FillMode() {
     try {
       const found = await lookupBarcode(code);
       if (!found) {
-        toast(`No product found for ${code}`, "error");
+        toast(t({ th: `ไม่พบสินค้าสำหรับ ${code}`, en: `No product found for ${code}` }), "error");
         return;
       }
       setRows((prev) =>
@@ -466,7 +518,7 @@ function FillMode() {
   async function submit() {
     const lines = rows.map((r) => ({ row: r, qty: toCount(r.qty) }));
     if (lines.every((l) => l.qty === 0)) {
-      toast("Enter how many arrived first", "error");
+      toast(t({ th: "ใส่จำนวนที่รับเข้ามาก่อน", en: "Enter how many arrived first" }), "error");
       return;
     }
     setBusy(true);
@@ -511,16 +563,18 @@ function FillMode() {
       <div style={{ maxWidth: 460 }}>
         <ScanInput
           onScan={add}
-          buttonLabel="Add"
-          placeholder="Scan parts you received…"
+          buttonLabel={t({ th: "เพิ่ม", en: "Add" })}
+          placeholder={t({ th: "สแกนอะไหล่ที่รับเข้ามา…", en: "Scan parts you received…" })}
           disabled={busy}
         />
       </div>
 
       {rows.length === 0 ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          Scan the parts that arrived, set how many of each, then Submit to add them to on-hand
-          stock.
+          {t({
+            th: "สแกนอะไหล่ที่เข้ามา ใส่จำนวนของแต่ละชิ้น แล้วกดยืนยันเพื่อเพิ่มเข้าสต๊อกคงเหลือ",
+            en: "Scan the parts that arrived, set how many of each, then Submit to add them to on-hand stock.",
+          })}
         </p>
       ) : (
         <>
@@ -555,13 +609,13 @@ function FillMode() {
                 </div>
                 <label style={{ display: "grid", gap: 3 }}>
                   <span className="muted" style={{ fontSize: 11 }}>
-                    Received
+                    {t(RECEIVED)}
                   </span>
                   <input
                     value={r.qty}
                     onChange={(e) => setQty(r.variantId, e.target.value)}
                     inputMode="numeric"
-                    aria-label={`Received ${r.name}`}
+                    aria-label={`${t(RECEIVED)} ${r.name}`}
                     style={numCell}
                   />
                 </label>
@@ -579,17 +633,17 @@ function FillMode() {
                   onClick={() => setRows((p) => p.filter((x) => x.variantId !== r.variantId))}
                   disabled={busy}
                 >
-                  Remove
+                  {t(REMOVE)}
                 </button>
               </div>
             ))}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="btn-primary" onClick={submit} disabled={busy}>
-              Submit
+              {t(SUBMIT)}
             </button>
             <button type="button" onClick={() => setRows([])} disabled={busy}>
-              Clear
+              {t(CLEAR)}
             </button>
           </div>
         </>
@@ -614,6 +668,7 @@ interface PosRow {
  * page never takes money itself.
  */
 function PosMode() {
+  const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [rows, setRows] = useState<PosRow[]>([]);
@@ -626,7 +681,7 @@ function PosMode() {
     try {
       const found = await lookupBarcode(code);
       if (!found) {
-        toast(`No product found for ${code}`, "error");
+        toast(t({ th: `ไม่พบสินค้าสำหรับ ${code}`, en: `No product found for ${code}` }), "error");
         return;
       }
       // Price comes from the product's own pricing, so it isn't capped by the products-list limit.
@@ -675,7 +730,7 @@ function PosMode() {
       }))
       .filter((l) => l.quantity > 0);
     if (lines.length === 0) {
-      toast("Scan at least one item first", "error");
+      toast(t({ th: "สแกนอย่างน้อยหนึ่งชิ้นก่อน", en: "Scan at least one item first" }), "error");
       return;
     }
     setBusy(true);
@@ -694,16 +749,18 @@ function PosMode() {
       <div style={{ maxWidth: 460 }}>
         <ScanInput
           onScan={add}
-          buttonLabel="Add"
-          placeholder="Scan items to bill…"
+          buttonLabel={t({ th: "เพิ่ม", en: "Add" })}
+          placeholder={t({ th: "สแกนสินค้าเข้าบิล…", en: "Scan items to bill…" })}
           disabled={busy}
         />
       </div>
 
       {rows.length === 0 ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          Scan the parts to sell. Create bill opens the till with them already in the cart, ready to
-          finalize.
+          {t({
+            th: "สแกนอะไหล่ที่จะขาย กดสร้างบิลแล้วจะเปิดหน้าขายพร้อมของอยู่ในตะกร้าแล้ว รอแค่ปิดการขาย",
+            en: "Scan the parts to sell. Create bill opens the till with them already in the cart, ready to finalize.",
+          })}
         </p>
       ) : (
         <>
@@ -738,13 +795,13 @@ function PosMode() {
                 </div>
                 <label style={{ display: "grid", gap: 3 }}>
                   <span className="muted" style={{ fontSize: 11 }}>
-                    Qty
+                    {t(QTY)}
                   </span>
                   <input
                     value={r.qty}
                     onChange={(e) => setQty(r.variantId, e.target.value)}
                     inputMode="numeric"
-                    aria-label={`Quantity ${r.name}`}
+                    aria-label={`${t(QTY)} ${r.name}`}
                     style={numCell}
                   />
                 </label>
@@ -756,20 +813,22 @@ function PosMode() {
                   onClick={() => setRows((p) => p.filter((x) => x.variantId !== r.variantId))}
                   disabled={busy}
                 >
-                  Remove
+                  {t(REMOVE)}
                 </button>
               </div>
             ))}
           </div>
 
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 700 }}>Total {formatBaht(totalSatang)}</span>
+            <span style={{ fontWeight: 700 }}>
+              {t({ th: "รวม", en: "Total" })} {formatBaht(totalSatang)}
+            </span>
             <span style={{ flex: 1 }} />
             <button type="button" className="btn-primary" onClick={createBill} disabled={busy}>
-              Create bill
+              {t({ th: "สร้างบิล", en: "Create bill" })}
             </button>
             <button type="button" onClick={() => setRows([])} disabled={busy}>
-              Clear
+              {t(CLEAR)}
             </button>
           </div>
         </>
@@ -779,13 +838,19 @@ function PosMode() {
 }
 
 function ComingSoon({ title }: { title: string }) {
+  const t = useT();
   return (
     <div style={{ ...card, maxWidth: 460 }}>
       <p style={{ margin: 0 }}>
-        <strong>{title}</strong> is being built.
+        {/* The mode's name is a value, so the sentence is written around it in each language
+            rather than glued together from pieces — Thai does not put it where English does. */}
+        {t({ th: `กำลังสร้าง${title}อยู่`, en: `${title} is being built.` })}
       </p>
       <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-        This mode will finish on this page — scanning multiple items, then a submit.
+        {t({
+          th: "โหมดนี้จะทำงานจบในหน้านี้ — สแกนหลายชิ้นแล้วกดยืนยัน",
+          en: "This mode will finish on this page — scanning multiple items, then a submit.",
+        })}
       </p>
     </div>
   );

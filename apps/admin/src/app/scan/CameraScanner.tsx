@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Phrase } from "@/lib/lang";
+import { useT } from "../LangProvider";
 
 /**
  * Phone-camera barcode scanner for the /scan modes. The decode library (@zxing/browser) is imported
@@ -16,8 +18,12 @@ export function CameraScanner({
   onCode: (code: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // The effect stores the PHRASE and the render translates it. Storing translated text instead
+  // would put `t` in the effect's dependencies, and the camera would restart on every language
+  // change — a working scanner cut off mid-scan for a word.
+  const [error, setError] = useState<Phrase | null>(null);
   const last = useRef<{ code: string; at: number }>({ code: "", at: 0 });
   // Keep the latest onCode without restarting the camera when the parent re-renders.
   const onCodeRef = useRef(onCode);
@@ -25,7 +31,10 @@ export function CameraScanner({
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices) {
-      setError("The camera needs a secure (https) connection.");
+      setError({
+        th: "กล้องต้องใช้การเชื่อมต่อที่ปลอดภัย (https)",
+        en: "The camera needs a secure (https) connection.",
+      });
       return;
     }
     let controls: { stop: () => void } | null = null;
@@ -55,8 +64,8 @@ export function CameraScanner({
       } catch (e) {
         setError(
           e instanceof Error && /permission|denied|notallowed/i.test(e.message)
-            ? "Camera permission was denied."
-            : "Couldn't start the camera.",
+            ? { th: "ไม่ได้รับอนุญาตให้ใช้กล้อง", en: "Camera permission was denied." }
+            : { th: "เปิดกล้องไม่ได้", en: "Couldn't start the camera." },
         );
       }
     })();
@@ -70,7 +79,7 @@ export function CameraScanner({
     <div style={{ ...panel }}>
       {error ? (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-          {error}
+          {t(error)}
         </p>
       ) : (
         <>
@@ -81,12 +90,12 @@ export function CameraScanner({
             style={{ width: "100%", borderRadius: 10, background: "#000", display: "block" }}
           />
           <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
-            Point the back camera at a barcode.
+            {t({ th: "หันกล้องหลังไปที่บาร์โค้ด", en: "Point the back camera at a barcode." })}
           </p>
         </>
       )}
       <button type="button" onClick={onClose} style={{ marginTop: 10 }}>
-        Close camera
+        {t({ th: "ปิดกล้อง", en: "Close camera" })}
       </button>
     </div>
   );
