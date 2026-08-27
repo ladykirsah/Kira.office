@@ -54,14 +54,6 @@ const frameStyle = {
   background: "var(--surface)",
 } as const;
 
-const toolbarStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 10,
-  alignItems: "center",
-  marginBottom: 12,
-} as const;
-
 /** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
  *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
 const COLUMN = {
@@ -267,7 +259,7 @@ export function OrdersTable({
 
       {/* Frame — same as ProductsTable */}
       <div style={frameStyle}>
-        <div style={toolbarStyle}>
+        <div className="tbar">
           <input
             className="tbar-input"
             placeholder={t({
@@ -276,13 +268,7 @@ export function OrdersTable({
             })}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{
-              ...inputS,
-              width: 240,
-              maxWidth: "100%",
-              color: "var(--text)",
-              fontWeight: 500,
-            }}
+            style={{ ...inputS, color: "var(--text)", fontWeight: 500 }}
           />
           <select
             aria-label={t({ th: "เรียงตาม", en: "Sort by" })}

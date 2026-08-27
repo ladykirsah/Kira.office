@@ -200,6 +200,22 @@ input[type="number"]::-webkit-inner-spin-button {
   margin: 0;
 }
 /* Toolbar search: typed text near-black + slightly bold, placeholder stays muted like the selects' default */
+/* ── A list's toolbar: the search box and the selects beside it ────────────────────────────────
+   A class rather than the inline object it was, because the phone needs a different shape and an
+   inline style cannot be overridden by a media query. These values are the ones it always had. */
+.tbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+/* Scoped to the toolbar: `.tbar-input` is on five screens and only this one is being changed. */
+.tbar .tbar-input {
+  width: 240px;
+  max-width: 100%;
+}
+
 .tbar-input::placeholder {
   color: var(--text-faint);
   font-weight: 400;
@@ -1587,6 +1603,22 @@ a.card:hover {
   .tab {
     font-size: 13.5px;
     padding: 9px 11px;
+  }
+
+  /* ── The toolbar: search on its own line, the selects sharing the next (owner, 27 Aug 2026) ──
+     At 240px fixed the search box left a third of the row empty beside it while the selects
+     wrapped underneath anyway — the worst of both, a short box AND two lines. Full width is what a
+     search box on a phone wants, and the selects then divide what is left of their own line
+     equally, however many of them are on screen (the Filter one only appears once a Sort is
+     chosen). `min-width: 0` is what lets them actually shrink: a select's default minimum is its
+     widest option, which would push the row wide enough to scroll. */
+  .tbar .tbar-input {
+    flex: 1 0 100%;
+    width: auto;
+  }
+  .tbar select {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   /* ── The filter row SWIPES instead of wrapping (owner, 27 Aug 2026, design A of three) ────────
