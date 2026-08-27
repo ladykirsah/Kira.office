@@ -237,15 +237,12 @@ export function OrdersTable({
 
   return (
     <>
-      {/* Summary cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 10,
-          marginBottom: 20,
-        }}
-      >
+      {/* Summary cards. The same `.stat-grid` the dashboard uses — four across on a wide screen,
+          two by two on a phone, where a quarter of the width is narrower than the words in the
+          labels and "รอดำเนินการ" breaks over two lines (owner, 27 Aug 2026). summaryCardStyles.ts
+          already keeps the two frames from drifting; the grid around them belongs in one place for
+          the same reason. Only the bottom margin is this page's own. */}
+      <div className="stat-grid" style={{ marginBottom: 20 }}>
         {/* Rendered from the card table rather than four hand-written blocks, so a card's label,
             the statuses it counts and the tab it opens cannot be edited apart from each other. */}
         {ORDER_SUMMARY_CARDS.map((card) => (
