@@ -47,7 +47,10 @@ export function SalesTable({
 
   return (
     <div className="list-cards-scroll">
-      <table className="list-cards" style={{ "--list-min-width": "900px" } as CSSProperties}>
+      <table
+        className="list-cards list-fixed"
+        style={{ "--list-min-width": "900px" } as CSSProperties}
+      >
         {/* Job (tag + bill id) needs a bit more room; the other five share the rest evenly. */}
         <colgroup>
           <col style={{ width: "30%" }} />

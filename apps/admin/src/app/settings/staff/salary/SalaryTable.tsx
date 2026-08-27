@@ -179,7 +179,7 @@ export function SalaryTable({
 
       <div className="products-scroll list-cards-scroll">
         <table
-          className="products-table list-cards"
+          className="products-table list-cards list-fixed"
           style={{ "--list-min-width": "780px" } as CSSProperties}
         >
           {/* Fixed widths for the figures, so the columns line up between months and between

@@ -55,7 +55,10 @@ export function AirPlusOrders({
   const expenseSatang = expenses.reduce((sum, e) => sum + e.amountSatang, 0);
   return (
     <TableFrame cards>
-      <table className="list-cards" style={{ "--list-min-width": "900px" } as CSSProperties}>
+      <table
+        className="list-cards list-fixed"
+        style={{ "--list-min-width": "900px" } as CSSProperties}
+      >
         {/* Columns: Order ID (200) · Sales · Profit · Date · Status (160) · Action. Order ID and
             Status are pinned to the owner's widths; the middle four flex to fill the card.
             No inline comments between <col>s — they create whitespace text nodes (hydration error). */}

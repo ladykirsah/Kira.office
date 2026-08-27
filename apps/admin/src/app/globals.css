@@ -344,13 +344,18 @@ tbody tr:hover {
 .list-cards-scroll {
   overflow-x: auto;
 }
-.list-cards {
+/* WIDE-SCREEN SIZING, and a SEPARATE opt-in from `.list-cards` on purpose. These declarations
+   used to ride along with the card class, which silently gave `table-layout: fixed` to three
+   tables that had never had it — Orders, Stock and the Shopee list were auto-sized, and fixed
+   layout hands every column an equal share whether it holds a car model or a single digit.
+   Only a table that already carried these inline wears this: Products, Salary, and the two
+   Finance record lists. Each sets its own floor as `--list-min-width` (the sum of its columns),
+   a custom property rather than a plain inline `min-width` for one reason: the phone rule has to
+   set it to 0, and nothing in a stylesheet can override an inline style. */
+.list-fixed {
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  /* Each table sets its own floor inline as `--list-min-width` (the sum of its columns). It is a
-     custom property rather than a plain inline `min-width` for one reason: the phone rule below
-     has to be able to set it to 0, and nothing in a stylesheet can override an inline style. */
   min-width: var(--list-min-width, 0px);
 }
 /* The record's name in the identity cell. Ellipsised in a table, where the column is a fixed
@@ -368,6 +373,8 @@ tbody tr:hover {
   }
   .list-cards {
     display: block;
+  }
+  .list-fixed {
     min-width: 0;
   }
   /* A table that is `display: block` ignores its own colgroup and table-layout, so the fixed
@@ -382,7 +389,8 @@ tbody tr:hover {
     gap: 10px;
   }
   .list-cards tbody tr {
-    display: block;
+    display: flex;
+    flex-direction: column;
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px;
@@ -407,12 +415,22 @@ tbody tr:hover {
     overflow: visible;
   }
   /* The identity cell leads the card at full width and keeps no label — the name IS the label.
-     Keyed on POSITION, not on `.freeze-col`: only the widest tables freeze a column, and every
-     list table has a first cell. */
-  .list-cards tbody td:first-child {
+     Keyed on POSITION by default: only the widest tables freeze a column, and every list table
+     has a first cell.
+
+     A table whose first column is NOT the thing a person recognises can nominate a different one
+     with `.list-identity`, and it is hoisted to the top of the card (the row is a flex column for
+     exactly this). AirPlus Customers is the case: its first column is the account code, and a card
+     led by "AP-0002" instead of a person's name is a worse card. The code stays — one labelled
+     line down, where a reference number belongs. */
+  .list-cards tbody tr:not(:has(td.list-identity)) td:first-child,
+  .list-cards tbody td.list-identity {
     padding-bottom: 10px;
     margin-bottom: 8px;
     border-bottom: 1px solid var(--border);
+  }
+  .list-cards tbody td.list-identity {
+    order: -1;
   }
   .list-cards tbody td.freeze-col {
     position: static;
@@ -446,7 +464,7 @@ tbody tr:hover {
      column. Deliberately unlabelled: a control already says what it does, and the wide screen's
      header would have said it a second time (owner, 2026-08-27, on "Action · Actions"). Full
      width, sitting right, where a control belongs. */
-  .list-cards tbody td:not([data-label]):not(:first-child) {
+  .list-cards tbody td:not([data-label]):not(:first-child):not(.list-identity) {
     display: flex;
     justify-content: flex-end;
     padding-top: 8px;

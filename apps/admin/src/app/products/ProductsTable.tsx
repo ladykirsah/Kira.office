@@ -250,7 +250,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
         ) : (
           <div className="products-scroll list-cards-scroll" ref={scrollRef}>
             <table
-              className={`products-table list-cards${frozen ? " frozen" : ""}`}
+              className={`products-table list-cards list-fixed${frozen ? " frozen" : ""}`}
               cellPadding={8}
               style={{ "--list-min-width": "966px" } as CSSProperties}
             >

@@ -323,3 +323,13 @@ sources: [session 2026-08-09]
   `space-between`; the label is now pinned left with `margin-right: auto` so every part of the
   value stays grouped. **Customers was held back on purpose** — PR #151 rewrites 525 lines in
   exactly those two files. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **Both Customers lists became cards, and a silent regression came out with them.**
+  Held back until PR #151 merged, because the bilingual sweep rewrote the same lines. Converting
+  them exposed that `.list-cards` was carrying wide-screen sizing: it had been handing
+  `table-layout: fixed` to three tables that were always auto — Orders, Stock and the Shopee list —
+  which gives every column an equal share whether it holds a car model or a single digit (the Den
+  Air list measured 5 × 192px). Sizing now lives in a separate `.list-fixed`, worn only by the four
+  tables that had it inline. Also new: `.list-identity` lets a table nominate which cell leads the
+  card, because AirPlus Customers leads with an account code and a card headed "AP-0002" beats
+  nothing but a blank one. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

@@ -50,7 +50,7 @@ Two things make it work:
 
 **It is OPT-IN, and must stay that way.** `.products-table` is worn by six screens and one of them — the staff activity log — already has its own phone layout that this would fight. A screen joins by adding `list-cards` to the table, `list-cards-scroll` to the wrapper, and `data-label` to every cell. **Without the labels a card is a column of unexplained values, which is worse than the scroll it replaced.**
 
-**Joined (27 Aug 2026): Products, Staff People, Staff Salary, Staff Payments, Orders, Stock movements, and all three Finance lists (on-site, AirPlus, Shopee).** Not joined: Customers and AirPlus Customers — see the end of this section — and the Finance CHANNEL SUMMARY, which is deliberately still a table (four narrow columns a person compares ACROSS; cards would destroy the comparison). Two app-wide phone rules were added so tables like it still fit: cells drop to 8px padding, and a table that is NOT `.list-cards` reads at 14px. The activity log keeps its own two-column fold. (The product-edit page only *mentions* `products-table` in a comment; it has no such table.)
+**Joined (27 Aug 2026): Products, Staff People, Staff Salary, Staff Payments, Orders, Stock movements, all three Finance lists (on-site, AirPlus, Shopee), and BOTH Customers lists.** Customers came last on purpose: PR #151 rewrote every `th` and most cells in those two files, so converting alongside it would have conflicted on nearly every line — standing rule, **after a screen's bilingual sweep or on its branch, never in parallel with it.** Still not joined: the Finance CHANNEL SUMMARY, which is deliberately still a table (four narrow columns a person compares ACROSS; cards would destroy the comparison). Two app-wide phone rules were added so tables like it still fit: cells drop to 8px padding, and a table that is NOT `.list-cards` reads at 14px. The activity log keeps its own two-column fold. (The product-edit page only *mentions* `products-table` in a comment; it has no such table.)
 
 How a card is built, once the labels are on:
 
@@ -60,6 +60,7 @@ How a card is built, once the labels are on:
 | `[data-label]` | label left, value right |
 | anything else | full width, right-aligned, no label — the actions cell, and any drawer row that spanned every column |
 | `:empty` | hidden — a spacer for a column this row has no value for is furniture from the wide grid |
+| `.list-identity` | nominates a DIFFERENT cell to lead, hoisted to the top (`order: -1`) — for a table whose first column is not what a person recognises |
 
 Three things learned building the four:
 
@@ -67,6 +68,8 @@ Three things learned building the four:
 - **A table's min-width is `--list-min-width`, set inline per table**, not a plain inline `min-width`. The phone rule has to set it to 0, and nothing in a stylesheet can override an inline style. Products 966px, Salary 780px, People and Payments none.
 - **`TableFrame` takes a `cards` prop.** It wrapped its children in an inline `overflowX: auto`, which no media query can override; `cards` swaps that for `.list-cards-scroll`. Opt-in for the same reason as everything else here.
 - **A multi-part value needs the LABEL pinned, not the value pushed.** `justify-content: space-between` flung a stock row's product name and its code to opposite ends of the card with a hole between them. The label now takes `margin-right: auto` and everything else groups right, however many parts it has.
+- **`.list-cards` must NOT carry wide-screen sizing.** It did until 27 Aug, and that silently handed `table-layout: fixed` to three tables that had always been auto — Orders, Stock and the Shopee list. Fixed layout gives every column an equal share whether it holds a car model or a single digit; the Den Air list measured 5 × 192px before this was caught. Wide-screen sizing now lives in a separate **`.list-fixed`** (border-collapse, fixed layout, `--list-min-width`), worn ONLY by the four tables that already carried it inline: Products, Salary, and the two Finance record lists.
+- **The first column is not always the identity.** AirPlus Customers leads with an account code, and a card headed "AP-0002" instead of a person's name is a worse card. That cell takes `.list-identity` and jumps to the top; the code stays as an ordinary labelled line one row down.
 - **A total row is just a card whose name happens to be "Total".** Label its figures like any other row and it needs no special case; its empty spacer cells disappear on their own.
 
 `.list-name` (the identity link) also moved out of an inline style for this: ellipsised in a table where a long name would push the other columns off, wrapping freely in a card where there are no columns left to protect.

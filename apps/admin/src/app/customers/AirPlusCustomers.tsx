@@ -324,6 +324,18 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   );
 }
 
+/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
+ *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
+const ACCOUNT_COLUMN = {
+  userId: { th: "รหัสผู้ใช้", en: "User ID" },
+  customer: { th: "ลูกค้า", en: "Customer" },
+  signedUp: { th: "สมัครเมื่อ", en: "Signed up" },
+  consent: { th: "การยินยอม", en: "Consent" },
+  orders: { th: "คำสั่งซื้อ", en: "Orders" },
+  spent: { th: "ยอดซื้อรวม", en: "Spent" },
+  lastOrder: { th: "ซื้อล่าสุด", en: "Last order" },
+};
+
 export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
   const toast = useToast();
   const t = useT();
@@ -434,7 +446,7 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
             : t({ th: "อัปเดตเครดิตทั้งหมด", en: "Update every credit" })}
         </button>
       </div>
-      <TableFrame>
+      <TableFrame cards>
         {loading ? (
           <div className="muted" style={{ padding: 12 }}>
             {t({ th: "กำลังโหลด…", en: "Loading…" })}
@@ -447,16 +459,16 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
               : t({ th: "ยังไม่มีบัญชีลูกค้า AirPlus", en: "No AirPlus accounts yet." })}
           </div>
         ) : (
-          <table>
+          <table className="list-cards">
             <thead>
               <tr>
-                <th>{t({ th: "รหัสผู้ใช้", en: "User ID" })}</th>
-                <th>{t({ th: "ลูกค้า", en: "Customer" })}</th>
-                <th>{t({ th: "สมัครเมื่อ", en: "Signed up" })}</th>
-                <th>{t({ th: "การยินยอม", en: "Consent" })}</th>
-                <th>{t({ th: "คำสั่งซื้อ", en: "Orders" })}</th>
-                <th style={{ textAlign: "right" }}>{t({ th: "ยอดซื้อรวม", en: "Spent" })}</th>
-                <th>{t({ th: "ซื้อล่าสุด", en: "Last order" })}</th>
+                <th>{t(ACCOUNT_COLUMN.userId)}</th>
+                <th>{t(ACCOUNT_COLUMN.customer)}</th>
+                <th>{t(ACCOUNT_COLUMN.signedUp)}</th>
+                <th>{t(ACCOUNT_COLUMN.consent)}</th>
+                <th>{t(ACCOUNT_COLUMN.orders)}</th>
+                <th style={{ textAlign: "right" }}>{t(ACCOUNT_COLUMN.spent)}</th>
+                <th>{t(ACCOUNT_COLUMN.lastOrder)}</th>
               </tr>
             </thead>
             <tbody>
@@ -467,10 +479,16 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
                   onClick={() => setSelected(c.id)}
                   title={t({ th: "เปิดข้อมูลลูกค้า", en: "Open customer" })}
                 >
-                  <td style={{ whiteSpace: "nowrap", fontFamily: "var(--font-mono, monospace)" }}>
+                  <td
+                    data-label={t(ACCOUNT_COLUMN.userId)}
+                    style={{ whiteSpace: "nowrap", fontFamily: "var(--font-mono, monospace)" }}
+                  >
                     {c.customerCode ?? "—"}
                   </td>
-                  <td>
+                  {/* Nominated as the card's identity: on a phone this leads, not the account
+                      code above it. A card headed "AP-0002" is a worse card than one headed with
+                      the person's name (owner's screens, 2026-08-27). */}
+                  <td className="list-identity">
                     <div style={tableText.body2}>
                       {c.name || t({ th: "(ยังไม่มีชื่อ)", en: "(no name yet)" })}
                     </div>
@@ -479,18 +497,25 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
                       {c.lineLinked ? " · LINE" : ""}
                     </div>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{date(c.createdAt, lang)}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td data-label={t(ACCOUNT_COLUMN.signedUp)} style={{ whiteSpace: "nowrap" }}>
+                    {date(c.createdAt, lang)}
+                  </td>
+                  <td data-label={t(ACCOUNT_COLUMN.consent)} style={{ whiteSpace: "nowrap" }}>
                     <ConsentPill
                       at={c.marketingConsentAt}
                       label={t({ th: "รับข่าวสาร", en: "Marketing" })}
                     />
                   </td>
-                  <td>{c.orderCount}</td>
-                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  <td data-label={t(ACCOUNT_COLUMN.orders)}>{c.orderCount}</td>
+                  <td
+                    data-label={t(ACCOUNT_COLUMN.spent)}
+                    style={{ textAlign: "right", whiteSpace: "nowrap" }}
+                  >
                     {formatBahtTrim(c.spentSatang)}
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{date(c.lastOrderAt, lang)}</td>
+                  <td data-label={t(ACCOUNT_COLUMN.lastOrder)} style={{ whiteSpace: "nowrap" }}>
+                    {date(c.lastOrderAt, lang)}
+                  </td>
                 </tr>
               ))}
             </tbody>
