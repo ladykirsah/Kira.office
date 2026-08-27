@@ -2,6 +2,8 @@ import { INSIGHT_PERIODS, isInsightPeriod, type InsightPeriod } from "@l-shopee/
 import { fetchInsights } from "@/lib/api";
 import { PageHeader } from "../PageHeader";
 import { InsightBoard } from "./InsightBoard";
+import { serverT } from "@/lib/serverLang";
+import type { Phrase } from "@/lib/lang";
 
 /**
  * AirPlus Insight — Kira's answer to Shopee's Business Insights (ภาพรวมทั้งหมด).
@@ -17,12 +19,12 @@ import { InsightBoard } from "./InsightBoard";
 
 export const dynamic = "force-dynamic";
 
-const PERIOD_LABELS: Record<InsightPeriod, string> = {
-  realtime: "Real-time",
-  yesterday: "เมื่อวาน",
-  "7d": "ย้อนหลัง 7 วัน",
-  "30d": "ย้อนหลัง 30 วัน",
-  month: "ภายในเดือนนี้",
+const PERIOD_LABELS: Record<InsightPeriod, Phrase> = {
+  realtime: { th: "เรียลไทม์", en: "Real-time" },
+  yesterday: { th: "เมื่อวาน", en: "Yesterday" },
+  "7d": { th: "ย้อนหลัง 7 วัน", en: "Last 7 days" },
+  "30d": { th: "ย้อนหลัง 30 วัน", en: "Last 30 days" },
+  month: { th: "ภายในเดือนนี้", en: "This month" },
 };
 
 export default async function InsightsPage({
@@ -30,6 +32,7 @@ export default async function InsightsPage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
+  const t = await serverT();
   const requested = (await searchParams).period ?? "";
   const period: InsightPeriod = isInsightPeriod(requested) ? requested : "realtime";
 
@@ -41,8 +44,16 @@ export default async function InsightsPage({
     // its counts are unavailable. A back office that throws is worse than one that admits a gap.
     return (
       <>
-        <PageHeader title="AirPlus Insight" subtitle="ภาพรวมร้าน AirPlus" />
-        <p className="muted">ยังโหลดข้อมูลไม่ได้ ลองใหม่อีกครั้ง</p>
+        <PageHeader
+          title="AirPlus Insight"
+          subtitle={t({ th: "ภาพรวมร้าน AirPlus", en: "AirPlus at a glance" })}
+        />
+        <p className="muted">
+          {t({
+            th: "ยังโหลดข้อมูลไม่ได้ ลองใหม่อีกครั้ง",
+            en: "Could not load the data. Try again.",
+          })}
+        </p>
       </>
     );
   }
@@ -51,7 +62,10 @@ export default async function InsightsPage({
     <>
       <PageHeader
         title="AirPlus Insight"
-        subtitle="ภาพรวมทั้งหมด — ยอดขาย กำไร และการเข้าชมร้าน AirPlus"
+        subtitle={t({
+          th: "ภาพรวมทั้งหมด — ยอดขาย กำไร และการเข้าชมร้าน AirPlus",
+          en: "The whole picture — AirPlus sales, profit and store visits",
+        })}
       />
 
       {/* Period chips. Plain links, so each period is its own URL and the back button works. */}
@@ -81,7 +95,7 @@ export default async function InsightsPage({
                 fontWeight: active ? 600 : 500,
               }}
             >
-              {PERIOD_LABELS[p]}
+              {t(PERIOD_LABELS[p])}
             </a>
           );
         })}

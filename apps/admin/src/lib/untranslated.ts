@@ -44,6 +44,8 @@ const THAI = /[ก-฾เ-๿]/;
 const NAMES = [
   "AirPlus",
   "AirPlus Auto",
+  // The analytics screen's own name, built to sit beside Shopee's Business Insights.
+  "AirPlus Insight",
   "Shopee",
   // A sales channel, exactly like Shopee beside it — a company's name, not a word to translate.
   "Lazada",

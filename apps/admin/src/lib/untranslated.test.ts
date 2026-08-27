@@ -292,6 +292,7 @@ const CLEARED = [
   "app/ShopeeWorklist.tsx",
   "app/terms",
   "app/import",
+  "app/insights",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",

@@ -20,6 +20,8 @@ import {
   seriesScales,
 } from "@/lib/insightChart";
 import { TableFrame } from "../TableFrame";
+import { useT } from "../LangProvider";
+import type { Phrase } from "@/lib/lang";
 
 /**
  * The interactive half of AirPlus Insight.
@@ -39,18 +41,19 @@ const MAX_SERIES = 2;
 /** The two lines' colours. Coral is the primary series; slate is the overlay. */
 const SERIES_COLORS = ["var(--primary)", "#2563eb"];
 
-const SOURCE_LABELS: Record<string, string> = {
-  direct: "เข้าตรง",
-  search: "การค้นหา",
-  social: "โซเชียล",
-  ai: "ผู้ช่วย AI",
-  referral: "เว็บอื่น",
-  internal: "ภายในเว็บ",
+const SOURCE_LABELS: Record<string, Phrase> = {
+  direct: { th: "เข้าตรง", en: "Direct" },
+  search: { th: "การค้นหา", en: "Search" },
+  social: { th: "โซเชียล", en: "Social" },
+  ai: { th: "ผู้ช่วย AI", en: "AI assistants" },
+  referral: { th: "เว็บอื่น", en: "Other sites" },
+  internal: { th: "ภายในเว็บ", en: "Within the site" },
 };
 
 const CHART_BOX = { width: 720, height: 170 };
 
 export function InsightBoard({ payload }: { payload: InsightsPayload }) {
+  const t = useT();
   const [selected, setSelected] = useState<MetricKey[]>(["sales", "profit"]);
 
   const current = metricValues(payload.totals);
@@ -129,19 +132,22 @@ export function InsightBoard({ payload }: { payload: InsightsPayload }) {
         buckets={payload.series.buckets}
       />
 
-      <TileGroup title="ยอดขาย">
+      <TileGroup title={t({ th: "ยอดขาย", en: "Sales" })}>
         {moneyRest.map((def) => (
           <MetricTile key={def.key} {...tileProps(def)} />
         ))}
       </TileGroup>
 
       <TileGroup
-        title="การเข้าชม"
+        title={t({ th: "การเข้าชม", en: "Visits" })}
         note={
           // Stated on the page, not buried in a migration: a metric the reader cannot audit is worse
           // than one they can discount.
           granularity === "day"
-            ? "ผู้เข้าชมในช่วงหลายวันนับแบบรายวันรวมกัน — คนเดิมที่กลับมาอีกวันจะถูกนับใหม่"
+            ? t({
+                th: "ผู้เข้าชมในช่วงหลายวันนับแบบรายวันรวมกัน — คนเดิมที่กลับมาอีกวันจะถูกนับใหม่",
+                en: "Visitors over several days are counted per day and added up — the same person returning on another day is counted again.",
+              })
             : undefined
         }
       >
@@ -302,6 +308,7 @@ function Chart({
   ticks: { position: number; label: string }[];
   buckets: number[];
 }) {
+  const t = useT();
   // Two money metrics share one scale so the gap between the lines is the real gap (sales vs profit
   // is the default pair, and independent scales made profit look equal to revenue). Mixed units keep
   // their own — see seriesScales.
@@ -334,7 +341,10 @@ function Chart({
       <svg
         viewBox={`0 0 ${CHART_BOX.width} ${CHART_BOX.height}`}
         role="img"
-        aria-label={`แนวโน้ม ${selected.join(", ")}`}
+        aria-label={t({
+          th: `แนวโน้ม ${selected.join(", ")}`,
+          en: `Trend for ${selected.join(", ")}`,
+        })}
         // height:auto with the viewBox intact — `preserveAspectRatio="none"` would squash the
         // endpoint circle into an ellipse at any width but exactly 720px.
         style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}
@@ -397,62 +407,73 @@ function Chart({
           color: "var(--text-muted)",
         }}
       >
-        {ticks.map((t) => (
+        {ticks.map((tick) => (
           <span
-            key={t.label}
+            key={tick.label}
             style={{
               position: "absolute",
-              left: `${t.position * 100}%`,
+              left: `${tick.position * 100}%`,
               transform:
-                t.position === 0
+                tick.position === 0
                   ? "none"
-                  : t.position === 1
+                  : tick.position === 1
                     ? "translateX(-100%)"
                     : "translateX(-50%)",
               whiteSpace: "nowrap",
             }}
           >
-            {t.label}
+            {tick.label}
           </span>
         ))}
-        {buckets.length === 0 && <span>ไม่มีข้อมูล</span>}
+        {buckets.length === 0 && <span>{t({ th: "ไม่มีข้อมูล", en: "No data" })}</span>}
       </div>
     </div>
   );
 }
 
 function SourceTable({ rows }: { rows: InsightSourceRow[] }) {
+  const t = useT();
   const totalVisitors = rows.reduce((n, r) => n + r.visitors, 0);
   return (
     <section>
-      <h2 style={{ fontSize: 15, margin: "0 0 4px" }}>ที่มาของการเข้าชม</h2>
+      <h2 style={{ fontSize: 15, margin: "0 0 4px" }}>
+        {t({ th: "ที่มาของการเข้าชม", en: "Where visits come from" })}
+      </h2>
       <p className="muted" style={{ margin: "0 0 10px", fontSize: 12 }}>
         {/* Shopee shows sales per source; we cannot, and say so rather than inventing a number.
             Attributing a sale to a source needs the browsing session to be linked to the order,
             which is exactly the link the visitor-id design refuses to make. */}
-        นับเฉพาะการเข้าชม — ยังไม่แยกยอดขายตามที่มา · 1 การมองเห็น = 1 คลิก
+        {t({
+          th: "นับเฉพาะการเข้าชม — ยังไม่แยกยอดขายตามที่มา · 1 การมองเห็น = 1 คลิก",
+          en: "Visits only — sales are not split by source yet · 1 product view = 1 click",
+        })}
       </p>
       <TableFrame>
         <table style={{ width: "100%" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left" }}>ที่มา</th>
-              <th style={{ textAlign: "right" }}>สัดส่วน</th>
-              <th style={{ textAlign: "right" }}>ผู้เข้าชม</th>
-              <th style={{ textAlign: "right" }}>มองเห็นสินค้า</th>
+              <th style={{ textAlign: "left" }}>{t({ th: "ที่มา", en: "Source" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "สัดส่วน", en: "Share" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "ผู้เข้าชม", en: "Visitors" })}</th>
+              <th style={{ textAlign: "right" }}>
+                {t({ th: "มองเห็นสินค้า", en: "Product views" })}
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="muted">
-                  ยังไม่มีข้อมูลการเข้าชมในช่วงนี้
+                  {t({
+                    th: "ยังไม่มีข้อมูลการเข้าชมในช่วงนี้",
+                    en: "No visit data for this period yet.",
+                  })}
                 </td>
               </tr>
             )}
             {rows.map((r) => (
               <tr key={r.source}>
-                <td>{SOURCE_LABELS[r.source] ?? r.source}</td>
+                <td>{SOURCE_LABELS[r.source] ? t(SOURCE_LABELS[r.source]) : r.source}</td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {totalVisitors === 0
                     ? "—"
@@ -477,30 +498,39 @@ function SourceTable({ rows }: { rows: InsightSourceRow[] }) {
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 function ProductTable({ rows }: { rows: InsightProductRow[] }) {
+  const t = useT();
   return (
     <section>
-      <h2 style={{ fontSize: 15, margin: "0 0 4px" }}>สินค้าขายดี</h2>
+      <h2 style={{ fontSize: 15, margin: "0 0 4px" }}>
+        {t({ th: "สินค้าขายดี", en: "Best sellers" })}
+      </h2>
       <p className="muted" style={{ margin: "0 0 10px", fontSize: 12 }}>
-        เรียงตามยอดขาย — สินค้าที่มีคนดูแต่ยังไม่มีใครซื้อจะอยู่ท้ายตาราง
+        {t({
+          th: "เรียงตามยอดขาย — สินค้าที่มีคนดูแต่ยังไม่มีใครซื้อจะอยู่ท้ายตาราง",
+          en: "Ordered by sales — products people looked at but nobody bought sit at the bottom.",
+        })}
       </p>
       <TableFrame>
         <table style={{ width: "100%" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", width: 44 }}>อันดับ</th>
-              <th style={{ textAlign: "left" }}>สินค้า</th>
-              <th style={{ textAlign: "right" }}>ยอดขาย</th>
-              <th style={{ textAlign: "right" }}>กำไร</th>
-              <th style={{ textAlign: "right" }}>ขายได้</th>
-              <th style={{ textAlign: "right" }}>มองเห็น</th>
-              <th style={{ textAlign: "right" }}>อัตราการซื้อ</th>
+              <th style={{ textAlign: "left", width: 44 }}>{t({ th: "อันดับ", en: "Rank" })}</th>
+              <th style={{ textAlign: "left" }}>{t({ th: "สินค้า", en: "Product" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "ยอดขาย", en: "Sales" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "กำไร", en: "Profit" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "ขายได้", en: "Sold" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "มองเห็น", en: "Views" })}</th>
+              <th style={{ textAlign: "right" }}>{t({ th: "อัตราการซื้อ", en: "Buy rate" })}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="muted">
-                  ยังไม่มีข้อมูลสินค้าในช่วงนี้
+                  {t({
+                    th: "ยังไม่มีข้อมูลสินค้าในช่วงนี้",
+                    en: "No product data for this period yet.",
+                  })}
                 </td>
               </tr>
             )}
