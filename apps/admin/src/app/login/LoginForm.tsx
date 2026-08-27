@@ -353,26 +353,6 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         </>
       )}
 
-      {practiceCopy && (
-        <div className="practice-door">
-          <button
-            type="button"
-            onClick={signInToPractice}
-            disabled={busy}
-            className="btn-primary"
-            style={{ width: "100%" }}
-          >
-            {t({ th: "เข้าใช้งานเครื่องซ้อม", en: "Sign in to the practice copy" })}
-          </button>
-          <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0", textAlign: "center" }}>
-            {t({
-              th: "ไม่ต้องใช้รหัส — เครื่องนี้รันอยู่บนคอมของคุณ และไม่มีข้อมูลจริง",
-              en: "No password — this copy runs on your computer and holds no real data.",
-            })}
-          </p>
-        </div>
-      )}
-
       {expired && !formError && (
         <div role="status" className="login-error login-note">
           {t({
@@ -519,6 +499,35 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
           >
             {t({ th: "ทางเข้าฉุกเฉิน", en: "Emergency entrance" })}
           </button>
+        )}
+
+        {/*
+          THE PRACTICE COPY'S DOOR — last on the card, and deliberately NOT red (owner, 27 Aug
+          2026). It used to sit mid-card above the real Sign in button wearing btn-primary, so the
+          card appeared to ask you to sign in twice and the owner read their own practice copy as
+          broken. It is a real way in, so it stays a button rather than becoming a link; it is not
+          the everyday way in, so it does not take --primary, which marks the one thing you are
+          meant to press.
+
+          Drawn only on a copy running on this machine — the live shop never renders any of this.
+        */}
+        {practiceCopy && (
+          <div className="practice-door">
+            <button
+              type="button"
+              onClick={signInToPractice}
+              disabled={busy}
+              style={{ width: "100%" }}
+            >
+              {t({ th: "เข้าใช้งานเครื่องซ้อม", en: "Sign in to the practice copy" })}
+            </button>
+            <p className="muted" style={{ fontSize: 12.5, margin: "6px 0 0", textAlign: "center" }}>
+              {t({
+                th: "ไม่ต้องใช้รหัส — เครื่องนี้รันอยู่บนคอมของคุณ และไม่มีข้อมูลจริง",
+                en: "No password — this copy runs on your computer and holds no real data.",
+              })}
+            </p>
+          </div>
         )}
       </div>
     </form>
