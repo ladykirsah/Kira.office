@@ -1,3 +1,4 @@
+import type { Phrase } from "./lang";
 /** Global low-stock threshold for Phase 1. Per-product thresholds are a later phase. */
 export const LOW_STOCK_THRESHOLD = 3;
 
@@ -15,26 +16,27 @@ export function stockStatus(onHand: number, threshold = LOW_STOCK_THRESHOLD): St
  * sub-types the app writes (receive/write_off/correction), and maps the legacy "refund" and the
  * current "refund_return" to one label so old rows still read correctly.
  */
-const MOVEMENT_LABELS: Record<string, string> = {
-  opening_balance: "Opening balance",
-  purchase_receipt: "Purchase receipt",
-  manual_adjustment: "Manual adjustment",
-  receive: "Received",
-  write_off: "Write-off",
-  correction: "Correction",
-  onsite_sale: "On-site sale",
-  online_sale: "Online sale",
-  refund_return: "Refund / return",
-  refund: "Refund / return",
-  damaged_lost: "Damaged / lost",
-  transfer: "Transfer",
-  hold: "Put on hold",
-  unhold: "Brought back from hold",
-  reconciliation: "Reconciliation",
+const MOVEMENT_LABELS: Record<string, Phrase> = {
+  opening_balance: { th: "ยอดยกมา", en: "Opening balance" },
+  purchase_receipt: { th: "รับของเข้า", en: "Purchase receipt" },
+  manual_adjustment: { th: "ปรับด้วยมือ", en: "Manual adjustment" },
+  receive: { th: "รับเข้า", en: "Received" },
+  write_off: { th: "ตัดออก", en: "Write-off" },
+  correction: { th: "แก้ยอด", en: "Correction" },
+  onsite_sale: { th: "ขายหน้าร้าน", en: "On-site sale" },
+  online_sale: { th: "ขายออนไลน์", en: "Online sale" },
+  refund_return: { th: "คืนเงิน / คืนของ", en: "Refund / return" },
+  refund: { th: "คืนเงิน / คืนของ", en: "Refund / return" },
+  damaged_lost: { th: "เสียหาย / สูญหาย", en: "Damaged / lost" },
+  transfer: { th: "โอนย้าย", en: "Transfer" },
+  hold: { th: "พักไว้", en: "Put on hold" },
+  unhold: { th: "นำกลับจากที่พัก", en: "Brought back from hold" },
+  reconciliation: { th: "กระทบยอด", en: "Reconciliation" },
 };
 
-export function movementLabel(type: string): string {
-  return MOVEMENT_LABELS[type] ?? type;
+export function movementLabel(type: string): Phrase {
+  // An unknown type falls back to the raw enum in BOTH languages — a code is a code.
+  return MOVEMENT_LABELS[type] ?? { th: type, en: type };
 }
 
 export type AdjustAction = "receive" | "write_off" | "correction";

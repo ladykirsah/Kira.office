@@ -6,8 +6,13 @@ import { inputS } from "@/lib/inputStyles";
 import { fetchTermsTemplate, saveTermsTemplate } from "@/lib/api";
 import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
+import type { Phrase } from "@/lib/lang";
+
+const TITLE: Phrase = { th: "แก้ไขเงื่อนไขภาษาไทย", en: "Thai T&C editor" };
 
 export default function TermsPage() {
+  const t = useT();
   const [template, setTemplate] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -34,7 +39,7 @@ export default function TermsPage() {
     setBusy(true);
     try {
       await saveTermsTemplate(template);
-      toast("Saved ✓", "success");
+      toast(t({ th: "บันทึกแล้ว ✓", en: "Saved ✓" }), "success");
     } catch (err) {
       toast((err as Error).message, "error");
     } finally {
@@ -45,7 +50,7 @@ export default function TermsPage() {
   if (loading)
     return (
       <main>
-        <h1>Thai T&amp;C editor</h1>
+        <h1>{t(TITLE)}</h1>
         <div className="skeleton skeleton-row" style={{ width: "100%", height: 160 }} />
       </main>
     );
@@ -53,10 +58,14 @@ export default function TermsPage() {
   return (
     <main>
       <PageHeader
-        title="Thai T&amp;C editor"
+        title={t(TITLE)}
         subtitle={
           <>
-            Use <code>{"{{placeholder}}"}</code> for fields filled in per product/sale.
+            {t({ th: "ใช้", en: "Use" })} <code>{"{{placeholder}}"}</code>{" "}
+            {t({
+              th: "สำหรับช่องที่กรอกต่างกันในแต่ละสินค้า/การขาย",
+              en: "for fields filled in per product/sale.",
+            })}
           </>
         }
       />
@@ -68,13 +77,13 @@ export default function TermsPage() {
       />
       <div style={{ marginTop: 8 }}>
         <button className="btn-primary" onClick={save} disabled={busy}>
-          Save template
+          {t({ th: "บันทึกเทมเพลต", en: "Save template" })}
         </button>
       </div>
 
-      <h2 style={{ marginTop: 20 }}>Placeholders</h2>
+      <h2 style={{ marginTop: 20 }}>{t({ th: "ช่องที่ต้องกรอก", en: "Placeholders" })}</h2>
       {placeholders.length === 0 ? (
-        <p style={{ color: "var(--text-faint)" }}>none</p>
+        <p style={{ color: "var(--text-faint)" }}>{t({ th: "ไม่มี", en: "none" })}</p>
       ) : (
         <div style={{ display: "grid", gap: 6, maxWidth: 360 }}>
           {placeholders.map((p) => (
@@ -90,9 +99,11 @@ export default function TermsPage() {
         </div>
       )}
 
-      <h2 style={{ marginTop: 20 }}>Preview</h2>
+      <h2 style={{ marginTop: 20 }}>{t({ th: "ตัวอย่าง", en: "Preview" })}</h2>
       {missing.length > 0 && (
-        <p style={{ color: "var(--warn)" }}>Missing values: {missing.join(", ")}</p>
+        <p style={{ color: "var(--warn)" }}>
+          {t({ th: "ยังไม่ได้กรอก:", en: "Missing values:" })} {missing.join(", ")}
+        </p>
       )}
       <pre
         style={{

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "./LangProvider";
+import type { Phrase } from "@/lib/lang";
+
+const PRODUCT_ID: Phrase = { th: "รหัสสินค้า", en: "Product ID" };
 import { markShopeeSynced, type ShopeeWorklistItem } from "@/lib/api";
 import { CopyButton } from "./products/CopyButton";
 
@@ -57,6 +61,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
     });
   }
 
+  const t = useT();
   async function clearDone() {
     const ids = rows.filter((r) => done.has(r.productId)).map((r) => r.productId);
     if (ids.length === 0) return;
@@ -68,7 +73,10 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
       setDone(new Set());
     } catch (e) {
       // Keep the ticks so the owner can retry — the Shopee stock wasn't cleared on our side.
-      setError((e as Error).message || "Could not clear. Try again.");
+      setError(
+        (e as Error).message ||
+          t({ th: "ล้างรายการไม่สำเร็จ ลองอีกครั้ง", en: "Could not clear. Try again." }),
+      );
     } finally {
       setBusy(false);
     }
@@ -78,7 +86,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
     return (
       <div className="empty">
         <div className="empty-icon">✓</div>
-        No updates.
+        {t({ th: "ไม่มีรายการต้องอัปเดต", en: "No updates." })}
       </div>
     );
   }
@@ -89,10 +97,12 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
         <table>
           <thead>
             <tr>
-              <th style={cellPad}>Product</th>
-              <th style={cellPad}>Product ID</th>
-              <th style={{ ...cellPad, textAlign: "right" }}>Reduce</th>
-              <th style={{ ...cellPad, textAlign: "center", width: 60 }}>Done</th>
+              <th style={cellPad}>{t({ th: "สินค้า", en: "Product" })}</th>
+              <th style={cellPad}>{t(PRODUCT_ID)}</th>
+              <th style={{ ...cellPad, textAlign: "right" }}>{t({ th: "ลดลง", en: "Reduce" })}</th>
+              <th style={{ ...cellPad, textAlign: "center", width: 60 }}>
+                {t({ th: "เสร็จ", en: "Done" })}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -112,7 +122,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
                   <td style={cellPad}>
                     <span style={idCell}>
                       {r.productRef}
-                      <CopyButton value={r.productRef} label={`Product ID ${r.productRef}`} />
+                      <CopyButton value={r.productRef} label={`${t(PRODUCT_ID)} ${r.productRef}`} />
                     </span>
                   </td>
                   <td
@@ -131,7 +141,10 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
                       type="checkbox"
                       checked={isDone}
                       onChange={() => toggle(r.productId)}
-                      aria-label={`Mark ${r.name} done`}
+                      aria-label={t({
+                        th: `ทำเครื่องหมายว่า ${r.name} เสร็จแล้ว`,
+                        en: `Mark ${r.name} done`,
+                      })}
                       style={{
                         width: 17,
                         height: 17,
@@ -151,7 +164,10 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
           {error ? (
             <span style={{ color: "var(--danger)" }}>{error}</span>
           ) : (
-            `${doneCount} of ${rows.length} marked done`
+            t({
+              th: `ทำแล้ว ${doneCount} จาก ${rows.length} รายการ`,
+              en: `${doneCount} of ${rows.length} marked done`,
+            })
           )}
         </span>
         <button
@@ -160,7 +176,9 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
           onClick={clearDone}
           disabled={busy || doneCount === 0}
         >
-          {busy ? "Clearing…" : `Clear done (${doneCount})`}
+          {busy
+            ? t({ th: "กำลังล้าง…", en: "Clearing…" })
+            : t({ th: `ล้างที่เสร็จแล้ว (${doneCount})`, en: `Clear done (${doneCount})` })}
         </button>
       </div>
     </div>

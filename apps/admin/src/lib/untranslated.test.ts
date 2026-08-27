@@ -288,6 +288,10 @@ const CLEARED = [
   // Route handlers rather than screens, but watched all the same — a message added here later
   // would be a message on a screen. Their HTTP plumbing is excused by name below.
   "app/api/staff",
+  "app/stock",
+  "app/ShopeeWorklist.tsx",
+  "app/terms",
+  "app/import",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -356,6 +360,12 @@ const DELIBERATE: Record<string, Exception> = {
   // A service is stored under a Thai name and an English one, typed into two fields side by side.
   // Route handlers, not screens. What the detector sees here is HTTP: a Cloudflare header name and
   // the attributes of a Set-Cookie string. None of it is ever read by a person.
+  // Sample CSV sitting IN the textarea as its starting content — a worked example of the file
+  // format, with a real Thai product name in it. It is data to be replaced, not words to read.
+  "app/import/page.tsx": {
+    reason: "an example of the CSV file format, shown as the textarea's starting content",
+    texts: [String.raw`product_ref,name,description\nAC-CMP-VIOS14,ครีมบำรุงผิว,หลอด 50ml\n`],
+  },
   "app/api/staff/login/route.ts": { reason: "HTTP header and cookie attributes, not screen text" },
   "app/api/staff/logout/route.ts": { reason: "the Set-Cookie string that clears the session" },
   "app/settings/services/page.tsx": {
