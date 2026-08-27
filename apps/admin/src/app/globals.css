@@ -1589,6 +1589,34 @@ a.card:hover {
     padding: 9px 11px;
   }
 
+  /* ── The filter row SWIPES instead of wrapping (owner, 27 Aug 2026, design A of three) ────────
+     Eight order filters wrapped onto three lines — 121px measured at 375px — so the page opened on
+     its own controls and the first order sat below the fold. One line that runs off the edge costs
+     39px and hides nothing that a thumb cannot reach.
+
+     A tab cut in half at the right edge is the affordance, which is why nothing is faded over it:
+     a half-word is a clearer "there is more" than a gradient, and it is what every shopping app on
+     the same phone already does. `TabStrip` keeps the ACTIVE tab in view, so arriving already
+     filtered never looks unfiltered.
+
+     The scrollbar is hidden because this is a strip of buttons, not a document — a bar under it
+     would read as part of the row. The row's own bottom border stays the divider it always was. */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  /* A tab must keep its full width in the strip; flex would otherwise squeeze them all to fit and
+     defeat the scrolling entirely. */
+  .tabs .tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   /* Drawn exactly like the theme toggle it shares the bar with — same surface, border and
      radius — so the two controls read as a pair with the brand centred between them. */
   .mnav-burger {

@@ -16,6 +16,7 @@ import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 import { useT } from "../LangProvider";
+import { TabStrip } from "../TabStrip";
 
 type Tab = "all" | "airplus" | "notlive" | "low" | "out";
 
@@ -141,7 +142,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
 
   return (
     <>
-      <div className="tabs">
+      <TabStrip>
         <TabBtn id="all" label={t({ th: "ทั้งหมด", en: "All" })} n={products.length} />
         {managesCatalog && (
           <>
@@ -159,7 +160,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             <TabBtn id="out" label={t({ th: "หมด", en: "Out of stock" })} n={outOfStock.length} />
           </>
         )}
-      </div>
+      </TabStrip>
 
       <div
         style={{

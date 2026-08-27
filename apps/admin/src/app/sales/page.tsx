@@ -35,6 +35,7 @@ import { canViewFinance } from "@l-shopee/core";
 import { SalesTable } from "./SalesTable";
 import { AirPlusOrders } from "./AirPlusOrders";
 import { ExpenseForm } from "./ExpenseForm";
+import { TabStrip } from "../TabStrip";
 
 // Matches the Orders page's date picker (owner request), minus the week presets.
 const PRESETS: { key: RangePreset; label: Phrase }[] = [
@@ -354,14 +355,14 @@ export default function SalesPage() {
         subtitle={t({ th: "ยอดขายสินค้าแยกตามช่องทาง", en: "Product sales by channel." })}
       />
 
-      <div className="tabs">
+      <TabStrip>
         <TabBtn
           id="summary"
           label={`${t({ th: "สรุป", en: "Summary" })} (${channelTotal.count})`}
         />
         <TabBtn id="onsite" label={`Den Air Service (${s.salesCount})`} />
         <TabBtn id="airplus" label={`AirPlus (${airplusInRange.length})`} />
-      </div>
+      </TabStrip>
 
       {sales === null ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />

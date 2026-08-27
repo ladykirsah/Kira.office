@@ -27,6 +27,7 @@ import { OrderActionsMenu } from "./OrderActionsMenu";
 
 import type { OrderTab } from "@/lib/orderTabs";
 import { useT } from "../LangProvider";
+import { TabStrip } from "../TabStrip";
 
 type Tab = "all" | OrderTab;
 /** Derived from the card table so the two can never list different keys. */
@@ -251,7 +252,7 @@ export function OrdersTable({
       </div>
 
       {/* Tabs — same as ProductsTable */}
-      <div className="tabs">
+      <TabStrip>
         {/* Labels come from ORDER_TAB_LABELS; the `shipped` id stays internal while it reads
             "In transit", matching the Status pill and the summary card. */}
         <TabBtn id="all" />
@@ -262,7 +263,7 @@ export function OrdersTable({
         <TabBtn id="completed" />
         <TabBtn id="cancelfail" />
         <TabBtn id="refundclaim" />
-      </div>
+      </TabStrip>
 
       {/* Frame — same as ProductsTable */}
       <div style={frameStyle}>
