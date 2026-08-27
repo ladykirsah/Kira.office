@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { apiBase, getProductDetail } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
+import { matchesText } from "@/lib/textSearch";
 import { pageDimensions, planFittedSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 import { PageHeader } from "../PageHeader";
 import { useT } from "../LangProvider";
@@ -26,7 +27,8 @@ import {
 
 export interface StudioProduct {
   id: string;
-  code: string;
+  /** The Product ID (product_ref). Null on a product saved before the ID became mandatory. */
+  code: string | null;
   name: string;
   imageKey: string | null;
   tags: string[];
@@ -172,7 +174,7 @@ function LabelCanvas({
     drawLabel(
       canvasRef.current,
       {
-        code: product.code,
+        code: product.code ?? "",
         name: product.name,
         brandName: product.brandName,
         typeName: product.typeName,
@@ -230,13 +232,9 @@ export function LabelStudio({
   const [formSize, setFormSize] = useState<LabelSize>("L");
   const [formAmount, setFormAmount] = useState("24");
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   const results =
-    open && q
-      ? products
-          .filter((p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
-          .slice(0, 12)
-      : [];
+    open && q ? products.filter((p) => matchesText(q, p.code, p.name)).slice(0, 12) : [];
 
   // A product with no barcode can still get a Minimal label — that version prints no barcode.
   // With nothing picked yet the switch stays on its default (on): barcode is the normal case.
@@ -278,7 +276,7 @@ export function LabelStudio({
   const saveLabelPng = (it: LabelItem) =>
     downloadLabelPng(
       {
-        code: it.product.code,
+        code: it.product.code ?? "",
         name: it.product.name,
         brandName: it.product.brandName,
         typeName: it.product.typeName,
@@ -292,7 +290,7 @@ export function LabelStudio({
     );
 
   const labels: SheetLabel[] = items.map((it) => ({
-    code: it.product.code,
+    code: it.product.code ?? "",
     name: it.product.name,
     brandName: it.product.brandName,
     typeName: it.product.typeName,

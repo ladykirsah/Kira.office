@@ -118,6 +118,8 @@ describe("labelFileName", () => {
 
   it("given no code > still returns a usable name", () => {
     expect(labelFileName("", "minimal", "S")).toBe("label-minimal-S.png");
+    // A product saved before the Product ID became mandatory has none at all.
+    expect(labelFileName(null, "minimal", "S")).toBe("label-minimal-S.png");
   });
 });
 
