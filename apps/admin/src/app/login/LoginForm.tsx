@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { errorFor, type LoginError } from "./loginError";
 import { PinInput } from "./PinInput";
 import { isLocalHost } from "@/lib/devApiMismatch";
 import { useT } from "../LangProvider";
@@ -28,7 +29,14 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LoginError | null>(null);
+  /** Each door reads only its own verdict — see loginError.ts for the confusion this ended. */
+  const formError = errorFor("form", error);
+  const keyError = errorFor("key", error);
+  /** The everyday card's doors: the PIN, the email/password, the practice and owner doors beside them. */
+  const failForm = (text: string) => setError({ door: "form", text });
+  /** The emergency key, which answers in its own section at the foot of the card. */
+  const failKey = (text: string) => setError({ door: "key", text });
   const [showOwner, setShowOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -93,7 +101,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         return;
       }
       if (res.status === 429) {
-        setError(
+        failKey(
           t({
             th: "ลองมาหลายครั้งแล้ว รออีกสัก 15 นาทีแล้วค่อยลองใหม่",
             en: "Too many tries. Wait about 15 minutes, then try again.",
@@ -103,9 +111,9 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
       }
       // One answer for every refusal, matching the API: saying more would tell a stranger whether
       // an emergency key exists at all.
-      setError(t({ th: "กุญแจนี้เปิดไม่ได้", en: "That key does not open this." }));
+      failKey(t({ th: "กุญแจนี้เปิดไม่ได้", en: "That key does not open this." }));
     } catch {
-      setError(
+      failKey(
         t({
           th: "ติดต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่",
           en: "Can't reach the server. Check the connection and try again.",
@@ -148,14 +156,14 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
       }
       // The API 404s this door unless it really is a practice copy. Say so plainly rather than
       // "wrong password", which would send someone hunting for a credential that is not the issue.
-      setError(
+      failForm(
         t({
           th: "เครื่องนี้ยังไม่ได้ตั้งให้เข้าใช้งานแบบคลิกเดียว — เพิ่ม PRACTICE_COPY=1 ใน .dev.vars แล้วเริ่มใหม่",
           en: "This copy is not set up for one-click sign-in. Add PRACTICE_COPY=1 to .dev.vars and restart it.",
         }),
       );
     } catch {
-      setError(
+      failForm(
         t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
       );
     } finally {
@@ -185,7 +193,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { reason?: string };
-      setError(
+      failForm(
         body.reason === "access_not_configured"
           ? t({
               th: "ทางเข้าของเจ้าของร้านต้องเปิด Cloudflare Access ให้เว็บนี้ก่อน",
@@ -197,7 +205,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
             }),
       );
     } catch {
-      setError(
+      failForm(
         t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
       );
     } finally {
@@ -223,14 +231,14 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
       }
       const body = (await res.json().catch(() => ({}))) as { reason?: string; error?: string };
       if (body.error === "unreachable") {
-        setError(
+        failForm(
           t({
             th: "ติดต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่",
             en: "Can't reach the server. Check the connection and try again.",
           }),
         );
       } else if (body.reason === "locked") {
-        setError(
+        failForm(
           t({
             th: "ใส่ผิด 3 ครั้ง บัญชีนี้ถูกล็อก 24 ชั่วโมง",
             en: "This account is locked for 24 hours after 3 failed tries.",
@@ -241,7 +249,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         // NOT "wrong password". This account's credential was hashed above the platform's PBKDF2
         // ceiling and can never be verified, however correctly it is typed — saying "wrong" sends
         // someone retyping a password that is right (owner locked out of prod, 9 Aug 2026).
-        setError(
+        failForm(
           t({
             th: "บัญชีนี้ต้องตั้งรหัสใหม่ — ระบบตรวจไม่ได้ ถึงจะใส่ถูกก็ตาม ให้ซูเปอร์แอดมินตั้งรหัสผ่านหรือรหัส 6 หลักให้ใหม่",
             en: "This login needs resetting — it can't be checked, even if it's correct. Ask a super admin to set a new password or PIN.",
@@ -249,14 +257,14 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         );
         setShowOwner(true);
       } else if (body.reason === "pin_login_unavailable") {
-        setError(
+        failForm(
           t({
             th: "ยังไม่ได้เปิดให้เข้าด้วยรหัส 6 หลัก ใช้อีเมลกับรหัสผ่านแทน",
             en: "PIN sign-in isn't set up yet. Use email and password.",
           }),
         );
       } else {
-        setError(
+        failForm(
           method === "pin"
             ? t({ th: "ไม่มีใครใช้รหัสนี้", en: "That PIN doesn't match anyone." })
             : t({ th: "อีเมลหรือรหัสผ่านไม่ถูกต้อง", en: "Email or password is wrong." }),
@@ -266,7 +274,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         setShowOwner(true);
       }
     } catch {
-      setError(
+      failForm(
         t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
       );
     } finally {
@@ -336,7 +344,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={{ width: "100%" }}
-              aria-describedby={error ? "login-error" : undefined}
+              aria-describedby={formError ? "login-error" : undefined}
             />
           </div>
         </>
@@ -362,7 +370,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         </div>
       )}
 
-      {expired && !error && (
+      {expired && !formError && (
         <div role="status" className="login-error login-note">
           {t({
             th: "ระบบพาออกจากระบบแล้ว กรุณาเข้าใช้งานอีกครั้ง",
@@ -371,9 +379,9 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         </div>
       )}
 
-      {error && (
+      {formError && (
         <div id="login-error" role="alert" className="login-error">
-          {error}
+          {formError}
         </div>
       )}
 
@@ -437,8 +445,17 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
               autoFocus
               value={recoveryKey}
               onChange={(e) => setRecoveryKey(e.target.value)}
+              aria-describedby={keyError ? "recovery-key-error" : undefined}
               style={{ width: "100%" }}
             />
+            {/* This section's own verdict, under its own field. It used to be written into the
+                everyday form's slot halfway up the card, where it read as a complaint about the
+                password box it was sitting under (owner, 27 Aug 2026). */}
+            {keyError && (
+              <div id="recovery-key-error" role="alert" className="login-error">
+                {keyError}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
