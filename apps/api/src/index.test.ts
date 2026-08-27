@@ -5057,6 +5057,10 @@ describe("updateOrder > timeline", () => {
 
   it("given a status change AND a carrier edit together > appends exactly one row", async () => {
     const db = seeded();
+    // The fixture starts unpaid, and shipping now needs the money settled with its slip behind it
+    // (canShipOrder). This test is about the timeline appending ONE row for a combined patch, not
+    // about the shipping rule, so put the order in a state that is allowed to ship.
+    db.prepare(`UPDATE sales_orders SET payment_status = 'paid' WHERE id = 'o1'`).run();
     await updateOrder(
       asD1(db),
       "o1",
@@ -6541,8 +6545,9 @@ describe("order shipping breakdown (migration 0073 + the drop-off write)", () =>
          (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
           discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
           shipping_auto_satang, shipping_offer_satang, shipping_real_satang,
-          order_created_at, imported_at, buyer_username)
-       VALUES ('o1','airplus','AP-1',?,?,450000,20000,5000,435000,?,?,?,?,?,?,'somchai99')`,
+          order_created_at, imported_at, buyer_username, slip_image_key)
+       VALUES ('o1','airplus','AP-1',?,?,450000,20000,5000,435000,?,?,?,?,?,?,'somchai99',
+               'slip/o1/paid.jpg')`,
     ).run(orderStatus, paymentStatus, profit, auto, offer, real, NOW, NOW);
     db.prepare(
       `INSERT INTO sales_order_lines
@@ -8984,6 +8989,91 @@ describe("updateOrder > paid is not a status you can simply type", () => {
     const { raw, db } = order({ slip: null, status: "cod" });
     expect((await updateOrder(db, "o1", { paymentStatus: "cod_confirmed" })).ok).toBe(true);
     expect(paymentStatus(raw)).toBe("cod_confirmed");
+  });
+});
+
+/**
+ * The last step of the owner's sequence (27 Aug 2026): placed → paid → slip approved → shipped.
+ *
+ * The three earlier steps were already guarded. This one was not: an order ALREADY sitting at
+ * `paid` with no slip behind it passed `canRecordDropOff` (which only asks whether the money has
+ * settled) and shipped. And a patch that only set `orderStatus: 'shipped'`, with no carrier charge
+ * alongside it, missed the drop-off guard entirely.
+ */
+describe("updateOrder > a transfer order ships only once its slip is in", () => {
+  const NOW = 1_800_000_000_000;
+
+  function order(opts: { slip?: string | null; payment?: string } = {}) {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                   order_created_at, imported_at, slip_image_key)
+         VALUES ('o1','airplus','AP-1','packing',?,?,?,?)`,
+      )
+      .run(opts.payment ?? "paid", NOW, NOW, opts.slip ?? null);
+    return { raw, db: asD1(raw) };
+  }
+  const orderStatus = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT order_status AS s FROM sales_orders WHERE id='o1'`).get() as { s: string })
+      .s;
+
+  it("given paid by transfer with NO slip > the drop-off is refused", async () => {
+    const { raw, db } = order({ slip: null });
+    const out = await updateOrder(db, "o1", {
+      orderStatus: "shipped",
+      carrier: "flash",
+      trackingNo: "TH1",
+      shippingRealSatang: 5_000,
+    });
+    expect(out.ok).toBe(false);
+    expect(orderStatus(raw)).toBe("packing");
+  });
+
+  it("given NO slip > even a bare status patch cannot ship it", async () => {
+    // The hole the carrier-charge guard left: no shippingRealSatang, so nothing to check against.
+    const { raw, db } = order({ slip: null });
+    expect((await updateOrder(db, "o1", { orderStatus: "shipped" })).ok).toBe(false);
+    expect(orderStatus(raw)).toBe("packing");
+  });
+
+  it("given the slip is in > it ships", async () => {
+    const { raw, db } = order({ slip: "slip/o1/a.jpg" });
+    expect(
+      (
+        await updateOrder(db, "o1", {
+          orderStatus: "shipped",
+          carrier: "flash",
+          trackingNo: "TH1",
+          shippingRealSatang: 5_000,
+        })
+      ).ok,
+    ).toBe(true);
+    expect(orderStatus(raw)).toBe("shipped");
+  });
+
+  it("COD ships with no slip at all", async () => {
+    // The expensive way to get this rule wrong is to stop every COD parcel in the shop.
+    const { raw, db } = order({ slip: null, payment: "cod_confirmed" });
+    expect(
+      (
+        await updateOrder(db, "o1", {
+          orderStatus: "shipped",
+          carrier: "flash",
+          trackingNo: "TH1",
+          shippingRealSatang: 5_000,
+        })
+      ).ok,
+    ).toBe(true);
+    expect(orderStatus(raw)).toBe("shipped");
+  });
+
+  it("anything that is not shipping is untouched by the rule", async () => {
+    // A note, a tracking number correction, a status that is not 'shipped' — none of them put a
+    // parcel on a van, so none of them may be blocked by this.
+    const { db } = order({ slip: null });
+    expect((await updateOrder(db, "o1", { staffNote: "ลูกค้าขอเลื่อน" })).ok).toBe(true);
+    expect((await updateOrder(db, "o1", { orderStatus: "cancelled" })).ok).toBe(true);
   });
 });
 

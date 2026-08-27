@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CARRIERS, DEFAULT_CARRIER, toSatang } from "@l-shopee/core";
+import { CARRIERS, DEFAULT_CARRIER, canShipOrder, toSatang } from "@l-shopee/core";
 import qrcode from "qrcode-generator";
 import { saveOrderDropOff, type OrderDetail, type ShopInfo } from "@/lib/api";
 import { saveLabelPdf, saveLabelPng, shippingLabelFileName } from "@/lib/labelFile";
@@ -254,7 +254,14 @@ function DropOffCard({
   const [saving, setSaving] = useState(false);
 
   const realSatang = parseBaht(realBaht);
-  const canSave = trackingNo.trim().length > 0 && realSatang != null && !saving;
+  /**
+   * The owner's sequence, 27 Aug 2026: placed → paid → slip approved → shipped. A bank-transfer
+   * order with no slip on it may not go out, and the API refuses the PATCH — so the form must not
+   * offer it either. Offering a button the server will refuse is how a person learns the rule: by
+   * being told no after typing a tracking number in.
+   */
+  const readyToShip = canShipOrder(order.paymentStatus, order.slipImageKey);
+  const canSave = readyToShip && trackingNo.trim().length > 0 && realSatang != null && !saving;
 
   async function save() {
     if (realSatang == null) return;
@@ -270,6 +277,20 @@ function DropOffCard({
       onError((e as Error).message);
       setSaving(false);
     }
+  }
+
+  if (!readyToShip) {
+    return (
+      <div style={card}>
+        <div style={sectionTitle}>{t({ th: "บันทึกการส่งของ", en: "Record drop-off" })}</div>
+        <div style={tableText.subtitle}>
+          {t({
+            th: "ออเดอร์นี้ชำระด้วยการโอนเงิน แต่ยังไม่มีสลิปที่อนุมัติแล้ว — ส่งของไม่ได้จนกว่าจะมีสลิป",
+            en: "This order was paid by transfer but has no approved slip yet — it cannot ship until it does.",
+          })}
+        </div>
+      </div>
+    );
   }
 
   return (

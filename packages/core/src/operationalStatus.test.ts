@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  canShipOrder,
   OPERATIONAL_STATUSES,
   operationalStatus,
   operationalStatusLabel,
@@ -214,5 +215,38 @@ describe("operationalStatusPhrase", () => {
       return !p.th.trim() || !p.en.trim();
     });
     expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * The owner's rule, 27 Aug 2026, stated as the order of events a transfer order must go through:
+ * placed → paid → slip attached and approved → shipped. Three of the four were already guarded
+ * (a slip cannot be approved without a slip, `paid` cannot be typed in without one, a drop-off
+ * cannot be recorded before the money settles). The fourth was not: an order already sitting at
+ * `paid` with no slip behind it — a legacy row, or one edited by hand — passed every check and
+ * shipped.
+ */
+describe("canShipOrder", () => {
+  it("given a transfer paid WITH its slip > may ship", () => {
+    expect(canShipOrder("paid", "slip/o1/abc.jpg")).toBe(true);
+  });
+
+  it("given a transfer paid with NO slip > may not ship", () => {
+    expect(canShipOrder("paid", null)).toBe(false);
+    expect(canShipOrder("paid", "   ")).toBe(false);
+  });
+
+  it("given cash on delivery > may ship without any slip", () => {
+    // COD is a different flow and never produces one. Requiring a slip here would stop every COD
+    // parcel from ever going out, which is the expensive way to get this rule wrong.
+    expect(canShipOrder("cod_confirmed", null)).toBe(true);
+    expect(canShipOrder("cod_collected", null)).toBe(true);
+  });
+
+  it("given money that has not settled > may not ship, slip or no slip", () => {
+    for (const s of ["pending", "verifying", "cod", "cod_denied", "refunded", null]) {
+      expect(canShipOrder(s, "slip/o1/abc.jpg"), String(s)).toBe(false);
+      expect(canShipOrder(s, null), String(s)).toBe(false);
+    }
   });
 });

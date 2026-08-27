@@ -68,6 +68,7 @@ import {
   type StaffRole,
   type ViewerRole,
   canRecordDropOff,
+  canShipOrder,
   normalizePaymentStatus,
   privateFileAccess,
   validateExpenseInput,
@@ -3294,26 +3295,37 @@ export async function updateOrder(
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
               carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
-              staff_note AS staffNote,
+              staff_note AS staffNote, slip_image_key AS slipImageKey,
               storefront_customer_id AS storefrontCustomerId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(id)
-    .first<OrderRow>();
+    // slipImageKey is read for the shipping guard below, not returned — see canShipOrder.
+    .first<OrderRow & { slipImageKey: string | null }>();
   if (!row) return { ok: false, code: 404, reason: "not found" };
 
-  // A carrier charge means a parcel was handed over, which cannot have happened before the money
-  // settled. Refusing here rather than in the route keeps the invariant next to the write, and keeps
-  // a nonsense number out of the profit figure the owner reads daily.
+  // A parcel cannot go out before the money is settled AND — for a bank transfer — before the slip
+  // that settled it is on the order. The owner's sequence, 27 Aug 2026: placed, paid, slip
+  // approved, shipped. See canShipOrder for why COD is exempt.
+  //
+  // BOTH doors are checked, because they are different doors. A carrier charge means a parcel was
+  // handed over; a status of 'shipped' says so outright. The drop-off form sends both together, so
+  // the older guard covered the screen — but a patch carrying only the status walked straight past
+  // it. Refusing here rather than in the route keeps the invariant next to the write, and keeps a
+  // nonsense number out of the profit figure the owner reads daily.
+  const shipsThisOrder =
+    ("shippingRealSatang" in patch && patch.shippingRealSatang != null) ||
+    patch.orderStatus === "shipped";
   if (
-    "shippingRealSatang" in patch &&
-    patch.shippingRealSatang != null &&
-    !canRecordDropOff(normalizePaymentStatus(row.paymentStatus))
+    shipsThisOrder &&
+    !canShipOrder(normalizePaymentStatus(row.paymentStatus), row.slipImageKey)
   ) {
     return {
       ok: false,
       code: 409,
-      reason: "this order has not been paid for, so no drop-off can be recorded",
+      reason: canRecordDropOff(normalizePaymentStatus(row.paymentStatus))
+        ? "this order has no approved slip yet, so it cannot be shipped"
+        : "this order has not been paid for, so no drop-off can be recorded",
     };
   }
 
