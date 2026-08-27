@@ -18,8 +18,21 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { CoverPicker, NameCard } from "../AttributeManager";
 import { ConfirmButton } from "../../ConfirmButton";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
 import { ModelInfoEditor } from "./ModelInfoEditor";
 import { ModelInfoView } from "./ModelInfoView";
+
+/* Written once — the segmented selector, the add-form labels and the panel headings share them. */
+const SAVE: Phrase = { th: "บันทึก", en: "Save" };
+const SAVING: Phrase = { th: "กำลังบันทึก…", en: "Saving…" };
+const CAR_BRAND: Phrase = { th: "ยี่ห้อรถ", en: "Car brand" };
+const CAR_BRANDS: Phrase = { th: "ยี่ห้อรถ", en: "Car brands" };
+const CAR_MODELS: Phrase = { th: "รุ่นรถ", en: "Car models" };
+const ENGLISH_NAME: Phrase = { th: "ชื่อภาษาอังกฤษ", en: "English name" };
+const THAI_NAME: Phrase = { th: "ชื่อภาษาไทย", en: "Thai name" };
+const YEAR_FROM: Phrase = { th: "ปีเริ่ม", en: "Year from" };
+const YEAR_TO: Phrase = { th: "ปีสิ้นสุด", en: "Year to" };
 
 const cardS: CSSProperties = {
   background: "var(--surface)",
@@ -69,6 +82,7 @@ function AddFitmentSection({
     yearTo: number | null;
   }) => Promise<void>;
 }) {
+  const t = useT();
   const [kind, setKind] = useState<"brand" | "model">("brand");
   const [english, setEnglish] = useState("");
   const [thai, setThai] = useState("");
@@ -87,12 +101,14 @@ function AddFitmentSection({
     e.preventDefault();
     const en = english.trim();
     if (!en) {
-      setError("English name is required.");
+      setError(t({ th: "ต้องใส่ชื่อภาษาอังกฤษ", en: "English name is required." }));
       englishRef.current?.focus();
       return;
     }
     if (isModel && !brandId) {
-      setError("Pick a car brand for this model first.");
+      setError(
+        t({ th: "เลือกยี่ห้อรถให้รุ่นนี้ก่อน", en: "Pick a car brand for this model first." }),
+      );
       return;
     }
     setError(null);
@@ -124,14 +140,16 @@ function AddFitmentSection({
 
   return (
     <div style={{ ...cardS, maxWidth: 900, marginTop: 16 }}>
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Add new</div>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>
+        {t({ th: "เพิ่มรายการใหม่", en: "Add new" })}
+      </div>
 
       {/* Kind selector — POS "Product / Service / Add-on" segmented style. */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {(
           [
-            ["brand", "Car brands"],
-            ["model", "Car models"],
+            ["brand", CAR_BRANDS],
+            ["model", CAR_MODELS],
           ] as const
         ).map(([k, label]) => {
           const active = k === kind;
@@ -154,7 +172,7 @@ function AddFitmentSection({
                 cursor: "pointer",
               }}
             >
-              {label}
+              {t(label)}
             </button>
           );
         })}
@@ -170,18 +188,18 @@ function AddFitmentSection({
         >
           {isModel && (
             <div style={{ display: "grid", minWidth: 0 }}>
-              <span style={addFieldLabel}>Car brand</span>
+              <span style={addFieldLabel}>{t(CAR_BRAND)}</span>
               <select
                 value={brandId}
                 onChange={(e) => {
                   setBrandId(e.target.value);
                   if (error) setError(null);
                 }}
-                aria-label="Car brand"
+                aria-label={t(CAR_BRAND)}
                 aria-invalid={error && !brandId ? true : undefined}
                 style={{ ...inputS, width: "100%" }}
               >
-                <option value="">— Select car brand —</option>
+                <option value="">— {t({ th: "เลือกยี่ห้อรถ", en: "Select car brand" })} —</option>
                 {brands.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -192,7 +210,7 @@ function AddFitmentSection({
           )}
 
           <div style={{ display: "grid", minWidth: 0 }}>
-            <span style={addFieldLabel}>English name</span>
+            <span style={addFieldLabel}>{t(ENGLISH_NAME)}</span>
             <input
               ref={englishRef}
               value={english}
@@ -201,19 +219,19 @@ function AddFitmentSection({
                 if (error) setError(null);
               }}
               placeholder={isModel ? "e.g. Vigo" : "e.g. Toyota"}
-              aria-label="English name"
+              aria-label={t(ENGLISH_NAME)}
               aria-invalid={error ? true : undefined}
               style={{ ...inputS, width: "100%" }}
             />
           </div>
 
           <div style={{ display: "grid", minWidth: 0 }}>
-            <span style={addFieldLabel}>Thai name</span>
+            <span style={addFieldLabel}>{t(THAI_NAME)}</span>
             <input
               value={thai}
               onChange={(e) => setThai(e.target.value)}
               placeholder="ชื่อภาษาไทย"
-              aria-label="Thai name"
+              aria-label={t(THAI_NAME)}
               style={{ ...inputS, width: "100%" }}
             />
           </div>
@@ -221,31 +239,31 @@ function AddFitmentSection({
           {isModel ? (
             <>
               <div style={{ display: "grid", minWidth: 0 }}>
-                <span style={addFieldLabel}>Year from</span>
+                <span style={addFieldLabel}>{t(YEAR_FROM)}</span>
                 <input
                   value={yearFrom}
                   onChange={(e) => setYearFrom(e.target.value)}
                   inputMode="numeric"
                   placeholder="from"
-                  aria-label="Year from"
+                  aria-label={t(YEAR_FROM)}
                   style={{ ...inputS, width: "100%" }}
                 />
               </div>
               <div style={{ display: "grid", minWidth: 0 }}>
-                <span style={addFieldLabel}>Year to</span>
+                <span style={addFieldLabel}>{t(YEAR_TO)}</span>
                 <input
                   value={yearTo}
                   onChange={(e) => setYearTo(e.target.value)}
                   inputMode="numeric"
                   placeholder="to"
-                  aria-label="Year to"
+                  aria-label={t(YEAR_TO)}
                   style={{ ...inputS, width: "100%" }}
                 />
               </div>
             </>
           ) : (
             <div style={{ display: "grid", minWidth: 0 }}>
-              <span style={addFieldLabel}>Cover</span>
+              <span style={addFieldLabel}>{t({ th: "รูปปก", en: "Cover" })}</span>
               <input
                 ref={fileRef}
                 type="file"
@@ -269,7 +287,9 @@ function AddFitmentSection({
                   whiteSpace: "nowrap",
                 }}
               >
-                {file ? `🖼 ${file.name}` : "＋ Cover (optional)"}
+                {file
+                  ? `🖼 ${file.name}`
+                  : `＋ ${t({ th: "รูปปก (ไม่บังคับ)", en: "Cover (optional)" })}`}
               </button>
             </div>
           )}
@@ -277,7 +297,7 @@ function AddFitmentSection({
 
         <div style={{ marginTop: 12 }}>
           <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? t(SAVING) : t(SAVE)}
           </button>
         </div>
         {error && (
@@ -291,6 +311,7 @@ function AddFitmentSection({
 }
 
 export default function CarFitmentPage() {
+  const t = useT();
   const [brands, setBrands] = useState<CarBrandTree[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openModelId, setOpenModelId] = useState<string | null>(null); // expanded to view service notes
@@ -341,7 +362,10 @@ export default function CarFitmentPage() {
       if (draft.file)
         await uploadTaxonomyImage("car-brand", created.id, await toSquareCover(draft.file));
       await load(created.id);
-      toast(`Added “${draft.english}” ✓`, "success");
+      toast(
+        t({ th: `เพิ่ม “${draft.english}” แล้ว ✓`, en: `Added “${draft.english}” ✓` }),
+        "success",
+      );
     } catch (err) {
       await load();
       toast((err as Error).message, "error");
@@ -362,7 +386,10 @@ export default function CarFitmentPage() {
         nameEn: draft.english || null,
       });
       await load(draft.brandId);
-      toast(`Added “${draft.english}” ✓`, "success");
+      toast(
+        t({ th: `เพิ่ม “${draft.english}” แล้ว ✓`, en: `Added “${draft.english}” ✓` }),
+        "success",
+      );
     } catch (err) {
       await load();
       toast((err as Error).message, "error");
@@ -374,14 +401,11 @@ export default function CarFitmentPage() {
   return (
     <main>
       <PageHeader
-        title="Car fitment"
-        subtitle={
-          <>
-            Car brands and their models — the “Fits these cars” lists on a product. Add up top, then
-            pick a brand on the left to manage its models. Each model’s Edit opens its names, year
-            and service notes (chassis, refrigerant, o-ring, coolant) for customer service.
-          </>
-        }
+        title={t({ th: "รุ่นรถที่ใช้ได้", en: "Car fitment" })}
+        subtitle={t({
+          th: "ยี่ห้อรถและรุ่นของมัน — คือรายการ “ใช้กับรถเหล่านี้” บนหน้าสินค้า เพิ่มด้านบน แล้วเลือกยี่ห้อทางซ้ายเพื่อจัดการรุ่นของมัน ปุ่มแก้ไขของแต่ละรุ่นจะเปิดชื่อ ปี และข้อมูลบริการ (แชสซี น้ำยาแอร์ โอริง น้ำหล่อเย็น) สำหรับใช้ตอบลูกค้า",
+          en: "Car brands and their models — the “Fits these cars” lists on a product. Add up top, then pick a brand on the left to manage its models. Each model’s Edit opens its names, year and service notes (chassis, refrigerant, o-ring, coolant) for customer service.",
+        })}
       />
 
       <AddFitmentSection brands={brands ?? []} onAddBrand={addBrand} onAddModel={addModel} />
@@ -390,9 +414,14 @@ export default function CarFitmentPage() {
         <div className="skeleton skeleton-row" style={{ width: "60%", marginTop: 16 }} />
       ) : (
         <div style={{ maxWidth: 900, marginTop: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 2 }}>Car brands & models</div>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+            {t({ th: "ยี่ห้อรถ & รุ่นรถ", en: "Car brands & models" })}
+          </div>
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-            Car models are a subset of a car brand — pick a brand to manage its models.
+            {t({
+              th: "รุ่นรถเป็นส่วนย่อยของยี่ห้อรถ — เลือกยี่ห้อเพื่อจัดการรุ่นของมัน",
+              en: "Car models are a subset of a car brand — pick a brand to manage its models.",
+            })}
           </p>
 
           <div className="md">
@@ -414,7 +443,10 @@ export default function CarFitmentPage() {
               ))}
               {brands?.length === 0 && (
                 <p className="muted" style={{ fontSize: 13, padding: "8px 10px", margin: 0 }}>
-                  No brands yet — add one above.
+                  {t({
+                    th: "ยังไม่มียี่ห้อรถ — เพิ่มด้านบน",
+                    en: "No brands yet — add one above.",
+                  })}
                 </p>
               )}
             </div>
@@ -448,17 +480,20 @@ export default function CarFitmentPage() {
                     {!brandEditing && (
                       <ConfirmButton
                         className="btn-sm"
-                        confirmLabel="Remove brand?"
+                        confirmLabel={t({ th: "ลบยี่ห้อนี้?", en: "Remove brand?" })}
                         onConfirm={() => run(() => deleteCarBrand(selected.id))}
                       >
-                        Remove brand
+                        {t({ th: "ลบยี่ห้อ", en: "Remove brand" })}
                       </ConfirmButton>
                     )}
                   </div>
 
                   {selected.models.length === 0 ? (
                     <p className="muted" style={{ fontSize: 13, padding: "0 6px", margin: 0 }}>
-                      No models yet — add one above.
+                      {t({
+                        th: "ยังไม่มีรุ่นรถ — เพิ่มด้านบน",
+                        en: "No models yet — add one above.",
+                      })}
                     </p>
                   ) : (
                     <div style={{ padding: "0 6px" }}>
@@ -487,12 +522,19 @@ export default function CarFitmentPage() {
                                 }
                               />
                               {modelHasInfo(m) && !expanded && (
-                                <span className="md-dot" title="Has service notes" />
+                                <span
+                                  className="md-dot"
+                                  title={t({ th: "มีข้อมูลบริการ", en: "Has service notes" })}
+                                />
                               )}
                               <button
                                 type="button"
                                 className="icon-btn"
-                                aria-label={expanded ? `Collapse ${m.name}` : `Expand ${m.name}`}
+                                aria-label={
+                                  expanded
+                                    ? t({ th: `ย่อ ${m.name}`, en: `Collapse ${m.name}` })
+                                    : t({ th: `ขยาย ${m.name}`, en: `Expand ${m.name}` })
+                                }
                                 onClick={() => {
                                   if (editing) {
                                     setEditingModelId(null);
@@ -545,7 +587,7 @@ export default function CarFitmentPage() {
                 </>
               ) : (
                 <p className="muted" style={{ padding: 10, margin: 0 }}>
-                  Add a brand to get started.
+                  {t({ th: "เพิ่มยี่ห้อรถเพื่อเริ่มต้น", en: "Add a brand to get started." })}
                 </p>
               )}
             </div>

@@ -4,10 +4,12 @@ import { useState } from "react";
 import { importProductsCsv, type ImportResult } from "@/lib/api";
 import { PageHeader } from "../PageHeader";
 import { BackLink } from "../BackLink";
+import { useT } from "../LangProvider";
 
 const PLACEHOLDER = "product_ref,name,description\nAC-CMP-VIOS14,ครีมบำรุงผิว,หลอด 50ml\n";
 
 export default function ImportPage() {
+  const t = useT();
   const [csv, setCsv] = useState(PLACEHOLDER);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [status, setStatus] = useState("");
@@ -15,7 +17,7 @@ export default function ImportPage() {
 
   async function run() {
     setBusy(true);
-    setStatus("Importing…");
+    setStatus(t({ th: "กำลังนำเข้า…", en: "Importing…" }));
     setResult(null);
     try {
       const out = await importProductsCsv(csv, {
@@ -35,15 +37,27 @@ export default function ImportPage() {
   return (
     <main>
       <PageHeader
-        title="Import products (CSV)"
+        title={t({ th: "นำเข้าสินค้า (CSV)", en: "Import products (CSV)" })}
         subtitle={
           <>
-            Paste a CSV with a header row. Columns <code>product_ref</code> (Product ID) and{" "}
-            <code>name</code> are required; <code>description</code> is optional. Re-importing is
-            safe (idempotent on the Product ID).
+            {t({
+              th: "วางไฟล์ CSV ที่มีแถวหัวตาราง คอลัมน์",
+              en: "Paste a CSV with a header row. Columns",
+            })}{" "}
+            <code>product_ref</code> {t({ th: "(รหัสสินค้า) และ", en: "(Product ID) and" })}{" "}
+            <code>name</code>{" "}
+            {t({
+              th: "จำเป็นต้องมี ส่วน",
+              en: "are required;",
+            })}{" "}
+            <code>description</code>{" "}
+            {t({
+              th: "จะใส่หรือไม่ก็ได้ นำเข้าซ้ำได้อย่างปลอดภัย (ยึดตามรหัสสินค้า)",
+              en: "is optional. Re-importing is safe (idempotent on the Product ID).",
+            })}
           </>
         }
-        below={<BackLink href="/products">Products</BackLink>}
+        below={<BackLink href="/products">{t({ th: "สินค้า", en: "Products" })}</BackLink>}
       />
       <textarea
         value={csv}
@@ -53,7 +67,7 @@ export default function ImportPage() {
       />
       <div style={{ marginTop: 8 }}>
         <button className="btn-primary" onClick={run} disabled={busy}>
-          Import
+          {t({ th: "นำเข้า", en: "Import" })}
         </button>
       </div>
       {status && <p>{status}</p>}

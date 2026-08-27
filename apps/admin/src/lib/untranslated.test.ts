@@ -234,6 +234,34 @@ describe("findUntranslated", () => {
     expect(findUntranslated(src)).toEqual([]);
   });
 
+  /**
+   * The same mis-pairing as above, but with two EMPTY quoted strings rather than two templates:
+   * `x.trim() !== "" && Number.isFinite(n) && n > 0 && date !== ""`. Everything between the second
+   * quote and the third is the condition itself, and it starts with a capital, so it read as a
+   * sentence. A condition is never a sentence — it is settled by the operators in it.
+   */
+  it("says nothing about the condition between two empty strings on one line", () => {
+    const src =
+      'const valid = conversion.trim() !== "" && Number.isFinite(amountSatang) && amountSatang > 0 && date !== "";';
+    expect(findUntranslated(src)).toEqual([]);
+  });
+
+  /**
+   * A NAME with its count behind it — `` `Den Air Service (${n})` `` — is still just the name. The
+   * hole is taken out first, and the bracket pair it leaves empty goes with it, so what remains is
+   * the name the NAMES list already knows not to translate.
+   */
+  it("says nothing about a name with a count after it", () => {
+    expect(findUntranslated("label={`Den Air Service (${s.salesCount})`}")).toEqual([]);
+    expect(findUntranslated("label={`AirPlus (${orders.length})`}")).toEqual([]);
+  });
+
+  it("still reports an English word with a count after it", () => {
+    expect(findUntranslated("label={`Summary (${total})`}").map((f) => f.text)).toEqual([
+      "Summary (${total})",
+    ]);
+  });
+
   it("says nothing about the key of an object, which no one reads", () => {
     expect(findUntranslated(`headers: { "Content-Type": "application/json" }`)).toEqual([]);
   });
@@ -242,36 +270,16 @@ describe("findUntranslated", () => {
 /**
  * THE SCREENS THAT ARE DONE STAY DONE (owner, 2026-08-25: "re-check on every spot").
  *
- * The rest of the admin is still being worked through, so this guards only the folders that have
- * been finished. Add a folder here the moment its sweep is complete — that is what stops the next
- * screen from quietly undoing this one.
+ * The sweep is finished, so this now guards the admin as a whole rather than a list of folders.
+ * Anything a person can read on any screen has to be a `t({ th, en })` pair, and the only way past
+ * this is to say so out loud in DELIBERATE below, with the reason.
  */
 const CLEARED = [
-  "app/products",
-  "app/orders",
-  "app/nav.ts",
-  "app/Sidebar.tsx",
-  "app/MobileNav.tsx",
-  "app/AppShell.tsx",
-  "app/StaffChip.tsx",
-  "app/ThemeToggle.tsx",
-  "app/LanguageToggle.tsx",
-  "app/Modal.tsx",
-  "app/page.tsx",
-  "app/pos",
-  "app/settings/coupons",
-  // The two screens OUTSIDE the app frame. They are the first thing anybody sees, and until
-  // 2026-08-26 they were the only ones still entirely in English.
-  "app/login",
-  "app/recover",
-  "app/settings/staff",
-  "app/me",
-  "app/customers",
-  "app/StaffChip.tsx",
-  // Shared pieces the coupons screen renders, each of which was English on every screen using it.
-  "app/ConfirmButton.tsx",
-  "app/DateTimeField.tsx",
-  "app/NoAccess.tsx",
+  // THE WHOLE ADMIN. The sweep started as a folder-at-a-time list, and finished on 2026-08-27 when
+  // Finance and the barcode Label Studio — the last two English screens — went through. Naming the
+  // folder rather than its parts is the point: a NEW screen is guarded the day it is written,
+  // instead of the day somebody remembers to add it here.
+  "app",
 ];
 
 /**
@@ -320,6 +328,60 @@ const DELIBERATE: Record<string, Exception> = {
   "app/products/StockCell.tsx": AUDIT("edited from products table"),
   "app/products/[id]/edit/page.tsx": AUDIT("edited from product page"),
   "app/products/new/page.tsx": AUDIT("created from Add product"),
+  "app/scan/page.tsx": AUDIT("received via Scan here"),
+  // The shop's OWN name, address and captions are stored twice — a Thai value and an English one —
+  // and the form edits them side by side. Each half names its language IN that language (as the
+  // app's own toggle does), and each half's placeholder is an example OF that language. There is
+  // nothing here to translate: translating the Thai example into English would put it under the
+  // English field, where it is already wrong.
+  // Every taxonomy value is stored under BOTH a Thai and an English name, edited in two fields
+  // side by side. Each field's placeholder is written in the language that field takes, and the
+  // saved Thai value is tagged "ไทย:" so a reader can tell the two halves apart. Same shape as the
+  // shop-info editor below.
+  // Car brands and models carry the same two-language names as any other taxonomy value, edited
+  // in the same two fields — see AttributeManager below for why these stay.
+  // A service is stored under a Thai name and an English one, typed into two fields side by side.
+  // Route handlers, not screens. What the detector sees here is HTTP: a Cloudflare header name and
+  // the attributes of a Set-Cookie string. None of it is ever read by a person.
+  // Sample CSV sitting IN the textarea as its starting content — a worked example of the file
+  // format, with a real Thai product name in it. It is data to be replaced, not words to read.
+  "app/import/page.tsx": {
+    reason: "an example of the CSV file format, shown as the textarea's starting content",
+    texts: [String.raw`product_ref,name,description\nAC-CMP-VIOS14,ครีมบำรุงผิว,หลอด 50ml\n`],
+  },
+  "app/api/staff/login/route.ts": { reason: "HTTP header and cookie attributes, not screen text" },
+  "app/api/staff/logout/route.ts": { reason: "the Set-Cookie string that clears the session" },
+  "app/settings/services/page.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    texts: ['placeholder="ชื่อบริการ (ไทย)"', 'placeholder="Service name (EN)"'],
+  },
+  "app/settings/car-fitment/page.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"'],
+  },
+  "app/settings/car-fitment/ModelInfoEditor.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"'],
+  },
+  "app/settings/AttributeManager.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    // Reported as the whole attribute, which is what the exception has to match.
+    texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"', "ไทย:"],
+  },
+  "app/settings/shop/page.tsx": {
+    reason: "a side-by-side Thai/English editor for the shop's own text",
+    texts: [
+      "ไทย (Thai)",
+      "English",
+      "เช่น เด่นแอร์ เซอร์วิส (สุรินทร์)",
+      "e.g. Den Air Service (Surin)",
+      "123 ถนนหลักเมือง อ.เมือง จ.สุรินทร์ 32000",
+      "123 Lak Mueang Rd, Mueang, Surin 32000",
+      "* Estimate only; final price may change on inspection",
+      "e.g. Contact the shop",
+      "e.g. Scan to chat / book a slot",
+    ],
+  },
   // The sticker that goes on the parcel. It is read by a Thai courier and a Thai recipient; which
   // language the person at the screen is reading has nothing to do with it.
   "app/orders/[id]/ShipmentActions.tsx": { reason: "the printed shipping label" },

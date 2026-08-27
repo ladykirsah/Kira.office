@@ -36,8 +36,8 @@ describe("labelDimensions", () => {
 
 describe("sizeHint", () => {
   it("states the printed height — the only dimension the user picks", () => {
-    expect(sizeHint("L")).toBe("50 mm tall");
-    expect(sizeHint("S")).toBe("35 mm tall");
+    expect(sizeHint("L")).toEqual({ th: "สูง 50 มม.", en: "50 mm tall" });
+    expect(sizeHint("S")).toEqual({ th: "สูง 35 มม.", en: "35 mm tall" });
   });
 });
 

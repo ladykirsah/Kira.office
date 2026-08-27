@@ -1,9 +1,11 @@
 import { fetchProducts, fetchBarcodes, fetchShopInfo } from "@/lib/api";
+import { serverT } from "@/lib/serverLang";
 import { LabelStudio, type StudioProduct } from "./LabelStudio";
 
 export const dynamic = "force-dynamic";
 
 export default async function BarcodesPage() {
+  const t = await serverT();
   let products, barcodes, shopInfo;
   try {
     [products, barcodes, shopInfo] = await Promise.all([
@@ -15,8 +17,10 @@ export default async function BarcodesPage() {
   } catch (err) {
     return (
       <main>
-        <h1>Barcode labels</h1>
-        <p style={{ color: "var(--danger)" }}>Could not load: {(err as Error).message}</p>
+        <h1>{t({ th: "ป้ายบาร์โค้ด", en: "Barcode labels" })}</h1>
+        <p style={{ color: "var(--danger)" }}>
+          {t({ th: "โหลดไม่สำเร็จ:", en: "Could not load:" })} {(err as Error).message}
+        </p>
       </main>
     );
   }

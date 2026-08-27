@@ -18,6 +18,8 @@ import {
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -49,10 +51,17 @@ const groupHeadStyle: React.CSSProperties = {
 };
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
 
-const SOURCE_LABELS: Record<AffiliateItemRow["source"], string> = {
-  shopee: "Shopee",
-  lazada: "Lazada",
-  other: "Other",
+/* Shared by the row menu, the table header and the add form. */
+const ACTIONS: Phrase = { th: "จัดการ", en: "Actions" };
+const DELETE: Phrase = { th: "ลบ", en: "Delete" };
+const SOURCE: Phrase = { th: "แหล่งที่มา", en: "Source" };
+const CATEGORY: Phrase = { th: "หมวดหมู่", en: "Category" };
+
+/** Two are company names and stay put; only "other" is a word. */
+const SOURCE_LABELS: Record<AffiliateItemRow["source"], Phrase> = {
+  shopee: { th: "Shopee", en: "Shopee" },
+  lazada: { th: "Lazada", en: "Lazada" },
+  other: { th: "อื่นๆ", en: "Other" },
 };
 
 const isHttps = (url: string) => /^https:\/\/.+/.test(url.trim());
@@ -71,6 +80,7 @@ function RowActions({
   onDelete: () => void | Promise<void>;
   label: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -116,7 +126,7 @@ function RowActions({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        Actions
+        {t(ACTIONS)}
         <svg
           width="12"
           height="12"
@@ -144,12 +154,12 @@ function RowActions({
               onEdit();
             }}
           >
-            Edit
+            {t({ th: "แก้ไข", en: "Edit" })}
           </button>
           {armed ? (
             <div className="actions-confirm">
               <span className="muted" style={{ fontSize: 12 }}>
-                Delete “{label}”?
+                {t({ th: `ลบ “${label}”?`, en: `Delete “${label}”?` })}
               </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
@@ -158,10 +168,10 @@ function RowActions({
                   disabled={busy}
                   onClick={confirmDelete}
                 >
-                  Delete
+                  {t(DELETE)}
                 </button>
                 <button type="button" disabled={busy} onClick={() => setArmed(false)}>
-                  Cancel
+                  {t({ th: "ยกเลิก", en: "Cancel" })}
                 </button>
               </div>
             </div>
@@ -172,7 +182,7 @@ function RowActions({
               role="menuitem"
               onClick={() => setArmed(true)}
             >
-              Delete
+              {t(DELETE)}
             </button>
           )}
         </div>
@@ -188,6 +198,7 @@ function AffiliateItem({
   item: AffiliateItemWithStats;
   onChanged: () => void | Promise<void>;
 }) {
+  const t = useT();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -196,12 +207,12 @@ function AffiliateItem({
   const [imgHover, setImgHover] = useState(false);
 
   async function saveTitle() {
-    const t = titleDraft.trim();
-    if (!t) return;
+    const next = titleDraft.trim();
+    if (!next) return;
     setBusy(true);
     try {
-      await updateAffiliateItem(item.id, { title: t });
-      toast("Title updated", "success");
+      await updateAffiliateItem(item.id, { title: next });
+      toast(t({ th: "อัปเดตชื่อแล้ว", en: "Title updated" }), "success");
       setEditing(false);
       await onChanged();
     } catch (e) {
@@ -235,7 +246,7 @@ function AffiliateItem({
     setBusy(true);
     try {
       await uploadAffiliateItemImage(item.id, file);
-      toast("Image uploaded", "success");
+      toast(t({ th: "อัปโหลดรูปแล้ว", en: "Image uploaded" }), "success");
       await onChanged();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -248,7 +259,7 @@ function AffiliateItem({
   async function del() {
     try {
       await deleteAffiliateItem(item.id);
-      toast("Item deleted", "success");
+      toast(t({ th: "ลบรายการแล้ว", en: "Item deleted" }), "success");
       await onChanged();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -265,9 +276,15 @@ function AffiliateItem({
           onClick={() => fileRef.current?.click()}
           onMouseEnter={() => setImgHover(true)}
           onMouseLeave={() => setImgHover(false)}
-          title={item.imageKey ? "Click to change the image" : "Click to upload an image"}
+          title={
+            item.imageKey
+              ? t({ th: "คลิกเพื่อเปลี่ยนรูป", en: "Click to change the image" })
+              : t({ th: "คลิกเพื่ออัปโหลดรูป", en: "Click to upload an image" })
+          }
           aria-label={
-            item.imageKey ? `Change image for ${item.title}` : `Upload image for ${item.title}`
+            item.imageKey
+              ? t({ th: `เปลี่ยนรูปของ ${item.title}`, en: `Change image for ${item.title}` })
+              : t({ th: `อัปโหลดรูปให้ ${item.title}`, en: `Upload image for ${item.title}` })
           }
           style={{
             position: "relative",
@@ -306,7 +323,7 @@ function AffiliateItem({
                 fontSize: 11,
               }}
             >
-              Change
+              {t({ th: "เปลี่ยน", en: "Change" })}
             </span>
           )}
         </button>
@@ -318,7 +335,10 @@ function AffiliateItem({
             <input
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
-              aria-label={`Edit title for ${item.title}`}
+              aria-label={t({
+                th: `แก้ไขชื่อของ ${item.title}`,
+                en: `Edit title for ${item.title}`,
+              })}
               style={{ ...inputS, width: 220 }}
             />
           ) : (
@@ -332,7 +352,10 @@ function AffiliateItem({
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{item.categoryName}</div>
           ) : (
             <span className="pill warn" style={{ fontSize: 11 }}>
-              ยังไม่จัดหมวด · ไม่แสดงบนหน้าร้าน
+              {t({
+                th: "ยังไม่จัดหมวด · ไม่แสดงบนหน้าร้าน",
+                en: "No category · hidden from the storefront",
+              })}
             </span>
           )}
           <a
@@ -354,7 +377,7 @@ function AffiliateItem({
         </div>
       </td>
       <td>
-        <span className="pill off">{SOURCE_LABELS[item.source]}</span>
+        <span className="pill off">{t(SOURCE_LABELS[item.source])}</span>
       </td>
       <td>{item.priceText || <span className="muted">—</span>}</td>
       <td>{item.sortOrder}</td>
@@ -398,7 +421,7 @@ function AffiliateItem({
                 disabled={busy || titleDraft.trim() === ""}
                 onClick={saveTitle}
               >
-                Save
+                {t({ th: "บันทึก", en: "Save" })}
               </button>
               <button
                 type="button"
@@ -409,7 +432,7 @@ function AffiliateItem({
                   setEditing(false);
                 }}
               >
-                Cancel
+                {t({ th: "ยกเลิก", en: "Cancel" })}
               </button>
             </>
           ) : (
@@ -429,6 +452,7 @@ function AffiliateItem({
 }
 
 export default function AffiliateItemsPage() {
+  const t = useT();
   const toast = useToast();
   const [items, setItems] = useState<AffiliateItemWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -468,11 +492,21 @@ export default function AffiliateItemsPage() {
     // click passes straight through reads as broken — the owner hit exactly that on Part
     // attributes. Always act, and say what is missing.
     if (title.trim() === "") {
-      setAddError("ใส่ชื่อเครื่องมือก่อน — a card needs a title.");
+      setAddError(
+        t({
+          th: "ใส่ชื่อเครื่องมือก่อน — การ์ดต้องมีชื่อ",
+          en: "Enter a tool name first — a card needs a title.",
+        }),
+      );
       return;
     }
     if (!urlOk) {
-      setAddError("Target URL ต้องขึ้นต้นด้วย https:// — that is the link the card opens.");
+      setAddError(
+        t({
+          th: "Target URL ต้องขึ้นต้นด้วย https:// — เป็นลิงก์ที่การ์ดจะเปิด",
+          en: "The target URL must start with https:// — that is the link the card opens.",
+        }),
+      );
       return;
     }
     setAddError(null);
@@ -490,7 +524,10 @@ export default function AffiliateItemsPage() {
       // owner had to find a second upload control in the table below — the same two-step flow
       // they flagged on Banners.
       if (file) await uploadAffiliateItemImage(created.id, file);
-      toast(`เพิ่ม “${title.trim()}” แล้ว ✓`, "success");
+      toast(
+        t({ th: `เพิ่ม “${title.trim()}” แล้ว ✓`, en: `Added “${title.trim()}” ✓` }),
+        "success",
+      );
       setTitle("");
       setTargetUrl("");
       setPriceText("");
@@ -521,7 +558,10 @@ export default function AffiliateItemsPage() {
       setCategories(await fetchAffiliateCategories());
       setCategoryId(cat.id);
       setNewCategory("");
-      toast(`สร้างหมวด “${cat.name}” แล้ว ✓`, "success");
+      toast(
+        t({ th: `สร้างหมวด “${cat.name}” แล้ว ✓`, en: `Created category “${cat.name}” ✓` }),
+        "success",
+      );
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -532,13 +572,16 @@ export default function AffiliateItemsPage() {
   return (
     <main>
       <PageHeader
-        title="Affiliate Promote"
-        subtitle="Mechanic-tool cards on the AirPlus storefront that link out to Shopee / Lazada with your affiliate link. The price text is display-only. Clicks are counted per card."
+        title={t({ th: "โปรโมทพันธมิตร", en: "Affiliate Promote" })}
+        subtitle={t({
+          th: "การ์ดเครื่องมือช่างบนหน้าร้าน AirPlus ที่ลิงก์ออกไป Shopee / Lazada ด้วยลิงก์พันธมิตรของคุณ ข้อความราคาเป็นแค่ตัวหนังสือ ไม่ผูกกับระบบ และนับคลิกแยกรายการ",
+          en: "Mechanic-tool cards on the AirPlus storefront that link out to Shopee / Lazada with your affiliate link. The price text is display-only. Clicks are counted per card.",
+        })}
       />
 
       {/* Frame 1 — add an item */}
       <div style={cardStyle}>
-        <div style={cardLabel}>Add an item</div>
+        <div style={cardLabel}>{t({ th: "เพิ่มรายการ", en: "Add an item" })}</div>
         <form onSubmit={add} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {/* Row 1 — filing: which group this card belongs to. 16px clear of row 2 (8 of that is
               the form's own row gap), so the category settings read as a separate part. */}
@@ -552,14 +595,14 @@ export default function AffiliateItemsPage() {
             }}
           >
             <div style={fieldCol}>
-              <span style={fieldLabel}>Category</span>
+              <span style={fieldLabel}>{t(CATEGORY)}</span>
               <select
-                aria-label="Category"
+                aria-label={t(CATEGORY)}
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 style={{ ...inputS, width: 170 }}
               >
-                <option value="">— none —</option>
+                <option value="">— {t({ th: "ไม่มี", en: "none" })} —</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -568,12 +611,12 @@ export default function AffiliateItemsPage() {
               </select>
             </div>
             <div style={fieldCol}>
-              <span style={fieldLabel}>New category</span>
+              <span style={fieldLabel}>{t({ th: "หมวดหมู่ใหม่", en: "New category" })}</span>
               <input
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
-                placeholder="e.g. Gauges"
-                aria-label="New category name"
+                placeholder={t({ th: "เช่น เกจวัด", en: "e.g. Gauges" })}
+                aria-label={t({ th: "ชื่อหมวดหมู่ใหม่", en: "New category name" })}
                 style={{ ...inputS, width: 170 }}
               />
             </div>
@@ -583,23 +626,25 @@ export default function AffiliateItemsPage() {
               disabled={busy || !newCategory.trim()}
               onClick={() => void createCategory()}
             >
-              Create
+              {t({ th: "สร้าง", en: "Create" })}
             </button>
           </div>
 
           {/* Row 2 — what the card is and where it goes. */}
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={{ ...fieldCol, flex: "1 1 220px" }}>
-              <span style={fieldLabel}>Title</span>
+              <span style={fieldLabel}>{t({ th: "ชื่อ", en: "Title" })}</span>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Manifold gauge set"
+                placeholder={t({ th: "เช่น ชุดเกจวัดน้ำยาแอร์", en: "e.g. Manifold gauge set" })}
                 style={{ ...inputS, minWidth: 0 }}
               />
             </div>
             <div style={{ ...fieldCol, flex: "1 1 260px" }}>
-              <span style={fieldLabel}>Target URL (https)</span>
+              <span style={fieldLabel}>
+                {t({ th: "ลิงก์ปลายทาง (https)", en: "Target URL (https)" })}
+              </span>
               <input
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
@@ -608,16 +653,16 @@ export default function AffiliateItemsPage() {
               />
             </div>
             <div style={fieldCol}>
-              <span style={fieldLabel}>Source</span>
+              <span style={fieldLabel}>{t(SOURCE)}</span>
               <select
-                aria-label="Source"
+                aria-label={t(SOURCE)}
                 value={source}
                 onChange={(e) => setSource(e.target.value as AffiliateItemRow["source"])}
                 style={{ ...inputS, width: 130 }}
               >
                 <option value="shopee">Shopee</option>
                 <option value="lazada">Lazada</option>
-                <option value="other">Other</option>
+                <option value="other">{t({ th: "อื่นๆ", en: "Other" })}</option>
               </select>
             </div>
           </div>
@@ -626,7 +671,7 @@ export default function AffiliateItemsPage() {
               below, once the card exists (owner, 2026-07-29). */}
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={fieldCol}>
-              <span style={fieldLabel}>Picture</span>
+              <span style={fieldLabel}>{t({ th: "รูปภาพ", en: "Picture" })}</span>
               <input
                 ref={fileRef}
                 type="file"
@@ -640,11 +685,11 @@ export default function AffiliateItemsPage() {
                 onClick={() => fileRef.current?.click()}
                 style={{ whiteSpace: "nowrap" }}
               >
-                ＋ {file ? file.name.slice(0, 18) : "Choose…"}
+                ＋ {file ? file.name.slice(0, 18) : t({ th: "เลือกไฟล์…", en: "Choose…" })}
               </button>
             </div>
             <div style={fieldCol}>
-              <span style={fieldLabel}>Price text</span>
+              <span style={fieldLabel}>{t({ th: "ข้อความราคา", en: "Price text" })}</span>
               <input
                 value={priceText}
                 onChange={(e) => setPriceText(e.target.value)}
@@ -653,7 +698,7 @@ export default function AffiliateItemsPage() {
               />
             </div>
             <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-              Add
+              {t({ th: "เพิ่ม", en: "Add" })}
             </button>
           </div>
         </form>
@@ -671,39 +716,48 @@ export default function AffiliateItemsPage() {
       {/* Frame 2 — items table */}
       <div style={{ ...cardStyle, marginTop: 16 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <span style={cardLabel}>Items</span>
+          <span style={cardLabel}>{t({ th: "รายการ", en: "Items" })}</span>
           {/* The homepage shelf shows six. Pinning a seventh silently changes nothing, so say so. */}
           {pinnedTotal > 0 && (
             <span className="muted" style={{ fontSize: 12 }}>
-              {pinnedTotal} pinned
+              {t({ th: `ปักหมุด ${pinnedTotal} รายการ`, en: `${pinnedTotal} pinned` })}
               {pinnedTotal > HOMEPAGE_SLOTS
-                ? ` — the homepage shows the first ${HOMEPAGE_SLOTS}`
-                : ` · homepage shows up to ${HOMEPAGE_SLOTS}`}
+                ? t({
+                    th: ` — หน้าแรกแสดง ${HOMEPAGE_SLOTS} รายการแรก`,
+                    en: ` — the homepage shows the first ${HOMEPAGE_SLOTS}`,
+                  })
+                : t({
+                    th: ` · หน้าแรกแสดงได้ถึง ${HOMEPAGE_SLOTS} รายการ`,
+                    en: ` · homepage shows up to ${HOMEPAGE_SLOTS}`,
+                  })}
             </span>
           )}
         </div>
         {loading ? (
           <p className="muted" style={{ fontSize: 13 }}>
-            Loading…
+            {t({ th: "กำลังโหลด…", en: "Loading…" })}
           </p>
         ) : sorted.length === 0 ? (
           <p className="muted" style={{ fontSize: 13 }}>
-            No affiliate items yet. Add one above.
+            {t({
+              th: "ยังไม่มีรายการพันธมิตร เพิ่มด้านบน",
+              en: "No affiliate items yet. Add one above.",
+            })}
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
-                  <th>Image</th>
-                  <th>Item</th>
-                  <th>Source</th>
-                  <th>Price</th>
-                  <th>Order</th>
-                  <th>Clicks</th>
-                  <th>Homepage</th>
-                  <th>Active</th>
-                  <th aria-label="Actions" />
+                  <th>{t({ th: "รูป", en: "Image" })}</th>
+                  <th>{t({ th: "รายการ", en: "Item" })}</th>
+                  <th>{t(SOURCE)}</th>
+                  <th>{t({ th: "ราคา", en: "Price" })}</th>
+                  <th>{t({ th: "ลำดับ", en: "Order" })}</th>
+                  <th>{t({ th: "คลิก", en: "Clicks" })}</th>
+                  <th>{t({ th: "หน้าแรก", en: "Homepage" })}</th>
+                  <th>{t({ th: "เปิดใช้", en: "Active" })}</th>
+                  <th aria-label={t(ACTIONS)} />
                 </tr>
               </thead>
               <tbody>

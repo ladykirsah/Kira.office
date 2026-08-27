@@ -62,10 +62,18 @@ export function vehicleLabel(vehicle?: string | null, plate?: string | null): st
 }
 
 /** A parts/repair chip for on-site sales; null when the sale type is unknown. */
-export function saleTypeBadge(type: string | null): { pill: PillClass; label: string } | null {
-  if (type === "repair") return { pill: "soft", label: "🔧 Service" };
-  if (type === "parts") return { pill: "off", label: "📦 Products" };
+export function saleTypeBadge(type: string | null): { pill: PillClass; label: Phrase } | null {
+  if (type === "repair") return { pill: "soft", label: { th: "🔧 บริการ", en: "🔧 Service" } };
+  if (type === "parts") return { pill: "off", label: { th: "📦 สินค้า", en: "📦 Products" } };
   return null;
+}
+
+/** The word inside an on-site sale's status pill. Colour comes from saleStatusPill. */
+export function saleStatusLabel(status: string): Phrase {
+  if (status === "completed") return { th: "สำเร็จ", en: "Completed" };
+  if (status === "refunded") return BADGE.Refunded;
+  if (status === "pending") return BADGE.Pending;
+  return asIs(status);
 }
 
 /**

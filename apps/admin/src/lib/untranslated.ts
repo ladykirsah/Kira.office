@@ -44,9 +44,16 @@ const THAI = /[ก-฾เ-๿]/;
 const NAMES = [
   "AirPlus",
   "AirPlus Auto",
+  // The analytics screen's own name, built to sit beside Shopee's Business Insights.
+  "AirPlus Insight",
   "Shopee",
+  // A sales channel, exactly like Shopee beside it — a company's name, not a word to translate.
+  "Lazada",
   "Kira.office",
   "Den Air Service",
+  // The workshop's name as it is PRINTED — on a barcode label, and as the fallback when shop info
+  // has not loaded. A business's name is not translated.
+  "Den Air Service (Surin)",
   "Air+Plus",
   "AC on Sales",
 ];
@@ -116,6 +123,15 @@ function machineSlot(before: string): boolean {
 }
 
 /**
+ * An expression, not a sentence. Nothing anybody reads contains `&&` or `===`, and prose does not
+ * put a `?` and a `:` in one breath — so this settles a run of code that the quote pairing handed
+ * over as if it were text.
+ */
+function looksLikeCode(text: string): boolean {
+  return /===|!==|&&|\|\||\?[^?]*:/.test(text);
+}
+
+/**
  * Already one half of a `t({ th, en })` pair — the one place a single language is the right answer.
  *
  * The `th:`/`en:` window is generous because prettier puts a long phrase on its own line, leaving
@@ -150,7 +166,10 @@ function withoutHoles(template: string): string {
     i--;
     out += " ";
   }
-  return out;
+  // A bracket pair left EMPTY by the hole that was inside it says nothing either: `Den Air Service
+  // (${n})` is the shop's name, and the name is what a person reads. Without this the count turned
+  // a name the NAMES list knows into a phrase the sweep kept reporting.
+  return out.replace(/[([{]\s*[)\]}]/g, " ");
 }
 
 export interface Untranslated {
@@ -208,7 +227,7 @@ export function findUntranslated(source: string): Untranslated[] {
     if (/(^|\s)(const|let|var|return|function)\s+\w+\s*[=;]/.test(text)) continue;
     // …and a CONDITION between two branches is code too: `) : (tab === "advance" ? a : b) ? (`.
     // Nothing anybody reads contains `===`, and prose does not put a `?` and a `:` in one breath.
-    if (/===|!==|&&|\|\||\?[^?]*:/.test(text)) continue;
+    if (looksLikeCode(text)) continue;
     if (isUserFacing(text)) add(m.index, text);
   }
 
@@ -221,6 +240,10 @@ export function findUntranslated(source: string): Untranslated[] {
     // `${d ?? ""}` twice on one line leaves the second quote of the first pair and the first of the
     // second facing each other, and everything between them — code — reads as a sentence.
     if (value.includes("`") || value.includes("${")) continue;
+    // …and two EMPTY quoted strings on one line mis-pair the same way, leaving the CONDITION
+    // between them — `!== "" && Number.isFinite(n) && n > 0 && date !== ""` — looking like a
+    // sentence because it starts with a capital.
+    if (looksLikeCode(value)) continue;
     const before = src.slice(Math.max(0, m.index - 400), m.index);
     if (insidePhrase(before) || machineSlot(before)) continue;
     if (THAI.test(value)) add(m.index, `bare Thai: ${value}`);

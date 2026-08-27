@@ -9,13 +9,21 @@ import { currentStaff } from "@/lib/staffSession";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { mustSignIn, GATED_PATH_HEADER, EXPIRED_PARAM } from "@/lib/signedInGate";
-import { serverLang } from "@/lib/serverLang";
+import { serverLang, serverT } from "@/lib/serverLang";
 import { LangProvider } from "./LangProvider";
 
-export const metadata = {
-  title: "Kira.office — Admin",
-  description: "Den Air Service + AirPlus back office",
-};
+// generateMetadata, not a static `metadata` object: the title depends on the language cookie, and
+// a static export is evaluated once with no request to read it from.
+export async function generateMetadata() {
+  const t = await serverT();
+  return {
+    title: t({ th: "Kira.office — ผู้ดูแล", en: "Kira.office — Admin" }),
+    description: t({
+      th: "หลังร้านของ Den Air Service + AirPlus",
+      en: "Den Air Service + AirPlus back office",
+    }),
+  };
+}
 
 // Apply the saved theme before first paint to avoid a flash.
 const themeScript = `try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`;

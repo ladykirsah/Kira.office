@@ -21,13 +21,16 @@ import {
 } from "@/lib/api";
 import { PageHeader } from "../PageHeader";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
+import type { Phrase } from "@/lib/lang";
 import { ConfirmButton, XIcon } from "../ConfirmButton";
 
 export interface AttrKindConfig {
   kind: AttrKind;
-  label: string;
+  /** A phrase, not a string: the kinds are declared at module level where no hook can run, so the
+   *  segmented selector translates each label as it draws it. */
+  label: Phrase;
   listKey: keyof Attributes;
-  placeholder: string;
   /** Show a cover-image picker per row — only kinds the storefront renders tiles for. */
   cover?: "type" | "car-brand";
   /**
@@ -37,6 +40,17 @@ export interface AttrKindConfig {
    */
   warranty?: boolean;
 }
+
+/* Shared across the panels below, so a word cannot come to mean two things in one screen. */
+const SAVE: Phrase = { th: "บันทึก", en: "Save" };
+const SAVING: Phrase = { th: "กำลังบันทึก…", en: "Saving…" };
+const CANCEL: Phrase = { th: "ยกเลิก", en: "Cancel" };
+const SAVE_FAILED: Phrase = { th: "บันทึกไม่สำเร็จ", en: "Save failed" };
+const CAR_SYSTEM: Phrase = { th: "ระบบในรถ", en: "Car system" };
+const THAI_NAME: Phrase = { th: "ชื่อภาษาไทย", en: "Thai name" };
+const ENGLISH_NAME: Phrase = { th: "ชื่อภาษาอังกฤษ", en: "English name" };
+const DAYS: Phrase = { th: "วัน", en: "days" };
+const UNASSIGNED_LABEL: Phrase = { th: "ยังไม่ได้จัดระบบ", en: "Unassigned" };
 
 const cardS: React.CSSProperties = {
   background: "var(--surface)",
@@ -55,6 +69,7 @@ export function CoverPicker({
   option: AttrOption;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const toast = useToast();
@@ -67,7 +82,10 @@ export function CoverPicker({
       // so an oblong original would be cropped at display time without the owner seeing it.
       await uploadTaxonomyImage(kind, option.id, await toSquareCover(file));
       await onChanged();
-      toast(`Cover set for “${option.name}” ✓`, "success");
+      toast(
+        t({ th: `ตั้งรูปปกให้ “${option.name}” แล้ว ✓`, en: `Cover set for “${option.name}” ✓` }),
+        "success",
+      );
     } catch (err) {
       toast((err as Error).message, "error");
     } finally {
@@ -101,8 +119,19 @@ export function CoverPicker({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={busy}
-        title={option.imageKey ? "Replace cover image" : "Add cover image"}
-        aria-label={`${option.imageKey ? "Replace" : "Add"} cover image for ${option.name}`}
+        title={
+          option.imageKey
+            ? t({ th: "เปลี่ยนรูปปก", en: "Replace cover image" })
+            : t({ th: "เพิ่มรูปปก", en: "Add cover image" })
+        }
+        aria-label={
+          option.imageKey
+            ? t({
+                th: `เปลี่ยนรูปปกของ ${option.name}`,
+                en: `Replace cover image for ${option.name}`,
+              })
+            : t({ th: `เพิ่มรูปปกให้ ${option.name}`, en: `Add cover image for ${option.name}` })
+        }
         style={{
           width: 34,
           height: 34,
@@ -133,8 +162,11 @@ export function CoverPicker({
       {option.imageKey && (
         <ConfirmButton
           className="icon-btn"
-          ariaLabel={`Remove cover image for ${option.name}`}
-          confirmLabel="Remove image?"
+          ariaLabel={t({
+            th: `ลบรูปปกของ ${option.name}`,
+            en: `Remove cover image for ${option.name}`,
+          })}
+          confirmLabel={t({ th: "ลบรูปภาพ?", en: "Remove image?" })}
           onConfirm={remove}
         >
           <XIcon />
@@ -172,6 +204,7 @@ export function BilingualNames({
   option: AttrOption;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const savedTh = (option.nameTh ?? "").trim();
   const savedEn = (option.nameEn ?? "").trim();
   const [editing, setEditing] = useState(false);
@@ -190,7 +223,7 @@ export function BilingualNames({
       await onChanged();
       setEditing(false);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Save failed", "error");
+      toast(e instanceof Error ? e.message : t(SAVE_FAILED), "error");
     } finally {
       setBusy(false);
     }
@@ -202,13 +235,14 @@ export function BilingualNames({
         <span className="muted" style={{ fontSize: 12 }}>
           {savedTh || savedEn ? (
             <>
+              {/* Each half is tagged with the language it is IN, so the tag stays put. */}
               {savedTh && <span>ไทย: {savedTh}</span>}
               {savedTh && savedEn && <span> · </span>}
               {savedEn && <span>EN: {savedEn}</span>}
             </>
           ) : (
             // Not an error state: the storefront falls back to `name`, it just shows one line.
-            <em>ยังไม่มีชื่อไทย / อังกฤษ</em>
+            <em>{t({ th: "ยังไม่มีชื่อไทย / อังกฤษ", en: "No Thai / English name yet" })}</em>
           )}
         </span>
         <button
@@ -225,7 +259,9 @@ export function BilingualNames({
             fontSize: 12,
           }}
         >
-          {savedTh || savedEn ? "Edit names" : "Add names"}
+          {savedTh || savedEn
+            ? t({ th: "แก้ไขชื่อ", en: "Edit names" })
+            : t({ th: "เพิ่มชื่อ", en: "Add names" })}
         </button>
       </div>
     );
@@ -237,18 +273,24 @@ export function BilingualNames({
         value={th}
         onChange={(e) => setTh(e.target.value)}
         placeholder="ชื่อภาษาไทย"
-        aria-label={`ชื่อภาษาไทยของ ${option.name}`}
+        aria-label={t({
+          th: `ชื่อภาษาไทยของ ${option.name}`,
+          en: `Thai name for ${option.name}`,
+        })}
         style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
       />
       <input
         value={en}
         onChange={(e) => setEn(e.target.value)}
         placeholder="English name"
-        aria-label={`English name for ${option.name}`}
+        aria-label={t({
+          th: `ชื่อภาษาอังกฤษของ ${option.name}`,
+          en: `English name for ${option.name}`,
+        })}
         style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
       />
       <button type="button" className="btn-primary btn-sm" onClick={save} disabled={busy}>
-        {busy ? "Saving…" : "Save"}
+        {busy ? t(SAVING) : t(SAVE)}
       </button>
       <button
         type="button"
@@ -267,7 +309,7 @@ export function BilingualNames({
           cursor: "pointer",
         }}
       >
-        Cancel
+        {t(CANCEL)}
       </button>
     </div>
   );
@@ -330,6 +372,7 @@ export function NameCard({
   /** Notified when this card enters/leaves edit mode — e.g. so a header can hide sibling actions. */
   onEditingChange?: (editing: boolean) => void;
 }) {
+  const t = useT();
   const savedTh = (option.nameTh ?? "").trim();
   const savedEn = (option.nameEn ?? "").trim();
   const [editing, setEditing] = useState(false);
@@ -348,7 +391,7 @@ export function NameCard({
       await onChanged();
       setEditing(false);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Save failed", "error");
+      toast(e instanceof Error ? e.message : t(SAVE_FAILED), "error");
     } finally {
       setBusy(false);
     }
@@ -365,19 +408,25 @@ export function NameCard({
           value={en}
           onChange={(e) => setEn(e.target.value)}
           placeholder="English name"
-          aria-label={`English name for ${option.name}`}
+          aria-label={t({
+            th: `ชื่อภาษาอังกฤษของ ${option.name}`,
+            en: `English name for ${option.name}`,
+          })}
           style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
         />
         <input
           value={th}
           onChange={(e) => setTh(e.target.value)}
           placeholder="ชื่อภาษาไทย"
-          aria-label={`ชื่อภาษาไทยของ ${option.name}`}
+          aria-label={t({
+            th: `ชื่อภาษาไทยของ ${option.name}`,
+            en: `Thai name for ${option.name}`,
+          })}
           style={{ ...inputS, flex: "1 1 150px", minWidth: 0 }}
         />
         {editExtras}
         <button type="button" className="btn-primary btn-sm" onClick={save} disabled={busy}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? t(SAVING) : t(SAVE)}
         </button>
         <button
           type="button"
@@ -396,7 +445,7 @@ export function NameCard({
             cursor: "pointer",
           }}
         >
-          Cancel
+          {t(CANCEL)}
         </button>
       </div>
     );
@@ -439,16 +488,16 @@ export function NameCard({
             type="button"
             className="icon-btn"
             onClick={onEdit ?? (() => setEditing(true))}
-            aria-label={`Edit ${english} names`}
-            title="Edit names"
+            aria-label={t({ th: `แก้ไขชื่อของ ${english}`, en: `Edit ${english} names` })}
+            title={t({ th: "แก้ไขชื่อ", en: "Edit names" })}
           >
             <PencilIcon />
           </button>
           {onDelete && (
             <ConfirmButton
               className="icon-btn"
-              ariaLabel={`Remove ${option.name}`}
-              confirmLabel="Remove?"
+              ariaLabel={t({ th: `ลบ ${option.name}`, en: `Remove ${option.name}` })}
+              confirmLabel={t({ th: "ลบ?", en: "Remove?" })}
               onConfirm={onDelete}
             >
               <XIcon />
@@ -475,12 +524,13 @@ function ListCard({
   onDelete: (id: string) => Promise<void>;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   return (
     <div style={cardS}>
       <div style={{ fontWeight: 600, marginBottom: 10 }}>{label}</div>
       {items.length === 0 ? (
         <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          No values yet.
+          {t({ th: "ยังไม่มีรายการ", en: "No values yet." })}
         </p>
       ) : (
         <div style={{ display: "grid", gap: 0 }}>
@@ -556,6 +606,7 @@ function CarSystemPanel({
     );
   }, [usages]);
 
+  const t = useT();
   const selectedSystem = usages.find((u) => u.id === selectedId) ?? null;
   const shownCats =
     selectedId === UNASSIGNED
@@ -582,13 +633,13 @@ function CarSystemPanel({
             className={selectedId === UNASSIGNED ? "md-brow sel" : "md-brow"}
             onClick={() => setSelectedId(UNASSIGNED)}
           >
-            <span className="nm muted">Unassigned</span>
+            <span className="nm muted">{t(UNASSIGNED_LABEL)}</span>
             <span className="cnt">{orphanCount}</span>
           </div>
         )}
         {usages.length === 0 && (
           <p className="muted" style={{ fontSize: 13, padding: "8px 10px", margin: 0 }}>
-            No car systems yet — add one above.
+            {t({ th: "ยังไม่มีระบบในรถ — เพิ่มด้านบน", en: "No car systems yet — add one above." })}
           </p>
         )}
       </div>
@@ -596,7 +647,7 @@ function CarSystemPanel({
       <div className="md-pane">
         {selectedId === null ? (
           <p className="muted" style={{ padding: 10, margin: 0 }}>
-            Pick a car system on the left.
+            {t({ th: "เลือกระบบในรถจากด้านซ้าย", en: "Pick a car system on the left." })}
           </p>
         ) : (
           <>
@@ -624,22 +675,27 @@ function CarSystemPanel({
                   {!systemEditing && (
                     <ConfirmButton
                       className="btn-sm"
-                      confirmLabel="Remove system?"
+                      confirmLabel={t({ th: "ลบระบบนี้?", en: "Remove system?" })}
                       disabled={selectedCount > 0}
                       onConfirm={() => onDeleteSystem(selectedSystem.id)}
                     >
-                      Remove system
+                      {t({ th: "ลบระบบ", en: "Remove system" })}
                     </ConfirmButton>
                   )}
                 </>
               ) : (
-                <span style={{ fontWeight: 600 }}>Unassigned categories</span>
+                <span style={{ fontWeight: 600 }}>
+                  {t({ th: "หมวดหมู่ที่ยังไม่ได้จัดระบบ", en: "Unassigned categories" })}
+                </span>
               )}
             </div>
 
             {shownCats.length === 0 ? (
               <p className="muted" style={{ fontSize: 13, padding: "0 6px", margin: 0 }}>
-                No categories in this system yet — add one above.
+                {t({
+                  th: "ระบบนี้ยังไม่มีหมวดหมู่ — เพิ่มด้านบน",
+                  en: "No categories in this system yet — add one above.",
+                })}
               </p>
             ) : (
               <div style={{ padding: "0 6px" }}>
@@ -665,7 +721,7 @@ function CarSystemPanel({
                         leading={<CoverPicker kind="type" option={c} onChanged={onChanged} />}
                         trailing={
                           <span className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                            {current != null ? `${current} Days` : "—"}
+                            {current != null ? `${current} ${t(DAYS)}` : "—"}
                           </span>
                         }
                         editExtras={
@@ -678,13 +734,16 @@ function CarSystemPanel({
                                 fontSize: 12,
                               }}
                             >
-                              <span className="muted">System</span>
+                              <span className="muted">{t(CAR_SYSTEM)}</span>
                               <select
                                 value={c.usageId && systemIds.has(c.usageId) ? c.usageId : ""}
                                 onChange={(e) => {
                                   if (e.target.value) void onMoveCategory(c.id, e.target.value);
                                 }}
-                                aria-label={`Move ${c.name} to a car system`}
+                                aria-label={t({
+                                  th: `ย้าย ${c.name} ไปยังระบบในรถ`,
+                                  en: `Move ${c.name} to a car system`,
+                                })}
                                 style={{
                                   ...inputS,
                                   minHeight: 0,
@@ -694,7 +753,7 @@ function CarSystemPanel({
                                 }}
                               >
                                 {(!c.usageId || !systemIds.has(c.usageId)) && (
-                                  <option value="">— none —</option>
+                                  <option value="">— {t({ th: "ไม่มี", en: "none" })} —</option>
                                 )}
                                 {usages.map((u) => (
                                   <option key={u.id} value={u.id}>
@@ -714,11 +773,14 @@ function CarSystemPanel({
                               }}
                               inputMode="numeric"
                               placeholder="—"
-                              aria-label={`ระยะเวลารับประกันของ ${c.name} (วัน)`}
+                              aria-label={t({
+                                th: `ระยะเวลารับประกันของ ${c.name} (วัน)`,
+                                en: `Warranty for ${c.name} (days)`,
+                              })}
                               style={{ ...inputS, width: 72, textAlign: "right" }}
                             />
                             <span className="muted" style={{ fontSize: 12 }}>
-                              วัน
+                              {t(DAYS)}
                             </span>
                           </>
                         }
@@ -776,6 +838,7 @@ function AddAttributeSection({
   const englishRef = useRef<HTMLInputElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const t = useT();
   const cfg = kinds.find((k) => k.kind === kind) ?? kinds[0]!;
   const isCategory = !!cfg.warranty;
   const existingNames = data ? data[cfg.listKey].map((i) => i.name) : [];
@@ -789,7 +852,12 @@ function AddAttributeSection({
       return;
     }
     if (isCategory && !usageId) {
-      setError("Pick a car system for this category first.");
+      setError(
+        t({
+          th: "เลือกระบบในรถให้หมวดหมู่นี้ก่อน",
+          en: "Pick a car system for this category first.",
+        }),
+      );
       return;
     }
     setError(null);
@@ -816,7 +884,9 @@ function AddAttributeSection({
 
   return (
     <div style={{ ...cardS, maxWidth: 900, marginTop: 16 }}>
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Add new</div>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>
+        {t({ th: "เพิ่มรายการใหม่", en: "Add new" })}
+      </div>
 
       {/* Kind selector — POS "Product / Service / Add-on" segmented style. */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -841,7 +911,7 @@ function AddAttributeSection({
                 cursor: "pointer",
               }}
             >
-              {k.label}
+              {t(k.label)}
             </button>
           );
         })}
@@ -857,18 +927,18 @@ function AddAttributeSection({
         >
           {isCategory && (
             <div style={{ display: "grid", minWidth: 0 }}>
-              <span style={addFieldLabel}>Car system</span>
+              <span style={addFieldLabel}>{t(CAR_SYSTEM)}</span>
               <select
                 value={usageId}
                 onChange={(e) => {
                   setUsageId(e.target.value);
                   if (error) setError(null);
                 }}
-                aria-label="Car system"
+                aria-label={t(CAR_SYSTEM)}
                 aria-invalid={error && !usageId ? true : undefined}
                 style={{ ...inputS, width: "100%" }}
               >
-                <option value="">— Select car system —</option>
+                <option value="">— {t({ th: "เลือกระบบในรถ", en: "Select car system" })} —</option>
                 {(data?.usages ?? []).map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
@@ -879,7 +949,7 @@ function AddAttributeSection({
           )}
 
           <div style={{ display: "grid", minWidth: 0 }}>
-            <span style={addFieldLabel}>English name</span>
+            <span style={addFieldLabel}>{t(ENGLISH_NAME)}</span>
             <input
               ref={englishRef}
               value={english}
@@ -888,19 +958,19 @@ function AddAttributeSection({
                 if (error) setError(null);
               }}
               placeholder="e.g. DENSO"
-              aria-label="English name"
+              aria-label={t(ENGLISH_NAME)}
               aria-invalid={error ? true : undefined}
               style={{ ...inputS, width: "100%" }}
             />
           </div>
 
           <div style={{ display: "grid", minWidth: 0 }}>
-            <span style={addFieldLabel}>Thai name</span>
+            <span style={addFieldLabel}>{t(THAI_NAME)}</span>
             <input
               value={thai}
               onChange={(e) => setThai(e.target.value)}
               placeholder="ชื่อภาษาไทย"
-              aria-label="Thai name"
+              aria-label={t(THAI_NAME)}
               style={{ ...inputS, width: "100%" }}
             />
           </div>
@@ -908,7 +978,7 @@ function AddAttributeSection({
           {isCategory && (
             <>
               <div style={{ display: "grid", minWidth: 0 }}>
-                <span style={addFieldLabel}>Cover</span>
+                <span style={addFieldLabel}>{t({ th: "รูปปก", en: "Cover" })}</span>
                 <input
                   ref={fileRef}
                   type="file"
@@ -932,23 +1002,25 @@ function AddAttributeSection({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {file ? `🖼 ${file.name}` : "＋ Cover (optional)"}
+                  {file
+                    ? `🖼 ${file.name}`
+                    : `＋ ${t({ th: "รูปปก (ไม่บังคับ)", en: "Cover (optional)" })}`}
                 </button>
               </div>
 
               <div style={{ display: "grid", minWidth: 0 }}>
-                <span style={addFieldLabel}>Warranty</span>
+                <span style={addFieldLabel}>{t({ th: "รับประกัน", en: "Warranty" })}</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
                     value={days}
                     onChange={(e) => setDays(e.target.value)}
                     inputMode="numeric"
                     placeholder="—"
-                    aria-label="ระยะเวลารับประกัน (วัน)"
+                    aria-label={t({ th: "ระยะเวลารับประกัน (วัน)", en: "Warranty period (days)" })}
                     style={{ ...inputS, width: 72, textAlign: "right" }}
                   />
                   <span className="muted" style={{ fontSize: 12 }}>
-                    วัน
+                    {t(DAYS)}
                   </span>
                 </span>
               </div>
@@ -958,7 +1030,7 @@ function AddAttributeSection({
 
         <div style={{ marginTop: 12 }}>
           <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? t(SAVING) : t(SAVE)}
           </button>
         </div>
         {error && <FieldError>{error}</FieldError>}
@@ -977,6 +1049,7 @@ export function AttributeManager({
   subtitle: string;
   kinds: AttrKindConfig[];
 }) {
+  const t = useT();
   const [data, setData] = useState<Attributes | null>(null);
   const [warranties, setWarranties] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
@@ -1030,7 +1103,10 @@ export function AttributeManager({
         if (draft.warrantyDays !== null) await setTypeWarranty(created.id, draft.warrantyDays);
       }
       await load();
-      toast(`Added “${draft.english}” ✓`, "success");
+      toast(
+        t({ th: `เพิ่ม “${draft.english}” แล้ว ✓`, en: `Added “${draft.english}” ✓` }),
+        "success",
+      );
     } catch (err) {
       // The row may already exist even if a photo/warranty step failed — reload either way so the
       // screen shows what actually landed rather than a stale list.
@@ -1044,7 +1120,9 @@ export function AttributeManager({
       await setTypeWarranty(id, days);
       setWarranties((p) => ({ ...p, [id]: days }));
       toast(
-        days === null ? `${name}: ไม่มีรับประกัน` : `${name}: รับประกัน ${days} วัน`,
+        days === null
+          ? t({ th: `${name}: ไม่มีรับประกัน`, en: `${name}: no warranty` })
+          : t({ th: `${name}: รับประกัน ${days} วัน`, en: `${name}: ${days} days warranty` }),
         "success",
       );
     } catch (err) {
@@ -1084,7 +1162,7 @@ export function AttributeManager({
           <div style={{ maxWidth: 900, marginTop: 16 }}>
             <ListCard
               kind="brand"
-              label="Part brands"
+              label={t({ th: "ยี่ห้ออะไหล่", en: "Part brands" })}
               items={data?.brands ?? []}
               onChanged={load}
               onDelete={(id) => del("brand", id)}
@@ -1093,10 +1171,14 @@ export function AttributeManager({
 
           {/* Row 3 — Car systems and their product categories (a subset of each system). */}
           <div style={{ maxWidth: 900, marginTop: 16 }}>
-            <div style={{ fontWeight: 600, marginBottom: 2 }}>Car systems & product categories</div>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>
+              {t({ th: "ระบบในรถ & หมวดหมู่สินค้า", en: "Car systems & product categories" })}
+            </div>
             <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-              Product categories are a subset of a car system — pick a system to manage its
-              categories.
+              {t({
+                th: "หมวดหมู่สินค้าเป็นส่วนย่อยของระบบในรถ — เลือกระบบเพื่อจัดการหมวดหมู่ของมัน",
+                en: "Product categories are a subset of a car system — pick a system to manage its categories.",
+              })}
             </p>
             <CarSystemPanel
               usages={data?.usages ?? []}

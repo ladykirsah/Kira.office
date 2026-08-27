@@ -333,3 +333,13 @@ sources: [session 2026-08-09]
   tables that had it inline. Also new: `.list-identity` lets a table nominate which cell leads the
   card, because AirPlus Customers leads with an account code and a card headed "AP-0002" beats
   nothing but a blank one. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **Scan here and Payment speak both languages.** Two of the four buttons on the
+  phone's bottom bar, so they are touched constantly and were still entirely English — 91 strings
+  between them. Two patterns worth keeping: a message set inside an effect stores the PHRASE and
+  the render translates it (storing translated text would put `t` in the effect's dependencies and
+  restart the camera on a language change — a working scanner cut off mid-scan for a word); and the
+  five scan modes are module-level data, so they carry phrases the render translates rather than
+  calling a hook that cannot exist out there. The stock-ledger reason "received via Scan here" is
+  excused by name — it is an audit trail, not a screen.
+  See [conventions/bilingual-admin](conventions/bilingual-admin.md).

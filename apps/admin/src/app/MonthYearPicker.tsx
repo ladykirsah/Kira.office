@@ -1,5 +1,6 @@
 "use client";
 
+import { say } from "@/lib/lang";
 import {
   splitPeriod,
   joinPeriod,
@@ -54,7 +55,7 @@ export function MonthYearPicker({
       style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}
     >
       <select
-        aria-label={`${label} — ${lang === "th" ? "เดือน" : "month"}`}
+        aria-label={`${label} — ${say(lang, { th: "เดือน", en: "month" })}`}
         value={parts.month}
         disabled={disabled}
         onChange={(e) => onChange(joinPeriod(parts.year, Number(e.target.value)))}
@@ -66,7 +67,7 @@ export function MonthYearPicker({
         ))}
       </select>
       <select
-        aria-label={`${label} — ${lang === "th" ? "ปี" : "year"}`}
+        aria-label={`${label} — ${say(lang, { th: "ปี", en: "year" })}`}
         value={parts.year}
         disabled={disabled}
         onChange={(e) => onChange(joinPeriod(Number(e.target.value), parts.month))}

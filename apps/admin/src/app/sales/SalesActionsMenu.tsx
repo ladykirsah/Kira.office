@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { refundSale } from "@/lib/api";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 /**
  * Per-row "Actions ▾" dropdown for the sales table: View · Reprint · Refund (inline confirm).
@@ -23,6 +24,9 @@ export function SalesActionsMenu({
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const t = useT();
+  const view = t({ th: "ดู", en: "View" });
+  const refund = t({ th: "คืนเงิน", en: "Refund" });
   const refunded = saleStatus === "refunded";
 
   function close() {
@@ -51,10 +55,16 @@ export function SalesActionsMenu({
     try {
       const r = await refundSale(saleId);
       if (r.applied) {
-        toast(`Refunded — ${r.restockedLines} line(s) restocked`, "success");
+        toast(
+          t({
+            th: `คืนเงินแล้ว — คืนสต็อก ${r.restockedLines} รายการ`,
+            en: `Refunded — ${r.restockedLines} line(s) restocked`,
+          }),
+          "success",
+        );
         setTimeout(() => location.reload(), 700);
       } else {
-        toast(r.reason ?? "Not applied", "error");
+        toast(r.reason ?? t({ th: "ทำรายการไม่สำเร็จ", en: "Not applied" }), "error");
       }
     } catch (err) {
       toast((err as Error).message, "error");
@@ -72,7 +82,7 @@ export function SalesActionsMenu({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        Actions
+        {t({ th: "จัดการ", en: "Actions" })}
         <svg
           width="12"
           height="12"
@@ -97,31 +107,33 @@ export function SalesActionsMenu({
               role="menuitem"
               href={`/customers?plate=${encodeURIComponent(licensePlate)}`}
             >
-              View
+              {view}
             </a>
           ) : (
-            <span className="actions-item is-disabled">View</span>
+            <span className="actions-item is-disabled">{view}</span>
           )}
           <a
             className="actions-item"
             role="menuitem"
             href={`/pos?reprint=${encodeURIComponent(saleId)}`}
           >
-            Reprint
+            {t({ th: "พิมพ์ซ้ำ", en: "Reprint" })}
           </a>
           {refunded ? (
-            <span className="actions-item is-disabled">Refunded</span>
+            <span className="actions-item is-disabled">
+              {t({ th: "คืนเงินแล้ว", en: "Refunded" })}
+            </span>
           ) : armed ? (
             <div className="actions-confirm">
               <span className="muted" style={{ fontSize: 12 }}>
-                Refund this sale?
+                {t({ th: "คืนเงินรายการขายนี้?", en: "Refund this sale?" })}
               </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button type="button" className="btn-danger" disabled={busy} onClick={doRefund}>
-                  Refund
+                  {refund}
                 </button>
                 <button type="button" disabled={busy} onClick={() => setArmed(false)}>
-                  Cancel
+                  {t({ th: "ยกเลิก", en: "Cancel" })}
                 </button>
               </div>
             </div>
@@ -132,7 +144,7 @@ export function SalesActionsMenu({
               role="menuitem"
               onClick={() => setArmed(true)}
             >
-              Refund
+              {refund}
             </button>
           )}
         </div>

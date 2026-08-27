@@ -2,7 +2,11 @@
 
 import { useRef, useState } from "react";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../LangProvider";
 import { CameraScanner } from "./CameraScanner";
+
+/** Same words on the button's tooltip and its screen-reader name — one string, so they cannot drift. */
+const SCAN_WITH_CAMERA = { th: "สแกนด้วยกล้อง", en: "Scan with the camera" };
 
 /**
  * Shared scan input for every scan mode. A keyboard-wedge (USB/Bluetooth) scanner types the code
@@ -15,8 +19,8 @@ import { CameraScanner } from "./CameraScanner";
  */
 export function ScanInput({
   onScan,
-  placeholder = "Scan or paste a barcode…",
-  buttonLabel = "Add",
+  placeholder,
+  buttonLabel,
   disabled = false,
   autoFocus = true,
 }: {
@@ -27,6 +31,7 @@ export function ScanInput({
   disabled?: boolean;
   autoFocus?: boolean;
 }) {
+  const t = useT();
   const [val, setVal] = useState("");
   const [camera, setCamera] = useState(false);
   const ref = useRef<HTMLInputElement | null>(null);
@@ -53,17 +58,19 @@ export function ScanInput({
           autoFocus={autoFocus}
           value={val}
           onChange={(e) => setVal(e.target.value)}
-          placeholder={placeholder}
+          placeholder={
+            placeholder ?? t({ th: "สแกนหรือวางบาร์โค้ด…", en: "Scan or paste a barcode…" })
+          }
           autoComplete="off"
-          aria-label="Barcode"
+          aria-label={t({ th: "บาร์โค้ด", en: "Barcode" })}
           style={{ flex: 1, ...inputS }}
         />
         {/* Camera path (phone). The handheld keyboard-wedge field above works with or without it. */}
         <button
           type="button"
           onClick={() => setCamera((c) => !c)}
-          title="Scan with the camera"
-          aria-label="Scan with the camera"
+          title={t(SCAN_WITH_CAMERA)}
+          aria-label={t(SCAN_WITH_CAMERA)}
           aria-pressed={camera}
           disabled={disabled}
           style={inputS}
@@ -76,7 +83,7 @@ export function ScanInput({
           disabled={disabled || !val.trim()}
           style={inputS}
         >
-          {buttonLabel}
+          {buttonLabel ?? t({ th: "เพิ่ม", en: "Add" })}
         </button>
       </form>
       {camera && <CameraScanner onCode={onScan} onClose={() => setCamera(false)} />}

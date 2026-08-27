@@ -8,6 +8,7 @@
  */
 
 import type { Fitment } from "./api";
+import type { Phrase } from "./lang";
 
 /** Barcode ON prints the Full label (barcode + ID + shop name); OFF prints the Minimal one. */
 export type LabelVersion = "full" | "minimal";
@@ -29,8 +30,9 @@ export function labelDimensions(version: LabelVersion, size: LabelSize): { w: nu
 }
 
 /** Human-readable size, e.g. "50 mm tall" — shown under the size selector. */
-export function sizeHint(size: LabelSize): string {
-  return `${LABEL_HEIGHT_MM[size]} mm tall`;
+export function sizeHint(size: LabelSize): Phrase {
+  const mm = LABEL_HEIGHT_MM[size];
+  return { th: `สูง ${mm} มม.`, en: `${mm} mm tall` };
 }
 
 /**

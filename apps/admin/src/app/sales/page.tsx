@@ -27,6 +27,8 @@ import {
   type ChannelSales,
 } from "@/lib/salesSummary";
 import { PageHeader } from "../PageHeader";
+import { useT } from "../LangProvider";
+import type { Phrase } from "@/lib/lang";
 import { NoAccess } from "../NoAccess";
 import { useStaffRole } from "../StaffRoleProvider";
 import { canViewFinance } from "@l-shopee/core";
@@ -35,15 +37,23 @@ import { AirPlusOrders } from "./AirPlusOrders";
 import { ExpenseForm } from "./ExpenseForm";
 
 // Matches the Orders page's date picker (owner request), minus the week presets.
-const PRESETS: { key: RangePreset; label: string }[] = [
-  { key: "all", label: "All time" },
-  { key: "today", label: "Today" },
-  { key: "7d", label: "Last 7 days" },
-  { key: "30d", label: "Last 30 days" },
-  { key: "thisMonth", label: "This month" },
-  { key: "lastMonth", label: "Last month" },
-  { key: "custom", label: "Custom..." },
+const PRESETS: { key: RangePreset; label: Phrase }[] = [
+  { key: "all", label: { th: "ทั้งหมด", en: "All time" } },
+  { key: "today", label: { th: "วันนี้", en: "Today" } },
+  { key: "7d", label: { th: "ย้อนหลัง 7 วัน", en: "Last 7 days" } },
+  { key: "30d", label: { th: "ย้อนหลัง 30 วัน", en: "Last 30 days" } },
+  { key: "thisMonth", label: { th: "ภายในเดือนนี้", en: "This month" } },
+  { key: "lastMonth", label: { th: "เดือนที่แล้ว", en: "Last month" } },
+  { key: "custom", label: { th: "กำหนดเอง…", en: "Custom…" } },
 ];
+
+/** The four money words the cards and the summary table share, so they cannot drift apart. */
+const METRIC = {
+  revenue: { th: "รายได้", en: "Revenue" },
+  conversions: { th: "จำนวนรายการ", en: "Conversions" },
+  profit: { th: "กำไร", en: "Profit" },
+  growth: { th: "อัตราการเติบโต", en: "Growth rate" },
+} satisfies Record<string, Phrase>;
 
 const card = {
   // Grow to share the row's full width equally; minWidth 150 keeps them from getting too narrow
@@ -75,6 +85,7 @@ const isFinanceOrder = (o: OrderRow): boolean => {
 };
 
 export default function SalesPage() {
+  const t = useT();
   const role = useStaffRole();
   const [sales, setSales] = useState<SaleRow[] | null>(null);
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
@@ -113,8 +124,10 @@ export default function SalesPage() {
   if (error) {
     return (
       <main>
-        <h1>Finance</h1>
-        <p style={{ color: "var(--danger)" }}>Could not load sales: {error}</p>
+        <h1>{t({ th: "การเงิน", en: "Finance" })}</h1>
+        <p style={{ color: "var(--danger)" }}>
+          {t({ th: "โหลดข้อมูลการขายไม่สำเร็จ:", en: "Could not load sales:" })} {error}
+        </p>
       </main>
     );
   }
@@ -281,25 +294,25 @@ export default function SalesPage() {
         )}
         {opts.showType && (
           <select
-            aria-label="Type"
+            aria-label={t({ th: "ประเภท", en: "Type" })}
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             style={{ ...inputS, color: typeFilter ? "var(--text)" : "var(--text-faint)" }}
           >
-            <option value="">All types</option>
-            <option value="parts">Products</option>
-            <option value="repair">Service</option>
+            <option value="">{t({ th: "ทุกประเภท", en: "All types" })}</option>
+            <option value="parts">{t({ th: "สินค้า", en: "Products" })}</option>
+            <option value="repair">{t({ th: "บริการ", en: "Service" })}</option>
           </select>
         )}
         <select
-          aria-label="Date range"
+          aria-label={t({ th: "ช่วงวันที่", en: "Date range" })}
           value={preset}
           onChange={(e) => setPreset(e.target.value as RangePreset)}
           style={inputS}
         >
           {PRESETS.map((p) => (
             <option key={p.key} value={p.key}>
-              {p.label}
+              {t(p.label)}
             </option>
           ))}
         </select>
@@ -318,7 +331,7 @@ export default function SalesPage() {
             type="date"
             value={fromDisplay}
             onChange={(e) => editFrom(e.target.value)}
-            aria-label="From date"
+            aria-label={t({ th: "วันที่เริ่ม", en: "From date" })}
             style={inputS}
           />
           <span className="muted">–</span>
@@ -326,7 +339,7 @@ export default function SalesPage() {
             type="date"
             value={toDisplay}
             onChange={(e) => editTo(e.target.value)}
-            aria-label="To date"
+            aria-label={t({ th: "วันที่สิ้นสุด", en: "To date" })}
             style={inputS}
           />
         </div>
@@ -336,10 +349,16 @@ export default function SalesPage() {
 
   return (
     <main>
-      <PageHeader title="Finance" subtitle="Product sales by channel." />
+      <PageHeader
+        title={t({ th: "การเงิน", en: "Finance" })}
+        subtitle={t({ th: "ยอดขายสินค้าแยกตามช่องทาง", en: "Product sales by channel." })}
+      />
 
       <div className="tabs">
-        <TabBtn id="summary" label={`Summary (${channelTotal.count})`} />
+        <TabBtn
+          id="summary"
+          label={`${t({ th: "สรุป", en: "Summary" })} (${channelTotal.count})`}
+        />
         <TabBtn id="onsite" label={`Den Air Service (${s.salesCount})`} />
         <TabBtn id="airplus" label={`AirPlus (${airplusInRange.length})`} />
       </div>
@@ -351,10 +370,13 @@ export default function SalesPage() {
           {tab === "summary" && (
             <>
               <div style={cardsRow}>
-                <Card label="Revenue" value={formatBahtTrim(channelTotal.revenueSatang)} />
-                <Card label="Conversions" value={String(channelTotal.count)} />
-                <Card label="Profit" value={formatBahtTrim(summaryProfit)} />
-                <Card label="Growth rate" value={fmtGrowth(summaryGrowth)} />
+                <Card
+                  label={t(METRIC.revenue)}
+                  value={formatBahtTrim(channelTotal.revenueSatang)}
+                />
+                <Card label={t(METRIC.conversions)} value={String(channelTotal.count)} />
+                <Card label={t(METRIC.profit)} value={formatBahtTrim(summaryProfit)} />
+                <Card label={t(METRIC.growth)} value={fmtGrowth(summaryGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({})}
@@ -362,10 +384,10 @@ export default function SalesPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Channel</th>
-                        <th style={right}>Conversions</th>
-                        <th style={right}>Revenue</th>
-                        <th style={right}>Profit</th>
+                        <th>{t({ th: "ช่องทาง", en: "Channel" })}</th>
+                        <th style={right}>{t(METRIC.conversions)}</th>
+                        <th style={right}>{t(METRIC.revenue)}</th>
+                        <th style={right}>{t(METRIC.profit)}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -378,7 +400,7 @@ export default function SalesPage() {
                         </tr>
                       ))}
                       <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
-                        <td>Total</td>
+                        <td>{t({ th: "รวม", en: "Total" })}</td>
                         <td style={right}>{channelTotal.count}</td>
                         <td style={right}>{formatBahtTrim(channelTotal.revenueSatang)}</td>
                         <td style={right}>{formatBahtTrim(channelTotal.profitSatang)}</td>
@@ -402,17 +424,20 @@ export default function SalesPage() {
             <>
               {/* Cards reflect the filtered view */}
               <div style={cardsRow}>
-                <Card label="Revenue" value={formatBahtTrim(onsiteSumm.revenueSatang)} />
-                <Card label="Conversions" value={String(onsiteSumm.salesCount)} />
+                <Card label={t(METRIC.revenue)} value={formatBahtTrim(onsiteSumm.revenueSatang)} />
+                <Card label={t(METRIC.conversions)} value={String(onsiteSumm.salesCount)} />
                 <Card
-                  label="Profit"
+                  label={t(METRIC.profit)}
                   value={formatBahtTrim(onsiteSumm.grossProfitSatang - onsiteExpenseSatang)}
                 />
-                <Card label="Growth rate" value={fmtGrowth(onsiteGrowth)} />
+                <Card label={t(METRIC.growth)} value={fmtGrowth(onsiteGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({
-                  searchPlaceholder: "Search plate / car / bill / amount…",
+                  searchPlaceholder: t({
+                    th: "ค้นหาทะเบียน / รถ / บิล / ยอดเงิน…",
+                    en: "Search plate / car / bill / amount…",
+                  }),
                   showType: true,
                 })}
                 <SalesTable
@@ -428,14 +453,20 @@ export default function SalesPage() {
           {tab === "airplus" && (
             <>
               <div style={cardsRow}>
-                <Card label="Revenue" value={formatBahtTrim(airplusSales)} />
-                <Card label="Conversions" value={String(airplusView.length)} />
-                <Card label="Profit" value={formatBahtTrim(airplusProfit - airplusExpenseSatang)} />
-                <Card label="Growth rate" value={fmtGrowth(airplusGrowth)} />
+                <Card label={t(METRIC.revenue)} value={formatBahtTrim(airplusSales)} />
+                <Card label={t(METRIC.conversions)} value={String(airplusView.length)} />
+                <Card
+                  label={t(METRIC.profit)}
+                  value={formatBahtTrim(airplusProfit - airplusExpenseSatang)}
+                />
+                <Card label={t(METRIC.growth)} value={fmtGrowth(airplusGrowth)} />
               </div>
               <div style={frameStyle}>
                 {toolbar({
-                  searchPlaceholder: "Search order / status / amount…",
+                  searchPlaceholder: t({
+                    th: "ค้นหาเลขคำสั่งซื้อ / สถานะ / ยอดเงิน…",
+                    en: "Search order / status / amount…",
+                  }),
                 })}
                 <AirPlusOrders
                   orders={airplusView}

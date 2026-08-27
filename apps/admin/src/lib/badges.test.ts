@@ -9,6 +9,7 @@ import {
   stripCarYear,
   carYearOf,
   saleTypeBadge,
+  saleStatusLabel,
   shopeeStatusBadge,
   airplusStatusBadge,
 } from "./badges";
@@ -71,11 +72,26 @@ describe("carYearOf", () => {
 });
 
 describe("saleTypeBadge", () => {
-  it("given repair > then soft pill with Service label", () =>
-    expect(saleTypeBadge("repair")).toEqual({ pill: "soft", label: "🔧 Service" }));
-  it("given parts > then off pill with Products label", () =>
-    expect(saleTypeBadge("parts")).toEqual({ pill: "off", label: "📦 Products" }));
+  it("given repair > then soft pill with a Service label in both languages", () =>
+    expect(saleTypeBadge("repair")).toEqual({
+      pill: "soft",
+      label: { th: "🔧 บริการ", en: "🔧 Service" },
+    }));
+  it("given parts > then off pill with a Products label in both languages", () =>
+    expect(saleTypeBadge("parts")).toEqual({
+      pill: "off",
+      label: { th: "📦 สินค้า", en: "📦 Products" },
+    }));
   it("given null > then null", () => expect(saleTypeBadge(null)).toBeNull());
+});
+
+describe("saleStatusLabel", () => {
+  it("given completed > then a Thai word, not the raw value", () =>
+    expect(saleStatusLabel("completed")).toEqual({ th: "สำเร็จ", en: "Completed" }));
+  it("given refunded > then the same Refunded wording the order badges use", () =>
+    expect(saleStatusLabel("refunded")).toEqual({ th: "คืนเงินแล้ว", en: "Refunded" }));
+  it("given a status we cannot translate > then it stands unchanged on both sides", () =>
+    expect(saleStatusLabel("weird")).toEqual({ th: "weird", en: "weird" }));
 });
 
 describe("shopeeStatusBadge", () => {

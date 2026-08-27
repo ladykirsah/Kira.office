@@ -25,20 +25,32 @@ describe("stockStatus", () => {
 
 describe("movementLabel", () => {
   it("maps both legacy 'refund' and schema 'refund_return' to the same label", () => {
-    expect(movementLabel("refund_return")).toBe("Refund / return");
-    expect(movementLabel("refund")).toBe("Refund / return");
+    expect(movementLabel("refund_return")).toEqual(movementLabel("refund"));
+    expect(movementLabel("refund_return").en).toBe("Refund / return");
+    expect(movementLabel("refund_return").th).toBe("คืนเงิน / คืนของ");
   });
 
-  it("labels the common movement types", () => {
-    expect(movementLabel("onsite_sale")).toBe("On-site sale");
-    expect(movementLabel("online_sale")).toBe("Online sale");
-    expect(movementLabel("manual_adjustment")).toBe("Manual adjustment");
-    expect(movementLabel("receive")).toBe("Received");
-    expect(movementLabel("write_off")).toBe("Write-off");
+  it("labels the common movement types in both languages", () => {
+    expect(movementLabel("onsite_sale").en).toBe("On-site sale");
+    expect(movementLabel("onsite_sale").th).toBe("ขายหน้าร้าน");
+    expect(movementLabel("online_sale").en).toBe("Online sale");
+    expect(movementLabel("manual_adjustment").en).toBe("Manual adjustment");
+    expect(movementLabel("receive").en).toBe("Received");
+    expect(movementLabel("write_off").en).toBe("Write-off");
   });
 
-  it("falls back to the raw type for unknown values", () => {
-    expect(movementLabel("something_new")).toBe("something_new");
+  it("gives every known type a Thai label, not just an English one", () => {
+    // The whole point of the map: a movement the ledger writes must be readable in either
+    // language. A missing Thai side would silently fall back to English on a Thai screen.
+    for (const type of ["opening_balance", "purchase_receipt", "correction", "hold", "unhold"]) {
+      const label = movementLabel(type);
+      expect(label.th).not.toBe(type);
+      expect(label.th).not.toBe(label.en);
+    }
+  });
+
+  it("falls back to the raw type, in both languages, for unknown values", () => {
+    expect(movementLabel("something_new")).toEqual({ th: "something_new", en: "something_new" });
   });
 });
 
