@@ -36,10 +36,10 @@ const idCell = {
   gap: 6,
 } as const;
 
-// The global table cell is padded 12px all round — too tall for a scan-and-tick list. The owner
-// picked 3px while every row was one line; a row carries two now (name over Product ID), so 6px is
-// what keeps the pairs from running into each other. 12px on the sides either way.
-const cellPad = { padding: "6px 12px" } as const;
+// Padding lives in `.wl-cell` (globals.css) rather than here, because a phone needs a different
+// value and an inline style cannot be overridden by a media query. 3px on a wide screen, where a
+// row is one line and the owner asked for many rows on screen; 6px on a phone, where a row carries
+// the Product ID under the name and the pairs would otherwise run together.
 
 /**
  * The dashboard "Update on Shopee" checklist (Design A). The server hands in the products whose stock
@@ -99,13 +99,18 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
         <table>
           <thead>
             <tr>
-              {/* Name and Product ID share ONE column (owner, 27 Aug 2026). As two they cost the
-                  table more width than a phone has: 312px of table inside a 286px panel, so the
-                  list scrolled sideways to read a code that belongs to the name beside it. Stacked,
-                  they are one thing — which is what they always were. */}
-              <th style={cellPad}>{t({ th: "สินค้า", en: "Product" })}</th>
-              <th style={{ ...cellPad, textAlign: "right" }}>{t({ th: "ลดลง", en: "Reduce" })}</th>
-              <th style={{ ...cellPad, textAlign: "center", width: 60 }}>
+              <th className="wl-cell">{t({ th: "สินค้า", en: "Product" })}</th>
+              {/* ON A PHONE ONLY, the Product ID moves UNDER the name and this column disappears
+                  (owner, 27 Aug 2026). As two columns they cost the table more width than a phone
+                  has — 312px of table inside a 286px panel at 320px wide — so the list scrolled
+                  sideways to read a code that belongs to the name beside it, and every name wrapped
+                  over two or three lines to make room. A wide screen has the width and keeps them
+                  side by side. */}
+              <th className="wl-cell wl-id-col">{t(PRODUCT_ID)}</th>
+              <th className="wl-cell" style={{ textAlign: "right" }}>
+                {t({ th: "ลดลง", en: "Reduce" })}
+              </th>
+              <th className="wl-cell" style={{ textAlign: "center", width: 60 }}>
                 {t({ th: "เสร็จ", en: "Done" })}
               </th>
             </tr>
@@ -115,7 +120,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
               const isDone = done.has(r.productId);
               return (
                 <tr key={r.productId} style={isDone ? { opacity: 0.5 } : undefined}>
-                  <td style={cellPad}>
+                  <td className="wl-cell">
                     {/* Only the NAME is struck through when a row is ticked. Striking the code too
                         would put a line through the very thing you are about to copy. */}
                     <div
@@ -126,14 +131,22 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
                     >
                       {r.name}
                     </div>
-                    <span style={{ ...idCell, ...tableText.subtitle }}>
+                    {/* The same code as the column to the right, and only ever one of the two is
+                        on screen — see the header. */}
+                    <span className="wl-id-inline" style={tableText.subtitle}>
+                      {r.productRef}
+                      <CopyButton value={r.productRef} label={`${t(PRODUCT_ID)} ${r.productRef}`} />
+                    </span>
+                  </td>
+                  <td className="wl-cell wl-id-col">
+                    <span style={idCell}>
                       {r.productRef}
                       <CopyButton value={r.productRef} label={`${t(PRODUCT_ID)} ${r.productRef}`} />
                     </span>
                   </td>
                   <td
+                    className="wl-cell"
                     style={{
-                      ...cellPad,
                       textAlign: "right",
                       fontWeight: 700,
                       fontVariantNumeric: "tabular-nums",
@@ -142,7 +155,7 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
                   >
                     {reduceLabel(r.deltaSinceSync)}
                   </td>
-                  <td style={{ ...cellPad, textAlign: "center" }}>
+                  <td className="wl-cell" style={{ textAlign: "center" }}>
                     <input
                       type="checkbox"
                       checked={isDone}

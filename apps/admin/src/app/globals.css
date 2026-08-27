@@ -526,6 +526,23 @@ tbody tr:hover {
   gap: 14px;
 }
 
+/* ── The dashboard's "Update on Shopee" worklist ───────────────────────────────────────────────
+   A scan-and-tick list, so its cells are tighter than the global 12px: the owner asked for many
+   rows on screen at once. On a phone the Product ID moves UNDER the name and its own column goes
+   away — see ShopeeWorklist.tsx for the width that forced it — and a row is two lines, which is
+   why the padding grows there rather than shrinking. */
+.wl-cell {
+  padding: 3px 12px;
+}
+/* The stacked copy of the Product ID. Only ever one of the two is on screen — which is why its
+   `display` lives HERE and not in an inline style, where it would beat the media query below and
+   the code would show twice on a wide screen. */
+.wl-id-inline {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
 /* The dashboard's four order-status counts. A class rather than an inline style so the phone can
    have a say — an inline grid-template-columns cannot be overridden by a media query. */
 .stat-grid {
@@ -1485,6 +1502,17 @@ a.card:hover {
     padding: 16px;
     /* Clear the bottom bar (62px) so the last row is never trapped under it. */
     padding-bottom: 78px;
+  }
+
+  /* The Product ID stops being a column of its own and moves under the name it belongs to. */
+  .wl-id-col {
+    display: none;
+  }
+  .wl-id-inline {
+    display: inline-flex;
+  }
+  .wl-cell {
+    padding: 6px 12px;
   }
 
   /* Two across, not four and not one (owner, 27 Aug 2026).
