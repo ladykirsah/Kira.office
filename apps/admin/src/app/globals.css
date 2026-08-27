@@ -1830,12 +1830,14 @@ a.card:hover {
   color: var(--text-muted);
 }
 
-/* The practice copy's passwordless door, above the normal form. Separated by a rule and a label
-   so it reads as a different route in, not as a second submit button for the fields above it. */
+/* The practice copy's passwordless door, LAST on the sign-in card and under its own hairline.
+   It sat above the real Sign in button until 27 Aug 2026, wearing the same red — so a card with
+   two identical buttons a few centimetres apart read as broken, and the owner said so. The rule
+   above it keeps its grey note from looking like an explanation of the emergency entrance. */
 .practice-door {
-  margin-bottom: 18px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 /* ── Record section on a staff profile (owner, 2026-08-24) ────────────────────────────────────
