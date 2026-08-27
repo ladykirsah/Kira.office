@@ -16,6 +16,14 @@ import { ConfirmButton } from "../../ConfirmButton";
 import { DateTimeField } from "../../DateTimeField";
 import { inputS } from "@/lib/inputStyles";
 import { dateTimeToMs, msToDateInput, msToTimeInput } from "@/lib/dateTime";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
+
+const SAVE: Phrase = { th: "บันทึก", en: "Save" };
+const LINK_URL: Phrase = { th: "ลิงก์", en: "Link URL" };
+const STARTS: Phrase = { th: "เริ่ม", en: "Starts" };
+const ENDS: Phrase = { th: "สิ้นสุด", en: "Ends" };
+const LIVE_TIME: Phrase = { th: "ช่วงเวลาแสดง", en: "Live time" };
 import {
   liveWindow,
   SLOT_LIMIT,
@@ -42,16 +50,22 @@ const cardLabel = {
 const fieldCol = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: 12, color: "var(--text-muted)" } as const;
 
-const SLOT_LABELS: Record<BannerRow["slot"], string> = {
-  hero: "Hero carousel",
-  promo: "Promo strip",
+/* Module-level, so these carry phrases the render translates — no hook can run out here. */
+const SLOT_LABELS: Record<BannerRow["slot"], Phrase> = {
+  hero: { th: "สไลด์หลัก", en: "Hero carousel" },
+  promo: { th: "แถบโปรโมชัน", en: "Promo strip" },
 };
 
 /** What each frame is, so the owner knows what shape of image to prepare. */
-const SLOT_HINT: Record<BannerRow["slot"], string> = {
-  hero: "Rotating slides at the top of the home page. Wide 16:6 images work best. Max 3 — slides past the third are rarely seen.",
-  promo:
-    "A single wide band lower down the home page. Same wide shape; add as many as you like and they stack.",
+const SLOT_HINT: Record<BannerRow["slot"], Phrase> = {
+  hero: {
+    th: "สไลด์ที่หมุนอยู่ด้านบนของหน้าแรก รูปแนวกว้าง 16:6 จะเข้าที่สุด สูงสุด 3 รูป — สไลด์ที่เกินรูปที่สามแทบไม่มีใครเห็น",
+    en: "Rotating slides at the top of the home page. Wide 16:6 images work best. Max 3 — slides past the third are rarely seen.",
+  },
+  promo: {
+    th: "แถบกว้างแถบเดียวอยู่ล่างลงมาในหน้าแรก รูปทรงกว้างเหมือนกัน เพิ่มได้ไม่จำกัดและจะเรียงต่อกันลงไป",
+    en: "A single wide band lower down the home page. Same wide shape; add as many as you like and they stack.",
+  },
 };
 
 const TrashIcon = () => (
@@ -78,6 +92,7 @@ function BannerItem({
   banner: BannerRow;
   onChanged: () => void | Promise<void>;
 }) {
+  const t = useT();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [linkUrl, setLinkUrl] = useState(banner.linkUrl ?? "");
@@ -104,7 +119,7 @@ function BannerItem({
         startsAt: dateTimeToMs(startDate, startTime),
         endsAt: dateTimeToMs(endDate, endTime),
       });
-      toast("Banner saved", "success");
+      toast(t({ th: "บันทึกแบนเนอร์แล้ว", en: "Banner saved" }), "success");
       setEditing(false);
       await onChanged();
     } catch (e) {
@@ -139,7 +154,7 @@ function BannerItem({
     setBusy(true);
     try {
       await uploadBannerImage(banner.id, file);
-      toast("Image uploaded", "success");
+      toast(t({ th: "อัปโหลดรูปแล้ว", en: "Image uploaded" }), "success");
       await onChanged();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -152,7 +167,7 @@ function BannerItem({
   async function del() {
     try {
       await deleteBanner(banner.id);
-      toast("Banner deleted", "success");
+      toast(t({ th: "ลบแบนเนอร์แล้ว", en: "Banner deleted" }), "success");
       await onChanged();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -163,7 +178,7 @@ function BannerItem({
   const savedLink = banner.linkUrl?.trim() ?? "";
   const windowText =
     banner.startsAt == null && banner.endsAt == null
-      ? "ตลอดเวลา · until changed"
+      ? t({ th: "ตลอดเวลา · จนกว่าจะเปลี่ยน", en: "Always on · until changed" })
       : `${banner.startsAt ? new Date(banner.startsAt).toLocaleDateString() : "—"} → ${
           banner.endsAt ? new Date(banner.endsAt).toLocaleDateString() : "—"
         }`;
@@ -180,8 +195,8 @@ function BannerItem({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          title="Replace image"
-          aria-label="Replace banner image"
+          title={t({ th: "เปลี่ยนรูป", en: "Replace image" })}
+          aria-label={t({ th: "เปลี่ยนรูปแบนเนอร์", en: "Replace banner image" })}
           style={{
             width: 132,
             height: 74,
@@ -197,7 +212,7 @@ function BannerItem({
           {banner.imageKey ? (
             <img
               src={imageUrl(banner.imageKey)}
-              alt="Banner"
+              alt={t({ th: "แบนเนอร์", en: "Banner" })}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
           ) : (
@@ -220,7 +235,7 @@ function BannerItem({
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               placeholder="/products/… or https://…"
-              aria-label="Link URL"
+              aria-label={t(LINK_URL)}
               style={{ ...inputS, width: 190 }}
             />
           </td>
@@ -229,14 +244,14 @@ function BannerItem({
               type="number"
               value={sort}
               onChange={(e) => setSort(e.target.value)}
-              aria-label="Sort order"
+              aria-label={t({ th: "ลำดับ", en: "Sort order" })}
               style={{ ...inputS, width: 64 }}
             />
           </td>
           <td>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               <DateTimeField
-                label="Starts"
+                label={t(STARTS)}
                 base={{ th: "แก้ไขวันเริ่มแบนเนอร์", en: "Edit banner start" }}
                 date={startDate}
                 time={startTime}
@@ -244,7 +259,7 @@ function BannerItem({
                 onTime={setStartTime}
               />
               <DateTimeField
-                label="Ends"
+                label={t(ENDS)}
                 base={{ th: "แก้ไขวันสิ้นสุดแบนเนอร์", en: "Edit banner end" }}
                 date={endDate}
                 time={endTime}
@@ -266,7 +281,7 @@ function BannerItem({
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 placeholder="/products/… or https://…"
-                aria-label="Link URL"
+                aria-label={t(LINK_URL)}
                 style={{ ...inputS, width: 190 }}
               />
             )}
@@ -287,7 +302,7 @@ function BannerItem({
           <input
             type="checkbox"
             checked={banner.status === "active"}
-            aria-label="Banner active"
+            aria-label={t({ th: "เปิดแบนเนอร์", en: "Banner active" })}
             onChange={(e) => toggle(e.target.checked)}
           />
           <span className="slider" />
@@ -298,17 +313,17 @@ function BannerItem({
           {editing ? (
             <>
               <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={save}>
-                Save
+                {t(SAVE)}
               </button>
               <button type="button" className="btn-sm" disabled={busy} onClick={cancelEdit}>
-                Cancel
+                {t({ th: "ยกเลิก", en: "Cancel" })}
               </button>
             </>
           ) : (
             <>
               {dirty && (
                 <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={save}>
-                  Save
+                  {t(SAVE)}
                 </button>
               )}
               <button
@@ -317,14 +332,14 @@ function BannerItem({
                 disabled={busy}
                 onClick={() => setEditing(true)}
               >
-                Edit
+                {t({ th: "แก้ไข", en: "Edit" })}
               </button>
             </>
           )}
           <ConfirmButton
             className="icon-btn"
-            ariaLabel="Delete banner"
-            confirmLabel="Remove?"
+            ariaLabel={t({ th: "ลบแบนเนอร์", en: "Delete banner" })}
+            confirmLabel={t({ th: "ลบ?", en: "Remove?" })}
             onConfirm={del}
           >
             <TrashIcon />
@@ -352,6 +367,7 @@ function AddBannerForm({
   count: number;
   onAdded: () => Promise<void>;
 }) {
+  const t = useT();
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
@@ -371,7 +387,12 @@ function AddBannerForm({
     e.preventDefault();
     if (full) return;
     if (!file) {
-      setError("เลือกรูปแบนเนอร์ก่อน — a banner without an image renders nothing.");
+      setError(
+        t({
+          th: "เลือกรูปแบนเนอร์ก่อน — แบนเนอร์ที่ไม่มีรูปจะไม่แสดงอะไรเลย",
+          en: "Choose a banner image first — a banner without an image renders nothing.",
+        }),
+      );
       fileRef.current?.click();
       return;
     }
@@ -392,7 +413,13 @@ function AddBannerForm({
         endsAt,
       });
       await uploadBannerImage(id, file);
-      toast(`เพิ่ม${SLOT_LABELS[slot]}แล้ว ✓`, "success");
+      toast(
+        t({
+          th: `เพิ่ม${t(SLOT_LABELS[slot])}แล้ว ✓`,
+          en: `Added to the ${t(SLOT_LABELS[slot]).toLowerCase()} ✓`,
+        }),
+        "success",
+      );
       setFile(null);
       setLinkUrl("");
       setAlwaysLive(true);
@@ -415,8 +442,10 @@ function AddBannerForm({
   if (full) {
     return (
       <p className="muted" style={{ fontSize: 13, margin: "0 0 4px" }}>
-        {SLOT_LABELS[slot]} is full ({slotCountLabel(slot, count)}). Remove one below to add
-        another.
+        {t({
+          th: `${t(SLOT_LABELS[slot])}เต็มแล้ว (${slotCountLabel(slot, count)}) ลบออกสักอันด้านล่างเพื่อเพิ่มอันใหม่`,
+          en: `${t(SLOT_LABELS[slot])} is full (${slotCountLabel(slot, count)}). Remove one below to add another.`,
+        })}
       </p>
     );
   }
@@ -425,7 +454,7 @@ function AddBannerForm({
     <form onSubmit={submit} noValidate style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div style={fieldCol}>
-          <span style={fieldLabel}>Banner image</span>
+          <span style={fieldLabel}>{t({ th: "รูปแบนเนอร์", en: "Banner image" })}</span>
           <input
             ref={fileRef}
             type="file"
@@ -447,11 +476,13 @@ function AddBannerForm({
               whiteSpace: "nowrap",
             }}
           >
-            {file ? `🖼 ${file.name}` : "＋ Choose image…"}
+            {file ? `🖼 ${file.name}` : `＋ ${t({ th: "เลือกรูป…", en: "Choose image…" })}`}
           </button>
         </div>
         <div style={{ ...fieldCol, flex: "1 1 180px" }}>
-          <span style={fieldLabel}>Link URL (optional)</span>
+          <span style={fieldLabel}>
+            {t({ th: "ลิงก์ (ไม่บังคับ)", en: "Link URL (optional)" })}
+          </span>
           <input
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
@@ -460,7 +491,7 @@ function AddBannerForm({
           />
         </div>
         <button type="submit" className="btn-primary btn-sm" disabled={busy}>
-          {busy ? "Adding…" : "Add"}
+          {busy ? t({ th: "กำลังเพิ่ม…", en: "Adding…" }) : t({ th: "เพิ่ม", en: "Add" })}
         </button>
       </div>
 
@@ -473,24 +504,30 @@ function AddBannerForm({
               type="checkbox"
               checked={alwaysLive}
               disabled={busy}
-              aria-label="Live time"
+              aria-label={t(LIVE_TIME)}
               onChange={(e) => setAlwaysLive(e.target.checked)}
             />
             <span className="slider" />
           </span>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Live time</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{t(LIVE_TIME)}</span>
         </label>
         <span className="muted" style={{ fontSize: 12 }}>
           {alwaysLive
-            ? "On — shown forever, until you turn it off."
-            : "Off — shows only between the start/end dates below."}
+            ? t({
+                th: "เปิด — แสดงตลอดไปจนกว่าจะปิดเอง",
+                en: "On — shown forever, until you turn it off.",
+              })
+            : t({
+                th: "ปิด — แสดงเฉพาะช่วงวันที่เริ่ม/สิ้นสุดด้านล่าง",
+                en: "Off — shows only between the start/end dates below.",
+              })}
         </span>
       </div>
 
       {!alwaysLive && (
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <DateTimeField
-            label="Starts"
+            label={t(STARTS)}
             base={{ th: "วันเริ่มแบนเนอร์ใหม่", en: "New banner start" }}
             date={startDate}
             time={startTime}
@@ -498,7 +535,7 @@ function AddBannerForm({
             onTime={setStartTime}
           />
           <DateTimeField
-            label="Ends"
+            label={t(ENDS)}
             base={{ th: "วันสิ้นสุดแบนเนอร์ใหม่", en: "New banner end" }}
             date={endDate}
             time={endTime}
@@ -518,6 +555,7 @@ function AddBannerForm({
 }
 
 export default function BannersPage() {
+  const t = useT();
   const toast = useToast();
   const [banners, setBanners] = useState<BannerRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -539,8 +577,11 @@ export default function BannersPage() {
   return (
     <main>
       <PageHeader
-        title="Banners"
-        subtitle="Home-page banners on the AirPlus storefront. The hero carousel and the promo strip are different frames, so each is set up separately below."
+        title={t({ th: "แบนเนอร์", en: "Banners" })}
+        subtitle={t({
+          th: "แบนเนอร์หน้าแรกของหน้าร้าน AirPlus สไลด์หลักกับแถบโปรโมชันเป็นคนละกรอบกัน จึงตั้งค่าแยกกันด้านล่าง",
+          en: "Home-page banners on the AirPlus storefront. The hero carousel and the promo strip are different frames, so each is set up separately below.",
+        })}
       />
 
       {(["hero", "promo"] as const).map((s) => {
@@ -550,13 +591,13 @@ export default function BannersPage() {
         return (
           <div key={s} style={{ ...cardStyle, marginTop: 16 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
-              <div style={{ ...cardLabel, marginBottom: 0 }}>{SLOT_LABELS[s]}</div>
+              <div style={{ ...cardLabel, marginBottom: 0 }}>{t(SLOT_LABELS[s])}</div>
               <span className="muted" style={{ fontSize: 12 }}>
                 {slotCountLabel(s, rows.length)}
               </span>
             </div>
             <p className="muted" style={{ fontSize: 12, margin: "0 0 14px" }}>
-              {SLOT_HINT[s]}
+              {t(SLOT_HINT[s])}
             </p>
 
             {/* Capacity is shown as explicit slide slots rather than implied by a form that simply
@@ -582,7 +623,9 @@ export default function BannersPage() {
                         color: filled ? "var(--text)" : "var(--text-muted)",
                       }}
                     >
-                      {filled ? `✓ Slide ${i + 1}` : `Slide ${i + 1} — empty`}
+                      {filled
+                        ? `✓ ${t({ th: `สไลด์ ${i + 1}`, en: `Slide ${i + 1}` })}`
+                        : t({ th: `สไลด์ ${i + 1} — ว่าง`, en: `Slide ${i + 1} — empty` })}
                     </div>
                   );
                 })}
@@ -594,23 +637,26 @@ export default function BannersPage() {
             <div style={{ marginTop: 16 }}>
               {loading ? (
                 <p className="muted" style={{ fontSize: 13 }}>
-                  Loading…
+                  {t({ th: "กำลังโหลด…", en: "Loading…" })}
                 </p>
               ) : rows.length === 0 ? (
                 <p className="muted" style={{ fontSize: 13 }}>
-                  No {SLOT_LABELS[s].toLowerCase()} banners yet.
+                  {t({
+                    th: `ยังไม่มีแบนเนอร์${t(SLOT_LABELS[s])}`,
+                    en: `No ${t(SLOT_LABELS[s]).toLowerCase()} banners yet.`,
+                  })}
                 </p>
               ) : (
                 <div style={{ overflowX: "auto" }}>
                   <table>
                     <thead>
                       <tr>
-                        <th>Image</th>
-                        <th>Link</th>
-                        <th>Sort</th>
-                        <th>Window</th>
-                        <th>Active</th>
-                        <th aria-label="Actions" />
+                        <th>{t({ th: "รูป", en: "Image" })}</th>
+                        <th>{t({ th: "ลิงก์", en: "Link" })}</th>
+                        <th>{t({ th: "ลำดับ", en: "Sort" })}</th>
+                        <th>{t({ th: "ช่วงเวลา", en: "Window" })}</th>
+                        <th>{t({ th: "เปิดใช้", en: "Active" })}</th>
+                        <th aria-label={t({ th: "จัดการ", en: "Actions" })} />
                       </tr>
                     </thead>
                     <tbody>

@@ -19,6 +19,11 @@ import { ConfirmButton } from "../../ConfirmButton";
 import { DateTimeField } from "../../DateTimeField";
 import { inputS } from "@/lib/inputStyles";
 import { dateTimeToMs } from "@/lib/dateTime";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
+
+const ADD: Phrase = { th: "เพิ่ม", en: "Add" };
+const REMOVE_Q: Phrase = { th: "ลบ?", en: "Remove?" };
 
 // Card frame shared by the sections (same look as the Service Setup page).
 const cardStyle = {
@@ -63,6 +68,7 @@ function AddProductRow({
   campaign: CampaignRow;
   onChanged: () => void | Promise<void>;
 }) {
+  const t = useT();
   const toast = useToast();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<VariantSearchResult[]>([]);
@@ -101,7 +107,7 @@ function AddProductRow({
         campaignPriceSatang: salePriceSatang,
         stockCap: capNum,
       });
-      toast("Product added to campaign", "success");
+      toast(t({ th: "เพิ่มสินค้าเข้าแคมเปญแล้ว", en: "Product added to campaign" }), "success");
       setQ("");
       setPicked(null);
       setSalePrice("");
@@ -118,7 +124,7 @@ function AddProductRow({
     <div style={{ marginTop: 12 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div style={{ ...fieldCol, flex: "1 1 220px", position: "relative" }}>
-          <span style={fieldLabel}>Add product</span>
+          <span style={fieldLabel}>{t({ th: "เพิ่มสินค้า", en: "Add product" })}</span>
           {picked ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span className="pill soft">
@@ -132,7 +138,7 @@ function AddProductRow({
                   setQ("");
                 }}
               >
-                Change
+                {t({ th: "เปลี่ยน", en: "Change" })}
               </button>
             </div>
           ) : (
@@ -140,8 +146,8 @@ function AddProductRow({
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search product name / ID…"
-                aria-label="Search products"
+                placeholder={t({ th: "ค้นหาชื่อสินค้า / รหัส…", en: "Search product name / ID…" })}
+                aria-label={t({ th: "ค้นหาสินค้า", en: "Search products" })}
                 style={{ ...inputS, minWidth: 0 }}
               />
               {results.length > 0 && (
@@ -192,7 +198,7 @@ function AddProductRow({
           )}
         </div>
         <div style={fieldCol}>
-          <span style={fieldLabel}>Sale price (฿)</span>
+          <span style={fieldLabel}>{t({ th: "ราคาลด (฿)", en: "Sale price (฿)" })}</span>
           <input
             type="number"
             min={0}
@@ -203,7 +209,9 @@ function AddProductRow({
           />
         </div>
         <div style={fieldCol}>
-          <span style={fieldLabel}>Stock cap (optional)</span>
+          <span style={fieldLabel}>
+            {t({ th: "จำกัดจำนวน (ไม่บังคับ)", en: "Stock cap (optional)" })}
+          </span>
           <input
             type="number"
             min={1}
@@ -219,12 +227,12 @@ function AddProductRow({
           disabled={busy || !canAdd}
           onClick={add}
         >
-          Add
+          {t(ADD)}
         </button>
       </div>
       {alreadyIn && (
         <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          This product is already in the campaign.
+          {t({ th: "สินค้านี้อยู่ในแคมเปญแล้ว", en: "This product is already in the campaign." })}
         </p>
       )}
     </div>
@@ -238,6 +246,7 @@ function CampaignCard({
   campaign: CampaignRow;
   onChanged: () => void | Promise<void>;
 }) {
+  const t = useT();
   const toast = useToast();
   const now = Date.now();
   const live = campaign.status === "active" && now >= campaign.startsAt && now < campaign.endsAt;
@@ -254,7 +263,7 @@ function CampaignCard({
   async function del() {
     try {
       await deleteCampaign(campaign.id);
-      toast("Campaign deleted", "success");
+      toast(t({ th: "ลบแคมเปญแล้ว", en: "Campaign deleted" }), "success");
       await onChanged();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -283,7 +292,9 @@ function CampaignCard({
       >
         <div style={{ fontSize: 15, fontWeight: 700 }}>{campaign.name}</div>
         {live && <span className="pill good">LIVE NOW</span>}
-        {campaign.status === "disabled" && <span className="pill off">Disabled</span>}
+        {campaign.status === "disabled" && (
+          <span className="pill off">{t({ th: "ปิดอยู่", en: "Disabled" })}</span>
+        )}
         <span className="muted" style={{ fontSize: 13 }}>
           {formatUpdatedAt(campaign.startsAt)} → {formatUpdatedAt(campaign.endsAt)}
         </span>
@@ -292,15 +303,18 @@ function CampaignCard({
             <input
               type="checkbox"
               checked={campaign.status === "active"}
-              aria-label={`Campaign ${campaign.name} active`}
+              aria-label={t({
+                th: `เปิดแคมเปญ ${campaign.name}`,
+                en: `Campaign ${campaign.name} active`,
+              })}
               onChange={(e) => toggle(e.target.checked)}
             />
             <span className="slider" />
           </span>
           <ConfirmButton
             className="icon-btn"
-            ariaLabel={`Delete ${campaign.name}`}
-            confirmLabel="Remove?"
+            ariaLabel={t({ th: `ลบ ${campaign.name}`, en: `Delete ${campaign.name}` })}
+            confirmLabel={t(REMOVE_Q)}
             onConfirm={del}
           >
             <TrashIcon />
@@ -310,19 +324,19 @@ function CampaignCard({
 
       {campaign.prices.length === 0 ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          No products in this campaign yet.
+          {t({ th: "แคมเปญนี้ยังไม่มีสินค้า", en: "No products in this campaign yet." })}
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table>
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Base</th>
-                <th>Sale</th>
-                <th>Cap</th>
-                <th>Sold</th>
-                <th aria-label="Actions" />
+                <th>{t({ th: "สินค้า", en: "Product" })}</th>
+                <th>{t({ th: "ราคาปกติ", en: "Base" })}</th>
+                <th>{t({ th: "ราคาลด", en: "Sale" })}</th>
+                <th>{t({ th: "จำกัด", en: "Cap" })}</th>
+                <th>{t({ th: "ขายแล้ว", en: "Sold" })}</th>
+                <th aria-label={t({ th: "จัดการ", en: "Actions" })} />
               </tr>
             </thead>
             <tbody>
@@ -341,8 +355,11 @@ function CampaignCard({
                   <td style={{ textAlign: "right" }}>
                     <ConfirmButton
                       className="icon-btn"
-                      ariaLabel={`Remove ${p.productName}`}
-                      confirmLabel="Remove?"
+                      ariaLabel={t({
+                        th: `เอา ${p.productName} ออก`,
+                        en: `Remove ${p.productName}`,
+                      })}
+                      confirmLabel={t(REMOVE_Q)}
                       onConfirm={() => removePrice(p.id)}
                     >
                       <TrashIcon />
@@ -361,6 +378,7 @@ function CampaignCard({
 }
 
 export default function CampaignsPage() {
+  const t = useT();
   const toast = useToast();
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -395,7 +413,13 @@ export default function CampaignsPage() {
     setBusy(true);
     try {
       await addCampaign({ name: name.trim(), startsAt: startsMs, endsAt: endsMs });
-      toast("Campaign added — now add its products", "success");
+      toast(
+        t({
+          th: "เพิ่มแคมเปญแล้ว — ตอนนี้เพิ่มสินค้าเข้าไป",
+          en: "Campaign added — now add its products",
+        }),
+        "success",
+      );
       setName("");
       setStartDate("");
       setStartTime("");
@@ -412,28 +436,31 @@ export default function CampaignsPage() {
   return (
     <main>
       <PageHeader
-        title="Flash sales"
-        subtitle="Timed sale-price campaigns on the AirPlus storefront. Each campaign has a window and a list of products with a sale price (and an optional per-product stock cap). Prices apply automatically while the window is open."
+        title={t({ th: "แฟลชเซล", en: "Flash sales" })}
+        subtitle={t({
+          th: "แคมเปญลดราคาตามช่วงเวลาบนหน้าร้าน AirPlus แต่ละแคมเปญมีช่วงเวลาและรายการสินค้าพร้อมราคาลด (และจะจำกัดจำนวนต่อสินค้าก็ได้) ราคาจะมีผลอัตโนมัติระหว่างที่ช่วงเวลาเปิดอยู่",
+          en: "Timed sale-price campaigns on the AirPlus storefront. Each campaign has a window and a list of products with a sale price (and an optional per-product stock cap). Prices apply automatically while the window is open.",
+        })}
       />
 
       {/* Frame 1 — add a campaign */}
       <div style={cardStyle}>
-        <div style={cardLabel}>Add a campaign</div>
+        <div style={cardLabel}>{t({ th: "เพิ่มแคมเปญ", en: "Add a campaign" })}</div>
         <form
           onSubmit={add}
           style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}
         >
           <div style={{ ...fieldCol, flex: "1 1 180px" }}>
-            <span style={fieldLabel}>Name</span>
+            <span style={fieldLabel}>{t({ th: "ชื่อ", en: "Name" })}</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. 9.9 Flash Sale"
+              placeholder={t({ th: "เช่น แฟลชเซล 9.9", en: "e.g. 9.9 Flash Sale" })}
               style={{ ...inputS, minWidth: 0 }}
             />
           </div>
           <DateTimeField
-            label="Starts"
+            label={t({ th: "เริ่ม", en: "Starts" })}
             base={{ th: "เริ่ม", en: "Start" }}
             date={startDate}
             time={startTime}
@@ -441,7 +468,7 @@ export default function CampaignsPage() {
             onTime={setStartTime}
           />
           <DateTimeField
-            label="Ends"
+            label={t({ th: "สิ้นสุด", en: "Ends" })}
             base={{ th: "สิ้นสุด", en: "End" }}
             date={endDate}
             time={endTime}
@@ -449,7 +476,7 @@ export default function CampaignsPage() {
             onTime={setEndTime}
           />
           <button type="submit" className="btn-primary" disabled={busy || !canAdd}>
-            Add
+            {t(ADD)}
           </button>
         </form>
       </div>
@@ -457,11 +484,11 @@ export default function CampaignsPage() {
       {/* Campaign cards */}
       {loading ? (
         <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
-          Loading…
+          {t({ th: "กำลังโหลด…", en: "Loading…" })}
         </p>
       ) : campaigns.length === 0 ? (
         <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
-          No campaigns yet. Add one above.
+          {t({ th: "ยังไม่มีแคมเปญ เพิ่มด้านบน", en: "No campaigns yet. Add one above." })}
         </p>
       ) : (
         campaigns.map((c) => <CampaignCard key={c.id} campaign={c} onChanged={load} />)

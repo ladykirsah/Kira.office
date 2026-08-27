@@ -12,6 +12,7 @@ import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
 import { ConfirmButton } from "../../ConfirmButton";
 import { inputS } from "@/lib/inputStyles";
+import { useT } from "../../LangProvider";
 
 const numStyle = { width: 110, minHeight: 0, padding: "8px 10px" } as const;
 
@@ -89,6 +90,7 @@ function ServiceItem({
   svc: ServiceRow;
   onChanged: () => void | Promise<void>;
 }) {
+  const t = useT();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false); // delete confirm armed → hide the Edit icon
@@ -146,7 +148,9 @@ function ServiceItem({
           {svc.nameEn ? (
             <div style={{ fontSize: 13, color: "var(--text-faint)" }}>{svc.nameEn}</div>
           ) : (
-            <div style={{ fontSize: 13, color: "var(--text-faint)" }}>Not added</div>
+            <div style={{ fontSize: 13, color: "var(--text-faint)" }}>
+              {t({ th: "ยังไม่ได้ใส่", en: "Not added" })}
+            </div>
           )}
         </td>
         <td style={priceCol}>
@@ -161,7 +165,7 @@ function ServiceItem({
               <button
                 type="button"
                 className="icon-btn"
-                aria-label={`Edit ${svc.name}`}
+                aria-label={t({ th: `แก้ไข ${svc.name}`, en: `Edit ${svc.name}` })}
                 onClick={() => setEditing(true)}
               >
                 <EditIcon />
@@ -169,8 +173,8 @@ function ServiceItem({
             )}
             <ConfirmButton
               className="icon-btn"
-              ariaLabel={`Delete ${svc.name}`}
-              confirmLabel="Remove?"
+              ariaLabel={t({ th: `ลบ ${svc.name}`, en: `Delete ${svc.name}` })}
+              confirmLabel={t({ th: "ลบ?", en: "Remove?" })}
               onConfirm={del}
               onArmedChange={setDeleting}
             >
@@ -216,10 +220,10 @@ function ServiceItem({
             disabled={!dirty || !name.trim() || priceSatang <= 0 || busy}
             onClick={save}
           >
-            Save
+            {t({ th: "บันทึก", en: "Save" })}
           </button>
           <button type="button" className="btn-sm" onClick={cancel} disabled={busy}>
-            Cancel
+            {t({ th: "ยกเลิก", en: "Cancel" })}
           </button>
         </div>
       </td>
@@ -228,6 +232,7 @@ function ServiceItem({
 }
 
 export default function ServicesPage() {
+  const t = useT();
   const toast = useToast();
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -281,13 +286,16 @@ export default function ServicesPage() {
   return (
     <main>
       <PageHeader
-        title="Service Setup"
-        subtitle="Manage the repair / labour services the Point of Sale can add to a bill. Each has a base price that prefills when you pick it — you can still change the price per sale."
+        title={t({ th: "ตั้งค่าบริการ", en: "Service Setup" })}
+        subtitle={t({
+          th: "จัดการงานซ่อม / ค่าแรง ที่หน้าขายจะเพิ่มลงบิลได้ แต่ละรายการมีราคาตั้งต้นที่จะเติมให้อัตโนมัติเมื่อเลือก และยังแก้ราคาต่อบิลได้",
+          en: "Manage the repair / labour services the Point of Sale can add to a bill. Each has a base price that prefills when you pick it — you can still change the price per sale.",
+        })}
       />
 
       {/* Frame 1 — add a service */}
       <div style={cardStyle}>
-        <div style={cardLabel}>Add a service</div>
+        <div style={cardLabel}>{t({ th: "เพิ่มบริการ", en: "Add a service" })}</div>
         <form
           onSubmit={add}
           style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
@@ -316,27 +324,27 @@ export default function ServicesPage() {
             style={{ width: 110 }}
           />
           <button type="submit" className="btn-primary" disabled={busy || !canAdd}>
-            Add
+            {t({ th: "เพิ่ม", en: "Add" })}
           </button>
         </form>
       </div>
 
       {/* Frame 2 — available services (table) */}
       <div style={{ ...cardStyle, marginTop: 16 }}>
-        <div style={cardLabel}>Available services</div>
+        <div style={cardLabel}>{t({ th: "บริการที่มี", en: "Available services" })}</div>
         {loading ? (
           <p className="muted" style={{ fontSize: 13 }}>
-            Loading…
+            {t({ th: "กำลังโหลด…", en: "Loading…" })}
           </p>
         ) : services.length === 0 ? (
           <p className="muted" style={{ fontSize: 13 }}>
-            No services yet. Add one above.
+            {t({ th: "ยังไม่มีบริการ เพิ่มด้านบน", en: "No services yet. Add one above." })}
           </p>
         ) : (
           <>
             <input
               className="tbar-input"
-              placeholder="Search services…"
+              placeholder={t({ th: "ค้นหาบริการ…", en: "Search services…" })}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               style={{
@@ -350,15 +358,15 @@ export default function ServicesPage() {
             />
             {filtered.length === 0 ? (
               <p className="muted" style={{ fontSize: 13 }}>
-                No services match “{q}”.
+                {t({ th: `ไม่พบบริการที่ตรงกับ “${q}”`, en: `No services match “${q}”.` })}
               </p>
             ) : (
               <table>
                 <thead>
                   <tr>
-                    <th>Service</th>
-                    <th style={priceCol}>Price</th>
-                    <th style={actionCol}>Actions</th>
+                    <th>{t({ th: "บริการ", en: "Service" })}</th>
+                    <th style={priceCol}>{t({ th: "ราคา", en: "Price" })}</th>
+                    <th style={actionCol}>{t({ th: "จัดการ", en: "Actions" })}</th>
                   </tr>
                 </thead>
                 <tbody>

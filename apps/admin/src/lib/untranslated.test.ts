@@ -275,6 +275,9 @@ const CLEARED = [
   "app/settings/attributes",
   "app/settings/car-fitment",
   "app/settings/affiliate-items",
+  "app/settings/services",
+  "app/settings/campaigns",
+  "app/settings/banners",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -340,6 +343,11 @@ const DELIBERATE: Record<string, Exception> = {
   // shop-info editor below.
   // Car brands and models carry the same two-language names as any other taxonomy value, edited
   // in the same two fields — see AttributeManager below for why these stay.
+  // A service is stored under a Thai name and an English one, typed into two fields side by side.
+  "app/settings/services/page.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    texts: ['placeholder="ชื่อบริการ (ไทย)"', 'placeholder="Service name (EN)"'],
+  },
   "app/settings/car-fitment/page.tsx": {
     reason: "side-by-side Thai/English name fields, each marked in its own language",
     texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"'],
