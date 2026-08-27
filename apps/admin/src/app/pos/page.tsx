@@ -52,6 +52,7 @@ import { inputL, inputS } from "@/lib/inputStyles";
 import { ServiceSelect } from "./ServiceSelect";
 import { flushOutbox, type OutboxStore } from "@/lib/outbox";
 import { createIdbStore } from "@/lib/outbox-idb";
+import { matchesText, equalsText } from "@/lib/textSearch";
 import { useToast } from "../ToastProvider";
 import { useT } from "../LangProvider";
 
@@ -1495,15 +1496,23 @@ export default function PosPage() {
 
   // Product search (fallback when a barcode/sticker is unreadable) — filter the loaded catalogue,
   // and hide anything already in the cart (matched by variant, falling back to product code).
+  // A part with NEITHER is nothing to match on, so it is never deduped — and, more to the point,
+  // never hidden because some other product without a code is already in the cart.
   const inCart = new Set(
-    lines.filter((l) => l.kind === "part").map((l) => l.productVariantId ?? l.productRef),
+    lines
+      .filter((l) => l.kind === "part")
+      .map((l) => l.productVariantId ?? l.productRef)
+      .filter((key): key is string => !!key),
   );
   const searchResults = (() => {
     const q = searchQ.trim().toLowerCase();
     if (!q) return [] as ProductRow[];
     return products
-      .filter((p) => p.name.toLowerCase().includes(q) || p.productRef.toLowerCase().includes(q))
-      .filter((p) => !inCart.has(p.variantId ?? p.productRef))
+      .filter((p) => matchesText(q, p.name, p.productRef))
+      .filter((p) => {
+        const key = p.variantId ?? p.productRef;
+        return !key || !inCart.has(key);
+      })
       .slice(0, 8);
   })();
   const tierPrice = (p: ProductRow): number => p.offlinePriceSatang || 0;
@@ -1566,7 +1575,7 @@ export default function PosPage() {
     // The item name carries its brand inline ("Compressor · Denso"); no brand → just the name.
     // Brand moves out of the detail chips so it isn't shown twice.
     const tags = [p.usageName, p.typeName].filter((t): t is string => !!t);
-    const barcode = barcodeValue ?? codeToBarcode.get(p.productRef);
+    const barcode = barcodeValue ?? codeToBarcode.get(p.productRef ?? "");
     const b2c = p.offlinePriceSatang || 0;
     const b2b = p.b2bPriceSatang || b2c; // fall back to retail when no wholesale price is set
     setLines((ls) => {
@@ -1582,7 +1591,7 @@ export default function PosPage() {
           name: productDisplayName(p.name, p.brandName),
           productVariantId: p.variantId,
           barcodeValue: barcode,
-          productRef: p.productRef,
+          productRef: p.productRef ?? undefined,
           tags,
           quantity: 1,
           unitPriceSatang: b2c,
@@ -1667,7 +1676,7 @@ export default function PosPage() {
   function addByCode() {
     const v = codeVal.trim().toLowerCase();
     if (!v) return;
-    const p = products.find((x) => x.productRef.toLowerCase() === v);
+    const p = products.find((x) => equalsText(v, x.productRef));
     if (!p) {
       toast(
         t({

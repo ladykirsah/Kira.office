@@ -8,7 +8,12 @@ export { apiBase };
 export interface ProductRow {
   id: string;
   variantId: string | null;
-  productRef: string;
+  /**
+   * The Product ID. NULL on a product saved before it became mandatory — the column has never been
+   * NOT NULL (migration 0018 enforces it "at the app layer"), and saying so here is what makes the
+   * compiler point at every place that reaches straight for `.toLowerCase()` on it.
+   */
+  productRef: string | null;
   name: string;
   status: string;
   imageKey: string | null;

@@ -12,3 +12,14 @@ export function matchesText(query: string, ...fields: Array<string | null | unde
   if (!q) return true;
   return fields.some((f) => (f ?? "").toLowerCase().includes(q));
 }
+
+/**
+ * True if the field IS the query — a LOOKUP, not a filter, which is why an empty query finds
+ * nothing here while it matches everything above. "Show me the row I typed the code of" has no
+ * answer when nothing has been typed. A missing field is never equal to anything.
+ */
+export function equalsText(query: string, field: string | null | undefined): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  return (field ?? "").trim().toLowerCase() === q;
+}
