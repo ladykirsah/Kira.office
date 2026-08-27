@@ -33,10 +33,13 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
   /** Each door reads only its own verdict — see loginError.ts for the confusion this ended. */
   const formError = errorFor("form", error);
   const keyError = errorFor("key", error);
+  const ownerError = errorFor("owner", error);
   /** The everyday card's doors: the PIN, the email/password, the practice and owner doors beside them. */
   const failForm = (text: string) => setError({ door: "form", text });
   /** The emergency key, which answers in its own section at the foot of the card. */
   const failKey = (text: string) => setError({ door: "key", text });
+  /** The owner link, which answers under itself — below the Sign in button, not above it. */
+  const failOwner = (text: string) => setError({ door: "owner", text });
   const [showOwner, setShowOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -193,7 +196,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { reason?: string };
-      failForm(
+      failOwner(
         body.reason === "access_not_configured"
           ? t({
               th: "ทางเข้าของเจ้าของร้านต้องเปิด Cloudflare Access ให้เว็บนี้ก่อน",
@@ -205,7 +208,7 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
             }),
       );
     } catch {
-      failForm(
+      failOwner(
         t({ th: "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง", en: "Something went wrong. Try again." }),
       );
     } finally {
@@ -422,6 +425,13 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
               en: "Uses the email you already verified to reach this page.",
             })}
           </p>
+          {/* This link's own verdict, under the link. In the form's slot it landed ABOVE the Sign
+              in button, with the button between it and the link that raised it. */}
+          {ownerError && (
+            <div role="alert" className="login-error" style={{ marginTop: 10 }}>
+              {ownerError}
+            </div>
+          )}
         </div>
       )}
 
