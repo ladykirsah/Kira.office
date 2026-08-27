@@ -82,6 +82,31 @@ const BANNED_PINS = new Set([
   "112233",
 ]);
 
+/**
+ * THE OWNER'S EMERGENCY KEY — the one rule it has (owner, 2026-08-26).
+ *
+ * A second way back into the shop, independent of Cloudflare and of the owner's mailbox, for the
+ * case where one of THOSE is what is broken. It is typed alone, with no email beside it, so it has
+ * to name the person as well as prove them — the PIN's shape, and therefore the PIN's exposure: a
+ * form on the open internet that anyone may type into.
+ *
+ * A PIN survives that because it is always exactly six digits and the account locks after three
+ * misses. A free-form key has neither guarantee, so the ONE thing holding this door shut is how
+ * long the key is. The owner asked for no minimum, was told what a one-character key means here,
+ * and set four. It lives in code rather than as a hint on a screen because it is the whole defence.
+ *
+ * MEASURED ON WHAT WOULD BE STORED. The key is saved trimmed, so " ab " is two characters, not
+ * four — accepting it would mean setting a key that then refuses to open the door it was set for.
+ */
+export const RECOVERY_KEY_MIN = 4;
+
+export function recoveryKeyProblem(key: string): string | null {
+  if (key.trim().length < RECOVERY_KEY_MIN) {
+    return `The emergency key must be at least ${RECOVERY_KEY_MIN} characters.`;
+  }
+  return null;
+}
+
 export function pinProblem(pin: string): string | null {
   if (!/^\d{6}$/.test(pin)) return "The PIN must be exactly 6 digits.";
   if (BANNED_PINS.has(pin)) return "That PIN is too easy to guess. Choose another.";

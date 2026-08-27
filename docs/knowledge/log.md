@@ -256,3 +256,80 @@ sources: [session 2026-08-09]
   handles were named `t`, shadowing the translator inside their own effect. The import's Thai column
   headers are matched against the owner's real Google Sheet and must never be translated; they are
   excused by name. See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-08-26** — **The owner gets a second way back in.** A self-set emergency key, beside the
+  emailed Cloudflare code rather than instead of it: the two fail differently, and this one works
+  when Cloudflare or the mailbox is what is broken. Asked for as "no minimum length"; the owner
+  heard what a one-character key means on a form the whole internet can reach and set four
+  themselves. Its own throttle (5 per 15 minutes, separate bucket), super admin alone, no readable
+  copy stored, and — the two easy mistakes — the account lock does not apply in EITHER direction,
+  and every failure gets the same answer so the door is not an oracle. Migration 0090.
+  See [auth/emergency-key](auth/emergency-key.md).
+
+- **2026-08-26** — **Migration 0090 applied to prod**, owner-authorised, ahead of the merge as the
+  order rule requires. `migrations list --remote` first showed it as the ONLY pending file, which is
+  itself the answer to a question the discipline doc had been guessing at since 9 Aug — prod was
+  already at 0089, not "0075 and probably further". That stale bullet is now replaced by a verified
+  one plus a number→feature map. Apply touched nothing that existed: 1 user row, 0 carrying a key.
+  See [operations/d1-migration-discipline](operations/d1-migration-discipline.md).
+
+- **2026-08-26** — **The admin has a phone type scale.** Owner, looking at the staff activity log
+  on a phone: *"too big for mobile and nowhere to focus."* Both halves were true and only the
+  second one mattered — every line in a row was 16px, so the row read as one grey block. The
+  sentence now stays biggest (15px) and the time and name step back (12px / 13.5px), and the page
+  header comes down app-wide (26→21px headline, 40→24px of air). All existing sizes; no new step.
+  `PageHeader.tsx` had to give up its inline styles first — a media query cannot reach those. Cost
+  one round to the oldest CSS trap in the file: a media query adds no specificity, so phone
+  overrides written ABOVE a component's own block lose to it silently.
+  See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-26** — **The readiness note moved out of the Status column.** "no photo · no price ·
+  no stock" sat under the pill, in the narrowest column on the row, where three two-word notes
+  broke onto three lines and read as a paragraph. Owner moved it under the product name. It now
+  stays one line, and on a phone it rides inside the FROZEN column — so the reason a product is
+  not selling is readable without scrolling sideways to reach Status at all. The pill answers
+  which tab the row is on; the note answers what is stopping it. Rules 5 and 7 of the locked list
+  table amended together. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **The list table stops being a table on a phone.** Owner: *"this table look dead
+  on mobile."* It was, and the locked pattern said so in writing: rule 4's sideways scroll is right
+  on a laptop and useless at 375px, because the frozen identity column alone takes 400px — wider
+  than the screen. You saw a column of names and nothing else; price, stock, status and actions all
+  sat off the right edge behind a scrollbar most people never find. Below 741px a `list-cards`
+  table now becomes one card per row, each cell printing its own column name from `data-label`,
+  with the labels living in ONE map the header reads too so the two cannot drift. OPT-IN on
+  purpose: `.products-table` is worn by six screens and the activity log already has its own phone
+  layout this would fight. Products only, so far.
+  See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **The rollout: Staff People, Salary and Payments became cards too.** Owner asked
+  to settle the small spots on the reference first, then adjust the rest — so Products got the two
+  fixes that came out of the review (no "Action · Actions" duplicate label; the Staff tab row fills
+  the phone's width) and the other three inherited them rather than repeating them. Three things
+  the rollout taught: a table's min-width has to be a custom property, because the phone rule must
+  set it to 0 and nothing overrides an inline style; a total row is just a card whose name is
+  "Total"; and an empty cell is furniture from the wide grid that should disappear on a card.
+  Desktop measured unchanged on all four. See
+  [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **Orders, Stock and all three Finance lists became cards on a phone.** Owner's
+  four-screen rollout; three of the four landed. Measured broken first rather than assumed: Orders
+  532px inside 305px, Stock 484px, the Finance lists pinned at a 900px floor. The channel summary
+  is deliberately still a TABLE — four narrow columns compared across, where cards would destroy
+  the comparison — so two app-wide phone rules make tables like it fit instead: 8px cell padding,
+  and 14px text for any table that is not `.list-cards`. `TableFrame` gained a `cards` prop because
+  it wrapped its children in an inline `overflowX: auto` that no media query can reach. A
+  multi-part value (a product name AND its code) used to be flung to opposite ends of the card by
+  `space-between`; the label is now pinned left with `margin-right: auto` so every part of the
+  value stays grouped. **Customers was held back on purpose** — PR #151 rewrites 525 lines in
+  exactly those two files. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).
+
+- **2026-08-27** — **Both Customers lists became cards, and a silent regression came out with them.**
+  Held back until PR #151 merged, because the bilingual sweep rewrote the same lines. Converting
+  them exposed that `.list-cards` was carrying wide-screen sizing: it had been handing
+  `table-layout: fixed` to three tables that were always auto — Orders, Stock and the Shopee list —
+  which gives every column an equal share whether it holds a car model or a single digit (the Den
+  Air list measured 5 × 192px). Sizing now lives in a separate `.list-fixed`, worn only by the four
+  tables that had it inline. Also new: `.list-identity` lets a table nominate which cell leads the
+  card, because AirPlus Customers leads with an account code and a card headed "AP-0002" beats
+  nothing but a blank one. See [conventions/admin-locked-patterns](conventions/admin-locked-patterns.md).

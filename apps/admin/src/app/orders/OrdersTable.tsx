@@ -61,6 +61,16 @@ const toolbarStyle = {
   marginBottom: 12,
 } as const;
 
+/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
+ *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
+const COLUMN = {
+  order: { th: "ออเดอร์", en: "Order" },
+  customer: { th: "ลูกค้า", en: "Customer" },
+  total: { th: "ยอดรวม", en: "Total" },
+  status: { th: "สถานะ", en: "Status" },
+  action: { th: "จัดการ", en: "Action" },
+};
+
 export function OrdersTable({
   orders,
   initialCardKey = null,
@@ -379,15 +389,15 @@ export function OrdersTable({
               : t({ th: "ไม่มีออเดอร์ที่ตรงกับที่เลือก", en: "No orders match." })}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table>
+          <div className="list-cards-scroll">
+            <table className="list-cards">
               <thead>
                 <tr>
-                  <th>{t({ th: "ออเดอร์", en: "Order" })}</th>
-                  <th>{t({ th: "ลูกค้า", en: "Customer" })}</th>
-                  <th>{t({ th: "ยอดรวม", en: "Total" })}</th>
-                  <th>{t({ th: "สถานะ", en: "Status" })}</th>
-                  <th align="left">{t({ th: "จัดการ", en: "Action" })}</th>
+                  <th>{t(COLUMN.order)}</th>
+                  <th>{t(COLUMN.customer)}</th>
+                  <th>{t(COLUMN.total)}</th>
+                  <th>{t(COLUMN.status)}</th>
+                  <th align="left">{t(COLUMN.action)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -418,7 +428,7 @@ export function OrdersTable({
                         </a>
                         <div style={tableText.subtitle}>{formatDate(orderDate(o))}</div>
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.customer)}>
                         <div style={{ fontWeight: 700, ...tableText.body2 }}>
                           {o.customerCode || <span className="muted">—</span>}
                         </div>
@@ -426,13 +436,13 @@ export function OrdersTable({
                           {o.buyerUsername || <span className="muted">—</span>}
                         </div>
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.total)}>
                         <div style={{ fontWeight: 700, ...tableText.body2 }}>
                           {formatBahtTrim(o.grandTotalSatang)}
                         </div>
                         <div style={tableText.subtitle}>{t(psBadge.label)}</div>
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.status)}>
                         <span className={`pill ${osBadge.pill}`}>{t(osBadge.label)}</span>
                       </td>
                       <td>

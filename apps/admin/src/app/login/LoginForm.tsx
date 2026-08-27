@@ -15,6 +15,16 @@ type Method = "pin" | "password";
 export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; next?: string }) {
   const t = useT();
   const [method, setMethod] = useState<Method>("pin");
+  /**
+   * THE EMERGENCY ENTRANCE (owner, 2026-08-26). Two steps, as asked: press it, then type the key.
+   *
+   * Deliberately NOT a third tab beside รหัส 6 หลัก and รหัสผ่าน. Those are the two everyday doors
+   * and belong side by side; this one is for the day neither opens, and putting it in the same row
+   * would invite it to be used as a third ordinary choice — which is exactly what a key with no
+   * account name attached must not become.
+   */
+  const [emergency, setEmergency] = useState(false);
+  const [recoveryKey, setRecoveryKey] = useState("");
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,6 +66,54 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
     setPin("");
     setPassword("");
     setError(null);
+    // Leaving the emergency door closes it and forgets what was typed, the same way switching
+    // between the two everyday doors clears them.
+    setEmergency(false);
+    setRecoveryKey("");
+  }
+
+  /**
+   * Spend the emergency key.
+   *
+   * Its own submit, not a branch inside `submit`, because its failures are its own: there is no
+   * account to be locked and no "PIN sign-in is not set up" to report — only "that key does not
+   * open this" and "you have tried too often, wait".
+   */
+  async function signInWithKey() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/staff/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: recoveryKey }),
+      });
+      if (res.ok) {
+        window.location.href = next;
+        return;
+      }
+      if (res.status === 429) {
+        setError(
+          t({
+            th: "ลองมาหลายครั้งแล้ว รออีกสัก 15 นาทีแล้วค่อยลองใหม่",
+            en: "Too many tries. Wait about 15 minutes, then try again.",
+          }),
+        );
+        return;
+      }
+      // One answer for every refusal, matching the API: saying more would tell a stranger whether
+      // an emergency key exists at all.
+      setError(t({ th: "กุญแจนี้เปิดไม่ได้", en: "That key does not open this." }));
+    } catch {
+      setError(
+        t({
+          th: "ติดต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่",
+          en: "Can't reach the server. Check the connection and try again.",
+        }),
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   /**
@@ -358,6 +416,84 @@ export function LoginForm({ expired = false, next = "/" }: { expired?: boolean; 
           </p>
         </div>
       )}
+
+      {/*
+        THE EMERGENCY ENTRANCE (owner, 2026-08-26). Two steps: press it, then type the key.
+
+        Always visible, not hidden behind a failure like the owner link above. Being locked out is
+        the moment you need it, and a door you can only find by failing first is one you cannot find
+        when the failing is the problem.
+      */}
+      <div style={{ marginTop: 18, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+        {emergency ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label className="login-label" htmlFor="recovery-key">
+              {t({ th: "กุญแจฉุกเฉิน", en: "Emergency key" })}
+            </label>
+            <input
+              id="recovery-key"
+              type="password"
+              autoComplete="off"
+              autoFocus
+              value={recoveryKey}
+              onChange={(e) => setRecoveryKey(e.target.value)}
+              style={{ width: "100%" }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ flex: 1 }}
+                disabled={busy || recoveryKey.trim() === ""}
+                onClick={signInWithKey}
+              >
+                {/*
+                  NOT simply "Sign in": the everyday form is still on screen above with a button of
+                  its own, and two identical buttons a few centimetres apart is a way to press the
+                  wrong one — which here means typing your emergency key and being told your PIN is
+                  wrong.
+                */}
+                {busy
+                  ? t({ th: "กำลังเข้าใช้งาน…", en: "Signing in…" })
+                  : t({ th: "เข้าใช้งานด้วยกุญแจ", en: "Sign in with the key" })}
+              </button>
+              <button
+                type="button"
+                className="btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  setEmergency(false);
+                  setRecoveryKey("");
+                  setError(null);
+                }}
+              >
+                {t({ th: "ยกเลิก", en: "Cancel" })}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setEmergency(true);
+              setError(null);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--text-muted)",
+              font: "inherit",
+              fontSize: 13,
+              textDecoration: "underline",
+              cursor: "pointer",
+              padding: 4,
+              width: "100%",
+            }}
+          >
+            {t({ th: "ทางเข้าฉุกเฉิน", en: "Emergency entrance" })}
+          </button>
+        )}
+      </div>
     </form>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiBase, type ProductRow } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
@@ -16,6 +17,20 @@ import { StockCell } from "./StockCell";
 import { useT } from "../LangProvider";
 
 type Tab = "all" | "airplus" | "notlive" | "low" | "out";
+
+/**
+ * The column names, written once. The `th` reads them for the wide screen and every `td` carries
+ * the matching one as `data-label`, which is what the phone prints beside the value once the table
+ * stops being a table — so a header and its phone label cannot drift apart.
+ */
+const COLUMN = {
+  product: { th: "สินค้า", en: "Product" },
+  online: { th: "ราคาออนไลน์", en: "Online price" },
+  b2c: { th: "ราคา B2C", en: "B2C price" },
+  stock: { th: "คงเหลือ", en: "Stock" },
+  status: { th: "สถานะ", en: "Status" },
+  action: { th: "จัดการ", en: "Action" },
+};
 
 /** Sort/filter dimensions for the products list. `values` returns a product's value(s) for the dimension. */
 const DIMENSIONS = [
@@ -233,16 +248,11 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               : t({ th: "ไม่มีสินค้าที่ตรงกับที่เลือก", en: "No products match." })}
           </div>
         ) : (
-          <div className="products-scroll" ref={scrollRef}>
+          <div className="products-scroll list-cards-scroll" ref={scrollRef}>
             <table
-              className={frozen ? "products-table frozen" : "products-table"}
+              className={`products-table list-cards list-fixed${frozen ? " frozen" : ""}`}
               cellPadding={8}
-              style={{
-                borderCollapse: "collapse",
-                tableLayout: "fixed",
-                width: "100%",
-                minWidth: 966,
-              }}
+              style={{ "--list-min-width": "966px" } as CSSProperties}
             >
               <colgroup>
                 {/* Product (frozen, min 400px) flexes to fill; the rest are fixed px. The table
@@ -257,13 +267,13 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
               <thead>
                 <tr>
                   <th align="left" className="freeze-col">
-                    {t({ th: "สินค้า", en: "Product" })}
+                    {t(COLUMN.product)}
                   </th>
-                  <th align="left">{t({ th: "ราคาออนไลน์", en: "Online price" })}</th>
-                  <th align="left">{t({ th: "ราคา B2C", en: "B2C price" })}</th>
-                  <th align="center">{t({ th: "คงเหลือ", en: "Stock" })}</th>
-                  <th align="left">{t({ th: "สถานะ", en: "Status" })}</th>
-                  <th align="left">{t({ th: "จัดการ", en: "Action" })}</th>
+                  <th align="left">{t(COLUMN.online)}</th>
+                  <th align="left">{t(COLUMN.b2c)}</th>
+                  <th align="center">{t(COLUMN.stock)}</th>
+                  <th align="left">{t(COLUMN.status)}</th>
+                  <th align="left">{t(COLUMN.action)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,6 +289,11 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                     shopeeSatang: 0,
                     commissionBp: p.onlineCommissionBp,
                   });
+                  // What is stopping this product from selling. Shown on every tab, not just Not
+                  // live (owner, 2026-08-24) — a product selling without a picture is worth
+                  // flagging too. `readinessNote` is what keeps it from repeating the status pill:
+                  // it stays quiet about stock whenever the pill already reads Out.
+                  const note = readinessNote(p);
                   return (
                     <tr key={p.id} style={{ borderTop: "1px solid var(--border)" }}>
                       <td className="freeze-col">
@@ -309,17 +324,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                             </span>
                           )}
                           <div style={{ minWidth: 0 }}>
-                            <a
-                              href={`/products/${p.id}`}
-                              title={p.name}
-                              style={{
-                                fontWeight: 600,
-                                display: "block",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
+                            <a className="list-name" href={`/products/${p.id}`} title={p.name}>
                               {p.name}
                             </a>
                             {(() => {
@@ -345,22 +350,33 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                                 <div style={tableText.subtitle}>{p.productRef}</div>
                               );
                             })()}
+                            {/* What is stopping this product from selling, under the thing it is
+                                about (owner, 2026-08-26). It sat beside the pill until now, in the
+                                narrowest column on the row, where three short notes broke onto
+                                three lines and read as a paragraph. Here it has the width to stay
+                                one line of "note · note · note", and the Status column goes back to
+                                being a pill and nothing else (DESIGN_SYSTEM rule 7). */}
+                            {note && (
+                              <span className={note.ready ? "why ready" : "why"}>
+                                {t(note.text)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.online)}>
                         <PriceProfitCell
                           priceSatang={p.onlinePriceSatang}
                           profitSatang={seesProfit ? onlineProfit : null}
                         />
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.b2c)}>
                         <PriceProfitCell
                           priceSatang={p.offlinePriceSatang}
                           profitSatang={seesProfit ? b2cProfit : null}
                         />
                       </td>
-                      <td align="center">
+                      <td data-label={t(COLUMN.stock)} align="center">
                         <StockCell
                           variantId={p.variantId}
                           onHand={p.onHand}
@@ -368,27 +384,14 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
                           readOnly={!managesCatalog}
                         />
                       </td>
-                      <td>
+                      <td data-label={t(COLUMN.status)}>
                         {(() => {
                           const s = productStatusTag(p);
-                          // The pill says WHICH tab this row belongs to; the line under it says what
-                          // is stopping the product from selling. On every tab, not just Not live
-                          // (owner, 2026-08-24) — a product selling without a picture is worth
-                          // flagging too. `readinessNote` is what keeps the two from repeating each
-                          // other: it stays quiet about stock whenever the pill already reads Out.
-                          const note = readinessNote(p);
-                          return (
-                            <>
-                              <span className={`pill ${s.cls}`}>{t(s.label)}</span>
-                              {note && (
-                                <span className={note.ready ? "why ready" : "why"}>
-                                  {t(note.text)}
-                                </span>
-                              )}
-                            </>
-                          );
+                          return <span className={`pill ${s.cls}`}>{t(s.label)}</span>;
                         })()}
                       </td>
+                      {/* No label: the button already says Actions, and the wide screen's column
+                          header would have said it a second time (owner, 2026-08-27). */}
                       <td>
                         <ActionsMenu
                           productId={p.id}

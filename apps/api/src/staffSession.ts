@@ -17,6 +17,9 @@ import {
   isStaffRole,
   nextLockState,
   pinLookup,
+  recoveryLookup,
+  recoveryKeyProblem,
+  canUseRecoveryKey,
   randomSessionToken,
   sha256Hex,
   verifyPassword,
@@ -309,6 +312,81 @@ export async function loginWithPin(
     return { ok: false, reason: "invalid" };
   }
 
+  await clearAccountFailures(db, row.id, now);
+  const { token, expiresAt } = await createStaffSession(db, row.id, now);
+  return {
+    ok: true,
+    token,
+    expiresAt,
+    identity: { userId: row.id, email: row.email, name: row.name, role: row.role as StaffRole },
+  };
+}
+
+/**
+ * THE OWNER'S EMERGENCY DOOR (owner, 2026-08-26).
+ *
+ * Modelled line for line on `loginWithPin` above, because it is the same problem: a secret typed
+ * ALONE, with no email beside it, so it must name the person as well as authorise them. Three
+ * differences, each of them deliberate:
+ *
+ *   1. SUPER ADMIN ONLY. The owner's decision — one emergency key exists in the shop and it is
+ *      theirs. A key found on any other row is refused exactly as a wrong key is.
+ *
+ *   2. THE ACCOUNT LOCK DOES NOT APPLY, IN EITHER DIRECTION. A locked account is precisely the
+ *      state this door rescues, so it opens through the lock and clears it. And a wrong key must
+ *      never add a strike: three mistyped rescues would otherwise lock the everyday PIN as well,
+ *      and the door would take down the thing it exists to stand in for. Guessing is answered by
+ *      the caller throttle instead (`staff-recovery:` in loginThrottle.ts), which is the owner's
+ *      "slow them down, never lock".
+ *
+ *   3. NO `needs_reset` BRANCH. That exists for the PIN because an old row can hold a hash the
+ *      platform can no longer verify; a key that cannot be checked is simply a key that does not
+ *      open, and this door has no super admin above it to appeal to.
+ *
+ * ONE ANSWER FOR EVERY FAILURE. No key set, wrong key, wrong role, switched off — all return the
+ * same `invalid`. Anything else turns the door into an oracle for whether a key exists at all.
+ */
+export async function loginWithRecoveryKey(
+  db: D1Database,
+  key: string,
+  now: number,
+  pepper: string,
+): Promise<LoginResult> {
+  // Checked before the database is touched: a key below the floor cannot be one we stored.
+  if (recoveryKeyProblem(key)) return { ok: false, reason: "invalid" };
+
+  const row = await db
+    .prepare(
+      `SELECT id, name, email, role, status, deleted_at AS deletedAt,
+              recovery_hash AS hash, recovery_salt AS salt, recovery_iterations AS iterations
+         FROM users
+        WHERE recovery_lookup = ?`,
+    )
+    .bind(await recoveryLookup(key, pepper))
+    .first<{
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      status: string;
+      deletedAt: number | null;
+      hash: string | null;
+      salt: string | null;
+      iterations: number | null;
+    }>();
+
+  if (!row) return { ok: false, reason: "invalid" };
+  if (!canUseRecoveryKey(row.role as StaffRole)) return { ok: false, reason: "invalid" };
+  if (row.status !== "active" || row.deletedAt !== null) return { ok: false, reason: "invalid" };
+
+  const good = await verifyPassword(key.trim(), {
+    hash: row.hash,
+    salt: row.salt,
+    iterations: row.iterations,
+  });
+  if (!good) return { ok: false, reason: "invalid" };
+
+  // The rescue itself: whatever lock or failure run stood in the way is cleared on the way through.
   await clearAccountFailures(db, row.id, now);
   const { token, expiresAt } = await createStaffSession(db, row.id, now);
   return {

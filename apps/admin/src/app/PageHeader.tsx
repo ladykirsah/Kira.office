@@ -20,19 +20,11 @@ export function PageHeader({
   below?: ReactNode;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 16,
-        marginBottom: 40,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+    <div className="page-header">
+      <div className="page-header-titles">
         <h1 style={{ margin: 0 }}>{title}</h1>
         {subtitle ? (
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="muted page-subtitle" style={{ margin: 0 }}>
             {subtitle}
           </p>
         ) : null}

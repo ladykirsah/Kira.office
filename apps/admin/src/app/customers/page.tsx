@@ -280,6 +280,16 @@ function BillTable({
  * plate (one row per car), AirPlus by phone (one row per account), and each was collected under
  * its own consent. The tab pattern mirrors Shop Info's business switcher.
  */
+/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
+ *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
+const CAR_COLUMN = {
+  car: { th: "รถ", en: "Car" },
+  plate: { th: "ทะเบียน", en: "Plate" },
+  customer: { th: "ลูกค้า", en: "Customer" },
+  visits: { th: "เข้ามาที่ร้าน", en: "Visits" },
+  lastVisit: { th: "มาล่าสุด", en: "Last visit" },
+};
+
 export default function CustomersPage() {
   const [profile, setProfile] = useState<ShopProfile>("denair");
   // Handed down rather than rendered here: the switcher belongs UNDER each view's PageHeader
@@ -1010,15 +1020,15 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                 })}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table>
+          <div className="list-cards-scroll">
+            <table className="list-cards">
               <thead>
                 <tr>
-                  <th>{t({ th: "รถ", en: "Car" })}</th>
-                  <th>{t({ th: "ทะเบียน", en: "Plate" })}</th>
-                  <th>{t({ th: "ลูกค้า", en: "Customer" })}</th>
-                  <th>{t({ th: "เข้ามาที่ร้าน", en: "Visits" })}</th>
-                  <th>{t({ th: "มาล่าสุด", en: "Last visit" })}</th>
+                  <th>{t(CAR_COLUMN.car)}</th>
+                  <th>{t(CAR_COLUMN.plate)}</th>
+                  <th>{t(CAR_COLUMN.customer)}</th>
+                  <th>{t(CAR_COLUMN.visits)}</th>
+                  <th>{t(CAR_COLUMN.lastVisit)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1040,15 +1050,20 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                         </div>
                         {year && <div style={tableText.subtitle}>{year}</div>}
                       </td>
-                      <td style={{ ...tableText.body1, whiteSpace: "nowrap" }}>{c.licensePlate}</td>
-                      <td>
+                      <td
+                        data-label={t(CAR_COLUMN.plate)}
+                        style={{ ...tableText.body1, whiteSpace: "nowrap" }}
+                      >
+                        {c.licensePlate}
+                      </td>
+                      <td data-label={t(CAR_COLUMN.customer)}>
                         <div style={tableText.body2}>
                           {c.customerName || <span className="muted">—</span>}
                         </div>
                         {c.phone && <div style={tableText.subtitle}>{c.phone}</div>}
                       </td>
-                      <td>{c.billCount}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>
+                      <td data-label={t(CAR_COLUMN.visits)}>{c.billCount}</td>
+                      <td data-label={t(CAR_COLUMN.lastVisit)} style={{ whiteSpace: "nowrap" }}>
                         {c.lastVisitAt != null ? (
                           new Date(c.lastVisitAt).toLocaleDateString(
                             lang === "th" ? "th-TH" : "en-GB",

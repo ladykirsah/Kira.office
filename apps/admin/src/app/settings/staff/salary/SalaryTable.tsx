@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useToast } from "../../../ToastProvider";
@@ -52,6 +53,17 @@ function payDate(period: string, lang: Lang): string {
     timeZone: "UTC",
   });
 }
+
+/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
+ *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
+const COLUMN = {
+  person: { th: "พนักงาน", en: "Person" },
+  dayRate: { th: "ค่าแรงต่อวัน", en: "Day rate" },
+  daysOff: { th: "วันหยุด", en: "Days off" },
+  workingDays: { th: "วันทำงาน", en: "Working days" },
+  salary: { th: "เงินเดือน", en: "Salary" },
+  actions: { th: "จัดการ", en: "Actions" },
+};
 
 export function SalaryTable({
   rows,
@@ -165,10 +177,10 @@ export function SalaryTable({
         </span>
       </div>
 
-      <div className="products-scroll">
+      <div className="products-scroll list-cards-scroll">
         <table
-          className="products-table"
-          style={{ tableLayout: "fixed", width: "100%", minWidth: 780 }}
+          className="products-table list-cards list-fixed"
+          style={{ "--list-min-width": "780px" } as CSSProperties}
         >
           {/* Fixed widths for the figures, so the columns line up between months and between
               people instead of resizing around whatever this month's numbers happen to be. Person
@@ -183,12 +195,12 @@ export function SalaryTable({
           </colgroup>
           <thead>
             <tr>
-              <th>{t({ th: "พนักงาน", en: "Person" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "วันหยุด", en: "Days off" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "วันทำงาน", en: "Working days" })}</th>
-              <th style={{ textAlign: "right" }}>{t({ th: "เงินเดือน", en: "Salary" })}</th>
-              <th style={{ textAlign: "right" }} aria-label={t({ th: "จัดการ", en: "Actions" })} />
+              <th>{t(COLUMN.person)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.dayRate)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.daysOff)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.workingDays)}</th>
+              <th style={{ textAlign: "right" }}>{t(COLUMN.salary)}</th>
+              <th style={{ textAlign: "right" }} aria-label={t(COLUMN.actions)} />
             </tr>
           </thead>
           <tbody>
@@ -198,10 +210,16 @@ export function SalaryTable({
                   <td>
                     {r.name} <span className="muted">· {t(ROLE_LABEL[r.role]!)}</span>
                   </td>
-                  <td className="num">{baht(r.dayRateSatang)}</td>
-                  <td className="num">{r.offHalves ? days(r.offHalves) : "0"}</td>
-                  <td className="num">{days(r.workingHalves)}</td>
-                  <td className="num" style={{ fontWeight: 700 }}>
+                  <td className="num" data-label={t(COLUMN.dayRate)}>
+                    {baht(r.dayRateSatang)}
+                  </td>
+                  <td className="num" data-label={t(COLUMN.daysOff)}>
+                    {r.offHalves ? days(r.offHalves) : "0"}
+                  </td>
+                  <td className="num" data-label={t(COLUMN.workingDays)}>
+                    {days(r.workingHalves)}
+                  </td>
+                  <td className="num" data-label={t(COLUMN.salary)} style={{ fontWeight: 700 }}>
                     {baht(r.amountSatang)}
                   </td>
                   <td style={{ textAlign: "right" }}>
@@ -323,9 +341,15 @@ export function SalaryTable({
             <tr className="salary-total">
               <td>{t({ th: "รวม", en: "Total" })}</td>
               <td />
-              <td className="num">{days(rows.reduce((n, r) => n + r.offHalves, 0)) || "0"}</td>
-              <td className="num">{days(rows.reduce((n, r) => n + r.workingHalves, 0))}</td>
-              <td className="num">{baht(total)}</td>
+              <td className="num" data-label={t(COLUMN.daysOff)}>
+                {days(rows.reduce((n, r) => n + r.offHalves, 0)) || "0"}
+              </td>
+              <td className="num" data-label={t(COLUMN.workingDays)}>
+                {days(rows.reduce((n, r) => n + r.workingHalves, 0))}
+              </td>
+              <td className="num" data-label={t(COLUMN.salary)}>
+                {baht(total)}
+              </td>
               <td className="num muted" style={{ fontWeight: 400 }}>
                 {unpaid === 0
                   ? t({ th: "จ่ายครบแล้ว", en: "all paid" })

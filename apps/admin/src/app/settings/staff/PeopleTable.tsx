@@ -40,6 +40,15 @@ function lastSeen(ms: number | null, lang: Lang, t: (p: Phrase) => string): stri
   });
 }
 
+/** Written once: the `th` reads them wide, every `td` carries the matching one as `data-label`,
+ *  which the phone prints beside the value once the table becomes cards. They cannot drift. */
+const COLUMN = {
+  name: { th: "ชื่อ", en: "Name" },
+  role: { th: "ตำแหน่ง", en: "Role" },
+  on: { th: "เปิด", en: "On" },
+  lastSeen: { th: "เข้าใช้งานล่าสุด", en: "Last signed in" },
+};
+
 export function PeopleTable({ staff, meId }: { staff: StaffRow[]; meId: string }) {
   const [adding, setAdding] = useState(false);
   // Which row is currently in role-edit mode. Held here, not in the cell, because the thing that
@@ -75,14 +84,14 @@ export function PeopleTable({ staff, meId }: { staff: StaffRow[]; meId: string }
           section. No search or tabs of its own — a shop has a handful of staff, and a filter with
           nothing to filter is furniture. */}
       <section className="card">
-        <div className="products-scroll">
-          <table className="products-table">
+        <div className="products-scroll list-cards-scroll">
+          <table className="products-table list-cards">
             <thead>
               <tr>
-                <th>{t({ th: "ชื่อ", en: "Name" })}</th>
-                <th>{t({ th: "ตำแหน่ง", en: "Role" })}</th>
-                <th>{t({ th: "เปิด", en: "On" })}</th>
-                <th>{t({ th: "เข้าใช้งานล่าสุด", en: "Last signed in" })}</th>
+                <th>{t(COLUMN.name)}</th>
+                <th>{t(COLUMN.role)}</th>
+                <th>{t(COLUMN.on)}</th>
+                <th>{t(COLUMN.lastSeen)}</th>
                 <th
                   style={{ textAlign: "right" }}
                   aria-label={t({ th: "จัดการ", en: "Actions" })}
@@ -111,7 +120,7 @@ export function PeopleTable({ staff, meId }: { staff: StaffRow[]; meId: string }
                         {s.email}
                       </div>
                     </td>
-                    <td>
+                    <td data-label={t(COLUMN.role)}>
                       <RoleCell
                         userId={s.id}
                         role={s.role}
@@ -120,7 +129,7 @@ export function PeopleTable({ staff, meId }: { staff: StaffRow[]; meId: string }
                         onDone={() => setEditingRole(null)}
                       />
                     </td>
-                    <td>
+                    <td data-label={t(COLUMN.on)}>
                       <ActiveSwitch
                         userId={s.id}
                         name={s.name}
@@ -128,7 +137,11 @@ export function PeopleTable({ staff, meId }: { staff: StaffRow[]; meId: string }
                         disabled={s.id === meId}
                       />
                     </td>
-                    <td className="muted" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <td
+                      className="muted"
+                      data-label={t(COLUMN.lastSeen)}
+                      style={{ fontVariantNumeric: "tabular-nums" }}
+                    >
                       {lastSeen(s.lastLoginAt, lang, t)}
                     </td>
                     <td style={{ textAlign: "right" }}>

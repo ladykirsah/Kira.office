@@ -56,6 +56,25 @@ const KIND: Record<string, { text: (d: string | null) => Phrase; colour: string 
     text: (d) => ({ th: `จ่ายเงินเดือนแล้ว — ${d ?? ""}`, en: `Marked salary paid — ${d ?? ""}` }),
     colour: "var(--primary)",
   },
+  /**
+   * THE EMERGENCY DOOR BEING USED. Red, and deliberately the loudest thing in this list: it is the
+   * one event the owner must be able to find afterwards, whether or not it was them who did it.
+   */
+  recovery_login: {
+    text: () => ({
+      th: "เข้าใช้งานผ่านทางเข้าฉุกเฉิน",
+      en: "Signed in through the emergency entrance",
+    }),
+    colour: "var(--danger)",
+  },
+  recovery_key_set: {
+    text: () => ({ th: "ตั้งกุญแจฉุกเฉินใหม่", en: "Set a new emergency key" }),
+    colour: "var(--primary)",
+  },
+  recovery_key_cleared: {
+    text: () => ({ th: "ลบกุญแจฉุกเฉิน", en: "Removed the emergency key" }),
+    colour: "var(--primary)",
+  },
   profile_edited: {
     text: (d) =>
       d ? { th: d, en: d } : { th: "แก้ไขโปรไฟล์ของตัวเอง", en: "Updated their profile" },
@@ -196,29 +215,23 @@ export function ActivityView({
             <div key={g.heading}>
               <div className="activity-day">{g.heading}</div>
               <div className="products-scroll">
-                <table className="products-table">
+                <table className="products-table activity-table">
                   <tbody>
                     {g.rows.map((row) => {
                       const d = describe(row, t);
                       return (
                         <tr key={row.id}>
-                          <td className="muted num" style={{ width: 78 }}>
-                            {time(row.createdAt)}
+                          <td className="muted num activity-time">{time(row.createdAt)}</td>
+                          <td className="activity-person">
+                            {row.name}{" "}
+                            <span className="muted activity-role">{t(ROLE_LABEL[row.role]!)}</span>
                           </td>
-                          <td style={{ whiteSpace: "nowrap" }}>
-                            {row.name} <span className="muted">· {t(ROLE_LABEL[row.role]!)}</span>
-                          </td>
-                          <td>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <td className="activity-what">
+                            <span className="activity-line">
                               <span
+                                className="activity-dot"
                                 aria-hidden
-                                style={{
-                                  width: 7,
-                                  height: 7,
-                                  borderRadius: "50%",
-                                  background: d.colour,
-                                  flex: "0 0 auto",
-                                }}
+                                style={{ background: d.colour }}
                               />
                               {d.text}
                             </span>

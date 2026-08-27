@@ -20,6 +20,9 @@ import {
   passwordProblem,
   pinLookup,
   pinProblem,
+  recoveryKeyProblem,
+  recoveryLookup,
+  canUseRecoveryKey,
   payForMonth,
   daysInMonth,
   slipIsExpired,
@@ -247,6 +250,20 @@ async function nameOf(db: D1Database, userId: string): Promise<string> {
   }
 }
 
+/**
+ * Record that the emergency door was used (owner, 2026-08-26).
+ *
+ * Its own named export rather than opening `logActivity` up: the login route lives outside this
+ * module because it runs BEFORE there is a session, and it needs to write exactly this one line —
+ * not the freedom to write any line it likes.
+ *
+ * An emergency sign-in is the single event the owner should always be able to find afterwards,
+ * whether or not it was them who did it.
+ */
+export async function logRecoveryLogin(db: D1Database, userId: string, now: number): Promise<void> {
+  await logActivity(db, userId, "recovery_login", null, now);
+}
+
 /** A line in the owner's activity log. Best-effort: never fail a real action because logging did. */
 async function logActivity(
   db: D1Database,
@@ -292,7 +309,11 @@ export async function ownProfile(
               bank_account_name AS bankAccountName,
               password_cipher AS cipher, pin_cipher AS pinCipher,
               CASE WHEN pin_hash IS NULL THEN 0 ELSE 1 END AS hasPin,
-              CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword
+              CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword,
+              -- WHETHER one is set and WHEN — never the key itself. There is no readable copy of it
+              -- to send even if something here asked for one.
+              CASE WHEN recovery_hash IS NULL THEN 0 ELSE 1 END AS hasRecoveryKey,
+              recovery_set_at AS recoverySetAt
          FROM users WHERE id = ?`,
     )
     .bind(actor.userId)
@@ -379,6 +400,71 @@ async function writePin(
     .bind(stored.hash, stored.salt, stored.iterations, lookup, now, cipher, userId)
     .run();
   return null;
+}
+
+/**
+ * The owner setting — or clearing — their own emergency key (owner, 2026-08-26).
+ *
+ * SUPER ADMIN ALONE, checked here as well as at the door. One emergency key exists in the shop and
+ * it is the owner's; a key that somehow reached another row still would not open anything, but it
+ * should never get written in the first place.
+ *
+ * Stored the PIN's way — unique peppered lookup plus a slow hash — and, unlike the PIN,
+ * WITHOUT a readable copy. `pin_cipher` exists because the owner resets other people's PINs and has
+ * to read them back; nobody ever needs to read this one, and a key that cannot be revealed cannot
+ * be revealed by anyone else either. Lose it and set another.
+ */
+export async function setOwnRecoveryKey(
+  db: D1Database,
+  actor: StaffIdentity,
+  key: string,
+  now: number,
+  pepper: string,
+): Promise<Response> {
+  if (!canUseRecoveryKey(actor.role)) return json({ error: "forbidden" }, 403);
+  if (!pepper) return json({ error: "recovery_unavailable" }, 503);
+  const problem = recoveryKeyProblem(key);
+  if (problem) return json({ error: problem }, 400);
+
+  const trimmed = key.trim();
+  const lookup = await recoveryLookup(trimmed, pepper);
+  // UNIQUE in the schema too — this is the friendly answer rather than a constraint error.
+  const taken = await db
+    .prepare(`SELECT id FROM users WHERE recovery_lookup = ? AND id <> ?`)
+    .bind(lookup, actor.userId)
+    .first<{ id: string }>();
+  if (taken) return json({ error: "Someone already uses that key. Choose another." }, 409);
+
+  const stored = await hashPassword(trimmed);
+  await db
+    .prepare(
+      `UPDATE users SET recovery_hash = ?, recovery_salt = ?, recovery_iterations = ?,
+                        recovery_lookup = ?, recovery_set_at = ?
+        WHERE id = ?`,
+    )
+    .bind(stored.hash, stored.salt, stored.iterations, lookup, now, actor.userId)
+    .run();
+  await logActivity(db, actor.userId, "recovery_key_set", null, now);
+  return json({ ok: true });
+}
+
+/** Remove it. The emailed Access code remains, so the owner is never left with no way back. */
+export async function clearOwnRecoveryKey(
+  db: D1Database,
+  actor: StaffIdentity,
+  now: number,
+): Promise<Response> {
+  if (!canUseRecoveryKey(actor.role)) return json({ error: "forbidden" }, 403);
+  await db
+    .prepare(
+      `UPDATE users SET recovery_hash = NULL, recovery_salt = NULL, recovery_iterations = NULL,
+                        recovery_lookup = NULL, recovery_set_at = NULL
+        WHERE id = ?`,
+    )
+    .bind(actor.userId)
+    .run();
+  await logActivity(db, actor.userId, "recovery_key_cleared", null, now);
+  return json({ ok: true });
 }
 
 export async function setOwnPin(

@@ -101,6 +101,21 @@ h1 {
   /* Page headline → content gap, app-wide. */
   margin: 0 0 40px;
 }
+/* PageHeader.tsx, in CSS rather than inline so the phone rule further down can reach it. The
+   numbers are the ones it carried inline; nothing about the wide screen changes. */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+.page-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
 h2 {
   font-size: 18px;
   font-weight: 600;
@@ -305,6 +320,155 @@ tbody tr:hover {
 /* Divider only when the table overflows (Product column pinned at its min width). */
 .products-table.frozen .freeze-col {
   box-shadow: inset -1px 0 0 var(--border);
+}
+
+/* ── A LIST TABLE THAT STOPS BEING A TABLE ON A PHONE ────────────────────────────────────────
+ *
+ * These four lines were inline on <table> until 2026-08-26; they are unchanged, only reachable
+ * now, because a media query cannot override an inline style. Everything the wide screen does is
+ * exactly what it did before.
+ *
+ * Why it had to move: the frozen column takes 966 − 566 = 400px, which is WIDER THAN A PHONE. So
+ * on a phone the table showed one column — names and nothing else — with the price, the stock,
+ * the status and the actions all parked off the right edge behind a scrollbar most people never
+ * find. Owner: "this table look dead on mobile."
+ *
+ * Below 741px the row becomes a card and each cell prints its own column name from `data-label`,
+ * which is the whole reason the labels moved into one COLUMN map in the component: the header and
+ * the phone label are now the same string, so they cannot drift.
+ *
+ * OPT-IN, and deliberately so. `.products-table` is the shared list-table class worn by six
+ * screens, and one of them — the staff activity log — already has its own phone layout that this
+ * would fight. A screen joins by adding `list-cards` AND giving every cell a `data-label`;
+ * without the labels a card is a column of unexplained values, which is worse than the scroll. */
+.list-cards-scroll {
+  overflow-x: auto;
+}
+/* WIDE-SCREEN SIZING, and a SEPARATE opt-in from `.list-cards` on purpose. These declarations
+   used to ride along with the card class, which silently gave `table-layout: fixed` to three
+   tables that had never had it — Orders, Stock and the Shopee list were auto-sized, and fixed
+   layout hands every column an equal share whether it holds a car model or a single digit.
+   Only a table that already carried these inline wears this: Products, Salary, and the two
+   Finance record lists. Each sets its own floor as `--list-min-width` (the sum of its columns),
+   a custom property rather than a plain inline `min-width` for one reason: the phone rule has to
+   set it to 0, and nothing in a stylesheet can override an inline style. */
+.list-fixed {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: var(--list-min-width, 0px);
+}
+/* The record's name in the identity cell. Ellipsised in a table, where the column is a fixed
+   width and a long name would push every other column off. */
+.list-name {
+  font-weight: 600;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 741px) {
+  .list-cards-scroll {
+    overflow-x: visible;
+  }
+  .list-cards {
+    display: block;
+  }
+  .list-fixed {
+    min-width: 0;
+  }
+  /* A table that is `display: block` ignores its own colgroup and table-layout, so the fixed
+     column widths stop applying without having to be unset one by one. */
+  .list-cards colgroup,
+  .list-cards thead {
+    display: none;
+  }
+  .list-cards tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .list-cards tbody tr {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .list-cards tbody tr:hover {
+    background: none;
+  }
+  .list-cards tbody td {
+    display: block;
+    border-bottom: 0;
+    padding: 0;
+    font-size: 15px;
+  }
+  /* An empty cell is furniture from the wide grid — a spacer holding a column this row has no
+     value for. In a table it keeps the shape; in a card it is a blank line for nothing. */
+  .list-cards tbody td:empty {
+    display: none;
+  }
+  /* A card has no columns left to protect, so the name stops being cut off and simply wraps. */
+  .list-cards .list-name {
+    white-space: normal;
+    overflow: visible;
+  }
+  /* The identity cell leads the card at full width and keeps no label — the name IS the label.
+     Keyed on POSITION by default: only the widest tables freeze a column, and every list table
+     has a first cell.
+
+     A table whose first column is NOT the thing a person recognises can nominate a different one
+     with `.list-identity`, and it is hoisted to the top of the card (the row is a flex column for
+     exactly this). AirPlus Customers is the case: its first column is the account code, and a card
+     led by "AP-0002" instead of a person's name is a worse card. The code stays — one labelled
+     line down, where a reference number belongs. */
+  .list-cards tbody tr:not(:has(td.list-identity)) td:first-child,
+  .list-cards tbody td.list-identity {
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .list-cards tbody td.list-identity {
+    order: -1;
+  }
+  .list-cards tbody td.freeze-col {
+    position: static;
+    background: none;
+    box-shadow: none;
+  }
+  /* Every labelled cell is a name on the left and its value on the right.
+     `justify-content: space-between` was wrong for a cell holding MORE THAN ONE thing — the stock
+     row's product name and its code were pushed to opposite ends of the card with a hole between
+     them. The label is pinned left with `margin-right: auto` instead, so every part of the value,
+     however many there are, stays grouped at the right. Wrapping lets a long value drop to its own
+     line rather than squeeze the label. */
+  .list-cards tbody td[data-label] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 2px 10px;
+    padding: 5px 0;
+    text-align: right;
+  }
+  .list-cards tbody td[data-label]::before {
+    content: attr(data-label);
+    margin-right: auto;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: left;
+    flex: 0 0 auto;
+  }
+  /* Anything else that is not the identity — the actions cell, and a drawer row that spanned every
+     column. Deliberately unlabelled: a control already says what it does, and the wide screen's
+     header would have said it a second time (owner, 2026-08-27, on "Action · Actions"). Full
+     width, sitting right, where a control belongs. */
+  .list-cards tbody td:not([data-label]):not(:first-child):not(.list-identity) {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
 }
 
 /* Label-sheet preview: a scrollable frame with one A4 page per row, stacked vertically. */
@@ -1308,6 +1472,49 @@ a.card:hover {
     padding-bottom: 78px;
   }
 
+  /* Table cells give back 4px a side on a phone. A table that has NOT opted into cards still has
+     to fit — the channel summary on Finance is four narrow columns that a person compares across,
+     so turning it into cards would destroy the comparison, but at desktop padding it clipped its
+     last column. 12px → 8px buys back 8px per column, which is the difference. */
+  th,
+  td {
+    padding: 8px;
+  }
+  /* And a table that still IS a table reads a step smaller, which is the last of the width the
+     channel summary needed to stop clipping its final column. Card tables are excluded — their
+     cells are already sized on their own scale further down. */
+  table:not(.list-cards) th,
+  table:not(.list-cards) td {
+    font-size: 14px;
+  }
+
+  /* THE PHONE'S TYPE STEP-DOWN (owner, 2026-08-26: "too big for mobile and nowhere to focus").
+     App-wide on purpose — the header is one component on every page, so a size that only came
+     down on Staff would read as a mistake next to the rest.
+
+     The desktop scale is built for a 1280px column: 26px headline over 16px body, with 40px of
+     air under it. On a 375px screen that headline is a seventh of the width and the air is a
+     twentieth of the height, so the page opens on its own title instead of its content. The steps
+     narrow rather than shrink flat — 26→21 is a bigger cut than 16→14 — because the point is
+     the DISTANCE between them, not the size. */
+  h1 {
+    font-size: 21px;
+  }
+  .page-header {
+    margin-bottom: 24px;
+  }
+  .page-header-titles {
+    gap: 8px;
+  }
+  .page-subtitle {
+    font-size: 14px;
+  }
+  /* 15px also made "Days off" wrap inside its own tab, which broke the row's baseline. */
+  .tab {
+    font-size: 13.5px;
+    padding: 9px 11px;
+  }
+
   /* Drawn exactly like the theme toggle it shares the bar with — same surface, border and
      radius — so the two controls read as a pair with the brand centred between them. */
   .mnav-burger {
@@ -1845,6 +2052,33 @@ a.card:hover {
   box-shadow: var(--shadow);
 }
 
+/* The Staff segmented tabs are already 13.5px — on a phone this one is width, not type. The four
+   of them need 345px inside a 343px column, and losing by two turns "Days off" into two lines and
+   the whole row into a two-storey control. Tighter padding and gap buy back the space, and nowrap
+   means a label breaks the ROW's width before it breaks itself, where it can be seen and fixed.
+
+   This block sits AFTER the rules above and not with the other phone rules further up the file,
+   because a media query adds no specificity: `.staff-tab` at line 1872 would simply have won, and
+   the identical rules written earlier did nothing at all until they were moved down here. */
+@media (max-width: 741px) {
+  /* `width: fit-content` is right on a laptop, where a full-width segmented control would stretch
+     four short words across a thousand pixels. On a phone it leaves the row hugging its text and
+     stopping short of the card below it, which reads as a mistake rather than a choice — so down
+     here it takes the whole width and the four share it equally (owner, 2026-08-27).
+     Equal widths mean the text has to be centred: left-aligned words in a stretched box look like
+     the box failed to shrink. */
+  .staff-tabs {
+    width: auto;
+    gap: 4px;
+  }
+  .staff-tab {
+    flex: 1;
+    text-align: center;
+    padding: 6px 11px;
+    white-space: nowrap;
+  }
+}
+
 /* Role reads on the pill itself — there is no separate status column (owner, 2026-08-03). */
 .role-pill {
   display: inline-block;
@@ -1935,6 +2169,92 @@ a.card:hover {
   text-transform: uppercase;
   color: var(--text-muted);
   padding: 14px 12px 6px;
+}
+
+/* Three columns on a wide screen — time · who · what — and the middle dot between the name and
+   the role is drawn by CSS rather than written into the markup.
+
+   On a phone there is no third column to give. 375px cannot be split three ways and still hold a
+   sentence, so the row folds into TWO: the time down the left, and everything else stacked on the
+   right — who on the first line, what they did on the second. The sentence is the part anyone
+   actually reads, so it gets the full width instead of a third of it.
+
+   The fold is done by turning the ROW into a grid, which means the cells stop drawing their own
+   bottom borders (two cells stacked = two lines across the row); the row draws the one border
+   instead. Scoped to .activity-table on purpose — .products-table is the locked list pattern and
+   every other page wears it. */
+.activity-time {
+  width: 78px;
+}
+.activity-person {
+  white-space: nowrap;
+}
+.activity-role::before {
+  content: "· ";
+}
+/* The sentence, with its status dot. One line on a wide screen, so the dot centres against it. */
+.activity-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.activity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+@media (max-width: 741px) {
+  .activity-table tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    /* Wide enough that the clock reads as its own column rather than the first word of the line. */
+    column-gap: 18px;
+    align-items: start;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .activity-table tbody td {
+    padding: 0;
+    border-bottom: 0;
+  }
+  /* The time sits beside both lines, not above one of them — and gives up its desktop width,
+     which reserved 78px for a five-character clock that needs 44. Those 34px are the difference
+     between the two lines fitting and both of them wrapping again. */
+  .activity-table .activity-time {
+    grid-row: 1 / span 2;
+    width: auto;
+  }
+  .activity-table .activity-person {
+    grid-row: 1;
+    /* A long name may wrap down here rather than push the row off the screen sideways. */
+    white-space: normal;
+  }
+  .activity-table .activity-what {
+    grid-row: 2;
+    margin-top: 3px;
+  }
+  /* A sentence that wraps down here leaves the dot centred BETWEEN its lines, floating against
+     nothing. It marks where the sentence starts, so it belongs on the first line — nudged down by
+     half a line so it sits against the letters rather than the top of the line box. */
+  .activity-table .activity-line {
+    align-items: flex-start;
+  }
+  .activity-table .activity-dot {
+    margin-top: calc((1lh - 7px) / 2);
+  }
+  /* Everything was 16px, so the row read as one grey block with nothing to land on. The sentence
+     is what anyone came to read: it stays the biggest thing, and the time and the name step back
+     to the sizes the rest of the admin already uses for supporting text. */
+  .activity-table .activity-time {
+    font-size: 12px;
+  }
+  .activity-table .activity-person {
+    font-size: 13.5px;
+  }
+  .activity-table .activity-what {
+    font-size: 15px;
+  }
 }
 
 /* Role, changed in place from the staff table. */

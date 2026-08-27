@@ -199,6 +199,17 @@ describe("findUntranslated", () => {
     expect(findUntranslated(`<button className="btn-danger btn-sm" />`)).toEqual([]);
   });
 
+  /**
+   * Two words was the whole guard, and a THIRD one walks straight past it: `"muted num
+   * activity-time"` has no digit, starts lowercase, and counts three words of which two are long
+   * enough — the exact shape of prose. The class list is not a shorter sentence, it is a different
+   * kind of thing, so it is settled by WHERE it sits rather than by how many words it runs to.
+   */
+  it("leaves a class list alone however many names it runs to", () => {
+    expect(findUntranslated(`<td className="muted num activity-time" />`)).toEqual([]);
+    expect(findUntranslated(`<i className="icon-btn icon-btn-framed is-open" />`)).toEqual([]);
+  });
+
   it("still says nothing about a style value, which is lowercase too", () => {
     expect(findUntranslated(`border: "1px solid var(--border)"`)).toEqual([]);
     expect(findUntranslated(`style={{ display: "inline-flex" }}`)).toEqual([]);

@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { type SaleRow, type ExpenseRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { saleStatusPill, saleTypeBadge } from "@/lib/badges";
@@ -9,6 +10,18 @@ import { SalesActionsMenu } from "./SalesActionsMenu";
 import { ExpenseRows } from "./ExpenseRows";
 
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
+/** Written once: the `th` reads them, every `td` carries the matching one as `data-label` for the
+ *  phone's card layout. Plain strings — this page has not been through the bilingual sweep, and a
+ *  card must say exactly what the header says, not translate it. */
+const COLUMN = {
+  job: "Job",
+  sales: "Sales",
+  profit: "Profit",
+  date: "Date",
+  status: "Status",
+  action: "Action",
+};
+
 export function SalesTable({
   sales,
   expenses = [],
@@ -33,8 +46,11 @@ export function SalesTable({
   const expenseSatang = expenses.reduce((sum, e) => sum + e.amountSatang, 0);
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ tableLayout: "fixed", minWidth: 900 }}>
+    <div className="list-cards-scroll">
+      <table
+        className="list-cards list-fixed"
+        style={{ "--list-min-width": "900px" } as CSSProperties}
+      >
         {/* Job (tag + bill id) needs a bit more room; the other five share the rest evenly. */}
         <colgroup>
           <col style={{ width: "30%" }} />
@@ -46,12 +62,12 @@ export function SalesTable({
         </colgroup>
         <thead>
           <tr>
-            <th>Job</th>
-            <th>Sales</th>
-            <th>Profit</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th>Action</th>
+            <th>{COLUMN.job}</th>
+            <th>{COLUMN.sales}</th>
+            <th>{COLUMN.profit}</th>
+            <th>{COLUMN.date}</th>
+            <th>{COLUMN.status}</th>
+            <th>{COLUMN.action}</th>
           </tr>
         </thead>
         <tbody>
@@ -67,14 +83,14 @@ export function SalesTable({
                     </span>
                   </div>
                 </td>
-                <td>{formatBahtTrim(s.grandTotalSatang)}</td>
-                <td>{formatBahtTrim(s.grossProfitSatang)}</td>
-                <td style={{ whiteSpace: "nowrap" }}>
+                <td data-label={COLUMN.sales}>{formatBahtTrim(s.grandTotalSatang)}</td>
+                <td data-label={COLUMN.profit}>{formatBahtTrim(s.grossProfitSatang)}</td>
+                <td data-label={COLUMN.date} style={{ whiteSpace: "nowrap" }}>
                   <div style={tableText.body2}>
                     {new Date(s.createdAt).toLocaleDateString("th-TH")}
                   </div>
                 </td>
-                <td>
+                <td data-label={COLUMN.status}>
                   <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
                 </td>
                 <td>
@@ -95,8 +111,10 @@ export function SalesTable({
           {/* Total row — Sales = Σ bill totals, Profit = Σ gross profit − expenses (net). */}
           <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
             <td>Total</td>
-            <td>{formatBahtTrim(totals.salesSatang)}</td>
-            <td>{formatBahtTrim(totals.profitSatang - expenseSatang)}</td>
+            <td data-label={COLUMN.sales}>{formatBahtTrim(totals.salesSatang)}</td>
+            <td data-label={COLUMN.profit}>
+              {formatBahtTrim(totals.profitSatang - expenseSatang)}
+            </td>
             <td />
             <td />
             <td />

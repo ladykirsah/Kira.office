@@ -192,6 +192,17 @@ export function canManageStaff(role: StaffRole): boolean {
   return role === "super_admin";
 }
 
+/**
+ * Setting the emergency key, and opening the door it unlocks. Super admin alone (owner, 2026-08-26).
+ *
+ * The owner's decision when asked who should get one: exactly one emergency key exists in the shop
+ * and it is theirs. Checked in BOTH places — the profile screen that sets a key, and the login that
+ * spends one — because a key that somehow reached another row must still not open this door.
+ */
+export function canUseRecoveryKey(role: StaffRole): boolean {
+  return role === "super_admin";
+}
+
 /** The Finance page and money totals. Super admin alone — an admin runs orders, not the books. */
 export function canViewFinance(role: StaffRole): boolean {
   return role === "super_admin";
@@ -333,6 +344,17 @@ export async function decryptSecret(
  * holding the database without the pepper. The slow PBKDF2 `pin_hash` is what actually authorises;
  * this only narrows a million possibilities to one row.
  */
+/**
+ * The owner's emergency key, hashed for the fast exact lookup — the same peppered HMAC the PIN uses,
+ * because the key is typed alone and has to FIND its row before anything can be verified.
+ *
+ * Trimmed first: the key is stored trimmed, so a lookup that did not trim would miss the row for a
+ * key typed with a stray space and answer "wrong key" to a key that is right.
+ */
+export async function recoveryLookup(key: string, pepper: string): Promise<string> {
+  return pinLookup(key.trim(), pepper);
+}
+
 export async function pinLookup(pin: string, pepper: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
