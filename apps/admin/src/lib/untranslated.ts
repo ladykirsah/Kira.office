@@ -45,6 +45,8 @@ const NAMES = [
   "AirPlus",
   "AirPlus Auto",
   "Shopee",
+  // A sales channel, exactly like Shopee beside it — a company's name, not a word to translate.
+  "Lazada",
   "Kira.office",
   "Den Air Service",
   "Air+Plus",

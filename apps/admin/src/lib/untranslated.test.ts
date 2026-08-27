@@ -274,6 +274,7 @@ const CLEARED = [
   "app/settings/AttributeManager.tsx",
   "app/settings/attributes",
   "app/settings/car-fitment",
+  "app/settings/affiliate-items",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
