@@ -7,6 +7,7 @@ import type { Phrase } from "@/lib/lang";
 const PRODUCT_ID: Phrase = { th: "รหัสสินค้า", en: "Product ID" };
 import { markShopeeSynced, type ShopeeWorklistItem } from "@/lib/api";
 import { CopyButton } from "./products/CopyButton";
+import { tableText } from "@/lib/tableText";
 
 /** −3 for a reduction, +2 for a restock. Uses a real minus sign to match the status-tag look. */
 function reduceLabel(delta: number): string {
@@ -35,9 +36,10 @@ const idCell = {
   gap: 6,
 } as const;
 
-// The global table cell is padded 12px all round — too tall for a scan-and-tick list. Tighten the
-// vertical padding to 3px (owner's pick) so many rows fit on screen; keep 12px sides for breathing room.
-const cellPad = { padding: "3px 12px" } as const;
+// The global table cell is padded 12px all round — too tall for a scan-and-tick list. The owner
+// picked 3px while every row was one line; a row carries two now (name over Product ID), so 6px is
+// what keeps the pairs from running into each other. 12px on the sides either way.
+const cellPad = { padding: "6px 12px" } as const;
 
 /**
  * The dashboard "Update on Shopee" checklist (Design A). The server hands in the products whose stock
@@ -97,8 +99,11 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
         <table>
           <thead>
             <tr>
+              {/* Name and Product ID share ONE column (owner, 27 Aug 2026). As two they cost the
+                  table more width than a phone has: 312px of table inside a 286px panel, so the
+                  list scrolled sideways to read a code that belongs to the name beside it. Stacked,
+                  they are one thing — which is what they always were. */}
               <th style={cellPad}>{t({ th: "สินค้า", en: "Product" })}</th>
-              <th style={cellPad}>{t(PRODUCT_ID)}</th>
               <th style={{ ...cellPad, textAlign: "right" }}>{t({ th: "ลดลง", en: "Reduce" })}</th>
               <th style={{ ...cellPad, textAlign: "center", width: 60 }}>
                 {t({ th: "เสร็จ", en: "Done" })}
@@ -110,17 +115,18 @@ export function ShopeeWorklist({ rows: initial }: { rows: ShopeeWorklistItem[] }
               const isDone = done.has(r.productId);
               return (
                 <tr key={r.productId} style={isDone ? { opacity: 0.5 } : undefined}>
-                  <td
-                    style={{
-                      ...cellPad,
-                      fontWeight: 600,
-                      textDecoration: isDone ? "line-through" : undefined,
-                    }}
-                  >
-                    {r.name}
-                  </td>
                   <td style={cellPad}>
-                    <span style={idCell}>
+                    {/* Only the NAME is struck through when a row is ticked. Striking the code too
+                        would put a line through the very thing you are about to copy. */}
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        textDecoration: isDone ? "line-through" : undefined,
+                      }}
+                    >
+                      {r.name}
+                    </div>
+                    <span style={{ ...idCell, ...tableText.subtitle }}>
                       {r.productRef}
                       <CopyButton value={r.productRef} label={`${t(PRODUCT_ID)} ${r.productRef}`} />
                     </span>
