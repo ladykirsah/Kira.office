@@ -3,6 +3,7 @@
 import { Fragment, useState, type ReactNode } from "react";
 import type { CarModelNode } from "@/lib/api";
 import { ConfirmButton } from "../../ConfirmButton";
+import { useT } from "../../LangProvider";
 
 /** Read-only display of a car model's service notes, with Edit + Remove actions. */
 export function ModelInfoView({
@@ -14,12 +15,13 @@ export function ModelInfoView({
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const [removing, setRemoving] = useState(false); // delete armed → hide Edit, show only Remove/Cancel
   // Note: the era (year range) is shown as a chip on the model's row header, so it's omitted here.
   const rows: { label: string; value: ReactNode }[] = [];
   if (model.oringUsage?.length) {
     rows.push({
-      label: "O-ring usage",
+      label: t({ th: "โอริงที่ใช้", en: "O-ring usage" }),
       value: (
         <span style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {model.oringUsage.map((e, i) => (
@@ -31,13 +33,13 @@ export function ModelInfoView({
       ),
     });
   }
-  if (model.notes) rows.push({ label: "Notes", value: model.notes });
+  if (model.notes) rows.push({ label: t({ th: "บันทึก", en: "Notes" }), value: model.notes });
 
   return (
     <div className="md-minfo">
       {rows.length === 0 ? (
         <p className="muted" style={{ margin: "2px 0 14px", fontSize: 14 }}>
-          No service notes yet.
+          {t({ th: "ยังไม่มีข้อมูลบริการ", en: "No service notes yet." })}
         </p>
       ) : (
         <div className="md-view">
@@ -52,17 +54,17 @@ export function ModelInfoView({
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         {!removing && (
           <button type="button" className="btn-primary btn-sm" onClick={onEdit}>
-            Edit
+            {t({ th: "แก้ไข", en: "Edit" })}
           </button>
         )}
         <ConfirmButton
           className="btn-sm"
-          ariaLabel={`Remove ${model.name}`}
-          confirmLabel="Remove model?"
+          ariaLabel={t({ th: `ลบ ${model.name}`, en: `Remove ${model.name}` })}
+          confirmLabel={t({ th: "ลบรุ่นนี้?", en: "Remove model?" })}
           onConfirm={onRemove}
           onArmedChange={setRemoving}
         >
-          Remove
+          {t({ th: "ลบ", en: "Remove" })}
         </ConfirmButton>
       </div>
     </div>

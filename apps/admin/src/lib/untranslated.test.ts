@@ -273,6 +273,7 @@ const CLEARED = [
   "app/settings/shop",
   "app/settings/AttributeManager.tsx",
   "app/settings/attributes",
+  "app/settings/car-fitment",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -336,6 +337,16 @@ const DELIBERATE: Record<string, Exception> = {
   // side by side. Each field's placeholder is written in the language that field takes, and the
   // saved Thai value is tagged "ไทย:" so a reader can tell the two halves apart. Same shape as the
   // shop-info editor below.
+  // Car brands and models carry the same two-language names as any other taxonomy value, edited
+  // in the same two fields — see AttributeManager below for why these stay.
+  "app/settings/car-fitment/page.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"'],
+  },
+  "app/settings/car-fitment/ModelInfoEditor.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"'],
+  },
   "app/settings/AttributeManager.tsx": {
     reason: "side-by-side Thai/English name fields, each marked in its own language",
     // Reported as the whole attribute, which is what the exception has to match.

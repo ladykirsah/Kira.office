@@ -4,6 +4,13 @@ import { useState } from "react";
 import { updateCarModel, setAttributeNames, type CarModelNode, type OringEntry } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { useToast } from "../../ToastProvider";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
+
+const EN_NAME: Phrase = { th: "ชื่อภาษาอังกฤษ", en: "English name" };
+const TH_NAME: Phrase = { th: "ชื่อภาษาไทย", en: "Thai name" };
+const YEAR_FROM: Phrase = { th: "ปีเริ่ม", en: "Year from" };
+const YEAR_TO: Phrase = { th: "ปีสิ้นสุด", en: "Year to" };
 
 const BASIC_SIZES = ['3/8"', '1/2"', '5/8"'];
 
@@ -54,6 +61,7 @@ export function ModelInfoEditor({
   const [yearFrom, setYearFrom] = useState(model.yearFrom?.toString() ?? "");
   const [yearTo, setYearTo] = useState(model.yearTo?.toString() ?? "");
   // Preserved (not surfaced in this form): keep the model's existing values so save doesn't wipe them.
+  const t = useT();
   const generationCode = model.generationCode ?? "";
   const refrigerant = model.refrigerant ?? "";
   const coolantLiters = model.coolantLiters ?? "";
@@ -97,7 +105,7 @@ export function ModelInfoEditor({
         coolantLiters: coolantLiters.trim() || null,
         notes: notes.trim() || null,
       });
-      toast("Saved ✓", "success");
+      toast(t({ th: "บันทึกแล้ว ✓", en: "Saved ✓" }), "success");
       onSaved();
     } catch (err) {
       toast((err as Error).message, "error");
@@ -118,51 +126,62 @@ export function ModelInfoEditor({
         }}
       >
         <label>
-          <Label>English name</Label>
+          <Label>{t(EN_NAME)}</Label>
           <input
             value={enName}
             onChange={(e) => setEnName(e.target.value)}
             placeholder="English name"
-            aria-label={`English name for ${model.name}`}
+            aria-label={t({
+              th: `ชื่อภาษาอังกฤษของ ${model.name}`,
+              en: `English name for ${model.name}`,
+            })}
             style={{ ...inputS, width: "100%" }}
           />
         </label>
         <label>
-          <Label>Thai name</Label>
+          <Label>{t(TH_NAME)}</Label>
           <input
             value={thName}
             onChange={(e) => setThName(e.target.value)}
             placeholder="ชื่อภาษาไทย"
-            aria-label={`ชื่อภาษาไทยของ ${model.name}`}
+            aria-label={t({
+              th: `ชื่อภาษาไทยของ ${model.name}`,
+              en: `Thai name for ${model.name}`,
+            })}
             style={{ ...inputS, width: "100%" }}
           />
         </label>
         <label>
-          <Label>Year from</Label>
+          <Label>{t(YEAR_FROM)}</Label>
           <input
             value={yearFrom}
             onChange={(e) => setYearFrom(e.target.value)}
             inputMode="numeric"
             placeholder="from"
-            aria-label="Year from"
+            aria-label={t(YEAR_FROM)}
             style={{ ...inputS, width: "100%" }}
           />
         </label>
         <label>
-          <Label>Year to</Label>
+          <Label>{t(YEAR_TO)}</Label>
           <input
             value={yearTo}
             onChange={(e) => setYearTo(e.target.value)}
             inputMode="numeric"
             placeholder="to"
-            aria-label="Year to"
+            aria-label={t(YEAR_TO)}
             style={{ ...inputS, width: "100%" }}
           />
         </label>
       </div>
 
       <div className="md-oring">
-        <Label>O-ring usage — how many of each size this model uses</Label>
+        <Label>
+          {t({
+            th: "โอริงที่ใช้ — รุ่นนี้ใช้แต่ละขนาดกี่ตัว",
+            en: "O-ring usage — how many of each size this model uses",
+          })}
+        </Label>
         <div className="md-oring-grid">
           {BASIC_SIZES.map((size) => (
             <div className="md-oring-cell" key={size}>
@@ -172,7 +191,7 @@ export function ModelInfoEditor({
                 onChange={(e) => setBasic(size, e.target.value)}
                 placeholder="0"
                 inputMode="numeric"
-                aria-label={`Amount of ${size} o-rings`}
+                aria-label={t({ th: `จำนวนโอริงขนาด ${size}`, en: `Amount of ${size} o-rings` })}
                 className="md-oring-amt"
               />
             </div>
@@ -183,7 +202,7 @@ export function ModelInfoEditor({
                 value={sp.size}
                 onChange={(e) => setSpecial(i, { size: e.target.value })}
                 placeholder="ETC"
-                aria-label="O-ring size"
+                aria-label={t({ th: "ขนาดโอริง", en: "O-ring size" })}
                 className="md-oring-szin"
               />
               <input
@@ -191,13 +210,13 @@ export function ModelInfoEditor({
                 onChange={(e) => setSpecial(i, { qty: e.target.value.replace(/[^\d]/g, "") })}
                 placeholder="0"
                 inputMode="numeric"
-                aria-label="Amount"
+                aria-label={t({ th: "จำนวน", en: "Amount" })}
                 className="md-oring-amt"
               />
               <button
                 type="button"
                 className="icon-del"
-                aria-label="Remove size"
+                aria-label={t({ th: "ลบขนาดนี้", en: "Remove size" })}
                 onClick={() => removeSpecial(i)}
               >
                 <svg
@@ -221,28 +240,31 @@ export function ModelInfoEditor({
           ))}
         </div>
         <button type="button" className="btn-soft" onClick={addSpecial} style={{ marginTop: 10 }}>
-          + add size
+          + {t({ th: "เพิ่มขนาด", en: "add size" })}
         </button>
       </div>
 
       <label style={{ display: "block", marginTop: 12 }}>
-        <Label>Notes (for customer service)</Label>
+        <Label>{t({ th: "บันทึก (สำหรับตอบลูกค้า)", en: "Notes (for customer service)" })}</Label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          placeholder="Anything worth remembering — compressor model, belt size, connector quirks…"
+          placeholder={t({
+            th: "อะไรก็ตามที่ควรจำไว้ — รุ่นคอมเพรสเซอร์ ขนาดสายพาน ข้อต่อที่มีลูกเล่น…",
+            en: "Anything worth remembering — compressor model, belt size, connector quirks…",
+          })}
           style={{ width: "100%" }}
         />
       </label>
 
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
         <button type="button" className="btn-primary btn-sm" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? t({ th: "กำลังบันทึก…", en: "Saving…" }) : t({ th: "บันทึก", en: "Save" })}
         </button>
         {onCancel && (
           <button type="button" className="btn-sm" onClick={onCancel} disabled={saving}>
-            Cancel
+            {t({ th: "ยกเลิก", en: "Cancel" })}
           </button>
         )}
       </div>
