@@ -270,62 +270,16 @@ describe("findUntranslated", () => {
 /**
  * THE SCREENS THAT ARE DONE STAY DONE (owner, 2026-08-25: "re-check on every spot").
  *
- * The rest of the admin is still being worked through, so this guards only the folders that have
- * been finished. Add a folder here the moment its sweep is complete — that is what stops the next
- * screen from quietly undoing this one.
+ * The sweep is finished, so this now guards the admin as a whole rather than a list of folders.
+ * Anything a person can read on any screen has to be a `t({ th, en })` pair, and the only way past
+ * this is to say so out loud in DELIBERATE below, with the reason.
  */
 const CLEARED = [
-  "app/products",
-  "app/orders",
-  "app/nav.ts",
-  "app/Sidebar.tsx",
-  "app/MobileNav.tsx",
-  "app/AppShell.tsx",
-  "app/StaffChip.tsx",
-  "app/ThemeToggle.tsx",
-  "app/LanguageToggle.tsx",
-  "app/Modal.tsx",
-  "app/page.tsx",
-  "app/pos",
-  "app/settings/coupons",
-  // The two screens OUTSIDE the app frame. They are the first thing anybody sees, and until
-  // 2026-08-26 they were the only ones still entirely in English.
-  "app/login",
-  "app/recover",
-  "app/settings/staff",
-  "app/me",
-  "app/customers",
-  // Two of the four buttons on the phone's bottom bar, so they are touched constantly.
-  "app/scan",
-  "app/payment",
-  "app/settings/shop",
-  "app/settings/AttributeManager.tsx",
-  "app/settings/attributes",
-  "app/settings/car-fitment",
-  "app/settings/affiliate-items",
-  "app/settings/services",
-  "app/settings/campaigns",
-  "app/settings/banners",
-  // The frame around every screen, and the two pages that replace one when something goes wrong.
-  "app/layout.tsx",
-  "app/error.tsx",
-  "app/not-found.tsx",
-  "app/BusinessTabs.tsx",
-  "app/FilePickButton.tsx",
-  "app/MonthYearPicker.tsx",
-  // Route handlers rather than screens, but watched all the same — a message added here later
-  // would be a message on a screen. Their HTTP plumbing is excused by name below.
-  "app/api/staff",
-  "app/stock",
-  "app/ShopeeWorklist.tsx",
-  "app/terms",
-  "app/import",
-  "app/insights",
-  "app/StaffChip.tsx",
-  // Shared pieces the coupons screen renders, each of which was English on every screen using it.
-  "app/ConfirmButton.tsx",
-  "app/DateTimeField.tsx",
-  "app/NoAccess.tsx",
+  // THE WHOLE ADMIN. The sweep started as a folder-at-a-time list, and finished on 2026-08-27 when
+  // Finance and the barcode Label Studio — the last two English screens — went through. Naming the
+  // folder rather than its parts is the point: a NEW screen is guarded the day it is written,
+  // instead of the day somebody remembers to add it here.
+  "app",
 ];
 
 /**

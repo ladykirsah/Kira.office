@@ -5,6 +5,7 @@ import { apiBase, getProductDetail } from "@/lib/api";
 import { inputS } from "@/lib/inputStyles";
 import { pageDimensions, planFittedSheet, type Orientation, type Paper } from "@/lib/labelGrid";
 import { PageHeader } from "../PageHeader";
+import { useT } from "../LangProvider";
 import {
   drawLabel,
   downloadLabelPng,
@@ -47,6 +48,13 @@ interface LabelItem {
   h: number;
   amount: number;
 }
+
+/** The three words the compose form and the sheet table below it both use. */
+const WORD = {
+  product: { th: "สินค้า", en: "Product" },
+  size: { th: "ขนาด", en: "Size" },
+  amount: { th: "จำนวน", en: "Amount" },
+};
 
 const fieldLabel = { fontSize: 13, color: "var(--text-muted)", marginBottom: 4 } as const;
 const hintStyle: CSSProperties = { fontSize: 12, color: "var(--text-faint)", marginTop: 4 };
@@ -198,6 +206,14 @@ export function LabelStudio({
   products: StudioProduct[];
   shopName?: string;
 }) {
+  const t = useT();
+  // Written once because each of these sits in two places at the same time — a label and its
+  // aria-label, a form field and the table column that repeats it.
+  const changeProduct = t({ th: "เปลี่ยนสินค้า", en: "Change product" });
+  const remove = t({ th: "ลบออก", en: "Remove" });
+  /** "3 products" · "3 สินค้า" — Thai has no plural, so the "s" is an English-only detail. */
+  const productCount = (n: number) =>
+    t({ th: `${n} สินค้า`, en: `${n} product${n === 1 ? "" : "s"}` });
   // Apply the saved shop name to the label header before any canvas draw (effects run after this).
   setShopName(shopName);
   const [paper, setPaper] = useState<Paper>("A4");
@@ -306,8 +322,11 @@ export function LabelStudio({
   return (
     <main>
       <PageHeader
-        title="Barcode labels"
-        subtitle="Add a label for each product, then download one PDF with all of them."
+        title={t({ th: "ป้ายบาร์โค้ด", en: "Barcode labels" })}
+        subtitle={t({
+          th: "เพิ่มป้ายให้แต่ละสินค้า แล้วดาวน์โหลดเป็น PDF ไฟล์เดียว",
+          en: "Add a label for each product, then download one PDF with all of them.",
+        })}
       />
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
@@ -329,11 +348,11 @@ export function LabelStudio({
               background: "var(--surface)",
             }}
           >
-            <div style={{ fontWeight: 600 }}>Add a label</div>
+            <div style={{ fontWeight: 600 }}>{t({ th: "เพิ่มป้าย", en: "Add a label" })}</div>
 
             {/* Product */}
             <div style={{ marginTop: 14, maxWidth: 430 }}>
-              <span style={{ ...fieldLabel, display: "block" }}>Product</span>
+              <span style={{ ...fieldLabel, display: "block" }}>{t(WORD.product)}</span>
               {formProduct ? (
                 <div
                   style={{
@@ -366,8 +385,8 @@ export function LabelStudio({
                   </span>
                   <button
                     type="button"
-                    aria-label="Change product"
-                    title="Change product"
+                    aria-label={changeProduct}
+                    title={changeProduct}
                     onClick={() => {
                       setFormProduct(null);
                       setFormFitment([]);
@@ -382,7 +401,10 @@ export function LabelStudio({
                 <div style={{ position: "relative" }}>
                   <input
                     className="tbar-input"
-                    placeholder="Search a product…  (code or name)"
+                    placeholder={t({
+                      th: "ค้นหาสินค้า…  (รหัสหรือชื่อ)",
+                      en: "Search a product…  (code or name)",
+                    })}
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -453,7 +475,9 @@ export function LabelStudio({
               }}
             >
               <div>
-                <span style={{ ...fieldLabel, display: "block" }}>Barcode</span>
+                <span style={{ ...fieldLabel, display: "block" }}>
+                  {t({ th: "บาร์โค้ด", en: "Barcode" })}
+                </span>
                 <label
                   style={{
                     display: "flex",
@@ -473,20 +497,22 @@ export function LabelStudio({
                     <span className="slider" />
                   </span>
                   <span className="muted" style={{ fontSize: 13 }}>
-                    {version === "full" ? "Full label" : "Minimal label"}
+                    {version === "full"
+                      ? t({ th: "ป้ายเต็ม", en: "Full label" })
+                      : t({ th: "ป้ายย่อ", en: "Minimal label" })}
                   </span>
                 </label>
                 <div style={hintStyle}>
                   {!canUseBarcode && formProduct
-                    ? "No barcode on this product"
+                    ? t({ th: "สินค้านี้ไม่มีบาร์โค้ด", en: "No barcode on this product" })
                     : version === "full"
-                      ? "Barcode + ID + shop name"
-                      : "Name + fitment only"}
+                      ? t({ th: "บาร์โค้ด + รหัส + ชื่อร้าน", en: "Barcode + ID + shop name" })
+                      : t({ th: "ชื่อ + รุ่นรถที่ใช้ได้ เท่านั้น", en: "Name + fitment only" })}
                 </div>
               </div>
 
               <div>
-                <span style={{ ...fieldLabel, display: "block" }}>Size</span>
+                <span style={{ ...fieldLabel, display: "block" }}>{t(WORD.size)}</span>
                 <Seg
                   value={formSize}
                   onChange={setFormSize}
@@ -495,11 +521,11 @@ export function LabelStudio({
                     ["S", "S"],
                   ]}
                 />
-                <div style={hintStyle}>{sizeHint(formSize)}</div>
+                <div style={hintStyle}>{t(sizeHint(formSize))}</div>
               </div>
 
               <div>
-                <span style={{ ...fieldLabel, display: "block" }}>Amount</span>
+                <span style={{ ...fieldLabel, display: "block" }}>{t(WORD.amount)}</span>
                 <input
                   type="number"
                   min={1}
@@ -524,7 +550,9 @@ export function LabelStudio({
               }}
             >
               <div>
-                <span style={{ ...fieldLabel, display: "block" }}>Preview</span>
+                <span style={{ ...fieldLabel, display: "block" }}>
+                  {t({ th: "ตัวอย่าง", en: "Preview" })}
+                </span>
                 {formProduct ? (
                   <LabelCanvas
                     product={formProduct}
@@ -543,7 +571,10 @@ export function LabelStudio({
                       fontSize: 13,
                     }}
                   >
-                    Pick a product to preview the label.
+                    {t({
+                      th: "เลือกสินค้าเพื่อดูตัวอย่างป้าย",
+                      en: "Pick a product to preview the label.",
+                    })}
                   </div>
                 )}
               </div>
@@ -553,7 +584,7 @@ export function LabelStudio({
                 disabled={!formProduct}
                 onClick={addToSheet}
               >
-                Add to sheet
+                {t({ th: "เพิ่มลงแผ่น", en: "Add to sheet" })}
               </button>
             </div>
           </section>
@@ -568,27 +599,26 @@ export function LabelStudio({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontWeight: 600 }}>On the sheet</span>
-              {items.length > 0 && (
-                <span className="pill soft">
-                  {items.length} product{items.length === 1 ? "" : "s"}
-                </span>
-              )}
+              <span style={{ fontWeight: 600 }}>{t({ th: "บนแผ่น", en: "On the sheet" })}</span>
+              {items.length > 0 && <span className="pill soft">{productCount(items.length)}</span>}
             </div>
 
             {items.length === 0 ? (
               <p className="muted" style={{ marginTop: 12 }}>
-                No labels yet — add one above to start the sheet.
+                {t({
+                  th: "ยังไม่มีป้าย — เพิ่มด้านบนเพื่อเริ่มแผ่นนี้",
+                  en: "No labels yet — add one above to start the sheet.",
+                })}
               </p>
             ) : (
               <div style={{ marginTop: 12, overflowX: "auto" }}>
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: 112 }}>Label</th>
-                      <th style={{ width: "44%" }}>Product</th>
-                      <th>Size</th>
-                      <th>Amount</th>
+                      <th style={{ width: 112 }}>{t({ th: "ป้าย", en: "Label" })}</th>
+                      <th style={{ width: "44%" }}>{t(WORD.product)}</th>
+                      <th>{t(WORD.size)}</th>
+                      <th>{t(WORD.amount)}</th>
                       <th style={{ width: 44 }} />
                     </tr>
                   </thead>
@@ -630,7 +660,7 @@ export function LabelStudio({
                           >
                             <button
                               type="button"
-                              aria-label="One fewer"
+                              aria-label={t({ th: "ลดหนึ่ง", en: "One fewer" })}
                               onClick={() => setAmount(it.key, it.amount - 1)}
                               style={{
                                 minHeight: 0,
@@ -650,7 +680,7 @@ export function LabelStudio({
                               onChange={(e) =>
                                 setAmount(it.key, Math.round(parseFloat(e.target.value) || 1))
                               }
-                              aria-label="Amount"
+                              aria-label={t(WORD.amount)}
                               style={{
                                 minHeight: 0,
                                 width: 52,
@@ -665,7 +695,7 @@ export function LabelStudio({
                             />
                             <button
                               type="button"
-                              aria-label="One more"
+                              aria-label={t({ th: "เพิ่มหนึ่ง", en: "One more" })}
                               onClick={() => setAmount(it.key, it.amount + 1)}
                               style={{
                                 minHeight: 0,
@@ -684,8 +714,14 @@ export function LabelStudio({
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
                             <button
                               type="button"
-                              aria-label={`Save ${it.product.name} label as PNG`}
-                              title="Save this label as a PNG"
+                              aria-label={t({
+                                th: `บันทึกป้าย ${it.product.name} เป็น PNG`,
+                                en: `Save ${it.product.name} label as PNG`,
+                              })}
+                              title={t({
+                                th: "บันทึกป้ายนี้เป็น PNG",
+                                en: "Save this label as a PNG",
+                              })}
                               onClick={() => saveLabelPng(it)}
                               className="icon-btn"
                             >
@@ -693,8 +729,8 @@ export function LabelStudio({
                             </button>
                             <button
                               type="button"
-                              aria-label="Remove"
-                              title="Remove"
+                              aria-label={remove}
+                              title={remove}
                               onClick={() => removeItem(it.key)}
                               className="icon-btn"
                               style={{ color: "var(--danger)" }}
@@ -718,11 +754,15 @@ export function LabelStudio({
                     borderTop: "2px solid var(--border)",
                   }}
                 >
+                  <span>{productCount(items.length)}</span>
+                  {/* The count stays bold in both languages; the words around it swap sides,
+                      which is why one half of each pair is deliberately empty. */}
                   <span>
-                    {items.length} product{items.length === 1 ? "" : "s"}
-                  </span>
-                  <span>
-                    <b style={{ color: "var(--text)" }}>{totalLabels} labels</b> in total
+                    {t({ th: "รวม ", en: "" })}
+                    <b style={{ color: "var(--text)" }}>
+                      {totalLabels} {t({ th: "ป้าย", en: "labels" })}
+                    </b>
+                    {t({ th: "", en: " in total" })}
                   </span>
                 </div>
               </div>
@@ -745,11 +785,11 @@ export function LabelStudio({
               top: 16,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Your sheet</div>
+            <div style={{ fontWeight: 600 }}>{t({ th: "แผ่นของคุณ", en: "Your sheet" })}</div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 16 }}>
               <div>
-                <div style={fieldLabel}>Paper</div>
+                <div style={fieldLabel}>{t({ th: "กระดาษ", en: "Paper" })}</div>
                 <Seg
                   value={paper}
                   onChange={setPaper}
@@ -760,13 +800,13 @@ export function LabelStudio({
                 />
               </div>
               <div>
-                <div style={fieldLabel}>Orientation</div>
+                <div style={fieldLabel}>{t({ th: "การวางแนว", en: "Orientation" })}</div>
                 <Seg
                   value={orientation}
                   onChange={setOrientation}
                   options={[
-                    ["portrait", "Portrait"],
-                    ["landscape", "Landscape"],
+                    ["portrait", t({ th: "แนวตั้ง", en: "Portrait" })],
+                    ["landscape", t({ th: "แนวนอน", en: "Landscape" })],
                   ]}
                 />
               </div>
@@ -787,17 +827,19 @@ export function LabelStudio({
                 disabled={plan.placements.length === 0}
                 onClick={download}
               >
-                Download PDF
+                {t({ th: "ดาวน์โหลด PDF", en: "Download PDF" })}
               </button>
               <span className="muted" style={{ fontSize: 13 }}>
-                {plan.placements.length} label{plan.placements.length === 1 ? "" : "s"} ·{" "}
-                {plan.pages} {paper} page{plan.pages === 1 ? "" : "s"}
+                {t({
+                  th: `${plan.placements.length} ป้าย · ${plan.pages} หน้า ${paper}`,
+                  en: `${plan.placements.length} label${plan.placements.length === 1 ? "" : "s"} · ${plan.pages} ${paper} page${plan.pages === 1 ? "" : "s"}`,
+                })}
               </span>
             </div>
 
             {plan.placements.length > 0 && (
               <div>
-                <div style={fieldLabel}>File preview</div>
+                <div style={fieldLabel}>{t({ th: "ตัวอย่างไฟล์", en: "File preview" })}</div>
                 <div ref={previewRef} className="sheet-preview" />
               </div>
             )}
