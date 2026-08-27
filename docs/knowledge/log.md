@@ -249,6 +249,14 @@ sources: [session 2026-08-09]
   hard-coded `toLocaleDateString("en-GB")`, and the role names existed in three copies of which two
   were English-only. See [conventions/bilingual-admin](conventions/bilingual-admin.md).
 
+- **2026-08-26** — **Customers, both halves.** The Den Air car directory (with its spreadsheet
+  import) and the AirPlus account list, 135 strings. Two findings worth more than the words:
+  `useT()` returned a fresh closure every render, which made it impossible to name in a dependency
+  list without causing a refetch loop — it is memoised on the language now. And three debounce
+  handles were named `t`, shadowing the translator inside their own effect. The import's Thai column
+  headers are matched against the owner's real Google Sheet and must never be translated; they are
+  excused by name. See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
 - **2026-08-26** — **The owner gets a second way back in.** A self-set emergency key, beside the
   emailed Cloudflare code rather than instead of it: the two fail differently, and this one works
   when Cloudflare or the mailbox is what is broken. Asked for as "no minimum length"; the owner

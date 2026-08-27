@@ -17,6 +17,8 @@ import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
+import { useT, useLang } from "../LangProvider";
+import type { Lang } from "@/lib/lang";
 
 const frame = {
   border: "1px solid var(--border)",
@@ -25,15 +27,21 @@ const frame = {
   background: "var(--surface)",
 } as const;
 
-const date = (ms: number | null | undefined) =>
-  ms ? new Date(ms).toLocaleDateString("th-TH") : "—";
-const dateTime = (ms: number | null | undefined) =>
-  ms ? new Date(ms).toLocaleString("th-TH") : "—";
+/**
+ * Dates follow the reader, like every other word on the page. A Thai reader gets 2569, the Buddhist
+ * year they expect; an English reader gets 2026, because 2569 is simply the wrong number to them.
+ */
+const date = (ms: number | null | undefined, lang: Lang) =>
+  ms ? new Date(ms).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB") : "—";
+const dateTime = (ms: number | null | undefined, lang: Lang) =>
+  ms ? new Date(ms).toLocaleString(lang === "th" ? "th-TH" : "en-GB") : "—";
 
 /** The typed phrase that arms erasure — a click alone must never be enough for an irreversible act. */
 const ERASE_CONFIRM = "ERASE";
 
 function ConsentPill({ at, label }: { at: number | null; label: string }) {
+  const t = useT();
+  const lang = useLang();
   const given = at != null;
   return (
     <span
@@ -46,9 +54,13 @@ function ConsentPill({ at, label }: { at: number | null; label: string }) {
         background: given ? "color-mix(in srgb, var(--ok) 16%, transparent)" : "transparent",
         color: given ? "var(--ok)" : "var(--text-muted)",
       }}
-      title={given ? `${label}: ${dateTime(at)}` : `${label}: no record`}
+      title={
+        given
+          ? `${label}: ${dateTime(at, lang)}`
+          : `${label}: ${t({ th: "ไม่มีบันทึก", en: "no record" })}`
+      }
     >
-      {label} {given ? `· ${date(at)}` : "· —"}
+      {label} {given ? `· ${date(at, lang)}` : "· —"}
     </span>
   );
 }
@@ -63,6 +75,8 @@ function Detail({
   onChanged: () => void;
 }) {
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
   const [data, setData] = useState<StorefrontCustomerDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [eraseText, setEraseText] = useState("");
@@ -70,8 +84,13 @@ function Detail({
   const load = useCallback(() => {
     getStorefrontCustomerDetail(id)
       .then(setData)
-      .catch((e: unknown) => toast(e instanceof Error ? e.message : "Load failed", "error"));
-  }, [id, toast]);
+      .catch((e: unknown) =>
+        toast(
+          e instanceof Error ? e.message : t({ th: "โหลดข้อมูลไม่สำเร็จ", en: "Load failed" }),
+          "error",
+        ),
+      );
+  }, [id, toast, t]);
   useEffect(load, [load]);
 
   const c = data?.customer;
@@ -81,11 +100,19 @@ function Detail({
     setBusy(true);
     try {
       await setStorefrontMarketingConsent(id, next);
-      toast(next ? "Marketing consent recorded" : "Marketing consent withdrawn", "success");
+      toast(
+        next
+          ? t({ th: "บันทึกการยินยอมรับข่าวสารแล้ว", en: "Marketing consent recorded" })
+          : t({ th: "ถอนการยินยอมรับข่าวสารแล้ว", en: "Marketing consent withdrawn" }),
+        "success",
+      );
       load();
       onChanged();
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : "Save failed", "error");
+      toast(
+        e instanceof Error ? e.message : t({ th: "บันทึกไม่สำเร็จ", en: "Save failed" }),
+        "error",
+      );
     } finally {
       setBusy(false);
     }
@@ -95,12 +122,21 @@ function Detail({
     setBusy(true);
     try {
       await anonymizeStorefrontCustomer(id);
-      toast("Customer data erased — their orders were kept", "success");
+      toast(
+        t({
+          th: "ลบข้อมูลลูกค้าแล้ว — คำสั่งซื้อยังอยู่",
+          en: "Customer data erased — their orders were kept",
+        }),
+        "success",
+      );
       setEraseText("");
       load();
       onChanged();
     } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : "Erase failed", "error");
+      toast(
+        e instanceof Error ? e.message : t({ th: "ลบข้อมูลไม่สำเร็จ", en: "Erase failed" }),
+        "error",
+      );
     } finally {
       setBusy(false);
     }
@@ -109,9 +145,11 @@ function Detail({
   if (!data || !c) {
     return (
       <main>
-        <BackLink onClick={onBack}>All AirPlus customers</BackLink>
+        <BackLink onClick={onBack}>
+          {t({ th: "ลูกค้า AirPlus ทั้งหมด", en: "All AirPlus customers" })}
+        </BackLink>
         <div className="muted" style={{ padding: 24 }}>
-          Loading…
+          {t({ th: "กำลังโหลด…", en: "Loading…" })}
         </div>
       </main>
     );
@@ -120,34 +158,57 @@ function Detail({
   return (
     <main>
       <PageHeader
-        title={c.name || "(no name yet)"}
+        title={c.name || t({ th: "(ยังไม่มีชื่อ)", en: "(no name yet)" })}
         subtitle={c.phone}
-        below={<BackLink onClick={onBack}>All AirPlus customers</BackLink>}
+        below={
+          <BackLink onClick={onBack}>
+            {t({ th: "ลูกค้า AirPlus ทั้งหมด", en: "All AirPlus customers" })}
+          </BackLink>
+        }
       />
 
       <div style={{ ...frame, marginBottom: 16 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>
-          <Field label="User ID" value={c.customerCode ?? "—"} mono />
-          <Field label="Account created" value={dateTime(c.createdAt)} />
-          <Field label="Last login" value={dateTime(c.lastLoginAt)} />
-          <Field label="Phone verified" value={date(c.phoneVerifiedAt)} />
-          <Field label="Email" value={c.email ?? "—"} />
-          <Field label="LINE" value={c.lineLinked ? "Linked" : "—"} />
-          <Field label="Status" value={c.status} />
+          <Field
+            label={t({ th: "รหัสผู้ใช้", en: "User ID" })}
+            value={c.customerCode ?? "—"}
+            mono
+          />
+          <Field
+            label={t({ th: "สมัครเมื่อ", en: "Account created" })}
+            value={dateTime(c.createdAt, lang)}
+          />
+          <Field
+            label={t({ th: "เข้าใช้งานล่าสุด", en: "Last login" })}
+            value={dateTime(c.lastLoginAt, lang)}
+          />
+          <Field
+            label={t({ th: "ยืนยันเบอร์แล้ว", en: "Phone verified" })}
+            value={date(c.phoneVerifiedAt, lang)}
+          />
+          <Field label={t({ th: "อีเมล", en: "Email" })} value={c.email ?? "—"} />
+          <Field label="LINE" value={c.lineLinked ? t({ th: "เชื่อมแล้ว", en: "Linked" }) : "—"} />
+          <Field label={t({ th: "สถานะ", en: "Status" })} value={c.status} />
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-          <ConsentPill at={c.pdpaConsentAt} label="Privacy + terms" />
-          <ConsentPill at={c.marketingConsentAt} label="Marketing" />
+          <ConsentPill
+            at={c.pdpaConsentAt}
+            label={t({ th: "ความเป็นส่วนตัว + เงื่อนไข", en: "Privacy + terms" })}
+          />
+          <ConsentPill at={c.marketingConsentAt} label={t({ th: "รับข่าวสาร", en: "Marketing" })} />
         </div>
       </div>
 
       {!erased && (
         <div style={{ ...frame, marginBottom: 16 }}>
-          <strong style={tableText.body2}>Marketing consent</strong>
+          <strong style={tableText.body2}>
+            {t({ th: "การยินยอมรับข่าวสาร", en: "Marketing consent" })}
+          </strong>
           <p className="muted" style={{ margin: "6px 0 12px", fontSize: 13 }}>
-            Promotional LINE / SMS / email needs its own opt-in, separate from the privacy notice
-            they accepted at sign-up. Only record it here if the customer actually agreed — the
-            storefront does not ask for it yet.
+            {t({
+              th: "การส่ง LINE / SMS / อีเมลโปรโมชัน ต้องขอความยินยอมแยกต่างหากจากนโยบายความเป็นส่วนตัวที่เขากดตอนสมัคร · บันทึกตรงนี้เฉพาะเมื่อลูกค้ายินยอมจริง — หน้าร้านยังไม่ได้ถาม",
+              en: "Promotional LINE / SMS / email needs its own opt-in, separate from the privacy notice they accepted at sign-up. Only record it here if the customer actually agreed — the storefront does not ask for it yet.",
+            })}
           </p>
           <button
             type="button"
@@ -155,33 +216,37 @@ function Detail({
             disabled={busy}
             onClick={() => toggleMarketing(c.marketingConsentAt == null)}
           >
-            {c.marketingConsentAt == null ? "Record opt-in" : "Withdraw consent"}
+            {c.marketingConsentAt == null
+              ? t({ th: "บันทึกว่ายินยอม", en: "Record opt-in" })
+              : t({ th: "ถอนการยินยอม", en: "Withdraw consent" })}
           </button>
         </div>
       )}
 
-      <h3 style={{ margin: "20px 0 10px" }}>Purchase history</h3>
+      <h3 style={{ margin: "20px 0 10px" }}>
+        {t({ th: "ประวัติการใช้บริการ", en: "Purchase history" })}
+      </h3>
       <TableFrame>
         {data.orders.length === 0 ? (
           <div className="muted" style={{ padding: 12 }}>
-            No AirPlus orders yet.
+            {t({ th: "ยังไม่มีคำสั่งซื้อบน AirPlus", en: "No AirPlus orders yet." })}
           </div>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Order</th>
-                <th>Status</th>
-                <th>Payment</th>
-                <th style={{ textAlign: "right" }}>Total</th>
-                <th>Tracking</th>
+                <th>{t({ th: "วันที่", en: "Date" })}</th>
+                <th>{t({ th: "คำสั่งซื้อ", en: "Order" })}</th>
+                <th>{t({ th: "สถานะ", en: "Status" })}</th>
+                <th>{t({ th: "การชำระเงิน", en: "Payment" })}</th>
+                <th style={{ textAlign: "right" }}>{t({ th: "รวม", en: "Total" })}</th>
+                <th>{t({ th: "เลขพัสดุ", en: "Tracking" })}</th>
               </tr>
             </thead>
             <tbody>
               {data.orders.map((o) => (
                 <tr key={o.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>{date(o.orderCreatedAt)}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{date(o.orderCreatedAt, lang)}</td>
                   <td style={{ fontFamily: "var(--font-mono, monospace)" }}>{o.externalOrderId}</td>
                   <td>{o.orderStatus ?? "—"}</td>
                   <td>{o.paymentStatus ?? "—"}</td>
@@ -196,27 +261,37 @@ function Detail({
         )}
       </TableFrame>
 
-      <h3 style={{ margin: "24px 0 10px" }}>PDPA erasure</h3>
+      <h3 style={{ margin: "24px 0 10px" }}>{t({ th: "ลบข้อมูลตาม PDPA", en: "PDPA erasure" })}</h3>
       <div style={{ ...frame, borderColor: erased ? "var(--border)" : "var(--danger)" }}>
         {erased ? (
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-            Erased on {dateTime(c.anonymizedAt)}. Their orders were kept — the law requires us to
-            retain tax records.
+            {t({
+              th: `ลบข้อมูลเมื่อ ${dateTime(c.anonymizedAt, lang)} · คำสั่งซื้อยังอยู่ — กฎหมายกำหนดให้เก็บหลักฐานภาษีไว้`,
+              en: `Erased on ${dateTime(c.anonymizedAt, lang)}. Their orders were kept — the law requires us to retain tax records.`,
+            })}
           </p>
         ) : (
           <>
             <p className="muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
-              Honours a &ldquo;delete my data&rdquo; request: blanks their name, phone, email and
-              LINE link, and closes the account. Their orders stay, because tax records must be
-              retained (Privacy Notice §5). <strong>This cannot be undone.</strong>
+              {t({
+                th: "ใช้ตอนลูกค้าขอให้ลบข้อมูล — ล้างชื่อ เบอร์โทร อีเมล และการเชื่อม LINE แล้วปิดบัญชี · คำสั่งซื้อยังอยู่ เพราะกฎหมายกำหนดให้เก็บหลักฐานภาษี (นโยบายความเป็นส่วนตัว ข้อ 5) ",
+                en: "Honours a “delete my data” request: blanks their name, phone, email and LINE link, and closes the account. Their orders stay, because tax records must be retained (Privacy Notice §5). ",
+              })}
+              <strong>{t({ th: "ทำแล้วย้อนกลับไม่ได้", en: "This cannot be undone." })}</strong>
             </p>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <input
                 style={{ ...inputS, width: 200 }}
-                placeholder={`Type ${ERASE_CONFIRM} to confirm`}
+                placeholder={t({
+                  th: `พิมพ์ ${ERASE_CONFIRM} เพื่อยืนยัน`,
+                  en: `Type ${ERASE_CONFIRM} to confirm`,
+                })}
                 value={eraseText}
                 onChange={(e) => setEraseText(e.target.value)}
-                aria-label={`Type ${ERASE_CONFIRM} to confirm erasure`}
+                aria-label={t({
+                  th: `พิมพ์ ${ERASE_CONFIRM} เพื่อยืนยันการลบข้อมูล`,
+                  en: `Type ${ERASE_CONFIRM} to confirm erasure`,
+                })}
               />
               <button
                 type="button"
@@ -224,7 +299,7 @@ function Detail({
                 disabled={busy || eraseText !== ERASE_CONFIRM}
                 onClick={erase}
               >
-                Erase customer data
+                {t({ th: "ลบข้อมูลลูกค้า", en: "Erase customer data" })}
               </button>
             </div>
           </>
@@ -251,6 +326,8 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 
 export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
   const [q, setQ] = useState("");
   const [list, setList] = useState<StorefrontCustomerListItem[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -261,10 +338,21 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
     setRecalcing(true);
     try {
       const n = await recalcAllCustomerCredit();
-      toast(`อัปเดตเครดิตแล้ว ${n} ราย`, "success");
+      toast(
+        t({
+          th: `อัปเดตเครดิตแล้ว ${n} ราย`,
+          en: `Credit updated for ${n} customer${n === 1 ? "" : "s"}`,
+        }),
+        "success",
+      );
       load(q);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Recalculate failed", "error");
+      toast(
+        e instanceof Error
+          ? e.message
+          : t({ th: "คำนวณเครดิตใหม่ไม่สำเร็จ", en: "Recalculate failed" }),
+        "error",
+      );
     } finally {
       setRecalcing(false);
     }
@@ -275,16 +363,21 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
       setLoading(true);
       searchStorefrontCustomers(term)
         .then(setList)
-        .catch((e: unknown) => toast(e instanceof Error ? e.message : "Load failed", "error"))
+        .catch((e: unknown) =>
+          toast(
+            e instanceof Error ? e.message : t({ th: "โหลดข้อมูลไม่สำเร็จ", en: "Load failed" }),
+            "error",
+          ),
+        )
         .finally(() => setLoading(false));
     },
-    [toast],
+    [toast, t],
   );
 
   // Debounced so typing a phone number doesn't fire a request per keystroke.
   useEffect(() => {
-    const t = setTimeout(() => load(q), 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => load(q), 250);
+    return () => clearTimeout(timer);
   }, [q, load]);
 
   if (selected) {
@@ -294,8 +387,11 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
   return (
     <main>
       <PageHeader
-        title="AirPlus customers"
-        subtitle="Online shop accounts — sign-up date, consent, and what they've bought."
+        title={t({ th: "ลูกค้า AirPlus", en: "AirPlus customers" })}
+        subtitle={t({
+          th: "บัญชีลูกค้าหน้าร้านออนไลน์ — วันที่สมัคร การยินยอม และสิ่งที่เคยซื้อ",
+          en: "Online shop accounts — sign-up date, consent, and what they've bought.",
+        })}
       />
       {tabs}
       {/* 14px below the tabs — the same gap Shop info leaves between its switcher and the card. */}
@@ -311,10 +407,16 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
       >
         <input
           style={{ ...inputS, width: 320 }}
-          placeholder="Search User ID, name, phone, or email"
+          placeholder={t({
+            th: "ค้นหารหัสผู้ใช้ ชื่อ เบอร์โทร หรืออีเมล",
+            en: "Search User ID, name, phone, or email",
+          })}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          aria-label="Search AirPlus customers by User ID, name, phone, or email"
+          aria-label={t({
+            th: "ค้นหาลูกค้า AirPlus จากรหัสผู้ใช้ ชื่อ เบอร์โทร หรืออีเมล",
+            en: "Search AirPlus customers by User ID, name, phone, or email",
+          })}
         />
         {/* One-shot backfill: recompute every customer's credit + tier with the current rules. */}
         <button
@@ -322,32 +424,39 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
           className="btn-soft btn-sm"
           disabled={recalcing}
           onClick={() => void recalcAll()}
-          title="Recompute every customer's credit + tier with the current rules"
+          title={t({
+            th: "คำนวณเครดิตและระดับของลูกค้าทุกคนใหม่ด้วยกติกาปัจจุบัน",
+            en: "Recompute every customer's credit + tier with the current rules",
+          })}
         >
-          {recalcing ? "กำลังอัปเดต…" : "อัปเดตเครดิตทั้งหมด"}
+          {recalcing
+            ? t({ th: "กำลังอัปเดต…", en: "Updating…" })
+            : t({ th: "อัปเดตเครดิตทั้งหมด", en: "Update every credit" })}
         </button>
       </div>
       <TableFrame>
         {loading ? (
           <div className="muted" style={{ padding: 12 }}>
-            Loading…
+            {t({ th: "กำลังโหลด…", en: "Loading…" })}
           </div>
         ) : list.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center" }}>
             <div className="empty-icon">🛒</div>
-            {q ? "No matching customers." : "No AirPlus accounts yet."}
+            {q
+              ? t({ th: "ไม่พบลูกค้าที่ตรงกับที่ค้นหา", en: "No matching customers." })
+              : t({ th: "ยังไม่มีบัญชีลูกค้า AirPlus", en: "No AirPlus accounts yet." })}
           </div>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>User ID</th>
-                <th>Customer</th>
-                <th>Signed up</th>
-                <th>Consent</th>
-                <th>Orders</th>
-                <th style={{ textAlign: "right" }}>Spent</th>
-                <th>Last order</th>
+                <th>{t({ th: "รหัสผู้ใช้", en: "User ID" })}</th>
+                <th>{t({ th: "ลูกค้า", en: "Customer" })}</th>
+                <th>{t({ th: "สมัครเมื่อ", en: "Signed up" })}</th>
+                <th>{t({ th: "การยินยอม", en: "Consent" })}</th>
+                <th>{t({ th: "คำสั่งซื้อ", en: "Orders" })}</th>
+                <th style={{ textAlign: "right" }}>{t({ th: "ยอดซื้อรวม", en: "Spent" })}</th>
+                <th>{t({ th: "ซื้อล่าสุด", en: "Last order" })}</th>
               </tr>
             </thead>
             <tbody>
@@ -356,27 +465,32 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
                   key={c.id}
                   style={{ cursor: "pointer" }}
                   onClick={() => setSelected(c.id)}
-                  title="Open customer"
+                  title={t({ th: "เปิดข้อมูลลูกค้า", en: "Open customer" })}
                 >
                   <td style={{ whiteSpace: "nowrap", fontFamily: "var(--font-mono, monospace)" }}>
                     {c.customerCode ?? "—"}
                   </td>
                   <td>
-                    <div style={tableText.body2}>{c.name || "(no name yet)"}</div>
+                    <div style={tableText.body2}>
+                      {c.name || t({ th: "(ยังไม่มีชื่อ)", en: "(no name yet)" })}
+                    </div>
                     <div style={tableText.subtitle}>
                       {c.phone}
                       {c.lineLinked ? " · LINE" : ""}
                     </div>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{date(c.createdAt)}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{date(c.createdAt, lang)}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
-                    <ConsentPill at={c.marketingConsentAt} label="Marketing" />
+                    <ConsentPill
+                      at={c.marketingConsentAt}
+                      label={t({ th: "รับข่าวสาร", en: "Marketing" })}
+                    />
                   </td>
                   <td>{c.orderCount}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {formatBahtTrim(c.spentSatang)}
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>{date(c.lastOrderAt)}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{date(c.lastOrderAt, lang)}</td>
                 </tr>
               ))}
             </tbody>
