@@ -542,6 +542,19 @@ tbody tr:hover {
   align-items: center;
   gap: 6px;
 }
+/* The copy icon belongs to the code beside it, not to the row (owner, 27 Aug 2026). `.icon-btn`
+   carries the muted grey every other icon button uses and the global 14px button size, both of
+   which made this one louder and taller than the 12px faint code it sits against. Inheriting both
+   ties it to its own line: `font-size: inherit` is what makes the `1em` below resolve to the code's
+   size rather than the button's. Scoped here, so no other icon button in the admin moves. */
+.wl-id-inline .icon-btn {
+  color: inherit;
+  font-size: inherit;
+}
+.wl-id-inline .icon-btn svg {
+  width: 1em;
+  height: 1em;
+}
 
 /* The dashboard's four order-status counts. A class rather than an inline style so the phone can
    have a say — an inline grid-template-columns cannot be overridden by a media query. */
