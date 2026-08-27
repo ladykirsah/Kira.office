@@ -271,6 +271,8 @@ const CLEARED = [
   "app/scan",
   "app/payment",
   "app/settings/shop",
+  "app/settings/AttributeManager.tsx",
+  "app/settings/attributes",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -330,6 +332,15 @@ const DELIBERATE: Record<string, Exception> = {
   // app's own toggle does), and each half's placeholder is an example OF that language. There is
   // nothing here to translate: translating the Thai example into English would put it under the
   // English field, where it is already wrong.
+  // Every taxonomy value is stored under BOTH a Thai and an English name, edited in two fields
+  // side by side. Each field's placeholder is written in the language that field takes, and the
+  // saved Thai value is tagged "ไทย:" so a reader can tell the two halves apart. Same shape as the
+  // shop-info editor below.
+  "app/settings/AttributeManager.tsx": {
+    reason: "side-by-side Thai/English name fields, each marked in its own language",
+    // Reported as the whole attribute, which is what the exception has to match.
+    texts: ['placeholder="ชื่อภาษาไทย"', 'placeholder="English name"', "ไทย:"],
+  },
   "app/settings/shop/page.tsx": {
     reason: "a side-by-side Thai/English editor for the shop's own text",
     texts: [
