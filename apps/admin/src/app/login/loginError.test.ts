@@ -3,6 +3,7 @@ import { errorFor, type LoginError } from "./loginError";
 
 const KEY_FAILED: LoginError = { door: "key", text: "That key does not open this." };
 const FORM_FAILED: LoginError = { door: "form", text: "Wrong PIN." };
+const OWNER_FAILED: LoginError = { door: "owner", text: "Only the shop owner's email." };
 
 describe("errorFor", () => {
   it("given nothing has failed > then neither door says anything", () => {
@@ -25,4 +26,14 @@ describe("errorFor", () => {
 
   it("given the everyday form refused > then the key section stays silent", () =>
     expect(errorFor("key", FORM_FAILED)).toBeNull());
+
+  /**
+   * The owner link appears BELOW the Sign in button, so its verdict in the form's slot landed
+   * above the button — separated from the link that raised it by the button itself.
+   */
+  it("given the owner link refused > then it says so, and the other two stay silent", () => {
+    expect(errorFor("owner", OWNER_FAILED)).toBe("Only the shop owner's email.");
+    expect(errorFor("form", OWNER_FAILED)).toBeNull();
+    expect(errorFor("key", OWNER_FAILED)).toBeNull();
+  });
 });

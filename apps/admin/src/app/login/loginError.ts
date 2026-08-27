@@ -11,8 +11,14 @@
  * An error therefore carries the door it came from, and each door shows only its own.
  */
 
-/** `form` is the everyday card — the PIN, the email/password, and the doors beside them. */
-export type LoginDoor = "form" | "key";
+/**
+ * `form` is the everyday card — the PIN and the email/password.
+ * `key` is the emergency key, under a rule at the foot of the card.
+ * `owner` is the "I'm the shop owner" link, which appears BELOW the Sign in button once the
+ *   everyday form has refused — so its verdict, written into the form's slot, landed above the
+ *   button while the link that raised it sat below (owner, 27 Aug 2026).
+ */
+export type LoginDoor = "form" | "key" | "owner";
 
 export interface LoginError {
   door: LoginDoor;
