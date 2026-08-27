@@ -7,6 +7,7 @@ import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
 import { ExpenseActionsMenu } from "./ExpenseActionsMenu";
+import { useT } from "../LangProvider";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 
@@ -34,6 +35,7 @@ export function ExpenseRows({
   onDeleted: (id: string) => void;
 }) {
   const toast = useToast();
+  const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [conversion, setConversion] = useState("");
   const [amount, setAmount] = useState("");
@@ -62,7 +64,7 @@ export function ExpenseRows({
         note: e.note, // preserved — not shown/edited inline
         occurredAt: new Date(`${date}T00:00:00`).getTime(),
       });
-      toast("Expense updated", "success");
+      toast(t({ th: "แก้ไขค่าใช้จ่ายแล้ว", en: "Expense updated" }), "success");
       setEditingId(null);
       onEdited(updated);
     } catch (err) {
@@ -84,7 +86,7 @@ export function ExpenseRows({
                 <input
                   value={conversion}
                   onChange={(ev) => setConversion(ev.target.value)}
-                  aria-label="Conversion"
+                  aria-label={t({ th: "รายการ", en: "Conversion" })}
                   style={{ ...inputS, width: "100%" }}
                 />
               ) : (
@@ -103,7 +105,7 @@ export function ExpenseRows({
                   onChange={(ev) => setAmount(ev.target.value)}
                   inputMode="decimal"
                   placeholder="0"
-                  aria-label="Amount in baht"
+                  aria-label={t({ th: "จำนวนเงินเป็นบาท", en: "Amount in baht" })}
                   style={{ ...inputS, width: "100%" }}
                 />
               ) : (
@@ -117,7 +119,7 @@ export function ExpenseRows({
                   type="date"
                   value={date}
                   onChange={(ev) => setDate(ev.target.value)}
-                  aria-label="Expense date"
+                  aria-label={t({ th: "วันที่ของค่าใช้จ่าย", en: "Expense date" })}
                   style={{ ...inputS, width: "100%" }}
                 />
               ) : (
@@ -125,7 +127,7 @@ export function ExpenseRows({
               )}
             </td>
             <td>
-              <span className="pill bad">Expense</span>
+              <span className="pill bad">{t({ th: "ค่าใช้จ่าย", en: "Expense" })}</span>
             </td>
             {/* Actions — Save / Cancel while editing, else the Actions ▾ menu */}
             <td>
@@ -137,7 +139,7 @@ export function ExpenseRows({
                     disabled={!valid || busy}
                     onClick={() => save(e)}
                   >
-                    Save
+                    {t({ th: "บันทึก", en: "Save" })}
                   </button>
                   <button
                     type="button"
@@ -145,7 +147,7 @@ export function ExpenseRows({
                     disabled={busy}
                     onClick={() => setEditingId(null)}
                   >
-                    Cancel
+                    {t({ th: "ยกเลิก", en: "Cancel" })}
                   </button>
                 </div>
               ) : (

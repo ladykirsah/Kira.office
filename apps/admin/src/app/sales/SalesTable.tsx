@@ -3,24 +3,25 @@
 import type { CSSProperties } from "react";
 import { type SaleRow, type ExpenseRow } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
-import { saleStatusPill, saleTypeBadge } from "@/lib/badges";
+import { saleStatusPill, saleStatusLabel, saleTypeBadge } from "@/lib/badges";
 import { sumSaleMoney } from "@/lib/salesSummary";
 import { tableText } from "@/lib/tableText";
 import { SalesActionsMenu } from "./SalesActionsMenu";
 import { ExpenseRows } from "./ExpenseRows";
+import { useT } from "../LangProvider";
+import type { Phrase } from "@/lib/lang";
 
 /** The Onsite sales rows. Search / sort / filter / period live in the page's table frame around it. */
 /** Written once: the `th` reads them, every `td` carries the matching one as `data-label` for the
- *  phone's card layout. Plain strings — this page has not been through the bilingual sweep, and a
- *  card must say exactly what the header says, not translate it. */
+ *  phone's card layout — so a card always says exactly what the header above it says. */
 const COLUMN = {
-  job: "Job",
-  sales: "Sales",
-  profit: "Profit",
-  date: "Date",
-  status: "Status",
-  action: "Action",
-};
+  job: { th: "งาน", en: "Job" },
+  sales: { th: "ยอดขาย", en: "Sales" },
+  profit: { th: "กำไร", en: "Profit" },
+  date: { th: "วันที่", en: "Date" },
+  status: { th: "สถานะ", en: "Status" },
+  action: { th: "จัดการ", en: "Action" },
+} satisfies Record<string, Phrase>;
 
 export function SalesTable({
   sales,
@@ -34,10 +35,12 @@ export function SalesTable({
   onExpenseEdited?: (e: ExpenseRow) => void;
   onExpenseDeleted?: (id: string) => void;
 }) {
+  const t = useT();
   if (sales.length === 0 && expenses.length === 0) {
     return (
       <div className="empty">
-        <div className="empty-icon">💰</div>No sales for this view.
+        <div className="empty-icon">💰</div>
+        {t({ th: "ไม่มีรายการขายในมุมมองนี้", en: "No sales for this view." })}
       </div>
     );
   }
@@ -62,12 +65,12 @@ export function SalesTable({
         </colgroup>
         <thead>
           <tr>
-            <th>{COLUMN.job}</th>
-            <th>{COLUMN.sales}</th>
-            <th>{COLUMN.profit}</th>
-            <th>{COLUMN.date}</th>
-            <th>{COLUMN.status}</th>
-            <th>{COLUMN.action}</th>
+            <th>{t(COLUMN.job)}</th>
+            <th>{t(COLUMN.sales)}</th>
+            <th>{t(COLUMN.profit)}</th>
+            <th>{t(COLUMN.date)}</th>
+            <th>{t(COLUMN.status)}</th>
+            <th>{t(COLUMN.action)}</th>
           </tr>
         </thead>
         <tbody>
@@ -77,21 +80,23 @@ export function SalesTable({
               <tr key={s.id}>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {type ? <span className={`pill ${type.pill}`}>{type.label}</span> : "—"}
+                    {type ? <span className={`pill ${type.pill}`}>{t(type.label)}</span> : "—"}
                     <span style={{ ...tableText.body2, fontFamily: "var(--font-mono, monospace)" }}>
                       {s.saleNumber ?? <span className="muted">—</span>}
                     </span>
                   </div>
                 </td>
-                <td data-label={COLUMN.sales}>{formatBahtTrim(s.grandTotalSatang)}</td>
-                <td data-label={COLUMN.profit}>{formatBahtTrim(s.grossProfitSatang)}</td>
-                <td data-label={COLUMN.date} style={{ whiteSpace: "nowrap" }}>
+                <td data-label={t(COLUMN.sales)}>{formatBahtTrim(s.grandTotalSatang)}</td>
+                <td data-label={t(COLUMN.profit)}>{formatBahtTrim(s.grossProfitSatang)}</td>
+                <td data-label={t(COLUMN.date)} style={{ whiteSpace: "nowrap" }}>
                   <div style={tableText.body2}>
                     {new Date(s.createdAt).toLocaleDateString("th-TH")}
                   </div>
                 </td>
-                <td data-label={COLUMN.status}>
-                  <span className={`pill ${saleStatusPill(s.saleStatus)}`}>{s.saleStatus}</span>
+                <td data-label={t(COLUMN.status)}>
+                  <span className={`pill ${saleStatusPill(s.saleStatus)}`}>
+                    {t(saleStatusLabel(s.saleStatus))}
+                  </span>
                 </td>
                 <td>
                   <SalesActionsMenu
@@ -110,9 +115,9 @@ export function SalesTable({
           />
           {/* Total row — Sales = Σ bill totals, Profit = Σ gross profit − expenses (net). */}
           <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
-            <td>Total</td>
-            <td data-label={COLUMN.sales}>{formatBahtTrim(totals.salesSatang)}</td>
-            <td data-label={COLUMN.profit}>
+            <td>{t({ th: "รวม", en: "Total" })}</td>
+            <td data-label={t(COLUMN.sales)}>{formatBahtTrim(totals.salesSatang)}</td>
+            <td data-label={t(COLUMN.profit)}>
               {formatBahtTrim(totals.profitSatang - expenseSatang)}
             </td>
             <td />

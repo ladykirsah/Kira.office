@@ -10,6 +10,7 @@ import { TableFrame } from "../TableFrame";
 import { OrderActionsMenu } from "../orders/OrderActionsMenu";
 import { ExpenseRows } from "./ExpenseRows";
 import { useT } from "../LangProvider";
+import type { Phrase } from "@/lib/lang";
 
 const dateTH = (ms: number) => new Date(ms).toLocaleDateString("th-TH");
 const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
@@ -20,16 +21,15 @@ const mono = { fontFamily: "var(--font-mono, monospace)" } as const;
  * status / carrier / tracking are edited. Finance stays a money view; fulfilment lives on /orders.
  */
 /** Written once: the `th` reads them, every `td` carries the matching one as `data-label` for the
- *  phone's card layout. Plain strings — this page has not been through the bilingual sweep, and a
- *  card must say exactly what the header says, not translate it. */
+ *  phone's card layout — so a card always says exactly what the header above it says. */
 const COLUMN = {
-  orderId: "Order ID",
-  sales: "Sales",
-  profit: "Profit",
-  date: "Date",
-  status: "Status",
-  action: "Action",
-};
+  orderId: { th: "เลขคำสั่งซื้อ", en: "Order ID" },
+  sales: { th: "ยอดขาย", en: "Sales" },
+  profit: { th: "กำไร", en: "Profit" },
+  date: { th: "วันที่", en: "Date" },
+  status: { th: "สถานะ", en: "Status" },
+  action: { th: "จัดการ", en: "Action" },
+} satisfies Record<string, Phrase>;
 
 export function AirPlusOrders({
   orders,
@@ -47,7 +47,8 @@ export function AirPlusOrders({
   if (orders.length === 0 && expenses.length === 0) {
     return (
       <div className="empty">
-        <div className="empty-icon">☁️</div>No AirPlus orders in this period.
+        <div className="empty-icon">☁️</div>
+        {t({ th: "ไม่มีคำสั่งซื้อ AirPlus ในช่วงนี้", en: "No AirPlus orders in this period." })}
       </div>
     );
   }
@@ -72,12 +73,12 @@ export function AirPlusOrders({
         </colgroup>
         <thead>
           <tr>
-            <th>{COLUMN.orderId}</th>
-            <th>{COLUMN.sales}</th>
-            <th>{COLUMN.profit}</th>
-            <th>{COLUMN.date}</th>
-            <th>{COLUMN.status}</th>
-            <th>{COLUMN.action}</th>
+            <th>{t(COLUMN.orderId)}</th>
+            <th>{t(COLUMN.sales)}</th>
+            <th>{t(COLUMN.profit)}</th>
+            <th>{t(COLUMN.date)}</th>
+            <th>{t(COLUMN.status)}</th>
+            <th>{t(COLUMN.action)}</th>
           </tr>
         </thead>
         <tbody>
@@ -92,7 +93,7 @@ export function AirPlusOrders({
                   <div style={{ ...tableText.body2, ...mono }}>{o.externalOrderId}</div>
                 </td>
                 {/* Sales = goods revenue the customer paid (shipping excluded) */}
-                <td data-label={COLUMN.sales}>
+                <td data-label={t(COLUMN.sales)}>
                   {o.salesSatang != null ? (
                     formatBahtTrim(o.salesSatang)
                   ) : (
@@ -100,7 +101,7 @@ export function AirPlusOrders({
                   )}
                 </td>
                 {/* Profit = Sales − cost (own site, known cost) */}
-                <td data-label={COLUMN.profit}>
+                <td data-label={t(COLUMN.profit)}>
                   {o.profitSatang != null ? (
                     formatBahtTrim(o.profitSatang)
                   ) : (
@@ -108,10 +109,10 @@ export function AirPlusOrders({
                   )}
                 </td>
                 {/* Ordered date */}
-                <td data-label={COLUMN.date} style={{ whiteSpace: "nowrap" }}>
+                <td data-label={t(COLUMN.date)} style={{ whiteSpace: "nowrap" }}>
                   <div style={tableText.body2}>{dateTH(o.orderCreatedAt ?? o.importedAt)}</div>
                 </td>
-                <td data-label={COLUMN.status}>
+                <td data-label={t(COLUMN.status)}>
                   <span className={`pill ${badge.pill}`}>{t(badge.label)}</span>
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
@@ -128,9 +129,9 @@ export function AirPlusOrders({
           />
           {/* Total row — Σ Sales and net Profit (orders − expenses), matching the Summary table. */}
           <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
-            <td>Total</td>
-            <td data-label={COLUMN.sales}>{formatBahtTrim(totals.salesSatang)}</td>
-            <td data-label={COLUMN.profit}>
+            <td>{t({ th: "รวม", en: "Total" })}</td>
+            <td data-label={t(COLUMN.sales)}>{formatBahtTrim(totals.salesSatang)}</td>
+            <td data-label={t(COLUMN.profit)}>
               {formatBahtTrim(totals.profitSatang - expenseSatang)}
             </td>
             <td />

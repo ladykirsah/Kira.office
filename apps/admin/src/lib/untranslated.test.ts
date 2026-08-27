@@ -234,6 +234,34 @@ describe("findUntranslated", () => {
     expect(findUntranslated(src)).toEqual([]);
   });
 
+  /**
+   * The same mis-pairing as above, but with two EMPTY quoted strings rather than two templates:
+   * `x.trim() !== "" && Number.isFinite(n) && n > 0 && date !== ""`. Everything between the second
+   * quote and the third is the condition itself, and it starts with a capital, so it read as a
+   * sentence. A condition is never a sentence — it is settled by the operators in it.
+   */
+  it("says nothing about the condition between two empty strings on one line", () => {
+    const src =
+      'const valid = conversion.trim() !== "" && Number.isFinite(amountSatang) && amountSatang > 0 && date !== "";';
+    expect(findUntranslated(src)).toEqual([]);
+  });
+
+  /**
+   * A NAME with its count behind it — `` `Den Air Service (${n})` `` — is still just the name. The
+   * hole is taken out first, and the bracket pair it leaves empty goes with it, so what remains is
+   * the name the NAMES list already knows not to translate.
+   */
+  it("says nothing about a name with a count after it", () => {
+    expect(findUntranslated("label={`Den Air Service (${s.salesCount})`}")).toEqual([]);
+    expect(findUntranslated("label={`AirPlus (${orders.length})`}")).toEqual([]);
+  });
+
+  it("still reports an English word with a count after it", () => {
+    expect(findUntranslated("label={`Summary (${total})`}").map((f) => f.text)).toEqual([
+      "Summary (${total})",
+    ]);
+  });
+
   it("says nothing about the key of an object, which no one reads", () => {
     expect(findUntranslated(`headers: { "Content-Type": "application/json" }`)).toEqual([]);
   });

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { deleteExpense } from "@/lib/api";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 /**
  * Per-row "Actions ▾" dropdown for an expense: Edit (opens the inline editor via onEdit) and Delete
@@ -23,6 +24,7 @@ export function ExpenseActionsMenu({
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const t = useT();
 
   function close() {
     setOpen(false);
@@ -49,7 +51,7 @@ export function ExpenseActionsMenu({
     setBusy(true);
     try {
       await deleteExpense(expenseId);
-      toast("Expense deleted", "success");
+      toast(t({ th: "ลบค่าใช้จ่ายแล้ว", en: "Expense deleted" }), "success");
       onDeleted(expenseId);
     } catch (err) {
       toast((err as Error).message, "error");
@@ -67,7 +69,7 @@ export function ExpenseActionsMenu({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        Actions
+        {t({ th: "จัดการ", en: "Actions" })}
         <svg
           width="12"
           height="12"
@@ -95,19 +97,19 @@ export function ExpenseActionsMenu({
               onEdit();
             }}
           >
-            Edit
+            {t({ th: "แก้ไข", en: "Edit" })}
           </button>
           {armed ? (
             <div className="actions-confirm">
               <span className="muted" style={{ fontSize: 12 }}>
-                Delete this expense?
+                {t({ th: "ลบค่าใช้จ่ายนี้?", en: "Delete this expense?" })}
               </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button type="button" className="btn-danger" disabled={busy} onClick={doDelete}>
-                  Delete
+                  {t({ th: "ลบ", en: "Delete" })}
                 </button>
                 <button type="button" disabled={busy} onClick={() => setArmed(false)}>
-                  Cancel
+                  {t({ th: "ยกเลิก", en: "Cancel" })}
                 </button>
               </div>
             </div>
@@ -118,7 +120,7 @@ export function ExpenseActionsMenu({
               role="menuitem"
               onClick={() => setArmed(true)}
             >
-              Delete
+              {t({ th: "ลบ", en: "Delete" })}
             </button>
           )}
         </div>

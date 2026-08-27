@@ -5,7 +5,9 @@ import { EXPENSE_CHANNELS, type ExpenseChannel } from "@l-shopee/core";
 import { type CreateExpenseInput } from "@/lib/api";
 import { formatBahtTrim } from "@/lib/format";
 import { inputS } from "@/lib/inputStyles";
+import type { Phrase } from "@/lib/lang";
 import { useToast } from "../ToastProvider";
+import { useT } from "../LangProvider";
 
 const CHANNEL_LABEL: Record<ExpenseChannel, string> = {
   onsite: "Den Air Service",
@@ -19,6 +21,12 @@ function msToISO(ms: number): string {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
+
+/** The two field words the label and its aria-label share. */
+const FIELD = {
+  conversion: { th: "รายการ", en: "Conversion" },
+  note: { th: "หมายเหตุ (ไม่บังคับ)", en: "Note (optional)" },
+} satisfies Record<string, Phrase>;
 
 const fieldLabel = {
   fontSize: 12,
@@ -45,8 +53,8 @@ export interface ExpenseFormValue {
  */
 export function ExpenseForm({
   initial,
-  title = "Add expense",
-  submitLabel = "Add expense",
+  title,
+  submitLabel,
   onSubmit,
   onCancel,
 }: {
@@ -57,6 +65,8 @@ export function ExpenseForm({
   onCancel?: () => void;
 }) {
   const toast = useToast();
+  const t = useT();
+  const addExpense = t({ th: "เพิ่มค่าใช้จ่าย", en: "Add expense" });
   const [channel, setChannel] = useState<ExpenseChannel>(initial?.channel ?? "onsite");
   const [conversion, setConversion] = useState(initial?.conversion ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amountSatang / 100) : "");
@@ -79,7 +89,12 @@ export function ExpenseForm({
         note: note.trim() || null,
         occurredAt: new Date(`${date}T00:00:00`).getTime(),
       });
-      toast(initial ? "Expense updated" : "Expense added", "success");
+      toast(
+        initial
+          ? t({ th: "แก้ไขค่าใช้จ่ายแล้ว", en: "Expense updated" })
+          : t({ th: "เพิ่มค่าใช้จ่ายแล้ว", en: "Expense added" }),
+        "success",
+      );
       if (!initial) {
         setConversion("");
         setAmount("");
@@ -126,9 +141,9 @@ export function ExpenseForm({
         marginTop: onCancel ? 0 : 14,
       }}
     >
-      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{title}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>{title ?? addExpense}</div>
 
-      <span style={fieldLabel}>1 · Which channel?</span>
+      <span style={fieldLabel}>{t({ th: "1 · ช่องทางไหน?", en: "1 · Which channel?" })}</span>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {EXPENSE_CHANNELS.map(seg)}
       </div>
@@ -141,43 +156,46 @@ export function ExpenseForm({
         }}
       >
         <div>
-          <span style={fieldLabel}>Conversion</span>
+          <span style={fieldLabel}>{t(FIELD.conversion)}</span>
           <input
             value={conversion}
             onChange={(e) => setConversion(e.target.value)}
-            placeholder="e.g. AI package, refund DA-25080203"
-            aria-label="Conversion"
+            placeholder={t({
+              th: "เช่น แพ็กเกจ AI, คืนเงิน DA-25080203",
+              en: "e.g. AI package, refund DA-25080203",
+            })}
+            aria-label={t(FIELD.conversion)}
             style={{ ...inputS, width: "100%" }}
           />
         </div>
         <div>
-          <span style={fieldLabel}>Amount (฿)</span>
+          <span style={fieldLabel}>{t({ th: "จำนวนเงิน (฿)", en: "Amount (฿)" })}</span>
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
             placeholder="0"
-            aria-label="Amount in baht"
+            aria-label={t({ th: "จำนวนเงินเป็นบาท", en: "Amount in baht" })}
             style={{ ...inputS, width: "100%" }}
           />
         </div>
         <div>
-          <span style={fieldLabel}>Date</span>
+          <span style={fieldLabel}>{t({ th: "วันที่", en: "Date" })}</span>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            aria-label="Expense date"
+            aria-label={t({ th: "วันที่ของค่าใช้จ่าย", en: "Expense date" })}
             style={{ ...inputS, width: "100%" }}
           />
         </div>
         <div>
-          <span style={fieldLabel}>Note (optional)</span>
+          <span style={fieldLabel}>{t(FIELD.note)}</span>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g. monthly plan"
-            aria-label="Note"
+            placeholder={t({ th: "เช่น แพ็กเกจรายเดือน", en: "e.g. monthly plan" })}
+            aria-label={t(FIELD.note)}
             style={{ ...inputS, width: "100%" }}
           />
         </div>
@@ -196,20 +214,26 @@ export function ExpenseForm({
         <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
           {amountValid ? (
             <>
-              Subtracts{" "}
+              {t({ th: "หัก", en: "Subtracts" })}{" "}
               <span style={{ color: "var(--danger)", fontWeight: 600 }}>
                 {formatBahtTrim(amountSatang)}
               </span>{" "}
-              from {CHANNEL_LABEL[channel]} Profit.
+              {t({
+                th: `ออกจากกำไรของ ${CHANNEL_LABEL[channel]}`,
+                en: `from ${CHANNEL_LABEL[channel]} Profit.`,
+              })}
             </>
           ) : (
-            <>Lowers {CHANNEL_LABEL[channel]}&rsquo;s net Profit and lands in its table.</>
+            t({
+              th: `ลดกำไรสุทธิของ ${CHANNEL_LABEL[channel]} และจะไปอยู่ในตารางของช่องทางนั้น`,
+              en: `Lowers ${CHANNEL_LABEL[channel]}\u2019s net Profit and lands in its table.`,
+            })
           )}
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           {onCancel && (
             <button type="button" className="btn-sm" disabled={busy} onClick={onCancel}>
-              Cancel
+              {t({ th: "ยกเลิก", en: "Cancel" })}
             </button>
           )}
           <button
@@ -218,7 +242,7 @@ export function ExpenseForm({
             disabled={!valid || busy}
             onClick={submit}
           >
-            {submitLabel}
+            {submitLabel ?? addExpense}
           </button>
         </div>
       </div>
