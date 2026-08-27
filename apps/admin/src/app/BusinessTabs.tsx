@@ -1,6 +1,7 @@
 "use client";
 
 import { SHOP_PROFILES, SHOP_PROFILE_LABELS, type ShopProfile } from "@l-shopee/core";
+import { useT } from "./LangProvider";
 
 /**
  * The Den Air Service / AirPlus switcher — the one implementation, shared by every page that shows
@@ -26,10 +27,11 @@ export function BusinessTabs({
   /** Fade the profile you're not on, to show the switcher is currently inert. */
   dimInactive?: boolean;
 }) {
+  const t = useT();
   return (
     <div
       role="tablist"
-      aria-label="Business profile"
+      aria-label={t({ th: "โปรไฟล์ธุรกิจ", en: "Business profile" })}
       style={{ display: "flex", gap: 8, marginTop: 14 }}
     >
       {SHOP_PROFILES.map((p) => {

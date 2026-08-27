@@ -278,6 +278,16 @@ const CLEARED = [
   "app/settings/services",
   "app/settings/campaigns",
   "app/settings/banners",
+  // The frame around every screen, and the two pages that replace one when something goes wrong.
+  "app/layout.tsx",
+  "app/error.tsx",
+  "app/not-found.tsx",
+  "app/BusinessTabs.tsx",
+  "app/FilePickButton.tsx",
+  "app/MonthYearPicker.tsx",
+  // Route handlers rather than screens, but watched all the same — a message added here later
+  // would be a message on a screen. Their HTTP plumbing is excused by name below.
+  "app/api/staff",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -344,6 +354,10 @@ const DELIBERATE: Record<string, Exception> = {
   // Car brands and models carry the same two-language names as any other taxonomy value, edited
   // in the same two fields — see AttributeManager below for why these stay.
   // A service is stored under a Thai name and an English one, typed into two fields side by side.
+  // Route handlers, not screens. What the detector sees here is HTTP: a Cloudflare header name and
+  // the attributes of a Set-Cookie string. None of it is ever read by a person.
+  "app/api/staff/login/route.ts": { reason: "HTTP header and cookie attributes, not screen text" },
+  "app/api/staff/logout/route.ts": { reason: "the Set-Cookie string that clears the session" },
   "app/settings/services/page.tsx": {
     reason: "side-by-side Thai/English name fields, each marked in its own language",
     texts: ['placeholder="ชื่อบริการ (ไทย)"', 'placeholder="Service name (EN)"'],

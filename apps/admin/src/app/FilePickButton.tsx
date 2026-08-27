@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { useT } from "./LangProvider";
 
 /**
  * THE file picker for this admin (owner's brief, locked 2026-08-04).
@@ -26,6 +27,7 @@ export function FilePickButton({
   label: string;
   disabled?: boolean;
 }) {
+  const t = useT();
   const ref = useRef<HTMLInputElement>(null);
 
   return (
@@ -47,7 +49,7 @@ export function FilePickButton({
       >
         {/* Once something is chosen the button becomes the receipt for it — truncated, because a
             phone camera's filename is longer than the column it sits in. */}
-        ＋ {file ? file.name.slice(0, 18) : "Choose…"}
+        ＋ {file ? file.name.slice(0, 18) : t({ th: "เลือกไฟล์…", en: "Choose…" })}
       </button>
     </>
   );

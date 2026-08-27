@@ -49,6 +49,9 @@ const NAMES = [
   "Lazada",
   "Kira.office",
   "Den Air Service",
+  // The workshop's name as it is PRINTED — on a barcode label, and as the fallback when shop info
+  // has not loaded. A business's name is not translated.
+  "Den Air Service (Surin)",
   "Air+Plus",
   "AC on Sales",
 ];
