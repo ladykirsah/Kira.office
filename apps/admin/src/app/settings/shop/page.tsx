@@ -15,6 +15,8 @@ import { inputL } from "@/lib/inputStyles";
 import { SHOP_DEFAULTS } from "@/lib/shopDefaults";
 import { PageHeader } from "../../PageHeader";
 import { useToast } from "../../ToastProvider";
+import { useT } from "../../LangProvider";
+import type { Phrase } from "@/lib/lang";
 
 /** Trash outline icon (lucide-style), matching the services page's row-delete icon. */
 const TrashIcon = () => (
@@ -62,6 +64,44 @@ const valueStyle = {
 };
 const valueMuted = { ...valueStyle, color: "var(--text-muted)" };
 const taStyle = { width: "100%", fontFamily: "inherit" } as const;
+
+/* Edit mode and view mode mirror each other one-to-one, so every heading and field name below is
+   written ONCE and read by both. A section that said one thing in the form and another in the
+   view would be the easiest possible drift. */
+const SHOP_INFO: Phrase = { th: "ข้อมูลร้าน", en: "Shop info" };
+const SECTION: Record<string, Phrase> = {
+  branding: { th: "แบรนด์", en: "Branding" },
+  identity: { th: "ชื่อและที่อยู่ร้าน", en: "Shop identity" },
+  lineContact: { th: "ช่องทาง LINE", en: "LINE contact" },
+  quoteNote: { th: "หมายเหตุใบเสนอราคา", en: "Quotation note" },
+  qrCaption: { th: "ข้อความใต้ QR ติดต่อ", en: "Contact QR caption" },
+  payment: { th: "รับเงิน — บัญชีพร้อมเพย์", en: "Payment — PromptPay accounts" },
+};
+const LABEL: Record<string, Phrase> = {
+  logo: { th: "โลโก้", en: "Logo" },
+  contactQr: { th: "รูป QR ติดต่อ", en: "Contact QR image" },
+  shopName: { th: "ชื่อร้าน", en: "Shop name" },
+  address: { th: "ที่อยู่", en: "Address" },
+  qrCode: { th: "QR code", en: "QR code" },
+  lineUrl: { th: "ลิงก์ LINE OA", en: "LINE OA link" },
+  headline: { th: "หัวข้อ", en: "Headline" },
+  subtitle: { th: "ข้อความรอง", en: "Subtitle" },
+};
+const HINT: Record<string, Phrase> = {
+  logo: {
+    th: "PNG/JPG/WebP ไม่เกิน 5MB บันทึกทันที (ยังไม่ขึ้นบนบิล)",
+    en: "PNG/JPG/WebP, ≤5MB. Saved immediately. (Not on the bill yet.)",
+  },
+  contactQr: {
+    th: "PNG/JPG/WebP ไม่เกิน 5MB บันทึกทันที พิมพ์ลงบนใบเสนอราคา",
+    en: "PNG/JPG/WebP, ≤5MB. Saved immediately. Prints on the quotation.",
+  },
+  lineQr: {
+    th: "PNG/JPG/WebP ไม่เกิน 5MB บันทึกทันที เป็น QR ของ LINE OA ที่ลูกค้าสแกน",
+    en: "PNG/JPG/WebP, ≤5MB. Saved immediately. The LINE OA QR customers scan.",
+  },
+};
+const DEFAULT_LABEL: Phrase = { th: "ค่าเริ่มต้น", en: "Default" };
 const cardStyle = {
   border: "1px solid var(--border)",
   borderRadius: 12,
@@ -103,13 +143,19 @@ function ViewPair({
   thDefault?: string;
   hideLabel?: boolean;
 }) {
+  const t = useT();
   const usingDefault = !th && !!thDefault;
   return (
     <div style={{ marginBottom: 18 }}>
       {!hideLabel && <div style={editLabel}>{label}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
-          <div style={subLabel}>ไทย (Thai){usingDefault ? " · default" : ""}</div>
+          {/* Each half names its own language IN that language, exactly as the app's language
+              toggle does — the words below them are the shop's own Thai and English text. */}
+          <div style={subLabel}>
+            ไทย (Thai)
+            {usingDefault ? ` · ${t({ th: "ค่าเริ่มต้น", en: "default" })}` : ""}
+          </div>
           <div style={usingDefault ? valueMuted : valueStyle}>{th || thDefault || "—"}</div>
         </div>
         <div>
@@ -124,6 +170,7 @@ function ViewPair({
 /** View-mode image preview (logo / contact QR), or a muted "none" when unset. Mirrors editImage's
  * label + 76px frame so the Branding row matches edit mode. */
 function ViewImage({ label, imgKey }: { label: string; imgKey: string | null }) {
+  const t = useT();
   return (
     <div>
       <div style={editLabel}>{label}</div>
@@ -143,7 +190,9 @@ function ViewImage({ label, imgKey }: { label: string; imgKey: string | null }) 
         {imgKey ? (
           <img src={imageUrl(imgKey)} alt={label} style={{ maxWidth: "100%", maxHeight: "100%" }} />
         ) : (
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>none</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            {t({ th: "ไม่มี", en: "none" })}
+          </span>
         )}
       </div>
     </div>
@@ -151,6 +200,7 @@ function ViewImage({ label, imgKey }: { label: string; imgKey: string | null }) 
 }
 
 export default function ShopInfoPage() {
+  const t = useT();
   const toast = useToast();
   const [profile, setProfile] = useState<ShopProfile>("denair");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -183,12 +233,12 @@ export default function ShopInfoPage() {
   if (loadError) {
     return (
       <main>
-        <h1>Shop info</h1>
+        <h1>{t(SHOP_INFO)}</h1>
         <p role="alert" style={{ color: "var(--danger)" }}>
-          โหลดข้อมูลร้านไม่สำเร็จ — {loadError}
+          {t({ th: "โหลดข้อมูลร้านไม่สำเร็จ", en: "Could not load the shop info" })} — {loadError}
         </p>
         <button type="button" className="btn-primary btn-sm" onClick={() => load(profile)}>
-          ลองอีกครั้ง
+          {t({ th: "ลองอีกครั้ง", en: "Try again" })}
         </button>
       </main>
     );
@@ -197,8 +247,8 @@ export default function ShopInfoPage() {
   if (!info || !saved) {
     return (
       <main>
-        <h1>Shop info</h1>
-        <p className="muted">Loading…</p>
+        <h1>{t(SHOP_INFO)}</h1>
+        <p className="muted">{t({ th: "กำลังโหลด…", en: "Loading…" })}</p>
       </main>
     );
   }
@@ -219,7 +269,7 @@ export default function ShopInfoPage() {
       setSaved((s) => (s ? { ...s, ...text } : s));
       setEditing(false);
       setPayDraft(null);
-      toast("Shop info saved", "success");
+      toast(t({ th: "บันทึกข้อมูลร้านแล้ว", en: "Shop info saved" }), "success");
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -240,7 +290,8 @@ export default function ShopInfoPage() {
       const patch: Partial<ShopInfo> = slot === "logo" ? { logoKey: out.key } : { qrKey: out.key };
       setInfo((s) => (s ? { ...s, ...patch } : s));
       setSaved((s) => (s ? { ...s, ...patch } : s)); // already persisted server-side
-      toast(`${slot === "logo" ? "Logo" : "QR"} uploaded`, "success");
+      const what = slot === "logo" ? t(LABEL.logo) : "QR";
+      toast(t({ th: `อัปโหลด${what}แล้ว`, en: `${what} uploaded` }), "success");
     } catch (e) {
       toast((e as Error).message, "error");
     }
@@ -317,7 +368,9 @@ export default function ShopInfoPage() {
               style={{ maxWidth: "100%", maxHeight: "100%" }}
             />
           ) : (
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>none</span>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              {t({ th: "ไม่มี", en: "none" })}
+            </span>
           )}
         </div>
         <div>
@@ -326,7 +379,7 @@ export default function ShopInfoPage() {
           <FilePickButton
             file={null}
             accept="image/png,image/jpeg,image/webp"
-            label={`Upload ${label}`}
+            label={t({ th: `อัปโหลด${label}`, en: `Upload ${label}` })}
             onPick={(f) => upload(slot, f ?? undefined)}
           />
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{hint}</div>
@@ -343,22 +396,25 @@ export default function ShopInfoPage() {
   return (
     <main>
       <PageHeader
-        title="Shop info"
-        subtitle="Den Air Service and AirPlus are separate businesses — each keeps its own name, address, logo, LINE account and PromptPay. Pick a profile below; nothing is shared between them."
+        title={t(SHOP_INFO)}
+        subtitle={t({
+          th: "Den Air Service กับ AirPlus เป็นคนละธุรกิจกัน แต่ละร้านมีชื่อ ที่อยู่ โลโก้ บัญชี LINE และพร้อมเพย์ของตัวเอง เลือกโปรไฟล์ด้านล่าง ไม่มีอะไรใช้ร่วมกัน",
+          en: "Den Air Service and AirPlus are separate businesses — each keeps its own name, address, logo, LINE account and PromptPay. Pick a profile below; nothing is shared between them.",
+        })}
         action={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
             {editing ? (
               <>
                 <button type="button" onClick={cancel} disabled={busy}>
-                  Cancel
+                  {t({ th: "ยกเลิก", en: "Cancel" })}
                 </button>
                 <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-                  Save
+                  {t({ th: "บันทึก", en: "Save" })}
                 </button>
               </>
             ) : (
               <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
-                Edit
+                {t({ th: "แก้ไข", en: "Edit" })}
               </button>
             )}
           </div>
@@ -371,7 +427,7 @@ export default function ShopInfoPage() {
         value={profile}
         onChange={setProfile}
         disabled={editing || busy}
-        disabledTitle="Save or cancel first"
+        disabledTitle={t({ th: "บันทึกหรือยกเลิกก่อน", en: "Save or cancel first" })}
         dimInactive={editing}
       />
 
@@ -380,31 +436,20 @@ export default function ShopInfoPage() {
           <>
             {/* Branding (Logo + QR) — first, so the visual identity leads the form. */}
             <div style={sectionWrap}>
-              <div style={sectionHead}>Branding</div>
+              <div style={sectionHead}>{t(SECTION.branding)}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                {editImage(
-                  "Logo",
-                  "logo",
-                  info.logoKey,
-                  "PNG/JPG/WebP, ≤5MB. Saved immediately. (Not on the bill yet.)",
-                )}
-                {!isAirplus &&
-                  editImage(
-                    "Contact QR image",
-                    "qr",
-                    info.qrKey,
-                    "PNG/JPG/WebP, ≤5MB. Saved immediately. Prints on the quotation.",
-                  )}
+                {editImage(t(LABEL.logo), "logo", info.logoKey, t(HINT.logo))}
+                {!isAirplus && editImage(t(LABEL.contactQr), "qr", info.qrKey, t(HINT.contactQr))}
               </div>
             </div>
 
             <div style={sectionWrap}>
-              <div style={sectionHead}>Shop identity</div>
-              {editPair("Shop name", "name", "nameEn", {
+              <div style={sectionHead}>{t(SECTION.identity)}</div>
+              {editPair(t(LABEL.shopName), "name", "nameEn", {
                 thPlaceholder: "เช่น เด่นแอร์ เซอร์วิส (สุรินทร์)",
                 enPlaceholder: "e.g. Den Air Service (Surin)",
               })}
-              {editPair("Address", "address", "addressEn", {
+              {editPair(t(LABEL.address), "address", "addressEn", {
                 multiline: true,
                 thPlaceholder: "123 ถนนหลักเมือง อ.เมือง จ.สุรินทร์ 32000",
                 enPlaceholder: "123 Lak Mueang Rd, Mueang, Surin 32000",
@@ -413,28 +458,26 @@ export default function ShopInfoPage() {
 
             {isAirplus ? (
               <div style={sectionWrap}>
-                <div style={sectionHead}>LINE contact</div>
+                <div style={sectionHead}>{t(SECTION.lineContact)}</div>
                 <div style={{ marginBottom: 18 }}>
-                  <div style={editLabel}>LINE OA link</div>
+                  <div style={editLabel}>{t(LABEL.lineUrl)}</div>
                   <input
                     value={info.lineUrl ?? ""}
                     onChange={(e) => set({ lineUrl: e.target.value })}
-                    placeholder="เช่น https://lin.ee/xxxxxxx"
+                    placeholder={t({
+                      th: "เช่น https://lin.ee/xxxxxxx",
+                      en: "e.g. https://lin.ee/xxxxxxx",
+                    })}
                     style={inputL}
                   />
                 </div>
-                {editImage(
-                  "QR code",
-                  "qr",
-                  info.qrKey,
-                  "PNG/JPG/WebP, ≤5MB. Saved immediately. The LINE OA QR customers scan.",
-                )}
+                {editImage(t(LABEL.qrCode), "qr", info.qrKey, t(HINT.lineQr))}
               </div>
             ) : (
               <>
                 <div style={sectionWrap}>
-                  <div style={sectionHead}>Quotation note</div>
-                  {editPair("Quotation note", "quoteNote", "quoteNoteEn", {
+                  <div style={sectionHead}>{t(SECTION.quoteNote)}</div>
+                  {editPair(t(SECTION.quoteNote), "quoteNote", "quoteNoteEn", {
                     multiline: true,
                     hideLabel: true,
                     thPlaceholder: SHOP_DEFAULTS.quoteNote,
@@ -443,12 +486,12 @@ export default function ShopInfoPage() {
                 </div>
 
                 <div style={sectionWrap}>
-                  <div style={sectionHead}>Contact QR caption</div>
-                  {editPair("Headline", "qrHeadline", "qrHeadlineEn", {
+                  <div style={sectionHead}>{t(SECTION.qrCaption)}</div>
+                  {editPair(t(LABEL.headline), "qrHeadline", "qrHeadlineEn", {
                     thPlaceholder: SHOP_DEFAULTS.qrHeadline,
                     enPlaceholder: "e.g. Contact the shop",
                   })}
-                  {editPair("Subtitle", "qrSubtitle", "qrSubtitleEn", {
+                  {editPair(t(LABEL.subtitle), "qrSubtitle", "qrSubtitleEn", {
                     thPlaceholder: SHOP_DEFAULTS.qrSubtitle,
                     enPlaceholder: "e.g. Scan to chat / book a slot",
                   })}
@@ -457,7 +500,7 @@ export default function ShopInfoPage() {
             )}
 
             <div>
-              <div style={sectionHead}>Payment — PromptPay accounts</div>
+              <div style={sectionHead}>{t(SECTION.payment)}</div>
               {(() => {
                 const methods = payDraft ?? parsePaymentMethods(info.paymentMethods);
                 const write = (next: PaymentMethod[]) => {
@@ -483,8 +526,8 @@ export default function ShopInfoPage() {
                               ),
                             )
                           }
-                          placeholder="ตำแหน่ง"
-                          aria-label="Position"
+                          placeholder={t({ th: "ตำแหน่ง", en: "Position" })}
+                          aria-label={t({ th: "ตำแหน่ง", en: "Position" })}
                           style={{ ...inputL, flex: "0 0 120px", minWidth: 0 }}
                         />
                         <input
@@ -496,8 +539,8 @@ export default function ShopInfoPage() {
                               ),
                             )
                           }
-                          placeholder="ชื่อบัญชี"
-                          aria-label="Method label"
+                          placeholder={t({ th: "ชื่อบัญชี", en: "Account name" })}
+                          aria-label={t({ th: "ชื่อบัญชี", en: "Account name" })}
                           style={{ ...inputL, flex: 1, minWidth: 0 }}
                         />
                         <input
@@ -509,8 +552,8 @@ export default function ShopInfoPage() {
                               ),
                             )
                           }
-                          placeholder="พร้อมเพย์"
-                          aria-label="PromptPay ID"
+                          placeholder={t({ th: "พร้อมเพย์", en: "PromptPay" })}
+                          aria-label={t({ th: "พร้อมเพย์ไอดี", en: "PromptPay ID" })}
                           style={{ ...inputL, flex: 1, minWidth: 0 }}
                         />
                         <label
@@ -526,7 +569,7 @@ export default function ShopInfoPage() {
                             <input
                               type="checkbox"
                               checked={pm.id === effectiveDefaultId}
-                              aria-label={`Default: ${pm.label}`}
+                              aria-label={`${t(DEFAULT_LABEL)}: ${pm.label}`}
                               onChange={(e) => {
                                 // Exactly one default: switching ON moves it here; switching the
                                 // current default OFF is a no-op (another row's switch moves it).
@@ -536,12 +579,12 @@ export default function ShopInfoPage() {
                             />
                             <span className="slider" />
                           </span>
-                          Default
+                          {t(DEFAULT_LABEL)}
                         </label>
                         <button
                           type="button"
                           className="icon-btn"
-                          aria-label={`Remove ${pm.label}`}
+                          aria-label={t({ th: `ลบ ${pm.label}`, en: `Remove ${pm.label}` })}
                           onClick={() => write(methods.filter((x) => x.id !== pm.id))}
                         >
                           <TrashIcon />
@@ -558,11 +601,13 @@ export default function ShopInfoPage() {
                         ])
                       }
                     >
-                      ➕ Add account
+                      ➕ {t({ th: "เพิ่มบัญชี", en: "Add account" })}
                     </button>
                     <div style={{ ...subLabel, marginTop: 8 }}>
-                      Accounts offered on the Payment page; the default is preselected. A row needs
-                      both a name and a PromptPay ID to be saved.
+                      {t({
+                        th: "บัญชีที่จะให้เลือกในหน้ารับเงิน ค่าเริ่มต้นจะถูกเลือกไว้ให้ แต่ละแถวต้องมีทั้งชื่อบัญชีและพร้อมเพย์ไอดีจึงจะบันทึกได้",
+                        en: "Accounts offered on the Payment page; the default is preselected. A row needs both a name and a PromptPay ID to be saved.",
+                      })}
                     </div>
                   </>
                 );
@@ -574,24 +619,24 @@ export default function ShopInfoPage() {
             {/* View mode mirrors the edit form one-to-one: same sections, same positions, values
                 instead of inputs — so nothing shifts when toggling Edit. */}
             <div style={sectionWrap}>
-              <div style={sectionHead}>Branding</div>
+              <div style={sectionHead}>{t(SECTION.branding)}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <ViewImage label="Logo" imgKey={info.logoKey} />
-                {!isAirplus && <ViewImage label="Contact QR image" imgKey={info.qrKey} />}
+                <ViewImage label={t(LABEL.logo)} imgKey={info.logoKey} />
+                {!isAirplus && <ViewImage label={t(LABEL.contactQr)} imgKey={info.qrKey} />}
               </div>
             </div>
 
             <div style={sectionWrap}>
-              <div style={sectionHead}>Shop identity</div>
-              <ViewPair label="Shop name" th={info.name} en={info.nameEn} />
-              <ViewPair label="Address" th={info.address} en={info.addressEn} />
+              <div style={sectionHead}>{t(SECTION.identity)}</div>
+              <ViewPair label={t(LABEL.shopName)} th={info.name} en={info.nameEn} />
+              <ViewPair label={t(LABEL.address)} th={info.address} en={info.addressEn} />
             </div>
 
             {isAirplus ? (
               <div style={sectionWrap}>
-                <div style={sectionHead}>LINE contact</div>
+                <div style={sectionHead}>{t(SECTION.lineContact)}</div>
                 <div style={{ marginBottom: 18 }}>
-                  <div style={editLabel}>LINE OA link</div>
+                  <div style={editLabel}>{t(LABEL.lineUrl)}</div>
                   {info.lineUrl ? (
                     <a
                       href={info.lineUrl}
@@ -605,12 +650,12 @@ export default function ShopInfoPage() {
                     <div style={valueMuted}>—</div>
                   )}
                 </div>
-                <ViewImage label="QR code" imgKey={info.qrKey} />
+                <ViewImage label={t(LABEL.qrCode)} imgKey={info.qrKey} />
               </div>
             ) : (
               <>
                 <div style={sectionWrap}>
-                  <div style={sectionHead}>Quotation note</div>
+                  <div style={sectionHead}>{t(SECTION.quoteNote)}</div>
                   <ViewPair
                     hideLabel
                     th={info.quoteNote}
@@ -620,15 +665,15 @@ export default function ShopInfoPage() {
                 </div>
 
                 <div style={sectionWrap}>
-                  <div style={sectionHead}>Contact QR caption</div>
+                  <div style={sectionHead}>{t(SECTION.qrCaption)}</div>
                   <ViewPair
-                    label="Headline"
+                    label={t(LABEL.headline)}
                     th={info.qrHeadline}
                     en={info.qrHeadlineEn}
                     thDefault={SHOP_DEFAULTS.qrHeadline}
                   />
                   <ViewPair
-                    label="Subtitle"
+                    label={t(LABEL.subtitle)}
                     th={info.qrSubtitle}
                     en={info.qrSubtitleEn}
                     thDefault={SHOP_DEFAULTS.qrSubtitle}
@@ -638,11 +683,18 @@ export default function ShopInfoPage() {
             )}
 
             <div>
-              <div style={sectionHead}>Payment — PromptPay accounts</div>
+              <div style={sectionHead}>{t(SECTION.payment)}</div>
               {(() => {
                 const methods = parsePaymentMethods(info.paymentMethods);
                 if (methods.length === 0) {
-                  return <div style={valueMuted}>— (no accounts; the Payment page is empty)</div>;
+                  return (
+                    <div style={valueMuted}>
+                      {t({
+                        th: "— (ยังไม่มีบัญชี หน้ารับเงินจะว่าง)",
+                        en: "— (no accounts; the Payment page is empty)",
+                      })}
+                    </div>
+                  );
                 }
                 return methods.map((pm) => (
                   <div
@@ -653,7 +705,7 @@ export default function ShopInfoPage() {
                     <span style={valueStyle}>{pm.label}</span>
                     <span className="muted">·</span>
                     <span style={valueStyle}>{pm.promptpayId}</span>
-                    {pm.isDefault && <span className="pill good">Default</span>}
+                    {pm.isDefault && <span className="pill good">{t(DEFAULT_LABEL)}</span>}
                   </div>
                 ));
               })()}

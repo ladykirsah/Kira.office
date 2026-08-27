@@ -270,6 +270,7 @@ const CLEARED = [
   // Two of the four buttons on the phone's bottom bar, so they are touched constantly.
   "app/scan",
   "app/payment",
+  "app/settings/shop",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -324,6 +325,25 @@ const DELIBERATE: Record<string, Exception> = {
   "app/products/[id]/edit/page.tsx": AUDIT("edited from product page"),
   "app/products/new/page.tsx": AUDIT("created from Add product"),
   "app/scan/page.tsx": AUDIT("received via Scan here"),
+  // The shop's OWN name, address and captions are stored twice — a Thai value and an English one —
+  // and the form edits them side by side. Each half names its language IN that language (as the
+  // app's own toggle does), and each half's placeholder is an example OF that language. There is
+  // nothing here to translate: translating the Thai example into English would put it under the
+  // English field, where it is already wrong.
+  "app/settings/shop/page.tsx": {
+    reason: "a side-by-side Thai/English editor for the shop's own text",
+    texts: [
+      "ไทย (Thai)",
+      "English",
+      "เช่น เด่นแอร์ เซอร์วิส (สุรินทร์)",
+      "e.g. Den Air Service (Surin)",
+      "123 ถนนหลักเมือง อ.เมือง จ.สุรินทร์ 32000",
+      "123 Lak Mueang Rd, Mueang, Surin 32000",
+      "* Estimate only; final price may change on inspection",
+      "e.g. Contact the shop",
+      "e.g. Scan to chat / book a slot",
+    ],
+  },
   // The sticker that goes on the parcel. It is read by a Thai courier and a Thai recipient; which
   // language the person at the screen is reading has nothing to do with it.
   "app/orders/[id]/ShipmentActions.tsx": { reason: "the printed shipping label" },
