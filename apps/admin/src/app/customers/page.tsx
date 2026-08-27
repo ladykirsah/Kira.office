@@ -41,6 +41,7 @@ import { stripCarYear, carYearOf } from "@/lib/badges";
 import { inputS } from "@/lib/inputStyles";
 import { tableText } from "@/lib/tableText";
 import { useToast } from "../ToastProvider";
+import { useT, useLang } from "../LangProvider";
 
 // The combined transcription sheet's fixed template headers (one block per car; splitCombinedSheet
 // generates exactly these two shapes, so the mappings are constants, not user-picked).
@@ -75,10 +76,14 @@ const lineTotal = (l: CustomerSaleLine) => l.unitPriceSatang * l.quantity - l.di
 
 /** One bill/quotation as a fully-shown table row: date · bill · all items+prices+total+note · reprint. */
 function BillRow({ sale }: { sale: CustomerSale }) {
+  const t = useT();
+  const lang = useLang();
   return (
     <tr>
       <td style={{ whiteSpace: "nowrap", verticalAlign: "top" }}>
-        <div style={tableText.body2}>{new Date(sale.createdAt).toLocaleDateString("th-TH")}</div>
+        <div style={tableText.body2}>
+          {new Date(sale.createdAt).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB")}
+        </div>
         <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
           {sale.saleNumber ?? "—"}
         </div>
@@ -87,7 +92,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         {/* Two columns: [item + its part ID inline] · [price]. The ID trails each name in faint
             mono — the exact part installed (same-brand parts interchange across car models). */}
         {sale.lines.length === 0 ? (
-          <span className="muted">No items.</span>
+          <span className="muted">{t({ th: "ไม่มีรายการ", en: "No items." })}</span>
         ) : (
           <div
             style={{
@@ -101,7 +106,10 @@ function BillRow({ sale }: { sale: CustomerSale }) {
             {sale.lines.map((l, i) => (
               <Fragment key={i}>
                 <span style={tableText.body2}>
-                  {l.description || (l.lineType === "service" ? "Service" : "Item")}
+                  {l.description ||
+                    (l.lineType === "service"
+                      ? t({ th: "บริการ", en: "Service" })
+                      : t({ th: "สินค้า", en: "Item" }))}
                   {l.quantity > 1 && <span className="muted"> ×{l.quantity}</span>}
                   {l.productRef && (
                     <span
@@ -134,16 +142,18 @@ function BillRow({ sale }: { sale: CustomerSale }) {
         >
           {sale.discountTotalSatang > 0 && (
             <div style={{ ...rowBetween, ...tableText.subtitle }}>
-              <span>Discount</span>
+              <span>{t({ th: "ส่วนลด", en: "Discount" })}</span>
               <span style={num}>−{formatBahtTrim(sale.discountTotalSatang)}</span>
             </div>
           )}
           <div style={{ ...rowBetween, ...tableText.body2, fontWeight: 500 }}>
-            <span>Total</span>
+            <span>{t({ th: "รวมทั้งสิ้น", en: "Total" })}</span>
             <span style={num}>{formatBahtTrim(sale.grandTotalSatang)}</span>
           </div>
           {sale.notes && (
-            <div style={{ ...tableText.subtitle, marginTop: 2 }}>Note — {sale.notes}</div>
+            <div style={{ ...tableText.subtitle, marginTop: 2 }}>
+              {t({ th: "หมายเหตุ —", en: "Note —" })} {sale.notes}
+            </div>
           )}
         </div>
       </td>
@@ -155,7 +165,7 @@ function BillRow({ sale }: { sale: CustomerSale }) {
             window.location.href = `/pos?reprint=${encodeURIComponent(sale.id)}`;
           }}
         >
-          🖨 Reprint
+          🖨 {t({ th: "พิมพ์ซ้ำ", en: "Reprint" })}
         </button>
       </td>
     </tr>
@@ -165,17 +175,21 @@ function BillRow({ sale }: { sale: CustomerSale }) {
 /** A transcribed old-book visit, rendered like a Kira bill: date + "No bill ID", line items with
     their product ID in faint mono, and a bill note — but no total/reprint (it was never a Kira bill). */
 function LegacyRow({ entry }: { entry: CustomerLegacyEntry }) {
+  const t = useT();
+  const lang = useLang();
   return (
     <tr>
       <td style={{ whiteSpace: "nowrap", verticalAlign: "top" }}>
-        <div style={tableText.body2}>{new Date(entry.happenedAt).toLocaleDateString("th-TH")}</div>
+        <div style={tableText.body2}>
+          {new Date(entry.happenedAt).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB")}
+        </div>
         <div style={{ ...tableText.subtitle, fontFamily: "var(--font-mono, monospace)" }}>
-          No bill ID
+          {t({ th: "ไม่มีเลขที่บิล", en: "No bill ID" })}
         </div>
       </td>
       <td style={{ verticalAlign: "top" }}>
         {entry.lines.length === 0 ? (
-          <span className="muted">No items.</span>
+          <span className="muted">{t({ th: "ไม่มีรายการ", en: "No items." })}</span>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {entry.lines.map((l, i) => (
@@ -222,6 +236,7 @@ function BillTable({
   sales: CustomerSale[];
   legacy?: CustomerLegacyEntry[];
 }) {
+  const t = useT();
   const rows = [
     ...sales.map((s) => ({
       at: s.createdAt,
@@ -241,9 +256,9 @@ function BillTable({
       <table>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Items</th>
-            <th style={right}>Action</th>
+            <th>{t({ th: "วันที่", en: "Date" })}</th>
+            <th>{t({ th: "รายการ", en: "Items" })}</th>
+            <th style={right}>{t({ th: "จัดการ", en: "Action" })}</th>
           </tr>
         </thead>
         <tbody>
@@ -275,6 +290,8 @@ export default function CustomersPage() {
 
 function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
   const toast = useToast();
+  const t = useT();
+  const lang = useLang();
   const [q, setQ] = useState("");
   const [list, setList] = useState<CustomerListItem[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -319,7 +336,7 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
         ? await xlsxToRows(new Uint8Array(await file.arrayBuffer()))
         : parseCsv(await file.text());
       if (rows.length < 2) {
-        toast("That file has no data rows.", "error");
+        toast(t({ th: "ไฟล์นี้ไม่มีข้อมูล", en: "That file has no data rows." }), "error");
         return;
       }
       setImpResult(null);
@@ -347,7 +364,13 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
               : {},
       });
     } catch (err) {
-      toast(`Couldn't read ${file.name}: ${(err as Error).message}`, "error");
+      toast(
+        t({
+          th: `อ่านไฟล์ ${file.name} ไม่ได้: ${(err as Error).message}`,
+          en: `Couldn't read ${file.name}: ${(err as Error).message}`,
+        }),
+        "error",
+      );
     } finally {
       readingFile.current = false;
     }
@@ -401,7 +424,10 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
         }));
         setImpCombined({ cust, hist, errors: [...split.errors, ...histErrors] });
         toast(
-          `Imported ${(cust?.created ?? 0) + (cust?.updated ?? 0)} customers · ${hist?.imported ?? 0} visits`,
+          t({
+            th: `นำเข้าลูกค้า ${(cust?.created ?? 0) + (cust?.updated ?? 0)} ราย · ${hist?.imported ?? 0} ครั้งที่มา`,
+            en: `Imported ${(cust?.created ?? 0) + (cust?.updated ?? 0)} customers · ${hist?.imported ?? 0} visits`,
+          }),
           "success",
         );
       } else if (imp.kind === "combined") {
@@ -420,24 +446,36 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
         }));
         setImpCombined({ cust, hist, errors: [...split.errors, ...histErrors] });
         toast(
-          `Imported ${(cust?.created ?? 0) + (cust?.updated ?? 0)} customers · ${hist?.imported ?? 0} history records`,
+          t({
+            th: `นำเข้าลูกค้า ${(cust?.created ?? 0) + (cust?.updated ?? 0)} ราย · ประวัติ ${hist?.imported ?? 0} รายการ`,
+            en: `Imported ${(cust?.created ?? 0) + (cust?.updated ?? 0)} customers · ${hist?.imported ?? 0} history records`,
+          }),
           "success",
         );
       } else if (imp.kind === "history") {
         const out = await importCustomerHistoryCsv(rowsToCsv(imp.rows), imp.mapping);
         setImpHistoryResult(out);
-        toast(`Imported ${out.imported} history records`, "success");
+        toast(
+          t({
+            th: `นำเข้าประวัติ ${out.imported} รายการ`,
+            en: `Imported ${out.imported} history records`,
+          }),
+          "success",
+        );
       } else {
         const out = await importCustomersCsv(rowsToCsv(imp.rows), imp.mapping);
         setImpResult(out);
         toast(
-          `Imported ${out.created + out.updated} customers — ${out.created} new · ${out.updated} updated`,
+          t({
+            th: `นำเข้าลูกค้า ${out.created + out.updated} ราย — ใหม่ ${out.created} · อัปเดต ${out.updated}`,
+            en: `Imported ${out.created + out.updated} customers — ${out.created} new · ${out.updated} updated`,
+          }),
           "success",
         );
       }
       setList(await searchCustomers(q));
     } catch {
-      toast("Import failed.", "error");
+      toast(t({ th: "นำเข้าไม่สำเร็จ", en: "Import failed." }), "error");
     } finally {
       setImporting(false);
     }
@@ -445,14 +483,14 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
 
   useEffect(() => {
     if (selected !== null) return; // detail view is showing; re-fetch when we return to the list
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         setList(await searchCustomers(q));
       } catch {
-        toast("Couldn't load customers.", "error");
+        toast(t({ th: "โหลดรายชื่อลูกค้าไม่ได้", en: "Couldn't load customers." }), "error");
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, selected]);
 
@@ -479,7 +517,7 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
       setEditing(false);
       setShowNotes(false);
     } catch {
-      toast("Couldn't load this car.", "error");
+      toast(t({ th: "โหลดข้อมูลรถคันนี้ไม่ได้", en: "Couldn't load this car." }), "error");
     }
   }
 
@@ -517,9 +555,9 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
       setPhone(ph);
       setNote(nt);
       setEditing(false);
-      toast("Saved ✓", "success");
+      toast(t({ th: "บันทึกแล้ว ✓", en: "Saved ✓" }), "success");
     } catch {
-      toast("Couldn't save.", "error");
+      toast(t({ th: "บันทึกไม่สำเร็จ", en: "Couldn't save." }), "error");
     } finally {
       setSaving(false);
     }
@@ -536,7 +574,11 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
       <main>
         <PageHeader
           title={headline}
-          below={<BackLink onClick={() => setSelected(null)}>All customers</BackLink>}
+          below={
+            <BackLink onClick={() => setSelected(null)}>
+              {t({ th: "ลูกค้าทั้งหมด", en: "All customers" })}
+            </BackLink>
+          }
         />
 
         <div style={{ ...frame, marginBottom: 24 }}>
@@ -544,7 +586,9 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={tableText.subtitle}>Customer name</span>
+                  <span style={tableText.subtitle}>
+                    {t({ th: "ชื่อลูกค้า", en: "Customer name" })}
+                  </span>
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -553,7 +597,7 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                   />
                 </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={tableText.subtitle}>Phone</span>
+                  <span style={tableText.subtitle}>{t({ th: "เบอร์โทร", en: "Phone" })}</span>
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -563,18 +607,21 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                 </label>
               </div>
               <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={tableText.subtitle}>Notes</span>
+                <span style={tableText.subtitle}>{t({ th: "หมายเหตุ", en: "Notes" })}</span>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Notes about this customer…"
+                  placeholder={t({
+                    th: "โน้ตเกี่ยวกับลูกค้ารายนี้…",
+                    en: "Notes about this customer…",
+                  })}
                   rows={3}
                   style={{ ...inputS, width: "100%", resize: "vertical" }}
                 />
               </label>
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" onClick={cancelEdit} disabled={saving} style={inputS}>
-                  Cancel
+                  {t({ th: "ยกเลิก", en: "Cancel" })}
                 </button>
                 <button
                   type="button"
@@ -583,7 +630,7 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                   disabled={saving}
                   style={inputS}
                 >
-                  Save
+                  {t({ th: "บันทึก", en: "Save" })}
                 </button>
               </div>
             </div>
@@ -591,19 +638,23 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
             <>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={tableText.subtitle}>Customer name</span>
+                  <span style={tableText.subtitle}>
+                    {t({ th: "ชื่อลูกค้า", en: "Customer name" })}
+                  </span>
                   <span style={tableText.body2}>{saved.name || "—"}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={tableText.subtitle}>Phone</span>
+                  <span style={tableText.subtitle}>{t({ th: "เบอร์โทร", en: "Phone" })}</span>
                   <span style={tableText.body2}>{saved.phone || "—"}</span>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
                   <button type="button" onClick={() => setShowNotes((v) => !v)} style={inputS}>
-                    {showNotes ? "Hide notes" : "Notes"}
+                    {showNotes
+                      ? t({ th: "ซ่อนหมายเหตุ", en: "Hide notes" })
+                      : t({ th: "หมายเหตุ", en: "Notes" })}
                   </button>
                   <button type="button" className="btn-primary" onClick={startEdit} style={inputS}>
-                    Edit
+                    {t({ th: "แก้ไข", en: "Edit" })}
                   </button>
                 </div>
               </div>
@@ -611,9 +662,13 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                 <div
                   style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}
                 >
-                  <div style={tableText.subtitle}>Notes</div>
+                  <div style={tableText.subtitle}>{t({ th: "หมายเหตุ", en: "Notes" })}</div>
                   <div style={{ ...tableText.body2, marginTop: 4, whiteSpace: "pre-wrap" }}>
-                    {saved.note || <span className="muted">No notes yet.</span>}
+                    {saved.note || (
+                      <span className="muted">
+                        {t({ th: "ยังไม่มีหมายเหตุ", en: "No notes yet." })}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -623,18 +678,23 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
 
         {detail && detail.quotations.length > 0 && (
           <div style={{ marginBottom: 24 }}>
-            <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Open quotations</h2>
+            <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>
+              {t({ th: "ใบเสนอราคาที่ยังค้างอยู่", en: "Open quotations" })}
+            </h2>
             <BillTable sales={detail.quotations} />
           </div>
         )}
 
         <div>
-          <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Purchase &amp; repair history</h2>
+          <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>
+            {t({ th: "ประวัติการใช้บริการ", en: "Purchase & repair history" })}
+          </h2>
           {!detail ? (
-            <p className="muted">Loading…</p>
+            <p className="muted">{t({ th: "กำลังโหลด…", en: "Loading…" })}</p>
           ) : detail.history.length + (detail.legacy?.length ?? 0) === 0 ? (
             <div className="empty">
-              <div className="empty-icon">🧾</div>No bills yet for this car.
+              <div className="empty-icon">🧾</div>
+              {t({ th: "รถคันนี้ยังไม่มีบิล", en: "No bills yet for this car." })}
             </div>
           ) : (
             <BillTable sales={detail.history} legacy={detail.legacy ?? []} />
@@ -651,8 +711,11 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
   return (
     <main>
       <PageHeader
-        title="Customers"
-        subtitle="Find a car by plate, phone, or model to see its full service history."
+        title={t({ th: "ลูกค้า", en: "Customers" })}
+        subtitle={t({
+          th: "ค้นหารถจากทะเบียน เบอร์โทร หรือรุ่น เพื่อดูประวัติการใช้บริการทั้งหมด",
+          en: "Find a car by plate, phone, or model to see its full service history.",
+        })}
       />
       {tabs}
       {/* A real <button> (not a label) so it gets the app's button styling; it drives the
@@ -668,16 +731,21 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
           className="btn-soft btn-sm"
           onClick={() => window.open(TRANSCRIPTION_SHEET_URL, "_blank", "noopener,noreferrer")}
         >
-          Open Google Sheet ↗
+          {t({ th: "เปิด Google Sheet ↗", en: "Open Google Sheet ↗" })}
         </button>
         <button
           type="button"
           className="btn-soft btn-sm"
           onClick={() => fileInputRef.current?.click()}
         >
-          Import
+          {t({ th: "นำเข้า", en: "Import" })}
         </button>
-        <small className="muted">.xlsx or .csv — customer list or service-history file</small>
+        <small className="muted">
+          {t({
+            th: ".xlsx หรือ .csv — ไฟล์รายชื่อลูกค้า หรือไฟล์ประวัติการซ่อม",
+            en: ".xlsx or .csv — customer list or service-history file",
+          })}
+        </small>
         <input
           ref={fileInputRef}
           type="file"
@@ -691,10 +759,18 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
           <div style={{ ...rowBetween, alignItems: "baseline" }}>
             <div>
               <div style={{ ...tableText.body1, fontWeight: 600 }}>
-                Import {imp.fileName}
-                {imp.kind === "history" && " — service history"}
-                {imp.kind === "combined" && " — customers + history (one block per car)"}
-                {imp.kind === "rich" && " — customer form (info + visit history)"}
+                {t({ th: "นำเข้า", en: "Import" })} {imp.fileName}
+                {imp.kind === "history" && t({ th: " — ประวัติการซ่อม", en: " — service history" })}
+                {imp.kind === "combined" &&
+                  t({
+                    th: " — ลูกค้า + ประวัติ (หนึ่งบล็อกต่อรถหนึ่งคัน)",
+                    en: " — customers + history (one block per car)",
+                  })}
+                {imp.kind === "rich" &&
+                  t({
+                    th: " — ฟอร์มลูกค้า (ข้อมูล + ประวัติการเข้ามา)",
+                    en: " — customer form (info + visit history)",
+                  })}
                 {/* auto-detection can misfire (e.g. a customer list with a date column) — let the user flip it */}
                 {imp.kind !== "combined" && imp.kind !== "rich" && (
                   <button
@@ -715,18 +791,31 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                       });
                     }}
                   >
-                    {imp.kind === "history" ? "Treat as customer list" : "Treat as service history"}
+                    {imp.kind === "history"
+                      ? t({ th: "ถือว่าเป็นรายชื่อลูกค้า", en: "Treat as customer list" })
+                      : t({ th: "ถือว่าเป็นประวัติการซ่อม", en: "Treat as service history" })}
                   </button>
                 )}
               </div>
               <div style={{ ...tableText.subtitle, marginTop: 2 }}>
-                {imp.rows.length - 1} data rows — match each field to a column, check the preview,
-                then import. Re-importing is safe:{" "}
+                {t({
+                  th: `ข้อมูล ${imp.rows.length - 1} แถว — จับคู่แต่ละช่องกับคอลัมน์ ตรวจตัวอย่าง แล้วค่อยนำเข้า · นำเข้าซ้ำได้ปลอดภัย: `,
+                  en: `${imp.rows.length - 1} data rows — match each field to a column, check the preview, then import. Re-importing is safe: `,
+                })}
                 {imp.kind === "combined" || imp.kind === "rich"
-                  ? "cars and their visit history import together; re-importing is safe on both."
+                  ? t({
+                      th: "รถและประวัติการเข้ามาถูกนำเข้าพร้อมกัน · ซ้ำได้ทั้งสองอย่าง",
+                      en: "cars and their visit history import together; re-importing is safe on both.",
+                    })
                   : imp.kind === "history"
-                    ? "records already imported are skipped; nothing touches stock or sales."
-                    : "existing cars are updated, empty cells never erase saved info."}
+                    ? t({
+                        th: "รายการที่นำเข้าไปแล้วจะถูกข้าม · ไม่แตะสต็อกหรือยอดขาย",
+                        en: "records already imported are skipped; nothing touches stock or sales.",
+                      })
+                    : t({
+                        th: "รถที่มีอยู่แล้วจะถูกอัปเดต · ช่องว่างจะไม่ลบข้อมูลเดิม",
+                        en: "existing cars are updated, empty cells never erase saved info.",
+                      })}
               </div>
             </div>
             <button
@@ -739,7 +828,9 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
               }}
               style={inputS}
             >
-              {impResult || impHistoryResult || impCombined ? "Close" : "Cancel"}
+              {impResult || impHistoryResult || impCombined
+                ? t({ th: "ปิด", en: "Close" })
+                : t({ th: "ยกเลิก", en: "Cancel" })}
             </button>
           </div>
           {(imp.kind === "combined" || imp.kind === "rich") &&
@@ -830,13 +921,24 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
               disabled={importing || !importReady}
               style={inputS}
             >
-              {importing ? "Importing…" : `Import ${imp.rows.length - 1} rows`}
+              {importing
+                ? t({ th: "กำลังนำเข้า…", en: "Importing…" })
+                : t({
+                    th: `นำเข้า ${imp.rows.length - 1} แถว`,
+                    en: `Import ${imp.rows.length - 1} rows`,
+                  })}
             </button>
             {!importReady && (
               <span style={tableText.subtitle}>
                 {imp.kind === "history"
-                  ? "Map plate, date, and work columns first."
-                  : "Pick the license-plate column first."}
+                  ? t({
+                      th: "จับคู่คอลัมน์ทะเบียน วันที่ และรายการงานก่อน",
+                      en: "Map plate, date, and work columns first.",
+                    })
+                  : t({
+                      th: "เลือกคอลัมน์ทะเบียนก่อน",
+                      en: "Pick the license-plate column first.",
+                    })}
               </span>
             )}
             {impResult && (
@@ -871,10 +973,17 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
               <div style={{ ...tableText.subtitle, marginTop: 8 }}>
                 {errs.slice(0, 5).map((er) => (
                   <div key={er.rowIndex}>
-                    Row {er.rowIndex}: {er.reason}
+                    {t({ th: "แถว", en: "Row" })} {er.rowIndex}: {er.reason}
                   </div>
                 ))}
-                {errs.length > 5 && <div>…and {errs.length - 5} more skipped rows.</div>}
+                {errs.length > 5 && (
+                  <div>
+                    {t({
+                      th: `…และอีก ${errs.length - 5} แถวที่ถูกข้าม`,
+                      en: `…and ${errs.length - 5} more skipped rows.`,
+                    })}
+                  </div>
+                )}
               </div>
             ) : null;
           })()}
@@ -884,26 +993,32 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search plate, car, bill, or phone…"
+          placeholder={t({
+            th: "ค้นหาทะเบียน รถ บิล หรือเบอร์โทร…",
+            en: "Search plate, car, bill, or phone…",
+          })}
           style={{ ...inputS, width: 280, maxWidth: "100%", marginBottom: 12 }}
         />
         {list.length === 0 ? (
           <div className="empty">
             <div className="empty-icon">👥</div>
             {q
-              ? "No matching cars."
-              : "No customers yet — they appear after their first bill, or import your customer Excel."}
+              ? t({ th: "ไม่พบรถที่ตรงกับที่ค้นหา", en: "No matching cars." })
+              : t({
+                  th: "ยังไม่มีลูกค้า — จะขึ้นมาเองหลังออกบิลใบแรก หรือนำเข้าไฟล์ Excel รายชื่อลูกค้า",
+                  en: "No customers yet — they appear after their first bill, or import your customer Excel.",
+                })}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
-                  <th>Car</th>
-                  <th>Plate</th>
-                  <th>Customer</th>
-                  <th>Visits</th>
-                  <th>Last visit</th>
+                  <th>{t({ th: "รถ", en: "Car" })}</th>
+                  <th>{t({ th: "ทะเบียน", en: "Plate" })}</th>
+                  <th>{t({ th: "ลูกค้า", en: "Customer" })}</th>
+                  <th>{t({ th: "เข้ามาที่ร้าน", en: "Visits" })}</th>
+                  <th>{t({ th: "มาล่าสุด", en: "Last visit" })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -935,7 +1050,9 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
                       <td>{c.billCount}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         {c.lastVisitAt != null ? (
-                          new Date(c.lastVisitAt).toLocaleDateString("th-TH")
+                          new Date(c.lastVisitAt).toLocaleDateString(
+                            lang === "th" ? "th-TH" : "en-GB",
+                          )
                         ) : (
                           <span className="muted">—</span>
                         )}

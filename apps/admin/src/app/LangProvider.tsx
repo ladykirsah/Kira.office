@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useCallback, useContext, type ReactNode } from "react";
 import { say, type Lang, type Phrase } from "@/lib/lang";
 
 /**
@@ -20,8 +20,16 @@ export function useLang(): Lang {
   return useContext(LangContext);
 }
 
-/** `const t = useT()` — then `t({ th: "วันหยุด", en: "Days off" })`. */
+/**
+ * `const t = useT()` — then `t({ th: "วันหยุด", en: "Days off" })`.
+ *
+ * MEMOISED ON THE LANGUAGE, so the function keeps the same identity between renders. Without that
+ * it is a fresh closure every time, which is harmless while rendering but makes it impossible to
+ * name in a `useEffect` or `useCallback` dependency list: including it re-runs the effect on every
+ * render — a refetch loop — and leaving it out is the lint warning that says so. Stable identity
+ * means a screen can simply do the correct thing.
+ */
 export function useT(): (p: Phrase) => string {
   const lang = useContext(LangContext);
-  return (p: Phrase) => say(lang, p);
+  return useCallback((p: Phrase) => say(lang, p), [lang]);
 }

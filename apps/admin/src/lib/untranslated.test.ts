@@ -255,6 +255,7 @@ const CLEARED = [
   "app/recover",
   "app/settings/staff",
   "app/me",
+  "app/customers",
   "app/StaffChip.tsx",
   // Shared pieces the coupons screen renders, each of which was English on every screen using it.
   "app/ConfirmButton.tsx",
@@ -290,6 +291,21 @@ const AUDIT = (text: string): Exception => ({
 });
 
 const DELIBERATE: Record<string, Exception> = {
+  // The owner's transcription Google Sheet has these exact Thai column headers. They are matched
+  // against a real file, not read off a screen — translating one would break the import silently.
+  "app/customers/page.tsx": {
+    reason: "the column headers in the owner's own transcription spreadsheet",
+    texts: [
+      "ทะเบียน",
+      "จังหวัด",
+      "ชื่อลูกค้า",
+      "เบอร์โทร",
+      "รุ่นรถ",
+      "หมายเหตุ",
+      "วันที่",
+      "รายการ",
+    ],
+  },
   "app/products/StockCell.tsx": AUDIT("edited from products table"),
   "app/products/[id]/edit/page.tsx": AUDIT("edited from product page"),
   "app/products/new/page.tsx": AUDIT("created from Add product"),

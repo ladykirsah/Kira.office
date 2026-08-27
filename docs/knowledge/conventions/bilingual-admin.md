@@ -136,6 +136,25 @@ Three things there could not be fixed on the screen at all:
 Dates were the quiet half of this: `toLocaleDateString("en-GB")` was hard-coded in six places, so a
 Thai screen printed English months. They follow the reader now.
 
+## `useT()` is memoised, and that is load-bearing
+
+It used to return a fresh closure on every render. Harmless while rendering, and impossible to name
+in a `useEffect` or `useCallback` dependency list: including it re-runs the effect every render — a
+refetch loop — and leaving it out is the lint warning that says so. Two callbacks on the customers
+screen hit exactly that. `useT` now wraps its function in `useCallback` keyed on the language, so a
+screen can simply list `t` and be right. Verified in the browser: one request, not a loop.
+
+While there: **three separate debounce handles were named `t`**, shadowing the translator inside
+their own effect. Renamed to `timer`. A one-letter name for the most-used function in the app is
+worth watching for.
+
+## Some Thai must never be translated
+
+The customers screen matches the owner's transcription Google Sheet by its **column headers** —
+ทะเบียน, จังหวัด, ชื่อลูกค้า and five more. Those are compared against a real file, not read off a
+screen; translating one would break the import with no error to see. Excused by name in the guard,
+the same way the POS bill is.
+
 ## Words the owner chose
 
 Asked directly rather than guessed, because the shop already had a name for most of them.
@@ -150,6 +169,7 @@ Asked directly rather than guessed, because the shop already had a name for most
 | Coupons | **โค้ด** (code) · **จำนวนส่วนลด** (quota) · **สิทธิ์ต่อคน** (per customer) · **ส่วนลดสูงสุด** (max cap) |
 | Sign-in | **เข้าใช้งาน** (sign in) · **รหัส 6 หลัก** (the PIN — the letters "PIN" dropped entirely) · **ทางเข้าฉุกเฉิน** (owner rescue) |
 | Staff | **เพิ่มรายการต่างๆ** (Record) · **ประวัติการทำงาน** (Activity) · **คนในร้าน** (People) · **เจ้าของร้าน / ผู้ดูแล / ช่าง** (the three roles) |
+| Customers | **เข้ามาที่ร้าน** (Visits) · **ประวัติการใช้บริการ** (Purchase & repair history) |
 
 Order statuses were NOT re-invented: เตรียมจัดส่ง, กำลังจัดส่ง, คืนเงิน come from
 [commerce/order-lifecycle](../commerce/order-lifecycle.md), and the 13 operational statuses were
@@ -179,11 +199,12 @@ Deliberate single-language files go in `DELIBERATE` with the reason, never silen
 ## Done, and not done
 
 **Done:** the frame (menu, top bar, both toggles, Modal), dashboard, orders list, order detail,
-products list, product forms, the POS, coupons, the sign-in and rescue screens, and **the whole staff
-section** (people, salary, days off, activity, each person's page, and /me) — plus the shared pieces
+products list, product forms, the POS, coupons, the sign-in and rescue screens, the whole staff
+section (people, salary, days off, activity, each person's page, and /me), and **customers** (both
+the Den Air car directory and the AirPlus accounts) — plus the shared pieces
 those screens render (`ConfirmButton`, `DateTimeField`, `NoAccess`), each of which had been English
 on every screen using it.
 
-**Not done:** customers, shop settings, affiliate items, `AttributeManager`, banners, campaigns,
-car-fitment, barcodes, scan, sales and insights — roughly **450 strings**. The storefront was never in scope: the owner chose back
+**Not done:** shop settings, affiliate items, `AttributeManager`, banners, campaigns, car-fitment,
+barcodes, scan, sales and insights — roughly **320 strings**. The storefront was never in scope: the owner chose back
 office only.
