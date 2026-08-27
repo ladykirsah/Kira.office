@@ -271,19 +271,12 @@ export default function SalesPage() {
     padding: 18,
     background: "var(--surface)",
   } as const;
-  const toolbarStyle = {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-    alignItems: "center",
-    marginBottom: 12,
-  } as const;
 
   // The framed toolbar shared by every tab: optional search + status + type, always a date range.
   // A plain function (not a component) so its inputs keep focus while typing.
   const toolbar = (opts: { searchPlaceholder?: string; showType?: boolean }) => (
     <>
-      <div style={toolbarStyle}>
+      <div className="tbar">
         {opts.searchPlaceholder && (
           <input
             className="tbar-input"

@@ -418,6 +418,7 @@ export function AirPlusCustomers({ tabs }: { tabs: ReactNode }) {
         }}
       >
         <input
+          className="tbar-search"
           style={{ ...inputS, width: 320 }}
           placeholder={t({
             th: "ค้นหารหัสผู้ใช้ ชื่อ เบอร์โทร หรืออีเมล",

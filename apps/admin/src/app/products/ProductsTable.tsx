@@ -170,15 +170,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           background: "var(--surface)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 10,
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
+        <div className="tbar">
           <input
             className="tbar-input"
             placeholder={t({ th: "ค้นหารหัสหรือชื่อสินค้า…", en: "Search code or name…" })}

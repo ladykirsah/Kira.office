@@ -210,6 +210,11 @@ input[type="number"]::-webkit-inner-spin-button {
   align-items: center;
   margin-bottom: 12px;
 }
+/* `.tbar-search` marks a search box that has NO `.tbar-input` class — several screens carry a bare
+   one above a list. It is deliberately empty here: `.tbar-input` also styles a placeholder, and
+   borrowing it would have changed those inputs on a wide screen, which this pass may not do. The
+   class exists solely for the phone rule far below. */
+
 /* Scoped to the toolbar: `.tbar-input` is on five screens and only this one is being changed. */
 .tbar .tbar-input {
   width: 240px;
@@ -1612,9 +1617,20 @@ a.card:hover {
      equally, however many of them are on screen (the Filter one only appears once a Sort is
      chosen). `min-width: 0` is what lets them actually shrink: a select's default minimum is its
      widest option, which would push the row wide enough to scroll. */
-  .tbar .tbar-input {
+  /* EVERY search box fills its line, toolbar or not — several screens carry a lone one above a
+     list. `min-width` rather than `width` on purpose: it beats the inline widths those inputs
+     already carry (240px, 280px), so each screen keeps its own width on a wide screen and none of
+     them had to be edited to get this. */
+  .tbar-input,
+  .tbar-search {
+    min-width: 100%;
+  }
+  /* Inside a toolbar that means a line of its own, and whatever sits beside it divides the next
+     line equally. A toolbar with no search box simply starts at that second rule, which is the
+     answer for the rows that are selects and nothing else. */
+  .tbar .tbar-input,
+  .tbar .tbar-search {
     flex: 1 0 100%;
-    width: auto;
   }
   .tbar select {
     flex: 1 1 0;
