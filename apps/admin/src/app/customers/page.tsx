@@ -1001,6 +1001,7 @@ function DenAirCustomers({ tabs }: { tabs: ReactNode }) {
       )}
       <div style={frame}>
         <input
+          className="tbar-search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t({

@@ -35,6 +35,7 @@ import { canViewFinance } from "@l-shopee/core";
 import { SalesTable } from "./SalesTable";
 import { AirPlusOrders } from "./AirPlusOrders";
 import { ExpenseForm } from "./ExpenseForm";
+import { TabStrip } from "../TabStrip";
 
 // Matches the Orders page's date picker (owner request), minus the week presets.
 const PRESETS: { key: RangePreset; label: Phrase }[] = [
@@ -270,19 +271,12 @@ export default function SalesPage() {
     padding: 18,
     background: "var(--surface)",
   } as const;
-  const toolbarStyle = {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-    alignItems: "center",
-    marginBottom: 12,
-  } as const;
 
   // The framed toolbar shared by every tab: optional search + status + type, always a date range.
   // A plain function (not a component) so its inputs keep focus while typing.
   const toolbar = (opts: { searchPlaceholder?: string; showType?: boolean }) => (
     <>
-      <div style={toolbarStyle}>
+      <div className="tbar">
         {opts.searchPlaceholder && (
           <input
             className="tbar-input"
@@ -354,14 +348,14 @@ export default function SalesPage() {
         subtitle={t({ th: "ยอดขายสินค้าแยกตามช่องทาง", en: "Product sales by channel." })}
       />
 
-      <div className="tabs">
+      <TabStrip>
         <TabBtn
           id="summary"
           label={`${t({ th: "สรุป", en: "Summary" })} (${channelTotal.count})`}
         />
         <TabBtn id="onsite" label={`Den Air Service (${s.salesCount})`} />
         <TabBtn id="airplus" label={`AirPlus (${airplusInRange.length})`} />
-      </div>
+      </TabStrip>
 
       {sales === null ? (
         <div className="skeleton skeleton-row" style={{ width: "60%" }} />

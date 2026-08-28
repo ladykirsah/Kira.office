@@ -256,6 +256,12 @@ function makeDb(canned: {
         if (sql.includes("FROM campaigns")) return { results: (canned.campaigns ?? []) as T[] };
         if (sql.includes("FROM affiliate_items a"))
           return { results: (canned.affiliateItems ?? []) as T[] };
+        // AHEAD of the product/image branches on purpose. This fake matches on substrings, and the
+        // orders list now summarises each order's first line — so its SQL mentions product_images,
+        // product_variants and products in subqueries and would be answered with an image list.
+        // The alias is the specific thing; the table names are shared.
+        if (sql.includes("external_order_id AS externalOrderId"))
+          return { results: (canned.orders ?? []) as T[] };
         if (sql.includes("FROM product_images")) return { results: (canned.images ?? []) as T[] };
         if (sql.includes("FROM product_fitments"))
           return { results: (canned.fitments ?? []) as T[] };
@@ -285,8 +291,6 @@ function makeDb(canned: {
           return { results: (canned.taxProfiles ?? []) as T[] };
         if (sql.includes("SUM(quantity_delta)"))
           return { results: (canned.available ?? []) as T[] };
-        if (sql.includes("external_order_id AS externalOrderId"))
-          return { results: (canned.orders ?? []) as T[] };
         if (sql.includes("FROM sales_orders"))
           return { results: (canned.existingOrders ?? []).map((id) => ({ id })) as T[] };
         // Order matters: the /sales query references onsite_sale_lines in a subquery, so match the
@@ -4721,6 +4725,123 @@ describe("listOrders > storefront_customers join", () => {
   });
 });
 
+/**
+ * The orders list has always been HEADER-ONLY — totals, customer, status — because the wide table
+ * shows nothing else. The phone card shows what was bought (owner's design D, 27 Aug 2026), so the
+ * list now has to carry a one-line summary of the order's contents: the first line's product, its
+ * variant and cover image, plus how many lines and how many pieces in total.
+ *
+ * A summary, not the lines themselves: 200 orders x N lines each is a payload nobody reads, and the
+ * card only ever renders the first line plus "+ N more".
+ */
+describe("listOrders > first line summary", () => {
+  const NOW = SQLITE_NOW;
+
+  function seed(db: DatabaseSync) {
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES (?, ?, ?)`).run(
+      "p-coil",
+      "คอมเพรสเซอร์แอร์ Toyota Vios",
+      NOW,
+    );
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES (?, ?, ?)`).run(
+      "p-gas",
+      "น้ำยาแอร์ R134a",
+      NOW,
+    );
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, variant_name, created_at) VALUES (?, ?, ?, ?)`,
+    ).run("v-coil", "p-coil", "แท้", NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, variant_name, created_at) VALUES (?, ?, ?, ?)`,
+    ).run("v-gas", "p-gas", "4 ลิตร", NOW);
+    // Two images on the first product, and the COVER is deliberately the one added SECOND: picking
+    // by insert order or by sort_order alone would grab the wrong picture and nobody would notice.
+    const img = db.prepare(
+      `INSERT INTO product_images (id, product_id, image_key, sort_order, is_cover, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    img.run("img-a", "p-coil", "not-the-cover.jpg", 0, 0, NOW);
+    img.run("img-b", "p-coil", "cover.jpg", 1, 1, NOW);
+
+    const order = db.prepare(
+      `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                 grand_total_satang, order_created_at, imported_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    order.run("ord-two", "airplus", "AP-1", "new", "paid", 210_000, NOW, NOW);
+    order.run("ord-none", "airplus", "AP-2", "new", "pending", 145_000, NOW, NOW - 1_000);
+
+    const line = db.prepare(
+      `INSERT INTO sales_order_lines (id, sales_order_id, product_variant_id, quantity,
+                                      unit_price_satang, line_total_satang, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    // Written newest-first on purpose: "first line" must mean the one added FIRST, so a query that
+    // simply takes whatever row sqlite hands back cannot pass by luck.
+    line.run("ln-2", "ord-two", "v-gas", 2, 45_000, 90_000, NOW + 1_000);
+    line.run("ln-1", "ord-two", "v-coil", 1, 120_000, 120_000, NOW);
+  }
+
+  interface Summarised {
+    id: string;
+    firstItemName: string | null;
+    firstItemVariant: string | null;
+    firstItemImageKey: string | null;
+    firstItemPriceSatang: number | null;
+    firstItemQty: number | null;
+    lineCount: number;
+    itemQty: number;
+  }
+
+  async function listed(): Promise<Summarised[]> {
+    const db = migratedDb();
+    seed(db);
+    const res = await listOrders({ DB: asD1(db) } as unknown as Env);
+    return ((await res.json()) as { orders: Summarised[] }).orders;
+  }
+
+  it("given an order with lines > names the first line's product and variant", async () => {
+    const o = (await listed()).find((x) => x.id === "ord-two");
+    expect(o?.firstItemName).toBe("คอมเพรสเซอร์แอร์ Toyota Vios");
+    expect(o?.firstItemVariant).toBe("แท้");
+  });
+
+  it("returns the first line's UNIT price and quantity, not the line total", async () => {
+    // The card prints "฿1,200  x 1" the way a receipt does. The fixture's first line is one piece
+    // at 120,000, so unit price and line total happen to agree there — the second line (2 x 45,000
+    // = 90,000) is what makes the difference visible, and it is the one a wrong column would grab.
+    const o = (await listed()).find((x) => x.id === "ord-two");
+    expect(o?.firstItemPriceSatang).toBe(120_000);
+    expect(o?.firstItemQty).toBe(1);
+  });
+
+  it("given the product has images > returns the cover, not merely the first one", async () => {
+    const o = (await listed()).find((x) => x.id === "ord-two");
+    expect(o?.firstItemImageKey).toBe("cover.jpg");
+  });
+
+  it("counts the lines and the pieces separately", async () => {
+    const o = (await listed()).find((x) => x.id === "ord-two");
+    expect(o?.lineCount).toBe(2);
+    expect(o?.itemQty).toBe(3); // 1 compressor + 2 cans
+  });
+
+  it("given an order with no lines > keeps the order, with nulls and zeroes", async () => {
+    // Every CSV-imported Shopee order is header-only, and so is any AirPlus order placed before
+    // lines existed. An inner join here would delete them from the admin's list.
+    const orders = await listed();
+    const none = orders.find((x) => x.id === "ord-none");
+    expect(none).toBeDefined();
+    expect(none?.firstItemName).toBeNull();
+    expect(none?.lineCount).toBe(0);
+    expect(none?.itemQty).toBe(0);
+  });
+
+  it("returns every order exactly once (a two-line order must not become two rows)", async () => {
+    expect((await listed()).map((o) => o.id).sort()).toEqual(["ord-none", "ord-two"]);
+  });
+});
+
 describe("migration 0070 > order_status_history", () => {
   /**
    * The backfill is the risky half of this migration: it writes one row per existing AirPlus order,
@@ -4936,6 +5057,10 @@ describe("updateOrder > timeline", () => {
 
   it("given a status change AND a carrier edit together > appends exactly one row", async () => {
     const db = seeded();
+    // The fixture starts unpaid, and shipping now needs the money settled with its slip behind it
+    // (canShipOrder). This test is about the timeline appending ONE row for a combined patch, not
+    // about the shipping rule, so put the order in a state that is allowed to ship.
+    db.prepare(`UPDATE sales_orders SET payment_status = 'paid' WHERE id = 'o1'`).run();
     await updateOrder(
       asD1(db),
       "o1",
@@ -5709,11 +5834,12 @@ describe("getOrderDetail (the /orders/:id read model)", () => {
   function seeded(opts: { withCustomer?: boolean; withClaim?: boolean } = {}) {
     const { withCustomer = true, withClaim = false } = opts;
     const db = migratedDb();
-    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p1','คอยล์ร้อน Vios',?)`).run(
-      NOW,
-    );
     db.prepare(
-      `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+      `INSERT INTO products (id, name, product_ref, created_at) VALUES ('p1','คอยล์ร้อน Vios','AP-0003',?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, variant_name, created_at)
+       VALUES ('v1','p1','SKU-1','แท้',?)`,
     ).run(NOW);
 
     if (withCustomer) {
@@ -5763,6 +5889,33 @@ describe("getOrderDetail (the /orders/:id read model)", () => {
     expect(d!.order.discountTotalSatang).toBe(10000);
     expect(d!.order.shippingFeeSatang).toBe(5000);
     expect(d!.order.profitSatang).toBe(60000);
+  });
+
+  /**
+   * The order page's item rows became the same shape as the phone order card (owner, 27 Aug 2026):
+   * picture, name, the variant word, quantity — plus the Product ID underneath, which is the one
+   * thing the card does not show. Neither the variant word nor the Product ID was on this read
+   * model; the row printed `sku ?? variantId`, so the line under the name read "v1" — an internal
+   * key nobody can look a product up by.
+   */
+  it("returns each line's variant word and Product ID", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    const line = d!.lines[0]!;
+    expect(line.variantName).toBe("แท้");
+    expect(line.productRef).toBe("AP-0003");
+  });
+
+  it("given a product with neither > returns nulls rather than dropping the line", async () => {
+    // Both columns are nullable and always have been: a product saved before Product IDs became
+    // mandatory has none, and a single-option product has no variant word. The line still has to
+    // render — it is what was bought.
+    const db = seeded();
+    db.prepare(`UPDATE products SET product_ref = NULL WHERE id = 'p1'`).run();
+    db.prepare(`UPDATE product_variants SET variant_name = NULL WHERE id = 'v1'`).run();
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.lines).toHaveLength(1);
+    expect(d!.lines[0]!.variantName).toBeNull();
+    expect(d!.lines[0]!.productRef).toBeNull();
   });
 
   it("returns the staff note", async () => {
@@ -6392,8 +6545,9 @@ describe("order shipping breakdown (migration 0073 + the drop-off write)", () =>
          (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
           discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
           shipping_auto_satang, shipping_offer_satang, shipping_real_satang,
-          order_created_at, imported_at, buyer_username)
-       VALUES ('o1','airplus','AP-1',?,?,450000,20000,5000,435000,?,?,?,?,?,?,'somchai99')`,
+          order_created_at, imported_at, buyer_username, slip_image_key)
+       VALUES ('o1','airplus','AP-1',?,?,450000,20000,5000,435000,?,?,?,?,?,?,'somchai99',
+               'slip/o1/paid.jpg')`,
     ).run(orderStatus, paymentStatus, profit, auto, offer, real, NOW, NOW);
     db.prepare(
       `INSERT INTO sales_order_lines
@@ -8835,6 +8989,91 @@ describe("updateOrder > paid is not a status you can simply type", () => {
     const { raw, db } = order({ slip: null, status: "cod" });
     expect((await updateOrder(db, "o1", { paymentStatus: "cod_confirmed" })).ok).toBe(true);
     expect(paymentStatus(raw)).toBe("cod_confirmed");
+  });
+});
+
+/**
+ * The last step of the owner's sequence (27 Aug 2026): placed → paid → slip approved → shipped.
+ *
+ * The three earlier steps were already guarded. This one was not: an order ALREADY sitting at
+ * `paid` with no slip behind it passed `canRecordDropOff` (which only asks whether the money has
+ * settled) and shipped. And a patch that only set `orderStatus: 'shipped'`, with no carrier charge
+ * alongside it, missed the drop-off guard entirely.
+ */
+describe("updateOrder > a transfer order ships only once its slip is in", () => {
+  const NOW = 1_800_000_000_000;
+
+  function order(opts: { slip?: string | null; payment?: string } = {}) {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+                                   order_created_at, imported_at, slip_image_key)
+         VALUES ('o1','airplus','AP-1','packing',?,?,?,?)`,
+      )
+      .run(opts.payment ?? "paid", NOW, NOW, opts.slip ?? null);
+    return { raw, db: asD1(raw) };
+  }
+  const orderStatus = (raw: DatabaseSync) =>
+    (raw.prepare(`SELECT order_status AS s FROM sales_orders WHERE id='o1'`).get() as { s: string })
+      .s;
+
+  it("given paid by transfer with NO slip > the drop-off is refused", async () => {
+    const { raw, db } = order({ slip: null });
+    const out = await updateOrder(db, "o1", {
+      orderStatus: "shipped",
+      carrier: "flash",
+      trackingNo: "TH1",
+      shippingRealSatang: 5_000,
+    });
+    expect(out.ok).toBe(false);
+    expect(orderStatus(raw)).toBe("packing");
+  });
+
+  it("given NO slip > even a bare status patch cannot ship it", async () => {
+    // The hole the carrier-charge guard left: no shippingRealSatang, so nothing to check against.
+    const { raw, db } = order({ slip: null });
+    expect((await updateOrder(db, "o1", { orderStatus: "shipped" })).ok).toBe(false);
+    expect(orderStatus(raw)).toBe("packing");
+  });
+
+  it("given the slip is in > it ships", async () => {
+    const { raw, db } = order({ slip: "slip/o1/a.jpg" });
+    expect(
+      (
+        await updateOrder(db, "o1", {
+          orderStatus: "shipped",
+          carrier: "flash",
+          trackingNo: "TH1",
+          shippingRealSatang: 5_000,
+        })
+      ).ok,
+    ).toBe(true);
+    expect(orderStatus(raw)).toBe("shipped");
+  });
+
+  it("COD ships with no slip at all", async () => {
+    // The expensive way to get this rule wrong is to stop every COD parcel in the shop.
+    const { raw, db } = order({ slip: null, payment: "cod_confirmed" });
+    expect(
+      (
+        await updateOrder(db, "o1", {
+          orderStatus: "shipped",
+          carrier: "flash",
+          trackingNo: "TH1",
+          shippingRealSatang: 5_000,
+        })
+      ).ok,
+    ).toBe(true);
+    expect(orderStatus(raw)).toBe("shipped");
+  });
+
+  it("anything that is not shipping is untouched by the rule", async () => {
+    // A note, a tracking number correction, a status that is not 'shipped' — none of them put a
+    // parcel on a van, so none of them may be blocked by this.
+    const { db } = order({ slip: null });
+    expect((await updateOrder(db, "o1", { staffNote: "ลูกค้าขอเลื่อน" })).ok).toBe(true);
+    expect((await updateOrder(db, "o1", { orderStatus: "cancelled" })).ok).toBe(true);
   });
 });
 

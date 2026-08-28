@@ -13,7 +13,13 @@ import {
   type CustomerTier,
   type OrderStage,
 } from "@l-shopee/core";
-import { saveOrderStaffNote, privateFileUrl, type OrderDetail, type ShopInfo } from "@/lib/api";
+import {
+  saveOrderStaffNote,
+  privateFileUrl,
+  imageUrl,
+  type OrderDetail,
+  type ShopInfo,
+} from "@/lib/api";
 import { ShipmentSection } from "./ShipmentActions";
 import { PaymentReviewSection } from "./PaymentReview";
 import { CodApprovalSection } from "./CodApproval";
@@ -348,19 +354,17 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         />
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
+      {/* ZONE B. The two columns live in globals.css rather than here, because the phone has to
+          undo them — and nothing in a stylesheet can override an inline style. Below 741px the
+          columns become `display: contents`, which drops them out of the layout and makes all ten
+          cards siblings of this grid, so `order` can stack them in the sequence the owner picked
+          (27 Aug 2026) regardless of which column they were written in. */}
+      <div className="od-grid">
         {/* ── left column ─────────────────────────────────────────────────────────── */}
-        <div>
+        <div className="od-col">
           {/* Customer — the block that replaces Shopee's buyer card. Tier and credit are here
               because they are what decide whether this customer gets COD at all. */}
-          <div style={card}>
+          <div className="od-customer" style={card}>
             <div style={sectionTitle}>{t({ th: "ลูกค้า", en: "Customer" })}</div>
             {customer ? (
               <>
@@ -391,7 +395,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
 
           {/* Shipping — three sections 16px apart: address, payment method, carrier. The label
               buttons used to live here; they moved to Documents, which carries them at every stage. */}
-          <div style={card}>
+          <div className="od-shipping" style={card}>
             <div style={sectionTitle}>{t({ th: "การจัดส่ง", en: "Shipping" })}</div>
             {address ? (
               <div style={tableText.body2}>
@@ -460,9 +464,57 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
           </div>
 
           {/* Items */}
-          <div style={card}>
+          <div className="od-items" style={card}>
             <div style={sectionTitle}>{t({ th: "รายการสินค้า", en: "Items" })}</div>
-            <div style={{ overflowX: "auto" }}>
+            {/* THE PHONE'S SHAPE (owner, 27 Aug 2026): the same row the order card uses — picture,
+                name, price, the option word and the quantity — with the Product ID underneath and
+                this line's own total at the foot. A four-column table on a 375px screen either
+                scrolls sideways or squeezes a product name into two characters a line; neither is
+                readable, and this list is the one that answers "what did they actually buy".
+
+                The wide table below is untouched and simply hidden here — the same swap the orders
+                list uses, and the reason this pass cannot move the desktop. The atoms are the order
+                card's own classes rather than copies, so the two shapes cannot drift apart. */}
+            <div className="oitems">
+              {lines.map((l) => (
+                <div className="oitem" key={l.id}>
+                  <div className="ocard-body">
+                    <div className="ocard-thumb">
+                      {l.imageKey ? (
+                        <img src={imageUrl(l.imageKey)} alt="" />
+                      ) : (
+                        <span aria-hidden="true">✦</span>
+                      )}
+                    </div>
+                    <div className="ocard-lines">
+                      {/* THE ROW CARRIES NO MONEY (owner, 27 Aug 2026). The quantity took the
+                          price's place at the right, and the per-line total went. What was bought
+                          and how many is this card's question; ลูกค้าจ่าย and สรุปการเงิน below
+                          answer the money one, and a price here only invited the reader to add up
+                          numbers that are already added up twice further down the page. */}
+                      <div className="ocard-line1">
+                        <span className="ocard-name">{l.name ?? "—"}</span>
+                        <span className="ocard-qty">× {l.quantity}</span>
+                      </div>
+                      {/* Dropped entirely when the product has no option word, rather than left as
+                          an empty line the eye still has to skip. */}
+                      {l.variantName && (
+                        <div className="ocard-line2">
+                          <span className="ocard-variant">{l.variantName}</span>
+                        </div>
+                      )}
+                      {/* The Product ID, which the order card does not show and this page does —
+                          it is the number you search by. Em dash rather than a blank when the
+                          product predates Product IDs, so the line never looks like a bug. */}
+                      <div className="oitem-ref">
+                        {t({ th: "รหัสสินค้า", en: "Product ID" })} {l.productRef ?? "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="wide-only" style={{ overflowX: "auto" }}>
               <table>
                 <thead>
                   <tr>
@@ -499,13 +551,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
               Both read the API's derived `money`. Nothing is computed here — a figure that this page
               and /orders could disagree about is exactly what deriving centrally prevents. No
               marketplace fees either: that is a Shopee concept and does not exist on an AirPlus order. */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: 16,
-            }}
-          >
+          <div className="od-money">
             <div style={card}>
               <div style={sectionTitle}>{t({ th: "ลูกค้าจ่าย", en: "Customer paid" })}</div>
               <Row
@@ -584,7 +630,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
 
           {/* Financial summary — full width below the top row; its goods → cost → shipping shortfall →
               profit statement runs longer than a single column, so it gets the whole width. */}
-          <div style={card}>
+          <div className="od-finance" style={card}>
             <div style={sectionTitle}>{t({ th: "สรุปการเงิน", en: "Financial summary" })}</div>
             <Row
               label={t({ th: "ยอดหลังหักส่วนลด", en: "Subtotal after discount" })}
@@ -633,8 +679,8 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
         </div>
 
         {/* ── right rail: note + timeline ──────────────────────────────────────────── */}
-        <div>
-          <div style={card}>
+        <div className="od-col">
+          <div className="od-note" style={card}>
             <div style={sectionTitle}>{t({ th: "บันทึก", en: "Note" })}</div>
             <textarea
               value={note}
@@ -660,6 +706,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
 
           {/* The order's files — label, slip, claim evidence — each with View + Save. */}
           <DocumentsCard
+            className="od-docs"
             order={order}
             address={address}
             lines={lines}
@@ -670,7 +717,7 @@ export function OrderDetailView({ detail, shop }: { detail: OrderDetail; shop: S
           />
 
           {/* Progress stepper: oldest → newest, dot on the current status (owner, 31 Jul). */}
-          <div style={card}>
+          <div className="od-timeline" style={card}>
             <div style={sectionTitle}>{t({ th: "ไทม์ไลน์", en: "Timeline" })}</div>
             {stages.map((s, i) => (
               <StepRow key={s.key} stage={s} last={i === stages.length - 1} />
@@ -735,7 +782,7 @@ function ClaimsSection({
           .join(", ");
 
   return (
-    <div style={card}>
+    <div className="od-claims" style={card}>
       <div style={sectionTitle}>{t({ th: "สรุปการเคลม", en: "Claim summary" })}</div>
       {claims.map((c, i) => {
         const state = isClaimState(c.state) ? c.state : null;

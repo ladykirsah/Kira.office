@@ -68,6 +68,7 @@ import {
   type StaffRole,
   type ViewerRole,
   canRecordDropOff,
+  canShipOrder,
   normalizePaymentStatus,
   privateFileAccess,
   validateExpenseInput,
@@ -2856,6 +2857,10 @@ export interface OrderDetail {
     brand: string | null;
     sku: string | null;
     imageKey: string | null;
+    /** The option word (แท้ / 4 ลิตร). Null on a product sold in one form only. */
+    variantName: string | null;
+    /** The Product ID (รหัสสินค้า). Null on a product saved before it became mandatory. */
+    productRef: string | null;
     quantity: number;
     unitPriceSatang: number;
     unitCostSatang: number;
@@ -3001,6 +3006,10 @@ export async function getOrderDetail(
       // every unbranded line — the shipping label would then go out missing an item.
       `SELECT l.id, l.product_variant_id AS variantId, p.name, b.name AS brand, v.sku,
               p.image_key AS imageKey,
+              -- The variant word (แท้ / 4 ลิตร) and the Product ID, for the phone's item rows: they
+              -- carry the same shape as the order card, plus the ID underneath. The row used to
+              -- print sku-or-variantId, so a product with no SKU showed an internal key.
+              v.variant_name AS variantName, p.product_ref AS productRef,
               l.quantity, l.unit_price_satang AS unitPriceSatang,
               l.unit_cost_satang AS unitCostSatang, l.line_total_satang AS lineTotalSatang
        FROM sales_order_lines l
@@ -3113,16 +3122,47 @@ export async function getOrderDetail(
 export async function listOrders(env: Env): Promise<Response> {
   await expireUnpaidOrders(env.DB);
   const { results } = await env.DB.prepare(
-    `SELECT o.id, o.channel, o.external_order_id AS externalOrderId, o.order_status AS orderStatus,
+    // The two CTEs summarise each order's CONTENTS for the phone card, which shows what was bought
+    // rather than a column of labelled numbers (owner's design D, 27 Aug 2026). A summary and not
+    // the lines themselves: the card renders the first line plus "+ N more", and 200 orders' worth
+    // of full line arrays is a payload nobody reads.
+    //
+    // Both joins are LEFT and both counts COALESCE to 0, because a header-only order is normal, not
+    // an error: every CSV-imported Shopee order is one, and so is any AirPlus order from before
+    // sales_order_lines existed. An inner join here would silently delete them from the admin list.
+    `WITH first_line AS (
+       SELECT l.sales_order_id AS oid, p.name AS name, v.variant_name AS variantName,
+              l.unit_price_satang AS priceSatang, l.quantity AS qty,
+              -- The COVER image, falling back to the lowest sort_order when none is flagged. Ordered
+              -- by id last so the pick is stable rather than whatever sqlite returns that day.
+              (SELECT i.image_key FROM product_images i
+                WHERE i.product_id = p.id
+                ORDER BY i.is_cover DESC, i.sort_order, i.id LIMIT 1) AS imageKey,
+              ROW_NUMBER() OVER (PARTITION BY l.sales_order_id ORDER BY l.created_at, l.id) AS rn
+         FROM sales_order_lines l
+         JOIN product_variants v ON v.id = l.product_variant_id
+         JOIN products p ON p.id = v.product_id
+     ),
+     line_totals AS (
+       SELECT sales_order_id AS oid, COUNT(*) AS lineCount, SUM(quantity) AS itemQty
+         FROM sales_order_lines GROUP BY sales_order_id
+     )
+     SELECT o.id, o.channel, o.external_order_id AS externalOrderId, o.order_status AS orderStatus,
             o.payment_status AS paymentStatus, o.grand_total_satang AS grandTotalSatang,
             o.fee_total_satang AS feeTotalSatang, o.shipping_fee_satang AS shippingFeeSatang,
             o.order_created_at AS orderCreatedAt,
             o.imported_at AS importedAt, o.buyer_username AS buyerUsername,
             o.sales_satang AS salesSatang, o.fee_bp AS feeBp, o.ship_time_ms AS shipTimeMs,
             o.carrier, o.tracking_no AS trackingNo, o.profit_satang AS profitSatang,
-            c.customer_code AS customerCode
+            c.customer_code AS customerCode,
+            f.name AS firstItemName, f.variantName AS firstItemVariant,
+            f.imageKey AS firstItemImageKey,
+            f.priceSatang AS firstItemPriceSatang, f.qty AS firstItemQty,
+            COALESCE(t.lineCount, 0) AS lineCount, COALESCE(t.itemQty, 0) AS itemQty
      FROM sales_orders o
      LEFT JOIN storefront_customers c ON c.id = o.storefront_customer_id
+     LEFT JOIN first_line f ON f.oid = o.id AND f.rn = 1
+     LEFT JOIN line_totals t ON t.oid = o.id
      ORDER BY o.imported_at DESC LIMIT 200`,
   ).all();
   return json({ orders: results });
@@ -3152,6 +3192,16 @@ export interface OrderRow {
   profitSatang: number | null;
   /** Human-readable code of the linked storefront customer ("AP-…"); null for unlinked/imported orders. */
   customerCode: string | null;
+  /** The first line's product name / variant / cover image; all null on a header-only order. */
+  firstItemName: string | null;
+  firstItemVariant: string | null;
+  firstItemImageKey: string | null;
+  /** The first line's UNIT price and quantity — the card prints them the way a receipt does. */
+  firstItemPriceSatang: number | null;
+  firstItemQty: number | null;
+  /** How many distinct lines, and how many pieces across them. Both 0 on a header-only order. */
+  lineCount: number;
+  itemQty: number;
   /** The single staff note box on /orders/:id. */
   staffNote?: string | null;
 }
@@ -3245,26 +3295,37 @@ export async function updateOrder(
               imported_at AS importedAt, buyer_username AS buyerUsername,
               sales_satang AS salesSatang, fee_bp AS feeBp, ship_time_ms AS shipTimeMs,
               carrier, tracking_no AS trackingNo, profit_satang AS profitSatang,
-              staff_note AS staffNote,
+              staff_note AS staffNote, slip_image_key AS slipImageKey,
               storefront_customer_id AS storefrontCustomerId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
     )
     .bind(id)
-    .first<OrderRow>();
+    // slipImageKey is read for the shipping guard below, not returned — see canShipOrder.
+    .first<OrderRow & { slipImageKey: string | null }>();
   if (!row) return { ok: false, code: 404, reason: "not found" };
 
-  // A carrier charge means a parcel was handed over, which cannot have happened before the money
-  // settled. Refusing here rather than in the route keeps the invariant next to the write, and keeps
-  // a nonsense number out of the profit figure the owner reads daily.
+  // A parcel cannot go out before the money is settled AND — for a bank transfer — before the slip
+  // that settled it is on the order. The owner's sequence, 27 Aug 2026: placed, paid, slip
+  // approved, shipped. See canShipOrder for why COD is exempt.
+  //
+  // BOTH doors are checked, because they are different doors. A carrier charge means a parcel was
+  // handed over; a status of 'shipped' says so outright. The drop-off form sends both together, so
+  // the older guard covered the screen — but a patch carrying only the status walked straight past
+  // it. Refusing here rather than in the route keeps the invariant next to the write, and keeps a
+  // nonsense number out of the profit figure the owner reads daily.
+  const shipsThisOrder =
+    ("shippingRealSatang" in patch && patch.shippingRealSatang != null) ||
+    patch.orderStatus === "shipped";
   if (
-    "shippingRealSatang" in patch &&
-    patch.shippingRealSatang != null &&
-    !canRecordDropOff(normalizePaymentStatus(row.paymentStatus))
+    shipsThisOrder &&
+    !canShipOrder(normalizePaymentStatus(row.paymentStatus), row.slipImageKey)
   ) {
     return {
       ok: false,
       code: 409,
-      reason: "this order has not been paid for, so no drop-off can be recorded",
+      reason: canRecordDropOff(normalizePaymentStatus(row.paymentStatus))
+        ? "this order has no approved slip yet, so it cannot be shipped"
+        : "this order has not been paid for, so no drop-off can be recorded",
     };
   }
 

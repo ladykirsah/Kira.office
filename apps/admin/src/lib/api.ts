@@ -907,6 +907,16 @@ export interface OrderRow {
   carrier?: string | null; // shipping carrier (AirPlus)
   trackingNo?: string | null; // parcel tracking number (AirPlus)
   customerCode?: string | null; // linked storefront customer's code ("AP-…"); null when unlinked
+  // ── What is IN the order, summarised (the phone card shows the goods, not a column of labels).
+  //    All null / 0 on a header-only order: every CSV-imported Shopee order is one, and so is any
+  //    AirPlus order placed before sales_order_lines existed.
+  firstItemName?: string | null; // the first line's product
+  firstItemVariant?: string | null; // …and its option (แท้ / 4 ลิตร)
+  firstItemImageKey?: string | null; // …and its cover image, an R2 key for imageUrl()
+  firstItemPriceSatang?: number | null; // …its UNIT price, not the line total
+  firstItemQty?: number | null;
+  lineCount?: number; // how many distinct lines ("+ อีก N รายการ" is this minus one)
+  itemQty?: number; // how many pieces across them all
 }
 
 export async function fetchOrders(): Promise<OrderRow[]> {
@@ -1880,6 +1890,10 @@ export interface OrderDetail {
     brand: string | null;
     sku: string | null;
     imageKey: string | null;
+    /** The option word (แท้ / 4 ลิตร). Null on a product sold in one form only. */
+    variantName: string | null;
+    /** The Product ID (รหัสสินค้า). Null on a product saved before it became mandatory. */
+    productRef: string | null;
     quantity: number;
     unitPriceSatang: number;
     unitCostSatang: number;

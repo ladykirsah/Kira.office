@@ -200,6 +200,27 @@ input[type="number"]::-webkit-inner-spin-button {
   margin: 0;
 }
 /* Toolbar search: typed text near-black + slightly bold, placeholder stays muted like the selects' default */
+/* ── A list's toolbar: the search box and the selects beside it ────────────────────────────────
+   A class rather than the inline object it was, because the phone needs a different shape and an
+   inline style cannot be overridden by a media query. These values are the ones it always had. */
+.tbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+/* `.tbar-search` marks a search box that has NO `.tbar-input` class — several screens carry a bare
+   one above a list. It is deliberately empty here: `.tbar-input` also styles a placeholder, and
+   borrowing it would have changed those inputs on a wide screen, which this pass may not do. The
+   class exists solely for the phone rule far below. */
+
+/* Scoped to the toolbar: `.tbar-input` is on five screens and only this one is being changed. */
+.tbar .tbar-input {
+  width: 240px;
+  max-width: 100%;
+}
+
 .tbar-input::placeholder {
   color: var(--text-faint);
   font-weight: 400;
@@ -468,6 +489,359 @@ tbody tr:hover {
     display: flex;
     justify-content: flex-end;
     padding-top: 8px;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────
+   ORDER CARDS — the /orders list on a phone (owner's design D, 27 Aug 2026).
+
+   Every other list on this admin becomes a card by CSS alone (`.list-cards` above). This one
+   cannot: it has a picture, a product line, a totals row and a button, in a nesting no arrangement
+   of table cells produces. So the phone gets its own markup (OrderCards.tsx) and the table is
+   simply hidden — which is also what guarantees this pass cannot move the wide screen, since not
+   one declaration below applies above 741px.
+
+   `.ocards` is display:none by default rather than wearing `.phone-only`, because it needs to come
+   back as a FLEX column, and a generic utility can only offer one display value.
+   ──────────────────────────────────────────────────────────────────────────────────────────── */
+.ocards {
+  display: none;
+}
+@media (max-width: 741px) {
+  .ocards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  /* The wide table's wrapper. Generic on purpose: the rest of this mobile pass will want it. */
+  .wide-only {
+    display: none;
+  }
+}
+
+.ocard {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+.ocard:active {
+  background: var(--hover);
+}
+/* No underline on hover. The global `a:hover` underlines a link's text, which is right for a link
+   inside a sentence and wrong for a card that IS the link — every word on it, the customer's name,
+   the product, the amount and the button, got a line under it at once (owner, 27 Aug 2026).
+   `:hover` is not in the selector on purpose: the rule above it already says none, and a card has
+   no state in which an underline would be correct. */
+.ocard:hover {
+  text-decoration: none;
+}
+
+/* ── section 1: who, what state, and which order ── */
+.ocard-head {
+  padding: 8px 11px 9px;
+  border-bottom: 1px solid var(--border);
+}
+.ocard-idrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ocard-who {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The status as a WORD, not a chip (the reference's one free saving: same information, no box, no
+   height). It keeps the `.pill` classes so the colour stays the owner's picked palette in both
+   themes and cannot drift into a second one; these two rules only strip the background.
+   The ancestor is in the selector to OUT-SPECIFY `.pill.off` rather than to merely follow it —
+   this block sits above the pill palette in the file, and matching specificity there would have
+   lost. The grey chip that produced was invisible in a screenshot until measured. */
+.ocard-head .pill.ocard-status {
+  flex: none;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+html[data-theme="dark"] .ocard-head .pill.ocard-status {
+  background: none;
+}
+.ocard-ref {
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ── section 2: what was bought ── */
+.ocard-body {
+  display: flex;
+  gap: 10px;
+  padding: 10px 11px;
+}
+.ocard-thumb {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--code-bg);
+  color: var(--text-faint);
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+}
+.ocard-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ocard-lines {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ocard-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.ocard-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ocard-price {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ocard-line2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ocard-variant {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ocard-qty,
+.ocard-more {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ── section 3: the total, labelled ── */
+.ocard-sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  border-top: 1px solid var(--border);
+}
+.ocard-count,
+.ocard-sum-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+/* The total is the plain text colour, not --primary (owner, 27 Aug 2026). The reference prints its
+   total in the brand orange; here red is reserved for the one thing that is active, and a colour on
+   every card's total marks nothing. The weight and the size already say "this is the number". */
+.ocard-total {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── section 4: what it is waiting for, and the way in ── */
+.ocard-act {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-top: 1px solid var(--border);
+}
+.ocard-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+/* A span wearing a button, because it sits inside the card's own link and shares its tap. Its own
+   class rather than `.btn-sm`: those rules are written for `button` and `a` elements, and a span
+   picking them up would take the sizing without the box. */
+.ocard-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+.ocard-btn.pri {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+/* The order page's ITEM ROWS on a phone. Same shape as the order card's product block — the atoms
+   above are reused, not copied, so the two cannot drift — plus two lines the card has no room for:
+   the Product ID, and this line's own total. The wide table stays and is hidden below 741px.
+
+   Hidden by default (this list is phone-only) and shown inside the phone query, the mirror of
+   `.wide-only` on the table beside it. */
+.oitems {
+  display: none;
+}
+.oitem + .oitem {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.oitem .ocard-body {
+  padding: 0;
+}
+.oitem-ref {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+/* The quantity sits where the order card puts the price, so it takes two things from the price:
+   its refusal to shrink (without it a long product name squeezes "x 1" onto two lines) and the
+   plain text colour (owner, 27 Aug 2026 — faint grey is for the things beside a value, and here
+   the quantity IS the value on that line).
+
+   Scoped to line 1, which only the order page's item rows use. The orders list card keeps its
+   quantity on line 2, faint, next to the option chip — untouched. */
+.ocard-line1 .ocard-qty {
+  flex: none;
+  color: var(--text);
+}
+@media (max-width: 741px) {
+  .oitems {
+    display: block;
+  }
+}
+
+/* A row of Zone-A action buttons in a section's header card, beside the status. A class rather
+   than an inline style so the phone can still change it later without hitting the one thing a
+   media query cannot undo. */
+.actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────
+   ORDER DETAIL (/orders/:id) — Zone B's cards.
+
+   Wide: two columns, the wide one for the order itself and the rail for note, files and history.
+   Phone: ONE column, in the sequence the owner picked card by card (27 Aug 2026):
+
+     การจัดส่ง · ไทม์ไลน์ · รายการสินค้า · ลูกค้าจ่าย+ค่าจัดส่ง · สรุปการเงิน · สรุปการเคลม ·
+     ลูกค้า · เอกสาร · บันทึก
+
+   `order` only sorts SIBLINGS, and these cards are written inside two column `div`s — so on the
+   phone the columns become `display: contents`, which removes them from the layout without
+   removing their children. Every card then becomes a direct child of `.od-grid` and can be placed
+   anywhere in the sequence, whichever column it was authored in.
+
+   The declarations live here rather than inline on the elements for the reason this pass keeps
+   re-learning: a media query cannot override an inline style. The two-column rule had to move out
+   of the component before the phone could undo it. */
+.od-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+/* The money pair — ลูกค้าจ่าย beside ค่าจัดส่ง while there is room for both, one under the other
+   when there is not. It lived inline on the element until the phone needed to change its gap, and
+   an inline style cannot be overridden by a media query; that is the second time this pass. */
+.od-money {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+@media (max-width: 741px) {
+  .od-grid {
+    grid-template-columns: minmax(0, 1fr);
+    /* Zero, not 16: every card already carries its own 16px bottom margin (cardStyles.card), and
+       the grid gap would stack on top of it for 32px between every pair. */
+    gap: 0;
+  }
+  .od-col {
+    display: contents;
+  }
+  .od-shipping {
+    order: 1;
+  }
+  .od-timeline {
+    order: 2;
+  }
+  .od-items {
+    order: 3;
+  }
+  /* One unit: the two money cards sit in their own nested grid, which is already one column at
+     this width, so ลูกค้าจ่าย and ค่าจัดส่ง arrive in that order without being placed separately.
+     Its gap goes to zero for the same reason the outer one does — the cards inside carry their own
+     16px bottom margin, and the nested gap stacked on top of it made that one join 32px while
+     every other join on the page was 16 (owner spotted it, 27 Aug 2026). */
+  .od-money {
+    order: 4;
+    gap: 0;
+  }
+  .od-finance {
+    order: 5;
+  }
+  .od-claims {
+    order: 6;
+  }
+  .od-customer {
+    order: 7;
+  }
+  /* เอกสาร moved down here from second place (owner, 27 Aug 2026): the files are what you go
+     looking for, not what you land on. */
+  .od-docs {
+    order: 8;
+  }
+  .od-note {
+    order: 9;
+  }
+  /* Out of sight but still LAID OUT. For anything the phone should not show but code still has to
+     measure or capture — the shipping-label preview is captured by html2canvas, which cannot
+     rasterise a `display: none` node. Use `.wide-only` when the thing is merely decorative. */
+  .phone-offscreen {
+    position: absolute;
+    left: -99999px;
+    top: 0;
   }
 }
 
@@ -1587,6 +1961,61 @@ a.card:hover {
   .tab {
     font-size: 13.5px;
     padding: 9px 11px;
+  }
+
+  /* ── The toolbar: search on its own line, the selects sharing the next (owner, 27 Aug 2026) ──
+     At 240px fixed the search box left a third of the row empty beside it while the selects
+     wrapped underneath anyway — the worst of both, a short box AND two lines. Full width is what a
+     search box on a phone wants, and the selects then divide what is left of their own line
+     equally, however many of them are on screen (the Filter one only appears once a Sort is
+     chosen). `min-width: 0` is what lets them actually shrink: a select's default minimum is its
+     widest option, which would push the row wide enough to scroll. */
+  /* EVERY search box fills its line, toolbar or not — several screens carry a lone one above a
+     list. `min-width` rather than `width` on purpose: it beats the inline widths those inputs
+     already carry (240px, 280px), so each screen keeps its own width on a wide screen and none of
+     them had to be edited to get this. */
+  .tbar-input,
+  .tbar-search {
+    min-width: 100%;
+  }
+  /* Inside a toolbar that means a line of its own, and whatever sits beside it divides the next
+     line equally. A toolbar with no search box simply starts at that second rule, which is the
+     answer for the rows that are selects and nothing else. */
+  .tbar .tbar-input,
+  .tbar .tbar-search {
+    flex: 1 0 100%;
+  }
+  .tbar select {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* ── The filter row SWIPES instead of wrapping (owner, 27 Aug 2026, design A of three) ────────
+     Eight order filters wrapped onto three lines — 121px measured at 375px — so the page opened on
+     its own controls and the first order sat below the fold. One line that runs off the edge costs
+     39px and hides nothing that a thumb cannot reach.
+
+     A tab cut in half at the right edge is the affordance, which is why nothing is faded over it:
+     a half-word is a clearer "there is more" than a gradient, and it is what every shopping app on
+     the same phone already does. `TabStrip` keeps the ACTIVE tab in view, so arriving already
+     filtered never looks unfiltered.
+
+     The scrollbar is hidden because this is a strip of buttons, not a document — a bar under it
+     would read as part of the row. The row's own bottom border stays the divider it always was. */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  /* A tab must keep its full width in the strip; flex would otherwise squeeze them all to fit and
+     defeat the scrolling entirely. */
+  .tabs .tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   /* Drawn exactly like the theme toggle it shares the bar with — same surface, border and

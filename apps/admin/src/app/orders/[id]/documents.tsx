@@ -15,6 +15,7 @@ import { useT } from "../../LangProvider";
  * card stays a thin renderer. View opens a modal; Save downloads.
  */
 export function DocumentsCard({
+  className,
   order,
   address,
   lines,
@@ -23,6 +24,8 @@ export function DocumentsCard({
   viewerIsSuperAdmin,
   onError,
 }: {
+  /** Layout hook for the page around it — the phone stacks the cards in the owner's own order. */
+  className?: string;
   order: OrderDetail["order"];
   address: OrderDetail["address"];
   lines: OrderDetail["lines"];
@@ -42,7 +45,7 @@ export function DocumentsCard({
   });
 
   return (
-    <div style={card}>
+    <div className={className} style={card}>
       <div style={sectionTitle}>{t({ th: "เอกสาร", en: "Documents" })}</div>
       {docs.map((d, i) => {
         const first = i === 0;

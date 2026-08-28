@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CARRIERS, DEFAULT_CARRIER, toSatang } from "@l-shopee/core";
+import { CARRIERS, DEFAULT_CARRIER, canShipOrder, toSatang } from "@l-shopee/core";
 import qrcode from "qrcode-generator";
 import { saveOrderDropOff, type OrderDetail, type ShopInfo } from "@/lib/api";
 import { saveLabelPdf, saveLabelPng, shippingLabelFileName } from "@/lib/labelFile";
@@ -147,7 +147,15 @@ export function ShipmentSection({ order, address, lines, shop, status, onError }
         }}
       >
         <DropOffCard order={order} onError={onError} />
-        <div style={card}>
+        {/* OFF-SCREEN ON A PHONE, not hidden (owner: hide it there, 27 Aug 2026). The label is a
+            fixed 378px so it never fitted a 375px screen anyway — it sat in a sideways scroller
+            nobody scrolls, under the two buttons that already save it.
+
+            `display: none` would have broken those buttons: `saveFile` rasterises THIS node with
+            html2canvas, and a hidden node has no layout to rasterise. So the phone rule moves it
+            out of view while leaving it laid out — the same trick the Documents card's own copy
+            uses a few lines below, and for the same reason. */}
+        <div className="phone-offscreen" style={card}>
           <div style={sectionTitle}>{t({ th: "ใบปะหน้าพัสดุ", en: "Shipping label" })}</div>
           {/* overflow-x rather than a fluid width: the label is a fixed 378px so the capture is
               predictable, and a squeezed column should scroll it, not reflow what gets printed. */}
@@ -246,7 +254,14 @@ function DropOffCard({
   const [saving, setSaving] = useState(false);
 
   const realSatang = parseBaht(realBaht);
-  const canSave = trackingNo.trim().length > 0 && realSatang != null && !saving;
+  /**
+   * The owner's sequence, 27 Aug 2026: placed → paid → slip approved → shipped. A bank-transfer
+   * order with no slip on it may not go out, and the API refuses the PATCH — so the form must not
+   * offer it either. Offering a button the server will refuse is how a person learns the rule: by
+   * being told no after typing a tracking number in.
+   */
+  const readyToShip = canShipOrder(order.paymentStatus, order.slipImageKey);
+  const canSave = readyToShip && trackingNo.trim().length > 0 && realSatang != null && !saving;
 
   async function save() {
     if (realSatang == null) return;
@@ -262,6 +277,20 @@ function DropOffCard({
       onError((e as Error).message);
       setSaving(false);
     }
+  }
+
+  if (!readyToShip) {
+    return (
+      <div style={card}>
+        <div style={sectionTitle}>{t({ th: "บันทึกการส่งของ", en: "Record drop-off" })}</div>
+        <div style={tableText.subtitle}>
+          {t({
+            th: "ออเดอร์นี้ชำระด้วยการโอนเงิน แต่ยังไม่มีสลิปที่อนุมัติแล้ว — ส่งของไม่ได้จนกว่าจะมีสลิป",
+            en: "This order was paid by transfer but has no approved slip yet — it cannot ship until it does.",
+          })}
+        </div>
+      </div>
+    );
   }
 
   return (

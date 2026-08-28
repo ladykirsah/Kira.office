@@ -16,6 +16,7 @@ import { ActionsMenu } from "./ActionsMenu";
 import { PriceProfitCell } from "./PriceProfitCell";
 import { StockCell } from "./StockCell";
 import { useT } from "../LangProvider";
+import { TabStrip } from "../TabStrip";
 
 type Tab = "all" | "airplus" | "notlive" | "low" | "out";
 
@@ -141,7 +142,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
 
   return (
     <>
-      <div className="tabs">
+      <TabStrip>
         <TabBtn id="all" label={t({ th: "ทั้งหมด", en: "All" })} n={products.length} />
         {managesCatalog && (
           <>
@@ -159,7 +160,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
             <TabBtn id="out" label={t({ th: "หมด", en: "Out of stock" })} n={outOfStock.length} />
           </>
         )}
-      </div>
+      </TabStrip>
 
       <div
         style={{
@@ -169,15 +170,7 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
           background: "var(--surface)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 10,
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
+        <div className="tbar">
           <input
             className="tbar-input"
             placeholder={t({ th: "ค้นหารหัสหรือชื่อสินค้า…", en: "Search code or name…" })}

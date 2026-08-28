@@ -118,6 +118,27 @@ export function canRecordDropOff(paymentStatus: string | null): boolean {
 }
 
 /**
+ * May this parcel go out yet?
+ *
+ * THE OWNER'S SEQUENCE (27 Aug 2026), for an order paid by bank transfer: placed → paid → slip
+ * attached and approved → shipped. Three of those four steps were already guarded — a slip cannot
+ * be approved when there is none, `paid` cannot be typed onto an order without one, and a drop-off
+ * cannot be recorded before the money settles. The fourth was open: an order ALREADY sitting at
+ * `paid` with nothing behind it (a legacy row, or one edited by hand) passed every check and
+ * shipped, and the shop then had a parcel out the door against a payment it could not evidence.
+ *
+ * COD IS EXEMPT, and that is the load-bearing half. Cash on delivery never produces a slip, so a
+ * rule written as "no slip, no shipping" without this exemption would stop every COD parcel in the
+ * shop. Only the literal transfer status — `paid` — has to show its evidence; the same line the
+ * updateOrder guard draws.
+ */
+export function canShipOrder(paymentStatus: string | null, slipImageKey: string | null): boolean {
+  if (!canRecordDropOff(paymentStatus)) return false;
+  if (paymentStatus !== "paid") return true; // COD: settled, and never has a slip
+  return (slipImageKey ?? "").trim() !== "";
+}
+
+/**
  * Which of the thirteen an order is in, or null when the data cannot say — a null status, a Thai
  * value from before migration 0069, or a status we have retired. Null is deliberate: mislabelling an
  * order is worse than admitting we do not know.
