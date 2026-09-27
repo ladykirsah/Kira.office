@@ -1,7 +1,7 @@
 ---
 type: guide
 title: Back-office knowledge index
-description: Products, catalog/taxonomy, barcode & labels, stock full-track, on-site POS, Insight analytics, dashboard, Shopee strategy
+description: Products, catalog/taxonomy, part codes, barcode & labels, stock full-track, on-site POS, Insight analytics, dashboard, Shopee strategy
 tags: [index, back-office]
 timestamp: 2026-08-09
 status: live
@@ -18,6 +18,7 @@ Admin-side domain knowledge for Kira.office: the product catalog, stock tracking
 | [product-content-patterns](product-content-patterns.md) | PARKED: per-product NAMING pattern (a scored design already exists in an old session — retrieve, don't re-answer) and the Terms↔description pattern manager (build last) |
 | [taxonomy-and-attributes](taxonomy-and-attributes.md) | Categories ⊂ car systems (0064); name_th/name_en on 5 tables (0060) with `name` as untouchable identity; in-use attribute delete = 409 block; per-category warranty_days (0054) |
 | [catalog-visibility-and-launch-state](catalog-visibility-and-launch-state.md) | Storefront gate = active AND stock > 0 — price does NOT gate, unpriced lists at ฿0; prod catalog was 6 demo rows, real load = longest-lead owner blocker |
+| [part-codes](part-codes.md) | Every product has one code = its Shopee SKU. Three steps: real maker number → pack/defect of a coded part (`-2P`, `-DF`) → own code `PART-MAKE-MODELYY`; letter tables + the 68 codes made 2026-09-27 |
 | [barcode-labels](barcode-labels.md) | Label page (PRs #77/#78/#79): owner-LOCKED artwork (Full·Minimal × L/S, exact px = spec), per-label size, proportional-shrink A4 packing; 2 open items |
 | [stock-full-track](stock-full-track.md) | on_hand = SUM(quantity_delta) via single-writer DO (blockConcurrencyWhile); holds are negative-delta ledger movements — a bucket, NOT a reservation; /scan 5 modes live; branch `claude/kira-office-tasks-b9b9c5` BLOCKED |
 | [onsite-pos](onsite-pos.md) | draft\|quotation\|bill on one row, one id space — fence bill ids on EVERY write/delete; one /sync money path; read-only reprint; PR #81 customer+payment flow; pos/page.tsx traps |
