@@ -26,8 +26,12 @@ If the box, catalogue or Shopee description has a maker or supplier number, use 
 **Step 2: same part, other pack or a defect copy.**
 Take the coded part and add a suffix:
 
-- A different pack size: `-1P`, `-2P`, `-3P`… (e.g. `JPDF-38-2P`).
+- A different pack size: `-1P`, `-2P`, `-3P`… (e.g. `CL-SPC-3P`, a 3-pack of `CL-SPC`).
 - A `###` defect copy: `-DF` (e.g. `UHD006-DF`).
+
+Careful: some supplier codes already end in `-2P` and mean something else. In the dryer supplier's
+`JPDF-38-2P`, `2P` means 2 pressure-switch ports, not a 2-pack. Never add a pack suffix that would
+make a code look like a different supplier part.
 
 **Step 3: no number anywhere, so build an own code.**
 Read it left to right as part, then car make, then model + year:
@@ -130,7 +134,7 @@ Add a new letter code to these tables the first time it is used.
 | Formula | `9700-0206-00` | Maker number, 4-4-2 digits |
 | Vinn | `BW-HD-004`, `UHD006` | Part + car make + running number |
 | John Chuan | `TY-B5102A` | Car make + part letter + number |
-| Dryer supplier | `JPD-IS-DMX12`, `JPDF-38-2P` | Part + make + model + year; packs end in -2P |
+| Dryer supplier | `JPD-IS-DMX12`, `JPDF-38-2P` | Part + make + model + year; `-2P` = 2 pressure-switch ports, not a pack |
 
 ## Special cases
 
