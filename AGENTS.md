@@ -84,11 +84,12 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
   NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
 ```
 
-- **Pushing to `main` does NOT deploy.** The GitHub Actions `deploy`/`deploy-admin` jobs skip (their
-  secrets are unset; a skip shows green — don't mistake it for a deploy) and the Cloudflare Workers
-  Builds integration fails on the custom-domain DNS. **The owner deploys manually** with `npm run deploy`
-  (API) and `npm run deploy -w @l-shopee/admin` (admin); the agent has no wrangler auth. After any API
-  change, tell the owner to deploy — it is not live until they do.
+- **Merging to `main` deploys all three apps.** After the `build` check passes, GitHub Actions runs
+  `deploy` (API), `deploy-admin` and `deploy-storefront` with the `CLOUDFLARE_API_TOKEN` repo secret; a
+  missing token fails the job loudly instead of skipping green. So "merged" means "live" — merge only
+  when the owner says so. CI does **not** run D1 migrations: apply them to prod before the merge. The
+  Cloudflare **Workers Builds** check fails on every push and is not a code bug — ignore it. Details:
+  [docs/knowledge/operations/ci-pipeline.md](docs/knowledge/operations/ci-pipeline.md).
 - **The admin defaults to the PROD API.** To verify admin UI against unreleased API changes, point it at
   the local Worker via a gitignored `apps/admin/.env.local` (`NEXT_PUBLIC_API_BASE=http://localhost:8788`)
   + restart the dev server; never write mock data to prod.
