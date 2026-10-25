@@ -3,7 +3,7 @@ type: incident
 title: Production incidents and lessons
 description: Chronological log of every production incident and near-miss, each with its root cause and the standing rule it produced.
 tags: [incidents, postmortem, lessons, cloudflare, r2, kv, secrets]
-timestamp: 2026-08-09
+timestamp: 2026-10-25
 status: historical
 sources: [kira-office-architecture.md, kira-office-access-login-setup.md, next-public-env-inlined-at-build.md, kira-500s-root-cause-transient-r2.md, kira-bughunt-2026-07-26.md, kira-storefront-had-no-deploy-job.md]
 ---
@@ -56,3 +56,19 @@ Merging AirPlus Insight (#124) shipped the admin page + API but the storefront b
 ## 2026-08 — Staff login 500s at PBKDF2 210k (fixed in PR #123)
 
 Every prod staff login 500'd because Workers refuses PBKDF2 at 210k rounds; PR #123 (fc8434d) fixed the count at 100k. Logged here for the timeline; the auth design and its ceilings live in [auth](../auth/index.md).
+
+## 2026-10-17 → 25 — Forged force-push planted a loader in both ESLint configs (removed in PR #164)
+
+**What.** On 2026-10-17 between 14:19 and 14:20Z, four refs were force-pushed with the `ladykirsah` credentials within about 70 s: `claude/fix-dryer-2p-example`, `claude/part-code-logic`, the dependabot `npm_and_yarn` branch, and **`main` (38ad2ef → 25f19f7)**. Each forged commit replays its original author and date but is unsigned and carries a **+0100 committer timezone**. That is the same signature as gogocash incident #2785, a PolinRider-style loader (DPRK-linked). Of 840 files, the forgery differs from GitHub's real signed #162 merge (`38ad2ef`) only in `apps/admin/eslint.config.mjs` and `apps/storefront/eslint.config.mjs`. Both gained `createRequire` lines at the top and an obfuscated loader after 709 spaces on the `export default config;` line, so the diff showed `4 +++-` per file.
+
+**Impact.** Anything that loaded the ESLint config ran the loader: the CI `build` job's lint, and `next build` inside `deploy-admin` / `deploy-storefront`, which held `CLOUDFLARE_API_TOKEN`. Treat that token as exposed since 2026-10-17. On 2026-10-25 a local `npm run lint` ran it on the owner's Mac. It spawned detached `node -` processes to **95.135.181.15:443** and, 15 s later, rewrote `/opt/homebrew/lib/node_modules/npm/lib/cli.js` (62 KB on line 13) so that every npm or npx command re-ran it. That hit another session's gogocash lint, vitest and dev runs too. The deployed Workers never contained it: the configs are build-time only.
+
+**Fix (2026-10-25).** All processes killed; PR #164 restored both configs to `dae57b2` byte-for-byte; npm's `cli.js` truncated back to its real 12 lines (evidence kept outside the repo); the owner's gogocash auto-pull LaunchAgent disabled. The deep scan was clean: 989 commits on 279 refs (no other +0100 or hidden-code commit), 22,252 installed package files, every project on disk, git hooks, and editor auto-run tasks. GitHub has no deploy keys or webhooks, and `ladykirsah` is the only collaborator.
+
+**Standing rules.**
+- `main` is protected: no force-push, no deletion, admins included, PR plus a green `build` required, signed commits only.
+- `scripts/check-hidden-code.mjs` runs first in CI, before `npm ci`, and fails any tracked file with code after 100+ spaces, a loader fingerprint, or a code line over 5,000 chars.
+- The OpenNext build steps run without the Cloudflare key; only the upload holds it.
+- `.npmrc` sets `ignore-scripts=true`.
+- Still with the owner: rotate the GitHub, Cloudflare and Gmail credentials and the Cloudflare token, and clean or wipe the Mac.
+- The three forged non-main branches still exist on origin.

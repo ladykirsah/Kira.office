@@ -349,3 +349,8 @@ sources: [session 2026-08-09]
   says so and points at [operations/d1-migration-discipline](operations/d1-migration-discipline.md)
   (prod through 0090). `AGENTS.md` still said merging to `main` does not deploy; CI has deployed
   all three apps on merge since #125, confirmed by the #162 run (all three deploy jobs green).
+
+- **2026-10-25** — **Incident: forged force-push planted a loader in both ESLint configs.** Logged in
+  [operations/incidents-log](operations/incidents-log.md) with the standing rules it produced: a
+  protected and signed `main`, a hidden-code check that runs before `npm ci`, OpenNext builds without
+  the Cloudflare key, and `ignore-scripts` in `.npmrc`.
