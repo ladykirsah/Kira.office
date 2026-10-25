@@ -343,3 +343,9 @@ sources: [session 2026-08-09]
   calling a hook that cannot exist out there. The stock-ledger reason "received via Scan here" is
   excused by name — it is an audit trail, not a screen.
   See [conventions/bilingual-admin](conventions/bilingual-admin.md).
+
+- **2026-10-25** — **Two stale notes corrected.** [state/current](state/current.md) still carried
+  the 2026-08-24 "migration 0088 is NOT applied" warning after 0088 had run that same day; it now
+  says so and points at [operations/d1-migration-discipline](operations/d1-migration-discipline.md)
+  (prod through 0090). `AGENTS.md` still said merging to `main` does not deploy; CI has deployed
+  all three apps on merge since #125, confirmed by the #162 run (all three deploy jobs green).

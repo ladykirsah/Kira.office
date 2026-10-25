@@ -3,34 +3,21 @@ type: guide
 title: Current snapshot
 description: What is deployed and working as of 2026-08-09 — head commit, live features, database head, test count, and the day's production events.
 tags: [state, snapshot, deployed]
-timestamp: 2026-08-24
+timestamp: 2026-10-25
 status: live
 sources: [git log, session 2026-08-09, kira-financial-part-progress.md, airplus-insight-built.md]
 ---
 
 # Current snapshot — 2026-08-09
 
-## ⚠️ PENDING: migration 0088 is NOT applied to production (as of 2026-08-24)
+## Migration 0088 ran on production (2026-08-24)
 
-`0088_archived_becomes_paused.sql` shipped with the code that retires the "archived" product state
-into "paused", but the migration itself has **not run against prod** — wrangler's OAuth had expired,
-the Cloudflare MCP connector was unauthorised, and no API token was available, so all three doors
-into prod D1 were shut. The owner said they would run it later.
-
-**This is safe, not broken.** The products list still filters `status <> 'archived'`, so any product
-archived under the old meaning stays hidden exactly as it is today. The migration is a *recovery*
-step: it turns those rows into `paused` so they appear under "Not live" and can be resumed or
-deleted properly. Until it runs, they remain invisible.
-
-To finish it:
-
-```sql
--- Cloudflare dashboard → D1 → kira-office → Console
-SELECT COUNT(*) AS will_change FROM products WHERE status = 'archived';
-UPDATE products SET status = 'paused' WHERE status = 'archived';
-```
-
-or `npx wrangler d1 migrations apply kira-office --remote` after `npx wrangler login`.
+`0088_archived_becomes_paused.sql` was applied to prod on 2026-08-24, after this snapshot was
+taken: the 8 products still at the retired `archived` status became `paused` and now show under
+"Not live"; nothing is left at `archived` ([log](../log.md)). Prod has since been verified applied
+through **0090** (2026-08-26) — the live migration record is
+[operations/d1-migration-discipline](../operations/d1-migration-discipline.md), not the
+"Database head" line below, which is as of 2026-08-09.
 
 ## Deployed
 
