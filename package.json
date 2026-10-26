@@ -26,7 +26,7 @@
     "@cloudflare/workers-types": "^5",
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
-    "vitest": "^3.2.6",
+    "vitest": "^5.0.5",
     "wrangler": "^4"
   },
   "overrides": {
@@ -34,6 +34,6 @@
     "postcss": "^8.5.18",
     "launch-editor": "^2.10.0",
     "sharp": "^0.35.0",
-    "dompurify": "^3.4.12"
+    "dompurify": "^3.4.17"
   }
 }
