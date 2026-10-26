@@ -4,21 +4,54 @@
     {
       "name": "admin",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@l-shopee/admin"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@l-shopee/admin"
+      ],
       "port": 3010,
       "autoPort": true
     },
     {
       "name": "api",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "--port", "8788"],
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--port",
+        "8788"
+      ],
       "port": 8788
     },
     {
       "name": "storefront",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@l-shopee/storefront"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@l-shopee/storefront"
+      ],
       "port": 3002
+    },
+    {
+      "name": "mobile-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "@l-shopee/mobile",
+        "--",
+        "--port",
+        "8081"
+      ],
+      "port": 8081,
+      "env": {
+        "EXPO_NO_TELEMETRY": "1",
+        "CI": "1"
+      }
     }
   ]
 }

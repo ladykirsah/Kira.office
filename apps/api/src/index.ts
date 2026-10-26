@@ -253,7 +253,10 @@ export function buildCorsHeaders(
   const shared = {
     ...STATIC_SECURITY_HEADERS,
     "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "access-control-allow-headers": "content-type, cf-access-jwt-assertion",
+    // x-staff-session: the Expo app's web build sends its session token itself (2026-10-25). Safe to
+    // allow from any origin — a browser never attaches this header on its own, so a page that does
+    // not already hold the token cannot use it.
+    "access-control-allow-headers": "content-type, cf-access-jwt-assertion, x-staff-session",
     "access-control-max-age": "86400",
   };
   if (origin && allowlist.includes(origin)) {

@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Kira.office",
+    "slug": "kira-office",
+    "scheme": "kiraoffice",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "ios": { "supportsTablet": true },
+    "web": { "output": "single", "bundler": "metro" },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Kira.office uses the camera to scan part barcodes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
+  }
+}

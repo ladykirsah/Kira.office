@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc -b packages/core && tsc --noEmit -p apps/api && tsc --noEmit -p apps/storefront && tsc --noEmit -p apps/admin",
+    "typecheck": "tsc -b packages/core && tsc --noEmit -p packages/shared && tsc --noEmit -p apps/api && tsc --noEmit -p apps/storefront && tsc --noEmit -p apps/admin && npm run typecheck -w @l-shopee/mobile",
     "lint": "prettier --check \"{packages,apps}/**/src/**/*.{ts,tsx}\" && npm run lint:es",
     "format": "prettier --write \"{packages,apps}/**/src/**/*.{ts,tsx}\"",
     "deploy": "wrangler deploy",
