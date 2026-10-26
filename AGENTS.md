@@ -22,6 +22,9 @@ Backend runs on the **Cloudflare developer platform** — full design in
 - `apps/storefront` — **AirPlus** customer-facing car-parts storefront (Next.js + TypeScript via **OpenNext**); its own **Cloudflare Worker**, separate from admin/api but on the **same account** (GoGoCash), binding the same D1 + KV and the cross-Worker `StockLedger` Durable Object.
 - `packages/db` — **D1** schema as hand-written SQL migrations (`wrangler d1 migrations apply`). No TypeScript: nothing imports `@l-shopee/db`.
 - `packages/core` — pure-TypeScript pricing, inventory, tax, cost, and terms logic (no I/O, no Cloudflare deps).
+- `apps/mobile` — the **Expo** rebuild of the back office (owner, 2026-10-26: all new building is in Expo),
+  phone-size web first. Not deployed yet; pages not rebuilt still hand off to `apps/admin`.
+- `packages/shared` — the menu and the Thai/English wording, shared by `apps/admin` and `apps/mobile`.
 - `docs` — requirements and implementation notes.
 - Tests: **Vitest**. App UIs are initialized with `create-cloudflare` (`--framework=next`); see each app README.
 

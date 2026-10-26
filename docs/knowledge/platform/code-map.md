@@ -19,8 +19,10 @@ apps/
   api/         → Worker `kiraoffice` (entry apps/api/src/index.ts; config = ROOT wrangler.jsonc)
   admin/       → Worker `kiraoffice-admin` (@l-shopee/admin, OpenNext)
   storefront/  → Worker `airplus-storefront` (@l-shopee/storefront, OpenNext)
+  mobile/      → the Expo rebuild of the back office (@l-shopee/mobile; phone-size web first, not deployed yet)
 packages/
   core/        → shared domain logic (e.g. src/channels.ts)
+  shared/      → the menu (nav.ts) and Thai/English wording (lang.ts), read by both admin and mobile
   db/          → migrations (packages/db/migrations = the real schema; the old schema.ts draft is deleted — see below)
 docs/          → architecture docs, several known-stale (see below); staleness map in ../conventions/index.md (docs-map)
 ```

@@ -354,3 +354,12 @@ sources: [session 2026-08-09]
   [operations/incidents-log](operations/incidents-log.md) with the standing rules it produced: a
   protected and signed `main`, a hidden-code check that runs before `npm ci`, OpenNext builds without
   the Cloudflare key, and `ignore-scripts` in `.npmrc`.
+
+- **2026-10-26** — **The Expo app starts: the frame and Scan.** `apps/mobile` (Expo SDK 58,
+  expo-router, react-native-web) is where every page is now rebuilt, phone-size web first, after
+  the owner approves its drawing. It has the phone frame (floating four-tab bar + ☰ menu, the same
+  menu as the web back office) and Scan with all five modes. Add product, the product page and
+  ทำบิล still open in the web back office until they are rebuilt. The menu and wording moved to
+  `packages/shared` so both apps show one menu; `apps/admin` re-exports them from the old paths.
+  The API now allows the `x-staff-session` header cross-origin, because the app's web build sends
+  its session token itself. Not deployed anywhere yet.

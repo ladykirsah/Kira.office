@@ -13,14 +13,15 @@
   },
   "dependencies": {
     "@l-shopee/core": "*",
+    "@l-shopee/shared": "*",
     "@zxing/browser": "^0.2.1",
     "html2canvas": "^1.4.1",
     "jsbarcode": "^3.12.3",
     "jspdf": "^4.2.1",
     "next": "^15.5.21",
     "qrcode-generator": "^2.0.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",

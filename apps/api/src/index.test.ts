@@ -954,6 +954,14 @@ describe("buildCorsHeaders", () => {
     expect(h["access-control-allow-origin"]).toBe("*");
     expect(h["access-control-allow-credentials"]).toBeUndefined();
   });
+
+  it("lets a browser send the staff session header, so the Expo app's web build can sign in", () => {
+    const req = new Request("https://api.example.com/staff/me", {
+      headers: { Origin: "http://localhost:8081" },
+    });
+    const allowed = buildCorsHeaders(req)["access-control-allow-headers"]?.split(/,\s*/);
+    expect(allowed).toContain("x-staff-session");
+  });
 });
 
 describe("PATCH /orders/:id (AirPlus fulfillment editor)", () => {
