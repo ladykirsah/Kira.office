@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { lookupPart, moveHold, parkBill, receiveStock } from "./scanApi";
+import {
+  adjustStock,
+  lookupPart,
+  moveHold,
+  parkBill,
+  readShop,
+  recordPayment,
+  sendSale,
+  todaysSaleNumbers,
+} from "./scanApi";
 import type { FetchFn } from "./signIn";
 
 function recording(replies: Array<() => Promise<Response>>) {
@@ -21,14 +30,15 @@ const found = {
   name: "วาล์ว",
 };
 const detail = {
-  product: { imageKey: "img/valve.jpg" },
+  product: { imageKey: "img/valve.jpg", brandName: "Sanden" },
   onHand: 3,
   held: 1,
-  pricing: { targetPriceSatang: 65000, itemCostSatang: 44000 },
+  pricing: { targetPriceSatang: 65000, b2bPriceSatang: 58000, itemCostSatang: 44000 },
+  images: [{ imageKey: "img/valve.jpg" }, { imageKey: "img/valve-side.jpg" }],
 };
 
 describe("lookupPart", () => {
-  it("given a known code > then it returns the part with its stock and price, asked with the session", async () => {
+  it("given a known code > then it returns the part with its photos, stock and both prices, asked with the session", async () => {
     const { calls, fetchFn } = recording([
       async () => Response.json(found),
       async () => Response.json(detail),
@@ -41,12 +51,14 @@ describe("lookupPart", () => {
       productId: "p 1",
       productRef: "TY-VIGO-08",
       name: "วาล์ว",
-      imageKey: "img/valve.jpg",
+      brandName: "Sanden",
+      barcode: "885",
+      photoKeys: ["img/valve.jpg", "img/valve-side.jpg"],
       onHand: 3,
       held: 1,
       unitPriceSatang: 65000,
+      b2bPriceSatang: 58000,
       unitCostSatang: 44000,
-      qty: 1,
     });
     expect(calls.map((c) => c.url)).toEqual([
       "http://api/products/by-barcode/88%205%2F1",
@@ -71,7 +83,24 @@ describe("lookupPart", () => {
     const part = await lookupPart(fetchFn, "http://api", "tok", "885");
 
     expect(part?.unitPriceSatang).toBe(0);
+    expect(part?.b2bPriceSatang).toBe(0);
     expect(part?.unitCostSatang).toBe(0);
+  });
+
+  it("given no gallery > then the product's own photo is shown; given none at all > then no photos", async () => {
+    const noGallery = recording([
+      async () => Response.json(found),
+      async () => Response.json({ ...detail, images: [] }),
+    ]);
+    const bare = recording([
+      async () => Response.json(found),
+      async () => Response.json({ ...detail, product: { imageKey: null }, images: [] }),
+    ]);
+
+    expect((await lookupPart(noGallery.fetchFn, "http://api", "tok", "885"))?.photoKeys).toEqual([
+      "img/valve.jpg",
+    ]);
+    expect((await lookupPart(bare.fetchFn, "http://api", "tok", "885"))?.photoKeys).toEqual([]);
   });
 
   it("given the shop's system fails > then it says so instead of pretending the part is unknown", async () => {
@@ -102,23 +131,128 @@ describe("moveHold", () => {
   });
 });
 
-describe("receiveStock", () => {
-  it("given an amount > then it records a 'receive' movement for that part", async () => {
+describe("adjustStock", () => {
+  it("given a stock move > then it records it for that part and returns whether it applied", async () => {
     const { calls, fetchFn } = recording([
       async () => Response.json({ applied: true, quantityAfter: 6 }),
     ]);
-
-    expect(await receiveStock(fetchFn, "http://api", "tok", "v1", 3)).toEqual({
-      applied: true,
-      quantityAfter: 6,
-    });
-    expect(calls[0]?.url).toBe("http://api/stock/adjust");
-    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+    const move = {
       productVariantId: "v1",
-      quantityDelta: 3,
-      movementType: "receive",
-      reason: "received via Scan",
+      countedOnHand: 6,
+      movementType: "correction" as const,
+      reason: "recounted via Scan",
+    };
+
+    expect(await adjustStock(fetchFn, "http://api", "tok", move)).toEqual({ applied: true });
+    expect(calls[0]?.url).toBe("http://api/stock/adjust");
+    expect(calls[0]?.init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual(move);
+  });
+
+  it("given the move is refused > then the system's reason comes back with it", async () => {
+    const { fetchFn } = recording([
+      async () => Response.json({ applied: false, reason: "would go below zero" }),
+    ]);
+    const move = {
+      productVariantId: "v1",
+      quantityDelta: -9,
+      movementType: "write_off" as const,
+      reason: "damaged or lost via Scan",
+    };
+
+    expect(await adjustStock(fetchFn, "http://api", "tok", move)).toEqual({
+      applied: false,
+      reason: "would go below zero",
     });
+  });
+});
+
+describe("todaysSaleNumbers", () => {
+  it("returns every bill number the shop has issued, for the next number to follow", async () => {
+    const { calls, fetchFn } = recording([
+      async () =>
+        Response.json({ sales: [{ saleNumber: "DAS202610-26002" }, { saleNumber: null }] }),
+    ]);
+
+    expect(await todaysSaleNumbers(fetchFn, "http://api", "tok")).toEqual([
+      "DAS202610-26002",
+      null,
+    ]);
+    expect(calls[0]?.url).toBe("http://api/sales");
+  });
+});
+
+describe("sendSale", () => {
+  const sale = {
+    clientUuid: "u-1",
+    saleNumber: "DAS202610-26003",
+    paymentMethod: "cash" as const,
+    saleType: "parts" as const,
+    lines: [],
+  };
+
+  it("sends the one sale to the sales ledger and returns the system's answer", async () => {
+    const answer = { applied: 1, duplicates: 0, conflicts: [], validationErrors: [] };
+    const { calls, fetchFn } = recording([async () => Response.json(answer)]);
+
+    expect(await sendSale(fetchFn, "http://api", "tok", sale)).toEqual(answer);
+    expect(calls[0]?.url).toBe("http://api/sync");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ sales: [sale] });
+  });
+
+  it("given the system fails > then it throws, so the bill is not shown as paid", async () => {
+    const { fetchFn } = recording([async () => new Response("", { status: 500 })]);
+
+    await expect(sendSale(fetchFn, "http://api", "tok", sale)).rejects.toThrow("HTTP 500");
+  });
+});
+
+describe("recordPayment", () => {
+  it("records the PromptPay payment on the shop's payment list", async () => {
+    const { calls, fetchFn } = recording([async () => Response.json({ payment: { id: "pay-1" } })]);
+    const payment = { methodLabel: "ร้าน", promptpayId: "0812345678", amountSatang: 426000 };
+
+    await recordPayment(fetchFn, "http://api", "tok", payment);
+
+    expect(calls[0]?.url).toBe("http://api/payments");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual(payment);
+  });
+
+  it("given it is not recorded > then it throws", async () => {
+    const { fetchFn } = recording([async () => new Response("", { status: 400 })]);
+
+    await expect(
+      recordPayment(fetchFn, "http://api", "tok", {
+        methodLabel: "ร้าน",
+        promptpayId: "0812345678",
+        amountSatang: 1,
+      }),
+    ).rejects.toThrow("HTTP 400");
+  });
+});
+
+describe("readShop", () => {
+  it("reads Den Air Service's name and its default PromptPay account", async () => {
+    const methods = [
+      { id: "a", label: "แม่", promptpayId: "0811111111" },
+      { id: "b", label: "ร้าน", promptpayId: "0822222222", isDefault: true },
+    ];
+    const { calls, fetchFn } = recording([
+      async () =>
+        Response.json({ name: "Den Air Service", paymentMethods: JSON.stringify(methods) }),
+    ]);
+
+    expect(await readShop(fetchFn, "http://api", "tok")).toEqual({
+      name: "Den Air Service",
+      account: { label: "ร้าน", promptpayId: "0822222222" },
+    });
+    expect(calls[0]?.url).toBe("http://api/shop-info/denair");
+  });
+
+  it("given no PromptPay account set up > then there is no account to show", async () => {
+    const { fetchFn } = recording([async () => Response.json({ name: "", paymentMethods: "" })]);
+
+    expect(await readShop(fetchFn, "http://api", "tok")).toEqual({ name: "", account: null });
   });
 });
 

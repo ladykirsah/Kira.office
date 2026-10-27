@@ -363,3 +363,17 @@ sources: [session 2026-08-09]
   `packages/shared` so both apps show one menu; `apps/admin` re-exports them from the old paths.
   The API now allows the `x-staff-session` header cross-origin, because the app's web build sends
   its session token itself. Not deployed anywhere yet.
+
+- **2026-10-27** — **Scan v2 in the Expo app.** Owner-approved design and build: three tabs — ขาย,
+  งานนอก, จัดการสต็อก — one full product card per scan, its − n + number meaning what the tab is
+  about, one short red button (จ่ายเงิน · บันทึก · เพิ่มสินค้า). No server change; it uses the
+  routes the web pages use: `/stock/hold` (งานนอก), `/stock/adjust` (+ = `receive`; − asks
+  นับใหม่ = `correction` sent as `countedOnHand`, or ของเสีย = `write_off`), and for ขาย either
+  `/onsite/drafts` (ลูกค้า → ทำบิล) or `/sync` + `/payments` (ช่าง pays here, mechanic price, DAS
+  bill). Money rules learned in review, all tested in `apps/mobile/src/lib/mechanicBill.ts`: the
+  sale is saved **before** the PromptPay payment is listed; one sale (one `clientUuid`) is kept
+  while its parts and amounts stay the same, across retries and closing the sheet; a dropped
+  connection keeps the bill number, a refusal takes a fresh one. A stock save whose answer was lost
+  removes the card and asks for a rescan rather than resending a relative change. Details:
+  [back-office/onsite-pos](back-office/onsite-pos.md),
+  [auth/practice-copy-sign-in](auth/practice-copy-sign-in.md) (the owner's one-click link).

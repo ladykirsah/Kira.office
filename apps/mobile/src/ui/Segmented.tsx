@@ -53,11 +53,11 @@ const styles = StyleSheet.create({
   track: { flexDirection: "row", padding: 2, borderRadius: 10 },
   segment: {
     flex: 1,
-    height: 30,
+    height: 32,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 2,
   },
-  text: { fontSize: 13, lineHeight: 18 },
+  text: { fontSize: 15, lineHeight: 20 },
 });

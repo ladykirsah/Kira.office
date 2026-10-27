@@ -73,6 +73,13 @@ The admin app shows the button when `isLocalHost(window.location.hostname)` — 
 the practice-copy banner. That decides only whether to *draw* a button; the API is the boundary and
 refuses regardless of what is drawn.
 
+## The one-click link (Expo app)
+
+The owner checks work in the preview, whose sign-in lives only in the tab — every reload signs out.
+`http://localhost:8081/sign-in?practice=1` signs straight into the practice copy and lands on Scan
+(`&to=/page` for another page). `apps/mobile/src/lib/shortcut.ts` offers it only when the app's API is
+on this machine, and the API's own gate above still decides; a `to` that leaves the app is ignored.
+
 ## Setting it up
 
 Add to `.dev.vars` (gitignored — never `wrangler secret put` this):

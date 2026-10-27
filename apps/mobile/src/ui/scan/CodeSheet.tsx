@@ -29,55 +29,58 @@ export function CodeSheet({ onCode, onClose }: CodeSheetProps) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={[styles.scrim, { backgroundColor: theme.scrim }]}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel={t({ th: "ปิด", en: "Close" })}
-      />
-      <View
-        style={[
-          styles.sheet,
-          { backgroundColor: theme.bg, paddingBottom: insets.bottom + SPACE.xl },
-        ]}
-      >
-        <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-          {t({ th: "พิมพ์รหัส", en: "Type a code" })}
-        </Text>
-        <TextInput
-          value={code}
-          onChangeText={(v) => {
-            setCode(v);
-            setEmpty(false);
-          }}
-          onSubmitEditing={submit}
-          autoFocus
-          autoCapitalize="characters"
-          autoCorrect={false}
-          returnKeyType="search"
-          placeholder={t({ th: "รหัสสินค้าหรือบาร์โค้ด", en: "Product ID or barcode" })}
-          placeholderTextColor={theme.textMuted}
-          accessibilityLabel={t({ th: "รหัสสินค้าหรือบาร์โค้ด", en: "Product ID or barcode" })}
-          style={[styles.field, { backgroundColor: theme.surface, color: theme.text }]}
+      {/* The dim backdrop runs behind the sheet too, so its rounded top corners show. */}
+      <View style={[styles.fill, { backgroundColor: theme.scrim }]}>
+        <Pressable
+          style={styles.fill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={t({ th: "ปิด", en: "Close" })}
         />
-        {empty && (
-          <Text style={[styles.note, { color: theme.text }]} accessibilityLiveRegion="polite">
-            {t({ th: "ใส่รหัสก่อน", en: "Type a code first" })}
+        <View
+          style={[
+            styles.sheet,
+            { backgroundColor: theme.bg, paddingBottom: insets.bottom + SPACE.xl },
+          ]}
+        >
+          <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+            {t({ th: "พิมพ์รหัส", en: "Type a code" })}
           </Text>
-        )}
-        <BigButton label={t({ th: "ค้นหา", en: "Look up" })} onPress={submit} />
-        <Pressable onPress={onClose} accessibilityRole="button" style={styles.cancel}>
-          <Text style={[styles.cancelText, { color: theme.primary }]}>
-            {t({ th: "ยกเลิก", en: "Cancel" })}
-          </Text>
-        </Pressable>
+          <TextInput
+            value={code}
+            onChangeText={(v) => {
+              setCode(v);
+              setEmpty(false);
+            }}
+            onSubmitEditing={submit}
+            autoFocus
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="search"
+            placeholder={t({ th: "รหัสสินค้าหรือบาร์โค้ด", en: "Product ID or barcode" })}
+            placeholderTextColor={theme.textMuted}
+            accessibilityLabel={t({ th: "รหัสสินค้าหรือบาร์โค้ด", en: "Product ID or barcode" })}
+            style={[styles.field, { backgroundColor: theme.surface, color: theme.text }]}
+          />
+          {empty && (
+            <Text style={[styles.note, { color: theme.text }]} accessibilityLiveRegion="polite">
+              {t({ th: "ใส่รหัสก่อน", en: "Type a code first" })}
+            </Text>
+          )}
+          <BigButton label={t({ th: "ค้นหา", en: "Look up" })} onPress={submit} />
+          <Pressable onPress={onClose} accessibilityRole="button" style={styles.cancel}>
+            <Text style={[styles.cancelText, { color: theme.primary }]}>
+              {t({ th: "ยกเลิก", en: "Cancel" })}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1 },
+  fill: { flex: 1 },
   sheet: {
     borderTopLeftRadius: RADIUS.sheet,
     borderTopRightRadius: RADIUS.sheet,
