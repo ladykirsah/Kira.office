@@ -1,5 +1,5 @@
-import { Redirect } from "expo-router";
-import { useRef, useState, type ComponentRef } from "react";
+import { Redirect, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE, isLocalApi } from "@/lib/config";
+import { shortcutTarget } from "@/lib/shortcut";
 import type { Credentials } from "@/lib/signIn";
 import { signInMessage } from "@/lib/signInMessage";
 import { useAuth, useLang, useTheme } from "@/ui/AppProviders";
@@ -40,8 +41,16 @@ export default function SignIn() {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ door: "form" | "key"; text: string } | null>(null);
+  // The owner's shortcut (this computer only): /sign-in?practice=1 goes straight in, to Scan.
+  const shortcut = shortcutTarget(API_BASE, useLocalSearchParams());
+  const shortcutTried = useRef(false);
+  useEffect(() => {
+    if (!shortcut || shortcutTried.current || auth.status !== "signed-out") return;
+    shortcutTried.current = true;
+    void attempt("form", { kind: "practice" });
+  });
 
-  if (auth.status === "signed-in") return <Redirect href="/" />;
+  if (auth.status === "signed-in") return <Redirect href={(shortcut ?? "/") as never} />;
 
   async function attempt(door: "form" | "key", c: Credentials) {
     setBusy(true);

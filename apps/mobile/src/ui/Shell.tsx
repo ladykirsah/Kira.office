@@ -17,7 +17,9 @@ import { pageTitle } from "@/lib/pageTitle";
 import { useAuth, useLang, useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
 import { LineIcon } from "./LineIcon";
+import { PinnedFooter, pinnedHeight } from "./PinnedFooter";
 import { ChromeProvider, NO_CHROME, type Chrome, type HeaderButton } from "./ScreenChrome";
+import { Segmented } from "./Segmented";
 import { MENU_ICON, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
 
@@ -72,6 +74,19 @@ function WideShell({ children }: { children: ReactNode }) {
           <ChromeProvider value={setChrome}>{children}</ChromeProvider>
           {chrome.footer.length > 0 && (
             <View style={s.wideFooter}>
+              {chrome.toast && (
+                <Text style={s.wideToast} accessibilityRole="alert">
+                  {chrome.toast.title} · {chrome.toast.detail}
+                </Text>
+              )}
+              {chrome.choice && (
+                <Segmented
+                  label={chrome.choice.label}
+                  options={chrome.choice.options}
+                  value={chrome.choice.value ?? ""}
+                  onChange={chrome.choice.onChange}
+                />
+              )}
               {chrome.footer.map((b) => (
                 <BigButton key={b.label} label={b.label} onPress={b.onPress} kind={b.kind} />
               ))}
@@ -88,8 +103,6 @@ const BAR_CLEARANCE = 110;
 /** The bar floats 22 above the bottom edge, or just above a phone's home indicator. */
 const BAR_GAP = 22;
 const BAR_HEIGHT = 62;
-/** A pinned button (50) and the gap under it. */
-const FOOTER_ROW = 60;
 
 function PhoneShell({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
@@ -102,7 +115,7 @@ function PhoneShell({ children }: { children: ReactNode }) {
   const s = styles(theme);
   const name = auth.status === "signed-in" ? auth.staff.name : "";
   const barBottom = Math.max(BAR_GAP, insets.bottom - SPACE.m);
-  const footerSpace = chrome.footer.length * FOOTER_ROW;
+  const footerSpace = pinnedHeight(chrome);
   const goAndClose = (href: string) => {
     setOpen(false);
     go(href);
@@ -136,16 +149,7 @@ function PhoneShell({ children }: { children: ReactNode }) {
         <ChromeProvider value={setChrome}>{children}</ChromeProvider>
       </ScrollView>
 
-      {chrome.footer.length > 0 && (
-        <View
-          style={[s.phoneFooter, { bottom: barBottom + BAR_HEIGHT + SPACE.l }]}
-          pointerEvents="box-none"
-        >
-          {chrome.footer.map((b) => (
-            <BigButton key={b.label} label={b.label} onPress={b.onPress} kind={b.kind} />
-          ))}
-        </View>
-      )}
+      <PinnedFooter chrome={chrome} bottom={barBottom + BAR_HEIGHT + SPACE.l} />
 
       <View style={[s.barRow, { bottom: barBottom }]} pointerEvents="box-none">
         <View style={s.barPill} accessibilityRole="tablist">
@@ -423,8 +427,8 @@ const styles = (c: Theme) =>
       borderColor: c.glassLine,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
     },
-    phoneFooter: { position: "absolute", left: SPACE.l, right: SPACE.l, gap: 10 },
     wideFooter: { marginTop: SPACE.xxl, maxWidth: 420, gap: 10 },
+    wideToast: { ...TYPE.subhead, color: c.textMuted },
     barRow: {
       position: "absolute",
       left: 14,

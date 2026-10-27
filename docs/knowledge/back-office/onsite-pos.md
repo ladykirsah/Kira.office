@@ -56,6 +56,19 @@ pos/page.tsx is **2326 lines with 37 useState** and **THREE independent `?reprin
 - EXTRACT `addByScan`'s pure barcode step (map-first via `barcodeToProductId` — that IS the offline path). Re-implementing it in /scan forks offline behaviour — the single highest-probability mistake.
 - Scan→POS wiring is cheap by design: `reopenDraft` already sets `draftId` AND `activeDraftId` — the only wiring that makes checkout delete the parked draft; `saveDraftToDb` UPSERTs `ON CONFLICT` + REPLACEs lines → a scan session IS a draft, zero new endpoints. (Shipped as /scan POS mode — see [stock-full-track](stock-full-track.md).)
 
+## Mechanic sales from Scan (Expo app, 2026-10-27)
+
+Scan v2's ขาย tab sells to a mechanic without ทำบิล: the same `/sync` sale ทำบิล sends (parts sale,
+mechanic price with the walk-in fallback, lines named `name · brand` with the scanned barcode), then
+`/payments` for PromptPay — in that order, so a refused sale never leaves a payment listed. A walk-in
+customer is still parked as a draft and finished in ทำบิล.
+
+**Open risk, web side (owner's decision, not fixed):** both apps mint DAS numbers by following the
+highest one issued today, but ทำบิล reads the server's latest only when the page loads. If the app
+issues DAS…-N while a ทำบิล tab is open, that tab mints N again; `INSERT OR IGNORE` skips the sale row,
+the line insert then fails its foreign key, and `/sync` answers 500 until the page is reloaded. The
+app re-reads `/sales` before every number, so it does not cause the clash on its own side.
+
 ## References
 
 - [stock-full-track](stock-full-track.md) — /sync is the only stock-deducting path
