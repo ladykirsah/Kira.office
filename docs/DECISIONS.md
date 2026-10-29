@@ -84,6 +84,7 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 | Topic | Decision |
 | --- | --- |
 | Name | `Kira.office` (npm workspace root id: `kira-office`) |
+| App name on screen | **CrewEngine** (owner, 2026-10-29). Logo: an orange line drawing of a turbo housing on navy (concept C). The name is plain one-colour text lettered in **Space Grotesk 600**; only the name uses that font. Replaces "Kira.office" everywhere a person reads it. Hidden ids keep the old spelling on purpose: the repo, the `kiraoffice` Worker, the `kira-office` D1, the `kira_staff` cookie (renaming signs everyone out) and the `kira-pos` offline store (renaming can strand unsynced sales). Guarded by `apps/admin/src/lib/appName.test.ts`. |
 | Visibility | **Private** |
 | Owner / status | **Published** at [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private). See [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md). |
 

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Kira.office",
+    "name": "CrewEngine",
     "slug": "kira-office",
     "scheme": "kiraoffice",
     "version": "0.1.0",
@@ -15,7 +15,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Kira.office uses the camera to scan part barcodes.",
+          "cameraPermission": "CrewEngine uses the camera to scan part barcodes.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

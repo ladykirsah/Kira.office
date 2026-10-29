@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kira.office">
-  <rect width="64" height="64" rx="14" fill="#bf3c1d" />
-  <text x="32" y="45" font-family="system-ui, -apple-system, sans-serif" font-size="40" font-weight="700" fill="#ffffff" text-anchor="middle">K</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CrewEngine">
+  <rect width="64" height="64" rx="14" fill="#0F2742" />
+  <g transform="translate(4.8 4.8) scale(0.85)">
+    <path d="M38 34 A7.5 7.5 0 0 1 32 43 A10.5 10.5 0 0 1 20 34 A13.5 13.5 0 0 1 32 19 A16.5 16.5 0 0 1 50 34 A19.5 19.5 0 0 1 32 55 A22.5 22.5 0 0 1 8 34 A25.5 25.5 0 0 1 32 7 L56 7 L56 18 L46 18" fill="none" stroke="#F97316" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="32" cy="34" r="2.5" fill="#F97316" />
+  </g>
 </svg>
