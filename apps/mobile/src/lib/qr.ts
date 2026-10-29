@@ -19,3 +19,15 @@ export function payQr(promptpayId: string, amountSatang: number): boolean[][] | 
   const n = qr.getModuleCount();
   return Array.from({ length: n }, (_, r) => Array.from({ length: n }, (_, c) => qr.isDark(r, c)));
 }
+
+/**
+ * The shop's LINE link as a QR picture for the parcel label. High error correction, so the small
+ * "LINE" badge over its middle does not stop it scanning; a picture (not squares on screen) so it
+ * goes into the saved PDF / PNG exactly as shown.
+ */
+export function linkQrPicture(url: string): string {
+  const qr = qrcode(0, "H");
+  qr.addData(url);
+  qr.make();
+  return qr.createDataURL(4, 0);
+}

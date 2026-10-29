@@ -32,7 +32,7 @@ interface PinnedFooterProps {
  */
 export function PinnedFooter({ chrome, bottom }: PinnedFooterProps) {
   const { theme } = useTheme();
-  if (chrome.footer.length === 0) return null;
+  if (chrome.footer.length === 0 && !chrome.toast) return null;
   const solid = bottom + pinnedHeight(chrome) + SOLID_ABOVE;
   const band = solid + FADE;
   return (

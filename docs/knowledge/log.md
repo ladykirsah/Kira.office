@@ -377,3 +377,14 @@ sources: [session 2026-08-09]
   removes the card and asks for a rescan rather than resending a relative change. Details:
   [back-office/onsite-pos](back-office/onsite-pos.md),
   [auth/practice-copy-sign-in](auth/practice-copy-sign-in.md) (the owner's one-click link).
+
+- **2026-10-30** — **Orders in the Expo app, Shopee's way.** Owner-approved drawings (artifact v121)
+  built: the Orders list (counted status tabs, search, date, payment and sort filters) and the order page.
+  The page keeps the one job waiting on the shop at the top (check slip · approve COD · ship with
+  the label shown whole, PDF / PNG saved in the app · refund a bounced parcel · claim steps) and pins
+  its main action at the bottom; the rest is short blocks with › to pages of their own: การชำระเงิน
+  (bill, shipping fee, profit), การจัดส่ง (parcel + timeline), the customer, the label and the
+  slip (owner only). **The tab bar shows on main pages only**: any page with a ‹ back link has none
+  (`apps/mobile/src/lib/frame.ts`, tested). No server change; the label reads
+  `GET /shop-info/airplus`. **Cancel order is drawn but not built** — it needs stock, coupon and
+  refund work on the server first. Not deployed anywhere yet.
