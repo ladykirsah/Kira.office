@@ -15,7 +15,7 @@ export function Sidebar({ role }: { role: StaffRole }) {
   return (
     <nav className="sidebar" aria-label={t({ th: "เมนูหลัก", en: "Main" })}>
       <Link className="brand" href="/">
-        Kira.office
+        CrewEngine
       </Link>
       {groups.map((g) => (
         <div key={g.section.en}>

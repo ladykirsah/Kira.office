@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@expo-google-fonts/space-grotesk": "^0.4.1",
     "@expo/metro-runtime": "~58.0.15",
     "@l-shopee/core": "*",
     "@l-shopee/shared": "*",
@@ -18,6 +19,7 @@
     "expo-camera": "~58.0.12",
     "expo-constants": "~58.0.13",
     "expo-crypto": "~58.0.7",
+    "expo-font": "~58.0.10",
     "expo-linking": "~58.0.14",
     "expo-router": "~58.0.26",
     "expo-secure-store": "~58.0.2",

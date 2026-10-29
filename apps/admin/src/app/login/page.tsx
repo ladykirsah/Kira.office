@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await serverT();
-  return { title: t({ th: "เข้าใช้งาน — Kira.office", en: "Sign in — Kira.office" }) };
+  return { title: t({ th: "เข้าใช้งาน — CrewEngine", en: "Sign in — CrewEngine" }) };
 }
 
 export default async function LoginPage({
@@ -51,7 +51,7 @@ export default async function LoginPage({
         </div>
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div className="brand" style={{ fontSize: 22 }}>
-            Kira.office
+            CrewEngine
           </div>
           <div className="muted" style={{ fontSize: 13.5 }}>
             {t({

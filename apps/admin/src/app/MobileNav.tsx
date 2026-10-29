@@ -94,7 +94,7 @@ export function MobileNav({ role }: { role: StaffRole }) {
           <div className="mnav-scrim" onClick={() => setOpen(false)} aria-hidden />
           <nav className="mnav-drawer" aria-label={say({ th: "เมนูหลัก", en: "Main" })}>
             <Link className="brand" href="/" onClick={() => setOpen(false)}>
-              Kira.office
+              CrewEngine
             </Link>
             {groups.map((g) => (
               <div key={g.section.en}>

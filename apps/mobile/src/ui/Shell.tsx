@@ -16,6 +16,7 @@ import { initials } from "@/lib/initials";
 import { pageTitle } from "@/lib/pageTitle";
 import { useAuth, useLang, useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
+import { useBrandFont } from "./brandFont";
 import { LineIcon } from "./LineIcon";
 import { PinnedFooter, pinnedHeight } from "./PinnedFooter";
 import { ChromeProvider, NO_CHROME, type Chrome, type HeaderButton } from "./ScreenChrome";
@@ -53,6 +54,7 @@ function useNav() {
 
 function WideShell({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
+  const brandFont = useBrandFont();
   const { groups, active, go } = useNav();
   const [chrome, setChrome] = useState<Chrome>(NO_CHROME);
   const s = styles(theme);
@@ -60,7 +62,7 @@ function WideShell({ children }: { children: ReactNode }) {
     <View style={[s.fill, s.row, { backgroundColor: theme.bg }]}>
       <ScrollView style={s.sidebar} contentContainerStyle={s.sidebarInner}>
         <Pressable onPress={() => go("/")} accessibilityRole="link">
-          <Text style={s.brand}>Kira.office</Text>
+          <Text style={[s.brand, brandFont]}>CrewEngine</Text>
         </Pressable>
         <MenuGroups groups={groups} active={active} onGo={go} compact />
       </ScrollView>
@@ -106,6 +108,7 @@ const BAR_HEIGHT = 62;
 
 function PhoneShell({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
+  const brandFont = useBrandFont();
   const { t } = useLang();
   const auth = useAuth();
   const insets = useSafeAreaInsets();
@@ -191,7 +194,7 @@ function PhoneShell({ children }: { children: ReactNode }) {
             accessibilityLabel={t({ th: "เมนูหลัก", en: "Main" })}
           >
             <Pressable onPress={() => goAndClose("/")} accessibilityRole="link">
-              <Text style={s.brand}>Kira.office</Text>
+              <Text style={[s.brand, brandFont]}>CrewEngine</Text>
             </Pressable>
             <MenuGroups groups={groups} active={active} onGo={goAndClose} withPrefs />
           </ScrollView>

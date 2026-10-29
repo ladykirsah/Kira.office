@@ -41,8 +41,8 @@ export default async function StaffPage() {
       <PageHeader
         title={t({ th: "พนักงาน", en: "Staff" })}
         subtitle={t({
-          th: "ใครเปิด Kira.office ได้บ้าง และเปิดถึงไหน",
-          en: "Who can open Kira.office, and what they can reach.",
+          th: "ใครเปิด CrewEngine ได้บ้าง และเปิดถึงไหน",
+          en: "Who can open CrewEngine, and what they can reach.",
         })}
       />
       {/* PeopleTable draws its own tab row, because Add person sits on it and needs the table's

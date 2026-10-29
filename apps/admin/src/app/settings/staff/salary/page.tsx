@@ -57,8 +57,8 @@ export default async function SalaryPage({
       <PageHeader
         title={t({ th: "พนักงาน", en: "Staff" })}
         subtitle={t({
-          th: "ใครเปิด Kira.office ได้บ้าง และเปิดถึงไหน",
-          en: "Who can open Kira.office, and what they can reach.",
+          th: "ใครเปิด CrewEngine ได้บ้าง และเปิดถึงไหน",
+          en: "Who can open CrewEngine, and what they can reach.",
         })}
       />
       <StaffTabs active="salary" />
