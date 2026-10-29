@@ -613,6 +613,16 @@ interface VariantTaxProfile {
   isTaxable: boolean;
 }
 
+/**
+ * A part line's cost is the product's cost on file, whatever the device sent. GET /products sends a
+ * mechanic cost 0 (margin is not theirs to see), so their till can only ever send 0; and trusting
+ * any device's figure lets it write its own profit. A service line has no stock cost to look up.
+ */
+function withProductCost(line: SyncLine, costByVariant: Record<string, number>): SyncLine {
+  if (!isPartLine(line)) return line;
+  return { ...line, unitCostSatang: costByVariant[line.productVariantId!] ?? 0 };
+}
+
 /** Fill missing taxSatang on part lines from the product tax profile (defaults: 7% inclusive). */
 function enrichLineTax(line: SyncLine, taxByVariant: Record<string, VariantTaxProfile>): SyncLine {
   if (line.taxSatang != null || !isPartLine(line)) return line;
@@ -697,6 +707,24 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
     }
   }
 
+  const costByVariant: Record<string, number> = {};
+  if (variantIds.length > 0) {
+    const costRows = await db
+      .prepare(
+        `SELECT v.id AS variantId, COALESCE(pp.item_cost_satang, 0) AS productCostSatang
+         FROM product_variants v
+         LEFT JOIN pricing_profiles pp ON pp.id =
+           (SELECT id FROM pricing_profiles WHERE product_variant_id = v.id
+            ORDER BY active_from DESC LIMIT 1)
+         WHERE v.id IN (${variantIds.map(() => "?").join(",")})`,
+      )
+      .bind(...variantIds)
+      .all<{ variantId: string; productCostSatang: number }>();
+    for (const row of costRows.results ?? []) {
+      costByVariant[row.variantId] = Number(row.productCostSatang);
+    }
+  }
+
   const now = Date.now();
   const statements: D1PreparedStatement[] = [];
   const conflicts: SyncConflict[] = [];
@@ -714,7 +742,9 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       continue;
     }
 
-    const enrichedLines = sale.lines.map((l) => enrichLineTax(l, taxByVariant));
+    const enrichedLines = sale.lines.map((l) =>
+      enrichLineTax(withProductCost(l, costByVariant), taxByVariant),
+    );
 
     const saleConflicts: SyncConflict[] = [];
     const simAvailable = { ...available };
