@@ -19,7 +19,7 @@ How work gets done in Kira.office: the owner-locked design system, the working a
 - [admin-consistency-backlog](admin-consistency-backlog.md) — ranked open list of design-system violations and the messiest files
 - [storefront-home-conventions](storefront-home-conventions.md) — Home v2's 13-section order, 16px gutter system, bilingual eyebrows; CI history (teal → coral → red DENSO pending)
 - [bilingual-admin](bilingual-admin.md) — the Thai/English switch: a cookie the server reads (not localStorage, and why), `{ th, en }` written at the point of use, the owner's chosen words, what deliberately stays one language (printed label, DELETE, filter values, names), and the detector + test that keeps a cleared screen cleared
-- [expo-page-design-rules](expo-page-design-rules.md) — the checklist for every Expo page, from canvas drawing to built screen: one stage = one row, Shopee layout (main action pinned at the bottom, details behind ›), the tab bar on main pages only, guide sizes, say-before-build, how to check the preview, push OK in chat early
+- [expo-page-design-rules](expo-page-design-rules.md) — **the owner's design rulebook**: every rule they have set for drawing and building a back-office page — the work loop, scope, Apple Store look + Shopify flows, page layout (pinned main action, tab bar on main pages only), words and search, guide sizes, canvas organisation, checking the build, push OK early
 
 ## Working with the owner
 

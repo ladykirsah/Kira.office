@@ -388,3 +388,7 @@ sources: [session 2026-08-09]
   (`apps/mobile/src/lib/frame.ts`, tested). No server change; the label reads
   `GET /shop-info/airplus`. **Cancel order is drawn but not built** — it needs stock, coupon and
   refund work on the server first. Not deployed anywhere yet.
+- **2026-10-30** — **The owner's design rulebook.** At the owner's request, every piece of design feedback they
+  have given (admin days through the Expo redesign and Orders, chat + canvas messages + memory notes) is now in
+  one place: [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md), expanded from the
+  Orders checklist. AGENTS.md now tells every session to read it before drawing or building a page.
