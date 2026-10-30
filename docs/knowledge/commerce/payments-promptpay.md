@@ -42,7 +42,9 @@ Why it is this way: the owner works OFF-SITE with staff at the counter; one offi
 
 - Payment page (Sell nav): account dropdown → amount → live QR (**QR snapshotted on Create** so an input edit cannot desync the amount) → staff taps Approve → row in `payments` table (migration 0031: `method_label` + `promptpay_id` snapshot + `amount_satang` + status CHECK pending/approved/confirmed/void). The status field IS the PaymentConfirmer seam — auto-confirm later flips pending→confirmed.
 - **Cash bills NEVER print a payment QR** (owner decision) — nothing may bypass the record.
-- Recent-payments has a Clear button = owner reconciliation (marks `cleared_at`, migration 0032; **NEVER deletes** — records survive as the anti-cheat trail; `listPayments` shows only uncleared rows).
+- Recent-payments has a Clear button = owner reconciliation (marks `cleared_at`, migration 0032; **NEVER deletes** — records survive as the anti-cheat trail; `listPayments` shows only uncleared rows). **Owner only since 2026-10-30:** `POST /payments/clear` is gated by `canClearPayments` (super_admin) in the server, and the Expo page shows ล้าง to the owner alone.
+- `payments.sale_number` (migration 0094, 2026-10-30): the bill a PromptPay payment paid for. `POST /payments` takes an optional `saleNumber` (text, ≤40 chars); ทำบิล and Scan's ช่าง bill send it; the Payment page shows "บิล DAS…" on the row.
+- **Expo การชำระเงิน (`apps/mobile`, route `/payment`, 2026-10-30):** today card (total + per account), list by day, keypad amount sheet → account choice → QR with the account's name → รับเงินแล้ว (banknote-with-tick icon) → เสร็จ; ล้าง sheet (count, total, per account); ตรวจสลิป per row only while slip checking is switched on. Logic in `apps/mobile/src/lib/paymentPage.ts`, calls in `paymentApi.ts`.
 - Guardrail: the OWNER enters any merchant/gateway credentials themselves, never the assistant.
 
 ## Current state (2026-08-09)

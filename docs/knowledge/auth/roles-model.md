@@ -54,6 +54,7 @@ API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly tw
 | `canDeleteProduct` | YES — `DELETE /products/:id` in `index.ts` (added 2026-08-24) |
 | `canViewFinance` | YES — every `/finance/*` route (added 2026-08-24) |
 | `canRefund` | YES — `/(orders\|claims\|sales)/:id/refund` (added 2026-08-24) |
+| `canClearPayments` | YES — `POST /payments/clear` (added 2026-10-30) |
 | `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
 | `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
 | `canViewSlips` | YES — `GET /file/:key` for `slip/` keys, and `viewerIsSuperAdmin` on `GET /orders/:id` (added 2026-08-24) |

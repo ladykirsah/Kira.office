@@ -124,7 +124,7 @@ export function placedAt(o: OrderListRow): number {
   return o.orderCreatedAt ?? o.importedAt;
 }
 
-function startOfDay(ms: number): number {
+export function startOfDay(ms: number): number {
   const d = new Date(ms);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
@@ -356,7 +356,7 @@ export function clockTime(ms: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function dayTitle(dayStart: number, now: number): Phrase {
+export function dayTitle(dayStart: number, now: number): Phrase {
   const today = startOfDay(now);
   if (dayStart === today) return { th: "วันนี้", en: "Today" };
   if (dayStart === startOfDay(today - 1)) return { th: "เมื่อวาน", en: "Yesterday" };

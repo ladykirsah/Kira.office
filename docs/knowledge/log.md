@@ -427,3 +427,9 @@ sources: [session 2026-08-09]
 - **2026-10-30** — Scan → ทำบิล in the Expo app: a ลูกค้า sale now opens the new ทำบิล inside the app
   with the parked draft loaded (no more new tab on the old back office). Scan's PromptPay QR shows the
   account name and number under it, like ทำบิล. See [back-office/onsite-pos](back-office/onsite-pos.md).
+
+- **2026-10-30** — การชำระเงิน in the Expo app (`/payment`), as drawn: today card, payments by day,
+  keypad → account → QR with the account name → รับเงินแล้ว → เสร็จ, ล้าง for the owner, ตรวจสลิป
+  only while slip checking is on. Server: migration 0094 `payments.sale_number` (ทำบิล and Scan send
+  the bill number), and `POST /payments/clear` is now owner-only (`canClearPayments`). See
+  [commerce/payments-promptpay](commerce/payments-promptpay.md) and [auth/roles-model](auth/roles-model.md).

@@ -57,6 +57,7 @@ import {
   canDeleteProduct,
   canViewFinance,
   canRefund,
+  canClearPayments,
   canCancelOrderRole,
   cancelBlock,
   cancelReasonLabel,
@@ -1857,6 +1858,8 @@ export interface PaymentRow {
   methodLabel: string;
   promptpayId: string;
   amountSatang: number;
+  /** The counter bill this paid for (DAS…); null for a QR made on the Payment page itself. */
+  saleNumber: string | null;
   status: string;
   createdAt: number;
   approvedAt: number | null;
@@ -1870,8 +1873,9 @@ export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
   const rows = await db
     .prepare(
       `SELECT id, method_label AS methodLabel, promptpay_id AS promptpayId,
-              amount_satang AS amountSatang, status, created_at AS createdAt,
-              approved_at AS approvedAt, slip_ref AS slipRef, confirmed_at AS confirmedAt
+              amount_satang AS amountSatang, sale_number AS saleNumber, status,
+              created_at AS createdAt, approved_at AS approvedAt, slip_ref AS slipRef,
+              confirmed_at AS confirmedAt
        FROM payments WHERE cleared_at IS NULL ORDER BY created_at DESC LIMIT 100`,
     )
     .all<PaymentRow>();
@@ -7184,6 +7188,8 @@ const worker = {
       }
     }
     if (url.pathname === "/payments/clear" && request.method === "POST") {
+      const gate = await requireRole(request, env, canClearPayments, "super_admin_only");
+      if (gate instanceof Response) return gate;
       return json(await clearPayments(env.DB));
     }
     if (url.pathname === "/payments" && request.method === "POST") {
@@ -7191,6 +7197,7 @@ const worker = {
         methodLabel?: string;
         promptpayId?: string;
         amountSatang?: number;
+        saleNumber?: unknown;
       }>(request);
       const label = body?.methodLabel?.trim();
       const account = body?.promptpayId?.trim();
@@ -7200,25 +7207,34 @@ const worker = {
           400,
         );
       }
+      // The bill this paid for, when ทำบิล or Scan sent one: short text or nothing.
+      const rawSale = body!.saleNumber;
+      if (rawSale != null && (typeof rawSale !== "string" || rawSale.trim().length > 40)) {
+        return json({ error: "saleNumber must be text of 40 characters or fewer" }, 400);
+      }
+      const saleNumber = typeof rawSale === "string" && rawSale.trim() ? rawSale.trim() : null;
       const now = Date.now();
       const payment = {
         id: crypto.randomUUID(),
         methodLabel: label,
         promptpayId: account,
         amountSatang: body!.amountSatang!,
+        saleNumber,
         status: "approved",
         createdAt: now,
         approvedAt: now,
       };
       await env.DB.prepare(
-        `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status, created_at, approved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, sale_number, status,
+                               created_at, approved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           payment.id,
           payment.methodLabel,
           payment.promptpayId,
           payment.amountSatang,
+          payment.saleNumber,
           payment.status,
           payment.createdAt,
           payment.approvedAt,

@@ -24,7 +24,12 @@ const SAVED: SyncResult = { applied: 1, duplicates: 0, conflicts: [], validation
 
 function fakeShop(over: Partial<BillDeps> = {}) {
   const sent: SaleRecord[] = [];
-  const paid: { methodLabel: string; promptpayId: string; amountSatang: number }[] = [];
+  const paid: {
+    methodLabel: string;
+    promptpayId: string;
+    amountSatang: number;
+    saleNumber: string;
+  }[] = [];
   const order: string[] = [];
   const deps: BillDeps = {
     saleNumbers: async () => ["DAS202610-26004"],
@@ -98,7 +103,12 @@ describe("issueMechanicBill", () => {
     expect(out.ok).toBe(true);
     expect(shop.order).toEqual(["sale", "payment"]);
     expect(shop.paid).toEqual([
-      { methodLabel: "ร้าน", promptpayId: "0812345678", amountSatang: 58000 },
+      {
+        methodLabel: "ร้าน",
+        promptpayId: "0812345678",
+        amountSatang: 58000,
+        saleNumber: "DAS202610-26005",
+      },
     ]);
     expect(shop.sent[0]?.paymentMethod).toBe("promptpay");
   });

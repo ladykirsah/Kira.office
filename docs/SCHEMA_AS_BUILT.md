@@ -132,7 +132,9 @@ database) added these tables. All are additive and are mirrored in `schema.ts`.
 
 Column additions to existing tables: `0039` adds `sales_orders.storefront_customer_id` +
 `shipping_address_id` (both nullable — only storefront-checkout orders set them); `0040` adds
-`payments.sales_order_id` (nullable — links a payment approval to its storefront order).
+`payments.sales_order_id` (nullable — links a payment approval to its storefront order); `0094`
+adds `payments.sale_number` (nullable TEXT — the counter bill a PromptPay payment paid for, sent by
+ทำบิล and Scan; NULL for a QR made on the Payment page and for older rows).
 
 ## Migration history
 

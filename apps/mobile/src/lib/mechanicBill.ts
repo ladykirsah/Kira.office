@@ -19,6 +19,8 @@ export interface BillDeps {
     methodLabel: string;
     promptpayId: string;
     amountSatang: number;
+    /** The bill it paid for, shown on its row on the Payment page. */
+    saleNumber: string;
   }) => Promise<void>;
   now: () => number;
 }
@@ -118,7 +120,7 @@ export async function issueMechanicBill(
     }
     const warning =
       input.account && input.pay === "promptpay"
-        ? await listPayment(deps, input.account, totalSatang)
+        ? await listPayment(deps, input.account, totalSatang, saleNumber)
         : null;
     return {
       ok: true,
@@ -153,12 +155,14 @@ async function listPayment(
   deps: BillDeps,
   account: PayAccount,
   amountSatang: number,
+  saleNumber: string,
 ): Promise<Phrase | null> {
   try {
     await deps.recordPayment({
       methodLabel: account.label,
       promptpayId: account.promptpayId,
       amountSatang,
+      saleNumber,
     });
     return null;
   } catch {

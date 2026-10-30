@@ -108,7 +108,13 @@ function WideShell({ children }: { children: ReactNode }) {
                 />
               )}
               {chrome.footer.map((b) => (
-                <BigButton key={b.label} label={b.label} onPress={b.onPress} kind={b.kind} />
+                <BigButton
+                  key={b.label}
+                  label={b.label}
+                  onPress={b.onPress}
+                  kind={b.kind}
+                  icon={b.icon}
+                />
               ))}
             </View>
           )}

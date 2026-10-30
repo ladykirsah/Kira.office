@@ -471,6 +471,7 @@ export function usePosSession() {
           methodLabel: account.label,
           promptpayId: account.promptpayId,
           amountSatang: total,
+          saleNumber,
         }),
       );
     }

@@ -16,6 +16,8 @@ interface SheetProps {
   left?: { label: string; onPress: () => void };
   /** Closing by the backdrop, the system back, or the default left pill. */
   onClose: () => void;
+  /** No left pill: a sheet whose one way on is its own button (รับเงินแล้ว → เสร็จ). */
+  noPill?: boolean;
   /** The red ✓ on the right, for a sheet whose choices apply together (the filter). */
   onDone?: () => void;
   /** Tall sheets reach the top of the screen; short ones sit on the bottom. */
@@ -46,18 +48,22 @@ export function Sheet(props: SheetProps) {
           accessibilityViewIsModal
         >
           <View style={styles.head}>
-            <Pressable
-              onPress={props.left?.onPress ?? props.onClose}
-              accessibilityRole="button"
-              style={[
-                styles.pill,
-                { backgroundColor: theme.surface, borderColor: theme.glassLine },
-              ]}
-            >
-              <Text style={[styles.pillText, { color: theme.text }]}>
-                {props.left?.label ?? props.closeLabel ?? t({ th: "ยกเลิก", en: "Cancel" })}
-              </Text>
-            </Pressable>
+            {props.noPill ? (
+              <View />
+            ) : (
+              <Pressable
+                onPress={props.left?.onPress ?? props.onClose}
+                accessibilityRole="button"
+                style={[
+                  styles.pill,
+                  { backgroundColor: theme.surface, borderColor: theme.glassLine },
+                ]}
+              >
+                <Text style={[styles.pillText, { color: theme.text }]}>
+                  {props.left?.label ?? props.closeLabel ?? t({ th: "ยกเลิก", en: "Cancel" })}
+                </Text>
+              </Pressable>
+            )}
             <View style={styles.titles} pointerEvents="none">
               <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
                 {props.title}
