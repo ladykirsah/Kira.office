@@ -423,3 +423,7 @@ sources: [session 2026-08-09]
   send themselves later. Two new rules in
   [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md). See
   [back-office/onsite-pos](back-office/onsite-pos.md).
+
+- **2026-10-30** — Scan → ทำบิล in the Expo app: a ลูกค้า sale now opens the new ทำบิล inside the app
+  with the parked draft loaded (no more new tab on the old back office). Scan's PromptPay QR shows the
+  account name and number under it, like ทำบิล. See [back-office/onsite-pos](back-office/onsite-pos.md).

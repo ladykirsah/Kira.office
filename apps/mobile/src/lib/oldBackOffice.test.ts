@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addProductPage, billPage, productPage } from "./oldBackOffice";
+import { addProductPage, productPage } from "./oldBackOffice";
 
 const BASE = "https://admin.example";
 
@@ -18,9 +18,5 @@ describe("old back office pages", () => {
 
   it("given a product > then its own page opens", () => {
     expect(productPage(BASE, "p-1")).toBe("https://admin.example/products/p-1");
-  });
-
-  it("given a parked bill > then ทำบิล opens with that bill in the cart", () => {
-    expect(billPage(BASE, "d-9")).toBe("https://admin.example/pos?draft=d-9");
   });
 });

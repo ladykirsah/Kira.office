@@ -18,30 +18,3 @@ export function openPage(url: string): boolean {
   tab.opener = null;
   return true;
 }
-
-/**
- * For a page whose address is known only after saving — the parked bill. The tab opens empty during
- * the tap and is pointed at the page once the save succeeds, or closed if it fails. `go` answers
- * false when the browser blocked the tab, so the screen can offer a link to tap instead.
- */
-export function openPageAfterSave(): { go: (url: string) => boolean; cancel: () => void } {
-  if (Platform.OS !== "web") {
-    return {
-      go: (url) => {
-        void Linking.openURL(url);
-        return true;
-      },
-      cancel: () => {},
-    };
-  }
-  const tab = window.open("", "_blank");
-  if (tab) tab.opener = null;
-  return {
-    go: (url) => {
-      if (!tab || tab.closed) return false;
-      tab.location.href = url;
-      return true;
-    },
-    cancel: () => tab?.close(),
-  };
-}

@@ -27,6 +27,8 @@ export interface PosData {
   issuedNumbers: (string | null)[];
   /** The last load failed — most often no internet. The page still works from what it has. */
   offline: boolean;
+  /** The first load has finished (well or not), so a draft opened now gets real stock and photos. */
+  ready: boolean;
   reload: () => Promise<void>;
   reloadDrafts: () => Promise<void>;
 }
@@ -42,6 +44,7 @@ export function usePosData(): PosData {
   const [drafts, setDrafts] = useState<OpenDraft[]>([]);
   const [issuedNumbers, setIssuedNumbers] = useState<(string | null)[]>([]);
   const [offline, setOffline] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const reloadDrafts = useCallback(async () => {
     if (!token) return;
@@ -67,6 +70,7 @@ export function usePosData(): PosData {
       todaysSaleNumbers(fetch, API_BASE, token).then(setIssuedNumbers),
     ]);
     setOffline(results.some((r) => r.status === "rejected"));
+    setReady(true);
   }, [token]);
 
   useEffect(() => {
@@ -82,6 +86,7 @@ export function usePosData(): PosData {
     drafts,
     issuedNumbers,
     offline,
+    ready,
     reload,
     reloadDrafts,
   };

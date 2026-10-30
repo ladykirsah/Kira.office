@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OpenDraft, ProductRow } from "./posApi";
-import { billFromDraft } from "./posDraft";
+import { billFromDraft, posDraftRoute } from "./posDraft";
 
 const products: ProductRow[] = [
   {
@@ -111,5 +111,9 @@ describe("posDraft", () => {
       onHand: 0,
       priceSatang: 330_000,
     });
+  });
+
+  it("posDraftRoute > given a draft parked by Scan > then it opens ทำบิล on that draft", () => {
+    expect(posDraftRoute("d 1/x")).toBe("/pos?draft=d%201%2Fx");
   });
 });

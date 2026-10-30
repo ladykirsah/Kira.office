@@ -129,8 +129,8 @@ export function PosPaySheet({ onClose }: { onClose: () => void }) {
                     en: `Account name ${account.accountName}`,
                   })
                 : t({
-                    th: "ยังไม่ได้ใส่ชื่อบัญชี · ใส่ได้ที่หน้าตั้งค่าร้าน",
-                    en: "No account name yet · add it on the shop settings page",
+                    th: "ยังไม่ได้ใส่ชื่อบัญชี · ใส่ได้ที่หน้าข้อมูลร้าน",
+                    en: "No account name yet · add it on the Shop info page",
                   })}
             </Text>
             <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
@@ -158,8 +158,8 @@ export function PosPaySheet({ onClose }: { onClose: () => void }) {
       ) : (
         <Note>
           {t({
-            th: "ยังไม่ได้ตั้งบัญชีพร้อมเพย์ · ตั้งได้ที่หน้าตั้งค่าร้าน",
-            en: "No PromptPay account yet · set one on the shop settings page",
+            th: "ยังไม่ได้ตั้งบัญชีพร้อมเพย์ · ตั้งได้ที่หน้าข้อมูลร้าน",
+            en: "No PromptPay account yet · set one on the Shop info page",
           })}
         </Note>
       )}

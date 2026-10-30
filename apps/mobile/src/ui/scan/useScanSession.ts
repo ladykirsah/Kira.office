@@ -1,5 +1,6 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import * as Crypto from "expo-crypto";
+import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/config";
 import {
@@ -10,7 +11,8 @@ import {
   type BillDoc,
 } from "@/lib/mechanicBill";
 import { payQr } from "@/lib/qr";
-import { OLD_BACK_OFFICE, addProductPage, billPage, productPage } from "@/lib/oldBackOffice";
+import { OLD_BACK_OFFICE, addProductPage, productPage } from "@/lib/oldBackOffice";
+import { posDraftRoute } from "@/lib/posDraft";
 import {
   adjustStock,
   lookupPart,
@@ -40,7 +42,7 @@ import {
   type ScanTab,
 } from "@/lib/scanTabs";
 import { useAuth } from "../AppProviders";
-import { openPage, openPageAfterSave } from "../openPage";
+import { openPage } from "../openPage";
 import { readPref, writePref } from "../prefs";
 import type { Notice } from "./ScanCards";
 
@@ -378,30 +380,17 @@ export function useScanSession() {
     pending.current = null;
   }
 
-  /** ลูกค้า → ออกบิล: park the sale and open ทำบิล. Runs inside the tap, so the new tab opens. */
+  /** ลูกค้า → ออกบิล: park the sale, then open this app's ทำบิล on it (30 Oct 2026). */
   function sendToBill(current: PaySheet, draftId: string) {
-    const tabOpen = openPageAfterSave();
     editSheet({ busy: true, problem: null });
     const lines = saleLines(current.cards, "customer");
     void parkBill(fetch, API_BASE, token, draftId, lines)
       .then(() => {
-        const url = billPage(OLD_BACK_OFFICE, draftId);
         soldOff(current.cards);
         setSheet(null);
-        setNotice(
-          tabOpen.go(url)
-            ? {
-                tone: "done",
-                text: {
-                  th: "เปิดบิลในหน้าทำบิลแล้ว ของอยู่ในตะกร้า รอรับเงิน",
-                  en: "The bill is open in ทำบิล with the items in the cart, ready for payment",
-                },
-              }
-            : blockedTab(url, { th: "เปิดบิลในหน้าทำบิล", en: "Open the bill in ทำบิล" }),
-        );
+        router.push(posDraftRoute(draftId) as never);
       })
       .catch((err: unknown) => {
-        tabOpen.cancel();
         editSheet({ busy: false, problem: failed(err).text });
       });
   }

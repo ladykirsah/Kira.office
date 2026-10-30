@@ -18,7 +18,7 @@ const oil: ScannedPart = {
   unitCostSatang: 18000,
 };
 const cards: ScanCard[] = [{ part: oil, value: 2 }];
-const account = { label: "ร้าน", promptpayId: "0812345678" };
+const account = { label: "ร้าน", promptpayId: "0812345678", accountName: null };
 const AT = new Date(2026, 9, 26, 14, 32).getTime();
 const SAVED: SyncResult = { applied: 1, duplicates: 0, conflicts: [], validationErrors: [] };
 

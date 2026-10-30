@@ -244,9 +244,26 @@ describe("readShop", () => {
 
     expect(await readShop(fetchFn, "http://api", "tok")).toEqual({
       name: "Den Air Service",
-      account: { label: "ร้าน", promptpayId: "0822222222" },
+      account: { label: "ร้าน", promptpayId: "0822222222", accountName: null },
     });
     expect(calls[0]?.url).toBe("http://api/shop-info/denair");
+  });
+
+  it("given the account's bank name > then the QR can show it (owner rule, 30 Oct 2026)", async () => {
+    const methods = [
+      {
+        id: "b",
+        label: "ร้าน",
+        promptpayId: "0822222222",
+        accountName: " เด่น แอร์ ",
+        isDefault: true,
+      },
+    ];
+    const { fetchFn } = recording([
+      async () => Response.json({ name: "Den", paymentMethods: JSON.stringify(methods) }),
+    ]);
+
+    expect((await readShop(fetchFn, "http://api", "tok")).account?.accountName).toBe("เด่น แอร์");
   });
 
   it("given no PromptPay account set up > then there is no account to show", async () => {
