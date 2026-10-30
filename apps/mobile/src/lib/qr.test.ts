@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { payQr } from "./qr";
+import { linkQrPicture, payQr } from "./qr";
 
 describe("payQr", () => {
   it("given a PromptPay phone number and an amount > then a square QR with its three corner squares", () => {
@@ -16,5 +16,15 @@ describe("payQr", () => {
 
   it("given a PromptPay ID that is not one > then no QR, rather than one that pays nobody", () => {
     expect(payQr("12345", 426000)).toBeNull();
+  });
+});
+
+describe("linkQrPicture", () => {
+  it("given the shop's LINE link > then a picture the label can show and save", () => {
+    expect(linkQrPicture("https://lin.ee/tltIFtI")).toMatch(/^data:image\/gif;base64,/);
+  });
+
+  it("given two different links > then two different pictures", () => {
+    expect(linkQrPicture("https://lin.ee/a")).not.toBe(linkQrPicture("https://airplusauto.com"));
   });
 });

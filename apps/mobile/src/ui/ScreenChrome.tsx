@@ -30,65 +30,122 @@ export interface ChromeToast {
   detail: string;
 }
 
+/** The glass "‹ ออเดอร์" pill above the title of a page that sits under another one. */
+export interface BackLink {
+  label: string;
+  onPress: () => void;
+}
+
+/** A search field that takes the tab bar's place while a screen is searching (Apple's pattern). */
+export interface SearchBar {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+}
+
 export interface Chrome {
-  header: HeaderButton | null;
+  headers: HeaderButton[];
   footer: ChromeButton[];
   choice: ChromeChoice | null;
   toast: ChromeToast | null;
+  /** The large title, when the page's own name is not the menu's (an order number). */
+  title: string | null;
+  back: BackLink | null;
+  search: SearchBar | null;
 }
 
-export const NO_CHROME: Chrome = { header: null, footer: [], choice: null, toast: null };
+export const NO_CHROME: Chrome = {
+  headers: [],
+  footer: [],
+  choice: null,
+  toast: null,
+  title: null,
+  back: null,
+  search: null,
+};
 
 const SetChromeContext = createContext<((chrome: Chrome) => void) | null>(null);
 
 /** The frame (Shell) provides this; screens fill it through useScreenChrome. */
 export const ChromeProvider = SetChromeContext.Provider;
 
+interface Above {
+  choice?: ChromeChoice | null;
+  toast?: ChromeToast | null;
+  title?: string | null;
+  back?: BackLink | null;
+  search?: SearchBar | null;
+}
+
 /**
- * Puts a screen's header button and its pinned bottom buttons (with an optional choice and message
- * above them) into the frame. Only what is shown decides when the frame redraws; each tap calls the
- * screen's latest handler, so a screen may pass fresh functions on every render without the two
- * redrawing each other in a loop.
+ * Puts a screen's header button(s), its title and back link, its pinned bottom buttons (with an
+ * optional choice and message above them) and its search bar into the frame. Only what is shown
+ * decides when the frame redraws; each tap calls the screen's latest handler, so a screen may pass
+ * fresh functions on every render without the two redrawing each other in a loop.
  */
 export function useScreenChrome(
-  header: HeaderButton | null,
+  header: HeaderButton | readonly HeaderButton[] | null,
   footer: ChromeButton[],
-  above: { choice?: ChromeChoice | null; toast?: ChromeToast | null } = {},
+  above: Above = {},
 ): void {
   const set = useContext(SetChromeContext);
-  const choice = above.choice ?? null;
-  const toast = above.toast ?? null;
-  const latest = useRef({ header, footer, choice, toast });
+  const headers: HeaderButton[] =
+    header == null ? [] : Array.isArray(header) ? [...header] : [header as HeaderButton];
+  const now = {
+    headers,
+    footer,
+    choice: above.choice ?? null,
+    toast: above.toast ?? null,
+    title: above.title ?? null,
+    back: above.back ?? null,
+    search: above.search ?? null,
+  };
+  const latest = useRef(now);
   useEffect(() => {
-    latest.current = { header, footer, choice, toast };
+    latest.current = now;
   });
   const shape = JSON.stringify([
-    header && [header.label, header.icon],
+    headers.map((h) => [h.label, h.icon]),
     footer.map((b) => [b.label, b.kind ?? "red"]),
-    choice && [choice.label, choice.options, choice.value],
-    toast,
+    now.choice && [now.choice.label, now.choice.options, now.choice.value],
+    now.toast,
+    now.title,
+    now.back?.label,
+    now.search && [now.search.value, now.search.placeholder],
   ]);
   useEffect(() => {
     if (!set) return;
-    const now = latest.current;
+    const cur = latest.current;
     set({
-      header: now.header && {
-        label: now.header.label,
-        icon: now.header.icon,
-        onPress: () => latest.current.header?.onPress(),
-      },
-      footer: now.footer.map((b, i) => ({
+      headers: cur.headers.map((h, i) => ({
+        label: h.label,
+        icon: h.icon,
+        onPress: () => latest.current.headers[i]?.onPress(),
+      })),
+      footer: cur.footer.map((b, i) => ({
         label: b.label,
         kind: b.kind,
         onPress: () => latest.current.footer[i]?.onPress(),
       })),
-      choice: now.choice && {
-        label: now.choice.label,
-        options: now.choice.options,
-        value: now.choice.value,
+      choice: cur.choice && {
+        label: cur.choice.label,
+        options: cur.choice.options,
+        value: cur.choice.value,
         onChange: (value) => latest.current.choice?.onChange(value),
       },
-      toast: now.toast,
+      toast: cur.toast,
+      title: cur.title,
+      back: cur.back && {
+        label: cur.back.label,
+        onPress: () => latest.current.back?.onPress(),
+      },
+      search: cur.search && {
+        value: cur.search.value,
+        placeholder: cur.search.placeholder,
+        onChange: (value) => latest.current.search?.onChange(value),
+        onClose: () => latest.current.search?.onClose(),
+      },
     });
   }, [set, shape]);
   useEffect(() => () => set?.(NO_CHROME), [set]);

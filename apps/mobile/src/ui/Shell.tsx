@@ -8,10 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { barBottom as barBottomFor, bottomBar, phoneBottoms } from "@/lib/frame";
 import { initials } from "@/lib/initials";
 import { pageTitle } from "@/lib/pageTitle";
 import { useAuth, useLang, useTheme } from "./AppProviders";
@@ -19,7 +21,14 @@ import { BigButton } from "./BigButton";
 import { useBrandFont } from "./brandFont";
 import { LineIcon } from "./LineIcon";
 import { PinnedFooter, pinnedHeight } from "./PinnedFooter";
-import { ChromeProvider, NO_CHROME, type Chrome, type HeaderButton } from "./ScreenChrome";
+import {
+  ChromeProvider,
+  NO_CHROME,
+  type BackLink,
+  type Chrome,
+  type HeaderButton,
+  type SearchBar,
+} from "./ScreenChrome";
 import { Segmented } from "./Segmented";
 import { MENU_ICON, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
@@ -69,10 +78,19 @@ function WideShell({ children }: { children: ReactNode }) {
       <View style={s.fill}>
         <View style={s.topbar}>
           <View style={s.fill} />
-          {chrome.header && <RoundButton button={chrome.header} />}
+          {chrome.headers.map((h) => (
+            <RoundButton key={h.label} button={h} />
+          ))}
           <Toolbar />
         </View>
         <ScrollView style={s.fill} contentContainerStyle={s.content}>
+          {chrome.back && <BackPill back={chrome.back} />}
+          {/* A title still loading is "" — a ternary, so no bare text lands in the View. */}
+          {chrome.title ? (
+            <Text style={s.wideTitle} accessibilityRole="header">
+              {chrome.title}
+            </Text>
+          ) : null}
           <ChromeProvider value={setChrome}>{children}</ChromeProvider>
           {chrome.footer.length > 0 && (
             <View style={s.wideFooter}>
@@ -100,12 +118,6 @@ function WideShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Content scrolls under the floating bar; this keeps the last row clear of it (guide: 110). */
-const BAR_CLEARANCE = 110;
-/** The bar floats 22 above the bottom edge, or just above a phone's home indicator. */
-const BAR_GAP = 22;
-const BAR_HEIGHT = 62;
-
 function PhoneShell({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
   const brandFont = useBrandFont();
@@ -117,8 +129,10 @@ function PhoneShell({ children }: { children: ReactNode }) {
   const [chrome, setChrome] = useState<Chrome>(NO_CHROME);
   const s = styles(theme);
   const name = auth.status === "signed-in" ? auth.staff.name : "";
-  const barBottom = Math.max(BAR_GAP, insets.bottom - SPACE.m);
-  const footerSpace = pinnedHeight(chrome);
+  // The tab bar is for main pages only; a page with a back link has none (owner, 29 Oct).
+  const bar = bottomBar(chrome);
+  const barBottom = barBottomFor(insets.bottom);
+  const bottoms = phoneBottoms({ bar, insetBottom: insets.bottom, pinned: pinnedHeight(chrome) });
   const goAndClose = (href: string) => {
     setOpen(false);
     go(href);
@@ -131,15 +145,18 @@ function PhoneShell({ children }: { children: ReactNode }) {
           s.phoneContent,
           {
             paddingTop: insets.top + SPACE.m,
-            paddingBottom: BAR_CLEARANCE + footerSpace + insets.bottom,
+            paddingBottom: bottoms.content,
           },
         ]}
       >
+        {chrome.back && <BackPill back={chrome.back} />}
         <View style={s.titleRow}>
           <Text style={s.largeTitle} accessibilityRole="header" numberOfLines={1}>
-            {t(pageTitle(path))}
+            {chrome.title ?? t(pageTitle(path))}
           </Text>
-          {chrome.header && <RoundButton button={chrome.header} />}
+          {chrome.headers.map((h) => (
+            <RoundButton key={h.label} button={h} />
+          ))}
           <Pressable
             onPress={() => setOpen(true)}
             accessibilityRole="button"
@@ -152,39 +169,43 @@ function PhoneShell({ children }: { children: ReactNode }) {
         <ChromeProvider value={setChrome}>{children}</ChromeProvider>
       </ScrollView>
 
-      <PinnedFooter chrome={chrome} bottom={barBottom + BAR_HEIGHT + SPACE.l} />
+      <PinnedFooter chrome={chrome} bottom={bottoms.footer} />
 
-      <View style={[s.barRow, { bottom: barBottom }]} pointerEvents="box-none">
-        <View style={s.barPill} accessibilityRole="tablist">
-          {PRIMARY_TABS.map((tab) => {
-            const on = tab.href === active;
-            const color = on ? theme.primary : theme.text;
-            return (
-              <Pressable
-                key={tab.href}
-                onPress={() => go(tab.href)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={t(tab.label)}
-                style={[s.tab, on && s.tabOn]}
-              >
-                <LineIcon d={TAB_ICONS[tab.href] ?? MENU_ICON} color={color} />
-                <Text style={[s.tabLabel, { color }]} numberOfLines={1}>
-                  {t(tab.short ?? tab.label)}
-                </Text>
-              </Pressable>
-            );
-          })}
+      {chrome.search ? (
+        <SearchRow search={chrome.search} bottom={barBottom} />
+      ) : bar === "none" ? null : (
+        <View style={[s.barRow, { bottom: barBottom }]} pointerEvents="box-none">
+          <View style={s.barPill} accessibilityRole="tablist">
+            {PRIMARY_TABS.map((tab) => {
+              const on = tab.href === active;
+              const color = on ? theme.primary : theme.text;
+              return (
+                <Pressable
+                  key={tab.href}
+                  onPress={() => go(tab.href)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={t(tab.label)}
+                  style={[s.tab, on && s.tabOn]}
+                >
+                  <LineIcon d={TAB_ICONS[tab.href] ?? MENU_ICON} color={color} />
+                  <Text style={[s.tabLabel, { color }]} numberOfLines={1}>
+                    {t(tab.short ?? tab.label)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable
+            onPress={() => setOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t({ th: "เมนูทั้งหมด", en: "All pages" })}
+            style={s.menuButton}
+          >
+            <LineIcon d={MENU_ICON} color={theme.text} strokeWidth={2} />
+          </Pressable>
         </View>
-        <Pressable
-          onPress={() => setOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel={t({ th: "เมนูทั้งหมด", en: "All pages" })}
-          style={s.menuButton}
-        >
-          <LineIcon d={MENU_ICON} color={theme.text} strokeWidth={2} />
-        </Pressable>
-      </View>
+      )}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={[s.fill, s.row]}>
@@ -290,6 +311,65 @@ function Pill(props: { onPress: () => void; children: string }) {
     <Pressable onPress={props.onPress} accessibilityRole="button" style={s.pill}>
       <Text style={s.pillText}>{props.children}</Text>
     </Pressable>
+  );
+}
+
+const BACK_ICON = "M15 5l-7 7 7 7";
+const SEARCH_ICON = "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5";
+const CLOSE_ICON = "M6 6l12 12M18 6L6 18";
+
+/** "‹ ออเดอร์" — the way back from a page that sits under another one. */
+function BackPill({ back }: { back: BackLink }) {
+  const { theme } = useTheme();
+  const s = styles(theme);
+  return (
+    <Pressable onPress={back.onPress} accessibilityRole="link" style={s.backPill}>
+      <LineIcon d={BACK_ICON} color={theme.text} size={20} strokeWidth={2.4} />
+      <Text style={s.backText}>{back.label}</Text>
+    </Pressable>
+  );
+}
+
+/** While a screen searches, the field sits where the tab bar was, with a round ✕ to stop. */
+function SearchRow({ search, bottom }: { search: SearchBar; bottom: number }) {
+  const { theme } = useTheme();
+  const { t } = useLang();
+  const s = styles(theme);
+  return (
+    <View style={[s.barRow, { bottom }]} pointerEvents="box-none">
+      <View style={[s.barPill, s.searchField]}>
+        <LineIcon d={SEARCH_ICON} color={theme.text} size={18} strokeWidth={2.2} />
+        <TextInput
+          value={search.value}
+          onChangeText={search.onChange}
+          placeholder={search.placeholder}
+          placeholderTextColor={theme.textMuted}
+          autoFocus
+          returnKeyType="search"
+          accessibilityLabel={search.placeholder}
+          style={s.searchInput}
+        />
+        {search.value !== "" && (
+          <Pressable
+            onPress={() => search.onChange("")}
+            accessibilityRole="button"
+            accessibilityLabel={t({ th: "ล้างคำค้น", en: "Clear" })}
+            hitSlop={12}
+            style={s.searchClear}
+          >
+            <LineIcon d={CLOSE_ICON} color={theme.bg} size={10} strokeWidth={4} />
+          </Pressable>
+        )}
+      </View>
+      <Pressable
+        onPress={search.onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t({ th: "ปิดการค้นหา", en: "Close search" })}
+        style={s.menuButton}
+      >
+        <LineIcon d={CLOSE_ICON} color={theme.text} size={18} strokeWidth={2.4} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -431,6 +511,46 @@ const styles = (c: Theme) =>
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
     },
     wideFooter: { marginTop: SPACE.xxl, maxWidth: 420, gap: 10 },
+    wideTitle: { ...TYPE.largeTitle, color: c.text, marginBottom: SPACE.m },
+    backPill: {
+      alignSelf: "flex-start",
+      height: 36,
+      paddingLeft: 8,
+      paddingRight: 14,
+      borderRadius: 18,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+      marginBottom: SPACE.s,
+      backgroundColor: c.glass,
+      borderWidth: 1,
+      borderColor: c.glassLine,
+      boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+    },
+    backText: { ...TYPE.body, color: c.text },
+    searchField: {
+      height: 52,
+      borderRadius: 26,
+      justifyContent: "flex-start",
+      gap: SPACE.s,
+      paddingLeft: SPACE.l,
+      paddingRight: SPACE.m,
+    },
+    searchInput: {
+      ...TYPE.body,
+      flex: 1,
+      minWidth: 0,
+      color: c.text,
+      outlineStyle: "none",
+    } as never,
+    searchClear: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: c.textFaint,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     wideToast: { ...TYPE.subhead, color: c.textMuted },
     barRow: {
       position: "absolute",
