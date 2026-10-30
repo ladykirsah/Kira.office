@@ -6,11 +6,11 @@ import { EXPIRY_MS } from "./orderStatus";
  *
  * - Only an order that has not been sent. After drop-off it is a return or a claim, not a cancel.
  * - A slip still waiting to be checked is checked first, so we never cancel money we have not seen.
- * - The reason decides the customer's credit: "ลูกค้าขอยกเลิก" counts against them, the shop's own
- *   reasons do not (see creditEventFromOrder).
+ * - The reason decides the customer's credit: "ลูกค้าขอยกเลิก" counts against them; the others
+ *   (สินค้าหมด, ติดต่อลูกค้าไม่ได้, อื่นๆ) do not (see creditEventFromOrder).
  */
 
-export type CancelReason = "customer_request" | "out_of_stock" | "other";
+export type CancelReason = "customer_request" | "out_of_stock" | "unreachable" | "other";
 
 /** Why an order cannot be cancelled. `null` from cancelBlock means it can. */
 export type CancelBlock = "already_sent" | "already_closed" | "check_slip_first";
@@ -21,6 +21,7 @@ export type SlipAfterCancel = "not_cancelled" | "take_slip" | "contact_line";
 export const CANCEL_REASONS: readonly CancelReason[] = [
   "customer_request",
   "out_of_stock",
+  "unreachable",
   "other",
 ];
 
@@ -33,6 +34,7 @@ const REASON_SET = new Set<string>(CANCEL_REASONS);
 const LABELS: Record<CancelReason, string> = {
   customer_request: "ลูกค้าขอยกเลิก",
   out_of_stock: "สินค้าหมด",
+  unreachable: "ติดต่อลูกค้าไม่ได้",
   other: "อื่นๆ",
 };
 

@@ -55,10 +55,18 @@ There is ONE cancel door: `POST /orders/:id/cancel` → `StockLedger.cancelOrder
 - **Who:** the owner or an admin (`canCancelOrderRole`); a mechanic gets 403.
 - **When:** only before the parcel is sent (`new` / `confirmed` / `packing`). A slip still in
   `verifying` must be checked first. Sent, cancelled and expired orders are refused with 409.
-- **Reason required:** `customer_request` / `out_of_stock` / `other` (+ an optional note), stored in
+- **Reason required:** `customer_request` / `out_of_stock` / `unreachable` (ติดต่อลูกค้าไม่ได้,
+  added 2026-10-30, migration 0092) / `other` (+ an optional note), stored in
   `sales_orders.cancel_reason` (migration 0091) and written on the timeline.
-- **Credit:** `customer_request` costs the customer a point, paid or not; the shop's own reasons cost
-  nothing. Older cancels with no reason keep the old rule (pending / cod_denied → −1).
+- **Credit:** `customer_request` costs the customer a point, paid or not; every other reason —
+  `unreachable` included (owner, 2026-10-30) — costs nothing. Older cancels with no reason keep the
+  old rule (pending / cod_denied → −1).
+- **The customer sees the reason:** the cancel step on the storefront's order-tracking page reads
+  "เหตุผล: <reason>" (then the refund's progress if money is owed). `cancelStepDetail` in
+  `apps/storefront/src/lib/cancelReason.ts`; the lookup route returns `cancelReason`.
+- **A refund never expires** (owner, 2026-10-30): the customer can come back any time, and LINE OA
+  is the only channel (they give the order number, username or phone; the shop finds the order with
+  the tools it already has). `classifyRefundAction` has no clock any more.
 - **One batch:** status, stock back, coupon back and the timeline step. Every statement after the
   guarded UPDATE is conditional on `cancelled_at` equalling this cancel's own timestamp, so a
   drop-off that wins the race leaves nothing half-done.
@@ -95,8 +103,6 @@ There is ONE cancel door: `POST /orders/:id/cancel` → `StockLedger.cancelOrder
     slip still waiting it only shows "ตรวจสลิปก่อน แล้วค่อยยกเลิก".
   - Cancelled orders with nothing owed show a "ยกเลิกแล้ว" card: time, reason, stock back, coupon.
     A storefront discount *is* its coupon, so no discount reads "ไม่ได้ใช้คูปอง".
-- **Still to do (cont.):** the 4th reason "ติดต่อลูกค้าไม่ได้" and showing the reason to the customer
-  were asked of the owner and are not built.
 
 The old 2026-07-17 rule ("a returned part may be damaged, staff restock by hand") still holds for
 **bounced parcels and claims**. It never applied to an unsent order, whose goods never left the shelf.

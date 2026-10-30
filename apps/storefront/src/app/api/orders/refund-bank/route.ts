@@ -51,16 +51,11 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: NOT_FOUND }, { status: 404 });
     if (order.refundedAt != null)
       return Response.json({ error: "คำสั่งซื้อนี้คืนเงินแล้ว" }, { status: 409 });
-    // failedAt null: the 1-year window only silences the shop's reminder, it never refuses a customer.
-    const owed = classifyRefundAction(
-      {
-        orderStatus: order.orderStatus ?? "",
-        paymentStatus: order.paymentStatus,
-        refundedAt: order.refundedAt,
-        failedAt: null,
-      },
-      Date.now(),
-    );
+    const owed = classifyRefundAction({
+      orderStatus: order.orderStatus ?? "",
+      paymentStatus: order.paymentStatus,
+      refundedAt: order.refundedAt,
+    });
     if (owed !== "needs_refund")
       return Response.json({ error: "คำสั่งซื้อนี้ไม่สามารถแจ้งบัญชีคืนเงินได้" }, { status: 409 });
 

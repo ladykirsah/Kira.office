@@ -66,12 +66,18 @@ describe("cancelBlock > which orders the shop may cancel", () => {
 });
 
 describe("cancel reasons", () => {
-  it("the three reasons, customer first", () => {
-    expect([...CANCEL_REASONS]).toEqual(["customer_request", "out_of_stock", "other"]);
+  it("the four reasons, customer first and อื่นๆ last (owner added ติดต่อลูกค้าไม่ได้, 30 Oct 2026)", () => {
+    expect([...CANCEL_REASONS]).toEqual([
+      "customer_request",
+      "out_of_stock",
+      "unreachable",
+      "other",
+    ]);
   });
 
-  it("isCancelReason > accepts only the three", () => {
+  it("isCancelReason > accepts only the four", () => {
     expect(isCancelReason("out_of_stock")).toBe(true);
+    expect(isCancelReason("unreachable")).toBe(true);
     expect(isCancelReason("ลูกค้าขอยกเลิก")).toBe(false);
     expect(isCancelReason(undefined)).toBe(false);
   });
@@ -79,6 +85,7 @@ describe("cancel reasons", () => {
   it("labels are the owner's Thai words", () => {
     expect(cancelReasonLabel("customer_request")).toBe("ลูกค้าขอยกเลิก");
     expect(cancelReasonLabel("out_of_stock")).toBe("สินค้าหมด");
+    expect(cancelReasonLabel("unreachable")).toBe("ติดต่อลูกค้าไม่ได้");
     expect(cancelReasonLabel("other")).toBe("อื่นๆ");
   });
 });

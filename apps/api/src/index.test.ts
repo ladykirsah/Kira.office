@@ -5445,14 +5445,14 @@ describe("recordRefund (failed-delivery refund)", () => {
   it("the read model then shows profit as the shipping loss and the action as refunded", async () => {
     const db = bounced();
     await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
-    const d = await getOrderDetail(asD1(db), "o1", NOW);
+    const d = await getOrderDetail(asD1(db), "o1");
     expect(d!.money.profitSatang).toBe(-7500); // 195000 in, 195000 back out, ฿75 carrier eaten
     expect(d!.money.customerPaidSatang).toBe(195000);
     expect(d!.refundAction).toBe("refunded");
   });
 
   it("before a refund, a fresh bounce reads as needs_refund", async () => {
-    const d = await getOrderDetail(asD1(bounced()), "o1", NOW);
+    const d = await getOrderDetail(asD1(bounced()), "o1");
     expect(d!.refundAction).toBe("needs_refund");
     expect(d!.money.profitSatang).toBe(47500); // 190000 goods − 140000 cost − 2500 shortfall (real 7500 − charged 5000)
   });
@@ -5574,7 +5574,7 @@ describe("recordClaimRefund (claim resolved with money back)", () => {
   it("the read model then reflects the refund in the money books", async () => {
     const db = claimRefund();
     await recordClaimRefund(asD1(db), "cl1", "refund-slip/cl1/x.jpg", "boss@x.com", NOW);
-    const d = await getOrderDetail(asD1(db), "o1", NOW);
+    const d = await getOrderDetail(asD1(db), "o1");
     // 195000 in, 195000 back out, no carrier loss recorded — the defective part is cost-recovered
     // up the supply chain, so profit nets to zero rather than the stale margin.
     expect(d!.money.profitSatang).toBe(0);
@@ -5699,7 +5699,7 @@ describe("recordClaimReturnShipment (ship a rejected claim's product back)", () 
   it("the return fee lands in the money book (profit drops by it)", async () => {
     const db = rejected();
     await recordClaimReturnShipment(asD1(db), "cl1", ship, "boss@x.com", NOW);
-    const d = await getOrderDetail(asD1(db), "o1", NOW);
+    const d = await getOrderDetail(asD1(db), "o1");
     // 190,000 goods − 70,000 cost − 9,000 return shipment = 111,000.
     expect(d!.money.profitSatang).toBe(111_000);
   });
@@ -10581,6 +10581,51 @@ describe("loginWithRecoveryKey", () => {
 });
 
 // ── The shop cancels an AirPlus order (owner, 30 Oct 2026) ───────────────────────────────────────
+describe("migration 0092 > the 4th cancel reason", () => {
+  /** Every migration before 0092, so a row can be written the way prod holds it today. */
+  function before0092(): DatabaseSync {
+    const db = new DatabaseSync(":memory:");
+    for (const file of readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql") && f < "0092")
+      .sort()) {
+      db.exec(readFileSync(join(migrationsDir, file), "utf8"));
+    }
+    return db;
+  }
+  const apply0092 = (db: DatabaseSync) =>
+    db.exec(readFileSync(join(migrationsDir, "0092_cancel_reason_unreachable.sql"), "utf8"));
+  const insertOrder = (db: DatabaseSync, id: string, reason: string | null) =>
+    db
+      .prepare(
+        `INSERT INTO sales_orders
+           (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+            grand_total_satang, imported_at, cancel_reason, cancelled_at)
+         VALUES (?, 'airplus', ?, 'cancelled', 'pending', 100, 100, 1, ?, 1)`,
+      )
+      .run(id, id, reason);
+
+  it("given orders already cancelled > then their reasons survive the change", () => {
+    const db = before0092();
+    insertOrder(db, "a", "out_of_stock");
+    insertOrder(db, "b", null);
+    apply0092(db);
+    const rows = db
+      .prepare(`SELECT id, cancel_reason AS r FROM sales_orders ORDER BY id`)
+      .all() as { id: string; r: string | null }[];
+    expect(rows.map((x) => [x.id, x.r])).toEqual([
+      ["a", "out_of_stock"],
+      ["b", null],
+    ]);
+  });
+
+  it("after it > the 4th reason is accepted and a made-up one still refused", () => {
+    const db = before0092();
+    apply0092(db);
+    expect(() => insertOrder(db, "c", "unreachable")).not.toThrow();
+    expect(() => insertOrder(db, "d", "made_up")).toThrow(/CHECK constraint failed/);
+  });
+});
+
 describe("cancelOrderInDb > the shop cancels an order that has not been sent", () => {
   const NOW = SQLITE_NOW;
 
@@ -10707,6 +10752,15 @@ describe("cancelOrderInDb > the shop cancels an order that has not been sent", (
     });
   });
 
+  it("given the shop could not reach the customer > then that reason is stored, credit untouched", async () => {
+    // The 4th reason (owner, 30 Oct 2026): the database must accept it, and it costs no point.
+    const raw = placed();
+    const before = credit(raw);
+    expect(await cancel(raw, "unreachable")).toEqual({ ok: true, restockedUnits: 2 });
+    expect(order(raw).cancelReason).toBe("unreachable");
+    expect(credit(raw)).toBe(before);
+  });
+
   it("gives back exactly what checkout took, marked as a cancel", async () => {
     const raw = placed();
     await cancel(raw);
@@ -10831,7 +10885,7 @@ describe("cancelOrderInDb > the shop cancels an order that has not been sent", (
     it("reads as needs_refund on the order page", async () => {
       const raw = placed({ paymentStatus: "paid" });
       await cancel(raw);
-      const d = await getOrderDetail(asD1(raw), "o1", NOW);
+      const d = await getOrderDetail(asD1(raw), "o1");
       expect(d!.refundAction).toBe("needs_refund");
     });
 
