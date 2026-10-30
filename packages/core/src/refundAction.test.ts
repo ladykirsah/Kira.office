@@ -3,43 +3,37 @@ import { classifyRefundAction, type RefundActionInput } from "./refundAction";
 
 /**
  * The narrowed refund rule the owner set: ONLY a failed delivery of a paid order gets money back in
- * the system; everything else is handled via LINE OA. A refund we have paid shows as done, and one
- * left unclaimed for over a year is forfeited — we keep the money and it leaves the queue.
+ * the system; everything else is handled via LINE OA. A refund we have paid shows as done; one not
+ * yet paid stays owed for good — there is no clock in the rule at all (owner, 30 Oct 2026).
  */
 
-const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
-const NOW = 1_785_000_000_000; // a fixed clock; no Date.now in tests
+const NOW = 1_785_000_000_000; // a fixed clock for the refund timestamps; no Date.now in tests
 
-/** A paid parcel that bounced an hour ago and has not been refunded. */
+/** A paid parcel that bounced and has not been refunded. */
 const BOUNCED_PAID: RefundActionInput = {
   orderStatus: "delivery_failed",
   paymentStatus: "paid",
   refundedAt: null,
-  failedAt: NOW - 60 * 60 * 1000,
 };
 
 describe("classifyRefundAction > the one refund path", () => {
   it("delivery_failed + paid + not refunded + fresh > needs refund", () => {
-    expect(classifyRefundAction(BOUNCED_PAID, NOW)).toBe("needs_refund");
+    expect(classifyRefundAction(BOUNCED_PAID)).toBe("needs_refund");
   });
 
   it("already paid back (refundedAt set) > refunded, no action", () => {
-    expect(classifyRefundAction({ ...BOUNCED_PAID, refundedAt: NOW - 1000 }, NOW)).toBe("refunded");
+    expect(classifyRefundAction({ ...BOUNCED_PAID, refundedAt: NOW - 1000 })).toBe("refunded");
   });
 });
 
 describe("classifyRefundAction > when it must NOT fire", () => {
   it("a bounce we were never paid for (unpaid COD) > none", () => {
     // COD that bounced was never collected — there is no money of theirs to return.
-    expect(classifyRefundAction({ ...BOUNCED_PAID, paymentStatus: "cod_denied" }, NOW)).toBe(
-      "none",
-    );
+    expect(classifyRefundAction({ ...BOUNCED_PAID, paymentStatus: "cod_denied" })).toBe("none");
   });
 
   it("a paid order that did NOT fail delivery > none (handled via LINE OA if a return/claim)", () => {
-    expect(classifyRefundAction({ ...BOUNCED_PAID, orderStatus: "claim_pending" }, NOW)).toBe(
-      "none",
-    );
+    expect(classifyRefundAction({ ...BOUNCED_PAID, orderStatus: "claim_pending" })).toBe("none");
   });
 
   it("a CLAIM refund (refunded but claimed, not bounced) > none — it is not the failed-delivery path", () => {
@@ -47,36 +41,12 @@ describe("classifyRefundAction > when it must NOT fire", () => {
     // `delivery_failed`. The failed-delivery Zone A ("พัสดุตีกลับ") must NOT claim it — the claim
     // section shows that refund instead.
     expect(
-      classifyRefundAction(
-        {
-          orderStatus: "claimed",
-          paymentStatus: "refunded",
-          refundedAt: NOW - 1000,
-          failedAt: null,
-        },
-        NOW,
-      ),
+      classifyRefundAction({
+        orderStatus: "claimed",
+        paymentStatus: "refunded",
+        refundedAt: NOW - 1000,
+      }),
     ).toBe("none");
-  });
-});
-
-describe("classifyRefundAction > the 1-year forfeiture window", () => {
-  it("just under a year unclaimed > still needs refund", () => {
-    expect(classifyRefundAction({ ...BOUNCED_PAID, failedAt: NOW - (YEAR_MS - 1000) }, NOW)).toBe(
-      "needs_refund",
-    );
-  });
-
-  it("over a year unclaimed > none, we keep the money", () => {
-    expect(classifyRefundAction({ ...BOUNCED_PAID, failedAt: NOW - (YEAR_MS + 1000) }, NOW)).toBe(
-      "none",
-    );
-  });
-
-  it("failed date unknown > still needs refund, never silently forfeited", () => {
-    // We only keep the money when we can PROVE a year has passed; an absent timestamp must not read
-    // as expired, or a real obligation to the customer would vanish on missing data.
-    expect(classifyRefundAction({ ...BOUNCED_PAID, failedAt: null }, NOW)).toBe("needs_refund");
   });
 });
 
@@ -84,17 +54,15 @@ describe("classifyRefundAction > a paid order the shop cancelled (owner, 30 Oct 
   const CANCELLED_PAID: RefundActionInput = { ...BOUNCED_PAID, orderStatus: "cancelled" };
 
   it("given cancelled + paid + not refunded > then it needs the full refund", () => {
-    expect(classifyRefundAction(CANCELLED_PAID, NOW)).toBe("needs_refund");
+    expect(classifyRefundAction(CANCELLED_PAID)).toBe("needs_refund");
   });
 
   it("given cancelled + never paid > then there is nothing to give back", () => {
-    expect(classifyRefundAction({ ...CANCELLED_PAID, paymentStatus: "pending" }, NOW)).toBe("none");
-    expect(classifyRefundAction({ ...CANCELLED_PAID, paymentStatus: "cod" }, NOW)).toBe("none");
+    expect(classifyRefundAction({ ...CANCELLED_PAID, paymentStatus: "pending" })).toBe("none");
+    expect(classifyRefundAction({ ...CANCELLED_PAID, paymentStatus: "cod" })).toBe("none");
   });
 
   it("given cancelled and already paid back > then refunded", () => {
-    expect(classifyRefundAction({ ...CANCELLED_PAID, refundedAt: NOW - 1000 }, NOW)).toBe(
-      "refunded",
-    );
+    expect(classifyRefundAction({ ...CANCELLED_PAID, refundedAt: NOW - 1000 })).toBe("refunded");
   });
 });

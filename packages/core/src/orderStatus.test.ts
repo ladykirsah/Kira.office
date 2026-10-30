@@ -372,6 +372,11 @@ describe("creditEventFromOrder > a shop cancel decides by its reason (owner, 30 
     expect(creditEventFromOrder("cancelled", "cod_denied", "other")).toBeNull();
   });
 
+  it("given the shop could not reach the customer > then it costs them nothing (owner, 30 Oct 2026)", () => {
+    expect(creditEventFromOrder("cancelled", "pending", "unreachable")).toBeNull();
+    expect(creditEventFromOrder("cancelled", "paid", "unreachable")).toBeNull();
+  });
+
   it("given an older cancel with no reason on file > then the old rule stands", () => {
     expect(creditEventFromOrder("cancelled", "pending", null)).toEqual({ type: "incomplete" });
     expect(creditEventFromOrder("cancelled", "paid", null)).toBeNull();

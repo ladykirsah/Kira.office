@@ -26,6 +26,7 @@ interface OrderRow {
   refundAccountNo: string | null;
   refundedAt: number | null;
   paymentExpiresAt: number | null;
+  cancelReason: string | null;
 }
 
 interface LineRow {
@@ -59,6 +60,7 @@ export async function GET(request: Request): Promise<Response> {
                 o.payment_expires_at AS paymentExpiresAt,
                 o.ship_time_ms AS shipTimeMs, o.carrier AS carrier, o.tracking_no AS trackingNo,
                 o.refund_account_no AS refundAccountNo, o.refunded_at AS refundedAt,
+                o.cancel_reason AS cancelReason,
                 c.name AS customerName, c.phone AS customerPhone
          FROM sales_orders o
          LEFT JOIN storefront_customers c ON c.id = o.storefront_customer_id
@@ -149,6 +151,8 @@ export async function GET(request: Request): Promise<Response> {
       bouncedAt,
       deliveredAt,
       cancelledAt,
+      // Why the shop cancelled, shown to the customer (owner, 30 Oct 2026); null on older cancels.
+      cancelReason: order.cancelReason,
       // A cancelled order: may a slip still come in (and be refunded), or is it LINE OA now? Decided
       // here on the server's clock, not the phone's.
       afterCancel: slipAfterCancel(

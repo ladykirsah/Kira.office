@@ -2992,11 +2992,7 @@ function parsePhotoKeys(raw: string | null): string[] {
  * one-to-many, so a single statement would fan the order row out and every money figure would have
  * to be de-duplicated back out afterwards.
  */
-export async function getOrderDetail(
-  db: D1Database,
-  id: string,
-  now: number = Date.now(),
-): Promise<OrderDetail | null> {
+export async function getOrderDetail(db: D1Database, id: string): Promise<OrderDetail | null> {
   const order = await db
     .prepare(
       `SELECT id, channel, external_order_id AS externalOrderId, order_status AS orderStatus,
@@ -3145,15 +3141,6 @@ export async function getOrderDetail(
     });
   }
 
-  // The parcel-bounce timestamp anchors the 1-year refund window. Timeline is newest-first, so the
-  // first delivery_failed row is the most recent bounce.
-  // For a cancelled order the anchor is the cancel step itself.
-  const failedAt =
-    (orderFields.orderStatus === "cancelled"
-      ? (timeline ?? []).find((t) => t.event === "cancelled")
-      : (timeline ?? []).find((t) => t.orderStatus === "delivery_failed")
-    )?.createdAt ?? null;
-
   return {
     order: orderFields,
     customer,
@@ -3171,15 +3158,11 @@ export async function getOrderDetail(
       // Any replacement we shipped on an exchange claim cost us its carrier fee — off the profit.
       claimShippingSatang: claims.reduce((n, c) => n + (c.shippingFeeSatang ?? 0), 0),
     }),
-    refundAction: classifyRefundAction(
-      {
-        orderStatus: orderFields.orderStatus ?? "",
-        paymentStatus: orderFields.paymentStatus,
-        refundedAt: orderFields.refundedAt,
-        failedAt,
-      },
-      now,
-    ),
+    refundAction: classifyRefundAction({
+      orderStatus: orderFields.orderStatus ?? "",
+      paymentStatus: orderFields.paymentStatus,
+      refundedAt: orderFields.refundedAt,
+    }),
     lines: lines ?? [],
     timeline: timeline ?? [],
     claims,

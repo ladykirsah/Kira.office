@@ -403,3 +403,9 @@ sources: [session 2026-08-09]
   ยกเลิกแล้ว card, and the cancel wording on the refund and payment jobs. `GET /orders/:id` now
   returns `cancelReason` + `cancelledAt` (no migration). See
   [commerce/order-lifecycle](commerce/order-lifecycle.md).
+
+- **2026-10-30** — Cancel reason 4 `unreachable` (ติดต่อลูกค้าไม่ได้; no credit point; migration 0092
+  swaps the `cancel_reason` column to widen its CHECK). The storefront tracking page shows the cancel
+  reason. Refunds never expire any more (the 1-year forfeit is gone). See
+  [commerce/order-lifecycle](commerce/order-lifecycle.md) and
+  [commerce/refunds-and-returns](commerce/refunds-and-returns.md).

@@ -21,7 +21,7 @@ Flow:
 4. Order lookup returns a `hasRefundBank` boolean — never the account itself.
 
 Rules & quirks:
-- Unclaimed >1 year → forfeited. The backend rule in `classifyRefundAction` still functions, but the text was REMOVED from the customer UI at the owner's request.
+- **A refund never expires** (owner, 2026-10-30, replacing the old 1-year forfeit): an owed refund stays in the queue until it is paid; the customer can come back any time via LINE OA. `classifyRefundAction` takes no clock.
 - **Money lands in the two-book `orderMoney` (`refundedSatang`), NEVER in `financial_records`** — that summary is on-site/POS-only; an AirPlus row would corrupt it. See [money-model-and-finance](money-model-and-finance.md).
 - Full refund + restock → profit reads as the shipping loss (−carrier charge). Restock uses the existing `refund_return` movement.
 - Deliberate: the operational pill STAYS "Return" after refund (operationalStatus wins); the refund state is driven by `classifyRefundAction` (needs_refund / refunded / none) + Zone A. Flag it if the owner ever wants the pill to flip.

@@ -13,6 +13,7 @@ import { CodRejectedActions } from "@/components/CodRejectedActions";
 import { RefundRequest } from "@/components/RefundRequest";
 import { ClaimRequest } from "@/components/ClaimRequest";
 import { LINE_OA_URL } from "@/lib/links";
+import { cancelStepDetail } from "@/lib/cancelReason";
 import { baht, formatDateTime, normalizePhone } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 
@@ -49,6 +50,8 @@ interface LookupResult {
   bouncedAt: number | null;
   deliveredAt: number | null;
   cancelledAt: number | null;
+  /** Why the shop cancelled; null on an older or expired order. */
+  cancelReason: string | null;
   /** On a cancelled order: a slip may still come in (refunded in full) or the customer is sent to
    *  LINE OA (owner, 30 Oct 2026). "not_cancelled" otherwise. */
   afterCancel: "not_cancelled" | "take_slip" | "contact_line";
@@ -202,11 +205,14 @@ function buildSteps(o: LookupResult): Step[] {
     steps.push({
       title: "ยกเลิกคำสั่งซื้อ",
       at: o.cancelledAt,
-      detail: refunded
-        ? "คืนเงินแล้ว"
-        : o.hasRefundBank
-          ? "รอรับเงินใน 2–3 วันทำการ"
-          : "รอลูกค้าส่งเลขบัญชี",
+      detail: cancelStepDetail(
+        o.cancelReason,
+        refunded
+          ? "คืนเงินแล้ว"
+          : o.hasRefundBank
+            ? "รอรับเงินใน 2–3 วันทำการ"
+            : "รอลูกค้าส่งเลขบัญชี",
+      ),
       tracking: null,
       state: refunded ? "done" : "current",
     });
@@ -214,7 +220,7 @@ function buildSteps(o: LookupResult): Step[] {
     steps.push({
       title: "ยกเลิกคำสั่งซื้อ",
       at: o.cancelledAt,
-      detail: ord ? orderStatusLabel(ord) : null,
+      detail: cancelStepDetail(o.cancelReason, null) ?? (ord ? orderStatusLabel(ord) : null),
       tracking: null,
       state: "done",
     });
