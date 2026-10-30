@@ -311,19 +311,27 @@ export function usePosSession() {
   }
 
   /** Scan's ลูกค้า sale, parked as a draft: open it here, ready for the customer's details. */
-  async function openFromScan(id: string) {
+  async function openFromScan(id: string, from: "scan" | "customer" = "scan") {
+    const scan = from === "scan";
     try {
       const found = (await fetchDrafts(fetch, API_BASE, token)).find((d) => d.id === id);
       if (!found) {
         showToast(
-          { th: "ไม่พบบิลจากหน้าสแกน", en: "The bill from Scan was not found" },
+          scan
+            ? { th: "ไม่พบบิลจากหน้าสแกน", en: "The bill from Scan was not found" }
+            : { th: "ไม่พบใบเสนอราคานี้", en: "This quotation was not found" },
           { th: "ดูในฉบับร่าง", en: "Look in drafts" },
         );
         return;
       }
       await openDraft(found);
       showToast(
-        { th: "รับของจากหน้าสแกนแล้ว", en: "Items from Scan are in" },
+        scan
+          ? { th: "รับของจากหน้าสแกนแล้ว", en: "Items from Scan are in" }
+          : {
+              th: `เปิด ${found.saleNumber ?? "ใบเสนอราคา"} แล้ว`,
+              en: `${found.saleNumber ?? "Quotation"} opened`,
+            },
         { th: `${found.lines.length} รายการ`, en: `${found.lines.length} items` },
       );
       void data.reloadDrafts();
@@ -333,6 +341,17 @@ export function usePosSession() {
         { th: "บิลอยู่ในฉบับร่าง ลองอีกครั้ง", en: "It is in drafts · try again" },
       );
     }
+  }
+
+  /**
+   * ลูกค้า's ทำใบเสนอราคา or ทำบิลให้: a fresh bill or quotation with this car already in. The bill on
+   * screen is kept as a draft first, as opening a draft does.
+   */
+  async function startForCar(plate: string, doc: DocKind) {
+    if (bill.lines.length > 0 && !(await storeDraft(bill.doc))) return;
+    reset();
+    setBill(() => ({ ...emptyBill(), plate: plate.trim(), doc }));
+    void lookupPlate(plate);
   }
 
   async function removeDraft(id: string) {
@@ -600,6 +619,7 @@ export function usePosSession() {
     fileAsQuote,
     openDraft,
     openFromScan,
+    startForCar,
     removeDraft,
     issued,
     newBill,

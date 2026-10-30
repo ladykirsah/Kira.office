@@ -156,22 +156,24 @@ function PhoneShell({ children }: { children: ReactNode }) {
         ]}
       >
         {chrome.back && <BackPill back={chrome.back} />}
-        <View style={s.titleRow}>
-          <Text style={s.largeTitle} accessibilityRole="header" numberOfLines={1}>
-            {chrome.title ?? t(pageTitle(path))}
-          </Text>
-          {chrome.headers.map((h) => (
-            <RoundButton key={h.label} button={h} />
-          ))}
-          <Pressable
-            onPress={() => setOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={t({ th: `บัญชีของ ${name}`, en: `${name}'s account` })}
-            style={s.avatar}
-          >
-            <Text style={s.avatarText}>{initials(name)}</Text>
-          </Pressable>
-        </View>
+        {!chrome.ownTitle && (
+          <View style={s.titleRow}>
+            <Text style={s.largeTitle} accessibilityRole="header" numberOfLines={1}>
+              {chrome.title ?? t(pageTitle(path))}
+            </Text>
+            {chrome.headers.map((h) => (
+              <RoundButton key={h.label} button={h} />
+            ))}
+            <Pressable
+              onPress={() => setOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t({ th: `บัญชีของ ${name}`, en: `${name}'s account` })}
+              style={s.avatar}
+            >
+              <Text style={s.avatarText}>{initials(name)}</Text>
+            </Pressable>
+          </View>
+        )}
         <ChromeProvider value={setChrome}>{children}</ChromeProvider>
       </ScrollView>
 

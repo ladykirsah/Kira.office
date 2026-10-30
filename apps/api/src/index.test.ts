@@ -110,6 +110,9 @@ import worker, {
   salesToCsv,
   draftHeaderTotals,
   searchCustomers,
+  getCustomerDetail,
+  customerSummary,
+  storefrontCustomerSummary,
   anonymizeStorefrontCustomerInDb,
   searchStorefrontCustomers,
   getStorefrontCustomerDetail,
@@ -10990,5 +10993,343 @@ describe("cancelOrderInDb > the shop cancels an order that has not been sent", (
       expect(await expireUnpaidOrders(asD1(raw), LATE + 1)).toBe(0);
       expect(onHand(raw)).toBe(5);
     });
+  });
+});
+
+// ── The Expo ลูกค้า page ──────────────────────────────────────────────────────────────────────────
+// The new page leads with a summary card (all cars / came this month / new + six monthly bars), puts
+// the province beside every plate, prints a bill's brand per line and how it was paid, and lists each
+// AirPlus order's items on its card. All of it is read-only, so it is tested against the real schema.
+
+/** Bangkok wall-clock → epoch ms (Bangkok is UTC+7 all year, no daylight saving). */
+const bkk = (y: number, m: number, d: number, h = 12, min = 0) =>
+  Date.UTC(y, m - 1, d, h, min) - 7 * 60 * 60 * 1000;
+
+const SIX_MONTHS_TO_OCT_2025 = ["2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10"];
+
+/** A real session row, because these suites run against the real schema, not the canned mock. */
+async function signedInTo(raw: DatabaseSync) {
+  raw
+    .prepare(
+      `INSERT INTO users (id,name,email,role,status,created_at)
+       VALUES ('u-cust','Boss','boss@shop.test','super_admin','active',?)`,
+    )
+    .run(Date.now());
+  const { token } = await createStaffSession(asD1(raw), "u-cust", Date.now());
+  return { "X-Staff-Session": token };
+}
+
+describe("customerSummary (หน้าร้าน summary card)", () => {
+  const NOW = bkk(2025, 10, 15);
+
+  function seed() {
+    const db = migratedDb();
+    const bill = (id: string, plate: string, at: number, stage = "bill") =>
+      db
+        .prepare(
+          `INSERT INTO onsite_sales (id, client_uuid, license_plate, stage, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(id, `u-${id}`, plate, stage, at);
+    const legacy = (id: string, plate: string, at: number) =>
+      db
+        .prepare(
+          `INSERT INTO customer_history_entries (id, license_plate, happened_at, description, created_at)
+           VALUES (?, ?, ?, 'ล้างแอร์', ?)`,
+        )
+        .run(id, plate, at, at);
+    const directory = (plate: string) =>
+      db
+        .prepare(
+          `INSERT INTO customers (id, license_plate, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+        )
+        .run(`c-${plate}`, plate, NOW, NOW);
+
+    // A — known car: first came in August, came back half an hour into 1 Oct (Bangkok).
+    directory("1กก 1234");
+    bill("a1", "1กก 1234", bkk(2025, 8, 10));
+    bill("a2", "1กก 1234", bkk(2025, 10, 1, 0, 30));
+    // B — brand-new this month, two bills this month (still one car).
+    bill("b1", "2ขข 5678", bkk(2025, 10, 5));
+    bill("b2", "2ขข 5678", bkk(2025, 10, 9));
+    // C — only a transcribed visit, 23:30 on 30 Sep Bangkok: September, not October.
+    legacy("h-c", "3คค 9012", bkk(2025, 9, 30, 23, 30));
+    // D — imported into the directory, never visited.
+    directory("4งง 0001");
+    // F — last came in April: a car, but outside the six bars (May–Oct).
+    bill("f1", "6ฉฉ 7777", bkk(2025, 4, 20));
+    // G — its first ever visit is a transcribed one this month: new, and came this month.
+    legacy("h-g", "7ชช 4242", bkk(2025, 10, 2));
+    // Not cars: a quotation is not a visit, and a bill with no plate belongs to nobody.
+    bill("q1", "5จจ 1111", bkk(2025, 10, 6), "quotation");
+    bill("x1", "", bkk(2025, 10, 7));
+    return db;
+  }
+
+  it("given directory, billed and transcribed cars > total counts each car once", async () => {
+    const out = await customerSummary(asD1(seed()), NOW);
+
+    expect(out.total).toBe(6); // A, B, C, D, F, G
+  });
+
+  it("given visits around the month line > this month and new go by Bangkok time", async () => {
+    const out = await customerSummary(asD1(seed()), NOW);
+
+    expect(out.activeThisMonth).toBe(3); // A (00:30 on the 1st), B, G — not C (23:30 on the 30th)
+    expect(out.newThisMonth).toBe(2); // B, G — A first came in August
+  });
+
+  it("given six months of visits > one bar per month, oldest first, a car counted once a month", async () => {
+    const out = await customerSummary(asD1(seed()), NOW);
+
+    expect(out.months).toEqual([
+      { month: "2025-05", count: 0 },
+      { month: "2025-06", count: 0 },
+      { month: "2025-07", count: 0 },
+      { month: "2025-08", count: 1 },
+      { month: "2025-09", count: 1 },
+      { month: "2025-10", count: 3 },
+    ]);
+  });
+
+  it("given an empty shop > all zero, still six months", async () => {
+    const out = await customerSummary(asD1(migratedDb()), NOW);
+
+    expect(out).toEqual({
+      total: 0,
+      activeThisMonth: 0,
+      newThisMonth: 0,
+      months: SIX_MONTHS_TO_OCT_2025.map((month) => ({ month, count: 0 })),
+    });
+  });
+
+  it("GET /customers/summary > reaches the summary, not the one-car page", async () => {
+    const raw = seed();
+    const res = await worker.fetch!(
+      new Request("https://x/customers/summary", { headers: await signedInTo(raw) }),
+      { DB: asD1(raw) } as unknown as Env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { total: number; months: unknown[] };
+    expect(body.total).toBe(6);
+    expect(body.months).toHaveLength(6);
+  });
+});
+
+describe("storefrontCustomerSummary (AirPlus summary card)", () => {
+  const NOW = bkk(2025, 10, 15);
+
+  function seed() {
+    const db = migratedDb();
+    const account = (id: string, createdAt: number, anonymized = false) =>
+      db
+        .prepare(
+          `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at, anonymized_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, `08${id}`, id, createdAt, createdAt, anonymized ? createdAt : null);
+    const order = (id: string, customer: string, at: number | null, channel = "airplus") =>
+      db
+        .prepare(
+          `INSERT INTO sales_orders (id, channel, external_order_id, order_created_at, imported_at,
+                                     storefront_customer_id)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, channel, `AP-${id}`, at, NOW, customer);
+
+    account("cus-1", bkk(2025, 7, 2));
+    order("o1", "cus-1", bkk(2025, 8, 3));
+    order("o2", "cus-1", bkk(2025, 10, 3));
+    // Signed up half an hour into October (Bangkok): new this month. Two orders, one account.
+    account("cus-2", bkk(2025, 10, 1, 0, 30));
+    order("o3", "cus-2", bkk(2025, 10, 10));
+    order("o4", "cus-2", bkk(2025, 10, 11));
+    // Signed up 23:30 on 30 Sep: September. Its only October order is Shopee, not AirPlus.
+    account("cus-3", bkk(2025, 9, 30, 23, 30));
+    order("o5", "cus-3", bkk(2025, 10, 4), "shopee");
+    // Erased under PDPA long ago — still an account row, and an order with no date counts nowhere.
+    account("cus-4", bkk(2025, 3, 1), true);
+    order("o6", "cus-4", null);
+    return db;
+  }
+
+  it("given accounts and orders > total, ordered this month and signed up this month", async () => {
+    const out = await storefrontCustomerSummary(asD1(seed()), NOW);
+
+    expect(out.total).toBe(4);
+    expect(out.activeThisMonth).toBe(2); // cus-1, cus-2 — cus-3's order is Shopee
+    expect(out.newThisMonth).toBe(1); // cus-2 — cus-3 signed up in September, Bangkok time
+  });
+
+  it("given six months of orders > accounts that ordered, per month, oldest first", async () => {
+    const out = await storefrontCustomerSummary(asD1(seed()), NOW);
+
+    expect(out.months).toEqual([
+      { month: "2025-05", count: 0 },
+      { month: "2025-06", count: 0 },
+      { month: "2025-07", count: 0 },
+      { month: "2025-08", count: 1 },
+      { month: "2025-09", count: 0 },
+      { month: "2025-10", count: 2 },
+    ]);
+  });
+
+  it("GET /storefront-customers/summary > reaches the summary, not the one-account page", async () => {
+    const raw = seed();
+    const res = await worker.fetch!(
+      new Request("https://x/storefront-customers/summary", { headers: await signedInTo(raw) }),
+      { DB: asD1(raw) } as unknown as Env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { total: number; months: unknown[] };
+    expect(body.total).toBe(4);
+    expect(body.months).toHaveLength(6);
+  });
+});
+
+describe("customer list + car page > the fields the Expo page prints", () => {
+  const NOW = SQLITE_NOW;
+
+  function seed() {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO customers (id, license_plate, plate_province, created_at, updated_at)
+       VALUES ('c1', '1กก 1234', 'กรุงเทพมหานคร', ?, ?)`,
+    ).run(NOW, NOW);
+    db.prepare(`INSERT INTO brands (id, name, created_at) VALUES ('br-suva', 'Suva', ?)`).run(NOW);
+    db.prepare(
+      `INSERT INTO products (id, name, brand_id, created_at) VALUES ('p-gas', 'น้ำยาแอร์ R134a', 'br-suva', ?)`,
+    ).run(NOW);
+    db.prepare(`INSERT INTO products (id, name, created_at) VALUES ('p-oring', 'โอริงชุด', ?)`).run(
+      NOW,
+    );
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, created_at) VALUES ('v-gas', 'p-gas', ?)`,
+    ).run(NOW);
+    db.prepare(
+      `INSERT INTO product_variants (id, product_id, created_at) VALUES ('v-oring', 'p-oring', ?)`,
+    ).run(NOW);
+    const sale = (id: string, plate: string, stage: string, pay: string | null) =>
+      db
+        .prepare(
+          `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, stage, payment_method, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, `u-${id}`, `N-${id}`, plate, stage, pay, NOW);
+    const line = (id: string, saleId: string, type: string, variant: string | null, desc: string) =>
+      db
+        .prepare(
+          `INSERT INTO onsite_sale_lines (id, onsite_sale_id, product_variant_id, quantity,
+                                          unit_price_satang, line_type, description)
+           VALUES (?, ?, ?, 1, 100, ?, ?)`,
+        )
+        .run(id, saleId, variant, type, desc);
+    sale("s-bill", "1กก 1234", "bill", "promptpay");
+    line("l1", "s-bill", "service", null, "ล้างแอร์ทั้งระบบ");
+    line("l2", "s-bill", "part", "v-gas", "น้ำยาแอร์ R134a");
+    line("l3", "s-bill", "part", "v-oring", "โอริงชุด");
+    sale("s-quote", "1กก 1234", "quotation", null);
+    // A billed plate that is not in the directory: no province on file.
+    sale("s-walkin", "9ฮฮ 9999", "bill", "cash");
+    return db;
+  }
+
+  it("given a directory car and a walk-in > each row carries the plate's province or null", async () => {
+    const rows = (await searchCustomers(asD1(seed()), "")) as {
+      licensePlate: string;
+      plateProvince: string | null;
+    }[];
+
+    const byPlate = Object.fromEntries(rows.map((r) => [r.licensePlate, r.plateProvince]));
+    expect(byPlate).toEqual({ "1กก 1234": "กรุงเทพมหานคร", "9ฮฮ 9999": null });
+  });
+
+  it("given a bill and a quotation > each says how it was paid (null when not paid)", async () => {
+    const detail = (await getCustomerDetail(asD1(seed()), "1กก 1234")) as {
+      history: { id: string; paymentMethod: string | null }[];
+      quotations: { id: string; paymentMethod: string | null }[];
+    };
+
+    expect(detail.history.map((s) => s.paymentMethod)).toEqual(["promptpay"]);
+    expect(detail.quotations.map((s) => s.paymentMethod)).toEqual([null]);
+  });
+
+  it("given service, branded and unbranded lines > a line carries its product's brand or null", async () => {
+    const detail = (await getCustomerDetail(asD1(seed()), "1กก 1234")) as {
+      history: { lines: { description: string; brandName: string | null }[] }[];
+    };
+
+    const byLine = Object.fromEntries(
+      detail.history[0]!.lines.map((l) => [l.description, l.brandName]),
+    );
+    expect(byLine).toEqual({
+      ล้างแอร์ทั้งระบบ: null,
+      "น้ำยาแอร์ R134a": "Suva",
+      โอริงชุด: null,
+    });
+  });
+});
+
+describe("getStorefrontCustomerDetail > each order lists its items", () => {
+  const NOW = SQLITE_NOW;
+
+  function seed() {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at)
+       VALUES ('cus-1', '0810000001', 'วิภา', ?, ?)`,
+    ).run(NOW, NOW);
+    for (const [id, name] of [
+      ["p-comp", "คอมเพรสเซอร์ DENSO 10S11C"],
+      ["p-oil", "น้ำมันคอมเพรสเซอร์ ND-OIL8"],
+      ["p-fan", "พัดลมแอร์ DENSO"],
+    ] as const) {
+      db.prepare(`INSERT INTO products (id, name, created_at) VALUES (?, ?, ?)`).run(id, name, NOW);
+      db.prepare(`INSERT INTO product_variants (id, product_id, created_at) VALUES (?, ?, ?)`).run(
+        `v-${id}`,
+        id,
+        NOW,
+      );
+    }
+    const order = (id: string, at: number) =>
+      db
+        .prepare(
+          `INSERT INTO sales_orders (id, channel, external_order_id, order_created_at, imported_at,
+                                     storefront_customer_id)
+           VALUES (?, 'airplus', ?, ?, ?, 'cus-1')`,
+        )
+        .run(id, `AP-${id}`, at, NOW);
+    const line = (id: string, orderId: string, variant: string) =>
+      db
+        .prepare(
+          `INSERT INTO sales_order_lines (id, sales_order_id, product_variant_id, quantity,
+                                          unit_price_satang, line_total_satang, created_at)
+           VALUES (?, ?, ?, 1, 100, 100, ?)`,
+        )
+        .run(id, orderId, variant, NOW);
+    order("o-new", NOW);
+    // Inserted out of id order on purpose: the card lists items in the order they were added.
+    line("z1", "o-new", "v-p-comp");
+    line("a2", "o-new", "v-p-oil");
+    order("o-old", NOW - 1000);
+    line("m1", "o-old", "v-p-fan");
+    order("o-empty", NOW - 2000);
+    return db;
+  }
+
+  it("given orders with lines > items are the product names, in the order they were added", async () => {
+    const detail = (await getStorefrontCustomerDetail(asD1(seed()), "cus-1")) as {
+      orders: { id: string; items: string[] }[];
+    };
+
+    expect(detail.orders.map((o) => [o.id, o.items])).toEqual([
+      ["o-new", ["คอมเพรสเซอร์ DENSO 10S11C", "น้ำมันคอมเพรสเซอร์ ND-OIL8"]],
+      ["o-old", ["พัดลมแอร์ DENSO"]],
+      ["o-empty", []],
+    ]);
   });
 });

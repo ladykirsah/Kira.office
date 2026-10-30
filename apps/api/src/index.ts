@@ -84,6 +84,7 @@ import {
   type ExpenseInput,
   isInsightPeriod,
   bangkokMonth,
+  bangkokMonthStart,
   isPracticeCopy,
 } from "@l-shopee/core";
 
@@ -4484,6 +4485,7 @@ export async function searchCustomers(db: D1Database, q: string): Promise<unknow
       `SELECT x.license_plate AS licensePlate,
               b.vehicle AS vehicle,
               c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
+              c.plate_province AS plateProvince,
               -- "Visits" = Kira bills + transcribed legacy visits; last visit = the most recent
               -- of either (NULLIF→null when a car has neither yet, so the UI shows "—").
               COALESCE(b.billCount, 0) + COALESCE(h.legacyCount, 0) AS billCount,
@@ -4532,7 +4534,8 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
       `SELECT id, sale_number AS saleNumber, stage, created_at AS createdAt,
               subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
               tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
-              notes, vehicle, mileage_km AS mileageKm, buyer_name AS buyerName
+              notes, vehicle, mileage_km AS mileageKm, buyer_name AS buyerName,
+              payment_method AS paymentMethod
        FROM onsite_sales
        WHERE license_plate = ? AND stage IN ('bill', 'quotation')
        ORDER BY created_at DESC LIMIT 200`,
@@ -4544,15 +4547,18 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
   const byId = new Map<string, unknown[]>();
   if (ids.length > 0) {
     // productRef (the Product ID) rides along on product lines: same-brand parts interchange
-    // across car models, so only the ID says WHICH part was actually installed on this car.
+    // across car models, so only the ID says WHICH part was actually installed on this car. The
+    // brand is printed on the bill page's line ("Suva · ฿195 × 2"); service lines have none.
     const lines = await db
       .prepare(
         `SELECT l.onsite_sale_id AS onsiteSaleId, l.description, l.line_type AS lineType,
                 l.quantity, l.unit_price_satang AS unitPriceSatang,
-                l.discount_satang AS discountSatang, p.product_ref AS productRef
+                l.discount_satang AS discountSatang, p.product_ref AS productRef,
+                b.name AS brandName
          FROM onsite_sale_lines l
          LEFT JOIN product_variants v ON v.id = l.product_variant_id
          LEFT JOIN products p ON p.id = v.product_id
+         LEFT JOIN brands b ON b.id = p.brand_id
          WHERE l.onsite_sale_id IN (${ids.map(() => "?").join(",")})`,
       )
       .bind(...ids)
@@ -4686,8 +4692,147 @@ export async function getStorefrontCustomerDetail(db: D1Database, id: string): P
        LIMIT 200`,
     )
     .bind(id)
-    .all();
-  return { customer: customer ?? null, orders: orders.results ?? [] };
+    .all<{ id: string }>();
+  const rows = orders.results ?? [];
+  // Each order card lists what was bought, in the order it was added. One query per chunk of
+  // orders, not one per order; chunked because D1 caps bound parameters at 100 per statement.
+  const items = new Map<string, string[]>();
+  for (let i = 0; i < rows.length; i += 90) {
+    const chunk = rows.slice(i, i + 90).map((o) => o.id);
+    const lines = await db
+      .prepare(
+        `SELECT l.sales_order_id AS orderId, COALESCE(p.name, v.variant_name, v.sku) AS name
+         FROM sales_order_lines l
+         LEFT JOIN product_variants v ON v.id = l.product_variant_id
+         LEFT JOIN products p ON p.id = v.product_id
+         WHERE l.sales_order_id IN (${chunk.map(() => "?").join(",")})
+         ORDER BY l.created_at, l.rowid`,
+      )
+      .bind(...chunk)
+      .all<{ orderId: string; name: string | null }>();
+    for (const l of lines.results ?? []) {
+      if (!l.name) continue;
+      items.set(l.orderId, [...(items.get(l.orderId) ?? []), l.name]);
+    }
+  }
+  return {
+    customer: customer ?? null,
+    orders: rows.map((o) => ({ ...o, items: items.get(o.id) ?? [] })),
+  };
+}
+
+/** The summary card on both ลูกค้า tabs: a total, this month, new this month, six monthly bars. */
+export interface CustomerSummary {
+  total: number;
+  activeThisMonth: number;
+  newThisMonth: number;
+  /** The last six calendar months, oldest first, current month last. `month` is "YYYY-MM". */
+  months: { month: string; count: number }[];
+}
+
+const SUMMARY_MONTHS = 6;
+
+/**
+ * The six Bangkok calendar months ending with the one `now` is in: their start instants (oldest
+ * first), the end of the current month, and a SQL CASE that files a timestamp column into its month
+ * (0 = oldest … 5 = this month). Bangkok, because the Worker's clock is UTC and a bill rung up at
+ * 00:30 on the 1st belongs to the new month here.
+ */
+function summaryMonths(now: number, column: string) {
+  const starts = Array.from({ length: SUMMARY_MONTHS }, (_, i) =>
+    bangkokMonthStart(now, SUMMARY_MONTHS - 1 - i),
+  );
+  const end = bangkokMonthStart(now, -1);
+  const newestFirst = starts.map((_, i) => SUMMARY_MONTHS - 1 - i);
+  const bucket = `CASE ${newestFirst.map((i) => `WHEN ${column} >= ? THEN ${i}`).join(" ")} END`;
+  return {
+    starts,
+    end,
+    bucket,
+    bucketBinds: newestFirst.map((i) => starts[i]!),
+    bars: (rows: { idx: number; n: number }[]) =>
+      starts.map((start, i) => ({
+        month: bangkokMonth(start),
+        count: rows.find((r) => r.idx === i)?.n ?? 0,
+      })),
+  };
+}
+
+/**
+ * หน้าร้าน summary. A car is what the list shows: the directory, every billed plate, every plate
+ * with transcribed history. A visit is a bill or a transcribed visit (a quotation is not). New =
+ * the car's first visit ever falls in this month.
+ */
+export async function customerSummary(db: D1Database, now: number): Promise<CustomerSummary> {
+  const m = summaryMonths(now, "at");
+  const visits = `WITH visits AS (
+       SELECT license_plate AS plate, created_at AS at FROM onsite_sales
+       WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
+       UNION ALL
+       SELECT license_plate AS plate, happened_at AS at FROM customer_history_entries
+       WHERE license_plate IS NOT NULL AND license_plate <> '')`;
+  const counts = await db
+    .prepare(
+      `${visits}
+       SELECT (SELECT COUNT(*) FROM (SELECT license_plate FROM customers
+                                     UNION SELECT plate FROM visits)) AS total,
+              (SELECT COUNT(*) FROM (SELECT plate FROM visits GROUP BY plate
+                                     HAVING MIN(at) >= ? AND MIN(at) < ?)) AS newThisMonth`,
+    )
+    .bind(m.starts[SUMMARY_MONTHS - 1], m.end)
+    .first<{ total: number; newThisMonth: number }>();
+  const bars = await db
+    .prepare(
+      `${visits}
+       SELECT ${m.bucket} AS idx, COUNT(DISTINCT plate) AS n FROM visits
+       WHERE at >= ? AND at < ? GROUP BY idx`,
+    )
+    .bind(...m.bucketBinds, m.starts[0], m.end)
+    .all<{ idx: number; n: number }>();
+  const months = m.bars(bars.results ?? []);
+  return {
+    total: counts?.total ?? 0,
+    activeThisMonth: months[SUMMARY_MONTHS - 1]!.count,
+    newThisMonth: counts?.newThisMonth ?? 0,
+    months,
+  };
+}
+
+/**
+ * AirPlus summary. Every account row counts (an erased account is still an account); active = it
+ * placed an AirPlus order this month (Shopee rows never count); new = it signed up this month.
+ */
+export async function storefrontCustomerSummary(
+  db: D1Database,
+  now: number,
+): Promise<CustomerSummary> {
+  const m = summaryMonths(now, "order_created_at");
+  const counts = await db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0)
+                AS newThisMonth
+       FROM storefront_customers`,
+    )
+    .bind(m.starts[SUMMARY_MONTHS - 1], m.end)
+    .first<{ total: number; newThisMonth: number }>();
+  const bars = await db
+    .prepare(
+      `SELECT ${m.bucket} AS idx, COUNT(DISTINCT storefront_customer_id) AS n
+       FROM sales_orders
+       WHERE channel = 'airplus' AND storefront_customer_id IS NOT NULL
+             AND order_created_at >= ? AND order_created_at < ?
+       GROUP BY idx`,
+    )
+    .bind(...m.bucketBinds, m.starts[0], m.end)
+    .all<{ idx: number; n: number }>();
+  const months = m.bars(bars.results ?? []);
+  return {
+    total: counts?.total ?? 0,
+    activeThisMonth: months[SUMMARY_MONTHS - 1]!.count,
+    newThisMonth: counts?.newThisMonth ?? 0,
+    months,
+  };
 }
 
 /**
@@ -7100,6 +7245,10 @@ const worker = {
       const result = await upsertCustomerByPlate(env.DB, body as CustomerUpsert);
       return json(result, result.ok ? 200 : 400);
     }
+    // Before the one-car route below: its `([^/]+)` would otherwise read "summary" as a plate.
+    if (url.pathname === "/customers/summary" && request.method === "GET") {
+      return json(await customerSummary(env.DB, Date.now()));
+    }
     const customerGet = url.pathname.match(/^\/customers\/([^/]+)$/);
     if (customerGet && request.method === "GET") {
       return json(await getCustomerDetail(env.DB, decodeURIComponent(customerGet[1]!)));
@@ -7111,6 +7260,9 @@ const worker = {
       return json({
         customers: await searchStorefrontCustomers(env.DB, url.searchParams.get("q") ?? ""),
       });
+    }
+    if (url.pathname === "/storefront-customers/summary" && request.method === "GET") {
+      return json(await storefrontCustomerSummary(env.DB, Date.now()));
     }
     const sfMarketing = url.pathname.match(/^\/storefront-customers\/([^/]+)\/marketing$/);
     if (sfMarketing && request.method === "PUT") {

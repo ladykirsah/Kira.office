@@ -168,7 +168,12 @@ export interface ReceiveAccount {
   isDefault: boolean;
 }
 
-async function getJson<T>(fetchFn: FetchFn, url: string, token: string, what: string): Promise<T> {
+export async function getJson<T>(
+  fetchFn: FetchFn,
+  url: string,
+  token: string,
+  what: string,
+): Promise<T> {
   const res = await fetchFn(url, { headers: session(token) });
   if (!res.ok) throw await failure(res, what);
   return (await res.json()) as T;
