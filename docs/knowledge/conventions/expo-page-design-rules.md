@@ -131,6 +131,17 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A payment QR always shows the account name**, readable, right under the code (plus the
   PromptPay number), so the customer sees who they pay. *"always provide account name with the
   payment QR code (readable)"* (30 Oct).
+- **The province is part of the plate.** In a list row it sits right after the plate
+  ("1กก 1234 กรุงเทพมหานคร"). In a car's page header, two columns: left = plate (34 bold) over
+  province (22 semibold); right = brand (17) over model + year (15 grey). Never move the province
+  into the car line.
+  *"city is the part of plate do not separate them"* (ลูกค้า, 30 Oct).
+- **Never pick one item to stand for a record that has many.** A visit with 5 items has no "main"
+  item, so the record's topic is its date and every item shows under it. *"how you will know which
+  list will be the topic on the record card? … plus amount does not the point here"* (ลูกค้า, 30 Oct).
+- **An icon must not look like a different action.** The down-arrow-over-a-line read as "Save",
+  not "Import". If an icon could be read two ways, use the word or icon + word. *"does not look
+  like Import but more like Save"* (ลูกค้า, 30 Oct).
 - **Lists:** rows of 52 / 68 / 84 with a real photo. Counts in tabs (Shopify-style status tabs
   with counts).
 - **Sample data must add up.** If the list says 2, draw 2 cards. Totals must match across tabs.

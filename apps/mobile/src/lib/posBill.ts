@@ -251,6 +251,8 @@ export interface CustomerUpsert {
   customerName?: string;
   phone?: string;
   carModel?: string;
+  /** ลูกค้า's แก้ไข sets it; ทำบิล never sends it. */
+  notes?: string;
 }
 
 /**

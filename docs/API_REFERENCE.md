@@ -111,6 +111,21 @@ car_brand, car_model}`.
 | `GET` | `/orders` | `fetchOrders()` | Imported Shopee orders plus AirPlus storefront orders (`OrderRow[]`), newest first. |
 | `PATCH` | `/orders/:id` | `updateAirPlusOrder()` | Fulfilment editor for an **AirPlus-channel** order (`404` for Shopee/absent rows). Body `OrderPatch {orderStatus?, paymentStatus?, carrier?, trackingNo?}` — a key present with an empty string clears the column to `NULL`; returns `{order: OrderRow}`. The **first** time a tracking number is set, `ship_time_ms` is stamped (later corrections keep the original). Two-axis lifecycle rides existing free-text columns (no schema change): `order_status` (fulfilment) `new → preparing (เตรียมจัดส่ง) → shipping → done` + cancel/refund branches, and `payment_status` (money) `awaiting → paid` + COD. |
 
+## Customers (หน้าร้าน cars and AirPlus accounts)
+
+| Method | Path | Client fn | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/customers?q=` | `fetchCarList()` (mobile) | Newest 100 cars (directory ∪ billed plates ∪ transcribed history). Each row has `plateProvince`. `q` matches plate, phone, name, vehicle, car model or a bill number. |
+| `GET` | `/customers/summary` | `fetchSummary("shop")` | `{total, activeThisMonth, newThisMonth, months: {month: "YYYY-MM", count}[6]}`, Bangkok months, oldest first. A visit = a bill or a transcribed visit; new = the car's first visit is this month. Matched before `/customers/:plate`. |
+| `GET` | `/customers/:plate` | `fetchCarDetail()` | `{customer, vehicle, history, quotations, legacy, lastMileage}`. Each sale has `paymentMethod` (`"cash"`/`"promptpay"`/`null`); each line has `brandName` (the product's brand; `null` for services). A line's `discountSatang` is its share of the bill's discount, so show `unitPriceSatang × quantity` per line and the bill's `discountTotalSatang` once. |
+| `PUT` | `/customers/by-plate` | `saveCustomer()` | Upsert by plate; omitted fields are left alone. Several phones share `phone`, comma-separated (ทำบิล and ลูกค้า both write it that way). |
+| `GET` | `/storefront-customers?q=` | `fetchAccounts()` | Newest 100 AirPlus accounts with order totals and `lastOrderAt`. |
+| `GET` | `/storefront-customers/summary` | `fetchSummary("airplus")` | Same shape as the หน้าร้าน summary: every account row in `total`; active = placed an AirPlus order that month; new = signed up this month. |
+| `GET` | `/storefront-customers/:id` | `fetchAccount()` | `{customer, orders}`; each order has `items: string[]` (product names, in line order). |
+| `PUT` | `/storefront-customers/:id/marketing` | `setMarketing()` | Body `{optedIn}`; withdrawing clears the timestamp. |
+| `POST` | `/storefront-customers/:id/anonymize` | `eraseAccount()` | PDPA erasure: identity blanked, orders kept (tax records). Idempotent. |
+| `POST` | `/storefront-customers/recalculate-credit-all` | `recalcAllCredit()` | Every account's credit and tier worked out again. |
+
 ## Offline POS sync & imports
 
 | Method | Path | Client fn | Notes |

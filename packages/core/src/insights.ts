@@ -50,7 +50,7 @@ export function bangkokDayStart(ms: number): number {
  * Uses the UTC getters on a shifted instant so the calendar rollover (Jan → Dec of the previous
  * year, and month lengths) is `Date.UTC`'s problem rather than ours.
  */
-function bangkokMonthStart(ms: number, monthsBack = 0): number {
+export function bangkokMonthStart(ms: number, monthsBack = 0): number {
   const d = new Date(ms + BKK_OFFSET_MS);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - monthsBack, 1) - BKK_OFFSET_MS;
 }

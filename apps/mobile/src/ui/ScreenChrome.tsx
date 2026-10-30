@@ -57,6 +57,8 @@ export interface Chrome {
   title: string | null;
   back: BackLink | null;
   search: SearchBar | null;
+  /** The page draws its own heading under the back link (a car's plate beside its brand). */
+  ownTitle: boolean;
 }
 
 export const NO_CHROME: Chrome = {
@@ -67,6 +69,7 @@ export const NO_CHROME: Chrome = {
   title: null,
   back: null,
   search: null,
+  ownTitle: false,
 };
 
 const SetChromeContext = createContext<((chrome: Chrome) => void) | null>(null);
@@ -80,6 +83,7 @@ interface Above {
   title?: string | null;
   back?: BackLink | null;
   search?: SearchBar | null;
+  ownTitle?: boolean;
 }
 
 /**
@@ -104,6 +108,7 @@ export function useScreenChrome(
     title: above.title ?? null,
     back: above.back ?? null,
     search: above.search ?? null,
+    ownTitle: above.ownTitle ?? false,
   };
   const latest = useRef(now);
   useEffect(() => {
@@ -117,6 +122,7 @@ export function useScreenChrome(
     now.title,
     now.back?.label,
     now.search && [now.search.value, now.search.placeholder],
+    now.ownTitle,
   ]);
   useEffect(() => {
     if (!set) return;
@@ -152,6 +158,7 @@ export function useScreenChrome(
         onChange: (value) => latest.current.search?.onChange(value),
         onClose: () => latest.current.search?.onClose(),
       },
+      ownTitle: cur.ownTitle,
     });
   }, [set, shape]);
   useEffect(() => () => set?.(NO_CHROME), [set]);

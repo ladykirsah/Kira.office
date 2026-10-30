@@ -28,16 +28,24 @@ export function PosScreen() {
   const { theme } = useTheme();
   const pos = usePos();
   const quote = pos.bill.doc === "quote";
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const { draft, plate, doc, from } = useLocalSearchParams<{
+    draft?: string;
+    plate?: string;
+    doc?: string;
+    from?: string;
+  }>();
   const opened = useRef<string | null>(null);
 
   // Scan hands a ลูกค้า sale over as ?draft=<id>: open it once, then drop it from the address.
+  // ลูกค้า's ทำใบเสนอราคา / ทำบิลให้ come as ?plate=<plate>[&doc=quote], the car already filled in.
   useEffect(() => {
-    if (!draft || !pos.data.ready || opened.current === draft) return;
-    opened.current = draft;
-    router.setParams({ draft: undefined });
-    void pos.openFromScan(draft);
-  }, [draft, pos]);
+    const key = draft ? `draft:${draft}` : plate ? `plate:${plate}:${doc ?? ""}` : null;
+    if (!key || !pos.data.ready || opened.current === key) return;
+    opened.current = key;
+    router.setParams({ draft: undefined, plate: undefined, doc: undefined, from: undefined });
+    if (draft) void pos.openFromScan(draft, from === "customer" ? "customer" : "scan");
+    else void pos.startForCar(plate!, doc === "quote" ? "quote" : "bill");
+  }, [draft, plate, doc, from, pos]);
 
   useScreenChrome(
     {
