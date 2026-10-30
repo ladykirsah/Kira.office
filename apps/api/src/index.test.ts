@@ -191,6 +191,8 @@ function makeDb(canned: {
     priceIncludesVat: number;
     isTaxable: number;
   }[];
+  /** applySyncToDb: each variant's cost on file — the sale's part cost comes from here. */
+  productCosts?: { variantId: string; productCostSatang: number }[];
   userRow?: { id: string; role: "owner" | "manager" | "stock_operator" | "finance_viewer" } | null;
   existingCustomers?: string[];
   historyEntries?: unknown[];
@@ -287,6 +289,8 @@ function makeDb(canned: {
         if (sql.includes("FROM products")) return { results: (canned.products ?? []) as T[] };
         if (sql.includes("client_uuid IN"))
           return { results: (canned.existing ?? []).map((u) => ({ clientUuid: u })) as T[] };
+        if (sql.includes("AS productCostSatang"))
+          return { results: (canned.productCosts ?? []) as T[] };
         if (sql.includes("LEFT JOIN tax_profiles"))
           return { results: (canned.taxProfiles ?? []) as T[] };
         if (sql.includes("SUM(quantity_delta)"))
@@ -3067,6 +3071,8 @@ describe("applySyncToDb (single-writer sync logic)", () => {
     const { db, batched } = makeDb({
       existing: [],
       available: [{ variantId: "v1", available: 10 }],
+      // The cost on the line below is ignored: a sale's part cost is the product's on file.
+      productCosts: [{ variantId: "v1", productCostSatang: 6000 }],
     });
     const out = await applySyncToDb(db, [
       {
@@ -9940,6 +9946,93 @@ describe("product money: who may change a price, and who may see margin", () => 
       const body = (await res.json()) as { products: { onlinePriceSatang: number }[] };
       expect(body.products[0]!.onlinePriceSatang).toBe(95000);
     });
+  });
+});
+
+// ── A sale's part cost comes from the product, not from the till (2026-10-29) ───────────────────
+// GET /products sends a mechanic cost 0, so their till had nothing else to send — and the server
+// stored whatever the device said. Every part a mechanic sold went on the books at ฿0 cost, and the
+// shop's profit was overstated by exactly that much.
+describe("applySyncToDb > the part cost stored on a sale is the product's, not the device's", () => {
+  const NOW = 1_800_000_000_000;
+
+  function seed() {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','Compressor','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id,product_id,created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO pricing_profiles
+           (id, product_variant_id, item_cost_satang, target_price_satang, online_price_satang,
+            b2b_price_satang, online_commission_bp, tax_on_cost, active_from)
+         VALUES ('pp1','v1',40000,107000,107000,107000,0,0,?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO stock_ledger_entries
+           (id, product_variant_id, movement_type, quantity_delta, quantity_after, created_at)
+         VALUES ('in1','v1','receive',5,5,?)`,
+      )
+      .run(NOW);
+    return { raw, db: asD1(raw) };
+  }
+
+  const storedLine = (raw: DatabaseSync) =>
+    raw
+      .prepare(
+        `SELECT unit_cost_satang AS unitCostSatang, gross_profit_satang AS grossProfitSatang
+           FROM onsite_sale_lines WHERE line_type = 'part'`,
+      )
+      .get() as { unitCostSatang: number; grossProfitSatang: number };
+
+  it("given a mechanic's sale (the till sends cost 0) > stores the real cost and the true profit", async () => {
+    const { raw, db } = seed();
+    const out = await applySyncToDb(db, [
+      {
+        clientUuid: "mech-1",
+        lines: [
+          { productVariantId: "v1", quantity: 1, unitPriceSatang: 107000, unitCostSatang: 0 },
+        ],
+      },
+    ]);
+    expect(out.applied).toBe(1);
+    // ฿1,070 incl. 7% VAT → ฿1,000 ex-VAT; less the ฿400 cost → ฿600 profit, not ฿1,000.
+    expect(storedLine(raw)).toEqual({ unitCostSatang: 40000, grossProfitSatang: 60000 });
+  });
+
+  it("given a device that sends some other cost > the product's cost still wins", async () => {
+    const { raw, db } = seed();
+    await applySyncToDb(db, [
+      {
+        clientUuid: "odd-1",
+        lines: [
+          { productVariantId: "v1", quantity: 1, unitPriceSatang: 107000, unitCostSatang: 1 },
+        ],
+      },
+    ]);
+    expect(storedLine(raw)).toEqual({ unitCostSatang: 40000, grossProfitSatang: 60000 });
+  });
+
+  it("given a product with no cost on file > stores 0, as the catalog shows it", async () => {
+    const { raw, db } = seed();
+    raw.prepare(`DELETE FROM pricing_profiles`).run();
+    await applySyncToDb(db, [
+      {
+        clientUuid: "nocost-1",
+        lines: [
+          { productVariantId: "v1", quantity: 1, unitPriceSatang: 107000, unitCostSatang: 30000 },
+        ],
+      },
+    ]);
+    expect(storedLine(raw)).toEqual({ unitCostSatang: 0, grossProfitSatang: 100000 });
   });
 });
 

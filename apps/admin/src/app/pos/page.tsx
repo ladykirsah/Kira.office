@@ -25,7 +25,12 @@ import {
   type OpenDraft,
   type CustomerDetail,
 } from "@/lib/api";
-import { cartToDraftLines, draftToCartLines } from "@/lib/posDraft";
+import {
+  cartToDraftLines,
+  draftToCartLines,
+  readLocalDraft,
+  type LocalPosDraft,
+} from "@/lib/posDraft";
 import {
   buildCheckoutCustomerUpsert,
   finalizeParkedDraft,
@@ -707,18 +712,6 @@ type DocType = "bill" | "quotation";
 /** The in-progress POS cart, saved locally so a page switch / refresh doesn't lose it. */
 const DRAFT_KEY = "pos:draft:v1";
 const LAST_SALE_ID_KEY = "pos:lastSaleId:v1";
-interface PosDraft {
-  lines: SaleLine[];
-  plate: string;
-  province: string;
-  mileage: string;
-  note: string;
-  billDate: string;
-  carBrandId: string;
-  carModelId: string;
-  carYear: string;
-  docType: DocType;
-}
 
 /** A mock QR graphic (3 finder patterns + scattered modules). Stands in until the shop uploads a
  * real contact QR in Shop info. Deterministic so it doesn't flicker on re-render. */
@@ -1362,22 +1355,25 @@ export default function PosPage() {
     // (don't restore over it, and leave draftReady false so autosave stays off).
     if (new URLSearchParams(window.location.search).has("reprint")) return;
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d = JSON.parse(raw) as Partial<PosDraft>;
-        if (Array.isArray(d.lines) && d.lines.length) setLines(d.lines);
-        if (typeof d.plate === "string") setPlate(d.plate);
-        if (typeof d.province === "string") setProvince(d.province);
-        if (typeof d.mileage === "string") setMileage(d.mileage);
-        if (typeof d.note === "string") setNote(d.note);
-        if (typeof d.billDate === "string") setBillDate(d.billDate);
-        if (typeof d.carBrandId === "string") setCarBrandId(d.carBrandId);
-        if (typeof d.carModelId === "string") setCarModelId(d.carModelId);
-        if (typeof d.carYear === "string") setCarYear(d.carYear);
-        if (d.docType === "bill" || d.docType === "quotation") setDocType(d.docType);
-      }
+      const d = readLocalDraft<SaleLine>(localStorage.getItem(DRAFT_KEY));
+      if (d.lines) setLines(d.lines);
+      if (d.plate !== undefined) setPlate(d.plate);
+      if (d.province !== undefined) setProvince(d.province);
+      if (d.mileage !== undefined) setMileage(d.mileage);
+      if (d.note !== undefined) setNote(d.note);
+      if (d.billDate !== undefined) setBillDate(d.billDate);
+      if (d.carBrandId !== undefined) setCarBrandId(d.carBrandId);
+      if (d.carModelId !== undefined) setCarModelId(d.carModelId);
+      if (d.carYear !== undefined) setCarYear(d.carYear);
+      if (d.docType) setDocType(d.docType);
+      if (d.discountKind) setDiscountKind(d.discountKind);
+      if (d.discountValue !== undefined) setDiscountValue(d.discountValue);
+      if (d.customerName !== undefined) setCustomerName(d.customerName);
+      if (d.phones) setPhones(d.phones);
+      if (d.billLang) setBillLang(d.billLang);
+      if (d.billStyle) setBillStyle(d.billStyle);
     } catch {
-      // ignore corrupt or unavailable storage
+      // storage unavailable (private mode) — start with an empty bill
     }
     // Enable saving only after the restore has settled, so it can't clobber the saved draft on mount.
     const t = setTimeout(() => {
@@ -1401,7 +1397,7 @@ export default function PosPage() {
       if (empty) {
         localStorage.removeItem(DRAFT_KEY);
       } else {
-        const draft: PosDraft = {
+        const draft: LocalPosDraft<SaleLine> = {
           lines,
           plate,
           province,
@@ -1412,13 +1408,36 @@ export default function PosPage() {
           carModelId,
           carYear,
           docType,
+          discountKind,
+          discountValue,
+          customerName,
+          phones,
+          billLang,
+          billStyle,
         };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       }
     } catch {
       // ignore storage errors (private mode / quota)
     }
-  }, [lines, plate, province, mileage, note, billDate, carBrandId, carModelId, carYear, docType]);
+  }, [
+    lines,
+    plate,
+    province,
+    mileage,
+    note,
+    billDate,
+    carBrandId,
+    carModelId,
+    carYear,
+    docType,
+    discountKind,
+    discountValue,
+    customerName,
+    phones,
+    billLang,
+    billStyle,
+  ]);
 
   // Reprint: ?reprint=<id> loads that finalized bill read-only so it can be re-printed. The original
   // number + vehicle print; the actions collapse to Create PDF only (no checkout → no double sale).

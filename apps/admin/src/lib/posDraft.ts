@@ -1,3 +1,5 @@
+import type { DiscountKind } from "./posCart";
+
 /**
  * Mapping between the POS cart and the /onsite/drafts API shape, so a work-in-progress cart can be
  * parked on the server (any device reopens it) and later finalized through the normal checkout.
@@ -59,4 +61,75 @@ export function draftToCartLines(lines: DraftApiLine[], newUid: () => string): R
     unitPriceSatang: l.unitPriceSatang,
     unitCostSatang: l.unitCostSatang,
   }));
+}
+
+/**
+ * The bill in progress, saved in this browser so a page switch or a refresh doesn't lose it.
+ * Not a sale and not on the server — the parked draft/quotation above is the shareable copy.
+ */
+export interface LocalPosDraft<L> {
+  lines: L[];
+  plate: string;
+  province: string;
+  mileage: string;
+  note: string;
+  billDate: string;
+  carBrandId: string;
+  carModelId: string;
+  carYear: string;
+  docType: "bill" | "quotation";
+  /**
+   * The bill discount as typed. Coming back from /payment remounts the page and the sale is
+   * completed from what is restored here, so without it the sale was recorded at full price.
+   */
+  discountKind: DiscountKind;
+  discountValue: string;
+  /** A new plate's customer, filed at checkout — which, after /payment, runs from the restore. */
+  customerName: string;
+  phones: string[];
+  /** Paper and language, so the bill printed after payment is the one staff set up. */
+  billLang: "th" | "en";
+  billStyle: "invoice" | "thermal";
+}
+
+/**
+ * Read a saved local draft back. Only well-typed fields come back; anything missing, corrupt or
+ * from an older shape is simply left out, so the page keeps its own default for it.
+ */
+export function readLocalDraft<L>(raw: string | null): Partial<LocalPosDraft<L>> {
+  if (!raw) return {};
+  let d: unknown;
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (!d || typeof d !== "object") return {};
+  const saved = d as Record<string, unknown>;
+  const text = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  return {
+    lines: Array.isArray(saved.lines) && saved.lines.length ? (saved.lines as L[]) : undefined,
+    plate: text(saved.plate),
+    province: text(saved.province),
+    mileage: text(saved.mileage),
+    note: text(saved.note),
+    billDate: text(saved.billDate),
+    carBrandId: text(saved.carBrandId),
+    carModelId: text(saved.carModelId),
+    carYear: text(saved.carYear),
+    docType: saved.docType === "bill" || saved.docType === "quotation" ? saved.docType : undefined,
+    discountKind:
+      saved.discountKind === "thb" || saved.discountKind === "pct" ? saved.discountKind : undefined,
+    discountValue: text(saved.discountValue),
+    customerName: text(saved.customerName),
+    phones:
+      Array.isArray(saved.phones) &&
+      saved.phones.length > 0 &&
+      saved.phones.every((p) => typeof p === "string")
+        ? (saved.phones as string[])
+        : undefined,
+    billLang: saved.billLang === "th" || saved.billLang === "en" ? saved.billLang : undefined,
+    billStyle:
+      saved.billStyle === "invoice" || saved.billStyle === "thermal" ? saved.billStyle : undefined,
+  };
 }
