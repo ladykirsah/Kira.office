@@ -1,3 +1,4 @@
+import type { CancelReason } from "@l-shopee/core";
 import type { OrderListRow } from "./orderList";
 import type { LabelShop } from "./shippingLabel";
 import type { FetchFn } from "./signIn";
@@ -67,6 +68,9 @@ export interface OrderDetail {
     refundedAt: number | null;
     refundActorEmail: string | null;
     refundSlipImageKey: string | null;
+    /** Why and when the shop cancelled; null on a live order or an older cancel. */
+    cancelReason: CancelReason | null;
+    cancelledAt: number | null;
   };
   money: {
     customerPaidSatang: number;
@@ -266,6 +270,24 @@ export async function recordClaimReturn(
     `${claimUrl(base, claimId)}/return-shipment`,
     send(token, "POST", input),
     "Return shipment was not saved",
+  );
+}
+
+/** The shop cancels an unsent order: status, stock back, coupon back and the timeline in one step.
+ *  The owner or an admin (API-enforced); a paid order then shows the refund job. */
+export async function cancelOrder(
+  fetchFn: FetchFn,
+  base: string,
+  token: string,
+  id: string,
+  reason: CancelReason,
+  note: string | null,
+): Promise<void> {
+  await call(
+    fetchFn,
+    `${orderUrl(base, id)}/cancel`,
+    send(token, "POST", { reason, note: note?.trim() || null }),
+    "Cancel failed",
   );
 }
 

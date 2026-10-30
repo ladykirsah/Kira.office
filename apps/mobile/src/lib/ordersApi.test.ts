@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cancelOrder,
   decideCod,
   fetchLabelShop,
   fetchOrderDetail,
@@ -162,6 +163,43 @@ describe("claims", () => {
 
     expect(calls[0]?.url).toBe("http://api/claims/c1/return-shipment");
     expect(calls[0]?.init.method).toBe("POST");
+  });
+});
+
+describe("cancelOrder", () => {
+  it("given a reason and a note > then both go to the order's cancel step", async () => {
+    const { calls, fetchFn } = recording([async () => Response.json({ ok: true })]);
+
+    await cancelOrder(fetchFn, "http://api", "tok", "o1", "out_of_stock", "ลูกค้าสั่งซ้ำ");
+
+    expect(calls[0]?.url).toBe("http://api/orders/o1/cancel");
+    expect(calls[0]?.init.method).toBe("POST");
+    expect(headerOf(calls[0]!.init, "X-Staff-Session")).toBe("tok");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      reason: "out_of_stock",
+      note: "ลูกค้าสั่งซ้ำ",
+    });
+  });
+
+  it("given no note > then none is sent", async () => {
+    const { calls, fetchFn } = recording([async () => Response.json({ ok: true })]);
+
+    await cancelOrder(fetchFn, "http://api", "tok", "o1", "customer_request", "  ");
+
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      reason: "customer_request",
+      note: null,
+    });
+  });
+
+  it("given the parcel left first > then the API's sentence is the error", async () => {
+    const { fetchFn } = recording([
+      async () => Response.json({ error: "this order has already been sent" }, { status: 409 }),
+    ]);
+
+    await expect(cancelOrder(fetchFn, "http://api", "tok", "o1", "other", null)).rejects.toThrow(
+      "this order has already been sent",
+    );
   });
 });
 

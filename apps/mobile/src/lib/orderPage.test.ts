@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   activeClaim,
   addressLine,
+  cancelButton,
+  cancelInfo,
   canDo,
   claimOutcome,
   claimStep,
@@ -12,7 +14,9 @@ import {
   pinsTracking,
   progressStep,
   readDropOff,
+  refundOnCancel,
   slipRow,
+  statusWord,
 } from "./orderPage";
 import type { OrderClaim } from "./ordersApi";
 
@@ -64,6 +68,17 @@ describe("jobFor", () => {
     expect(jobFor(page("delivered", "paid"))).toBeNull();
     expect(jobFor(page("cancelled", "pending"))).toBeNull();
     expect(jobFor(page("delivery_failed", "cod", { refundAction: "none" }))).toBeNull();
+  });
+
+  it("given a slip sent after the shop cancelled > then the slip is still checked", () => {
+    // Drawing 6 row 3: the customer may pay inside the order's own deadline; confirming it turns
+    // into a full refund, rejecting leaves the order cancelled and unpaid.
+    expect(jobFor(page("cancelled", "verifying"))).toBe("pay");
+  });
+
+  it("given a paid order the shop cancelled > then the refund is the job", () => {
+    expect(jobFor(page("cancelled", "paid", { refundAction: "needs_refund" }))).toBe("refund");
+    expect(jobFor(page("cancelled", "paid", { refundAction: "refunded" }))).toBe("refund");
   });
 
   it("given a claim that is finished > then the claim no longer asks for anything", () => {
@@ -221,6 +236,7 @@ describe("deliveryNow", () => {
     carrier: null,
     trackingNo: null,
     shipTimeMs: null,
+    cancelledAt: null,
     ...over,
   });
 
@@ -270,6 +286,23 @@ describe("deliveryNow", () => {
         [],
       ),
     ).toEqual({ parcel: "Flash Express · TH1", step: "bounced", at: null });
+  });
+
+  it("given an order the shop cancelled > then cancelled before sending, at the cancel time", () => {
+    expect(
+      deliveryNow(
+        order({ orderStatus: "cancelled", paymentStatus: "pending", cancelledAt: 70 }),
+        [],
+      ),
+    ).toEqual({ parcel: null, step: "cancelled", at: 70 });
+  });
+
+  it("given an older cancel with no cancel time > then the timeline's cancel step", () => {
+    expect(
+      deliveryNow(order({ orderStatus: "cancelled", paymentStatus: "pending" }), [
+        { event: "cancelled", createdAt: 60 },
+      ]).at,
+    ).toBe(60);
   });
 
   it("given a tracking number but no carrier > then the line is just the number", () => {
@@ -326,5 +359,95 @@ describe("slipRow", () => {
 
   it("given cash on delivery > then there is no slip row at all", () => {
     expect(slipRow(undefined, true)).toBeNull();
+  });
+});
+
+describe("cancelButton > ยกเลิกออเดอร์ at the foot of the page", () => {
+  const o = (orderStatus: string, paymentStatus: string) => ({ orderStatus, paymentStatus });
+
+  it("given the owner or an admin on an unsent order > then the button shows", () => {
+    for (const role of ["super_admin", "admin"] as const) {
+      expect(cancelButton(o("new", "pending"), role)).toBe("show");
+      expect(cancelButton(o("packing", "paid"), role)).toBe("show");
+      expect(cancelButton(o("new", "cod"), role)).toBe("show");
+    }
+  });
+
+  it("given a mechanic > then no button (owner, 30 Oct 2026)", () => {
+    expect(cancelButton(o("new", "pending"), "mechanic")).toBeNull();
+  });
+
+  it("given a parcel already sent > then no button — it is a return or a claim now", () => {
+    expect(cancelButton(o("shipped", "paid"), "super_admin")).toBeNull();
+    expect(cancelButton(o("delivered", "paid"), "super_admin")).toBeNull();
+  });
+
+  it("given an order already cancelled or expired > then no button", () => {
+    expect(cancelButton(o("cancelled", "pending"), "super_admin")).toBeNull();
+    expect(cancelButton(o("expired", "expired"), "super_admin")).toBeNull();
+  });
+
+  it("given a slip waiting to be checked > then the button asks to check the slip first", () => {
+    expect(cancelButton(o("new", "verifying"), "admin")).toBe("checkSlip");
+  });
+});
+
+describe("refundOnCancel > the sheet's ลูกค้าโอนแล้ว row", () => {
+  it("given a paid order > then the whole amount comes back as a refund job", () => {
+    expect(refundOnCancel({ paymentStatus: "paid", grandTotalSatang: 129000 })).toBe(129000);
+  });
+
+  it("given an unpaid or cash-on-delivery order > then there is nothing to pay back", () => {
+    expect(refundOnCancel({ paymentStatus: "pending", grandTotalSatang: 129000 })).toBeNull();
+    expect(refundOnCancel({ paymentStatus: "cod", grandTotalSatang: 129000 })).toBeNull();
+  });
+});
+
+describe("cancelInfo > ยกเลิกเมื่อ … · <reason>", () => {
+  const o = (over: Partial<Parameters<typeof cancelInfo>[0]>) => ({
+    orderStatus: "cancelled",
+    cancelReason: null,
+    cancelledAt: null,
+    discountTotalSatang: 0,
+    ...over,
+  });
+
+  it("given a live order > then nothing", () => {
+    expect(cancelInfo(o({ orderStatus: "packing" }), [])).toBeNull();
+  });
+
+  it("given the shop's cancel > then its time and reason, with stock and coupon back", () => {
+    expect(cancelInfo(o({ cancelReason: "out_of_stock", cancelledAt: 70 }), [])).toEqual({
+      at: 70,
+      reason: "out_of_stock",
+      restocked: true,
+      couponBack: false,
+    });
+  });
+
+  it("given the shop's cancel of an order with a coupon > then the coupon came back", () => {
+    // An AirPlus order's discount is its coupon (storefront checkout), so a discount means a
+    // coupon was used and the cancel released it.
+    expect(
+      cancelInfo(o({ cancelReason: "other", cancelledAt: 70, discountTotalSatang: 5000 }), [])
+        ?.couponBack,
+    ).toBe(true);
+  });
+
+  it("given an older or customer-side cancel > then only the time — no reason, no restock claimed", () => {
+    expect(
+      cancelInfo(o({ discountTotalSatang: 5000 }), [{ event: "cancelled", createdAt: 60 }]),
+    ).toEqual({ at: 60, reason: null, restocked: false, couponBack: false });
+  });
+});
+
+describe("statusWord > the word beside the order number", () => {
+  it("given a cancelled order > then ยกเลิก, not the list's ไม่สำเร็จ", () => {
+    expect(statusWord("cancelled", "paid").th).toBe("ยกเลิก");
+  });
+
+  it("given any other order > then the list's own word", () => {
+    expect(statusWord("expired", "expired").th).toBe("ไม่สำเร็จ");
+    expect(statusWord("packing", "paid").th).toBe("เตรียมจัดส่ง");
   });
 });

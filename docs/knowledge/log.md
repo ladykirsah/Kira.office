@@ -399,3 +399,7 @@ sources: [session 2026-08-09]
   payment deadline and LINE OA is shown after it. Migration 0091 adds `cancel_reason` + `cancelled_at`.
   See [commerce/order-lifecycle](commerce/order-lifecycle.md).
 
+- **2026-10-30** — The Expo app can cancel an order: the ยกเลิกออเดอร์ button and reason sheet, the
+  ยกเลิกแล้ว card, and the cancel wording on the refund and payment jobs. `GET /orders/:id` now
+  returns `cancelReason` + `cancelledAt` (no migration). See
+  [commerce/order-lifecycle](commerce/order-lifecycle.md).

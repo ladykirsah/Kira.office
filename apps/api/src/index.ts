@@ -63,6 +63,7 @@ import {
   isCancelReason,
   CANCELLABLE_ORDER_STATUSES,
   type CancelBlock,
+  type CancelReason,
   canWrite,
   canReviewPaymentRole,
   canViewSlips,
@@ -2875,6 +2876,10 @@ export interface OrderDetail {
     refundActorEmail: string | null;
     /** R2 key of OUR outgoing transfer slip (namespace `refund-slip/`), shown to the customer too. */
     refundSlipImageKey: string | null;
+    /** Why and when the shop cancelled (migration 0091). Null on a live order and on an older or
+     *  customer-side cancel, which wrote no reason. */
+    cancelReason: CancelReason | null;
+    cancelledAt: number | null;
   };
   /** Null for an order with no storefront account — imported and legacy rows have none. */
   customer: {
@@ -3010,6 +3015,7 @@ export async function getOrderDetail(
               refund_account_name AS refundAccountName, refund_satang AS refundSatang,
               refunded_at AS refundedAt, refund_actor_email AS refundActorEmail,
               refund_slip_image_key AS refundSlipImageKey,
+              cancel_reason AS cancelReason, cancelled_at AS cancelledAt,
               storefront_customer_id AS storefrontCustomerId,
               shipping_address_id AS shippingAddressId
        FROM sales_orders WHERE id = ? AND channel = 'airplus'`,

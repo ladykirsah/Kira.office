@@ -1,9 +1,4 @@
-import {
-  operationalStatus,
-  operationalStatusPhrase,
-  orderDocuments,
-  trackingUrl,
-} from "@l-shopee/core";
+import { operationalStatus, orderDocuments, trackingUrl } from "@l-shopee/core";
 import type { Phrase } from "@l-shopee/shared/lang";
 import { useRouter } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -23,12 +18,14 @@ import { formatBaht } from "@/lib/money";
 import { stamp } from "@/lib/orderList";
 import {
   addressLine,
+  cancelButton,
   deliveryNow,
   jobFor,
   pageSections,
   pinsTracking,
   progressStep,
   slipRow,
+  statusWord,
   type PageSection,
 } from "@/lib/orderPage";
 import { saveNote, type OrderDetail } from "@/lib/ordersApi";
@@ -38,6 +35,7 @@ import { LineIcon } from "../LineIcon";
 import { openPage } from "../openPage";
 import { useScreenChrome, type ChromeButton, type ChromeToast } from "../ScreenChrome";
 import { RADIUS, SPACE, TYPE, type Theme } from "../theme";
+import { CancelledCard, CancelSheet } from "./Cancel";
 import { ClaimJob } from "./ClaimJob";
 import { ClaimSummary } from "./ClaimSummary";
 import { ICON } from "./icons";
@@ -183,6 +181,7 @@ export function OrderScreen({ id }: { id: string }) {
       {job === "ship" && <ShipJob ctx={ctx} />}
       {job === "refund" && <RefundJob ctx={ctx} />}
       {job === "claim" && <ClaimJob ctx={ctx} />}
+      {job == null && <CancelledCard detail={d} />}
       <ClaimSummary detail={d} onCopy={copyTracking} />
       <Sections
         detail={d}
@@ -191,6 +190,7 @@ export function OrderScreen({ id }: { id: string }) {
           showToast(toast);
           reload();
         }}
+        onToast={showToast}
         onOpen={(page) => router.push(`/orders/${encodeURIComponent(d.order.id)}/${page}` as never)}
       />
     </PinProvider>
@@ -212,9 +212,6 @@ function Header({ detail }: { detail: OrderDetail }) {
   const op = operationalStatus(order.orderStatus, order.paymentStatus);
   const now = progressStep(order.orderStatus, order.paymentStatus);
   const tone = op ? DOT_TONE[op] : undefined;
-  const statusText: Phrase = op
-    ? operationalStatusPhrase(op)
-    : { th: order.orderStatus ?? "—", en: order.orderStatus ?? "—" };
   return (
     <View style={{ marginTop: -SPACE.s, paddingHorizontal: 2 }}>
       <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
@@ -228,7 +225,9 @@ function Header({ detail }: { detail: OrderDetail }) {
             { backgroundColor: tone ? (theme[tone] as string) : theme.textMuted },
           ]}
         />
-        <Text style={[TYPE.subhead, { color: theme.text }]}>{t(statusText)}</Text>
+        <Text style={[TYPE.subhead, { color: theme.text }]}>
+          {t(statusWord(order.orderStatus, order.paymentStatus))}
+        </Text>
       </View>
       {now != null && (
         <View
@@ -278,6 +277,7 @@ const STEP_WORDS = {
   inTransit: { th: "กำลังจัดส่ง", en: "In transit" },
   delivered: { th: "จัดส่งสำเร็จ", en: "Delivered" },
   bounced: { th: "พัสดุตีกลับถึงร้าน", en: "Bounced back to the shop" },
+  cancelled: { th: "ยกเลิกก่อนส่ง", en: "Cancelled before sending" },
 } as const;
 
 /**
@@ -288,6 +288,8 @@ function Sections(props: {
   detail: OrderDetail;
   token: string;
   onSaved: (toast: ChromeToast) => void;
+  /** A message only, nothing saved (the cancel button on an order with a slip to check). */
+  onToast: (toast: ChromeToast) => void;
   onOpen: (page: SubPage) => void;
 }) {
   const { theme } = useTheme();
@@ -302,6 +304,8 @@ function Sections(props: {
   });
   const [viewingEvidence, setViewingEvidence] = useState(false);
   const [noting, setNoting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const canCancel = cancelButton(order, d.viewerRole);
   const slip = slipRow(
     docs.find((doc) => doc.kind === "payment_slip"),
     d.viewerIsSuperAdmin,
@@ -313,6 +317,7 @@ function Sections(props: {
     inTransit: theme.success,
     delivered: theme.success,
     bounced: theme.danger,
+    cancelled: theme.danger,
   };
   const phone = customer?.phone ?? address?.phone ?? null;
   const render: Record<PageSection, () => ReactNode> = {
@@ -542,6 +547,23 @@ function Sections(props: {
             onPress={() => void Linking.openURL(`tel:${phone}`)}
           />
         )}
+        {canCancel && (
+          <QuietButton
+            icon={ICON.ban}
+            label={t({ th: "ยกเลิกออเดอร์", en: "Cancel order" })}
+            onPress={() =>
+              canCancel === "checkSlip"
+                ? props.onToast({
+                    title: t({ th: "มีสลิปรอตรวจ", en: "A slip is waiting" }),
+                    detail: t({
+                      th: "ตรวจสลิปก่อน แล้วค่อยยกเลิก",
+                      en: "Check the slip first, then cancel",
+                    }),
+                  })
+                : setCancelling(true)
+            }
+          />
+        )}
       </View>
     ),
   };
@@ -559,6 +581,18 @@ function Sections(props: {
           onClose={() => setNoting(false)}
           onSaved={(toast) => {
             setNoting(false);
+            props.onSaved(toast);
+          }}
+        />
+      )}
+
+      {cancelling && (
+        <CancelSheet
+          detail={d}
+          token={props.token}
+          onClose={() => setCancelling(false)}
+          onDone={(toast) => {
+            setCancelling(false);
             props.onSaved(toast);
           }}
         />
