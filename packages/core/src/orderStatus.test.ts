@@ -353,3 +353,40 @@ describe("verifying — the slip-under-review state", () => {
     expect(creditEventFromOrder("new", "verifying")).toBeNull();
   });
 });
+
+describe("creditEventFromOrder > a shop cancel decides by its reason (owner, 30 Oct 2026)", () => {
+  it("given the customer asked to cancel > then it counts against them, paid or not", () => {
+    expect(creditEventFromOrder("cancelled", "pending", "customer_request")).toEqual({
+      type: "incomplete",
+    });
+    expect(creditEventFromOrder("cancelled", "paid", "customer_request")).toEqual({
+      type: "incomplete",
+    });
+    expect(creditEventFromOrder("cancelled", "cod", "customer_request")).toEqual({
+      type: "incomplete",
+    });
+  });
+
+  it("given the shop's own reason > then it costs the customer nothing", () => {
+    expect(creditEventFromOrder("cancelled", "pending", "out_of_stock")).toBeNull();
+    expect(creditEventFromOrder("cancelled", "cod_denied", "other")).toBeNull();
+  });
+
+  it("given an older cancel with no reason on file > then the old rule stands", () => {
+    expect(creditEventFromOrder("cancelled", "pending", null)).toEqual({ type: "incomplete" });
+    expect(creditEventFromOrder("cancelled", "paid", null)).toBeNull();
+  });
+
+  it("computeCreditFromOrders > passes each order's cancel reason through", () => {
+    const shopCancelled = {
+      orderStatus: "cancelled",
+      paymentStatus: "pending",
+      cancelReason: "out_of_stock",
+    };
+    const customerCancelled = { ...shopCancelled, cancelReason: "customer_request" };
+    expect(computeCreditFromOrders([shopCancelled])).toBe(computeCreditFromOrders([]));
+    expect(computeCreditFromOrders([customerCancelled])).toBe(
+      computeCreditFromOrders([{ orderStatus: "expired", paymentStatus: "expired" }]),
+    );
+  });
+});

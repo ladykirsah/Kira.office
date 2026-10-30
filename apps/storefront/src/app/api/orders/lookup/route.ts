@@ -1,6 +1,6 @@
 import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
-import { shopKey } from "@l-shopee/core";
+import { paymentDeadline, shopKey, slipAfterCancel } from "@l-shopee/core";
 
 /**
  * GET /api/orders/lookup?ref=AP-XXXX&phone=08XXXXXXXX
@@ -25,6 +25,7 @@ interface OrderRow {
   customerPhone: string | null;
   refundAccountNo: string | null;
   refundedAt: number | null;
+  paymentExpiresAt: number | null;
 }
 
 interface LineRow {
@@ -55,6 +56,7 @@ export async function GET(request: Request): Promise<Response> {
         `SELECT o.id AS id, o.external_order_id AS externalOrderId,
                 o.order_status AS orderStatus, o.payment_status AS paymentStatus,
                 o.grand_total_satang AS grandTotalSatang, o.order_created_at AS orderCreatedAt,
+                o.payment_expires_at AS paymentExpiresAt,
                 o.ship_time_ms AS shipTimeMs, o.carrier AS carrier, o.tracking_no AS trackingNo,
                 o.refund_account_no AS refundAccountNo, o.refunded_at AS refundedAt,
                 c.name AS customerName, c.phone AS customerPhone
@@ -147,6 +149,16 @@ export async function GET(request: Request): Promise<Response> {
       bouncedAt,
       deliveredAt,
       cancelledAt,
+      // A cancelled order: may a slip still come in (and be refunded), or is it LINE OA now? Decided
+      // here on the server's clock, not the phone's.
+      afterCancel: slipAfterCancel(
+        {
+          orderStatus: order.orderStatus ?? "",
+          paymentStatus: order.paymentStatus ?? "",
+          payBy: paymentDeadline(order),
+        },
+        Date.now(),
+      ),
       // Claim state + the reject reason (admin_note) — never the internal evidence keys.
       claimState: claim?.state ?? null,
       claimReason: claim?.adminNote ?? null,

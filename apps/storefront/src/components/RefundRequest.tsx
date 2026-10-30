@@ -15,12 +15,15 @@ export function RefundRequest({
   phone,
   hasBank,
   refunded,
+  reason = "bounced",
   onChanged,
 }: {
   orderRef: string;
   phone: string;
   hasBank: boolean;
   refunded: boolean;
+  /** Why the money comes back: the parcel bounced, or the shop cancelled a paid order. */
+  reason?: "bounced" | "cancelled";
   onChanged: () => void;
 }) {
   const [bankName, setBankName] = useState("");
@@ -130,7 +133,7 @@ export function RefundRequest({
   return (
     <div style={wrap}>
       <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>
-        พัสดุตีกลับ — แจ้งบัญชีเพื่อรับเงินคืน
+        {reason === "cancelled" ? "คำสั่งซื้อถูกยกเลิก" : "พัสดุตีกลับ"} — แจ้งบัญชีเพื่อรับเงินคืน
       </p>
       <p className="muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
         กรอกบัญชีธนาคารของคุณ เราจะโอนคืนเต็มจำนวนภายใน 2–3 วันทำการ

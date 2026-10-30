@@ -392,3 +392,10 @@ sources: [session 2026-08-09]
   have given (admin days through the Expo redesign and Orders, chat + canvas messages + memory notes) is now in
   one place: [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md), expanded from the
   Orders checklist. AGENTS.md now tells every session to read it before drawing or building a page.
+- **2026-10-30** — **Cancel order on the server.** The owner or an admin cancels an unsent AirPlus order with
+  a reason. Status, stock back, coupon back and the timeline happen in one batch; the reason decides the
+  customer's credit; a paid order becomes the same full refund as a bounced parcel. PATCH can no longer set
+  `cancelled`, and expired orders now give their stock back. On the storefront, a slip is taken until the
+  payment deadline and LINE OA is shown after it. Migration 0091 adds `cancel_reason` + `cancelled_at`.
+  See [commerce/order-lifecycle](commerce/order-lifecycle.md).
+

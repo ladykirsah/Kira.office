@@ -46,6 +46,7 @@ export * from "./claimState";
 export * from "./legacyStatus";
 export * from "./orderMoney";
 export * from "./refundAction";
+export * from "./orderCancel";
 
 export * from "./carriers";
 export * from "./expense";

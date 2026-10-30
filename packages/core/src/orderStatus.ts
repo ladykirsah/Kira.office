@@ -111,13 +111,17 @@ export function isCreditEvent(orderStatus: OrderStatus): boolean {
 }
 
 export function computeCreditFromOrders(
-  orders: { orderStatus: string | null; paymentStatus: string | null }[],
+  orders: {
+    orderStatus: string | null;
+    paymentStatus: string | null;
+    cancelReason?: string | null;
+  }[],
 ): number {
   const events: CreditEvent[] = [];
   for (const o of orders) {
     if (!o.orderStatus || !o.paymentStatus) continue;
     if (!isOrderStatus(o.orderStatus) || !isPaymentStatus(o.paymentStatus)) continue;
-    const ev = creditEventFromOrder(o.orderStatus, o.paymentStatus);
+    const ev = creditEventFromOrder(o.orderStatus, o.paymentStatus, o.cancelReason);
     if (ev) events.push(ev);
   }
   return creditScoreFromEvents(events);
@@ -136,13 +140,23 @@ export function isOrderExpirable(
   );
 }
 
+/**
+ * `cancelReason` is set when the shop cancelled through the cancel action (owner, 30 Oct 2026): the
+ * customer asking counts against them whether they paid or not; the shop's own reasons never do.
+ * Older cancels carry no reason and keep the original rule below.
+ */
 export function creditEventFromOrder(
   orderStatus: OrderStatus,
   paymentStatus: PaymentStatus,
+  cancelReason?: string | null,
 ): CreditEvent | null {
   if (orderStatus === "delivered") return { type: "complete" };
 
   if (orderStatus === "expired") return { type: "incomplete" };
+
+  if (orderStatus === "cancelled" && cancelReason) {
+    return cancelReason === "customer_request" ? { type: "incomplete" } : null;
+  }
 
   if (orderStatus === "cancelled") {
     if (paymentStatus === "pending" || paymentStatus === "cod_denied") {

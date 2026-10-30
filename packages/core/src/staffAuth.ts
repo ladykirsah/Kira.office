@@ -246,6 +246,14 @@ export function canReviewPaymentRole(role: StaffRole): boolean {
   return role === "super_admin" || role === "admin";
 }
 
+/**
+ * Cancelling an AirPlus order — stock and the coupon go back, and a paid order becomes a refund.
+ * The owner or an admin (owner, 30 Oct 2026); a mechanic never. The refund itself stays canRefund.
+ */
+export function canCancelOrderRole(role: StaffRole): boolean {
+  return role === "super_admin" || role === "admin";
+}
+
 /** A mechanic reads the catalog and the customer directory; they do not edit either. */
 export function canWrite(role: StaffRole, area: WriteArea): boolean {
   if (role !== "mechanic") return true;

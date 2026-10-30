@@ -1,4 +1,10 @@
-import { looksLikeSlipQr, slipVerificationConfigured, verifySlipWithSlipOk } from "@l-shopee/core";
+import {
+  looksLikeSlipQr,
+  paymentDeadline,
+  slipAfterCancel,
+  slipVerificationConfigured,
+  verifySlipWithSlipOk,
+} from "@l-shopee/core";
 import { getDb, getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 
@@ -46,16 +52,44 @@ export async function POST(req: Request): Promise<Response> {
         // order_status comes along so the timeline entry below can snapshot BOTH axes truthfully
         // rather than guessing what the fulfillment side was at the moment payment landed.
         `SELECT o.id AS id, o.grand_total_satang AS grand, c.phone AS phone,
-                o.order_status AS orderStatus
+                o.order_status AS orderStatus, o.payment_status AS paymentStatus,
+                o.payment_expires_at AS paymentExpiresAt, o.order_created_at AS orderCreatedAt
          FROM sales_orders o
          JOIN storefront_customers c ON c.id = o.storefront_customer_id
          WHERE o.channel = 'airplus' AND o.external_order_id = ?`,
       )
       .bind(ref)
-      .first<{ id: string; grand: number; phone: string; orderStatus: string | null }>();
+      .first<{
+        id: string;
+        grand: number;
+        phone: string;
+        orderStatus: string | null;
+        paymentStatus: string | null;
+        paymentExpiresAt: number | null;
+        orderCreatedAt: number | null;
+      }>();
     // Identical response for wrong-ref and wrong-phone — never reveal someone else's order.
     if (!order || normalizePhone(order.phone) !== phone)
       return Response.json({ error: NOT_FOUND }, { status: 404 });
+
+    // The shop cancelled this order (owner, 30 Oct 2026). A customer who transferred anyway may still
+    // send the slip while the order's own payment deadline is open — it is checked like any slip and
+    // then refunded in full. After the deadline, or when nothing was owed, the slip is refused and
+    // the page points them to LINE OA.
+    if (
+      slipAfterCancel(
+        {
+          orderStatus: order.orderStatus ?? "",
+          paymentStatus: order.paymentStatus ?? "",
+          payBy: paymentDeadline(order),
+        },
+        Date.now(),
+      ) === "contact_line"
+    )
+      return Response.json(
+        { error: "คำสั่งซื้อนี้ถูกยกเลิกแล้ว หากโอนเงินแล้ว กรุณาติดต่อเราทาง LINE OA" },
+        { status: 409 },
+      );
 
     const payment = await db
       .prepare(

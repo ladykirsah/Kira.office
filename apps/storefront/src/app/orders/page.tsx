@@ -49,6 +49,9 @@ interface LookupResult {
   bouncedAt: number | null;
   deliveredAt: number | null;
   cancelledAt: number | null;
+  /** On a cancelled order: a slip may still come in (refunded in full) or the customer is sent to
+   *  LINE OA (owner, 30 Oct 2026). "not_cancelled" otherwise. */
+  afterCancel: "not_cancelled" | "take_slip" | "contact_line";
   /** Latest claim state + the reject reason (when rejected) — drives the claim area. */
   claimState: string | null;
   claimReason: string | null;
@@ -74,6 +77,16 @@ interface Step {
   /** Carrier + tracking number, rendered "carrier · number" with a copy control on the number. */
   tracking: { carrier: string | null; trackingNo: string } | null;
   state: StepState;
+}
+
+/** Why we owe this customer money back, if we do: their parcel bounced, or the shop cancelled an
+ *  order they had already paid (owner, 30 Oct 2026). Drives the bank-account form. */
+function refundReasonOf(o: LookupResult): "bounced" | "cancelled" | null {
+  const ord = normalizeOrderStatus(o.orderStatus);
+  if (ord === "delivery_failed") return "bounced";
+  const pay = normalizePaymentStatus(o.paymentStatus);
+  if (ord === "cancelled" && (pay === "paid" || pay === "refunded")) return "cancelled";
+  return null;
 }
 
 function buildSteps(o: LookupResult): Step[] {
@@ -180,6 +193,20 @@ function buildSteps(o: LookupResult): Step[] {
       title: "ตีกลับ",
       at: o.bouncedAt,
       detail: progress,
+      tracking: null,
+      state: refunded ? "done" : "current",
+    });
+  } else if (cancelled && (pay === "paid" || refunded)) {
+    // The shop cancelled after the money came in: the refund progresses in the subtitle, exactly like
+    // a bounce — red while we still owe it, black once it is paid back.
+    steps.push({
+      title: "ยกเลิกคำสั่งซื้อ",
+      at: o.cancelledAt,
+      detail: refunded
+        ? "คืนเงินแล้ว"
+        : o.hasRefundBank
+          ? "รอรับเงินใน 2–3 วันทำการ"
+          : "รอลูกค้าส่งเลขบัญชี",
       tracking: null,
       state: refunded ? "done" : "current",
     });
@@ -594,6 +621,7 @@ function OrdersContent() {
   }
 
   const steps = result ? buildSteps(result) : null;
+  const refundReason = result ? refundReasonOf(result) : null;
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -735,18 +763,38 @@ function OrdersContent() {
             {/* Normalized, so this survives migration 0069 in either direction. Before, it matched
                 the Thai literal exactly — an English 'pending' would have hidden the upload and left
                 an unpaid customer with no way to send their slip at all. */}
-            {normalizePaymentStatus(result.paymentStatus) === "pending" && (
-              <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
-                  โอนแล้ว? แนบสลิปเพื่อยืนยันการชำระเงิน
-                </p>
-                <SlipUpload
-                  orderRef={result.ref}
-                  phone={phoneInput}
-                  onConfirmed={() => void lookup(result.ref, phoneInput)}
-                />
-              </div>
-            )}
+            {normalizePaymentStatus(result.paymentStatus) === "pending" &&
+              result.afterCancel !== "contact_line" && (
+                <div
+                  style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}
+                >
+                  <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
+                    {result.afterCancel === "take_slip"
+                      ? "คำสั่งซื้อนี้ถูกยกเลิกแล้ว · ถ้าโอนเงินแล้ว แนบสลิปเพื่อรับเงินคืนเต็มจำนวน"
+                      : "โอนแล้ว? แนบสลิปเพื่อยืนยันการชำระเงิน"}
+                  </p>
+                  <SlipUpload
+                    orderRef={result.ref}
+                    phone={phoneInput}
+                    onConfirmed={() => void lookup(result.ref, phoneInput)}
+                  />
+                </div>
+              )}
+            {/* Cancelled, and past the time a slip can come in: a customer who transferred anyway
+                reaches us on LINE OA (owner, 30 Oct 2026). */}
+            {normalizePaymentStatus(result.paymentStatus) === "pending" &&
+              result.afterCancel === "contact_line" && (
+                <div
+                  style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}
+                >
+                  <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                    คำสั่งซื้อนี้ถูกยกเลิกแล้ว · โอนเงินแล้ว?{" "}
+                    <a href={LINE_OA_URL} target="_blank" rel="noopener noreferrer">
+                      ติดต่อเราทาง LINE OA
+                    </a>
+                  </p>
+                </div>
+              )}
             {normalizePaymentStatus(result.paymentStatus) === "cod_denied" && (
               <CodRejectedActions
                 orderRef={result.ref}
@@ -754,14 +802,16 @@ function OrdersContent() {
                 onChanged={() => void lookup(result.ref, phoneInput)}
               />
             )}
-            {/* A bounced parcel we were paid for: submit a bank account → wait → see the refund slip.
-                The component picks its state (form / waiting / refunded evidence) from the props. */}
-            {normalizeOrderStatus(result.orderStatus) === "delivery_failed" && (
+            {/* Money we owe back: a bounced parcel we were paid for, or a paid order the shop
+                cancelled. Submit a bank account → wait → see the refund slip; the component picks
+                its state (form / waiting / refunded evidence) from the props. */}
+            {refundReason && (
               <RefundRequest
                 orderRef={result.ref}
                 phone={phoneInput}
                 hasBank={result.hasRefundBank}
                 refunded={normalizePaymentStatus(result.paymentStatus) === "refunded"}
+                reason={refundReason}
                 onChanged={() => void lookup(result.ref, phoneInput)}
               />
             )}

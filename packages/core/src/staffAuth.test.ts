@@ -16,6 +16,7 @@ import {
   canSeeProfit,
   canReviewClaimRole,
   canReviewPaymentRole,
+  canCancelOrderRole,
   canWrite,
   scanModesFor,
   encryptSecret,
@@ -148,6 +149,10 @@ describe("permissions", () => {
     // catalog to do counter work. Enforced by the API withholding COST, not by hiding a number:
     // profit is price minus cost, so anyone holding the cost can work it out themselves.
     expect(allow(canSeeProfit)).toEqual(["super_admin", "admin"]);
+  });
+
+  it("cancelling an online order is the owner's or an admin's, never a mechanic's (owner, 30 Oct 2026)", () => {
+    expect(allow(canCancelOrderRole)).toEqual(["super_admin", "admin"]);
   });
 
   it("a mechanic assesses claims; payment approval is never theirs", () => {
