@@ -142,6 +142,22 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **An icon must not look like a different action.** The down-arrow-over-a-line read as "Save",
   not "Import". If an icon could be read two ways, use the word or icon + word. *"does not look
   like Import but more like Save"* (ลูกค้า, 30 Oct).
+- **A record card shows at most 3 items, then "และอีก N รายการ".** Its head is the date (or the
+  order ID), never one of the items. *"show me B and C with 3 list max"* (ลูกค้า, 30 Oct).
+- **Order cards: "[order ID] ● [short status]" on the left, the date on the right.** Every order
+  status folds into four words: กำลังสั่ง (new, confirmed, packing, shipped), สำเร็จ (delivered; a
+  rejected claim still leaves the order done), เคลม (claim pending, claimed), ล้มเหลว (cancelled,
+  expired, delivery failed). *"status keep it short … all status put it here to be short"*
+  (ลูกค้า AirPlus, 30 Oct).
+- **Show a fact once per page.** The sign-up date sat under the name and again in the account
+  card; only เปิดบัญชี in the card stayed. Drop rows that aren't the main point (เข้าใช้งานล่าสุด,
+  สถานะ). *"replace เข้าใช้งานล่าสุด with เปิดบัญชี remove สถานะ"* · *"Yes, drop it"* (30 Oct).
+- **Tabs of one page match each other.** The AirPlus tab got the same summary card as หน้าร้าน,
+  and its rows show the customer ID, not a phone. *"need the same graph as the other page, also
+  keep just main point to show"* · *"replace phone no. with user ID"* (ลูกค้า, 30 Oct).
+- **A bill page shows no time.** Each item shows its brand · unit price × quantity, with the line
+  amount on the right. *"remove time show the list where there are details about product brand
+  and 2 amounts"* (ลูกค้า, 30 Oct).
 - **Lists:** rows of 52 / 68 / 84 with a real photo. Counts in tabs (Shopify-style status tabs
   with counts).
 - **Sample data must add up.** If the list says 2, draw 2 cards. Totals must match across tabs.
@@ -196,6 +212,10 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Use the iPhone simulator for how it looks** and the browser pane for exact clicks.
 - **Open every › page and sheet the drawing shows**, and press the pinned buttons, before saying
   it matches.
+- **Check every state, not only the drawn one** — empty lists, a record with no items, a switch
+  on and off. The ลูกค้า build showed an empty strip on a visit with no items and the same
+  sentence twice on the consent sheet's other state; both were fixed before the owner saw them.
+- **Read this rulebook again at the start of a build**, not only before drawing.
 
 ## 9 · Get the push OK in chat, early
 
