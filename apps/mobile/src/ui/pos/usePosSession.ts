@@ -8,6 +8,7 @@ import {
   customerSummary,
   deleteDraft,
   fetchCustomer,
+  fetchDrafts,
   partLine,
   saveCustomer,
   saveDraft,
@@ -309,6 +310,31 @@ export function usePosSession() {
     if (restored.plate) void lookupPlate(restored.plate);
   }
 
+  /** Scan's ลูกค้า sale, parked as a draft: open it here, ready for the customer's details. */
+  async function openFromScan(id: string) {
+    try {
+      const found = (await fetchDrafts(fetch, API_BASE, token)).find((d) => d.id === id);
+      if (!found) {
+        showToast(
+          { th: "ไม่พบบิลจากหน้าสแกน", en: "The bill from Scan was not found" },
+          { th: "ดูในฉบับร่าง", en: "Look in drafts" },
+        );
+        return;
+      }
+      await openDraft(found);
+      showToast(
+        { th: "รับของจากหน้าสแกนแล้ว", en: "Items from Scan are in" },
+        { th: `${found.lines.length} รายการ`, en: `${found.lines.length} items` },
+      );
+      void data.reloadDrafts();
+    } catch {
+      showToast(
+        { th: "เปิดบิลจากหน้าสแกนไม่ได้", en: "Could not open the bill from Scan" },
+        { th: "บิลอยู่ในฉบับร่าง ลองอีกครั้ง", en: "It is in drafts · try again" },
+      );
+    }
+  }
+
   async function removeDraft(id: string) {
     try {
       await deleteDraft(fetch, API_BASE, token, id);
@@ -572,6 +598,7 @@ export function usePosSession() {
     keepDraft,
     fileAsQuote,
     openDraft,
+    openFromScan,
     removeDraft,
     issued,
     newBill,

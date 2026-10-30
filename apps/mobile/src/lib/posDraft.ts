@@ -57,3 +57,8 @@ export function billFromDraft(
     },
   };
 }
+
+/** ทำบิล opened on one parked draft: Scan's ลูกค้า sale lands here, already in the bill. */
+export function posDraftRoute(draftId: string): string {
+  return `/pos?draft=${encodeURIComponent(draftId)}`;
+}

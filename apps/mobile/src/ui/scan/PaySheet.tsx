@@ -238,7 +238,29 @@ function QrStage({ cards, account }: { cards: readonly ScanCard[]; account: PayA
             })}
           />
         </View>
-      ) : (
+      ) : null}
+      {grid && account ? (
+        <View style={styles.owner}>
+          <Text style={[TYPE.body, { color: theme.text }]}>
+            {account.accountName
+              ? t({
+                  th: `ชื่อบัญชี ${account.accountName}`,
+                  en: `Account name ${account.accountName}`,
+                })
+              : t({
+                  th: "ยังไม่ได้ใส่ชื่อบัญชี · ใส่ได้ที่หน้าข้อมูลร้าน",
+                  en: "No account name yet · add it on the Shop info page",
+                })}
+          </Text>
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
+            {t({
+              th: `พร้อมเพย์ ${account.promptpayId}`,
+              en: `PromptPay ${account.promptpayId}`,
+            })}
+          </Text>
+        </View>
+      ) : null}
+      {!grid && (
         <Text style={[styles.sub, styles.qrMissing, { color: theme.textMuted }]}>
           {t({
             th: "พร้อมเพย์ไอดีของบัญชีนี้ไม่ถูกต้อง แก้ได้ที่หน้าข้อมูลร้าน",
@@ -326,6 +348,7 @@ const styles = StyleSheet.create({
     gap: SPACE.xs,
   },
   amount: { fontSize: 34, lineHeight: 44, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  owner: { alignItems: "center", marginTop: SPACE.s },
   qr: { marginTop: SPACE.m },
   qrMissing: { marginTop: SPACE.m, textAlign: "center" },
   go: { position: "absolute", left: SPACE.l, right: SPACE.l },

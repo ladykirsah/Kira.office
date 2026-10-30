@@ -38,6 +38,8 @@ interface ProductDetail {
 export interface PayAccount {
   label: string;
   promptpayId: string;
+  /** The name the bank shows; the QR always shows it (owner rule, 30 Oct 2026). Null = not set. */
+  accountName: string | null;
 }
 
 export const session = (token: string) => ({ [STAFF_SESSION_HEADER]: token });
@@ -186,6 +188,12 @@ export async function readShop(
   const method = defaultPaymentMethod(parsePaymentMethods(body.paymentMethods));
   return {
     name: body.name ?? "",
-    account: method ? { label: method.label, promptpayId: method.promptpayId } : null,
+    account: method
+      ? {
+          label: method.label,
+          promptpayId: method.promptpayId,
+          accountName: method.accountName?.trim() || null,
+        }
+      : null,
   };
 }

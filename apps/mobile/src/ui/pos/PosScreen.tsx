@@ -1,3 +1,5 @@
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { queueSummary } from "@/lib/posQueue";
 import { billDate } from "@/lib/scanSale";
@@ -26,6 +28,16 @@ export function PosScreen() {
   const { theme } = useTheme();
   const pos = usePos();
   const quote = pos.bill.doc === "quote";
+  const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const opened = useRef<string | null>(null);
+
+  // Scan hands a ลูกค้า sale over as ?draft=<id>: open it once, then drop it from the address.
+  useEffect(() => {
+    if (!draft || !pos.data.ready || opened.current === draft) return;
+    opened.current = draft;
+    router.setParams({ draft: undefined });
+    void pos.openFromScan(draft);
+  }, [draft, pos]);
 
   useScreenChrome(
     {
