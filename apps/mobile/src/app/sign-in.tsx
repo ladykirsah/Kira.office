@@ -17,6 +17,7 @@ import { shortcutTarget } from "@/lib/shortcut";
 import type { Credentials } from "@/lib/signIn";
 import { signInMessage } from "@/lib/signInMessage";
 import { useAuth, useLang, useTheme } from "@/ui/AppProviders";
+import { useBrandFont } from "@/ui/brandFont";
 import type { Theme } from "@/ui/theme";
 
 /**
@@ -30,6 +31,7 @@ export default function SignIn() {
   const auth = useAuth();
   const { lang, t, toggleLang } = useLang();
   const { theme } = useTheme();
+  const brandFont = useBrandFont();
   const insets = useSafeAreaInsets();
   const s = styles(theme);
 
@@ -87,7 +89,7 @@ export default function SignIn() {
               <Text style={{ fontSize: 16 }}>{lang === "th" ? "🇬🇧" : "🇹🇭"}</Text>
             </Pressable>
           </View>
-          <Text style={s.title}>Kira.office</Text>
+          <Text style={[s.title, brandFont]}>CrewEngine</Text>
           <Text style={s.subtitle}>
             {t({
               th: "ระบบหลังร้าน Den Air Service + AirPlus",

@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
 import { ToastProvider } from "./ToastProvider";
 import { AppShell } from "./AppShell";
@@ -17,13 +18,18 @@ import { LangProvider } from "./LangProvider";
 export async function generateMetadata() {
   const t = await serverT();
   return {
-    title: t({ th: "Kira.office — ผู้ดูแล", en: "Kira.office — Admin" }),
+    title: t({ th: "CrewEngine — ผู้ดูแล", en: "CrewEngine — Admin" }),
     description: t({
       th: "หลังร้านของ Den Air Service + AirPlus",
       en: "Den Air Service + AirPlus back office",
     }),
   };
 }
+
+// The app's name is lettered in Space Grotesk, the font of the turbo logo the owner picked
+// (2026-10-29). Only the name uses it (.brand / .mnav-brand); every other word keeps the app font.
+// next/font copies the file into the build, so no page ever asks Google for it.
+const brandFont = Space_Grotesk({ subsets: ["latin"], weight: "600", variable: "--font-brand" });
 
 // Apply the saved theme before first paint to avoid a flash.
 const themeScript = `try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`;
@@ -47,7 +53,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   }
 
   return (
-    <html lang={lang} suppressHydrationWarning>
+    <html lang={lang} className={brandFont.variable} suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* Above everything, including /login, which renders outside AppShell. */}

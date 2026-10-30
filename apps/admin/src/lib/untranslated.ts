@@ -24,7 +24,7 @@
  *
  * WHAT DOES NOT, and why each one is deliberate rather than an oversight:
  *   - SHOUTY_CONSTANTS, css classes, ids, urls: matched by machines, not read by people
- *   - names: AirPlus, Shopee, Kira.office, Den Air Service — a name is not a word to translate
+ *   - names: AirPlus, Shopee, CrewEngine, Den Air Service — a name is not a word to translate
  *   - the name of a keyboard key, a font, an import path, an object key
  *   - anything already inside `t({ th, en })`
  *
@@ -49,7 +49,7 @@ const NAMES = [
   "Shopee",
   // A sales channel, exactly like Shopee beside it — a company's name, not a word to translate.
   "Lazada",
-  "Kira.office",
+  "CrewEngine",
   "Den Air Service",
   // The workshop's name as it is PRINTED — on a barcode label, and as the fallback when shop info
   // has not loaded. A business's name is not translated.

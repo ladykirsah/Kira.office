@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await serverT();
-  return { title: t({ th: "ทางเข้าฉุกเฉิน — Kira.office", en: "Owner rescue — Kira.office" }) };
+  return { title: t({ th: "ทางเข้าฉุกเฉิน — CrewEngine", en: "Owner rescue — CrewEngine" }) };
 }
 
 /**
@@ -52,7 +52,7 @@ export default async function RecoverPage({
         </div>
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div className="brand" style={{ fontSize: 22 }}>
-            Kira.office
+            CrewEngine
           </div>
           <div className="muted" style={{ fontSize: 13.5 }}>
             {t({ th: "ทางเข้าฉุกเฉิน", en: "Owner rescue" })}

@@ -51,7 +51,7 @@ export function AppShell({
             Hidden on a wide screen, where the sidebar carries the name instead.
           */}
           <Link className="mnav-brand" href="/">
-            Kira.office
+            CrewEngine
           </Link>
           {/*
             ROW TWO. A wrapper only so the phone can pin THIS row while the name above it scrolls

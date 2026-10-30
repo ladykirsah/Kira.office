@@ -1785,7 +1785,8 @@ a.card:hover {
 }
 .brand {
   display: block;
-  font-weight: 700;
+  font-family: var(--font-brand), system-ui, sans-serif;
+  font-weight: 600;
   font-size: 18px;
   color: var(--primary);
   padding: 8px 10px 4px;
@@ -2057,7 +2058,8 @@ a.card:hover {
     padding: 0 16px;
     background: var(--surface);
     color: var(--primary);
-    font-weight: 700;
+    font-family: var(--font-brand), system-ui, sans-serif;
+    font-weight: 600;
     font-size: 19px;
     letter-spacing: -0.01em;
     white-space: nowrap;
