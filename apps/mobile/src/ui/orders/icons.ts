@@ -20,6 +20,7 @@ export const ICON = {
   note: "M4 4h16v16H4zM8 9h8M8 13h8M8 17h5",
   phone:
     "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2",
+  ban: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M5.6 5.6l12.8 12.8",
 } as const;
 
 export const STEP_ICON: Record<StepIcon, string> = {

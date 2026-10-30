@@ -86,7 +86,17 @@ There is ONE cancel door: `POST /orders/:id/cancel` → `StockLedger.cancelOrder
   - **Customer COD-refused cancel (`/api/orders/cancel`):** still writes `cancelled` directly, with no
     restock or coupon release.
   - **Website deploys:** the storefront parts go live only once its deploys are unblocked (Next 15).
-  - **Back-office app:** the Expo cancel button and the "waiting for bank account" view are not built.
+- **Back-office app (Expo, drawings boards 5–6, built 2026-10-30):**
+  - `GET /orders/:id` returns `order.cancelReason` + `order.cancelledAt`.
+  - Rules live in `apps/mobile/src/lib/orderPage.ts`: `cancelButton`, `cancelInfo`, `refundOnCancel`,
+    `statusWord`. A slip that arrives after the cancel (`cancelled` + `verifying`) is still the pay
+    job. Screens are in `ui/orders/Cancel.tsx`.
+  - "ยกเลิกออเดอร์" shows at the foot of the page for the owner and admins before sending. On a
+    slip still waiting it only shows "ตรวจสลิปก่อน แล้วค่อยยกเลิก".
+  - Cancelled orders with nothing owed show a "ยกเลิกแล้ว" card: time, reason, stock back, coupon.
+    A storefront discount *is* its coupon, so no discount reads "ไม่ได้ใช้คูปอง".
+- **Still to do (cont.):** the 4th reason "ติดต่อลูกค้าไม่ได้" and showing the reason to the customer
+  were asked of the owner and are not built.
 
 The old 2026-07-17 rule ("a returned part may be damaged, staff restock by hand") still holds for
 **bounced parcels and claims**. It never applied to an unsent order, whose goods never left the shelf.

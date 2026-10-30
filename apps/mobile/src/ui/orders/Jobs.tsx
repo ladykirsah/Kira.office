@@ -15,6 +15,7 @@ import {
 } from "@/lib/ordersApi";
 import { useLang, useTheme } from "../AppProviders";
 import { SPACE, TYPE } from "../theme";
+import { CancelRefundDone, cancelLine } from "./Cancel";
 import { ICON, STEP_ICON } from "./icons";
 import { DropOffSheet, ErrorLine, InsetRow, ReasonSheet, SAVING, insetBox } from "./JobForms";
 import { JobBox, JobHead, Say, SectionTitle, SmallButton } from "./parts";
@@ -44,6 +45,8 @@ export function PayJob({ ctx }: { ctx: JobContext }) {
   const { order } = ctx.detail;
   const total = formatBaht(order.grandTotalSatang);
   const allowed = canDo("pay", ctx.detail.viewerRole);
+  // Drawing 6, row 3: the slip came after the shop cancelled — confirming it means a full refund.
+  const cancelled = order.orderStatus === "cancelled";
   // The decision is pinned at the bottom of the page, red over grey (Shopee; owner, 29 Oct).
   usePin(
     order.slipImageKey && allowed
@@ -58,7 +61,9 @@ export function PayJob({ ctx }: { ctx: JobContext }) {
                   th: `ยืนยันการชำระเงิน ${total} แล้ว`,
                   en: `Payment ${total} confirmed`,
                 }),
-                detail: t({ th: "ออเดอร์ไปที่ เตรียมจัดส่ง", en: "The order moved to To ship" }),
+                detail: cancelled
+                  ? t({ th: "งานคืนเงินขึ้นมาให้ทำต่อ", en: "The refund is next" })
+                  : t({ th: "ออเดอร์ไปที่ เตรียมจัดส่ง", en: "The order moved to To ship" }),
               }),
           },
           {
@@ -86,6 +91,15 @@ export function PayJob({ ctx }: { ctx: JobContext }) {
                 })
           }
         />
+        {cancelled && (
+          <Say
+            quiet
+            text={t({
+              th: "ออเดอร์นี้ยกเลิกแล้ว · ยืนยันแล้วต้องคืนเงินเต็มจำนวน",
+              en: "This order is cancelled · confirming means a full refund",
+            })}
+          />
+        )}
         {order.slipImageKey && ctx.detail.viewerIsSuperAdmin && (
           <View style={{ alignSelf: "center" }}>
             <PrivateImage
@@ -116,10 +130,17 @@ export function PayJob({ ctx }: { ctx: JobContext }) {
             th: "เช่น ยอดไม่ตรง, สลิปไม่ชัด…",
             en: "e.g. wrong amount, unclear slip…",
           })}
-          note={t({
-            th: "ปฏิเสธแล้วคำสั่งซื้อจะกลับไปที่ “รอชำระเงิน” และให้เวลาลูกค้าใหม่ 48 ชม.",
-            en: "The order goes back to Unpaid and the customer gets a new 48 hours.",
-          })}
+          note={
+            cancelled
+              ? t({
+                  th: "ปฏิเสธแล้วออเดอร์ยังเป็นยกเลิก และยังไม่จ่าย",
+                  en: "The order stays cancelled and unpaid.",
+                })
+              : t({
+                  th: "ปฏิเสธแล้วคำสั่งซื้อจะกลับไปที่ “รอชำระเงิน” และให้เวลาลูกค้าใหม่ 48 ชม.",
+                  en: "The order goes back to Unpaid and the customer gets a new 48 hours.",
+                })
+          }
           confirm={t({ th: "ยืนยันการปฏิเสธ", en: "Confirm rejection" })}
           busy={ctx.busy}
           onClose={() => setRejecting(false)}
@@ -127,7 +148,9 @@ export function PayJob({ ctx }: { ctx: JobContext }) {
             setRejecting(false);
             ctx.run(() => reviewPayment(fetch, API_BASE, ctx.token, order.id, "reject", reason), {
               title: t({ th: "ปฏิเสธการชำระเงินแล้ว", en: "Payment rejected" }),
-              detail: t({ th: "ออเดอร์กลับไปที่ รอชำระเงิน", en: "The order is back to Unpaid" }),
+              detail: cancelled
+                ? t({ th: "ออเดอร์ยังเป็นยกเลิก", en: "The order stays cancelled" })
+                : t({ th: "ออเดอร์กลับไปที่ รอชำระเงิน", en: "The order is back to Unpaid" }),
             });
           }}
         />
@@ -300,7 +323,19 @@ export function ShipJob({ ctx }: { ctx: JobContext }) {
   );
 }
 
-/** คืนเงิน (พัสดุตีกลับ) — the owner transfers the full amount back and attaches the slip. */
+const REFUND_TITLE = {
+  bounced: {
+    open: { th: "คืนเงิน (พัสดุตีกลับ)", en: "Refund (parcel bounced back)" },
+    done: { th: "คืนเงินแล้ว (พัสดุตีกลับ)", en: "Refunded (parcel bounced back)" },
+  },
+  cancelled: {
+    open: { th: "คืนเงิน (ยกเลิกออเดอร์)", en: "Refund (order cancelled)" },
+    done: { th: "คืนเงินแล้ว (ยกเลิกออเดอร์)", en: "Refunded (order cancelled)" },
+  },
+} as const;
+
+/** คืนเงิน (พัสดุตีกลับ / ยกเลิกออเดอร์) — the owner transfers the full amount back and attaches
+ *  the slip. The same job for a bounced parcel and a paid order the shop cancelled (board 5). */
 export function RefundJob({ ctx }: { ctx: JobContext }) {
   const { theme } = useTheme();
   const { t } = useLang();
@@ -308,15 +343,22 @@ export function RefundJob({ ctx }: { ctx: JobContext }) {
   const total = formatBaht(order.grandTotalSatang);
   const owner = canDo("refund", ctx.detail.viewerRole);
   const done = ctx.detail.refundAction === "refunded";
+  const cancelled = order.orderStatus === "cancelled";
+  const title = REFUND_TITLE[cancelled ? "cancelled" : "bounced"][done ? "done" : "open"];
+  if (cancelled && done) {
+    return (
+      <>
+        <SectionTitle text={t(title)} />
+        <JobBox>
+          <CancelRefundDone detail={ctx.detail} />
+        </JobBox>
+      </>
+    );
+  }
+  const why = cancelLine(ctx.detail, t);
   return (
     <>
-      <SectionTitle
-        text={
-          done
-            ? t({ th: "คืนเงินแล้ว (พัสดุตีกลับ)", en: "Refunded (parcel bounced back)" })
-            : t({ th: "คืนเงิน (พัสดุตีกลับ)", en: "Refund (parcel bounced back)" })
-        }
-      />
+      <SectionTitle text={t(title)} />
       <JobBox>
         <JobHead
           icon={STEP_ICON.back}
@@ -324,6 +366,7 @@ export function RefundJob({ ctx }: { ctx: JobContext }) {
           title={t({ th: "ยอดคืนเต็มจำนวน", en: "Full amount" })}
           right={<Text style={[TYPE.body, { color: theme.text }]}>{total}</Text>}
         />
+        {why && <Say quiet text={why} />}
         {done ? (
           <RefundDone ctx={ctx} />
         ) : (
@@ -333,20 +376,33 @@ export function RefundJob({ ctx }: { ctx: JobContext }) {
             </Text>
             <RefundAccount ctx={ctx} />
             {owner && order.refundAccountNo ? (
-              <SlipConfirm
-                busy={ctx.busy}
-                label={t({ th: `ยืนยันการคืนเงิน ${total}`, en: `Confirm refund ${total}` })}
-                onConfirm={(slip) =>
-                  ctx.run(() => recordRefund(fetch, API_BASE, ctx.token, order.id, slip), {
-                    title: t({ th: `คืนเงิน ${total} แล้ว`, en: `Refunded ${total}` }),
-                    detail: t({
-                      th: "แนบสลิปการโอนไว้ในออเดอร์แล้ว",
-                      en: "Our transfer slip is on the order",
-                    }),
-                  })
-                }
-              />
-            ) : (
+              <>
+                <Say
+                  small
+                  quiet
+                  text={t({
+                    th: "เห็นบัญชีและกดคืนเงินได้เฉพาะเจ้าของร้าน",
+                    en: "Only the owner sees the account and refunds",
+                  })}
+                />
+                <Text style={[TYPE.subhead, { color: theme.text, fontWeight: "600" }]}>
+                  {t({ th: "สลิปการโอนคืน", en: "Our refund slip" })}
+                </Text>
+                <SlipConfirm
+                  busy={ctx.busy}
+                  label={t({ th: `ยืนยันการคืนเงิน ${total}`, en: `Confirm refund ${total}` })}
+                  onConfirm={(slip) =>
+                    ctx.run(() => recordRefund(fetch, API_BASE, ctx.token, order.id, slip), {
+                      title: t({ th: `คืนเงิน ${total} แล้ว`, en: `Refunded ${total}` }),
+                      detail: t({
+                        th: "แนบสลิปการโอนไว้ในออเดอร์แล้ว",
+                        en: "Our transfer slip is on the order",
+                      }),
+                    })
+                  }
+                />
+              </>
+            ) : cancelled && owner ? null : (
               <Say
                 quiet
                 text={
@@ -379,10 +435,17 @@ export function RefundAccount({ ctx }: { ctx: JobContext }) {
     return (
       <Say
         quiet
-        text={t({
-          th: "รอลูกค้าแจ้งบัญชีรับเงินคืนบนหน้าเว็บ AirPlus",
-          en: "Waiting for the customer to send a refund account on AirPlus",
-        })}
+        text={
+          order.orderStatus === "cancelled"
+            ? t({
+                th: "รอลูกค้าแจ้งบนหน้าติดตามคำสั่งซื้อ · ได้บัญชีแล้วปุ่มคืนเงินจะขึ้นเอง",
+                en: "Waiting for the customer on their order page · the refund button comes with the account",
+              })
+            : t({
+                th: "รอลูกค้าแจ้งบัญชีรับเงินคืนบนหน้าเว็บ AirPlus",
+                en: "Waiting for the customer to send a refund account on AirPlus",
+              })
+        }
       />
     );
   }

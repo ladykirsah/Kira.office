@@ -1,4 +1,11 @@
-import { operationalStatus } from "@l-shopee/core";
+import {
+  cancelBlock,
+  canCancelOrderRole,
+  operationalStatus,
+  operationalStatusPhrase,
+  type CancelReason,
+} from "@l-shopee/core";
+import type { Phrase } from "@l-shopee/shared/lang";
 import type { OrderAddress, OrderClaim, OrderDetail } from "./ordersApi";
 
 /**
@@ -30,6 +37,11 @@ type JobInput = {
 
 /** The one job at the top of the page, in the web's order; null when nothing waits on the shop. */
 export function jobFor(page: JobInput): Job | null {
+  // A slip sent after the shop cancelled is still checked (drawing 6, row 3): confirmed, it
+  // becomes a full refund; rejected, the order stays cancelled and unpaid.
+  if (page.order.orderStatus === "cancelled" && page.order.paymentStatus === "verifying") {
+    return "pay";
+  }
   const s = operationalStatus(page.order.orderStatus, page.order.paymentStatus);
   if (s === "to_ship") return "ship";
   if (s === "verifying") return "pay";
@@ -156,14 +168,14 @@ export function slipRow(slip: { available: boolean } | undefined, isOwner: boole
 }
 
 /** The parcel's short line under ข้อมูลการจัดส่ง: where it is now, and since when. */
-export type DeliveryStep = "notSent" | "inTransit" | "delivered" | "bounced";
+export type DeliveryStep = "notSent" | "inTransit" | "delivered" | "bounced" | "cancelled";
 
 const DELIVERED = new Set(["complete", "claim_pending", "claimed", "refunded", "claim_rejected"]);
 
 export function deliveryNow(
   order: Pick<
     OrderDetail["order"],
-    "orderStatus" | "paymentStatus" | "carrier" | "trackingNo" | "shipTimeMs"
+    "orderStatus" | "paymentStatus" | "carrier" | "trackingNo" | "shipTimeMs" | "cancelledAt"
   >,
   timeline: readonly { event: string; createdAt: number }[],
 ): { parcel: string | null; step: DeliveryStep; at: number | null } {
@@ -173,6 +185,9 @@ export function deliveryNow(
     : null;
   // Only a time the order really recorded; none is made up.
   const atOf = (event: string) => timeline.find((e) => e.event === event)?.createdAt ?? null;
+  if (order.orderStatus === "cancelled") {
+    return { parcel, step: "cancelled", at: order.cancelledAt ?? atOf("cancelled") };
+  }
   if (op === "return") return { parcel, step: "bounced", at: atOf("delivery_failed") };
   if (DELIVERED.has(op)) return { parcel, step: "delivered", at: atOf("delivered") };
   if (op === "in_transit") {
@@ -191,4 +206,67 @@ export function pinsTracking(
     order.trackUrl != null &&
     operationalStatus(order.orderStatus, order.paymentStatus) === "in_transit"
   );
+}
+
+/**
+ * ยกเลิกออเดอร์ at the foot of the page (owner, 30 Oct 2026): the owner and admins, before the
+ * parcel is sent. A slip still waiting is checked first — the button then says so instead of
+ * opening the sheet. The API checks all of it again.
+ */
+export function cancelButton(
+  order: { orderStatus: string | null; paymentStatus: string | null },
+  role: Role,
+): "show" | "checkSlip" | null {
+  if (!canCancelOrderRole(role)) return null;
+  const block = cancelBlock({
+    orderStatus: order.orderStatus ?? "",
+    paymentStatus: order.paymentStatus ?? "",
+  });
+  if (block === "check_slip_first") return "checkSlip";
+  return block ? null : "show";
+}
+
+/** The sheet's ลูกค้าโอนแล้ว row: a paid order comes back as a full refund job. */
+export function refundOnCancel(order: {
+  paymentStatus: string | null;
+  grandTotalSatang: number;
+}): number | null {
+  return order.paymentStatus === "paid" ? order.grandTotalSatang : null;
+}
+
+/**
+ * ยกเลิกเมื่อ … · <reason>. Only the shop's own cancel writes a reason, and only it gave the stock
+ * and the coupon back — an older or customer-side cancel shows its time alone. An AirPlus order's
+ * discount is its coupon (storefront checkout), so a discount says a coupon came back.
+ */
+export function cancelInfo(
+  order: Pick<
+    OrderDetail["order"],
+    "orderStatus" | "cancelReason" | "cancelledAt" | "discountTotalSatang"
+  >,
+  timeline: readonly { event: string; createdAt: number }[],
+): {
+  at: number | null;
+  reason: CancelReason | null;
+  restocked: boolean;
+  couponBack: boolean;
+} | null {
+  if (order.orderStatus !== "cancelled") return null;
+  const at = order.cancelledAt ?? timeline.find((e) => e.event === "cancelled")?.createdAt ?? null;
+  const restocked = order.cancelReason != null;
+  return {
+    at,
+    reason: order.cancelReason,
+    restocked,
+    couponBack: restocked && order.discountTotalSatang > 0,
+  };
+}
+
+const CANCELLED: Phrase = { th: "ยกเลิก", en: "Cancelled" };
+
+/** The word beside the order number: the list's own word, except a cancel says ยกเลิก. */
+export function statusWord(orderStatus: string | null, paymentStatus: string | null): Phrase {
+  if (orderStatus === "cancelled") return CANCELLED;
+  const op = operationalStatus(orderStatus, paymentStatus);
+  return op ? operationalStatusPhrase(op) : { th: orderStatus ?? "—", en: orderStatus ?? "—" };
 }

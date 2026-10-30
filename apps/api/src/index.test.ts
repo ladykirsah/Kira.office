@@ -5913,6 +5913,27 @@ describe("getOrderDetail (the /orders/:id read model)", () => {
    * model; the row printed `sku ?? variantId`, so the line under the name read "v1" — an internal
    * key nobody can look a product up by.
    */
+  /**
+   * The order page shows "ยกเลิกเมื่อ … · <reason>" on a cancelled order (owner, 30 Oct 2026), so the
+   * read model carries the two columns the cancel writes. A live order has neither.
+   */
+  it("given a cancelled order > then it carries the cancel reason and time", async () => {
+    const db = seeded();
+    db.prepare(
+      `UPDATE sales_orders SET order_status = 'cancelled', cancel_reason = 'out_of_stock',
+              cancelled_at = ? WHERE id = 'o1'`,
+    ).run(NOW + 5000);
+    const d = await getOrderDetail(asD1(db), "o1");
+    expect(d!.order.cancelReason).toBe("out_of_stock");
+    expect(d!.order.cancelledAt).toBe(NOW + 5000);
+  });
+
+  it("given a live order > then there is no cancel reason or time", async () => {
+    const d = await getOrderDetail(asD1(seeded()), "o1");
+    expect(d!.order.cancelReason).toBeNull();
+    expect(d!.order.cancelledAt).toBeNull();
+  });
+
   it("returns each line's variant word and Product ID", async () => {
     const d = await getOrderDetail(asD1(seeded()), "o1");
     const line = d!.lines[0]!;
