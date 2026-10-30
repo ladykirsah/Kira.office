@@ -55,6 +55,34 @@ describe("parsePaymentMethods", () => {
   });
 });
 
+// The bank account holder's name, printed under every payment QR (owner, 2026-10-30: "always
+// provide account name with the payment QR code").
+describe("parsePaymentMethods > accountName", () => {
+  const one = (extra: Record<string, unknown>) =>
+    parsePaymentMethods(
+      JSON.stringify([{ id: "a", label: "ร้าน", promptpayId: "0812345678", ...extra }]),
+    )[0];
+
+  it("given an account name > keeps it, trimmed", () => {
+    expect(one({ accountName: "  นาย สมชาย ใจดี  " })?.accountName).toBe("นาย สมชาย ใจดี");
+  });
+
+  it("given older data with no account name > still parses, with no account name", () => {
+    const pm = one({});
+    expect(pm?.promptpayId).toBe("0812345678");
+    expect(pm).not.toHaveProperty("accountName");
+  });
+
+  it("given a blank or non-text account name > leaves it out", () => {
+    expect(one({ accountName: "   " })).not.toHaveProperty("accountName");
+    expect(one({ accountName: 42 })).not.toHaveProperty("accountName");
+  });
+
+  it("given an account name over 100 characters > keeps the first 100", () => {
+    expect(one({ accountName: "ก".repeat(120) })?.accountName).toBe("ก".repeat(100));
+  });
+});
+
 describe("defaultPaymentMethod", () => {
   it("returns the flagged default", () => {
     const methods = [m("a", "ร้าน", "1"), m("b", "แม่", "2", true)];
@@ -87,6 +115,13 @@ describe("serializePaymentMethods", () => {
   });
   it("serializes an empty list to an empty JSON array", () => {
     expect(serializePaymentMethods([])).toBe("[]");
+  });
+
+  it("preserves the account name through serialize → parse", () => {
+    const out = parsePaymentMethods(
+      serializePaymentMethods([{ ...m("a", "แม่", "0899999999", true), accountName: "นาง ใจดี" }]),
+    );
+    expect(out[0]?.accountName).toBe("นาง ใจดี");
   });
 
   it("preserves position through serialize → parse", () => {

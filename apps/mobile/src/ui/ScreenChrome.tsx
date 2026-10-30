@@ -10,9 +10,11 @@ export interface ChromeButton {
 /** A round glass button left of the account badge, for the screen's own tool (e.g. type a code). */
 export interface HeaderButton {
   label: string;
-  /** One SVG path on a 24-unit grid (see LineIcon). */
+  /** One SVG path on a 24-unit grid (see LineIcon). Empty: the label shows as a word (บิลใหม่). */
   icon: string;
   onPress: () => void;
+  /** A count on the button's corner (ทำบิล's drafts tray); none when 0. */
+  badge?: number;
 }
 
 /** A choice pinned just above the bottom button, e.g. why a count went down. */
@@ -106,7 +108,7 @@ export function useScreenChrome(
     latest.current = now;
   });
   const shape = JSON.stringify([
-    headers.map((h) => [h.label, h.icon]),
+    headers.map((h) => [h.label, h.icon, h.badge ?? 0]),
     footer.map((b) => [b.label, b.kind ?? "red"]),
     now.choice && [now.choice.label, now.choice.options, now.choice.value],
     now.toast,
@@ -121,6 +123,7 @@ export function useScreenChrome(
       headers: cur.headers.map((h, i) => ({
         label: h.label,
         icon: h.icon,
+        badge: h.badge,
         onPress: () => latest.current.headers[i]?.onPress(),
       })),
       footer: cur.footer.map((b, i) => ({

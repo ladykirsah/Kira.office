@@ -1,6 +1,7 @@
 import { Redirect, Slot } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth, useTheme } from "@/ui/AppProviders";
+import { PosSessionProvider } from "@/ui/pos/PosSessionProvider";
 import { ScanSessionProvider } from "@/ui/scan/ScanSessionProvider";
 import { Shell } from "@/ui/Shell";
 
@@ -25,9 +26,11 @@ export default function SignedInLayout() {
   if (auth.status === "signed-out") return <Redirect href="/sign-in" />;
   return (
     <ScanSessionProvider>
-      <Shell>
-        <Slot />
-      </Shell>
+      <PosSessionProvider>
+        <Shell>
+          <Slot />
+        </Shell>
+      </PosSessionProvider>
     </ScanSessionProvider>
   );
 }

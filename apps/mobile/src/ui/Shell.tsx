@@ -373,18 +373,28 @@ function SearchRow({ search, bottom }: { search: SearchBar; bottom: number }) {
   );
 }
 
-/** The screen's own tool, a round glass button beside the account badge. */
+/** The screen's own tool, a round glass button beside the account badge — or a word, with no icon. */
 function RoundButton({ button }: { button: HeaderButton }) {
   const { theme } = useTheme();
   const s = styles(theme);
+  const count = button.badge ?? 0;
   return (
     <Pressable
       onPress={button.onPress}
       accessibilityRole="button"
-      accessibilityLabel={button.label}
-      style={s.roundButton}
+      accessibilityLabel={count > 0 ? `${button.label} ${count}` : button.label}
+      style={button.icon ? s.roundButton : [s.roundButton, s.wordButton]}
     >
-      <LineIcon d={button.icon} color={theme.text} size={20} />
+      {button.icon ? (
+        <LineIcon d={button.icon} color={theme.text} size={20} />
+      ) : (
+        <Text style={s.wordButtonText}>{button.label}</Text>
+      )}
+      {count > 0 && (
+        <View style={s.badge} pointerEvents="none">
+          <Text style={s.badgeText}>{count}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -510,6 +520,21 @@ const styles = (c: Theme) =>
       borderColor: c.glassLine,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
     },
+    wordButton: { width: "auto", paddingHorizontal: 14 },
+    wordButtonText: { ...TYPE.subhead, color: c.text },
+    badge: {
+      position: "absolute",
+      top: -2,
+      right: -4,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      borderRadius: 9,
+      backgroundColor: c.text,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeText: { fontSize: 11, lineHeight: 14, fontWeight: "700", color: c.bg },
     wideFooter: { marginTop: SPACE.xxl, maxWidth: 420, gap: 10 },
     wideTitle: { ...TYPE.largeTitle, color: c.text, marginBottom: SPACE.m },
     backPill: {

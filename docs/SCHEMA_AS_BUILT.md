@@ -89,7 +89,7 @@ ORM and no generated types in the query path.
 ### Sales
 | Table | Key columns |
 | --- | --- |
-| `onsite_sales` | `id`, `client_uuid` (uq — idempotent offline sync), `device_id`, `sync_status` (`local`), `synced_at`, `sale_number`, `cashier_user_id`→users, `payment_method`, `subtotal_satang`, `discount_total_satang`, `tax_total_satang`, `grand_total_satang`, `sale_status` (`completed`), `created_at` |
+| `onsite_sales` | `id`, `client_uuid` (uq — idempotent offline sync), `device_id`, `sync_status` (`local`), `synced_at`, `sale_number`, `cashier_user_id`→users, `payment_method`, `subtotal_satang`, `discount_total_satang`, `tax_total_satang`, `grand_total_satang`, `sale_status` (`completed`), `created_at`, `mileage_km` (nullable INTEGER — the car's km on that bill; `0093`), `buyer_name` (nullable TEXT — a mechanic buyer on a ช่าง/B2B bill; `0093`) |
 | `onsite_sale_lines` | `id`, `onsite_sale_id`→onsite_sales, `product_variant_id`, `barcode_value`, `quantity`, `unit_price_satang`, `discount_satang`, `tax_satang`, `unit_cost_satang`, `cost_method_used`, `gross_profit_satang` |
 | `sales_orders` | `id`, `channel`+`external_order_id` (uq — no duplicate import), `order_status`, `payment_status`, `*_satang` totals, `order_created_at`, `imported_at`, `import_source` (`csv`) |
 
