@@ -2405,6 +2405,64 @@ describe("api worker routes", () => {
     ).toBe(400);
   });
 
+  it("POST /payments > given the bill it paid for > keeps the bill number (owner, 30 Oct 2026)", async () => {
+    const { db, runs } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          methodLabel: "ร้าน",
+          promptpayId: "0812344421",
+          amountSatang: 406000,
+          saleNumber: " DAS202610-29004 ",
+        }),
+      }),
+      { DB: db } as unknown as Env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { payment: { saleNumber: string | null } };
+    expect(body.payment.saleNumber).toBe("DAS202610-29004");
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO payments"));
+    expect(insert?.sql).toContain("sale_number");
+    expect(insert?.binds).toContain("DAS202610-29004");
+  });
+
+  it("POST /payments > given no bill (a QR made on the Payment page) > stores no bill number", async () => {
+    const { db, runs } = makeDb({});
+    await fetchAuthed(
+      new Request("https://x/payments", {
+        method: "POST",
+        body: JSON.stringify({ methodLabel: "ร้าน", promptpayId: "08", amountSatang: 125000 }),
+      }),
+      { DB: db } as unknown as Env,
+      ctx,
+    );
+    const insert = runs.find((r) => r.sql.includes("INSERT INTO payments"));
+    expect(insert?.binds).toContain(null);
+  });
+
+  it("POST /payments > given a bill number that is not short text > 400", async () => {
+    const bad = async (saleNumber: unknown) =>
+      (
+        await fetchAuthed(
+          new Request("https://x/payments", {
+            method: "POST",
+            body: JSON.stringify({
+              methodLabel: "ร้าน",
+              promptpayId: "08",
+              amountSatang: 100,
+              saleNumber,
+            }),
+          }),
+          {} as Env,
+          ctx,
+        )
+      ).status;
+    expect(await bad(42)).toBe(400);
+    expect(await bad("D".repeat(41))).toBe(400);
+  });
+
   it("listPayments > selects the latest UNCLEARED payments with camelCase aliases", async () => {
     const { db } = makeDb({});
     const prepare = vi.spyOn(db, "prepare");
@@ -2412,6 +2470,7 @@ describe("api worker routes", () => {
     const sql = prepare.mock.calls[0]?.[0] as string;
     expect(sql).toContain("method_label AS methodLabel");
     expect(sql).toContain("amount_satang AS amountSatang");
+    expect(sql).toContain("sale_number AS saleNumber");
     expect(sql).toContain("cleared_at IS NULL"); // Recent = not-yet-reconciled only
     expect(sql).toContain("ORDER BY created_at DESC");
   });

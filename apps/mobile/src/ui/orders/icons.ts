@@ -8,6 +8,8 @@ export const ICON = {
   close: "M6 6l12 12M18 6L6 18",
   chevron: "M9 5l7 7-7 7",
   check: "M5 12.5l4.5 4.5L19 7.5",
+  /** A QR code (การชำระเงิน: สร้าง QR รับเงิน, and its empty state). */
+  qr: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2",
   copy: "M9 9h12v12H9zM5 15V5a2 2 0 0 1 2-2h10",
   print: "M6 9V3h12v6M6 18H4v-7h16v7h-2M7 14h10v7H7z",
   scan: "M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16M7.5 8v8M10.5 8v8M13.5 8v8M16.5 8v8",

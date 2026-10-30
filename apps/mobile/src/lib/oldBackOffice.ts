@@ -14,3 +14,8 @@ export function addProductPage(base: string, code: string): string {
 export function productPage(base: string, productId: string): string {
   return `${base}/products/${encodeURIComponent(productId)}`;
 }
+
+/** ข้อมูลร้าน, where PromptPay accounts and their names are set (not rebuilt here yet). */
+export function shopInfoPage(base: string): string {
+  return `${base}/settings/shop`;
+}

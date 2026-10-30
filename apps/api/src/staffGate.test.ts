@@ -102,4 +102,17 @@ describe("API gate > staff session is the only gate", () => {
     );
     expect(res.status).toBe(403);
   });
+
+  /** ล้าง on the Payment page is the owner's alone (owner, 30 Oct 2026): the screen hides it from
+   *  staff, and the server refuses it too, so a hidden button is not the only lock. */
+  it("POST /payments/clear > given a signed-in admin or mechanic > 403", async () => {
+    for (const role of ["admin", "mechanic"]) {
+      const res = await worker.fetch!(
+        new Request("https://x/payments/clear", { method: "POST", headers: AUTHED }),
+        makeEnv({ signedIn: true, role }),
+        ctx,
+      );
+      expect(res.status).toBe(403);
+    }
+  });
 });

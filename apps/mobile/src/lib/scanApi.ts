@@ -170,7 +170,7 @@ export async function recordPayment(
   fetchFn: FetchFn,
   base: string,
   token: string,
-  payment: { methodLabel: string; promptpayId: string; amountSatang: number },
+  payment: { methodLabel: string; promptpayId: string; amountSatang: number; saleNumber?: string },
 ): Promise<void> {
   const res = await fetchFn(`${base}/payments`, sendJson(token, payment));
   if (!res.ok) throw await failure(res, "Payment was not recorded");

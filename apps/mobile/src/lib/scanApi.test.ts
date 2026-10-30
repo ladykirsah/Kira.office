@@ -210,7 +210,12 @@ describe("sendSale", () => {
 describe("recordPayment", () => {
   it("records the PromptPay payment on the shop's payment list", async () => {
     const { calls, fetchFn } = recording([async () => Response.json({ payment: { id: "pay-1" } })]);
-    const payment = { methodLabel: "ร้าน", promptpayId: "0812345678", amountSatang: 426000 };
+    const payment = {
+      methodLabel: "ร้าน",
+      promptpayId: "0812345678",
+      amountSatang: 426000,
+      saleNumber: "DAS202610-30001",
+    };
 
     await recordPayment(fetchFn, "http://api", "tok", payment);
 

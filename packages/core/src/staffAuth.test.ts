@@ -11,6 +11,7 @@ import {
   canViewFinance,
   canViewSlips,
   canRefund,
+  canClearPayments,
   canDeleteProduct,
   canEditPrice,
   canSeeProfit,
@@ -120,6 +121,10 @@ describe("permissions", () => {
     expect(allow(canViewFinance)).toEqual(["super_admin"]);
     expect(allow(canViewSlips)).toEqual(["super_admin"]);
     expect(allow(canRefund)).toEqual(["super_admin"]);
+  });
+
+  it("only the super admin clears the Payment list (owner, 30 Oct 2026)", () => {
+    expect(allow(canClearPayments)).toEqual(["super_admin"]);
   });
 
   it("only the super admin deletes a product (owner, 2026-08-24)", () => {

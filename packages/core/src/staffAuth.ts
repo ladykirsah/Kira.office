@@ -232,6 +232,14 @@ export function canRefund(role: StaffRole): boolean {
   return role === "super_admin";
 }
 
+/**
+ * ล้าง on the Payment page: the owner has checked the bank and the list starts over. Super admin
+ * alone (owner, 30 Oct 2026) — staff take payments, the owner reconciles them.
+ */
+export function canClearPayments(role: StaffRole): boolean {
+  return role === "super_admin";
+}
+
 /** Assessing a defect claim — the mechanic's whole job, and the others may do it too. */
 export function canReviewClaimRole(role: StaffRole): boolean {
   return role === "super_admin" || role === "admin" || role === "mechanic";

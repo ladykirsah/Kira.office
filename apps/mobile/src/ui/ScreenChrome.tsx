@@ -5,6 +5,8 @@ export interface ChromeButton {
   label: string;
   onPress: () => void;
   kind?: "red" | "grey";
+  /** A small icon before the words (การชำระเงิน's "สร้าง QR รับเงิน"); one SVG path, see LineIcon. */
+  icon?: string;
 }
 
 /** A round glass button left of the account badge, for the screen's own tool (e.g. type a code). */
@@ -109,7 +111,7 @@ export function useScreenChrome(
   });
   const shape = JSON.stringify([
     headers.map((h) => [h.label, h.icon, h.badge ?? 0]),
-    footer.map((b) => [b.label, b.kind ?? "red"]),
+    footer.map((b) => [b.label, b.kind ?? "red", b.icon ?? ""]),
     now.choice && [now.choice.label, now.choice.options, now.choice.value],
     now.toast,
     now.title,
@@ -129,6 +131,7 @@ export function useScreenChrome(
       footer: cur.footer.map((b, i) => ({
         label: b.label,
         kind: b.kind,
+        icon: b.icon,
         onPress: () => latest.current.footer[i]?.onPress(),
       })),
       choice: cur.choice && {
