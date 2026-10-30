@@ -7,14 +7,14 @@
     "dev": "next dev --port 3002",
     "build": "next build",
     "build:check": "NEXT_DIST_DIR=.next-verify next build",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env=\"\"",
+    "preview": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion && opennextjs-cloudflare deploy --env=\"\"",
     "lint:es": "eslint ."
   },
   "dependencies": {
     "@l-shopee/core": "*",
     "jsqr": "^1.4.0",
-    "next": "^15.5.21",
+    "next": "^15.5.28",
     "qrcode-generator": "^2.0.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -26,6 +26,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^15.5.0"
+    "eslint-config-next": "^15.5.28"
   }
 }

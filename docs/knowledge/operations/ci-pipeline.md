@@ -3,7 +3,7 @@ type: infrastructure
 title: CI pipeline — jobs and failure contracts
 description: The four GitHub Actions jobs, what each guarantees, what a green check does NOT prove, and the loud-failure contract that exists because silent skips once shipped nothing for weeks.
 tags: [ci, github-actions, deploy, failure-contract]
-timestamp: 2026-08-09
+timestamp: 2026-10-30
 status: live
 sources: [.github/workflows/ci.yml, kira-office-deploy-paths.md, kira-storefront-had-no-deploy-job.md, kira-office-architecture.md, run-lint-before-push.md, package.json]
 ---
@@ -27,6 +27,12 @@ All three deploy jobs share the single `CLOUDFLARE_API_TOKEN` repo secret (a GoG
 - **(b) One tolerated wart:** if wrangler exits non-zero BUT its output contains `"Deployed kiraoffice"` / `"Deployed kiraoffice-admin"` / `"Deployed airplus-storefront"`, the job WARNS and exits 0. That is the known benign custom-domain re-assert failure (token has workers:write but no zone edit; the code still deploys and the domain keeps routing). It must never be widened to mask real failures.
 - **(c) Any other non-zero exit is a real failure** — exit 1.
 - **`deploy-storefront` extra guard:** the build FAILS if **any** `NEXT_PUBLIC_*` env var is set in the runner. Unset is the *correct* production state (every such var falls back to a prod URL in source). Never "fix" CI by exporting one — see [next-public-env-trap](next-public-env-trap.md).
+
+## Next 15 stopgap flag (since 2026-10-30)
+
+OpenNext refuses any Next.js major more than two years past its release. Next 15 (released 2024-10-21) hit that on **2026-10-21**: from then every `deploy-admin` and `deploy-storefront` run failed with "Next.js version 15.5.x is not supported" while `deploy` (API) kept going green, so airplusauto.com and the admin stayed on the 17 Oct build.
+
+The owner picked the stopgap over moving to Next 16 straight away: both apps are on **Next 15.5.28** (its last patch) and every OpenNext build (both CI build steps and each app's `preview`/`deploy` script) passes `--dangerouslyUseUnsupportedNextVersion`. `scripts/opennext-build-flags.test.mjs` holds that in place: it fails if any build of a Next 15 app lacks the flag, **and** if an app on Next 16+ still carries it — so the flag is removed in the same change that moves an app to 16, and a future "not supported" refusal shows up instead of being silently overridden. Next 15 gets no more fixes; the move to 16 is still owed.
 
 ## What a green check does NOT prove
 

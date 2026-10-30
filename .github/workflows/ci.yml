@@ -89,9 +89,13 @@ jobs:
       # The build runs project code — next.config, the ESLint config, every page — so it gets NO
       # Cloudflare key. The Oct 2026 loader ran from the ESLint config inside the old combined
       # build+deploy step while the key sat in its environment. Only the upload below holds it.
+      #
+      # --dangerouslyUseUnsupportedNextVersion: OpenNext refuses Next majors more than 2 years old,
+      # so Next 15 stopped deploying on 2026-10-21. STOPGAP until the move to Next 16; remove it then
+      # (scripts/opennext-build-flags.test.mjs fails if it outlives Next 15).
       - name: Build admin (OpenNext, no secrets)
         working-directory: apps/admin
-        run: npx opennextjs-cloudflare build
+        run: npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
       - name: Deploy admin (OpenNext)
         working-directory: apps/admin
         env:
@@ -151,10 +155,10 @@ jobs:
             exit 1
           fi
       # Same split as deploy-admin: the build runs project code without the key; only the upload
-      # holds it.
+      # holds it. Same Next 15 stopgap flag as deploy-admin, for the same reason.
       - name: Build storefront (OpenNext, no secrets)
         working-directory: apps/storefront
-        run: npx opennextjs-cloudflare build
+        run: npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
       - name: Deploy storefront (OpenNext)
         working-directory: apps/storefront
         env:
