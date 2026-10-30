@@ -5,6 +5,10 @@ Read [docs/DECISIONS.md](docs/DECISIONS.md) first — it is the source of truth 
 then [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) for the as-built snapshot (what's done,
 in progress, next; the API/schema/module/design references hang off it).
 
+**Before drawing or building any back-office page**, read
+[docs/knowledge/conventions/expo-page-design-rules.md](docs/knowledge/conventions/expo-page-design-rules.md):
+every design rule the owner has set, in one place. Run it again before calling a build ready.
+
 ## Project Intent
 
 Admin back-office for a **Shopee Thailand** seller that manages products, inventory,
