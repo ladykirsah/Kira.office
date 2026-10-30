@@ -1,16 +1,17 @@
+import { classifyRefundAction } from "@l-shopee/core";
 import { getDb } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 
 /**
- * POST /api/orders/refund-bank — a customer whose parcel bounced (delivery_failed) submits the bank
- * account to refund to. Auth = the (order ref, phone) pair, same rule as /api/orders/lookup (an
+ * POST /api/orders/refund-bank — a customer owed money back submits the bank account to refund to:
+ * a parcel that bounced (delivery_failed), or an order the shop cancelled after it was paid. Auth = the (order ref, phone) pair, same rule as /api/orders/lookup (an
  * identical 404 either way, so the endpoint never reveals someone else's order).
  *
- * Only a PAID, bounced, not-yet-refunded order accepts it. The account is stored on the order and is
+ * Only an order the back office would refund accepts it (classifyRefundAction — one rule for both
+ * sides). The account is stored on the order and is
  * financial PII — the back office shows it to super-admins only.
  */
 const NOT_FOUND = "ไม่พบคำสั่งซื้อ กรุณาตรวจสอบเบอร์โทรและเลขที่คำสั่งซื้อ";
-const CLEARED = ["paid", "cod_collected"];
 
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -50,7 +51,17 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: NOT_FOUND }, { status: 404 });
     if (order.refundedAt != null)
       return Response.json({ error: "คำสั่งซื้อนี้คืนเงินแล้ว" }, { status: 409 });
-    if (order.orderStatus !== "delivery_failed" || !CLEARED.includes(order.paymentStatus ?? ""))
+    // failedAt null: the 1-year window only silences the shop's reminder, it never refuses a customer.
+    const owed = classifyRefundAction(
+      {
+        orderStatus: order.orderStatus ?? "",
+        paymentStatus: order.paymentStatus,
+        refundedAt: order.refundedAt,
+        failedAt: null,
+      },
+      Date.now(),
+    );
+    if (owed !== "needs_refund")
       return Response.json({ error: "คำสั่งซื้อนี้ไม่สามารถแจ้งบัญชีคืนเงินได้" }, { status: 409 });
 
     const now = Date.now();

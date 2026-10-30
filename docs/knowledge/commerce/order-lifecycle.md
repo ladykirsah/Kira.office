@@ -47,14 +47,49 @@ Designed for the since-dropped Shippop integration, but the semantics stand:
 - Carrier `return` → automatically ยกเลิก; the refund is NOT automatic — the customer initiates via the claim/refund flow (submits their receivable bank account); the owner transfers and sets คืนเงิน manually.
 - With the Flash manual-label launch there is **no carrier webhook**, so statuses are owner-set in admin. A delivery_failed+paid → full-refund flow was later built (PR #93) — see [refunds-and-returns](refunds-and-returns.md); verify current code before extending.
 
-## Cancel/refund stock-restore asymmetry — BY DESIGN, do not "fix"
+## Cancelling an order (owner decisions, 2026-10-30) — supersedes the old "asymmetry" note
 
-Owner decision 2026-07-17 ("staff responsibility on this"):
+There is ONE cancel door: `POST /orders/:id/cancel` → `StockLedger.cancelOrder` → `cancelOrderInDb`
+(`apps/api/src/index.ts`; rules in `packages/core/src/orderCancel.ts`, tested).
 
-- **Admin path**: `PATCH /orders/:id` (`updateOrder`) sets ยกเลิก/คืนเงิน with a plain UPDATE and does **NOT** restore stock — a returned part may be damaged/unsellable, so staff restock manually per-case via Stock adjust. `updateOrder` carries a comment saying this is intentional. Accepted risk: staff forgetting to adjust means on-hand under-counts.
-- **Storefront customer cancel** (un-shipped orders only) **DOES** auto-restore via `applyAdjustment` `refund_return` — un-shipped reservations never left the shelf.
+- **Who:** the owner or an admin (`canCancelOrderRole`); a mechanic gets 403.
+- **When:** only before the parcel is sent (`new` / `confirmed` / `packing`). A slip still in
+  `verifying` must be checked first. Sent, cancelled and expired orders are refused with 409.
+- **Reason required:** `customer_request` / `out_of_stock` / `other` (+ an optional note), stored in
+  `sales_orders.cancel_reason` (migration 0091) and written on the timeline.
+- **Credit:** `customer_request` costs the customer a point, paid or not; the shop's own reasons cost
+  nothing. Older cancels with no reason keep the old rule (pending / cod_denied → −1).
+- **One batch:** status, stock back, coupon back and the timeline step. Every statement after the
+  guarded UPDATE is conditional on `cancelled_at` equalling this cancel's own timestamp, so a
+  drop-off that wins the race leaves nothing half-done.
+- **Stock back** = whatever the order's own `sales_order` ledger rows still net to (checkout's
+  deduction is best-effort; no deduction → nothing restocked; running it twice gives back nothing).
+  The rows are `refund_return` with reason `order_cancelled`.
+- **Coupon back:** its `coupon_redemptions` row is deleted, so the customer can use it again. The
+  order keeps its own discount figures.
+- **Paid → refund:** `classifyRefundAction` now also covers `cancelled` + paid, so the same refund job
+  as a bounced parcel appears. The customer sends their bank account on the storefront (the
+  refund-bank route accepts it), then `recordRefund` pays the full amount. It does **not** restock
+  a second time, and the timeline note reads "คืนเงินแล้ว (ยกเลิก)".
+- **`PATCH /orders/:id` can no longer set `cancelled`** (409). A bare status write undid nothing.
+- **Expired orders** (48h unpaid) now give their stock back too, reason `order_expired`. Before this
+  every expired order quietly kept its units off the shelf.
+- **Shopee list:** cancel and expiry restocks are ignored (`SHOPEE_COUNTED`), since the `online_sale`
+  they reverse never reached that list either.
+- **Storefront:**
+  - A cancelled, unpaid order still takes a slip until its own payment deadline (`paymentDeadline` /
+    `slipAfterCancel`). That slip is checked and then refunded in full.
+  - After the deadline the slip route refuses, and the page sends the customer to LINE OA.
+- **Still to do:**
+  - **Flash-sale `sold_count`:** not released on cancel (owner: later). `sales_order_lines` doesn't
+    record which `campaign_prices` row priced a line.
+  - **Customer COD-refused cancel (`/api/orders/cancel`):** still writes `cancelled` directly, with no
+    restock or coupon release.
+  - **Website deploys:** the storefront parts go live only once its deploys are unblocked (Next 15).
+  - **Back-office app:** the Expo cancel button and the "waiting for bank account" view are not built.
 
-Separate open item: **flash-slot release on cancel** — `campaign_prices.sold_count` is never decremented, and `sales_order_lines` has no `campaign_price_id` to re-derive the slot.
+The old 2026-07-17 rule ("a returned part may be damaged, staff restock by hand") still holds for
+**bounced parcels and claims**. It never applied to an unsent order, whose goods never left the shelf.
 
 ## Testing lesson: make join keys load-bearing in both directions
 

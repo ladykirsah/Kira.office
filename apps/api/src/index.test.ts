@@ -62,6 +62,7 @@ import worker, {
   expireUnpaidOrders,
   reviewOrderPayment,
   recordRefund,
+  cancelOrderInDb,
   recordClaimRefund,
   recordClaimReturnShipment,
   recalculateCustomerCredit,
@@ -9087,7 +9088,7 @@ describe("updateOrder > a transfer order ships only once its slip is in", () => 
     // parcel on a van, so none of them may be blocked by this.
     const { db } = order({ slip: null });
     expect((await updateOrder(db, "o1", { staffNote: "ลูกค้าขอเลื่อน" })).ok).toBe(true);
-    expect((await updateOrder(db, "o1", { orderStatus: "cancelled" })).ok).toBe(true);
+    expect((await updateOrder(db, "o1", { orderStatus: "packing" })).ok).toBe(true);
   });
 });
 
@@ -9271,6 +9272,53 @@ describe("role enforcement on money, catalog and payment routes", () => {
       env,
       ctx,
     );
+
+  describe("cancelling an order: the owner or an admin, never a mechanic (owner, 30 Oct 2026)", () => {
+    /** The DO stub records what reached it, so a refused call can be shown to never get there. */
+    function withLedger(env: Env) {
+      const calls: unknown[][] = [];
+      const withDo = {
+        ...env,
+        STOCK_LEDGER: {
+          idFromName: (_n: string) => ({}),
+          get: (_id: unknown) => ({
+            cancelOrder: async (...args: unknown[]) => {
+              calls.push(args);
+              return { ok: true, restockedUnits: 2 };
+            },
+          }),
+        },
+      } as unknown as Env;
+      return { env: withDo, calls };
+    }
+    const cancelReq = (body: unknown) => ({ method: "POST", body: JSON.stringify(body) });
+
+    it("given a mechanic > 403, and the ledger is never reached", async () => {
+      const base = await asRole("mechanic");
+      const { env, calls } = withLedger(base.env);
+      const res = await call(env, "/orders/o1/cancel", cancelReq({ reason: "other" }), base.token);
+      expect(res.status).toBe(403);
+      expect(calls).toEqual([]);
+    });
+
+    for (const role of ["admin", "super_admin"]) {
+      it(`given a ${role} > the cancel runs through the stock ledger with the reason and note`, async () => {
+        const base = await asRole(role);
+        const { env, calls } = withLedger(base.env);
+        const res = await call(
+          env,
+          "/orders/o1/cancel",
+          cancelReq({ reason: "out_of_stock", note: "หมดทั้งร้าน" }),
+          base.token,
+        );
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true, restockedUnits: 2 });
+        expect(calls).toEqual([
+          ["o1", { reason: "out_of_stock", note: "หมดทั้งร้าน" }, "s@shop.test"],
+        ]);
+      });
+    }
+  });
 
   describe("Finance is the super admin's alone", () => {
     for (const role of ["admin", "mechanic"]) {
@@ -10508,5 +10556,305 @@ describe("loginWithRecoveryKey", () => {
   it("given a key shorter than the floor > then refused without touching the database", async () => {
     const { db } = await seed([{ id: "owner", key: "rescue-me-2026" }]);
     expect((await loginWithRecoveryKey(db, "abc", NOW, PEPPER)).ok).toBe(false);
+  });
+});
+
+// ── The shop cancels an AirPlus order (owner, 30 Oct 2026) ───────────────────────────────────────
+describe("cancelOrderInDb > the shop cancels an order that has not been sent", () => {
+  const NOW = SQLITE_NOW;
+
+  /** An order for 2 units, on the Shopee list, checkout's deduction on the ledger, a coupon used. */
+  function placed(
+    over: {
+      orderStatus?: string;
+      paymentStatus?: string;
+      deducted?: boolean;
+      coupon?: boolean;
+    } = {},
+  ) {
+    const { orderStatus = "new", paymentStatus = "pending", deducted = true, coupon = true } = over;
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','คอยล์เย็น','active',?,1,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO product_variants (id, product_id, sku, created_at) VALUES ('v1','p1','SKU-1',?)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(
+        `INSERT INTO stock_ledger_entries
+           (id, product_variant_id, movement_type, quantity_delta, quantity_after, created_at)
+         VALUES ('e0','v1','opening_balance',5,5,?)`,
+      )
+      .run(NOW - 10_000);
+    raw
+      .prepare(
+        `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at, customer_code)
+         VALUES ('cust1','0811111111','สมชาย',?,?,'C-1')`,
+      )
+      .run(NOW, NOW);
+    raw
+      .prepare(
+        `INSERT INTO sales_orders
+           (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+            discount_total_satang, shipping_fee_satang, grand_total_satang, profit_satang,
+            order_created_at, imported_at, storefront_customer_id)
+         VALUES ('o1','airplus','AP-1',?,?,200000,10000,5000,195000,60000,?,?,'cust1')`,
+      )
+      .run(orderStatus, paymentStatus, NOW - 1_000, NOW - 1_000);
+    raw
+      .prepare(
+        `INSERT INTO sales_order_lines
+           (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+            line_total_satang, created_at)
+         VALUES ('l1','o1','v1',2,100000,70000,200000,?)`,
+      )
+      .run(NOW);
+    if (deducted) {
+      raw
+        .prepare(
+          `INSERT INTO stock_ledger_entries
+             (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type,
+              source_id, created_at)
+           VALUES ('e1','v1','online_sale',-2,3,'sales_order','o1',?)`,
+        )
+        .run(NOW - 1_000);
+    }
+    if (coupon) {
+      raw
+        .prepare(
+          `INSERT INTO coupons (id, code, type, value, created_at) VALUES ('cp1','HELLO','fixed',10000,?)`,
+        )
+        .run(NOW);
+      raw
+        .prepare(
+          `INSERT INTO coupon_redemptions
+             (id, coupon_id, customer_id, sales_order_id, amount_discounted_satang, created_at)
+           VALUES ('r1','cp1','cust1','o1',10000,?)`,
+        )
+        .run(NOW - 1_000);
+    }
+    return raw;
+  }
+
+  const onHand = (raw: DatabaseSync) =>
+    Number(
+      (
+        raw
+          .prepare(
+            `SELECT SUM(quantity_delta) AS n FROM stock_ledger_entries WHERE product_variant_id='v1'`,
+          )
+          .get() as { n: number }
+      ).n,
+    );
+  const order = (raw: DatabaseSync) =>
+    raw
+      .prepare(
+        `SELECT order_status AS orderStatus, payment_status AS paymentStatus,
+                cancel_reason AS cancelReason, cancelled_at AS cancelledAt
+         FROM sales_orders WHERE id='o1'`,
+      )
+      .get() as Record<string, unknown>;
+  const redemptions = (raw: DatabaseSync) =>
+    Number((raw.prepare(`SELECT COUNT(*) AS n FROM coupon_redemptions`).get() as { n: number }).n);
+  const credit = (raw: DatabaseSync) =>
+    Number(
+      (
+        raw
+          .prepare(`SELECT credit_score AS c FROM storefront_customers WHERE id='cust1'`)
+          .get() as {
+          c: number;
+        }
+      ).c,
+    );
+  const cancel = (raw: DatabaseSync, reason = "out_of_stock", note: string | null = null) =>
+    cancelOrderInDb(asD1(raw), "o1", { reason, note }, "boss@x.com", NOW);
+
+  it("given an unsent order > then it is cancelled with its reason and time", async () => {
+    const raw = placed();
+    expect(await cancel(raw)).toEqual({ ok: true, restockedUnits: 2 });
+    expect(order(raw)).toEqual({
+      orderStatus: "cancelled",
+      paymentStatus: "pending",
+      cancelReason: "out_of_stock",
+      cancelledAt: NOW,
+    });
+  });
+
+  it("gives back exactly what checkout took, marked as a cancel", async () => {
+    const raw = placed();
+    await cancel(raw);
+    expect(onHand(raw)).toBe(5);
+    const back = raw
+      .prepare(
+        `SELECT movement_type AS t, quantity_delta AS d, quantity_after AS a, source_type AS st,
+                source_id AS sid, reason FROM stock_ledger_entries WHERE quantity_delta > 0 AND id <> 'e0'`,
+      )
+      .all();
+    expect(back).toEqual([
+      { t: "refund_return", d: 2, a: 5, st: "sales_order", sid: "o1", reason: "order_cancelled" },
+    ]);
+  });
+
+  it("given checkout's deduction never landed > then no stock is made out of nothing", async () => {
+    const raw = placed({ deducted: false });
+    expect(await cancel(raw)).toEqual({ ok: true, restockedUnits: 0 });
+    expect(onHand(raw)).toBe(5);
+  });
+
+  it("gives the coupon use back", async () => {
+    const raw = placed();
+    await cancel(raw);
+    expect(redemptions(raw)).toBe(0);
+  });
+
+  it("writes a 'cancelled' timeline step naming the reason, the note and who did it", async () => {
+    const raw = placed();
+    await cancel(raw, "other", "ลูกค้าสั่งซ้ำ");
+    const row = raw
+      .prepare(
+        `SELECT event, order_status AS os, actor_email AS actor, note, created_at AS at
+         FROM order_status_history WHERE order_id='o1' AND event='cancelled'`,
+      )
+      .get();
+    expect(row).toEqual({
+      event: "cancelled",
+      os: "cancelled",
+      actor: "boss@x.com",
+      note: "ยกเลิก: อื่นๆ · ลูกค้าสั่งซ้ำ",
+      at: NOW,
+    });
+  });
+
+  it("the customer asking costs them a credit point; the shop's own reason costs nothing", async () => {
+    const shop = placed();
+    await cancel(shop, "out_of_stock");
+    const asked = placed();
+    await cancel(asked, "customer_request");
+    expect(credit(asked)).toBe(credit(shop) - 1);
+  });
+
+  it("given a parcel already sent > then 409 and nothing changes", async () => {
+    const raw = placed({ orderStatus: "shipped", paymentStatus: "paid" });
+    const out = await cancel(raw);
+    expect(out).toMatchObject({ ok: false, code: 409 });
+    expect(onHand(raw)).toBe(3);
+    expect(redemptions(raw)).toBe(1);
+  });
+
+  it("given a slip still waiting to be checked > then 409: check the slip first", async () => {
+    const out = await cancel(placed({ paymentStatus: "verifying" }));
+    expect(out).toEqual({
+      ok: false,
+      code: 409,
+      reason: "check the payment slip before cancelling",
+    });
+  });
+
+  it("given a reason that is not one of the three > then 400", async () => {
+    const out = await cancel(placed(), "ลูกค้าขอยกเลิก");
+    expect(out).toMatchObject({ ok: false, code: 400 });
+  });
+
+  it("given a second cancel > then refused, and the stock is not given back twice", async () => {
+    const raw = placed();
+    await cancel(raw);
+    expect(await cancel(raw)).toMatchObject({ ok: false, code: 409 });
+    expect(onHand(raw)).toBe(5);
+  });
+
+  it("given the parcel was sent between our read and our write > then nothing else runs", async () => {
+    const raw = placed();
+    const d1 = asD1(raw);
+    const racing = {
+      ...d1,
+      prepare: d1.prepare,
+      async batch(stmts: unknown[]) {
+        raw.prepare(`UPDATE sales_orders SET order_status='shipped' WHERE id='o1'`).run();
+        return (d1 as unknown as { batch: (s: unknown[]) => unknown }).batch(stmts);
+      },
+    } as unknown as D1Database;
+    const out = await cancelOrderInDb(racing, "o1", { reason: "other", note: null }, "b", NOW);
+    expect(out).toMatchObject({ ok: false, code: 409 });
+    expect(order(raw)).toMatchObject({ orderStatus: "shipped", cancelReason: null });
+    expect(onHand(raw)).toBe(3);
+    expect(redemptions(raw)).toBe(1);
+    const cancelledRows = raw
+      .prepare(`SELECT COUNT(*) AS n FROM order_status_history WHERE event='cancelled'`)
+      .get() as { n: number };
+    expect(Number(cancelledRows.n)).toBe(0);
+  });
+
+  it("the Shopee list ignores a cancel: the sale and its return cancel out", async () => {
+    const raw = placed();
+    // Shopee was last brought in line after the opening stock and before this order.
+    raw.prepare(`UPDATE products SET shopee_synced_at = ? WHERE id='p1'`).run(NOW - 5_000);
+    await cancel(raw);
+    const res = await shopeeSyncWorklist({ DB: asD1(raw) } as unknown as Env);
+    expect(((await res.json()) as { items: unknown[] }).items).toEqual([]);
+  });
+
+  it("PATCH can no longer set cancelled — only the cancel action, which undoes things", async () => {
+    const raw = placed();
+    const out = await updateOrder(asD1(raw), "o1", { orderStatus: "cancelled" });
+    expect(out).toMatchObject({ ok: false, code: 409 });
+    expect(order(raw)).toMatchObject({ orderStatus: "new" });
+  });
+
+  describe("a paid order the shop cancelled becomes a full refund", () => {
+    it("reads as needs_refund on the order page", async () => {
+      const raw = placed({ paymentStatus: "paid" });
+      await cancel(raw);
+      const d = await getOrderDetail(asD1(raw), "o1", NOW);
+      expect(d!.refundAction).toBe("needs_refund");
+    });
+
+    it("recordRefund pays it back in full without restocking a second time", async () => {
+      const raw = placed({ paymentStatus: "paid" });
+      await cancel(raw);
+      const out = await recordRefund(asD1(raw), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
+      expect(out.ok).toBe(true);
+      expect(onHand(raw)).toBe(5);
+      const row = raw
+        .prepare(`SELECT payment_status AS p, refund_satang AS r FROM sales_orders WHERE id='o1'`)
+        .get();
+      expect(row).toEqual({ p: "refunded", r: 195000 });
+      const note = raw
+        .prepare(`SELECT note FROM order_status_history WHERE event='refunded'`)
+        .get() as { note: string };
+      expect(note.note).toBe("คืนเงินแล้ว (ยกเลิก)");
+    });
+
+    it("an unpaid cancelled order is not refundable", async () => {
+      const raw = placed();
+      await cancel(raw);
+      expect((await recordRefund(asD1(raw), "o1", "k", "b", NOW)).code).toBe(409);
+    });
+  });
+
+  describe("an unpaid order that expires gives its stock back too", () => {
+    const LATE = NOW + 49 * 60 * 60 * 1000;
+
+    it("expiry returns what checkout took, marked as an expiry", async () => {
+      const raw = placed({ coupon: false });
+      expect(await expireUnpaidOrders(asD1(raw), LATE)).toBe(1);
+      expect(onHand(raw)).toBe(5);
+      const back = raw
+        .prepare(`SELECT reason FROM stock_ledger_entries WHERE movement_type='refund_return'`)
+        .all();
+      expect(back).toEqual([{ reason: "order_expired" }]);
+    });
+
+    it("a second sweep finds nothing and returns nothing twice", async () => {
+      const raw = placed({ coupon: false });
+      await expireUnpaidOrders(asD1(raw), LATE);
+      expect(await expireUnpaidOrders(asD1(raw), LATE + 1)).toBe(0);
+      expect(onHand(raw)).toBe(5);
+    });
   });
 });

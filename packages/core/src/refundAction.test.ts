@@ -79,3 +79,22 @@ describe("classifyRefundAction > the 1-year forfeiture window", () => {
     expect(classifyRefundAction({ ...BOUNCED_PAID, failedAt: null }, NOW)).toBe("needs_refund");
   });
 });
+
+describe("classifyRefundAction > a paid order the shop cancelled (owner, 30 Oct 2026)", () => {
+  const CANCELLED_PAID: RefundActionInput = { ...BOUNCED_PAID, orderStatus: "cancelled" };
+
+  it("given cancelled + paid + not refunded > then it needs the full refund", () => {
+    expect(classifyRefundAction(CANCELLED_PAID, NOW)).toBe("needs_refund");
+  });
+
+  it("given cancelled + never paid > then there is nothing to give back", () => {
+    expect(classifyRefundAction({ ...CANCELLED_PAID, paymentStatus: "pending" }, NOW)).toBe("none");
+    expect(classifyRefundAction({ ...CANCELLED_PAID, paymentStatus: "cod" }, NOW)).toBe("none");
+  });
+
+  it("given cancelled and already paid back > then refunded", () => {
+    expect(classifyRefundAction({ ...CANCELLED_PAID, refundedAt: NOW - 1000 }, NOW)).toBe(
+      "refunded",
+    );
+  });
+});

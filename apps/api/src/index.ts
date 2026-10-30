@@ -57,6 +57,12 @@ import {
   canDeleteProduct,
   canViewFinance,
   canRefund,
+  canCancelOrderRole,
+  cancelBlock,
+  cancelReasonLabel,
+  isCancelReason,
+  CANCELLABLE_ORDER_STATUSES,
+  type CancelBlock,
   canWrite,
   canReviewPaymentRole,
   canViewSlips,
@@ -70,6 +76,7 @@ import {
   canRecordDropOff,
   canShipOrder,
   normalizePaymentStatus,
+  normalizeOrderStatus,
   privateFileAccess,
   validateExpenseInput,
   type ExpenseInput,
@@ -991,6 +998,17 @@ export class StockLedger extends DurableObject<Env> {
 
   async refundSale(saleId: string): Promise<RefundResult> {
     return this.ctx.blockConcurrencyWhile(() => refundSaleToDb(this.env.DB, saleId));
+  }
+
+  /** The shop cancels an unsent AirPlus order — the stock it gives back is a stock write too. */
+  async cancelOrder(
+    orderId: string,
+    input: { reason: string; note: string | null },
+    actorEmail: string | null,
+  ): Promise<CancelOrderResult> {
+    return this.ctx.blockConcurrencyWhile(() =>
+      cancelOrderInDb(this.env.DB, orderId, input, actorEmail),
+    );
   }
 }
 
@@ -2323,20 +2341,26 @@ export interface ShopeeWorklistItem {
 /**
  * The dashboard "Update on Shopee" worklist: products the owner lists on Shopee whose stock has moved
  * since they last reconciled it there. `online_sale` is excluded — a Shopee order already decremented
- * Shopee's own count, so it needs no manual update. On-hand is the whole-ledger SUM (the invariant),
+ * Shopee's own count, so it needs no manual update — and so is the stock a cancelled or expired
+ * online order gives back, which only reverses an `online_sale` the list never counted (see
+ * SHOPEE_COUNTED). On-hand is the whole-ledger SUM (the invariant),
  * while the "reduce" delta only counts movements newer than shopee_synced_at, so a product drops off
  * the list the moment Clear stamps that column — and stays off until it moves again. Net-zero changes
  * (a sale then an equal restock) are filtered out: the Shopee number would be unchanged.
  */
+const SHOPEE_COUNTED = `e.movement_type <> 'online_sale'
+  AND NOT (e.movement_type = 'refund_return'
+           AND COALESCE(e.reason, '') IN ('order_cancelled', 'order_expired'))`;
+
 export async function shopeeSyncWorklist(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id AS productId, p.product_ref AS productRef, p.name AS name,
             SUM(e.quantity_delta) AS onHand,
             SUM(CASE WHEN e.created_at > COALESCE(p.shopee_synced_at, 0)
-                          AND e.movement_type <> 'online_sale'
+                          AND ${SHOPEE_COUNTED}
                      THEN e.quantity_delta ELSE 0 END) AS deltaSinceSync,
             MAX(CASE WHEN e.created_at > COALESCE(p.shopee_synced_at, 0)
-                          AND e.movement_type <> 'online_sale'
+                          AND ${SHOPEE_COUNTED}
                      THEN e.created_at END) AS lastChangedAt
      FROM products p
      JOIN product_variants v ON v.product_id = p.id
@@ -3117,8 +3141,12 @@ export async function getOrderDetail(
 
   // The parcel-bounce timestamp anchors the 1-year refund window. Timeline is newest-first, so the
   // first delivery_failed row is the most recent bounce.
+  // For a cancelled order the anchor is the cancel step itself.
   const failedAt =
-    (timeline ?? []).find((t) => t.orderStatus === "delivery_failed")?.createdAt ?? null;
+    (orderFields.orderStatus === "cancelled"
+      ? (timeline ?? []).find((t) => t.event === "cancelled")
+      : (timeline ?? []).find((t) => t.orderStatus === "delivery_failed")
+    )?.createdAt ?? null;
 
   return {
     order: orderFields,
@@ -3337,6 +3365,17 @@ export async function updateOrder(
     .first<OrderRow & { slipImageKey: string | null }>();
   if (!row) return { ok: false, code: 404, reason: "not found" };
 
+  // A cancel gives stock and the coupon back and turns a paid order into a refund; a bare status
+  // write would do none of that. So cancelling has exactly one door — cancelOrderInDb (owner,
+  // 30 Oct 2026). Legacy Thai values normalise first, so "ยกเลิก" cannot walk around it.
+  if (
+    "orderStatus" in patch &&
+    normalizeOrderStatus(patch.orderStatus) === "cancelled" &&
+    normalizeOrderStatus(row.orderStatus) !== "cancelled"
+  ) {
+    return { ok: false, code: 409, reason: "use the cancel action to cancel an order" };
+  }
+
   // A parcel cannot go out before the money is settled AND — for a bank transfer — before the slip
   // that settled it is on the order. The owner's sequence, 27 Aug 2026: placed, paid, slip
   // approved, shipped. See canShipOrder for why COD is exempt.
@@ -3529,6 +3568,165 @@ export async function reviewOrderPayment(
   return { ok: true, paymentStatus: "paid" };
 }
 
+export type CancelOrderResult =
+  { ok: true; restockedUnits: number } | { ok: false; code: 400 | 404 | 409; reason: string };
+
+export async function cancelOrderInDb(
+  db: D1Database,
+  id: string,
+  input: { reason: string; note?: string | null },
+  actorEmail: string | null = null,
+  now: number = Date.now(),
+): Promise<CancelOrderResult> {
+  if (!isCancelReason(input.reason))
+    return { ok: false, code: 400, reason: "pick one of the three cancel reasons" };
+  const note = (input.note ?? "").trim() || null;
+
+  const order = await db
+    .prepare(
+      `SELECT order_status AS orderStatus, payment_status AS paymentStatus,
+              storefront_customer_id AS customerId
+       FROM sales_orders WHERE id = ? AND channel = 'airplus'`,
+    )
+    .bind(id)
+    .first<{
+      orderStatus: string | null;
+      paymentStatus: string | null;
+      customerId: string | null;
+    }>();
+  if (!order) return { ok: false, code: 404, reason: "not found" };
+  const block = cancelBlock({
+    orderStatus: order.orderStatus ?? "",
+    paymentStatus: order.paymentStatus ?? "",
+  });
+  if (block) return { ok: false, code: 409, reason: CANCEL_BLOCK_REASONS[block] };
+
+  // ONE batch, so a cancel never half-happens. The UPDATE is guarded on the order still being
+  // cancellable; everything after it is guarded on that UPDATE having been THIS cancel (cancelled_at
+  // equals our own timestamp). If the drop-off form won the race in between, the UPDATE changes
+  // nothing and neither does anything else — no stock out of nothing, no lost coupon, no stray step.
+  const thisCancel = {
+    sql: `EXISTS (SELECT 1 FROM sales_orders WHERE id = ? AND order_status = 'cancelled' AND cancelled_at = ?)`,
+    binds: [id, now],
+  };
+  const statusList = CANCELLABLE_ORDER_STATUSES.map(() => "?").join(",");
+  const restock = await restockOrderStatements(db, id, "order_cancelled", now, thisCancel);
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE sales_orders SET order_status = 'cancelled', cancel_reason = ?, cancelled_at = ?
+         WHERE id = ? AND channel = 'airplus' AND order_status IN (${statusList})
+           AND COALESCE(payment_status, '') <> 'verifying'`,
+      )
+      .bind(input.reason, now, id, ...CANCELLABLE_ORDER_STATUSES),
+    ...restock.statements,
+    // The coupon goes back: usage is COUNT(*) over coupon_redemptions, so the customer may use it
+    // again. The order keeps its own discount figures — the money record of what was offered.
+    db
+      .prepare(`DELETE FROM coupon_redemptions WHERE sales_order_id = ? AND ${thisCancel.sql}`)
+      .bind(id, ...thisCancel.binds),
+    db
+      .prepare(
+        `INSERT INTO order_status_history
+           (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+         SELECT ?, ?, 'cancelled', (SELECT payment_status FROM sales_orders WHERE id = ?),
+                'cancelled', ?, ?, ?
+         WHERE ${thisCancel.sql}`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        id,
+        id,
+        actorEmail,
+        `ยกเลิก: ${cancelReasonLabel(input.reason)}${note ? ` · ${note}` : ""}`,
+        now,
+        ...thisCancel.binds,
+      ),
+  ];
+  await db.batch(statements);
+
+  const after = await db
+    .prepare(`SELECT cancelled_at AS cancelledAt FROM sales_orders WHERE id = ?`)
+    .bind(id)
+    .first<{ cancelledAt: number | null }>();
+  if (after?.cancelledAt !== now)
+    return { ok: false, code: 409, reason: "this order changed while it was being cancelled" };
+
+  if (order.customerId) await recalculateCustomerCredit(db, order.customerId, now);
+  return { ok: true, restockedUnits: restock.units };
+}
+
+const CANCEL_BLOCK_REASONS: Record<CancelBlock, string> = {
+  already_sent: "this order has been sent, so it is a return or a claim, not a cancel",
+  already_closed: "this order is already cancelled or expired",
+  check_slip_first: "check the payment slip before cancelling",
+};
+
+/**
+ * The ledger rows that give back what an online order took — what its own `sales_order` rows still
+ * net out to, per variant. Checkout's deduction is best-effort, so an order whose deduction never
+ * landed nets to zero and restocks nothing; an order already given back nets to zero too, which is
+ * what makes this safe to run twice. `reason` tags the rows so the Shopee list can ignore them: the
+ * sale they reverse never reached that list either. `guard`, when given, makes every row conditional
+ * (see cancelOrderInDb).
+ *
+ * The cancel runs it inside the StockLedger Durable Object; the expiry sweep runs it directly, as
+ * recordRefund does. On-hand is always the ledger SUM, so `quantity_after` is the only thing a
+ * concurrent write could leave slightly stale.
+ */
+async function restockOrderStatements(
+  db: D1Database,
+  orderId: string,
+  reason: "order_cancelled" | "order_expired",
+  now: number,
+  guard?: { sql: string; binds: unknown[] },
+): Promise<{ statements: D1PreparedStatement[]; units: number }> {
+  const { results: taken } = await db
+    .prepare(
+      `SELECT product_variant_id AS variantId, -SUM(quantity_delta) AS quantity
+       FROM stock_ledger_entries WHERE source_type = 'sales_order' AND source_id = ?
+       GROUP BY product_variant_id`,
+    )
+    .bind(orderId)
+    .all<{ variantId: string; quantity: number }>();
+
+  const statements: D1PreparedStatement[] = [];
+  let units = 0;
+  for (const line of taken ?? []) {
+    const quantity = Number(line.quantity);
+    if (quantity <= 0) continue;
+    const row = await db
+      .prepare(
+        "SELECT COALESCE(SUM(quantity_delta), 0) AS onHand FROM stock_ledger_entries WHERE product_variant_id = ?",
+      )
+      .bind(line.variantId)
+      .first<{ onHand: number }>();
+    const after = Number(row?.onHand ?? 0) + quantity;
+    units += quantity;
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO stock_ledger_entries
+             (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type,
+              source_id, reason, created_at)
+           SELECT ?, ?, 'refund_return', ?, ?, 'sales_order', ?, ?, ?
+           ${guard ? `WHERE ${guard.sql}` : ""}`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          line.variantId,
+          quantity,
+          after,
+          orderId,
+          reason,
+          now,
+          ...(guard?.binds ?? []),
+        ),
+    );
+  }
+  return { statements, units };
+}
+
 export interface RecordRefundResult {
   ok: boolean;
   code?: number;
@@ -3576,17 +3774,20 @@ export async function recordRefund(
   // Only a bounced order whose money we actually hold is refundable here; every other return/claim is
   // handled off-system via LINE OA. The 1-year window only silences the reminder — it never blocks a
   // refund the owner chooses to make — so it is not part of this guard.
+  const cancelled = order.orderStatus === "cancelled";
   if (
-    order.orderStatus !== "delivery_failed" ||
+    (order.orderStatus !== "delivery_failed" && !cancelled) ||
     !["paid", "cod_collected"].includes(order.paymentStatus ?? "")
   )
     return {
       ok: false,
       code: 409,
-      reason: "only a paid, failed-delivery order can be refunded here",
+      reason: "only a paid order that bounced or was cancelled can be refunded here",
     };
   if (!slipImageKey) return { ok: false, code: 400, reason: "a refund slip is required" };
 
+  // A cancelled order's stock already came back at the cancel (cancelOrderInDb) — the goods never
+  // left the shelf — so only a bounced parcel restocks here.
   // Restock the returned goods. On-hand is read once per variant then threaded as a running total, so
   // two lines of the same variant stack rather than each restocking off the same pre-batch read.
   const { results: lines } = await db
@@ -3598,7 +3799,7 @@ export async function recordRefund(
 
   const statements: D1PreparedStatement[] = [];
   const onHand: Record<string, number> = {};
-  for (const line of lines ?? []) {
+  for (const line of cancelled ? [] : (lines ?? [])) {
     if (!line.variantId) continue;
     const vid = line.variantId;
     if (!(vid in onHand)) {
@@ -3644,7 +3845,7 @@ export async function recordRefund(
     paymentStatus: "refunded",
     event: "refunded",
     actorEmail,
-    note: "คืนเงินแล้ว (ตีกลับ)",
+    note: cancelled ? "คืนเงินแล้ว (ยกเลิก)" : "คืนเงินแล้ว (ตีกลับ)",
     at: now,
   });
   return { ok: true };
@@ -3815,6 +4016,14 @@ export async function expireUnpaidOrders(
     )
     .bind(EXPIRY_MS, now)
     .run();
+
+  // An unpaid order took its stock at checkout; expiring it gives that back (owner, 30 Oct 2026 —
+  // before this, every expired order quietly lost its units). Only the orders THIS sweep moved:
+  // the stale list was read under the same predicate, and a twice-run restock nets to nothing.
+  for (const o of stale) {
+    const { statements } = await restockOrderStatements(db, o.id, "order_expired", now);
+    if (statements.length) await db.batch(statements);
+  }
 
   // No human triggers this, and it runs inside a GET which the audit wrapper ignores — so these
   // rows are the only trace an expiry leaves anywhere. Null actor: the system did it.
@@ -4439,13 +4648,18 @@ export async function recalculateCustomerCredit(
   // Oldest first: recovery is order-sensitive — a −1 mistake is repaid only by 2 LATER completions.
   const { results: orders } = await db
     .prepare(
-      `SELECT order_status AS orderStatus, payment_status AS paymentStatus
+      `SELECT order_status AS orderStatus, payment_status AS paymentStatus,
+              cancel_reason AS cancelReason
        FROM sales_orders
        WHERE storefront_customer_id = ? AND channel = 'airplus'
        ORDER BY COALESCE(order_created_at, imported_at) ASC`,
     )
     .bind(customerId)
-    .all<{ orderStatus: string | null; paymentStatus: string | null }>();
+    .all<{
+      orderStatus: string | null;
+      paymentStatus: string | null;
+      cancelReason: string | null;
+    }>();
 
   const orderCredit = computeCreditFromOrders(orders ?? []);
 
@@ -7798,6 +8012,26 @@ const worker = {
       );
       return out.ok
         ? json({ ok: true, paymentStatus: out.paymentStatus })
+        : json({ error: out.reason }, out.code);
+    }
+
+    // Cancel an order that has not been sent (owner, 30 Oct 2026): status, stock back, coupon back and
+    // the timeline in one step. The owner or an admin; a mechanic never. It runs inside the
+    // StockLedger Durable Object so the stock it returns is serialized with every other stock write.
+    // 409 if the order has been sent, is already closed, or has a slip waiting; 400 on a bad reason.
+    const orderCancel = url.pathname.match(/^\/orders\/([^/]+)\/cancel$/);
+    if (orderCancel && request.method === "POST") {
+      if (!viewerStaff || !canCancelOrderRole(viewerStaff.role))
+        return json({ error: "owner or admin only" }, 403);
+      const body = await readJson<{ reason?: string; note?: string }>(request);
+      const ledger = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const out = await ledger.cancelOrder(
+        orderCancel[1]!,
+        { reason: body?.reason ?? "", note: body?.note ?? null },
+        userEmail,
+      );
+      return out.ok
+        ? json({ ok: true, restockedUnits: out.restockedUnits })
         : json({ error: out.reason }, out.code);
     }
 
