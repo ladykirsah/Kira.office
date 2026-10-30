@@ -556,6 +556,23 @@ export default function ShopInfoPage() {
                           aria-label={t({ th: "พร้อมเพย์ไอดี", en: "PromptPay ID" })}
                           style={{ ...inputL, flex: 1, minWidth: 0 }}
                         />
+                        <input
+                          value={pm.accountName ?? ""}
+                          onChange={(e) =>
+                            write(
+                              methods.map((x) =>
+                                x.id === pm.id ? { ...x, accountName: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          placeholder={t({
+                            th: "ชื่อที่แอปธนาคารแสดง",
+                            en: "Name the banking app shows",
+                          })}
+                          aria-label={t({ th: "ชื่อตามบัญชีธนาคาร", en: "Bank account name" })}
+                          title={t({ th: "ชื่อตามบัญชีธนาคาร", en: "Bank account name" })}
+                          style={{ ...inputL, flex: 1, minWidth: 0 }}
+                        />
                         <label
                           style={{
                             display: "flex",
@@ -705,6 +722,12 @@ export default function ShopInfoPage() {
                     <span style={valueStyle}>{pm.label}</span>
                     <span className="muted">·</span>
                     <span style={valueStyle}>{pm.promptpayId}</span>
+                    {pm.accountName && (
+                      <>
+                        <span className="muted">·</span>
+                        <span style={valueStyle}>{pm.accountName}</span>
+                      </>
+                    )}
                     {pm.isDefault && <span className="pill good">{t(DEFAULT_LABEL)}</span>}
                   </div>
                 ));

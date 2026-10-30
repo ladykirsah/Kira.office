@@ -207,6 +207,8 @@ interface SyncSale {
   licensePlate?: string;
   vehicle?: string;
   notes?: string;
+  mileageKm?: number | null; // the car's mileage (km) on this bill; null/absent = not recorded
+  buyerName?: string | null; // the mechanic buyer's name on a ช่าง/B2B bill
   lines: SyncLine[];
 }
 
@@ -614,6 +616,40 @@ export function validateSyncLine(line: SyncLine): string | null {
   return null;
 }
 
+const MAX_MILEAGE_KM = 9_999_999;
+const MAX_BUYER_NAME_CHARS = 80;
+
+export interface BillExtras {
+  mileageKm: number | null;
+  buyerName: string | null;
+}
+
+/**
+ * The ทำบิล page's optional bill facts, checked and tidied before anything is stored: the car's
+ * mileage (a whole number of km) and a mechanic buyer's name (trimmed; blank = none).
+ * null/absent = not recorded.
+ */
+export function readBillExtras(input: {
+  mileageKm?: unknown;
+  buyerName?: unknown;
+}): { ok: true; extras: BillExtras } | { ok: false; error: string } {
+  const km = input.mileageKm ?? null;
+  const isValidKm =
+    typeof km === "number" && Number.isInteger(km) && km >= 0 && km <= MAX_MILEAGE_KM;
+  if (km !== null && !isValidKm) {
+    return { ok: false, error: "mileage must be a whole number of km, 0 to 9,999,999" };
+  }
+  const rawName = input.buyerName ?? null;
+  if (rawName !== null && typeof rawName !== "string") {
+    return { ok: false, error: "buyer name must be text" };
+  }
+  const buyerName = rawName?.trim() || null;
+  if (buyerName && Array.from(buyerName).length > MAX_BUYER_NAME_CHARS) {
+    return { ok: false, error: "buyer name must be 80 characters or fewer" };
+  }
+  return { ok: true, extras: { mileageKm: km as number | null, buyerName } };
+}
+
 interface VariantTaxProfile {
   variantId: string;
   vatRateBp: number;
@@ -749,6 +785,12 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       validationErrors.push({ clientUuid: sale.clientUuid, reason: invalidReason });
       continue;
     }
+    const checked = readBillExtras(sale);
+    if (!checked.ok) {
+      validationErrors.push({ clientUuid: sale.clientUuid, reason: checked.error });
+      continue;
+    }
+    const { extras } = checked;
 
     const enrichedLines = sale.lines.map((l) =>
       enrichLineTax(withProductCost(l, costByVariant), taxByVariant),
@@ -861,8 +903,8 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       db
         .prepare(
           `INSERT OR IGNORE INTO onsite_sales
-           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, vehicle, notes, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, vehicle, notes, mileage_km, buyer_name, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           saleId,
@@ -873,6 +915,8 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
           sale.licensePlate?.trim() || null,
           sale.vehicle?.trim() || null,
           sale.notes?.trim() || null,
+          extras.mileageKm,
+          extras.buyerName,
           "synced",
           subtotal,
           discountTotal,
@@ -4155,6 +4199,8 @@ export interface DraftInput {
   licensePlate?: string | null;
   vehicle?: string | null;
   notes?: string | null;
+  mileageKm?: number | null; // the car's mileage (km); null/absent = not recorded
+  buyerName?: string | null; // the mechanic buyer's name on a ช่าง/B2B bill
   lines: SyncLine[];
   // Bill-level discount (drafts/quotations store it here so the total is right and a reopened quote
   // restores the exact input). `discountSatang` is the computed amount; kind/value are the raw input.
@@ -4175,6 +4221,9 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
     const reason = validateSyncLine(line);
     if (reason) return { ok: false, error: reason };
   }
+  const checked = readBillExtras(draft);
+  if (!checked.ok) return { ok: false, error: checked.error };
+  const { extras } = checked;
   // A finalized bill must never be reopened as an editable draft. Reusing a bill's id here would
   // flip its stage/totals via the upsert and strip its lines via the unconditional delete below —
   // silently corrupting a real financial record. New drafts mint fresh ids, so this only trips when
@@ -4202,16 +4251,18 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
     db
       .prepare(
         `INSERT INTO onsite_sales
-           (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, sync_status,
-            subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang,
-            discount_kind, discount_value, sale_status, stage, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+           (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, mileage_km,
+            buyer_name, sync_status, subtotal_satang, discount_total_satang, tax_total_satang,
+            grand_total_satang, discount_kind, discount_value, sale_status, stage, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            sale_number = excluded.sale_number,
            sale_type = excluded.sale_type,
            license_plate = excluded.license_plate,
            vehicle = excluded.vehicle,
            notes = excluded.notes,
+           mileage_km = excluded.mileage_km,
+           buyer_name = excluded.buyer_name,
            subtotal_satang = excluded.subtotal_satang,
            discount_total_satang = excluded.discount_total_satang,
            tax_total_satang = excluded.tax_total_satang,
@@ -4228,6 +4279,8 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
         draft.licensePlate?.trim() || null,
         draft.vehicle?.trim() || null,
         draft.notes?.trim() || null,
+        extras.mileageKm,
+        extras.buyerName,
         totals.subtotalSatang,
         billDiscount,
         totals.taxTotalSatang,
@@ -4280,6 +4333,7 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
     .prepare(
       `SELECT id, client_uuid AS clientUuid, sale_number AS saleNumber, sale_type AS saleType,
               license_plate AS licensePlate, vehicle, notes, stage,
+              mileage_km AS mileageKm, buyer_name AS buyerName,
               grand_total_satang AS grandTotalSatang, discount_total_satang AS discountTotalSatang,
               discount_kind AS discountKind, discount_value AS discountValue, created_at AS createdAt
        FROM onsite_sales WHERE stage IN ('draft', 'quotation')
@@ -4337,6 +4391,7 @@ export async function getOnsiteSale(db: D1Database, id: string): Promise<unknown
     .prepare(
       `SELECT id, sale_number AS saleNumber, sale_type AS saleType, license_plate AS licensePlate,
               vehicle, notes, payment_method AS paymentMethod, stage, sale_status AS saleStatus,
+              mileage_km AS mileageKm, buyer_name AS buyerName,
               subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
               tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
               created_at AS createdAt
@@ -4473,7 +4528,7 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
       `SELECT id, sale_number AS saleNumber, stage, created_at AS createdAt,
               subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
               tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
-              notes, vehicle
+              notes, vehicle, mileage_km AS mileageKm, buyer_name AS buyerName
        FROM onsite_sales
        WHERE license_plate = ? AND stage IN ('bill', 'quotation')
        ORDER BY created_at DESC LIMIT 200`,
@@ -4505,6 +4560,17 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
     }
   }
   const withLines = sales.map((s) => ({ ...s, lines: byId.get(s.id) ?? [] }));
+  // The car's last known mileage: the newest BILL that recorded one (a quotation is not a visit).
+  // Its own query, so a reading older than the 200-row history page is still found.
+  const lastMileageRow = await db
+    .prepare(
+      `SELECT mileage_km AS km, created_at AS at
+       FROM onsite_sales
+       WHERE license_plate = ? AND stage = 'bill' AND mileage_km IS NOT NULL
+       ORDER BY created_at DESC LIMIT 1`,
+    )
+    .bind(plate)
+    .first<{ km: number; at: number }>();
   // Transcribed legacy service history (paper/Excel era) — shown on the same timeline, but these
   // are memory-only rows: no totals, no reprint, never in Sales.
   const legacyRows = await db
@@ -4540,6 +4606,7 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
     history: withLines.filter((s) => s.stage === "bill"),
     quotations: withLines.filter((s) => s.stage === "quotation"),
     legacy,
+    lastMileage: lastMileageRow ? { km: lastMileageRow.km, at: lastMileageRow.at } : null,
   };
 }
 

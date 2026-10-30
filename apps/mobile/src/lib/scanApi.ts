@@ -40,9 +40,9 @@ export interface PayAccount {
   promptpayId: string;
 }
 
-const session = (token: string) => ({ [STAFF_SESSION_HEADER]: token });
+export const session = (token: string) => ({ [STAFF_SESSION_HEADER]: token });
 
-function sendJson(token: string, body: unknown): RequestInit {
+export function sendJson(token: string, body: unknown): RequestInit {
   return {
     method: "POST",
     headers: { ...session(token), "content-type": "application/json" },
@@ -51,7 +51,7 @@ function sendJson(token: string, body: unknown): RequestInit {
 }
 
 /** The API's own refusal sentence when it gives one, else the status — never a silent failure. */
-async function failure(res: Response, what: string): Promise<Error> {
+export async function failure(res: Response, what: string): Promise<Error> {
   const body = (await res.json().catch(() => ({}))) as { error?: unknown };
   return new Error(typeof body.error === "string" ? body.error : `${what} (HTTP ${res.status})`);
 }

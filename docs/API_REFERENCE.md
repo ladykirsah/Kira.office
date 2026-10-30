@@ -115,7 +115,7 @@ car_brand, car_model}`.
 
 | Method | Path | Client fn | Notes |
 | --- | --- | --- | --- |
-| `POST` | `/sync` | _(POS outbox via `/api/worker`)_ | Body `{sales: SyncSale[]}` → `SyncResult {applied, duplicates, conflicts[], validationErrors[]}`. **Idempotent on `clientUuid`**; runs through the `StockLedger` DO; **fail-closed** on oversell (entire sale rejected) or invalid lines (`validationErrors`). |
+| `POST` | `/sync` | _(POS outbox via `/api/worker`)_ | Body `{sales: SyncSale[]}` → `SyncResult {applied, duplicates, conflicts[], validationErrors[]}`. **Idempotent on `clientUuid`**; runs through the `StockLedger` DO; **fail-closed** on oversell (entire sale rejected) or invalid lines (`validationErrors`). A sale may carry optional `mileageKm` (whole km, 0–9,999,999) and `buyerName` (trimmed, blank = none, max 80 chars); a bad value refuses that sale with a `validationErrors` reason. Drafts (`POST /onsite/drafts`) take the same two fields (bad value → 400), and `GET /onsite/drafts`, `GET /onsite/sales/:id` and each `GET /customers/:plate` sale row return them; `GET /customers/:plate` also returns `lastMileage: {km, at} \| null` (newest bill with a reading). |
 | `POST` | `/import/products` | `importProductsCsv()` | Body `{csv, mapping}` → `{received, valid, invalid, errors[]}`. |
 | `POST` | `/import/shopee-orders` | `importShopeeOrdersCsv()` | Body `{csv, mapping}` → `{received, imported, duplicates, invalid, errors[]}`. CSV bridge until live Shopee API. |
 

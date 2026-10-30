@@ -11,7 +11,20 @@ export interface PaymentMethod {
   position: string; // the person's role in the shop ("เจ้าของ", "พนักงาน") — shown on the Pay-to dropdown
   label: string; // who gets paid — "ร้าน", "แม่", "พ่อ" …
   promptpayId: string; // phone / national ID / e-wallet (validated by promptpay.ts at QR time)
+  // The bank account holder's name, shown in readable text under every payment QR (owner,
+  // 2026-10-30: "always provide account name with the payment QR code"). Optional: older data has none.
+  accountName?: string;
   isDefault?: boolean;
+}
+
+const MAX_ACCOUNT_NAME_CHARS = 100;
+
+/** A usable account name: trimmed and capped; blank or not text → none. */
+function cleanAccountName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return Array.from(trimmed).slice(0, MAX_ACCOUNT_NAME_CHARS).join("");
 }
 
 /** Parse the stored JSON; tolerant — bad JSON / wrong shapes / incomplete entries are dropped. */
@@ -31,11 +44,13 @@ export function parsePaymentMethods(json: string | null | undefined): PaymentMet
     if (typeof e.id !== "string" || !e.id) continue;
     if (typeof e.label !== "string" || !e.label.trim()) continue;
     if (typeof e.promptpayId !== "string" || !e.promptpayId.trim()) continue;
+    const accountName = cleanAccountName(e.accountName);
     out.push({
       id: e.id,
       position: typeof e.position === "string" ? e.position : "", // optional; older data has none
       label: e.label,
       promptpayId: e.promptpayId,
+      ...(accountName ? { accountName } : {}),
       ...(e.isDefault === true ? { isDefault: true } : {}),
     });
   }
@@ -56,6 +71,7 @@ export function serializePaymentMethods(methods: PaymentMethod[]): string {
       position: m.position ?? "",
       label: m.label,
       promptpayId: m.promptpayId,
+      ...(m.accountName ? { accountName: m.accountName } : {}),
       ...(m.id === defaultId ? { isDefault: true } : {}),
     })),
   );

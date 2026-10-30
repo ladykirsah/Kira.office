@@ -409,3 +409,17 @@ sources: [session 2026-08-09]
   reason. Refunds never expire any more (the 1-year forfeit is gone). See
   [commerce/order-lifecycle](commerce/order-lifecycle.md) and
   [commerce/refunds-and-returns](commerce/refunds-and-returns.md).
+
+- **2026-10-30** — Server pieces for the Expo ทำบิล page: migration 0093 adds `onsite_sales.mileage_km`
+  + `buyer_name` (sent on `/sync` and `/onsite/drafts`, returned by drafts / one sale / customer page;
+  the customer page also gets `lastMileage`). Payment methods gain an optional `accountName` (core
+  parse/serialize). See [back-office/onsite-pos](back-office/onsite-pos.md) and
+  [commerce/payments-promptpay](commerce/payments-promptpay.md).
+
+- **2026-10-30** — The Expo app's ทำบิล page (`/pos`): ขายให้ ลูกค้า | ช่าง first (ช่าง = optional
+  name + ราคาช่าง), plate lookup with the newest เลขไมล์ and its date, add part (sold-out hidden) /
+  service, discount, drafts tray, quotation with its own file, cash or PromptPay QR with the account
+  name, then the ออกบิลแล้ว page with share / PDF. Bills made with no internet wait on the phone and
+  send themselves later. Two new rules in
+  [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md). See
+  [back-office/onsite-pos](back-office/onsite-pos.md).

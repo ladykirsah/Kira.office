@@ -126,6 +126,11 @@ again before saying a build matches.** The owner's words are quoted where they s
   Don't show money where it isn't needed: *"no need to mention money here"* (Orders rows).
 - **Search: a match is a result.** One list ("พบ N ออเดอร์"), newest first. One letter off = no
   result. Never split it into "best match" + "other results".
+- **Pick lists show only what can be sold.** A part with 0 in stock never appears in a pick list.
+  *"0 in stock = hidden list and never appear on the pickable list at the start"* (ทำบิล, 30 Oct).
+- **A payment QR always shows the account name**, readable, right under the code (plus the
+  PromptPay number), so the customer sees who they pay. *"always provide account name with the
+  payment QR code (readable)"* (30 Oct).
 - **Lists:** rows of 52 / 68 / 84 with a real photo. Counts in tabs (Shopify-style status tabs
   with counts).
 - **Sample data must add up.** If the list says 2, draw 2 cards. Totals must match across tabs.
