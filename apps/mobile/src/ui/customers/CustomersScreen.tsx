@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { accountName, plateLine, rowDate } from "@/lib/customerPage";
+import { accountName, plateLine, rowDate, sideLabel } from "@/lib/customerPage";
 import type { AccountRow, CarRow } from "@/lib/customersApi";
 import { useLang, useTheme } from "../AppProviders";
 import { Group, Row, SmallButton } from "../orders/parts";
@@ -16,7 +16,7 @@ const NOT_FOUND_ICON =
   "M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3.5 20v-1a5 5 0 0 1 5-5h2.5M15.6 15.2a1.9 1.9 0 1 1 2.8 1.7c-.5.3-.9.7-.9 1.3M17.5 20.6h.01";
 
 /**
- * ลูกค้า (owner approved the drawing, canvas v151, 30 Oct 2026): หน้าร้าน cars and AirPlus accounts,
+ * ลูกค้า (owner approved the drawing, canvas v151, 30 Oct 2026): เด่นแอร์ cars and AirPlus accounts,
  * each with a summary card, a search box and one list. Tapping a row opens its page.
  */
 export function CustomersScreen() {
@@ -39,8 +39,8 @@ export function CustomersScreen() {
         <Segmented
           label={t({ th: "ลูกค้าของ", en: "Customers of" })}
           options={[
-            { value: "shop", label: t({ th: "หน้าร้าน", en: "Shop" }) },
-            { value: "airplus", label: "AirPlus" },
+            { value: "shop", label: t(sideLabel("shop")) },
+            { value: "airplus", label: t(sideLabel("airplus")) },
           ]}
           value={list.side}
           onChange={list.switchSide}

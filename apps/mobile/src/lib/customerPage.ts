@@ -40,6 +40,16 @@ export const MAX_ITEMS = 3;
 
 const same = (text: string): Phrase => ({ th: text, en: text });
 
+const SIDE_LABELS: Record<"shop" | "airplus", Phrase> = {
+  shop: { th: "เด่นแอร์", en: "Den Air" },
+  airplus: same("AirPlus"),
+};
+
+/** The two tabs of ลูกค้า: Den Air's own cars, then AirPlus accounts (owner, 31 Oct 2026: not หน้าร้าน). */
+export function sideLabel(side: "shop" | "airplus"): Phrase {
+  return SIDE_LABELS[side];
+}
+
 /** The province always rides with the plate (owner: "city is the part of plate"). */
 export function plateLine(plate: string, province: string | null): string {
   const p = province?.trim();

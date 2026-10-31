@@ -433,3 +433,9 @@ sources: [session 2026-08-09]
   only while slip checking is on. Server: migration 0094 `payments.sale_number` (ทำบิล and Scan send
   the bill number), and `POST /payments/clear` is now owner-only (`canClearPayments`). See
   [commerce/payments-promptpay](commerce/payments-promptpay.md) and [auth/roles-model](auth/roles-model.md).
+
+- **2026-10-31** — สินค้า in the Expo app (`/products`, `/products/:id`, `/products/:id/edit`), as drawn:
+  count tabs, search with scan and sort, ยี่ห้อ / ระบบ / รถ filters, สต็อกและราคา sheet; the product page
+  with ⌄ cost and profit; one edit page with photos, pickers and "add new". Server: `GET /products` rows
+  also carry `fitments[]` and `updatedAt`. ลบสินค้า keeps the 2026-08-24 rule. See
+  [back-office/products](back-office/products.md).

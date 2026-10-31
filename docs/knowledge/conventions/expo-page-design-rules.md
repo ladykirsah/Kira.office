@@ -16,8 +16,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 ## 1 · The work loop
 
-- **design on artifact → apply to preview → their approval → commit.** Do the step they named,
-  and only that step. "artifact = where we draft. preview = build for approval."
+- **design on artifact → apply to preview → their approval → commit → (after merge) learn &
+  file.** Do the step they named, and only that step. "artifact = where we draft. preview = build
+  for approval."
+- **Close the whole loop before the next page:** merged → every deploy job on `main` succeeded →
+  learn & file done → then tell the owner "go to the next page: …". *"done all then tell me to go
+  to next page, i do not want to skip any steps"* (30 Oct).
 - **One page at a time, in menu order** (`packages/shared` nav.ts). Each page: learn what the old
   back office does → look at Mobbin → draw → their OK → build.
 - **Learn the old functions before drawing.** Orders v1 *"look good, but not functionable"*.
@@ -26,7 +30,20 @@ again before saying a build matches.** The owner's words are quoted where they s
   skills before showing a drawing. *"suggest me with the best practice, also do not forget to use
   skills."*
 - **Draw every stage and everything a tap opens.** The owner had to ask for missing ones
-  (*"show me ปฏิเสธการเคลม stage"*, *"show me what happen after clicking on the ใบแปะหน้า"*).
+  (*"show me ปฏิเสธการเคลม stage"*, *"show me what happen after clicking on the ใบแปะหน้า"*,
+  สินค้า 31 Oct: *"you miss a lot of stage. click > to where?"*). Before publishing, list every
+  tappable thing on every phone — each ＋ row, scan icon, copy button, photo tile, search box,
+  the save that can fail — and check each one has a phone after it, or an end-card line naming
+  the page it goes to. A ＋ เพิ่ม…ใหม่ row needs its add form drawn.
+- **Reuse what is built before drawing a new way.** The car picker is brand → model (the built
+  ทำบิล CarSheet), not a segmented control of brands. A segmented control holds 4 options or
+  fewer (design guide); "อื่น ๆ" as a fifth is a sign it is the wrong control. Sheets, toasts and
+  the pinned-button band copy the built components in `apps/mobile/src/ui`.
+- **The same kind of sheet has the same parts.** Every pick list gets a search bar, the ＋ row and
+  the same height. *"why ระบบรถ is the only one without search bar?"*
+- **Fix the old parts of a board you touch.** Older phones on the same board broke later rules
+  (grey captions, "แสดง 142 รายการ" on a button, a แก้ไข that pointed at the wrong page). Re-check
+  the whole board against this rulebook, not only the new phones.
 - **Draw the super-admin (เจ้าของร้าน) version, light mode only.** No dark or team phones until
   asked. Words: เจ้าของร้าน = super admin, พนักงาน = team.
 - **Phone first, computer last.** Computer drawings live on the "Computer (later)" page.
@@ -37,6 +54,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   *"apply all the status and filter there… don't even have to ask me."*
 - **"You pick" means decide.** Ask the owner only about the business, never about process.
 - **A [y/n] question gets y or n first**, then one line.
+- **A short answer that reads two ways gets a [y/n] back, not a guess.** I asked "show รายละเอียด
+  on the view page?" and read *"no รายละเอียด on view mode"* as "leave it out"; they meant "it is
+  missing". Every wrong guess is a round the owner pays for.
+- **"Do not skip page — just take note."** A wish that belongs to another page (the Shopee fee →
+  a settings page) is noted for that page and tagged on the board. Don't ask about it or draw
+  it until that page's turn.
 - **Artwork is mock data.** It needs no approval.
 
 ## 2 · Change only what they asked
@@ -56,6 +79,14 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Say it before building it.** If something can't be done as drawn (the server lacks it, it
   breaks an approved rule), say so first and tag it ระบบยังไม่มี. Never build a smaller stand-in
   and explain it afterwards.
+- **Draw only what the system has.** Every number, status and field on a drawing must exist in the
+  data — check the API or `apps/mobile/src/lib` before drawing it. Stock is ขายได้ (on hand) and
+  งานนอก (held on outside jobs, `scanTabs.ts`); there is no "reserved". *"please do not imagine
+  anything yourself, we did not have ถูกจอง and กันไว้, we only have งานนอก"* (สินค้า, 30 Oct).
+- **Stock is two numbers, and people change them.** Show ขายได้ and งานนอก — no total, no extra
+  labels. Editing is − / + on those two, then บันทึก: no reason question, no extra step. *"stock is
+  available amount = ขายได้ · งานนอก = on hold stage. this is it. nothing much and nothing less. add
+  or remove amount is human work"* (สินค้า, 31 Oct).
 
 ## 3 · The look: Apple Store UI, Shopify UX
 
@@ -114,7 +145,10 @@ again before saying a build matches.** The owner's words are quoted where they s
   - The label is on the left and the value on the right, with its unit after ("บาท").
   - Dividers start where the text starts, never full width. *"make sure that Apple does not make
     the divided line cover the whole length."*
-  - Sheets: ✕ on the left, title centred, red ✓ on the right.
+  - Sheets as built (`apps/mobile/src/ui/orders/Sheet.tsx`): a pill on the left (ยกเลิก; ล้าง on
+    a filter; ‹ ยี่ห้อ to step back inside a sheet), the title centred, the red ✓ on the right
+    when there is something to confirm. Every approved page uses the ยกเลิก pill, not an ✕.
+  - A value that can't be edited is plain black text, not greyed (design guide · Forms).
 - **Neighbouring frames line up.** *"i want scan frame the same height as the below frame."*
 
 ## 5 · Words, numbers, lists, search
@@ -124,6 +158,32 @@ again before saying a build matches.** The owner's words are quoted where they s
   - Only a button that moves money names the amount, e.g. "ยืนยันการชำระเงิน ฿1,450".
 - **Money on screens:** ฿1,450 (comma, no .00, normal font). Only the printed bill keeps .00.
   Don't show money where it isn't needed: *"no need to mention money here"* (Orders rows).
+- **Cost always comes before price.** One ราคา list: the first row is ต้นทุน (the total cost), then
+  the prices. Every row is [ชื่อ] [฿] [⌄] with a plain chevron (no round button). The ⌄ drops down
+  the sum (ต้นทุนสินค้า + VAT 7%) or the profit (and Shopee's ค่าคอม). Never press-and-hold to
+  reveal. *"cost always come before price"* · *"[title] [price] [point down arrow button] drop to
+  see profit"* · *"make cost the same function as price, by showing total cost > drop to see the
+  calculation"* (หน้าสินค้า, 30 Oct).
+- **Settings live in edit mode.** A view page shows values only; switches like บวก VAT 7% belong
+  in แก้ไข. No section gets its own edit button — the page's แก้ไข edits it all. *"why stock is the
+  only one that has its own Edit button > remove"* · *"Vat setting go for edit mode"* (30 Oct).
+- **A list says each record's state once**: a dot and words (แสดงอยู่ · รอเริ่ม · ปิดอยู่ · หมดอายุ).
+  No faded rows, no switch in the row; the row opens with ›, and เปิดใช้ lives in แก้ไข (fix pass, 31 Oct).
+- **Deletes are sheets.** Allowed: the built delete sheet (ลบ…? · what goes with it · red ลบ · grey ไม่ลบ).
+  Blocked by the server: a sheet that says why and what to do first, with a grey เข้าใจแล้ว — never a
+  greyed button with a grey reason under it.
+- **Dates use the built parts.** One date = a DateBox (the phone's own wheel); a range = the built
+  RangeSheet; a period choice = Orders' ▾ menu words (วันนี้ … ทุกวัน · กำหนดเอง…). Offer "no dates"
+  (a กำหนดช่วงเวลา switch) only where the server keeps empty dates.
+- **Draw what the server refuses.** For every form, look up its 400 / 409 answers and draw each as a
+  small red line under its field (ชื่อซ้ำ, ราคา ฿0, เดือนนี้จ่ายครบแล้ว …).
+- **Sample numbers add up the way the system adds them**: totals = the rows, pay = day rate ×
+  (days in the month − days off), real weekdays, no dates after "today" on the board.
+- **No grey explanation on the phone.** No "เห็นเฉพาะ…" tags, no notes under cards, no grey second
+  line that only explains a label. Who-sees-what goes on the board label, outside the phone.
+- **The Den Air counter is เด่นแอร์.** The price tier is เด่นแอร์ / ช่าง / AirPlus / Shopee, never
+  หน้าร้าน. Careful: in Orders, "บัญชีหน้าร้าน" means the AirPlus website account — a different
+  thing. *"change หน้าร้าน to เด่นแอร์ everywhere"* (30 Oct).
 - **Search: a match is a result.** One list ("พบ N ออเดอร์"), newest first. One letter off = no
   result. Never split it into "best match" + "other results".
 - **Pick lists show only what can be sold.** A part with 0 in stock never appears in a pick list.
