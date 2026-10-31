@@ -295,8 +295,8 @@ is what tempted the definition inside in the first place.
 
 ## สินค้า in the Expo app (owner asked to build the drawing, canvas v194, 31 Oct 2026)
 
-`apps/mobile` routes `/products` (list), `/products/:id` (page) and `/products/:id/edit`; `/products/new`
-still opens the old back office's add page. The rules live in `apps/mobile/src/lib/product*.ts`, tested.
+`apps/mobile` routes `/products` (list), `/products/:id` (page), `/products/:id/edit` and, since the
+เพิ่มสินค้า build below, `/products/new`. The rules live in `apps/mobile/src/lib/product*.ts`, tested.
 
 - **The list is worked out on the phone.** `GET /products` has no search, filter or sort. Its rows now
   also carry `fitments[]` (`carBrand, carModel, yearFrom, yearTo`, in `sort_order`) and `updatedAt`, so
@@ -319,3 +319,26 @@ still opens the old back office's add page. The rules live in `apps/mobile/src/l
 - **Who:** sell prices, the AirPlus/Shopee switches and delete are the owner's; an admin edits the rest
   including cost; a mechanic only counts stock from สต็อกและราคา (a lower ขายได้ is sent as a count,
   `manual_adjustment`, with no reason asked — owner, 31 Oct 2026).
+
+## เพิ่มสินค้า in the Expo app (canvas v196, 31 Oct 2026)
+
+`/products/new` (`?code=` fills a code searched and not found). The edit page's form, shared
+(`ui/products/ProductFields.tsx`), started empty with VAT on the cost and AirPlus on, as drawn; the rules
+are `apps/mobile/src/lib/productAdd.ts`.
+
+- **A first save without an id writes over the product with that code.** `saveFullProduct` finds the row
+  by `product_ref` when no id is sent. So the page checks the code as it is typed and saves nothing
+  until the check says it is free, and every save after the first carries the draft row's id.
+- **The draft saves itself** (`status: draft`) once there is a name and a free code, after typing stops;
+  ปิด saves a pending change first. No connection shows "บันทึกร่างไม่ได้ · ลองใหม่เอง" and both the
+  code check and the draft try again by themselves.
+- **บันทึก** makes it `active` (AirPlus on) or `paused`, then adds the first stock as `opening_balance`
+  (ขายได้ + งานนอก) and moves งานนอก out with `/stock/hold`, then uploads the photos. A retry after a
+  part-failure never adds the stock twice. The next product starts with the last one's brand, car
+  system, part name and cars (ยกมาจากชิ้นก่อน · ล้าง).
+- **Once the draft row exists the server treats saves as edits**, so only the owner may set its channels
+  or change its sell prices. An admin's new product is saved with the cost, no sell prices, and stays a
+  draft for the owner.
+- **ตั้งชื่อให้อัตโนมัติ** uses `packages/core` `buildProductName` (part name in Thai, first car in
+  English, the rest in Thai, then brand and code).
+

@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-10-30
+timestamp: 2026-10-31
 status: convention
-sources: [owner chat + canvas messages 25–30 Oct 2026, Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -175,6 +175,10 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Dates use the built parts.** One date = a DateBox (the phone's own wheel); a range = the built
   RangeSheet; a period choice = Orders' ▾ menu words (วันนี้ … ทุกวัน · กำหนดเอง…). Offer "no dates"
   (a กำหนดช่วงเวลา switch) only where the server keeps empty dates.
+- **A sheet's words say what the server does.** The drawn ลบสินค้า sheet said the product and its
+  history would go; the server refuses to delete a product that has history (the August rule). The
+  built sheet says why and to turn AirPlus off instead. Read the endpoint before writing a sheet's
+  words, the same way as its errors below (สินค้า, 31 Oct).
 - **Draw what the server refuses.** For every form, look up its 400 / 409 answers and draw each as a
   small red line under its field (ชื่อซ้ำ, ราคา ฿0, เดือนนี้จ่ายครบแล้ว …).
 - **Sample numbers add up the way the system adds them**: totals = the rows, pay = day rate ×
@@ -186,6 +190,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   thing. *"change หน้าร้าน to เด่นแอร์ everywhere"* (30 Oct).
 - **Search: a match is a result.** One list ("พบ N ออเดอร์"), newest first. One letter off = no
   result. Never split it into "best match" + "other results".
+- **A pick list shows the name the system saves.** Car makes are saved in English (Toyota, Honda),
+  so the รถ picker and its chips show the English names, never a Thai name the server doesn't keep
+  (สินค้า, 31 Oct).
+- **ถ่ายรูป opens the normal camera**, then the after-shot check, with the album beside it. The
+  barcode scanner is a different sheet for a different job. *"camera here should be a normal one to
+  take picture"* (สินค้า, 31 Oct).
 - **Pick lists show only what can be sold.** A part with 0 in stock never appears in a pick list.
   *"0 in stock = hidden list and never appear on the pickable list at the start"* (ทำบิล, 30 Oct).
 - **A payment QR always shows the account name**, readable, right under the code (plus the
@@ -243,7 +253,7 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 *"your design is a messy, but the artifact is even messier. i can find nothing."*
 
-- **Pages are in menu order with a status:** ✏️ designing · 🛠️ on preview · ✅ done. The design
+- **Pages are in menu order with a status:** ✏️ designing · 👍 drawing approved (next to build) · 🛠️ on preview · ✅ done. The design
   guide comes first.
 - **One flow per board.** Different flows are never mixed (customer transfer, cash on delivery
   and claims are three).
@@ -269,12 +279,18 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Restart the preview after every change.** "Kira new version" runs Metro in CI mode, so it
   doesn't reload by itself.
 - **The practice sign-in drops on reload.** Open `/sign-in?practice=1&to=<page>` again.
-- **Use the iPhone simulator for how it looks** and the browser pane for exact clicks.
+- **Use the iPhone simulator for how it looks, the Claude browser pane for clicks.** Never a test
+  tool that opens its own Chrome window — it pops up over the owner's work. *"stop pushing preview
+  on Chrome it disturb me working > use Claude browser"* (31 Oct). The pane can't go below 768
+  wide; full-screen forms still show as the phone column there.
 - **Open every › page and sheet the drawing shows**, and press the pinned buttons, before saying
   it matches.
 - **Check every state, not only the drawn one** — empty lists, a record with no items, a switch
   on and off. The ลูกค้า build showed an empty strip on a visit with no items and the same
   sentence twice on the consent sheet's other state; both were fixed before the owner saw them.
+- **Open every sheet with real data, at phone width.** On สินค้า the tabs ran off the screen, a car
+  chip was cut off, a search box was squashed inside a sheet and the list showed through the
+  pinned footer. None of it showed in the drawing; all of it showed with real data.
 - **Read this rulebook again at the start of a build**, not only before drawing.
 
 ## 9 · Get the push OK in chat, early

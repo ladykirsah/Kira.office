@@ -41,6 +41,36 @@ export type EditPhoto =
 export type EditSheet = "brand" | "usage" | "type" | "car" | null;
 
 /**
+ * The photos on a product form. ถ่ายรูป / เลือกจากคลังภาพ must run in the tap itself (the browser
+ * opens its chooser then); a picked photo waits on the page until บันทึก sends it.
+ */
+export function usePhotoPicks(showToast: (title: Phrase) => void) {
+  const [photos, setPhotos] = useState<EditPhoto[]>([]);
+  const nextId = useRef(0);
+
+  const addPhoto = (source: "camera" | "library") => {
+    if (photos.length >= MAX_PHOTOS) {
+      showToast({ th: "ใส่รูปได้ไม่เกิน 10 รูป", en: "Up to 10 photos" });
+      return;
+    }
+    void pickPhoto(source).then((blob) => {
+      if (!blob) return;
+      const problem = imageProblem(blob);
+      if (problem) return showToast(problem);
+      nextId.current += 1;
+      setPhotos((all) => [
+        ...all,
+        { kind: "new", id: `new-${nextId.current}`, blob, uri: photoPreview(blob) },
+      ]);
+    });
+  };
+
+  const removePhoto = (photoId: string) => setPhotos((all) => all.filter((p) => p.id !== photoId));
+
+  return { photos, setPhotos, addPhoto, removePhoto };
+}
+
+/**
  * แก้ไขสินค้า's state. Nothing is written until บันทึก — photos included — so ยกเลิก really changes
  * nothing (end card, canvas v194).
  */
@@ -52,7 +82,6 @@ export function useProductEdit(id: string) {
   const [form, setForm] = useState<ProductForm | null>(null);
   const [attrs, setAttrs] = useState<Attributes | null>(null);
   const [cars, setCars] = useState<CarBrand[] | null>(null);
-  const [photos, setPhotos] = useState<EditPhoto[]>([]);
   const [failed, setFailed] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [codeOwner, setCodeOwner] = useState<CodeOwner | null>(null);
@@ -60,13 +89,13 @@ export function useProductEdit(id: string) {
   const [busy, setBusy] = useState(false);
   const [toast, setToastState] = useState<{ title: Phrase; detail: Phrase } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const nextId = useRef(0);
 
   const showToast = useCallback((title: Phrase, detail: Phrase = { th: "", en: "" }) => {
     if (timer.current) clearTimeout(timer.current);
     setToastState({ title, detail });
     timer.current = setTimeout(() => setToastState(null), TOAST_MS);
   }, []);
+  const { photos, setPhotos, addPhoto, removePhoto } = usePhotoPicks(showToast);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -105,26 +134,6 @@ export function useProductEdit(id: string) {
     });
     if ("code" in next) setCodeOwner(null);
   };
-
-  /** ถ่ายรูป / เลือกจากคลังภาพ — must run in the tap itself (the browser opens its chooser then). */
-  const addPhoto = (source: "camera" | "library") => {
-    if (photos.length >= MAX_PHOTOS) {
-      showToast({ th: "ใส่รูปได้ไม่เกิน 10 รูป", en: "Up to 10 photos" });
-      return;
-    }
-    void pickPhoto(source).then((blob) => {
-      if (!blob) return;
-      const problem = imageProblem(blob);
-      if (problem) return showToast(problem);
-      nextId.current += 1;
-      setPhotos((all) => [
-        ...all,
-        { kind: "new", id: `new-${nextId.current}`, blob, uri: photoPreview(blob) },
-      ]);
-    });
-  };
-
-  const removePhoto = (photoId: string) => setPhotos((all) => all.filter((p) => p.id !== photoId));
 
   /** Photos: the removed ones go, the new ones go up in the order they were picked. */
   const savePhotos = async (productId: string) => {
@@ -206,3 +215,23 @@ export function useProductEdit(id: string) {
 }
 
 export type ProductEdit = ReturnType<typeof useProductEdit>;
+
+/** What the form's parts and sheets use; แก้ไขสินค้า and เพิ่มสินค้า both provide it. */
+export type ProductFormState = Pick<
+  ProductEdit,
+  | "token"
+  | "rights"
+  | "form"
+  | "set"
+  | "attrs"
+  | "setAttrs"
+  | "cars"
+  | "setCars"
+  | "photos"
+  | "addPhoto"
+  | "removePhoto"
+  | "errors"
+  | "codeOwner"
+  | "sheet"
+  | "setSheet"
+>;

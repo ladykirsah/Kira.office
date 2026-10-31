@@ -70,9 +70,14 @@ describe("codeTakenBy", () => {
 });
 
 describe("saveProduct", () => {
-  it("given a body > then one POST to /products/full and the product's id back", async () => {
-    const { calls, fetchFn } = recording([async () => Response.json({ productId: "p1" })]);
-    expect(await saveProduct(fetchFn, "http://api", "tok", { id: "p1" } as never)).toBe("p1");
+  it("given a body > then one POST to /products/full and the product's and stock row's ids back", async () => {
+    const { calls, fetchFn } = recording([
+      async () => Response.json({ productId: "p1", variantId: "v1", created: false }),
+    ]);
+    expect(await saveProduct(fetchFn, "http://api", "tok", { id: "p1" } as never)).toEqual({
+      productId: "p1",
+      variantId: "v1",
+    });
     expect(calls[0]!.url).toBe("http://api/products/full");
     expect(calls[0]!.init?.method).toBe("POST");
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ id: "p1" });

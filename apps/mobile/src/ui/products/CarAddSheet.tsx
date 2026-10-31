@@ -10,7 +10,7 @@ import { Group } from "../orders/parts";
 import { Sheet } from "../orders/Sheet";
 import { FieldError } from "../pos/fields";
 import { AddRow, InputRow, PickRow, SearchBox } from "./parts";
-import type { ProductEdit } from "./useProductEdit";
+import type { ProductFormState } from "./useProductEdit";
 
 type Step =
   | { at: "brands" }
@@ -30,7 +30,7 @@ const fitmentOf = (brand: CarBrand, model: CarModel) => ({
  * ✓ puts the car in the product's list. Makes and models show their own names (Toyota Vigo), the
  * way the product's car list prints them.
  */
-export function CarAddSheet({ edit }: { edit: ProductEdit }) {
+export function CarAddSheet({ edit }: { edit: ProductFormState }) {
   const { t } = useLang();
   const [step, setStep] = useState<Step>({ at: "brands" });
   const [q, setQ] = useState("");

@@ -14,7 +14,7 @@ import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { SPACE, TYPE } from "../theme";
-import type { ProductEdit } from "./useProductEdit";
+import type { ProductFormState } from "./useProductEdit";
 
 const TILE = 74;
 const MENU_WIDTH = 250;
@@ -25,7 +25,7 @@ const ALBUM_ICON = "M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5h.01";
  * The photos at the top of แก้ไขสินค้า: each with ✕, the first marked รูปหลัก, then ＋ เพิ่มรูป, which
  * offers ถ่ายรูป (the phone's own camera) or เลือกจากคลังภาพ (its album) — canvas v194.
  */
-export function PhotoStrip({ edit }: { edit: ProductEdit }) {
+export function PhotoStrip({ edit }: { edit: ProductFormState }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
