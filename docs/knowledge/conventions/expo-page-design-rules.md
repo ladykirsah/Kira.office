@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-10-31
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -16,11 +16,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 ## 1 · The work loop
 
-- **design on artifact → apply to preview → their approval → commit → (after merge) learn &
-  file.** Do the step they named, and only that step. "artifact = where we draft. preview = build
-  for approval."
-- **Close the whole loop before the next page:** merged → every deploy job on `main` succeeded →
-  learn & file done → then tell the owner "go to the next page: …". *"done all then tell me to go
+- **design on artifact → apply to preview → their approval → file the lessons → commit → PR →
+  CI pass → merge.** Do the step they named, and only that step. "artifact = where we draft.
+  preview = build for approval." The lessons come before the commit so they ship with the work:
+  *"approved > file lesson > commit > PR > CI pass > merge"* (31 Oct).
+- **Close the whole loop before the next page:** lessons filed → merged → every deploy job on
+  `main` succeeded → then tell the owner "go to the next page: …". *"done all then tell me to go
   to next page, i do not want to skip any steps"* (30 Oct).
 - **One page at a time, in menu order** (`packages/shared` nav.ts). Each page: learn what the old
   back office does → look at Mobbin → draw → their OK → build.
@@ -74,6 +75,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   full card, not just the newest. If two readings fit, ask [y/n]. Never pick the one that keeps
   my own design.
 - **"Reverse" = restore exactly**, then ask.
+- **Their own picture is the design.** When they send a drawing of their own, keep its layout and
+  fit it to the size by scaling or turning it, never by moving things around. I made a two-column
+  version of their tall label: *"nooooo … like this"* (ออกบาร์โค้ด, 31 Oct).
+- **"Remove everything" means the thing we are talking about.** *"let's remove everything and
+  re-start"* meant the label designs, not the approved page drawing: *"i meant remove label design
+  and re-start"*. If it could reach further, ask before removing (ออกบาร์โค้ด, 31 Oct).
 - **If they ask "what is that button?" or "what does this mean?", the design failed.** Label it
   plainly or remove it.
 - **Say it before building it.** If something can't be done as drawn (the server lacks it, it
@@ -150,6 +157,15 @@ again before saying a build matches.** The owner's words are quoted where they s
     when there is something to confirm. Every approved page uses the ยกเลิก pill, not an ✕.
   - A value that can't be edited is plain black text, not greyed (design guide · Forms).
 - **Neighbouring frames line up.** *"i want scan frame the same height as the below frame."*
+- **A preview uses the space.** The paper fills the grey area's width and grows to match; the gaps
+  at the top, left and right equal the gap under it. *"make the preview paper width fill up the
+  area width too"*, *"make the top / left / right gap … look balance with the bottom"* (31 Oct).
+- **Page arrows always show**, even for one page: "‹ หน้า 1 จาก 1 ›", with the arrows greyed when
+  there is nowhere to go. *"still need "< หน้า 1 จาก 1 >""* (31 Oct).
+- **A printed size has one fixed side.** Give a maximum (3.5 × 6 cm), fix one side (the width) and
+  let the other follow the drawing's shape; cut it shorter when there is less to print, so no paper
+  is wasted. *"pick a side to be fixed, the other one can be adjustable"*, *"we are wasting paper on
+  left over space"* (labels, 31 Oct).
 
 ## 5 · Words, numbers, lists, search
 
@@ -300,6 +316,11 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **When a page moves here, find every door that still opens its old page** (Scan, menus,
   `apps/mobile/src/lib/oldBackOffice.ts`) and say which ones still go to the old back office. สินค้า
   shipped while Scan still opened the old product page (31 Oct).
+- **Open the saved file itself.** A PDF or PNG can differ from the screen: on ออกบาร์โค้ด the files
+  first failed to save at all, then cut the ends off words, while the screen looked right. Catch the
+  file in the browser pane, open it and look at every page (31 Oct).
+- **Build what happens after each tap, as drawn.** The drawing closed the label's sheet and showed
+  "บันทึกรูปแล้ว"; my first build saved behind the open sheet, so the message never showed (31 Oct).
 - **Read this rulebook again at the start of a build**, not only before drawing.
 
 ## 9 · Get the push OK in chat, early
