@@ -84,6 +84,7 @@ const LABEL: Record<string, Phrase> = {
   address: { th: "ที่อยู่", en: "Address" },
   qrCode: { th: "QR code", en: "QR code" },
   lineUrl: { th: "ลิงก์ LINE OA", en: "LINE OA link" },
+  phone: { th: "เบอร์โทรร้าน", en: "Shop phone" },
   headline: { th: "หัวข้อ", en: "Headline" },
   subtitle: { th: "ข้อความรอง", en: "Subtitle" },
 };
@@ -125,6 +126,7 @@ const TEXT_KEYS = [
   "lineUrl",
   "shipFromPhone",
   "shipFromPostcode",
+  "phone",
 ] as const;
 
 /** View-mode bilingual block — mirrors editPair's layout exactly (field label, then the Thai value
@@ -454,6 +456,19 @@ export default function ShopInfoPage() {
                 thPlaceholder: "123 ถนนหลักเมือง อ.เมือง จ.สุรินทร์ 32000",
                 enPlaceholder: "123 Lak Mueang Rd, Mueang, Surin 32000",
               })}
+              {!isAirplus && (
+                // Printed on every barcode label (AirPlus keeps its parcel phone below instead).
+                <div style={{ marginBottom: 18 }}>
+                  <div style={editLabel}>{t(LABEL.phone)}</div>
+                  <input
+                    value={info.phone ?? ""}
+                    onChange={(e) => set({ phone: e.target.value })}
+                    placeholder={t({ th: "เช่น 061 939 6144", en: "e.g. 061 939 6144" })}
+                    inputMode="tel"
+                    style={inputL}
+                  />
+                </div>
+              )}
             </div>
 
             {isAirplus ? (
@@ -647,6 +662,16 @@ export default function ShopInfoPage() {
               <div style={sectionHead}>{t(SECTION.identity)}</div>
               <ViewPair label={t(LABEL.shopName)} th={info.name} en={info.nameEn} />
               <ViewPair label={t(LABEL.address)} th={info.address} en={info.addressEn} />
+              {!isAirplus && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={editLabel}>{t(LABEL.phone)}</div>
+                  {info.phone ? (
+                    <div style={{ fontSize: 15, lineHeight: 1.5 }}>{info.phone}</div>
+                  ) : (
+                    <div style={valueMuted}>—</div>
+                  )}
+                </div>
+              )}
             </div>
 
             {isAirplus ? (

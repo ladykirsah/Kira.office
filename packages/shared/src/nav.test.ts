@@ -17,6 +17,11 @@ describe("NAV_GROUPS", () => {
     ]);
   });
 
+  it("names the label page ออกบาร์โค้ด, the owner's name for it (31 Oct 2026)", () => {
+    const link = NAV_GROUPS.flatMap((g) => g.links).find((l) => l.href === "/barcodes");
+    expect(link?.label.th).toBe("ออกบาร์โค้ด");
+  });
+
   it("lists no page twice", () => {
     expect(new Set(allHrefs).size).toBe(allHrefs.length);
   });

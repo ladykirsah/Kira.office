@@ -442,3 +442,7 @@ sources: [session 2026-08-09]
 - **2026-10-31** — เพิ่มสินค้า in the Expo app (`/products/new`), as drawn: the edit form started empty, a
   draft that saves itself, ตั้งชื่อให้อัตโนมัติ, a code checked as typed, first stock and photos on บันทึก,
   and ยกมาจากชิ้นก่อน for the next one. No server change. See [back-office/products](back-office/products.md).
+- **2026-10-31** — ออกบาร์โค้ด in the Expo app (`/barcodes`), as drawn: the owner's new tall label
+  (S 35 / L 46 mm wide, height by car lines, QR, Thai), labels as cards on the sheet, an add sheet by
+  search or scan, a preview of the paper, and PDF / PNG files. Server: a new `phone` shop field, set in
+  ข้อมูลร้าน. See [back-office/barcode-labels](back-office/barcode-labels.md).

@@ -37,7 +37,7 @@ Shop settings live in **KV** (no D1 table), one key each as `shop:<field>`; uplo
 
 | Method | Path | Client fn | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/shop-info` | `fetchShopInfo()` | Bilingual `ShopInfo`: `name`/`nameEn`, `address`/`addressEn`, `quoteNote`/`quoteNoteEn`, `qrHeadline`/`qrHeadlineEn`, `qrSubtitle`/`qrSubtitleEn`, plus `logoKey`/`qrKey` (R2 keys, or `null`). |
+| `GET` | `/shop-info` | `fetchShopInfo()` | Bilingual `ShopInfo`: `name`/`nameEn`, `address`/`addressEn`, `quoteNote`/`quoteNoteEn`, `qrHeadline`/`qrHeadlineEn`, `qrSubtitle`/`qrSubtitleEn`, `phone` (the shop's own phone, printed on every barcode label), plus `logoKey`/`qrKey` (R2 keys, or `null`). |
 | `PUT` | `/shop-info` | `saveShopInfo()` | Writes the 10 text fields (replaces all — the admin always sends the full set). |
 | `POST` | `/shop-info/logo` | `uploadShopImage("logo", file)` | Raw image body (jpeg/png/webp ≤5 MB) → stores R2 `shop/logo-<uuid>.<ext>`, records `shop:logoKey`; returns `{key, url}`. |
 | `POST` | `/shop-info/qr` | `uploadShopImage("qr", file)` | As logo, for the contact-QR (`shop:qrKey`) — printed on the quotation. |

@@ -3,12 +3,34 @@ type: feature
 title: Barcode & labels — owner-locked artwork, add-form flow, paper packing
 description: Label page (PRs #77/#78/#79) with owner-locked 2×2 artwork (Full·Minimal × L/S), per-label size, proportional-shrink A4 packing; two open items remain
 tags: [barcodes, labels, printing, pdf, admin]
-timestamp: 2026-08-09
+timestamp: 2026-10-31
 status: live
-sources: [kira-barcode-labels-flow-redesign.md, apps/admin/src/lib/labelForm.ts, apps/admin/src/lib/labelGrid.ts]
+sources: [kira-barcode-labels-flow-redesign.md, apps/admin/src/lib/labelForm.ts, apps/admin/src/lib/labelGrid.ts, apps/mobile/src/lib/barcodeLabel.ts, apps/mobile/src/lib/labelSheet.ts]
 ---
 
 # Barcode & labels
+
+## NEWEST — ออกบาร์โค้ด in the Expo app (2026-10-31), a new label that replaces the July artwork there
+
+The owner drew a new, tall label from their own picture and approved it (design canvas v219). The Expo
+page `/barcodes` (menu name **ออกบาร์โค้ด**) prints only this label; the July Full·Minimal artwork below
+stays on the old back office's computer page.
+
+- **Label:** product type in Thai over the brand in English, product code in grey, a hairline, up to 5
+  car lines (Thai model name bold + years), the product code's QR, then the shop name + phone in grey.
+  Everything Thai except the brand. A car model with no Thai name prints its saved (English) name.
+- **Sizes by width:** S = 35 mm, L = 46 mm. The height follows the picture's shape and shrinks with
+  fewer car lines (S 46.5 mm and L 61.1 mm at 5 lines). Every position comes from the owner's picture,
+  measured in px of a 413 × 549 picture: `PICTURE` in apps/mobile/src/lib/barcodeLabel.ts (tested).
+- **Paper:** A4 or A5, upright or sideways, 8 mm margin; one size per column, labels stacked with no
+  gap, the same product kept together (`planLabelPages`, apps/mobile/src/lib/labelSheet.ts, tested).
+- **Files:** PDF (one page per sheet at the paper's exact size) or PNG (one picture per page), plus
+  one label as a PNG from its own sheet. The browser draws the pages off screen and html2canvas +
+  jsPDF turn them into files (`ui/barcodes/saveSheet.web.ts`). The hidden pages must stay on screen
+  until the file is made. Label text is never clipped at its own box, because the canvas draws the
+  system font slightly wider than the page does.
+- **Shop phone:** a new `phone` shop field (`shop:<profile>:phone`), set in ข้อมูลร้าน as เบอร์โทรร้าน
+  for เด่นแอร์ and printed on every label.
 
 ## The artwork is OWNER-LOCKED — reproduce, don't optimise
 
