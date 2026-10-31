@@ -12,12 +12,22 @@ import {
   plateLine,
   rowDate,
   shortOrderStatus,
+  sideLabel,
   splitCar,
   visitCards,
 } from "./customerPage";
 
 const NOW = new Date(2026, 9, 30, 12, 0).getTime(); // 30 Oct 2026
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d, 10, 0).getTime();
+
+describe("sideLabel", () => {
+  it("given the shop's own side > then it is called เด่นแอร์, not หน้าร้าน", () => {
+    expect(sideLabel("shop")).toEqual({ th: "เด่นแอร์", en: "Den Air" });
+  });
+  it("given the AirPlus side > then it keeps its name", () => {
+    expect(sideLabel("airplus")).toEqual({ th: "AirPlus", en: "AirPlus" });
+  });
+});
 
 describe("plateLine", () => {
   it("given a province > then it rides after the plate", () => {

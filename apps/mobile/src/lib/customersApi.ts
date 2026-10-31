@@ -3,7 +3,7 @@ import { getJson } from "./posApi";
 import { failure, sendJson, session } from "./scanApi";
 import type { FetchFn } from "./signIn";
 
-/** A car on the หน้าร้าน list (GET /customers). */
+/** A car on the เด่นแอร์ list (GET /customers). */
 export interface CarRow {
   licensePlate: string;
   plateProvince: string | null;
@@ -134,7 +134,7 @@ export const fetchCarList = async (fetchFn: FetchFn, base: string, token: string
     )
   ).customers;
 
-/** หน้าร้าน counts cars; AirPlus counts accounts. */
+/** เด่นแอร์ counts cars; AirPlus counts accounts. */
 export const fetchSummary = (
   fetchFn: FetchFn,
   base: string,

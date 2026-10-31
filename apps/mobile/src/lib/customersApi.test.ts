@@ -30,7 +30,7 @@ describe("customersApi", () => {
     expect(calls[0]?.url).toBe("http://api/customers?q=Altis");
   });
 
-  it("fetchSummary > reads the หน้าร้าน or AirPlus counts", async () => {
+  it("fetchSummary > reads the เด่นแอร์ or AirPlus counts", async () => {
     const summary = { total: 126, activeThisMonth: 18, newThisMonth: 5, months: [] };
     const { calls, fetchFn } = recording(async () => Response.json(summary));
     expect(await fetchSummary(fetchFn, "http://api", "tok", "airplus")).toEqual(summary);
