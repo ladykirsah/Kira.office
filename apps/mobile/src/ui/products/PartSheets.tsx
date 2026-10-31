@@ -9,7 +9,7 @@ import { Group } from "../orders/parts";
 import { Sheet } from "../orders/Sheet";
 import { FieldError } from "../pos/fields";
 import { AddRow, InputRow, PickRow, SearchBox } from "./parts";
-import type { ProductEdit } from "./useProductEdit";
+import type { ProductFormState } from "./useProductEdit";
 
 type Kind = "brand" | "usage" | "type";
 
@@ -55,7 +55,7 @@ const WORDS: Record<
  * English and Thai names. Part names are only the chosen system's; changing the system clears a
  * part name that does not belong to it.
  */
-export function PartSheet({ edit, kind }: { edit: ProductEdit; kind: Kind }) {
+export function PartSheet({ edit, kind }: { edit: ProductFormState; kind: Kind }) {
   const { t } = useLang();
   const w = WORDS[kind];
   const f = edit.form!;
@@ -113,7 +113,7 @@ export function PartSheet({ edit, kind }: { edit: ProductEdit; kind: Kind }) {
 
 /** ＋ เพิ่ม…ใหม่: English and Thai names (a part name also shows the system it goes into). */
 function NewName(props: {
-  edit: ProductEdit;
+  edit: ProductFormState;
   kind: Kind;
   usage: Attribute | null;
   onBack: () => void;

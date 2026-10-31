@@ -1,6 +1,3 @@
-import { NotMovedYet } from "@/ui/NotMovedYet";
+import { AddProductScreen } from "@/ui/products/AddProductScreen";
 
-/** เพิ่มสินค้า is not rebuilt here yet; without this, /products/new would open as a product called "new". */
-export default function AddProductPage() {
-  return <NotMovedYet />;
-}
+export default AddProductScreen;

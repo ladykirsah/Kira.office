@@ -439,3 +439,6 @@ sources: [session 2026-08-09]
   with ⌄ cost and profit; one edit page with photos, pickers and "add new". Server: `GET /products` rows
   also carry `fitments[]` and `updatedAt`. ลบสินค้า keeps the 2026-08-24 rule. See
   [back-office/products](back-office/products.md).
+- **2026-10-31** — เพิ่มสินค้า in the Expo app (`/products/new`), as drawn: the edit form started empty, a
+  draft that saves itself, ตั้งชื่อให้อัตโนมัติ, a code checked as typed, first stock and photos on บันทึก,
+  and ยกมาจากชิ้นก่อน for the next one. No server change. See [back-office/products](back-office/products.md).

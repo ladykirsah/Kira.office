@@ -1,4 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
+import type { NewProductBody, OpeningStock } from "./productAdd";
 import type { ProductDetail, SaveBody, StockCount } from "./productEdit";
 import type { ProductRow } from "./productList";
 import { failure, sendJson, session } from "./scanApi";
@@ -134,23 +135,24 @@ export async function codeTakenBy(
   return match && match.id !== selfId ? match : null;
 }
 
-/** The whole product in one write (fields, prices, cars); returns its id. */
+/** The whole product in one write (fields, prices, cars); returns its id and its stock row's. */
 export async function saveProduct(
   fetchFn: FetchFn,
   base: string,
   token: string,
-  body: SaveBody,
-): Promise<string> {
+  body: SaveBody | NewProductBody,
+): Promise<{ productId: string; variantId: string }> {
   const res = await fetchFn(`${base}/products/full`, sendJson(token, body));
   if (!res.ok) throw await failure(res, "Product was not saved");
-  return ((await res.json()) as { productId: string }).productId;
+  const saved = (await res.json()) as { productId: string; variantId: string };
+  return { productId: saved.productId, variantId: saved.variantId };
 }
 
 export async function countStock(
   fetchFn: FetchFn,
   base: string,
   token: string,
-  move: StockCount,
+  move: StockCount | OpeningStock,
 ): Promise<{ applied: boolean; reason?: string }> {
   const res = await fetchFn(`${base}/stock/adjust`, sendJson(token, move));
   if (!res.ok) throw await failure(res, "Stock was not saved");

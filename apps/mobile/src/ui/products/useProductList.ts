@@ -2,7 +2,6 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { API_BASE } from "@/lib/config";
-import { OLD_BACK_OFFICE, addProductPage } from "@/lib/oldBackOffice";
 import {
   NO_FILTERS,
   tabCounts,
@@ -15,7 +14,6 @@ import {
 import { nameLabel } from "@/lib/productPickers";
 import { fetchAttributes, fetchProductRows, findByCode, type Attributes } from "@/lib/productsApi";
 import { useAuth, useLang } from "../AppProviders";
-import { openPage } from "../openPage";
 import { useRights } from "./useRights";
 
 const TOAST_MS = 3000;
@@ -92,16 +90,13 @@ export function useProductList() {
     }
   };
 
-  /** เพิ่มสินค้า is still the old back office's page (not rebuilt yet), with a searched code filled in. */
-  const addProduct = (code: string) => {
-    const url = code ? addProductPage(OLD_BACK_OFFICE, code) : `${OLD_BACK_OFFICE}/products/new`;
-    if (!openPage(url)) {
-      showToast(
-        { th: "เปิดหน้าใหม่ไม่ได้", en: "The page did not open" },
-        { th: "อนุญาตให้เปิดหน้าต่างใหม่ แล้วลองอีกครั้ง", en: "Allow pop-ups and try again" },
-      );
-    }
-  };
+  /** เพิ่มสินค้า, with a searched code that was not found filled in. */
+  const addProduct = (code: string) =>
+    router.push(
+      (code.trim()
+        ? `/products/new?code=${encodeURIComponent(code.trim())}`
+        : "/products/new") as never,
+    );
 
   const shown = rows ? visibleRows(rows, { tab, q, filters, sort }) : null;
   return {
