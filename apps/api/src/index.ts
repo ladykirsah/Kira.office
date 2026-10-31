@@ -1834,6 +1834,8 @@ export const SHOP_TEXT_FIELDS = [
   // the shipping-fee engine needs it as a field, not buried in prose.
   "shipFromPhone",
   "shipFromPostcode",
+  // The shop's own phone, printed on every barcode label (owner, 31 Oct 2026: "add phone box").
+  "phone",
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per

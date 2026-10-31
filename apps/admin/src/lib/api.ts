@@ -957,6 +957,8 @@ export interface ShopInfo {
   /** AirPlus: phone + postcode for the parcel sender block and the shipping-fee origin. */
   shipFromPhone: string;
   shipFromPostcode: string;
+  /** เด่นแอร์: the shop's phone, printed on every barcode label. */
+  phone: string;
   logoKey: string | null; // R2 key, served at /img/<key>
   qrKey: string | null;
 }
@@ -979,6 +981,7 @@ export const EMPTY_SHOP_INFO: ShopInfo = {
   lineUrl: "",
   shipFromPhone: "",
   shipFromPostcode: "",
+  phone: "",
   logoKey: null,
   qrKey: null,
 };

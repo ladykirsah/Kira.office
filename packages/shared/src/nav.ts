@@ -67,7 +67,7 @@ export const NAV_GROUPS: NavGroup[] = [
     links: [
       { href: "/products", icon: "📦", label: { th: "สินค้า", en: "Products" } },
       { href: "/products/new", icon: "➕", label: { th: "เพิ่มสินค้า", en: "Add product" } },
-      { href: "/barcodes", icon: "🏷️", label: { th: "บาร์โค้ด", en: "Barcodes" } },
+      { href: "/barcodes", icon: "🏷️", label: { th: "ออกบาร์โค้ด", en: "Barcodes" } },
       { href: "/stock", icon: "📊", label: { th: "รายการสต็อก", en: "Stock movements" } },
       // /import (product CSV) is deliberately NOT listed: it only carries product_ref, name and
       // description, so every row still needs opening by hand — the owner adds products through

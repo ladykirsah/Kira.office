@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-10-31
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -291,6 +291,15 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Open every sheet with real data, at phone width.** On สินค้า the tabs ran off the screen, a car
   chip was cut off, a search box was squashed inside a sheet and the list showed through the
   pinned footer. None of it showed in the drawing; all of it showed with real data.
+- **Check "no connection" for real.** Stop the local API, use the page, watch it say so, start the API
+  again and watch it recover. On เพิ่มสินค้า the draft note never showed: the code check failed first
+  and stayed silent, so the draft never tried (31 Oct).
+- **Type the longest text the drawing shows, and leave each new field empty.** A long auto-made name
+  was cut off in a one-line field, and the empty two-line box made its row too tall; the drawing
+  showed neither (เพิ่มสินค้า, 31 Oct).
+- **When a page moves here, find every door that still opens its old page** (Scan, menus,
+  `apps/mobile/src/lib/oldBackOffice.ts`) and say which ones still go to the old back office. สินค้า
+  shipped while Scan still opened the old product page (31 Oct).
 - **Read this rulebook again at the start of a build**, not only before drawing.
 
 ## 9 · Get the push OK in chat, early

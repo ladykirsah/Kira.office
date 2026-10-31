@@ -29,7 +29,7 @@ export const DASHBOARD_CARDS: DashboardCard[] = [
   {
     href: "/barcodes",
     icon: "🏷️",
-    title: { th: "บาร์โค้ด", en: "Barcodes" },
+    title: { th: "ออกบาร์โค้ด", en: "Barcodes" },
     desc: { th: "สร้างและพิมพ์", en: "Generate & print" },
   },
   {

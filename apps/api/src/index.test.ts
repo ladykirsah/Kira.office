@@ -2354,6 +2354,22 @@ describe("api worker routes", () => {
     expect(d.paymentMethods).not.toBe(a.paymentMethods);
   });
 
+  it("shop-info > given the shop's phone > then it is kept and read back (the barcode label prints it)", async () => {
+    const { store, env } = kvEnv();
+    await fetchAuthed(
+      new Request("https://x/shop-info/denair", {
+        method: "PUT",
+        body: JSON.stringify({ name: "เด่นแอร์ เซอร์วิส", phone: " 061 939 6144 " }),
+      }),
+      env,
+      ctx,
+    );
+    expect(store.get("shop:denair:phone")).toBe("061 939 6144");
+    const res = await fetchAuthed(new Request("https://x/shop-info/denair"), env, ctx);
+    const body = (await res.json()) as Record<string, string | null>;
+    expect(body.phone).toBe("061 939 6144");
+  });
+
   it("shop-info 404s an unknown profile instead of defaulting to one", async () => {
     // Defaulting would write one shop's settings into the other's namespace.
     const { env } = kvEnv();
