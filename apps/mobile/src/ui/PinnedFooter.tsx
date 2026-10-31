@@ -53,7 +53,9 @@ export function PinnedFooter({ chrome, bottom }: PinnedFooterProps) {
         {chrome.toast && (
           <View style={styles.toast} accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={styles.toastTitle}>{chrome.toast.title}</Text>
-            <Text style={styles.toastDetail}>{chrome.toast.detail}</Text>
+            {chrome.toast.detail ? (
+              <Text style={styles.toastDetail}>{chrome.toast.detail}</Text>
+            ) : null}
           </View>
         )}
         {chrome.choice && (

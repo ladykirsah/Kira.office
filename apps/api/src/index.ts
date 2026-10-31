@@ -2468,7 +2468,7 @@ async function getTerms(env: Env): Promise<Response> {
 async function listProducts(env: Env, seesProfit = true): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
-            p.shopee_listed AS shopeeListed,
+            p.shopee_listed AS shopeeListed, p.updated_at AS updatedAt,
             v.id AS variantId,
             b.name AS brandName,
             t.name AS typeName,
@@ -2481,6 +2481,10 @@ async function listProducts(env: Env, seesProfit = true): Promise<Response> {
             COALESCE(pp.tax_on_cost, 0) AS taxOnCost,
             (SELECT GROUP_CONCAT(DISTINCT pf.car_brand) FROM product_fitments pf
                WHERE pf.product_id = p.id AND pf.car_brand IS NOT NULL) AS carBrandsCsv,
+            (SELECT json_group_array(json_object('carBrand', f.car_brand, 'carModel', f.car_model,
+                                                 'yearFrom', f.year_from, 'yearTo', f.year_to))
+               FROM (SELECT * FROM product_fitments WHERE product_id = p.id
+                     ORDER BY sort_order) f) AS fitmentsJson,
             COALESCE(
               (SELECT SUM(quantity_delta) FROM stock_ledger_entries WHERE product_variant_id = v.id),
               0
@@ -2507,7 +2511,15 @@ async function listProducts(env: Env, seesProfit = true): Promise<Response> {
   if (!seesProfit) {
     for (const row of results as { itemCostSatang?: number }[]) row.itemCostSatang = 0;
   }
-  return json({ products: results });
+  // The phone's รถ filter goes brand › model › years (owner, 31 Oct 2026), so each row carries its
+  // cars as a list rather than the brands-only CSV the old table filters on.
+  const products = (results as { fitmentsJson?: string | null }[]).map(
+    ({ fitmentsJson, ...row }) => ({
+      ...row,
+      fitments: fitmentsJson ? (JSON.parse(fitmentsJson) as unknown[]) : [],
+    }),
+  );
+  return json({ products });
 }
 
 export interface SaleExportRow {

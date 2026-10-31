@@ -1782,7 +1782,8 @@ describe("api worker routes", () => {
     };
     const { env } = makeDb({ products: [row] });
     const res = await fetchAuthed(new Request("https://x/products"), env, ctx);
-    expect(await res.json()).toEqual({ products: [row] });
+    // A row with no cars gets an empty list, never a missing field.
+    expect(await res.json()).toEqual({ products: [{ ...row, fitments: [] }] });
   });
 
   it("GET /products > omits archived (soft-deleted) products from the catalog list", async () => {
@@ -9720,6 +9721,40 @@ describe("GET /products — every state the catalog has", () => {
     );
     const body = (await res.json()) as { products: { id: string }[] };
     expect(body.products.map((p) => p.id).sort()).toEqual(["p-draft", "p-live", "p-paused"]);
+  });
+
+  // The phone's รถ filter goes brand › model › years, and its sort has "แก้ไขล่าสุด" (owner, 31 Oct
+  // 2026, option A): each row carries its cars and when it was last edited.
+  it("gives each row its cars with years and its last edit", async () => {
+    const { env, raw } = seeded();
+    raw.prepare(`UPDATE products SET updated_at = ? WHERE id = 'p-live'`).run(NOW + 5);
+    for (const [model, from, to, order] of [
+      ["Vigo", 2005, 2014, 0],
+      ["Fortuner", 2005, null, 1],
+    ] as const) {
+      raw
+        .prepare(
+          `INSERT INTO product_fitments
+             (id,product_id,car_brand,car_model,year_from,year_to,sort_order,created_at)
+           VALUES (?,?,?,?,?,?,?,?)`,
+        )
+        .run(`f-${model}`, "p-live", "Toyota", model, from, to, order, NOW);
+    }
+    const res = await worker.fetch!(
+      new Request("https://x/products", { headers: await signedIn(raw, env) }),
+      env,
+      ctx,
+    );
+    const body = (await res.json()) as {
+      products: { id: string; updatedAt: number | null; fitments: unknown[] }[];
+    };
+    const live = body.products.find((p) => p.id === "p-live")!;
+    expect(live.updatedAt).toBe(NOW + 5);
+    expect(live.fitments).toEqual([
+      { carBrand: "Toyota", carModel: "Vigo", yearFrom: 2005, yearTo: 2014 },
+      { carBrand: "Toyota", carModel: "Fortuner", yearFrom: 2005, yearTo: null },
+    ]);
+    expect(body.products.find((p) => p.id === "p-draft")!.fitments).toEqual([]);
   });
 });
 

@@ -292,3 +292,30 @@ and a truncated price like ฿9 saves silently, with no error to notice.
 It reached production in the previous merge before being caught. The fix is the hoist plus an
 explicit `locked` prop at all six call sites; the closure over the parent's `sellingReadOnly` flag
 is what tempted the definition inside in the first place.
+
+## สินค้า in the Expo app (owner asked to build the drawing, canvas v194, 31 Oct 2026)
+
+`apps/mobile` routes `/products` (list), `/products/:id` (page) and `/products/:id/edit`; `/products/new`
+still opens the old back office's add page. The rules live in `apps/mobile/src/lib/product*.ts`, tested.
+
+- **The list is worked out on the phone.** `GET /products` has no search, filter or sort. Its rows now
+  also carry `fitments[]` (`carBrand, carModel, yearFrom, yearTo`, in `sort_order`) and `updatedAt`, so
+  the รถ filter goes brand › model › years and the sort can say แก้ไขล่าสุด. Low stock is 1–3 for sale,
+  the same line as `apps/admin/src/lib/stock.ts`.
+- **Every save rebuilds the whole product.** `POST /products/full` replaces the record and wipes what is
+  left out, so `saveBody` starts from the stored product and only swaps what the form changed. Shopee's
+  fee is kept as stored (it moves to a settings page later). An admin's body carries the stored sell
+  prices and channels, so the server's owner-only checks never trip.
+- **A code clash is checked first** with `GET /products/identifier-check?kind=ref` — the save itself
+  answers a bare 500 on a duplicate code.
+- **"Add new" names are checked on the phone.** `POST /attributes/:kind` and the car-fitment adds are
+  find-or-create and overwrite an existing row's Thai/English names, so a typed name that is already in
+  the list is refused under the field ("มี … แล้ว").
+- **Photos wait for บันทึก**, then removed ones are deleted and new ones uploaded in order; ยกเลิก changes
+  nothing. ถ่ายรูป opens the phone's own camera (`capture`), เลือกจากคลังภาพ its album.
+- **ลบสินค้า keeps the 2026-08-24 rule.** A product with stock on hand or out on jobs is told at once it
+  cannot be deleted (turn AirPlus off instead); any other gets the typed "ลบ" sheet, and a 409
+  `has_history` from the server shows the same "can't" sheet.
+- **Who:** sell prices, the AirPlus/Shopee switches and delete are the owner's; an admin edits the rest
+  including cost; a mechanic only counts stock from สต็อกและราคา (a lower ขายได้ is sent as a count,
+  `manual_adjustment`, with no reason asked — owner, 31 Oct 2026).
