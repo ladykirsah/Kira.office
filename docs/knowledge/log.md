@@ -460,3 +460,11 @@ sources: [session 2026-08-09]
   big % per source. Server fix: `GET /insights` put no visit in any hour or day (D1 binds the bucket maths
   as decimals); `trafficSeries` now CASTs the bucket to a whole number, which also mends the old admin
   Insight graph (`apps/api/src/insights.ts`).
+- **2026-11-01** — สินค้านายหน้า in the Expo app (`/settings/affiliate-items`), as drawn (canvas v238): the
+  pinned-to-home count ("7 · แสดง 6 อันแรก" once over 6), the not-filed card and its ยังไม่จัดหมวด page
+  (เลือกหมวด files a card and says where it went), a group per category, one form for add and edit in
+  the owner's order (store → ลิงก์ · ชื่อ · ราคา · หมวดหมู่ → แสดง · ปักหมุด) with a new category made in the
+  sheet, and a card page that reads like the form with ลบการ์ดนี้?. New server route
+  `GET /affiliate-price?url=` reads the price on a Lazada link (`apps/api/src/affiliatePrice.ts`, https
+  lazada.co.th only, every redirect hop checked, never an error); Shopee is never fetched. Lessons in
+  [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md).

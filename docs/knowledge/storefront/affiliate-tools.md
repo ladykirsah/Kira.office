@@ -19,6 +19,16 @@ Migration 0067 was applied to prod BEFORE the merge, per the repo's standing mig
 - **Storefront cards** show the real outbound click count `คนกดดูแล้ว N ครั้ง` ("N people viewed"), hidden below 10 — `apps/storefront/src/lib/affiliateInterest.ts`.
 - **/tools** = design B of the three the owner reviewed: chip bar (`router.replace`, never push — the [navigation](navigation-and-header.md) filter rule) + one shelf per category ordered by REAL clicks, exactly 2 rows (5×2 desktop / 4×2 tablet / swipe rail on phone), remainder at `/tools/[slug]`.
 
+## Back office in the Expo app (2026-11-01)
+
+- สินค้านายหน้า is rebuilt at `/settings/affiliate-items` (list, `unfiled`, `new`, `[id]`, `[id]/edit`)
+  on the same endpoints; logic in `apps/mobile/src/lib/affiliatePage.ts`, calls in `affiliateApi.ts`.
+- `GET /affiliate-price?url=` → `{ price: "฿1,965" | null }`: the form fills ราคา from a Lazada link.
+  Only https `lazada.co.th` hosts are fetched, each redirect hop is checked against that, 8 s timeout,
+  2 MB read cap. It reads `"pdt_price"` — the price of the option Lazada shows first, not every option's.
+  Shopee pages are empty to a server and its item API refuses (error 90309999), so Shopee is never asked.
+- The home shelf shows pinned **and active** cards; the app's "N จาก 6" counts the same.
+
 ## Invariants & traps
 
 - **Thai slug trap**: slugs keep Thai — `\p{M}` must be in the slug character class or Thai tone marks are stripped (same trap as product slugs, see [seo-and-agent-discovery](seo-and-agent-discovery.md)).

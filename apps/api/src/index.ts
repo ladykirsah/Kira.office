@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { priceFromLink } from "./affiliatePrice";
 import { insightsFor } from "./insights";
 import { listStockMovements, parseMovementRange } from "./stockMovements";
 import {
@@ -8612,6 +8613,13 @@ const worker = {
 
     if (url.pathname === "/affiliate-items" && request.method === "GET") {
       return json({ items: await listAffiliateItemsAdmin(env.DB) });
+    }
+    // The price on a card's link, so the form can fill it in (Lazada only — see affiliatePrice.ts).
+    // Never an error for a link it can't read: the answer is just "no price".
+    if (url.pathname === "/affiliate-price" && request.method === "GET") {
+      const link = url.searchParams.get("url");
+      if (!link) return json({ error: "url is required" }, 400);
+      return json({ price: await priceFromLink(fetch, link) });
     }
     if (url.pathname === "/affiliate-items" && request.method === "POST") {
       const body = await readJson<Partial<AffiliateItemCreate>>(request);
