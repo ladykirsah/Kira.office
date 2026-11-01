@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { insightsFor } from "./insights";
+import { listStockMovements, parseMovementRange } from "./stockMovements";
 import {
   clientAddress,
   loginThrottleKey,
@@ -2365,21 +2366,6 @@ async function listStock(env: Env): Promise<Response> {
 }
 
 /** Recent stock-ledger movements (newest first) with product/variant labels, for the stock screen. */
-async function listStockMovements(env: Env): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT e.id, e.product_variant_id AS variantId, v.sku, p.name AS productName,
-            e.movement_type AS movementType, e.quantity_delta AS quantityDelta,
-            e.quantity_after AS quantityAfter, e.created_at AS createdAt
-     FROM stock_ledger_entries e
-     JOIN product_variants v ON v.id = e.product_variant_id
-     JOIN products p ON p.id = v.product_id
-     WHERE p.status <> 'archived'
-     ORDER BY e.created_at DESC
-     LIMIT 100`,
-  ).all();
-  return json({ movements: results });
-}
-
 /** One product the owner still owes Shopee a stock update for. */
 export interface ShopeeWorklistItem {
   productId: string; // products.id — what "Clear done" stamps
@@ -7414,7 +7400,9 @@ const worker = {
     }
 
     if (url.pathname === "/stock/movements" && request.method === "GET") {
-      return listStockMovements(env);
+      const range = parseMovementRange(url.searchParams);
+      if (typeof range === "string") return json({ error: range }, 400);
+      return json(await listStockMovements(env.DB, range));
     }
 
     // The dashboard "Update on Shopee" worklist: what still needs reconciling, and the Clear that

@@ -129,7 +129,8 @@ export function startOfDay(ms: number): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-function dateRange(
+/** The first and last ms a date choice covers; ประวัติซื้อขาย reads its dates the same way. */
+export function dateRange(
   preset: DatePreset,
   custom: CustomRange | null,
   now: number,

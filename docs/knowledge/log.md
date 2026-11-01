@@ -446,3 +446,9 @@ sources: [session 2026-08-09]
   (S 35 / L 46 mm wide, height by car lines, QR, Thai), labels as cards on the sheet, an add sheet by
   search or scan, a preview of the paper, and PDF / PNG files. Server: a new `phone` shop field, set in
   ข้อมูลร้าน. See [back-office/barcode-labels](back-office/barcode-labels.md).
+- **2026-11-01** — ประวัติซื้อขาย (renamed from รายการสต็อก) in the Expo app (`/stock`), as drawn: every
+  stock change by day with photo, name, type · เหลือ N and a ± badge; type buttons (no นับใหม่ / ของเสีย,
+  hand changes read ปรับสต็อก), search with scan, Orders' date button and pick-your-days sheet; a tap
+  shows the product, its code with copy, the sold price and the day. No แก้สต็อก. Server:
+  `GET /stock/movements` takes `?from=&to=` (up to 500, else the latest 100), returns `limit`, and each
+  row adds `productRef`, `imageKey` and `salePriceSatang` (`apps/api/src/stockMovements.ts`).

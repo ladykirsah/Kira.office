@@ -2134,7 +2134,34 @@ describe("api worker routes", () => {
     ];
     const { env } = makeDb({ movements });
     const res = await fetchAuthed(new Request("https://x/stock/movements"), env, ctx);
-    expect(await res.json()).toEqual({ movements });
+    expect(await res.json()).toEqual({ movements, limit: 100 });
+  });
+
+  it("GET /stock/movements?from&to > asks the database for that period only", async () => {
+    const { env, alls } = makeDb({ movements: [] });
+    const res = await fetchAuthed(
+      new Request("https://x/stock/movements?from=1000&to=2000"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const asked = alls.find((a) => a.sql.includes("movement_type AS movementType"));
+    expect(asked?.binds).toEqual([1000, 2000, 500]);
+  });
+
+  it.each([
+    ["from without to", "from=1000"],
+    ["to without from", "to=2000"],
+    ["a date that is not a number", "from=abc&to=2000"],
+    ["a negative date", "from=-1&to=2000"],
+    ["from after to", "from=3000&to=2000"],
+  ])("GET /stock/movements > given %s > refuses with a plain reason", async (_, query) => {
+    const { env } = makeDb({ movements: [] });
+    const res = await fetchAuthed(new Request(`https://x/stock/movements?${query}`), env, ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "from and to must both be dates in ms, from no later than to",
+    });
   });
 
   it("GET /finance/summary > aggregates sales, profit and refunds", async () => {

@@ -97,6 +97,7 @@ car_brand, car_model}`.
 | Method | Path | Client fn | Notes |
 | --- | --- | --- | --- |
 | `GET` | `/stock` | `fetchStock()` | Per-variant on-hand (derived from `stock_ledger_entries`). |
+| `GET` | `/stock/movements` | `fetchStockMovements()` · Expo `fetchMovements()` | ประวัติซื้อขาย: ledger changes, newest first → `{movements, limit}`. No query = the latest 100; `?from=&to=` (ms, both ends included, both or neither) = up to 500 in that period, else 400. Each row adds `productRef`, `imageKey` and `salePriceSatang` (the bill or order line's price per piece for `onsite_sale` / `online_sale`, else null). Archived products are left out. |
 | `POST` | `/stock/adjust` | `adjustStock()` | Body `{productVariantId, quantityDelta, movementType, reason?}` → `{applied, quantityAfter, reason?}`. Goes through the `StockLedger` DO. Rejects a delta that would drive stock negative — but the check **races under concurrency** (see the Durable Object section). |
 | `GET` | `/barcodes` | `fetchBarcodes()` | All variants + their primary barcode. |
 
