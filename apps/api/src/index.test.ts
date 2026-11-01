@@ -1553,6 +1553,43 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       expect(await bad({ title: "x", targetUrl: "https://a.co/x", source: "amazon" })).toBe(400);
     });
 
+    it("GET /affiliate-price > given a Lazada link > then it answers the price on the page", async () => {
+      const seen: string[] = [];
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+        seen.push(String(input));
+        return new Response('<script>{"pdt_price":"฿1,965.00"}</script>');
+      });
+      try {
+        const link = "https://www.lazada.co.th/products/seco-i3078296105.html";
+        const res = await fetchAuthed(
+          new Request(`https://x/affiliate-price?url=${encodeURIComponent(link)}`),
+          makeDb({}).env,
+          ctx,
+        );
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ price: "฿1,965" });
+        expect(seen).toEqual([link]);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("GET /affiliate-price > given a Shopee link or none > then no price and nothing fetched", async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+      try {
+        const ask = (q: string) =>
+          fetchAuthed(new Request(`https://x/affiliate-price${q}`), makeDb({}).env, ctx);
+        const shopee = await ask(`?url=${encodeURIComponent("https://s.shopee.co.th/9zXa1")}`);
+        expect(shopee.status).toBe(200);
+        expect(await shopee.json()).toEqual({ price: null });
+        expect((await ask("")).status).toBe(400);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("PATCH /affiliate-items/:id > updates only the supplied fields", async () => {
       const { env, runs } = makeDb({});
       const res = await fetchAuthed(

@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-01
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -103,6 +103,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Say it before building it.** If something can't be done as drawn (the server lacks it, it
   breaks an approved rule), say so first and tag it ระบบยังไม่มี. Never build a smaller stand-in
   and explain it afterwards.
+- **Test an automatic value on every source and every case before drawing it.** *"if it's available
+  on the link make the link work > show lowest price"*: a real Lazada page gives a price to the
+  server, Shopee gives nothing, so Shopee stays typed by hand — said before drawing, owner picked A.
+  But I drew "ราคาต่ำสุด" before opening an item with options: Lazada's page only carries the price of
+  the option it shows first. Open the many-options case too before writing the word (สินค้านายหน้า,
+  1 Nov).
 - **Draw only what the system has.** Every number, status and field on a drawing must exist in the
   data — check the API or `apps/mobile/src/lib` before drawing it. Stock is ขายได้ (on hand) and
   งานนอก (held on outside jobs, `scanTabs.ts`); there is no "reserved". *"please do not imagine
@@ -210,6 +216,13 @@ again before saying a build matches.** The owner's words are quoted where they s
   reveal. *"cost always come before price"* · *"[title] [price] [point down arrow button] drop to
   see profit"* · *"make cost the same function as price, by showing total cost > drop to see the
   calculation"* (หน้าสินค้า, 30 Oct).
+- **A view page reads like its edit form.** Same order, same rows, the photo full width on top;
+  values instead of fields and switches. *"keep the one on the right for both mode, by making inserted
+  image width filled up the page on top"* (สินค้านายหน้า, 1 Nov).
+- **A control that names its own choices needs no heading.** The store picker (Shopee · Lazada ·
+  อื่น ๆ) lost its "ร้านปลายทาง" heading and moved to the top of the form: *"pick ร้านค้าปลายทาง without
+  headline"*. The owner orders a form's rows by how they fill it in (store → ลิงก์ · ชื่อ · ราคา ·
+  หมวดหมู่ → แสดง · ปักหมุด), and renamed เปิดใช้ to แสดง.
 - **Settings live in edit mode.** A view page shows values only; switches like บวก VAT 7% belong
   in แก้ไข. No section gets its own edit button — the page's แก้ไข edits it all. *"why stock is the
   only one that has its own Edit button > remove"* · *"Vat setting go for edit mode"* (30 Oct).
@@ -347,6 +360,13 @@ again before saying a build matches.** The owner's words are quoted where they s
   empty page hid: visits per hour all read 0, because D1 binds numbers as decimals and
   `(time − start) / size` never matched a whole hour. Its old test used 13:00:00 sharp, the one
   moment the bug can't show — test with times partway through (ภาพรวม AirPlus, 1 Nov).
+- **Check toasts on the phone layout.** The browser pane is wide, so it draws the computer frame,
+  which shows a toast only on a page with a bottom button; the "ปักหมุดแล้ว 7 รายการ" toast looked
+  missing there and showed fine on the simulator (สินค้านายหน้า, 1 Nov). Type in the browser pane
+  (the simulator's web page doesn't take typed text), look in the simulator.
+- **Thai names sort in Thai order.** The server sorts names by code, which puts น้ำยาแอร์ before
+  เกจวัด; every pick list and group of Thai names sorts with `localeCompare(…, "th")`, as the drawing
+  does (สินค้านายหน้า's หมวดหมู่ sheet, 1 Nov).
 - **Tap every graph and drawn tap target in the phone browser too.** The graph's tap did nothing
   on the web build: there the press carries no position, so it is read from the click and the
   graph's box (`ui/insights/TrendChart.tsx`, ภาพรวม AirPlus, 1 Nov).
