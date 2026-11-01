@@ -272,6 +272,10 @@ async function windowTotals(
  * visitor for the day but must appear in both hours, and that is only right if each bucket does its
  * own DISTINCT. Summing the buckets therefore does NOT give the window total — which is correct,
  * and why the totals are queried separately rather than derived from the series.
+ *
+ * The bucket is CAST to a whole number because D1 binds the window start and the bucket size as
+ * decimals: without it, a visit at 13:25 divided out to 13.41…, matched no hour, and every real
+ * visit fell out of the graph (found on the Expo preview, 1 Nov 2026).
  */
 async function trafficSeries(
   db: D1Database,
@@ -280,7 +284,7 @@ async function trafficSeries(
 ): Promise<Map<number, Partial<InsightTotals>>> {
   const { results } = await db
     .prepare(
-      `SELECT ((occurred_at - ?) / ?) AS bucket,
+      `SELECT CAST((occurred_at - ?) / ? AS INTEGER) AS bucket,
               COUNT(DISTINCT visitor_hash) AS visitors,
               SUM(CASE WHEN kind = 'product_view' THEN 1 ELSE 0 END) AS productViews,
               SUM(CASE WHEN kind = 'click' THEN 1 ELSE 0 END) AS clicks,

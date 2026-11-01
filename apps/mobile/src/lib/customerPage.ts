@@ -6,7 +6,7 @@ import { formatBaht } from "./money";
  * customer pages show. Pure, so the rules the owner set are tested here, not in the screens.
  */
 
-const MONTHS_TH = [
+export const MONTHS_TH = [
   "ม.ค.",
   "ก.พ.",
   "มี.ค.",
@@ -20,7 +20,7 @@ const MONTHS_TH = [
   "พ.ย.",
   "ธ.ค.",
 ];
-const MONTHS_EN = [
+export const MONTHS_EN = [
   "Jan",
   "Feb",
   "Mar",

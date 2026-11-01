@@ -452,3 +452,11 @@ sources: [session 2026-08-09]
   shows the product, its code with copy, the sold price and the day. No แก้สต็อก. Server:
   `GET /stock/movements` takes `?from=&to=` (up to 500, else the latest 100), returns `limit`, and each
   row adds `productRef`, `imageKey` and `salePriceSatang` (`apps/api/src/stockMovements.ts`).
+- **2026-11-01** — ภาพรวม AirPlus in the Expo app (`/insights`, owner only), as drawn: วันนี้ ▾ (5
+  periods) and what it is compared with; tiles in three lines (ยอดขาย · กำไร / มองเห็นสินค้า · ผู้เข้าชม ·
+  เพิ่มลงตะกร้า / จำนวนออเดอร์ · เฉลี่ยต่อออเดอร์) with ▲ green / ▼ red, each tile picking up to two
+  graph lines; a tap on the graph reads the hour or day; the top 5 best sellers (ยอดขาย | ขาย · ดู) with
+  ดูทั้งหมด (`/insights/products`); ยอดขาย and การเข้าชม lists; ที่มาของการเข้าชม as one coloured bar with a
+  big % per source. Server fix: `GET /insights` put no visit in any hour or day (D1 binds the bucket maths
+  as decimals); `trafficSeries` now CASTs the bucket to a whole number, which also mends the old admin
+  Insight graph (`apps/api/src/insights.ts`).

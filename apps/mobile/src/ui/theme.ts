@@ -30,6 +30,9 @@ export const LIGHT = {
   success: "#18712F",
   waiting: "#9A5B00",
   toShip: "#0A5FC2",
+  /** ภาพรวม AirPlus graph: the first and second picked line (canvas v233). */
+  lineA: "#0A5FC2",
+  lineB: "#C25E00",
 };
 
 export type Theme = typeof LIGHT;
@@ -61,6 +64,8 @@ export const DARK: Theme = {
   success: "#32D74B",
   waiting: "#FFB340",
   toShip: "#64A8FF",
+  lineA: "#64A8FF",
+  lineB: "#FF9F43",
 };
 
 /** The guide's type scale. At most four of these on one screen. */

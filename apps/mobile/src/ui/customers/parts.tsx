@@ -202,7 +202,7 @@ export function SearchField(props: {
 }
 
 /** Nothing to show: a round icon, a line in black and one in grey, and maybe one way on. */
-export function Empty(props: { icon: string; title: string; detail: string; action?: ReactNode }) {
+export function Empty(props: { icon: string; title: string; detail?: string; action?: ReactNode }) {
   const { theme } = useTheme();
   return (
     <View style={styles.empty}>
@@ -210,7 +210,11 @@ export function Empty(props: { icon: string; title: string; detail: string; acti
         <LineIcon d={props.icon} color={theme.text} size={26} strokeWidth={2} />
       </View>
       <Text style={[TYPE.headline, styles.center, { color: theme.text }]}>{props.title}</Text>
-      <Text style={[TYPE.subhead, styles.center, { color: theme.textMuted }]}>{props.detail}</Text>
+      {props.detail ? (
+        <Text style={[TYPE.subhead, styles.center, { color: theme.textMuted }]}>
+          {props.detail}
+        </Text>
+      ) : null}
       {props.action}
     </View>
   );
