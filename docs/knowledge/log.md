@@ -468,3 +468,11 @@ sources: [session 2026-08-09]
   `GET /affiliate-price?url=` reads the price on a Lazada link (`apps/api/src/affiliatePrice.ts`, https
   lazada.co.th only, every redirect hop checked, never an error); Shopee is never fetched. Lessons in
   [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md).
+- **2026-11-01** — แบนเนอร์ in the Expo app (`/settings/banners`), as drawn (canvas v245): สไลด์หลัก
+  (3 places) and แถบโปรโมชัน tabs, each banner with its picture, a dot and words for its state
+  (แสดงอยู่ · รอเริ่ม · หมดเวลาแล้ว · ปิดอยู่ · ไม่แสดง), its dates and ▲▼ (saved one move at a time);
+  one form for add and edit: the picture (ถ่ายรูป / เลือกจากคลังภาพ), **ไปที่** (คลิกไม่ได้ · AirPlus
+  pages, คูปองส่วนลด included, or products of a brand / category / car · one product, picked with its
+  photo · an https link), ช่วงเวลา (a date and time each end, or ตลอดเวลา; an end the web back office
+  left empty stays empty), เปิดใช้, and ลบ / ยกเลิก. No server change. Lessons in
+  [conventions/expo-page-design-rules](conventions/expo-page-design-rules.md).

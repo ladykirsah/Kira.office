@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-01
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -126,6 +126,10 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A history page only reads.** ประวัติซื้อขาย lost its แก้สต็อก button and row: *"what action is
   this?"* then *"no need many function here, just แตะรายการขาย → สินค้าไหน ขายเท่าไร เหลือเท่าไร is
   enough"* (1 Nov). Editing stays on the page that owns it (สินค้า, Scan).
+- **Offer the smallest path that already works first.** For แบนเนอร์ → คูปอง I drew a coupon picker,
+  one-coupon website pages and a แสดงบนเว็บ switch; the owner dropped it all: *"drop it, just click
+  and go to coupon page is enough"* (1 Nov). Lead with the option that reuses what exists; bigger
+  builds are the B and C.
 
 ## 3 · The look: Apple Store UI, Shopify UX
 
@@ -223,13 +227,20 @@ again before saying a build matches.** The owner's words are quoted where they s
   อื่น ๆ) lost its "ร้านปลายทาง" heading and moved to the top of the form: *"pick ร้านค้าปลายทาง without
   headline"*. The owner orders a form's rows by how they fill it in (store → ลิงก์ · ชื่อ · ราคา ·
   หมวดหมู่ → แสดง · ปักหมุด), and renamed เปิดใช้ to แสดง.
+- **A link is named by where the tap goes.** The owner renamed ลิงก์ to **ไปที่**, with the choices
+  คลิกไม่ได้ · AirPlus › · สินค้า › · ลิงก์ภายนอก › (แบนเนอร์, 1 Nov).
+- **A picked product shows its photo.** The product pick list shows each photo, picks one product at
+  a time, and the form then shows the picked product with its photo: *"add product pic too > pick one
+  product at a time"* (แบนเนอร์, 1 Nov).
 - **Settings live in edit mode.** A view page shows values only; switches like บวก VAT 7% belong
   in แก้ไข. No section gets its own edit button — the page's แก้ไข edits it all. *"why stock is the
   only one that has its own Edit button > remove"* · *"Vat setting go for edit mode"* (30 Oct).
 - **A list says each record's state once**: a dot and words (แสดงอยู่ · รอเริ่ม · ปิดอยู่ · หมดอายุ).
   No faded rows, no switch in the row; the row opens with ›, and เปิดใช้ lives in แก้ไข (fix pass, 31 Oct).
-- **Deletes are sheets.** Allowed: the built delete sheet (ลบ…? · what goes with it · red ลบ · grey ไม่ลบ).
-  Blocked by the server: a sheet that says why and what to do first, with a grey เข้าใจแล้ว — never a
+- **Deletes are sheets.** Newest, and the one to start from: title ลบ…? · red ลบ · grey ยกเลิก —
+  no card, no pill: *"deleting stage > keep 2 button ลบ / ยกเลิก"*, then *"remove"* on the card
+  (แบนเนอร์, 1 Nov). Older pages keep the first built sheet (ลบ…? · what goes with it · red ลบ ·
+  grey ไม่ลบ). Blocked by the server: a sheet that says why and what to do first, with a grey เข้าใจแล้ว — never a
   greyed button with a grey reason under it.
 - **Dates use the built parts.** One date = a DateBox (the phone's own wheel); a range = the built
   RangeSheet; a period choice = Orders' ▾ menu words (วันนี้ … ทุกวัน · กำหนดเอง…). Offer "no dates"
@@ -385,6 +396,21 @@ again before saying a build matches.** The owner's words are quoted where they s
   even when the browser refused, and the refusal brought up the error screen. Use `lib/copyText.ts`
   (true / false). Inside a sheet a toast sits hidden under it, so the icon turns into a ✓ for a moment
   instead (ประวัติซื้อขาย, 1 Nov). The older copy buttons (สินค้า, Orders) still need this.
+- **Open records the old back office saved, not only new ones.** It can save a start date with no
+  end, two banners at the same place, a hand-typed link with a broken %. My first ช่วงเวลา sheet
+  filled in the missing end by itself (the banner would have left the website at month end), and the
+  broken link stopped the banner opening. A sheet keeps what the owner didn't touch; a code check
+  caught both (แบนเนอร์, 1 Nov).
+- **Tap twice fast.** Two quick ▲▼ taps saved over each other. Saves now run one after another
+  (`lib/oneAtATime.ts`) and the list reads back what was saved (แบนเนอร์, 1 Nov).
+- **Open a record and come back.** The list forgot its tab (แถบโปรโมชัน → สไลด์หลัก). A list's tab lives
+  in the page address (`router.setParams`), so coming back opens the same tab (แบนเนอร์, 1 Nov).
+- **No button inside a button.** A card that opens its page and also holds ▲▼ is separate tap areas
+  side by side; nested ones break on the web build (แบนเนอร์, 1 Nov).
+- **The browser pane writes times as "12:00 AM"**, wider than a phone's "00:00" — size time boxes
+  for both, and look at both (แบนเนอร์, 1 Nov).
+- **Bring the preview tab to the front before tapping.** With the pane hidden or another tab in front,
+  sheets open slowly and taps land on what was under them (the ทำบิล tab, 1 Nov).
 - **Read this rulebook again at the start of a build**, not only before drawing.
 
 ## 9 · Get the push OK in chat, early
