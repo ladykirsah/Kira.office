@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-01
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -21,8 +21,11 @@ again before saying a build matches.** The owner's words are quoted where they s
   preview = build for approval." The lessons come before the commit so they ship with the work:
   *"approved > file lesson > commit > PR > CI pass > merge"* (31 Oct).
 - **Close the whole loop before the next page:** lessons filed → merged → every deploy job on
-  `main` succeeded → then tell the owner "go to the next page: …". *"done all then tell me to go
-  to next page, i do not want to skip any steps"* (30 Oct).
+  `main` succeeded → the page marked ✅ on the canvas → move on to the next page. *"done all then
+  tell me to go to next page, i do not want to skip any steps"* (30 Oct).
+- **"Ship it" approves all of that, in one turn.** Don't hand back while checks run; wait for them
+  and finish. *"approve > file lesson > commit > PR > CI pass > merge > make as done > move on … all
+  this should be done, since i told you to ship"* (ประวัติซื้อขาย, 1 Nov).
 - **One page at a time, in menu order** (`packages/shared` nav.ts). Each page: learn what the old
   back office does → look at Mobbin → draw → their OK → build.
 - **Learn the old functions before drawing.** Orders v1 *"look good, but not functionable"*.
@@ -56,6 +59,15 @@ again before saying a build matches.** The owner's words are quoted where they s
   the artifact). On the logo: *"they all are the same, just a simple icon > show me something
   different."* When they select one part, each option changes THAT part, not what sits beside it:
   *"you almost change nothing"* (ประวัติซื้อขาย row, 1 Nov).
+- **They may take parts of two options.** *"merge A and B … A for clear graph and coloring, B is
+  the big % to catch"* → one design with A's bar and colours and B's big %, nothing else new.
+  *"C is best … only keep sales amount, views, order amount"* → the row keeps just those three; a
+  number dropped from a row stays wherever else the page shows it (กำไร on the tiles and graph)
+  (ภาพรวม AirPlus, 1 Nov).
+- **Draw options at the real phone width, with the longest text.** My first best-seller options
+  squeezed the name to "คอมเพรสเซอ…" and wrapped the numbers onto two lines at 390; I redrew them
+  before showing. A section that runs off the first phone gets a scrolled phone that shows it whole
+  (the top 5 under the graph, ภาพรวม AirPlus, 1 Nov).
 - **A picked option keeps every function.** Fit missing filters or statuses into its style.
   *"apply all the status and filter there… don't even have to ask me."*
 - **"You pick" means decide.** Ask the owner only about the business, never about process.
@@ -95,6 +107,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   data — check the API or `apps/mobile/src/lib` before drawing it. Stock is ขายได้ (on hand) and
   งานนอก (held on outside jobs, `scanTabs.ts`); there is no "reserved". *"please do not imagine
   anything yourself, we did not have ถูกจอง and กันไว้, we only have งานนอก"* (สินค้า, 30 Oct).
+- **Say which number it really is.** The owner's "order amount" per product: the server counts
+  pieces sold (ขาย), not orders per product, so the drawing used ขาย and asked [y/n] — *"Pieces
+  sold is fine"* (ภาพรวม AirPlus, 1 Nov).
 - **Stock is two numbers, and people change them.** Show ขายได้ and งานนอก — no total, no extra
   labels. Editing is − / + on those two, then บันทึก: no reason question, no extra step. *"stock is
   available amount = ขายได้ · งานนอก = on hold stage. this is it. nothing much and nothing less. add
@@ -125,6 +140,10 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Colours: Palette A Racing Red.** The owner rejected odd success/warning/problem colours.
 - **Colour lives in icons and dots.** Status = a small coloured dot or icon + plain black or grey
   words. Never colour the words.
+- **Except ▲ / ▼ changes: green when better, red when worse.** *"make up and down % in green and
+  red color"* (ภาพรวม AirPlus, 1 Nov). "Better" is per number: for ออเดอร์ไม่สำเร็จ, up is red. A
+  dash (nothing to compare) stays grey. Graph and share colours stay with their thing, not their
+  rank: การค้นหา is always the same blue.
 - **Red is for the one main action**, and for the one "now" step: done = black, now = red,
   later = grey. A phone number is grey, not a red link. Red text is used only for a loss or an
   error.
@@ -323,6 +342,14 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Check "no connection" for real.** Stop the local API, use the page, watch it say so, start the API
   again and watch it recover. On เพิ่มสินค้า the draft note never showed: the code check failed first
   and stayed silent, so the draft never tried (31 Oct).
+- **Fill the local database so the page looks like the drawing** (local only, every row id
+  removable: `design-tools/seed_insights_local.py`). Real-looking numbers found a server bug the
+  empty page hid: visits per hour all read 0, because D1 binds numbers as decimals and
+  `(time − start) / size` never matched a whole hour. Its old test used 13:00:00 sharp, the one
+  moment the bug can't show — test with times partway through (ภาพรวม AirPlus, 1 Nov).
+- **Tap every graph and drawn tap target in the phone browser too.** The graph's tap did nothing
+  on the web build: there the press carries no position, so it is read from the click and the
+  graph's box (`ui/insights/TrendChart.tsx`, ภาพรวม AirPlus, 1 Nov).
 - **Type the longest text the drawing shows, and leave each new field empty.** A long auto-made name
   was cut off in a one-line field, and the empty two-line box made its row too tall; the drawing
   showed neither (เพิ่มสินค้า, 31 Oct).

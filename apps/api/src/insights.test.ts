@@ -268,6 +268,32 @@ describe("insightsFor > series", () => {
     expect(p.series.totals[12]?.visitors).toBe(0);
   });
 
+  it("given visits partway through an hour > then they still land in that hour", async () => {
+    // D1 binds the window start and bucket size as decimals, so the division came out as 13.41…
+    // and never matched hour 13: every real visit fell out of the graph (owner's preview, 1 Nov).
+    const db = migratedDb();
+    seedEvent(db, { at: bkk("2026-08-04T13:25:00"), kind: "page_view", visitor: "v1" });
+    seedEvent(db, { at: bkk("2026-08-04T13:59:59"), kind: "product_view", visitor: "v2" });
+    seedEvent(db, { at: bkk("2026-08-04T13:40:00"), kind: "add_to_cart", visitor: "v2" });
+
+    const p = await insightsFor(asD1(db), "realtime", NOW);
+    expect(p.series.totals[13]).toMatchObject({
+      visitors: 2,
+      productViews: 1,
+      addToCartVisitors: 1,
+    });
+    expect(p.series.totals.reduce((n, t) => n + t.visitors, 0)).toBe(2);
+  });
+
+  it("given a visit partway through a day > then it lands in that day", async () => {
+    const db = migratedDb();
+    seedEvent(db, { at: bkk("2026-08-02T15:30:00"), kind: "page_view", visitor: "v1" });
+
+    const p = await insightsFor(asD1(db), "7d", NOW);
+    // The 7 days run 28 Jul – 3 Aug, so 2 Aug is the sixth.
+    expect(p.series.totals.map((t) => t.visitors)).toEqual([0, 0, 0, 0, 0, 1, 0]);
+  });
+
   it("given a 7d period > then there are seven daily buckets", async () => {
     const p = await insightsFor(asD1(migratedDb()), "7d", NOW);
     expect(p.series.buckets).toHaveLength(7);
