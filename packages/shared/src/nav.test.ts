@@ -22,6 +22,11 @@ describe("NAV_GROUPS", () => {
     expect(link?.label.th).toBe("ออกบาร์โค้ด");
   });
 
+  it("names the stock page ประวัติซื้อขาย, the owner's name for it (1 Nov 2026)", () => {
+    const link = NAV_GROUPS.flatMap((g) => g.links).find((l) => l.href === "/stock");
+    expect(link?.label.th).toBe("ประวัติซื้อขาย");
+  });
+
   it("lists no page twice", () => {
     expect(new Set(allHrefs).size).toBe(allHrefs.length);
   });

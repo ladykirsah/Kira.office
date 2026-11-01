@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-10-31
+timestamp: 2026-11-01
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -40,6 +40,10 @@ again before saying a build matches.** The owner's words are quoted where they s
   ทำบิล CarSheet), not a segmented control of brands. A segmented control holds 4 options or
   fewer (design guide); "อื่น ๆ" as a fifth is a sign it is the wrong control. Sheets, toasts and
   the pinned-button band copy the built components in `apps/mobile/src/ui`.
+- **A function another drawn page already has: copy its words and taps too.** I drew กำหนดเอง… as
+  "แตะ กำหนดเอง… → เลือกวันเอง" with no date-tap line; the การเงิน board already said "กำหนดเอง… →
+  ตั้งแต่ ถึง" and "แตะวันที่ → ปฏิทินของเครื่อง". *"learn from designed page > use the same function as
+  them"* (ประวัติซื้อขาย, 1 Nov). Search every board for the same words before drawing it.
 - **The same kind of sheet has the same parts.** Every pick list gets a search bar, the ＋ row and
   the same height. *"why ระบบรถ is the only one without search bar?"*
 - **Fix the old parts of a board you touch.** Older phones on the same board broke later rules
@@ -50,7 +54,8 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Phone first, computer last.** Computer drawings live on the "Computer (later)" page.
 - **"Any other choices?" → give 3 that really differ** (A/B/C, recommend one, draw all three on
   the artifact). On the logo: *"they all are the same, just a simple icon > show me something
-  different."*
+  different."* When they select one part, each option changes THAT part, not what sits beside it:
+  *"you almost change nothing"* (ประวัติซื้อขาย row, 1 Nov).
 - **A picked option keeps every function.** Fit missing filters or statuses into its style.
   *"apply all the status and filter there… don't even have to ask me."*
 - **"You pick" means decide.** Ask the owner only about the business, never about process.
@@ -94,6 +99,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   labels. Editing is − / + on those two, then บันทึก: no reason question, no extra step. *"stock is
   available amount = ขายได้ · งานนอก = on hold stage. this is it. nothing much and nothing less. add
   or remove amount is human work"* (สินค้า, 31 Oct).
+- **No นับใหม่ and no ของเสีย, anywhere.** A change made by hand reads ปรับสต็อก; stock coming in reads
+  เติมสต็อก (not รับของเข้า). *"i did tell you that we do not need นับใหม่ and ของเสีย"* (ประวัติซื้อขาย,
+  1 Nov). Scan's จัดการสต็อก still asks the two reasons — the owner decides when that changes.
+- **A history page only reads.** ประวัติซื้อขาย lost its แก้สต็อก button and row: *"what action is
+  this?"* then *"no need many function here, just แตะรายการขาย → สินค้าไหน ขายเท่าไร เหลือเท่าไร is
+  enough"* (1 Nov). Editing stays on the page that owns it (สินค้า, Scan).
 
 ## 3 · The look: Apple Store UI, Shopify UX
 
@@ -241,6 +252,8 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Tabs of one page match each other.** The AirPlus tab got the same summary card as หน้าร้าน,
   and its rows show the customer ID, not a phone. *"need the same graph as the other page, also
   keep just main point to show"* · *"replace phone no. with user ID"* (ลูกค้า, 30 Oct).
+- **A record shows its day, not its clock time.** The ledger keeps the time, but ประวัติซื้อขาย shows
+  วันนี้ / เมื่อวาน / 27 ต.ค. only: *"we did not collect time only date"* (1 Nov).
 - **A bill page shows no time.** Each item shows its brand · unit price × quantity, with the line
   amount on the right. *"remove time show the list where there are details about product brand
   and 2 amounts"* (ลูกค้า, 30 Oct).
@@ -321,6 +334,10 @@ again before saying a build matches.** The owner's words are quoted where they s
   file in the browser pane, open it and look at every page (31 Oct).
 - **Build what happens after each tap, as drawn.** The drawing closed the label's sheet and showed
   "บันทึกรูปแล้ว"; my first build saved behind the open sheet, so the message never showed (31 Oct).
+- **A copy button says "copied" only when it copied.** `void clipboard.writeText()` showed "คัดลอกแล้ว"
+  even when the browser refused, and the refusal brought up the error screen. Use `lib/copyText.ts`
+  (true / false). Inside a sheet a toast sits hidden under it, so the icon turns into a ✓ for a moment
+  instead (ประวัติซื้อขาย, 1 Nov). The older copy buttons (สินค้า, Orders) still need this.
 - **Read this rulebook again at the start of a build**, not only before drawing.
 
 ## 9 · Get the push OK in chat, early
