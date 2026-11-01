@@ -21,25 +21,31 @@ const endOf = (row: WhenRow): End => ({ ...row, text: timeField(row.minutes) });
 /**
  * ช่วงเวลา (canvas v245): กำหนดช่วงเวลา on → a start and an end, each a day and a time; off → ตลอดเวลา
  * (no dates, so the banner never runs out by itself). A side the web back office left empty stays
- * empty (and open) unless it is filled in. The red ✓ puts it on the form.
+ * empty (and open) unless it is filled in. The red ✓ puts it on the form. `required` (แฟลชเซล, canvas
+ * v259): no switch — always a start and an end.
  */
 export function WhenSheet(props: {
   startsAt: number | null;
   endsAt: number | null;
   onApply: (window: { startsAt: number | null; endsAt: number | null }) => void;
   onClose: () => void;
+  required?: boolean;
+  /** The sheet's title; ช่วงเวลา unless it is another window (a ลูกค้าใหม่ coupon's สมัครช่วง). */
+  title?: Phrase;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const [rows] = useState(() => whenRows(props.startsAt, props.endsAt, Date.now()));
-  const [dated, setDated] = useState(props.startsAt != null || props.endsAt != null);
+  const [dated, setDated] = useState(
+    props.required || props.startsAt != null || props.endsAt != null,
+  );
   const [start, setStart] = useState<End>(endOf(rows.start));
   const [end, setEnd] = useState<End>(endOf(rows.end));
   const [problem, setProblem] = useState<Phrase | null>(null);
 
   const apply = () => {
     if (!dated) return props.onApply({ startsAt: null, endsAt: null });
-    const window = windowFromRows(start, end);
+    const window = windowFromRows(start, end, props.required);
     if ("problem" in window) return setProblem(window.problem);
     props.onApply(window);
   };
@@ -67,17 +73,23 @@ export function WhenSheet(props: {
   );
 
   return (
-    <Sheet title={t({ th: "ช่วงเวลา", en: "When" })} onClose={props.onClose} onDone={apply}>
+    <Sheet
+      title={t(props.title ?? { th: "ช่วงเวลา", en: "When" })}
+      onClose={props.onClose}
+      onDone={apply}
+    >
       <Group>
-        <SwitchRow
-          label={t({ th: "กำหนดช่วงเวลา", en: "Set dates" })}
-          value={dated}
-          onChange={(on) => {
-            setDated(on);
-            setProblem(null);
-          }}
-          last={!dated}
-        />
+        {!props.required && (
+          <SwitchRow
+            label={t({ th: "กำหนดช่วงเวลา", en: "Set dates" })}
+            value={dated}
+            onChange={(on) => {
+              setDated(on);
+              setProblem(null);
+            }}
+            last={!dated}
+          />
+        )}
         {dated && row(t({ th: "เริ่ม", en: "Start" }), start, setStart)}
         {dated && row(t({ th: "สิ้นสุด", en: "End" }), end, setEnd, true)}
       </Group>

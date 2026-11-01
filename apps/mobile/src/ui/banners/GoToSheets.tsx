@@ -249,7 +249,7 @@ function named(list: readonly Named[], q: string, t: (p: { th: string; en: strin
     .sort((a, b) => a.label.localeCompare(b.label, "th"));
 }
 
-function NotFound({ q }: { q: string }) {
+export function NotFound({ q }: { q: string }) {
   const { t } = useLang();
   const { theme } = useTheme();
   return (
@@ -342,14 +342,18 @@ export function ProductLine(props: {
   );
 }
 
-/** A choice: its name, the current pick in grey under it, the red ✓ when ticked, › when it opens more. */
-function ChoiceLine(props: {
+/**
+ * A choice: its name, the current pick in grey under it, the red ✓ when ticked, › when it opens more.
+ * `wrap` lets a longer grey line run onto more lines (คูปอง's ใครใช้ได้).
+ */
+export function ChoiceLine(props: {
   label: string;
   sub?: string;
   checked?: boolean;
   opens?: boolean;
   onPress: () => void;
   last?: boolean;
+  wrap?: boolean;
 }) {
   const { theme } = useTheme();
   return (
@@ -363,7 +367,10 @@ function ChoiceLine(props: {
         <View style={styles.text}>
           <Text style={[TYPE.body, { color: theme.text }]}>{props.label}</Text>
           {props.sub ? (
-            <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+            <Text
+              style={[TYPE.subhead, { color: theme.textMuted }]}
+              numberOfLines={props.wrap ? undefined : 1}
+            >
               {props.sub}
             </Text>
           ) : null}

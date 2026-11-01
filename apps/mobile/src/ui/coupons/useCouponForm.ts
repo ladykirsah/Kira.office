@@ -12,15 +12,20 @@ import {
 } from "@/lib/couponPage";
 import { createCoupon, fetchCoupons, updateCoupon } from "@/lib/couponsApi";
 import { API_BASE } from "@/lib/config";
+import { fetchAttributes, fetchCarBrands, fetchProductRows } from "@/lib/productsApi";
 import { useAuth } from "../AppProviders";
+import type { RuleLists } from "./RuleSheets";
 
 const TOAST_MS = 3000;
 const BASE = "/settings/coupons";
 
+/** The sheet open over the form: ช่วงเวลา, สมัครช่วง, ใช้กับ or ใครใช้ได้. */
+export type CouponSheet = "when" | "signup" | "scope" | "who" | null;
+
 /**
- * One form for เพิ่มคูปอง and แก้คูปอง (canvas v252). Boxes fill in any order; บันทึก names only the
- * ones still empty, under each, and a box stops saying so once it is filled. A code another coupon
- * has is said under โค้ด.
+ * One form for เพิ่มคูปอง and แก้คูปอง (canvas v252, v260). Boxes fill in any order; บันทึก names only
+ * the ones still empty, under each, and a box stops saying so once it is filled. A code another
+ * coupon has is said under โค้ด. ใช้กับ's lists load beside the form; it works without them.
  */
 export function useCouponForm(id: string | null) {
   const auth = useAuth();
@@ -30,7 +35,9 @@ export function useCouponForm(id: string | null) {
   const [tried, setTried] = useState(false);
   const [taken, setTaken] = useState<Phrase | null>(null);
   const [busy, setBusy] = useState(false);
-  const [when, setWhen] = useState(false);
+  const [sheet, setSheet] = useState<CouponSheet>(null);
+  const [lists, setLists] = useState<RuleLists | null>(null);
+  const [listsFailed, setListsFailed] = useState(false);
   const [toast, setToastState] = useState<{ title: Phrase; detail: Phrase } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,9 +59,25 @@ export function useCouponForm(id: string | null) {
     }
   }, [token, id]);
 
+  const loadLists = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [attrs, cars, products] = await Promise.all([
+        fetchAttributes(fetch, API_BASE, token),
+        fetchCarBrands(fetch, API_BASE, token),
+        fetchProductRows(fetch, API_BASE, token),
+      ]);
+      setLists({ brands: attrs.brands, types: attrs.types, cars, products });
+      setListsFailed(false);
+    } catch {
+      setListsFailed(true);
+    }
+  }, [token]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadLists();
+  }, [load, loadLists]);
 
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
@@ -100,8 +123,11 @@ export function useCouponForm(id: string | null) {
     problem,
     errors,
     taken,
-    when,
-    setWhen,
+    sheet,
+    setSheet,
+    lists,
+    listsFailed,
+    reloadLists: loadLists,
     toast,
     set,
     save,

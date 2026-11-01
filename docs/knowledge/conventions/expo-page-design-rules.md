@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-01
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -39,6 +39,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   tappable thing on every phone — each ＋ row, scan icon, copy button, photo tile, search box,
   the save that can fail — and check each one has a phone after it, or an end-card line naming
   the page it goes to. A ＋ เพิ่ม…ใหม่ row needs its add form drawn.
+  Draw the whole make-one path too: แฟลชเซล missed its name, its time and the product pick until
+  *"you forget the section to pick included product"*; and every ⌄ shows what it opens: *"show me
+  the action of all drop arrow"* (แฟลชเซล, 1 Nov).
 - **Reuse what is built before drawing a new way.** The car picker is brand → model (the built
   ทำบิล CarSheet), not a segmented control of brands. A segmented control holds 4 options or
   fewer (design guide); "อื่น ๆ" as a fifth is a sign it is the wrong control. Sheets, toasts and
@@ -64,6 +67,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   *"C is best … only keep sales amount, views, order amount"* → the row keeps just those three; a
   number dropped from a row stays wherever else the page shows it (กำไร on the tiles and graph)
   (ภาพรวม AirPlus, 1 Nov).
+- **A picked option replaces the options.** I drew the owner's changes to card C next to the five
+  old designs; they could not find it: *"where is the change?"*, then *"Yes, remove them"* (คูปอง,
+  1 Nov). Once one is picked, the board shows only the picked one, changed.
 - **Draw options at the real phone width, with the longest text.** My first best-seller options
   squeezed the name to "คอมเพรสเซอ…" and wrapped the numbers onto two lines at 390; I redrew them
   before showing. A section that runs off the first phone gets a scrolled phone that shows it whole
@@ -157,6 +163,8 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Red is for the one main action**, and for the one "now" step: done = black, now = red,
   later = grey. A phone number is grey, not a red link. Red text is used only for a loss or an
   error.
+  A price set below cost turns the typed price itself red: *"when the set price is lose > make the
+  filled price to be in red"* (แฟลชเซล, 1 Nov).
 - **One signal per fact.** Put the meaning in the label, not in a tint + badge + warning line
   + coloured button. The owner removed four extra signals one message at a time.
 - **No greyed-out main buttons.** The red button stays tappable. If the tap can't work yet, a
@@ -188,6 +196,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   **PDF / PNG save the file** (they don't open it). Show the file by default, not a note
   explaining how to reveal it.
 - **Never draw a button twice.** *"PNG and PDF are already available here."*
+- **Removing is a visible 🗑 in edit mode, never a hidden tap.** A label like "แตะสินค้า →
+  เอาออกจากแคมเปญได้" means the control is missing: *"show picked product … with trash icon … so we do
+  not need 'แตะสินค้า → เอาออกจากแคมเปญได้'"* (แฟลชเซล, 1 Nov).
 - **Forms the Apple way:**
   - The label is on the left and the value on the right, with its unit after ("บาท").
   - Dividers start where the text starts, never full width. *"make sure that Apple does not make
@@ -227,6 +238,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   อื่น ๆ) lost its "ร้านปลายทาง" heading and moved to the top of the form: *"pick ร้านค้าปลายทาง without
   headline"*. The owner orders a form's rows by how they fill it in (store → ลิงก์ · ชื่อ · ราคา ·
   หมวดหมู่ → แสดง · ปักหมุด), and renamed เปิดใช้ to แสดง.
+- **The name is always the first box of a form.** A new section the owner calls "the 1st section"
+  goes right after it: *"sorry coupon name = 1st section"* (คูปอง, 1 Nov). คูปอง reads ชื่อคูปอง →
+  ประเภท → ส่วนลด → โค้ดและสิทธิ์, with เปิดใช้ alone at the bottom of แก้คูปอง.
+- **What and who stay separate rows.** ใช้กับ picks products; ใครใช้ได้ picks ทุกคน or ลูกค้าใหม่. The
+  owner looked for ลูกค้าใหม่ in the ใช้กับ sheet, heard why it sits apart (a coupon can be both "only
+  DENSO" and "only new customers"), and kept it: *"drop it the current one is good"* (คูปอง, 1 Nov).
 - **A link is named by where the tap goes.** The owner renamed ลิงก์ to **ไปที่**, with the choices
   คลิกไม่ได้ · AirPlus › · สินค้า › · ลิงก์ภายนอก › (แบนเนอร์, 1 Nov).
 - **A picked product shows its photo.** The product pick list shows each photo, picks one product at
@@ -237,6 +254,15 @@ again before saying a build matches.** The owner's words are quoted where they s
   only one that has its own Edit button > remove"* · *"Vat setting go for edit mode"* (30 Oct).
 - **A list says each record's state once**: a dot and words (แสดงอยู่ · รอเริ่ม · ปิดอยู่ · หมดอายุ).
   No faded rows, no switch in the row; the row opens with ›, and เปิดใช้ lives in แก้ไข (fix pass, 31 Oct).
+- **A card skims from the icon.** Coupon card C: what it takes off (ส่วนลดสินค้า / ส่วนลดค่าส่ง) with
+  the state on the right, then the icon *ahead of* the big value, one short สำหรับ… line (สำหรับทุกออเดอร์ ·
+  สำหรับสินค้า Cool Gear · สำหรับสินค้า Toyota Vigo เท่านั้น · สำหรับลูกค้าใหม่), a hairline, and the facts as
+  one grey line instead of boxes (คูปอง, 1 Nov). The coupon page drops its ใช้กับ row: the สำหรับ… line says it.
+- **State words say what you can do, with the day.** ใช้ได้ถึง 30 พ.ย. · ใช้ได้ตลอด (no end) · เปิดตัว
+  11 พ.ย. · ใช้ไม่ได้ (switched off) · หมดอายุแล้ว — not ใช้ได้อยู่ / รอเริ่ม / ปิดอยู่ (คูปอง, 1 Nov). A day in
+  another year carries its Thai year.
+- **A product pick row is three lines:** name · product ID · stock ● price (แฟลชเซล, 1 Nov). A flash
+  sale can launch once it has at least one picked product.
 - **Deletes are sheets.** Newest, and the one to start from: title ลบ…? · red ลบ · grey ยกเลิก —
   no card, no pill: *"deleting stage > keep 2 button ลบ / ยกเลิก"*, then *"remove"* on the card
   (แบนเนอร์, 1 Nov). Older pages keep the first built sheet (ลบ…? · what goes with it · red ลบ ·

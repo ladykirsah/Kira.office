@@ -88,6 +88,8 @@ import {
   bangkokMonth,
   bangkokMonthStart,
   isPracticeCopy,
+  type CouponAppliesTo,
+  type CouponScope,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -2624,6 +2626,7 @@ export const BACKUP_TABLES = [
   "storefront_customers",
   "addresses",
   "coupons",
+  "coupon_targets",
   "coupon_redemptions",
   "campaigns",
   "campaign_prices",
@@ -6029,8 +6032,100 @@ const isBannerSlot = (v: unknown): v is "hero" | "promo" => v === "hero" || v ==
 const isEnabledStatus = (v: unknown): v is "active" | "disabled" =>
   v === "active" || v === "disabled";
 const isCouponType = (v: unknown): v is "fixed" | "percent" => v === "fixed" || v === "percent";
+
+const COUPON_SCOPES: readonly string[] = ["all", "brand", "category", "car_model", "products"];
+const NEW_CUSTOMER_DAYS = 365;
+
+/**
+ * The rule fields of migration 0096, checked alike for a new coupon and an edit: ส่งฟรี / ลดค่าส่ง,
+ * ใช้กับ with at least one pick, and a ลูกค้าใหม่ window whose end is after its start.
+ */
+function couponRulesProblem(b: CouponPatch): string | null {
+  if (b.appliesTo !== undefined && b.appliesTo !== "order" && b.appliesTo !== "shipping") {
+    return "appliesTo must be order or shipping";
+  }
+  if (b.scope !== undefined && !COUPON_SCOPES.includes(b.scope)) {
+    return "scope must be all, brand, category, car_model or products";
+  }
+  if (
+    b.targets !== undefined &&
+    (!Array.isArray(b.targets) || b.targets.some((t) => typeof t !== "string" || !t))
+  ) {
+    return "targets must be a list of ids";
+  }
+  if (b.scope !== undefined && b.scope !== "all" && (b.targets?.length ?? 0) === 0) {
+    return "pick at least one target for this scope";
+  }
+  if ((b.signupFrom == null) !== (b.signupTo == null)) {
+    return "signupFrom and signupTo go together";
+  }
+  if (b.signupFrom != null && !(Number(b.signupTo) > Number(b.signupFrom))) {
+    return "signupTo must be after signupFrom";
+  }
+  if (b.validDays != null && !isPositiveInt(b.validDays)) {
+    return "validDays must be a positive whole number";
+  }
+  return null;
+}
+
+/** A ลูกค้าใหม่ coupon lasts a year from each account's start unless the body says otherwise. */
+const withNewCustomerDays = <T extends CouponPatch>(b: T): T =>
+  b.signupFrom != null && b.validDays == null ? { ...b, validDays: NEW_CUSTOMER_DAYS } : b;
 /** Satang, or basis points — both CHECK (… > 0), and both integers. Never a float, never a string. */
 const isPositiveInt = (v: unknown): v is number => Number.isInteger(v) && (v as number) > 0;
+
+const CAMPAIGN_PRICES_SHAPE =
+  "each product needs a productVariantId (once), a positive integer campaignPriceSatang and a positive integer or null stockCap";
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** A product line of a sale (new or added), or null when any part is wrong. */
+function readCampaignPrice(v: unknown): CampaignPriceInput | null {
+  if (!isRecord(v) || typeof v.productVariantId !== "string" || !v.productVariantId) return null;
+  if (!isPositiveInt(v.campaignPriceSatang)) return null;
+  const cap = v.stockCap ?? null;
+  if (cap !== null && !isPositiveInt(cap)) return null;
+  return {
+    productVariantId: v.productVariantId,
+    campaignPriceSatang: v.campaignPriceSatang,
+    stockCap: cap,
+  };
+}
+
+/** POST /campaigns's products: a list, each line valid, no product twice. */
+function readCampaignPrices(v: unknown): CampaignPriceInput[] | null {
+  if (!Array.isArray(v)) return null;
+  const lines = v.map(readCampaignPrice);
+  if (lines.some((l) => l === null)) return null;
+  const ids = lines.map((l) => l!.productVariantId);
+  return new Set(ids).size === ids.length ? (lines as CampaignPriceInput[]) : null;
+}
+
+/** PATCH /campaigns/:id's products: what to add, change and remove. */
+function readCampaignPricesEdit(v: unknown): CampaignPricesEdit | null {
+  if (!isRecord(v)) return null;
+  const add = v.add === undefined ? [] : readCampaignPrices(v.add);
+  if (!add) return null;
+  const update: NonNullable<CampaignPricesEdit["update"]> = [];
+  for (const u of v.update === undefined ? [] : Array.isArray(v.update) ? v.update : [null]) {
+    const cap = isRecord(u) ? (u.stockCap ?? null) : undefined;
+    if (!isRecord(u) || typeof u.id !== "string" || !isPositiveInt(u.campaignPriceSatang)) {
+      return null;
+    }
+    if (cap !== null && !isPositiveInt(cap)) return null;
+    update.push({ id: u.id, campaignPriceSatang: u.campaignPriceSatang, stockCap: cap });
+  }
+  const remove = v.remove === undefined ? [] : v.remove;
+  if (!Array.isArray(remove) || remove.some((r) => typeof r !== "string")) return null;
+  return { add, update, remove: remove as string[] };
+}
+
+function campaignPriceRefusal(error: "variant_not_found" | "duplicate"): Response {
+  return error === "variant_not_found"
+    ? json({ error: "product variant not found" }, 404)
+    : json({ error: "this product is already in the campaign" }, 409);
+}
 /** Affiliate cards are outbound links the storefront renders — https only, never javascript:/http:. */
 const isHttpsUrl = (v: unknown): v is string =>
   typeof v === "string" && /^https:\/\/\S+$/i.test(v.trim());
@@ -6195,23 +6290,62 @@ export interface CouponAdminRow {
   redemptions: number;
   /** The staff member who made it (migration 0095); null for coupons made before then. */
   createdByName: string | null;
+  /** What it cuts (migration 0096): the products, or the shipping fee. */
+  appliesTo: string;
+  /** ใช้กับ: all | brand | category | car_model | products. */
+  scope: string;
+  /** What the scope names, with names to show (a car model with its car brand) and a product's photo. */
+  targets: CouponTarget[];
+  /** ลูกค้าใหม่: accounts made in this window hold it for validDays; null = everyone. */
+  signupFrom: number | null;
+  signupTo: number | null;
+  validDays: number | null;
 }
 
-/** Every coupon with its lifetime redemption count, newest first. */
+export interface CouponTarget {
+  id: string;
+  name: string;
+  imageKey: string | null;
+}
+
+/** Every coupon with its lifetime redemption count and what it is for, newest first. */
 export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT c.id, c.code, c.name AS name, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
-              c.starts_at AS startsAt, c.ends_at AS endsAt, c.max_uses AS maxUses,
-              c.max_uses_per_customer AS maxUsesPerCustomer,
-              c.max_discount_satang AS maxDiscountSatang, c.status, c.created_at AS createdAt,
-              (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions,
-              u.name AS createdByName
-       FROM coupons c LEFT JOIN users u ON u.id = c.created_by_user_id
-       ORDER BY c.created_at DESC`,
-    )
-    .all<CouponAdminRow>();
-  return results ?? [];
+  const [coupons, targets] = await Promise.all([
+    db
+      .prepare(
+        `SELECT c.id, c.code, c.name AS name, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
+                c.starts_at AS startsAt, c.ends_at AS endsAt, c.max_uses AS maxUses,
+                c.max_uses_per_customer AS maxUsesPerCustomer,
+                c.max_discount_satang AS maxDiscountSatang, c.status, c.created_at AS createdAt,
+                (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions,
+                u.name AS createdByName, c.applies_to AS appliesTo, c.scope,
+                c.signup_from AS signupFrom, c.signup_to AS signupTo, c.valid_days AS validDays
+         FROM coupons c LEFT JOIN users u ON u.id = c.created_by_user_id
+         ORDER BY c.created_at DESC`,
+      )
+      .all<Omit<CouponAdminRow, "targets">>(),
+    db
+      .prepare(
+        `SELECT t.coupon_id AS couponId, t.target_id AS id,
+                COALESCE(NULLIF(TRIM(b.name_th), ''), b.name, NULLIF(TRIM(pt.name_th), ''), pt.name,
+                         TRIM(COALESCE(cb.name, '') || ' ' || cm.name), p.name, t.target_id) AS name,
+                p.image_key AS imageKey
+         FROM coupon_targets t
+         JOIN coupons c ON c.id = t.coupon_id
+         LEFT JOIN brands b ON c.scope = 'brand' AND b.id = t.target_id
+         LEFT JOIN product_types pt ON c.scope = 'category' AND pt.id = t.target_id
+         LEFT JOIN car_models cm ON c.scope = 'car_model' AND cm.id = t.target_id
+         LEFT JOIN car_brands cb ON cb.id = cm.car_brand_id
+         LEFT JOIN products p ON c.scope = 'products' AND p.id = t.target_id
+         ORDER BY name`,
+      )
+      .all<CouponTarget & { couponId: string }>(),
+  ]);
+  const byCoupon = new Map<string, CouponTarget[]>();
+  for (const { couponId, ...t } of targets.results ?? []) {
+    byCoupon.set(couponId, [...(byCoupon.get(couponId) ?? []), t]);
+  }
+  return (coupons.results ?? []).map((c) => ({ ...c, targets: byCoupon.get(c.id) ?? [] }));
 }
 
 export interface CouponCreate {
@@ -6228,6 +6362,12 @@ export interface CouponCreate {
   maxDiscountSatang?: number | null;
   /** The signed-in staff member making it (route fills this; never taken from the body). */
   createdByUserId?: string | null;
+  appliesTo?: CouponAppliesTo;
+  scope?: CouponScope;
+  targets?: string[];
+  signupFrom?: number | null;
+  signupTo?: number | null;
+  validDays?: number | null;
 }
 
 /** Insert a coupon; refuses a duplicate code (codes are the customer-facing identity). */
@@ -6241,30 +6381,44 @@ export async function createCoupon(
     .first<{ id: string }>();
   if (dup) return { duplicate: true };
   const id = crypto.randomUUID();
-  await db
-    .prepare(
-      `INSERT INTO coupons (id, code, name, type, value, min_subtotal_satang, starts_at, ends_at,
-                            max_uses, max_uses_per_customer, max_discount_satang, status, created_at,
-                            created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-    )
-    .bind(
-      id,
-      input.code,
-      input.name.trim(),
-      input.type,
-      input.value,
-      Math.max(0, Math.round(Number(input.minSubtotalSatang) || 0)),
-      numOrNull(input.startsAt),
-      numOrNull(input.endsAt),
-      numOrNull(input.maxUses),
-      Math.max(1, Math.round(Number(input.maxUsesPerCustomer) || 1)),
-      numOrNull(input.maxDiscountSatang),
-      Date.now(),
-      input.createdByUserId ?? null,
-    )
-    .run();
+  // The coupon and what it is for go in together, so a coupon is never saved without its targets.
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO coupons (id, code, name, type, value, min_subtotal_satang, starts_at, ends_at,
+                              max_uses, max_uses_per_customer, max_discount_satang, status, created_at,
+                              created_by_user_id, applies_to, scope, signup_from, signup_to, valid_days)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        id,
+        input.code,
+        input.name.trim(),
+        input.type,
+        input.value,
+        Math.max(0, Math.round(Number(input.minSubtotalSatang) || 0)),
+        numOrNull(input.startsAt),
+        numOrNull(input.endsAt),
+        numOrNull(input.maxUses),
+        Math.max(1, Math.round(Number(input.maxUsesPerCustomer) || 1)),
+        numOrNull(input.maxDiscountSatang),
+        Date.now(),
+        input.createdByUserId ?? null,
+        input.appliesTo ?? "order",
+        input.scope ?? "all",
+        numOrNull(input.signupFrom),
+        numOrNull(input.signupTo),
+        numOrNull(input.validDays),
+      ),
+    ...couponTargetInserts(db, id, input.targets ?? []),
+  ]);
   return { id };
+}
+
+function couponTargetInserts(db: D1Database, couponId: string, targets: readonly string[]) {
+  return [...new Set(targets)].map((t) =>
+    db.prepare("INSERT INTO coupon_targets (coupon_id, target_id) VALUES (?, ?)").bind(couponId, t),
+  );
 }
 
 export interface CouponPatch {
@@ -6279,6 +6433,13 @@ export interface CouponPatch {
   maxUsesPerCustomer?: number;
   maxDiscountSatang?: number | null;
   status?: "active" | "disabled";
+  appliesTo?: CouponAppliesTo;
+  scope?: CouponScope;
+  /** When sent, replaces every target the coupon had. */
+  targets?: string[];
+  signupFrom?: number | null;
+  signupTo?: number | null;
+  validDays?: number | null;
 }
 
 /** Update only the provided coupon fields — an absent key leaves that column untouched. */
@@ -6303,11 +6464,22 @@ export async function updateCoupon(db: D1Database, id: string, patch: CouponPatc
   if (patch.maxDiscountSatang !== undefined)
     set("max_discount_satang", numOrNull(patch.maxDiscountSatang));
   if (patch.status !== undefined) set("status", patch.status);
-  if (sets.length === 0) return;
-  await db
-    .prepare(`UPDATE coupons SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...binds, id)
-    .run();
+  if (patch.appliesTo !== undefined) set("applies_to", patch.appliesTo);
+  if (patch.scope !== undefined) set("scope", patch.scope);
+  if (patch.signupFrom !== undefined) set("signup_from", numOrNull(patch.signupFrom));
+  if (patch.signupTo !== undefined) set("signup_to", numOrNull(patch.signupTo));
+  if (patch.validDays !== undefined) set("valid_days", numOrNull(patch.validDays));
+  const writes: D1PreparedStatement[] = [];
+  if (sets.length > 0) {
+    writes.push(
+      db.prepare(`UPDATE coupons SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, id),
+    );
+  }
+  if (patch.targets !== undefined) {
+    writes.push(db.prepare("DELETE FROM coupon_targets WHERE coupon_id = ?").bind(id));
+    writes.push(...couponTargetInserts(db, id, patch.targets));
+  }
+  if (writes.length > 0) await db.batch(writes);
 }
 
 /**
@@ -6333,6 +6505,7 @@ export interface CampaignPriceAdminRow {
   productVariantId: string;
   productName: string;
   productRef: string | null;
+  imageKey: string | null;
   /** Latest pricing_profiles online_price_satang — what the campaign price is discounting from. */
   basePriceSatang: number;
   campaignPriceSatang: number;
@@ -6362,7 +6535,7 @@ export async function listCampaignsAdmin(db: D1Database): Promise<CampaignAdminR
     db
       .prepare(
         `SELECT cp.id, cp.campaign_id AS campaignId, cp.product_variant_id AS productVariantId,
-                p.name AS productName, p.product_ref AS productRef,
+                p.name AS productName, p.product_ref AS productRef, p.image_key AS imageKey,
                 COALESCE(pp.online_price_satang, 0) AS basePriceSatang,
                 cp.campaign_price_satang AS campaignPriceSatang, cp.stock_cap AS stockCap,
                 cp.sold_count AS soldCount
@@ -6403,6 +6576,128 @@ export async function createCampaign(
   return id;
 }
 
+export interface CampaignPriceInput {
+  productVariantId: string;
+  campaignPriceSatang: number;
+  stockCap: number | null;
+}
+
+type CampaignPriceProblem = { error: "variant_not_found" | "duplicate" };
+
+/** Every variant id exists (product_variants), or which problem stops the save. */
+async function variantsProblem(
+  db: D1Database,
+  prices: readonly CampaignPriceInput[],
+): Promise<CampaignPriceProblem | null> {
+  const ids = [...new Set(prices.map((p) => p.productVariantId))];
+  if (ids.length !== prices.length) return { error: "duplicate" };
+  if (ids.length === 0) return null;
+  const { results } = await db
+    .prepare(`SELECT id FROM product_variants WHERE id IN (${ids.map(() => "?").join(", ")})`)
+    .bind(...ids)
+    .all<{ id: string }>();
+  return (results ?? []).length === ids.length ? null : { error: "variant_not_found" };
+}
+
+/** Each insert gets its own created_at step, so the products list back in the order they were picked. */
+function insertCampaignPrices(
+  db: D1Database,
+  campaignId: string,
+  prices: readonly CampaignPriceInput[],
+  now: number,
+) {
+  return prices.map((p, i) =>
+    db
+      .prepare(
+        `INSERT INTO campaign_prices (id, campaign_id, product_variant_id, campaign_price_satang,
+                                      stock_cap, sold_count, created_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        campaignId,
+        p.productVariantId,
+        p.campaignPriceSatang,
+        numOrNull(p.stockCap),
+        now + i,
+      ),
+  );
+}
+
+/**
+ * A new flash sale together with its products, in one batch: the sale never exists half-made (owner,
+ * 1 Nov 2026: a sale is launched with at least one product, and บันทึก saves it all at once).
+ */
+export async function createCampaignWithPrices(
+  db: D1Database,
+  input: { name: string; startsAt: number; endsAt: number; prices: CampaignPriceInput[] },
+): Promise<{ id: string } | CampaignPriceProblem> {
+  const problem = await variantsProblem(db, input.prices);
+  if (problem) return problem;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO campaigns (id, name, starts_at, ends_at, status, created_at)
+         VALUES (?, ?, ?, ?, 'active', ?)`,
+      )
+      .bind(id, input.name.trim(), input.startsAt, input.endsAt, now),
+    ...insertCampaignPrices(db, id, input.prices, now),
+  ]);
+  return { id };
+}
+
+export interface CampaignPricesEdit {
+  add?: CampaignPriceInput[];
+  /** A new sale price or limit; what was already sold stays. */
+  update?: { id: string; campaignPriceSatang: number; stockCap: number | null }[];
+  remove?: string[];
+}
+
+/**
+ * แก้แคมเปญ's บันทึก: the sale's own fields plus every product removed, changed or added, in one batch.
+ * Product rows are scoped by the sale's id, so a stray price id can't reach another sale.
+ */
+export async function saveCampaignEdit(
+  db: D1Database,
+  id: string,
+  patch: CampaignPatch & { prices?: CampaignPricesEdit },
+): Promise<{ ok: true } | CampaignPriceProblem> {
+  const { add = [], update = [], remove = [] } = patch.prices ?? {};
+  if (add.length > 0) {
+    const problem = await variantsProblem(db, add);
+    if (problem) return problem;
+    const { results } = await db
+      .prepare(
+        "SELECT id, product_variant_id AS variantId FROM campaign_prices WHERE campaign_id = ?",
+      )
+      .bind(id)
+      .all<{ id: string; variantId: string }>();
+    const kept = new Set(
+      (results ?? []).filter((r) => !remove.includes(r.id)).map((r) => r.variantId),
+    );
+    if (add.some((p) => kept.has(p.productVariantId))) return { error: "duplicate" };
+  }
+  const fields = campaignUpdate(db, id, patch);
+  await db.batch([
+    ...remove.map((priceId) =>
+      db.prepare("DELETE FROM campaign_prices WHERE id = ? AND campaign_id = ?").bind(priceId, id),
+    ),
+    ...update.map((u) =>
+      db
+        .prepare(
+          `UPDATE campaign_prices SET campaign_price_satang = ?, stock_cap = ?
+           WHERE id = ? AND campaign_id = ?`,
+        )
+        .bind(u.campaignPriceSatang, numOrNull(u.stockCap), u.id, id),
+    ),
+    ...insertCampaignPrices(db, id, add, Date.now()),
+    ...(fields ? [fields] : []),
+  ]);
+  return { ok: true };
+}
+
 export interface CampaignPatch {
   name?: string;
   startsAt?: number;
@@ -6410,12 +6705,8 @@ export interface CampaignPatch {
   status?: "active" | "disabled";
 }
 
-/** Update only the provided campaign fields — an absent key leaves that column untouched. */
-export async function updateCampaign(
-  db: D1Database,
-  id: string,
-  patch: CampaignPatch,
-): Promise<void> {
+/** The UPDATE for the provided campaign fields, or null when there are none. */
+function campaignUpdate(db: D1Database, id: string, patch: CampaignPatch) {
   const sets: string[] = [];
   const binds: unknown[] = [];
   const set = (column: string, value: unknown) => {
@@ -6426,11 +6717,17 @@ export async function updateCampaign(
   if (patch.startsAt !== undefined) set("starts_at", patch.startsAt);
   if (patch.endsAt !== undefined) set("ends_at", patch.endsAt);
   if (patch.status !== undefined) set("status", patch.status);
-  if (sets.length === 0) return;
-  await db
-    .prepare(`UPDATE campaigns SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...binds, id)
-    .run();
+  if (sets.length === 0) return null;
+  return db.prepare(`UPDATE campaigns SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, id);
+}
+
+/** Update only the provided campaign fields — an absent key leaves that column untouched. */
+export async function updateCampaign(
+  db: D1Database,
+  id: string,
+  patch: CampaignPatch,
+): Promise<void> {
+  await campaignUpdate(db, id, patch)?.run();
 }
 
 /** Delete a campaign and all of its campaign_prices rows (they only exist for the campaign). */
@@ -8478,8 +8775,10 @@ const worker = {
       if (!isPositiveInt(body.value)) {
         return json({ error: "value must be a positive integer (satang, or basis points)" }, 400);
       }
+      const rules = couponRulesProblem(body);
+      if (rules) return json({ error: rules }, 400);
       const created = await createCoupon(env.DB, {
-        ...(body as CouponCreate),
+        ...withNewCustomerDays(body as CouponCreate),
         code,
         name,
         createdByUserId: viewerStaff?.userId ?? null,
@@ -8501,7 +8800,9 @@ const worker = {
       if (body.status !== undefined && !isEnabledStatus(body.status)) {
         return json({ error: "status must be active or disabled" }, 400);
       }
-      const patch: CouponPatch = { ...body };
+      const rules = couponRulesProblem(body);
+      if (rules) return json({ error: rules }, 400);
+      const patch: CouponPatch = withNewCustomerDays({ ...body });
       if (patch.code !== undefined) {
         const code = patch.code.trim().toUpperCase();
         if (!code) return json({ error: "code is required" }, 400);
@@ -8539,8 +8840,20 @@ const worker = {
       if (body.endsAt! <= body.startsAt!) {
         return json({ error: "endsAt must be after startsAt" }, 400);
       }
-      const id = await createCampaign(env.DB, body.name, body.startsAt!, body.endsAt!);
-      return json({ id }, 201);
+      const raw = body as { prices?: unknown };
+      if (raw.prices === undefined) {
+        const id = await createCampaign(env.DB, body.name, body.startsAt!, body.endsAt!);
+        return json({ id }, 201);
+      }
+      const prices = readCampaignPrices(raw.prices);
+      if (!prices) return json({ error: CAMPAIGN_PRICES_SHAPE }, 400);
+      const made = await createCampaignWithPrices(env.DB, {
+        name: body.name,
+        startsAt: body.startsAt!,
+        endsAt: body.endsAt!,
+        prices,
+      });
+      return "error" in made ? campaignPriceRefusal(made.error) : json(made, 201);
     }
     // Both price routes come BEFORE /campaigns/:id so a price path can never be read as a campaign
     // id (the $-anchored patterns already prevent it; the ordering keeps that non-accidental).
@@ -8583,8 +8896,26 @@ const worker = {
       if (body.status !== undefined && !isEnabledStatus(body.status)) {
         return json({ error: "status must be active or disabled" }, 400);
       }
-      await updateCampaign(env.DB, decodeURIComponent(campaignById[1]!), body);
-      return json({ ok: true });
+      const id = decodeURIComponent(campaignById[1]!);
+      const raw = body as { prices?: unknown };
+      if (raw.prices === undefined) {
+        await updateCampaign(env.DB, id, body);
+        return json({ ok: true });
+      }
+      const prices = readCampaignPricesEdit(raw.prices);
+      if (!prices) return json({ error: CAMPAIGN_PRICES_SHAPE }, 400);
+      if (body.name !== undefined && !body.name.trim()) {
+        return json({ error: "name is required" }, 400);
+      }
+      if (
+        body.startsAt !== undefined &&
+        body.endsAt !== undefined &&
+        !(body.endsAt > body.startsAt)
+      ) {
+        return json({ error: "endsAt must be after startsAt" }, 400);
+      }
+      const saved = await saveCampaignEdit(env.DB, id, { ...body, prices });
+      return "error" in saved ? campaignPriceRefusal(saved.error) : json(saved);
     }
     if (campaignById && request.method === "DELETE") {
       await deleteCampaign(env.DB, decodeURIComponent(campaignById[1]!));

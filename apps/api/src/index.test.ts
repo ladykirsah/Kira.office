@@ -49,6 +49,10 @@ import { DatabaseSync } from "node:sqlite";
 import worker, {
   createCoupon,
   listCouponsAdmin,
+  updateCoupon,
+  createCampaignWithPrices,
+  listCampaignsAdmin,
+  saveCampaignEdit,
   addBarcodeToProduct,
   applyAdjustmentToDb,
   applySyncToDb,
@@ -1180,6 +1184,16 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
   });
 
   describe("coupons", () => {
+    // A coupon is saved with its targets in one batch; an older write may still be a lone run().
+    const written = (
+      runs: { sql: string; binds: unknown[] }[],
+      batched: { sql: string; boundArgs?: unknown[] }[],
+      sql: string,
+    ) =>
+      [...runs, ...batched.map((b) => ({ sql: b.sql, binds: b.boundArgs ?? [] }))].find((r) =>
+        r.sql.includes(sql),
+      );
+
     it("GET /coupons > lists coupons with their redemption counts", async () => {
       const coupon = {
         id: "c1",
@@ -1194,12 +1208,13 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       expect(res.status).toBe(200);
       // The admin list must carry the coupon `name` (migration 0065) back to the table.
       const body = (await res.json()) as { coupons: { name?: string }[] };
-      expect(body).toEqual({ coupons: [coupon] });
+      // Migration 0096 adds what each coupon is for; an old coupon is for every product.
+      expect(body).toEqual({ coupons: [{ ...coupon, targets: [] }] });
       expect(body.coupons[0]!.name).toBe("Save 10");
     });
 
     it("POST /coupons > trims + uppercases the code before storing it", async () => {
-      const { env, runs } = makeDb({ couponByCode: null });
+      const { env, runs, batched } = makeDb({ couponByCode: null });
       const res = await fetchAuthed(
         new Request("https://x/coupons", {
           method: "POST",
@@ -1214,7 +1229,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         ctx,
       );
       expect(res.status).toBe(201);
-      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      const insert = written(runs, batched, "INSERT INTO coupons");
       expect(insert?.binds).toContain("SAVE10");
       expect(insert?.binds).not.toContain("  save10 ");
     });
@@ -1249,7 +1264,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     });
 
     it("POST /coupons > stores the admin name", async () => {
-      const { env, runs } = makeDb({ couponByCode: null });
+      const { env, runs, batched } = makeDb({ couponByCode: null });
       const res = await fetchAuthed(
         new Request("https://x/coupons", {
           method: "POST",
@@ -1264,12 +1279,12 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         ctx,
       );
       expect(res.status).toBe(201);
-      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      const insert = written(runs, batched, "INSERT INTO coupons");
       expect(insert?.binds).toContain("Songkran promo");
     });
 
     it("POST /coupons > records who made it, from the signed-in staff member", async () => {
-      const { env, runs } = makeDb({ couponByCode: null });
+      const { env, runs, batched } = makeDb({ couponByCode: null });
       const res = await fetchAuthed(
         new Request("https://x/coupons", {
           method: "POST",
@@ -1284,7 +1299,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         ctx,
       );
       expect(res.status).toBe(201);
-      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      const insert = written(runs, batched, "INSERT INTO coupons");
       expect(insert?.sql).toContain("created_by_user_id");
       expect(insert?.binds).toContain("u-test");
     });
@@ -1303,7 +1318,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     });
 
     it("PATCH /coupons/:id > updates the admin name (trimmed)", async () => {
-      const { env, runs } = makeDb({ couponByCode: null });
+      const { env, runs, batched } = makeDb({ couponByCode: null });
       const res = await fetchAuthed(
         new Request("https://x/coupons/c1", {
           method: "PATCH",
@@ -1313,7 +1328,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         ctx,
       );
       expect(res.status).toBe(200);
-      const update = runs.find((r) => r.sql.includes("UPDATE coupons SET"));
+      const update = written(runs, batched, "UPDATE coupons SET");
       expect(update?.sql).toContain("name = ?");
       expect(update?.binds).toContain("Renamed Promo");
     });
@@ -1332,7 +1347,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
     });
 
     it("PATCH /coupons/:id > uppercases a new code", async () => {
-      const { env, runs } = makeDb({ couponByCode: null });
+      const { env, runs, batched } = makeDb({ couponByCode: null });
       const res = await fetchAuthed(
         new Request("https://x/coupons/c1", {
           method: "PATCH",
@@ -1342,7 +1357,7 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
         ctx,
       );
       expect(res.status).toBe(200);
-      const update = runs.find((r) => r.sql.includes("UPDATE coupons SET"));
+      const update = written(runs, batched, "UPDATE coupons SET");
       expect(update?.binds).toContain("SUMMER");
     });
 
@@ -1425,6 +1440,64 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       expect(await bad({ startsAt: 1, endsAt: 2 })).toBe(400);
       expect(await bad({ name: "x", startsAt: 1 })).toBe(400);
       expect(await bad({ name: "x", startsAt: 2, endsAt: 1 })).toBe(400);
+    });
+
+    it("POST /campaigns with products > 400 for a bad price, a bad limit or a product twice", async () => {
+      const bad = async (prices: unknown) =>
+        (
+          await fetchAuthed(
+            new Request("https://x/campaigns", {
+              method: "POST",
+              body: JSON.stringify({ name: "x", startsAt: 1, endsAt: 2, prices }),
+            }),
+            makeDb({}).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad([{ productVariantId: "v1", campaignPriceSatang: 0 }])).toBe(400);
+      expect(await bad([{ productVariantId: "v1", campaignPriceSatang: 9, stockCap: -1 }])).toBe(
+        400,
+      );
+      expect(await bad([{ campaignPriceSatang: 9 }])).toBe(400);
+      expect(
+        await bad([
+          { productVariantId: "v1", campaignPriceSatang: 9 },
+          { productVariantId: "v1", campaignPriceSatang: 8 },
+        ]),
+      ).toBe(400);
+    });
+
+    it("POST /coupons with the new rules > 400 for a bad kind, an empty ใช้กับ or a bad window", async () => {
+      const bad = async (extra: Record<string, unknown>) =>
+        (
+          await fetchAuthed(
+            new Request("https://x/coupons", {
+              method: "POST",
+              body: JSON.stringify({ code: "X1", name: "x", type: "fixed", value: 100, ...extra }),
+            }),
+            makeDb({}).env,
+            ctx,
+          )
+        ).status;
+      expect(await bad({ appliesTo: "tip" })).toBe(400);
+      expect(await bad({ scope: "colour", targets: ["a"] })).toBe(400);
+      expect(await bad({ scope: "brand", targets: [] })).toBe(400);
+      expect(await bad({ scope: "brand", targets: "b1" })).toBe(400);
+      expect(await bad({ signupFrom: 2000, signupTo: 1000 })).toBe(400);
+      expect(await bad({ signupFrom: 1000 })).toBe(400);
+      expect(await bad({ signupFrom: 1000, signupTo: 2000, validDays: 0 })).toBe(400);
+    });
+
+    it("PATCH /campaigns/:id with products > 400 for a bad price on a change", async () => {
+      const res = await fetchAuthed(
+        new Request("https://x/campaigns/k1", {
+          method: "PATCH",
+          body: JSON.stringify({ prices: { update: [{ id: "cp1", campaignPriceSatang: -5 }] } }),
+        }),
+        makeDb({}).env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
     });
 
     it("PATCH /campaigns/:id > updates only the supplied fields", async () => {
@@ -4826,6 +4899,239 @@ describe("coupons > who made it (real schema)", () => {
     const rows = await listCouponsAdmin(db);
     expect(rows.find((r) => r.code === "NEWNOV")?.createdByName).toBe("คุณเก๋");
     expect(rows.find((r) => r.code === "OLD5")?.createdByName).toBeNull();
+  });
+});
+
+describe("coupons > the new rules saved and listed (real schema)", () => {
+  // The migrations seed the brands (br-denso, br-sanden) and the car models (cm-vios under Toyota).
+  function seed(): DatabaseSync {
+    const raw = migratedDb();
+    raw
+      .prepare(`INSERT INTO products (id, name, image_key, created_at) VALUES (?, ?, ?, ?)`)
+      .run("p-comp", "คอมเพรสเซอร์ DENSO 10S11C", "products/p-comp/a.jpg", SQLITE_NOW);
+    return raw;
+  }
+  const BASE = { name: "x", type: "fixed" as const, value: 3000 };
+
+  it("given an old coupon > then it cuts the products of the whole cart, for everyone", async () => {
+    const raw = seed();
+    raw
+      .prepare(
+        `INSERT INTO coupons (id, code, type, value, created_at) VALUES ('old','OLD5','percent',500,?)`,
+      )
+      .run(SQLITE_NOW);
+    const [old] = await listCouponsAdmin(asD1(raw));
+    expect([old!.appliesTo, old!.scope, old!.targets, old!.signupFrom, old!.validDays]).toEqual([
+      "order",
+      "all",
+      [],
+      null,
+      null,
+    ]);
+  });
+
+  it("given ฿30 off shipping for one brand > then the list says so, with the brand's name", async () => {
+    const db = asD1(seed());
+    await createCoupon(db, {
+      ...BASE,
+      code: "SHIP30",
+      appliesTo: "shipping",
+      scope: "brand",
+      targets: ["br-denso"],
+    });
+    const [c] = await listCouponsAdmin(db);
+    expect([c!.appliesTo, c!.scope]).toEqual(["shipping", "brand"]);
+    expect(c!.targets).toEqual([{ id: "br-denso", name: "DENSO", imageKey: null }]);
+  });
+
+  it("given a car model or picked products > then their names (car brand first) and photos", async () => {
+    const db = asD1(seed());
+    await createCoupon(db, { ...BASE, code: "VIOS", scope: "car_model", targets: ["cm-vios"] });
+    await createCoupon(db, { ...BASE, code: "PICK", scope: "products", targets: ["p-comp"] });
+    const rows = await listCouponsAdmin(db);
+    expect(rows.find((r) => r.code === "VIOS")!.targets).toEqual([
+      { id: "cm-vios", name: "Toyota Vios", imageKey: null },
+    ]);
+    expect(rows.find((r) => r.code === "PICK")!.targets).toEqual([
+      { id: "p-comp", name: "คอมเพรสเซอร์ DENSO 10S11C", imageKey: "products/p-comp/a.jpg" },
+    ]);
+  });
+
+  it("given a category with a Thai name > then the list shows the Thai name", async () => {
+    const raw = seed();
+    raw.prepare("UPDATE product_types SET name_th = 'กรองอากาศ' WHERE id = 'pt-air-filter'").run();
+    const db = asD1(raw);
+    await createCoupon(db, {
+      ...BASE,
+      code: "FILTER",
+      scope: "category",
+      targets: ["pt-air-filter"],
+    });
+    const [c] = await listCouponsAdmin(db);
+    expect(c!.targets).toEqual([{ id: "pt-air-filter", name: "กรองอากาศ", imageKey: null }]);
+  });
+
+  it("given a ลูกค้าใหม่ window > then it is kept with its 365 days", async () => {
+    const db = asD1(seed());
+    await createCoupon(db, {
+      ...BASE,
+      code: "WELCOME",
+      signupFrom: 1000,
+      signupTo: 2000,
+      validDays: 365,
+    });
+    const [c] = await listCouponsAdmin(db);
+    expect([c!.signupFrom, c!.signupTo, c!.validDays]).toEqual([1000, 2000, 365]);
+  });
+
+  it("given an edit with new targets > then they replace the old ones; back to ทุกสินค้า clears them", async () => {
+    const db = asD1(seed());
+    const made = await createCoupon(db, {
+      ...BASE,
+      code: "B1",
+      scope: "brand",
+      targets: ["br-denso"],
+    });
+    const id = (made as { id: string }).id;
+    await updateCoupon(db, id, { targets: ["br-sanden"] });
+    expect((await listCouponsAdmin(db))[0]!.targets.map((t) => t.name)).toEqual(["Sanden"]);
+    await updateCoupon(db, id, { scope: "all", targets: [] });
+    const [c] = await listCouponsAdmin(db);
+    expect([c!.scope, c!.targets]).toEqual(["all", []]);
+  });
+});
+
+describe("campaigns > saved with their products in one go (real schema)", () => {
+  function seed(): DatabaseSync {
+    const raw = migratedDb();
+    for (const [p, v, name, image] of [
+      ["p-comp", "v-comp", "คอมเพรสเซอร์ DENSO 10S11C", "products/p-comp/a.jpg"],
+      ["p-blow", "v-blow", "โบลเวอร์ DENSO Altis", null],
+      ["p-valve", "v-valve", "วาล์วแอร์ DENSO Vigo", null],
+    ] as const) {
+      raw
+        .prepare(`INSERT INTO products (id, name, image_key, created_at) VALUES (?, ?, ?, ?)`)
+        .run(p, name, image, SQLITE_NOW);
+      raw
+        .prepare(
+          `INSERT INTO product_variants (id, product_id, variant_name, created_at) VALUES (?, ?, ?, ?)`,
+        )
+        .run(v, p, "", SQLITE_NOW);
+    }
+    return raw;
+  }
+  const NEW = { name: " แฟลชเซล 12.12 ", startsAt: 1000, endsAt: 2000 };
+
+  it("given a new sale with two products > then both are saved with it, photo included", async () => {
+    const db = asD1(seed());
+    const out = await createCampaignWithPrices(db, {
+      ...NEW,
+      prices: [
+        { productVariantId: "v-comp", campaignPriceSatang: 299000, stockCap: 10 },
+        { productVariantId: "v-blow", campaignPriceSatang: 159000, stockCap: null },
+      ],
+    });
+    expect(out).toHaveProperty("id");
+    const [sale] = await listCampaignsAdmin(db);
+    expect(sale!.name).toBe("แฟลชเซล 12.12");
+    expect(
+      sale!.prices.map((p) => [p.productVariantId, p.campaignPriceSatang, p.stockCap]),
+    ).toEqual([
+      ["v-comp", 299000, 10],
+      ["v-blow", 159000, null],
+    ]);
+    expect(sale!.prices[0]!.imageKey).toBe("products/p-comp/a.jpg");
+  });
+
+  it("given a product that does not exist > then nothing is saved", async () => {
+    const raw = seed();
+    const out = await createCampaignWithPrices(asD1(raw), {
+      ...NEW,
+      prices: [
+        { productVariantId: "v-comp", campaignPriceSatang: 299000, stockCap: 10 },
+        { productVariantId: "v-gone", campaignPriceSatang: 100, stockCap: null },
+      ],
+    });
+    expect(out).toEqual({ error: "variant_not_found" });
+    expect(raw.prepare("SELECT COUNT(*) AS n FROM campaigns").get()).toEqual({ n: 0 });
+  });
+
+  it("given an edit > then the price and limit change, what was sold stays, adds and removes land together", async () => {
+    const raw = seed();
+    const db = asD1(raw);
+    const made = await createCampaignWithPrices(db, {
+      ...NEW,
+      prices: [
+        { productVariantId: "v-comp", campaignPriceSatang: 299000, stockCap: 10 },
+        { productVariantId: "v-blow", campaignPriceSatang: 159000, stockCap: 5 },
+      ],
+    });
+    const id = (made as { id: string }).id;
+    const [before] = await listCampaignsAdmin(db);
+    const comp = before!.prices.find((p) => p.productVariantId === "v-comp")!;
+    const blow = before!.prices.find((p) => p.productVariantId === "v-blow")!;
+    raw.prepare("UPDATE campaign_prices SET sold_count = 3 WHERE id = ?").run(comp.id);
+
+    const out = await saveCampaignEdit(db, id, {
+      name: "แฟลชเซลปลายปี",
+      status: "disabled",
+      prices: {
+        update: [{ id: comp.id, campaignPriceSatang: 279000, stockCap: 12 }],
+        remove: [blow.id],
+        add: [{ productVariantId: "v-valve", campaignPriceSatang: 39900, stockCap: null }],
+      },
+    });
+    expect(out).toEqual({ ok: true });
+    const [after] = await listCampaignsAdmin(db);
+    expect([after!.name, after!.status]).toEqual(["แฟลชเซลปลายปี", "disabled"]);
+    expect(
+      after!.prices.map((p) => [
+        p.productVariantId,
+        p.campaignPriceSatang,
+        p.stockCap,
+        p.soldCount,
+      ]),
+    ).toEqual([
+      ["v-comp", 279000, 12, 3],
+      ["v-valve", 39900, null, 0],
+    ]);
+  });
+
+  it("given an edit naming another sale's product > then that product is left alone", async () => {
+    const db = asD1(seed());
+    const a = (await createCampaignWithPrices(db, {
+      ...NEW,
+      prices: [{ productVariantId: "v-comp", campaignPriceSatang: 299000, stockCap: 10 }],
+    })) as { id: string };
+    const b = (await createCampaignWithPrices(db, {
+      ...NEW,
+      name: "อีกอัน",
+      prices: [{ productVariantId: "v-blow", campaignPriceSatang: 159000, stockCap: 5 }],
+    })) as { id: string };
+    const other = (await listCampaignsAdmin(db)).find((c) => c.id === b.id)!.prices[0]!;
+    await saveCampaignEdit(db, a.id, {
+      prices: {
+        update: [{ id: other.id, campaignPriceSatang: 1, stockCap: 1 }],
+        remove: [other.id],
+      },
+    });
+    const kept = (await listCampaignsAdmin(db)).find((c) => c.id === b.id)!.prices;
+    expect(kept.map((p) => [p.campaignPriceSatang, p.stockCap])).toEqual([[159000, 5]]);
+  });
+
+  it("given an edit adding a product the sale already has > then nothing changes", async () => {
+    const db = asD1(seed());
+    const a = (await createCampaignWithPrices(db, {
+      ...NEW,
+      prices: [{ productVariantId: "v-comp", campaignPriceSatang: 299000, stockCap: 10 }],
+    })) as { id: string };
+    const out = await saveCampaignEdit(db, a.id, {
+      name: "ไม่ควรเปลี่ยน",
+      prices: { add: [{ productVariantId: "v-comp", campaignPriceSatang: 1, stockCap: null }] },
+    });
+    expect(out).toEqual({ error: "duplicate" });
+    const [sale] = await listCampaignsAdmin(db);
+    expect([sale!.name, sale!.prices.length]).toEqual(["แฟลชเซล 12.12", 1]);
   });
 });
 

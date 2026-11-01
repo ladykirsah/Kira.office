@@ -324,18 +324,53 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartKey, effectivePostcode]);
 
+  // The cart and the postcode go with the code: the server prices them like checkout, so flash
+  // prices, coupons for some products and ส่งฟรี / ลดค่าส่ง answer the same as at payment.
+  async function checkCoupon(code: string): Promise<CouponCheckResponse> {
+    const res = await fetch("/api/coupons/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        lines: lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+        postcode: effectivePostcode,
+      }),
+    });
+    return (await res.json()) as CouponCheckResponse;
+  }
+
+  // A coupon already applied follows the cart and the address (a shipping discount moves with the
+  // fee); one that no longer fits is taken off and says why.
+  useEffect(() => {
+    if (!coupon) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await checkCoupon(coupon.code);
+        if (cancelled) return;
+        if (data.valid) {
+          setCoupon({ code: coupon.code, discountSatang: data.discountSatang });
+        } else {
+          setCoupon(null);
+          setCouponError(data.message || "ใช้คูปองไม่ได้");
+        }
+      } catch {
+        // Keep the shown coupon; /api/checkout recomputes it anyway.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartKey, effectivePostcode]);
+
   async function applyCoupon() {
     const code = couponInput.trim();
     if (!code || couponChecking) return;
     setCouponChecking(true);
     setCouponError(null);
     try {
-      const res = await fetch("/api/coupons/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, subtotalSatang: subtotal }),
-      });
-      const data = (await res.json()) as CouponCheckResponse;
+      const data = await checkCoupon(code);
       if (data.valid) {
         setCoupon({ code, discountSatang: data.discountSatang });
         setCouponInput("");

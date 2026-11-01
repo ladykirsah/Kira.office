@@ -444,6 +444,12 @@ describe("windowFromRows", () => {
     });
   });
 
+  it("given a window that must have both ends (แฟลชเซล) > one row empty > then ใส่วันและเวลาให้ครบ", () => {
+    expect(windowFromRows(full(day(2026, 10, 5), 480), empty, true)).toEqual({
+      problem: { th: "ใส่วันและเวลาให้ครบ", en: "Fill in both days and times" },
+    });
+  });
+
   it("given an end before the start > then the end-after-start problem", () => {
     expect(windowFromRows(full(day(2026, 10, 30), 0), full(day(2026, 10, 1), 0))).toEqual({
       problem: { th: "วันสิ้นสุดต้องอยู่หลังวันเริ่ม", en: "The end must be after the start" },
