@@ -96,5 +96,5 @@ const styles = StyleSheet.create({
     gap: SPACE.s,
   },
   line: { borderBottomWidth: StyleSheet.hairlineWidth },
-  label: { width: 52 },
+  label: { flex: 1 },
 });

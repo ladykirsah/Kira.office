@@ -274,12 +274,17 @@ export function AddRow({ label, onPress }: { label: string; onPress: () => void 
   );
 }
 
-/** A typed value on the right of its label, with its unit after it ("บาท", "กก."). */
+/**
+ * A typed value on the right of its label, with its unit after it ("บาท", "กก."); money drawn as
+ * "฿300" has the ฿ in front instead (`lead`, inside the box once something is typed, so it sits
+ * right against the amount).
+ */
 export function InputRow(props: {
   label: string;
   value: string;
   placeholder?: string;
   unit?: string;
+  lead?: string;
   keyboardType?: KeyboardTypeOptions;
   onChange: (v: string) => void;
   tool?: ReactNode;
@@ -296,8 +301,8 @@ export function InputRow(props: {
         <View style={styles.inputRight}>
           {editable ? (
             <TextInput
-              value={props.value}
-              onChangeText={props.onChange}
+              value={props.lead && props.value ? `${props.lead}${props.value}` : props.value}
+              onChangeText={(v) => props.onChange(props.lead ? v.split(props.lead).join("") : v)}
               placeholder={props.placeholder}
               placeholderTextColor={theme.textFaint}
               keyboardType={props.keyboardType}

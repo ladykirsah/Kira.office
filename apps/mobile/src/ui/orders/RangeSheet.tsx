@@ -56,6 +56,6 @@ const styles = StyleSheet.create({
     gap: SPACE.m,
   },
   divider: { borderBottomWidth: StyleSheet.hairlineWidth },
-  label: { ...TYPE.body, width: 72 },
+  label: { ...TYPE.body, flex: 1 },
   note: { ...TYPE.footnote, marginHorizontal: SPACE.xs },
 });

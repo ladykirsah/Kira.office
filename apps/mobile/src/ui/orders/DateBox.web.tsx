@@ -1,6 +1,7 @@
-import type { CSSProperties } from "react";
-import { dayField, parseDayField } from "@/lib/orderList";
-import { useTheme } from "../AppProviders";
+import { dayField, dayPill, parseDayField } from "@/lib/orderList";
+import { useLang } from "../AppProviders";
+import { PickerPill } from "./PickerPill";
+import { UNSEEN_PICKER, openPicker } from "./unseenPicker";
 
 interface DateBoxProps {
   value: number | null;
@@ -8,27 +9,19 @@ interface DateBoxProps {
   label: string;
 }
 
-/** On the web the browser's own date box, so a phone shows its date wheel. */
+/** On the web: the day in a pill ("1 ต.ค. 2569"); a tap opens the browser's own date wheel. */
 export function DateBox({ value, onChange, label }: DateBoxProps) {
-  const { theme } = useTheme();
-  const style: CSSProperties = {
-    flex: 1,
-    minWidth: 0,
-    border: 0,
-    background: "transparent",
-    color: theme.text,
-    font: "inherit",
-    fontSize: 17,
-    textAlign: "right",
-    outline: "none",
-  };
+  const { t } = useLang();
   return (
-    <input
-      type="date"
-      aria-label={label}
-      value={value == null ? "" : dayField(value)}
-      onChange={(e) => onChange(parseDayField(e.target.value))}
-      style={style}
-    />
+    <PickerPill text={t(dayPill(value))}>
+      <input
+        type="date"
+        aria-label={label}
+        value={value == null ? "" : dayField(value)}
+        onChange={(e) => onChange(parseDayField(e.target.value))}
+        onClick={openPicker}
+        style={UNSEEN_PICKER}
+      />
+    </PickerPill>
   );
 }
