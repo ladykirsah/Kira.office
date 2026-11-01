@@ -6193,6 +6193,8 @@ export interface CouponAdminRow {
   status: string;
   createdAt: number;
   redemptions: number;
+  /** The staff member who made it (migration 0095); null for coupons made before then. */
+  createdByName: string | null;
 }
 
 /** Every coupon with its lifetime redemption count, newest first. */
@@ -6203,8 +6205,10 @@ export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]
               c.starts_at AS startsAt, c.ends_at AS endsAt, c.max_uses AS maxUses,
               c.max_uses_per_customer AS maxUsesPerCustomer,
               c.max_discount_satang AS maxDiscountSatang, c.status, c.created_at AS createdAt,
-              (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions
-       FROM coupons c ORDER BY c.created_at DESC`,
+              (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions,
+              u.name AS createdByName
+       FROM coupons c LEFT JOIN users u ON u.id = c.created_by_user_id
+       ORDER BY c.created_at DESC`,
     )
     .all<CouponAdminRow>();
   return results ?? [];
@@ -6222,6 +6226,8 @@ export interface CouponCreate {
   maxUsesPerCustomer?: number;
   /** Ceiling on the discount, satang. null/undefined = uncapped. */
   maxDiscountSatang?: number | null;
+  /** The signed-in staff member making it (route fills this; never taken from the body). */
+  createdByUserId?: string | null;
 }
 
 /** Insert a coupon; refuses a duplicate code (codes are the customer-facing identity). */
@@ -6238,8 +6244,9 @@ export async function createCoupon(
   await db
     .prepare(
       `INSERT INTO coupons (id, code, name, type, value, min_subtotal_satang, starts_at, ends_at,
-                            max_uses, max_uses_per_customer, max_discount_satang, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+                            max_uses, max_uses_per_customer, max_discount_satang, status, created_at,
+                            created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
     )
     .bind(
       id,
@@ -6254,6 +6261,7 @@ export async function createCoupon(
       Math.max(1, Math.round(Number(input.maxUsesPerCustomer) || 1)),
       numOrNull(input.maxDiscountSatang),
       Date.now(),
+      input.createdByUserId ?? null,
     )
     .run();
   return { id };
@@ -8470,7 +8478,12 @@ const worker = {
       if (!isPositiveInt(body.value)) {
         return json({ error: "value must be a positive integer (satang, or basis points)" }, 400);
       }
-      const created = await createCoupon(env.DB, { ...(body as CouponCreate), code, name });
+      const created = await createCoupon(env.DB, {
+        ...(body as CouponCreate),
+        code,
+        name,
+        createdByUserId: viewerStaff?.userId ?? null,
+      });
       if ("duplicate" in created) return json({ error: `coupon code ${code} already exists` }, 409);
       return json(created, 201);
     }

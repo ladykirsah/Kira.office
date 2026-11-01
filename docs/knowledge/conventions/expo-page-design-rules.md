@@ -250,7 +250,15 @@ again before saying a build matches.** The owner's words are quoted where they s
   built sheet says why and to turn AirPlus off instead. Read the endpoint before writing a sheet's
   words, the same way as its errors below (สินค้า, 31 Oct).
 - **Draw what the server refuses.** For every form, look up its 400 / 409 answers and draw each as a
-  small red line under its field (ชื่อซ้ำ, ราคา ฿0, เดือนนี้จ่ายครบแล้ว …).
+  small red line under its field (ชื่อซ้ำ, มีโค้ด NEWNOV แล้ว, เดือนนี้จ่ายครบแล้ว …).
+- **A form fills in any order; บันทึก names only what is still empty.** The line goes under each empty
+  box ("ยังไม่ได้ใส่โค้ด", no "…ก่อน") and leaves as soon as it is filled. No rules of my own on top: ฿0
+  is a real answer where it means "none" (ลดสูงสุด ฿0 = no cap, ซื้อขั้นต่ำ ฿0 = no minimum). *"these
+  error logics do not necessary > remove / admin can refill anything first or late / 0 THB is
+  available … / the error appear only some are missing"* (คูปอง, 1 Nov).
+- **Who made a record comes from the sign-in.** สร้างโดย is filled by the server from the signed-in
+  account, never typed; records made before the shop kept it show —. *"please file it 'who create the
+  coupon' from logged in account"* (คูปอง, 1 Nov).
 - **Sample numbers add up the way the system adds them**: totals = the rows, pay = day rate ×
   (days in the month − days off), real weekdays, no dates after "today" on the board.
 - **No grey explanation on the phone.** No "เห็นเฉพาะ…" tags, no notes under cards, no grey second
@@ -401,14 +409,25 @@ again before saying a build matches.** The owner's words are quoted where they s
   filled in the missing end by itself (the banner would have left the website at month end), and the
   broken link stopped the banner opening. A sheet keeps what the owner didn't touch; a code check
   caught both (แบนเนอร์, 1 Nov).
+  It also saved a ลดสูงสุด on baht coupons, which the new form has no box for; the card doesn't
+  mention a value nobody can change (คูปอง, 1 Nov).
+- **A decoration along an edge must not set the height.** The ticket's dashed tear line (a column of
+  dashes) made every coupon card twice as tall; it is laid over the card's edge now, so it follows the
+  card (คูปอง, 1 Nov).
+- **A grey hint must not look like a typed value.** "10" in the empty ลด box read as a real 10%; hints
+  are written "เช่น 10", like "เช่น NEWNOV" (คูปอง, 1 Nov).
+- **States the drawing doesn't show still get words.** A coupon with every use taken said ใช้ได้อยู่;
+  it says ใช้ครบแล้ว now (คูปอง, 1 Nov).
 - **Tap twice fast.** Two quick ▲▼ taps saved over each other. Saves now run one after another
   (`lib/oneAtATime.ts`) and the list reads back what was saved (แบนเนอร์, 1 Nov).
 - **Open a record and come back.** The list forgot its tab (แถบโปรโมชัน → สไลด์หลัก). A list's tab lives
   in the page address (`router.setParams`), so coming back opens the same tab (แบนเนอร์, 1 Nov).
 - **No button inside a button.** A card that opens its page and also holds ▲▼ is separate tap areas
   side by side; nested ones break on the web build (แบนเนอร์, 1 Nov).
-- **The browser pane writes times as "12:00 AM"**, wider than a phone's "00:00" — size time boxes
-  for both, and look at both (แบนเนอร์, 1 Nov).
+- **The browser's own boxes don't use the app's font.** On iPhone the date box showed "Nov 1, 2026"
+  in a serif font. Dates and times are now the drawn grey pill ("1 พ.ย. 2569 · 00:00",
+  `ui/orders/PickerPill.tsx`) with the phone's wheel unseen on top: *"iPhone date font > the same as
+  you show me on artifact"* (1 Nov). Look at every date, time and pick box on the iPhone simulator.
 - **Bring the preview tab to the front before tapping.** With the pane hidden or another tab in front,
   sheets open slowly and taps land on what was under them (the ทำบิล tab, 1 Nov).
 - **Read this rulebook again at the start of a build**, not only before drawing.

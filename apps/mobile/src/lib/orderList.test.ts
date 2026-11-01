@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dayField,
+  dayPill,
   daySections,
   nextStep,
   parseDayField,
@@ -318,5 +319,15 @@ describe("dayField / parseDayField", () => {
     expect(parseDayField("")).toBeNull();
     expect(parseDayField("2026-02-30")).toBeNull();
     expect(parseDayField("5/10/2026")).toBeNull();
+  });
+});
+
+describe("dayPill", () => {
+  it("given a day > then the date pill's words, Thai year in Thai (as drawn)", () => {
+    expect(dayPill(at(1, 15))).toEqual({ th: "1 ต.ค. 2569", en: "1 Oct 2026" });
+  });
+
+  it("given no day > then an em dash", () => {
+    expect(dayPill(null)).toEqual({ th: "—", en: "—" });
   });
 });

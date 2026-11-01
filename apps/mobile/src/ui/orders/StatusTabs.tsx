@@ -16,15 +16,26 @@ const TABS: readonly { key: OrderTab | "all"; label: Phrase }[] = [
   ...ORDER_TABS.map((tab) => ({ key: tab.key, label: tab.label })),
 ];
 
+/** Orders' status tabs: every order status, with its count. */
+export function StatusTabs({ value, counts, onPick }: StatusTabsProps) {
+  return <CountTabs tabs={TABS} value={value} counts={counts} onPick={onPick} />;
+}
+
 /**
  * Choice B's status tabs: one row that scrolls sideways, every tab with its count, one tap changes
- * the list. The picked tab slides to the front so it stays in sight.
+ * the list. The picked tab slides to the front so it stays in sight. คูปอง's filter row uses them too.
  */
-export function StatusTabs({ value, counts, onPick }: StatusTabsProps) {
+export function CountTabs<K extends string>(props: {
+  tabs: readonly { key: K; label: Phrase }[];
+  value: K;
+  counts: Record<K, number>;
+  onPick: (key: K) => void;
+}) {
+  const { value, counts, onPick } = props;
   const { theme } = useTheme();
   const { t } = useLang();
   const row = useRef<ComponentRef<typeof ScrollView>>(null);
-  const xs = useRef<Partial<Record<OrderTab | "all", number>>>({});
+  const xs = useRef<Partial<Record<K, number>>>({});
 
   useEffect(() => {
     row.current?.scrollTo({ x: Math.max(0, (xs.current[value] ?? 0) - SPACE.l), animated: true });
@@ -39,7 +50,7 @@ export function StatusTabs({ value, counts, onPick }: StatusTabsProps) {
       style={styles.strip}
       contentContainerStyle={styles.row}
     >
-      {TABS.map((tab) => {
+      {props.tabs.map((tab) => {
         const on = tab.key === value;
         return (
           <Pressable

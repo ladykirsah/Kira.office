@@ -333,6 +333,14 @@ export function rangeLabel(range: CustomRange): Phrase {
   return { th: `${first.th} – ${last.th}`, en: `${first.en} – ${last.en}` };
 }
 
+/** A date pill's words, as the drawings show them: "1 ต.ค. 2569" / "1 Oct 2026"; none → an em dash. */
+export function dayPill(ms: number | null): Phrase {
+  if (ms == null) return { th: "—", en: "—" };
+  const d = new Date(ms);
+  const day = shortDate(ms);
+  return { th: `${day.th} ${d.getFullYear() + 543}`, en: `${day.en} ${d.getFullYear()}` };
+}
+
 /** A day as a date box holds it: "2026-10-05". */
 export function dayField(ms: number): string {
   const d = new Date(ms);

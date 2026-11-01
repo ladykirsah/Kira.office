@@ -47,6 +47,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import worker, {
+  createCoupon,
+  listCouponsAdmin,
   addBarcodeToProduct,
   applyAdjustmentToDb,
   applySyncToDb,
@@ -1264,6 +1266,27 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       expect(res.status).toBe(201);
       const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
       expect(insert?.binds).toContain("Songkran promo");
+    });
+
+    it("POST /coupons > records who made it, from the signed-in staff member", async () => {
+      const { env, runs } = makeDb({ couponByCode: null });
+      const res = await fetchAuthed(
+        new Request("https://x/coupons", {
+          method: "POST",
+          body: JSON.stringify({
+            code: "NEWNOV",
+            name: "ลูกค้าใหม่ พ.ย.",
+            type: "percent",
+            value: 1000,
+          }),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(201);
+      const insert = runs.find((r) => r.sql.includes("INSERT INTO coupons"));
+      expect(insert?.sql).toContain("created_by_user_id");
+      expect(insert?.binds).toContain("u-test");
     });
 
     it("POST /coupons > 400 when the name is missing or blank", async () => {
@@ -4778,6 +4801,33 @@ function asD1(db: DatabaseSync): D1Database {
 
 /** Fixed clock — seeded orders stay well inside the 48h expiry window. */
 const SQLITE_NOW = 1_760_000_000_000;
+
+describe("coupons > who made it (real schema)", () => {
+  it("given a coupon made by a staff member > then the list carries their name; an old one > null", async () => {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run("u-kae", "คุณเก๋", "kae@shop.test", "super_admin", "active", SQLITE_NOW);
+    raw
+      .prepare(
+        `INSERT INTO coupons (id, code, type, value, created_at) VALUES ('old','OLD5','percent',500,?)`,
+      )
+      .run(SQLITE_NOW - 1);
+    const db = asD1(raw);
+    await createCoupon(db, {
+      code: "NEWNOV",
+      name: "ลูกค้าใหม่ พ.ย.",
+      type: "percent",
+      value: 1000,
+      createdByUserId: "u-kae",
+    });
+    const rows = await listCouponsAdmin(db);
+    expect(rows.find((r) => r.code === "NEWNOV")?.createdByName).toBe("คุณเก๋");
+    expect(rows.find((r) => r.code === "OLD5")?.createdByName).toBeNull();
+  });
+});
 
 describe("listOrders > storefront_customers join", () => {
   const NOW = SQLITE_NOW;
