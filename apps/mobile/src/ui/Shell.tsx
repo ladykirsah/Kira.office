@@ -329,11 +329,17 @@ const CLOSE_ICON = "M6 6l12 12M18 6L6 18";
 /** "‹ ออเดอร์" — the way back from a page that sits under another one. */
 function BackPill({ back }: { back: BackLink }) {
   const { theme } = useTheme();
+  const { t } = useLang();
   const s = styles(theme);
   return (
-    <Pressable onPress={back.onPress} accessibilityRole="link" style={s.backPill}>
-      <LineIcon d={BACK_ICON} color={theme.text} size={20} strokeWidth={2.4} />
-      <Text style={s.backText}>{back.label}</Text>
+    <Pressable
+      onPress={back.onPress}
+      accessibilityRole="link"
+      accessibilityLabel={back.label || t({ th: "กลับ", en: "Back" })}
+      style={[s.backPill, !back.label && s.backRound, back.plain && s.backPlain]}
+    >
+      {!back.plain && <LineIcon d={BACK_ICON} color={theme.text} size={20} strokeWidth={2.4} />}
+      {back.label ? <Text style={s.backText}>{back.label}</Text> : null}
     </Pressable>
   );
 }
@@ -560,6 +566,8 @@ const styles = (c: Theme) =>
       borderColor: c.glassLine,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
     },
+    backRound: { width: 36, paddingLeft: 0, paddingRight: 0, justifyContent: "center" },
+    backPlain: { paddingLeft: 14 },
     backText: { ...TYPE.body, color: c.text },
     searchField: {
       height: 52,

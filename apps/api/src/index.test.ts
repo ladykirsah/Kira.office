@@ -2530,6 +2530,41 @@ describe("api worker routes", () => {
     expect(body.phone).toBe("061 939 6144");
   });
 
+  it("shop-info > given a Linktree link > then it is kept and read back (ข้อมูลร้าน's ติดต่อ)", async () => {
+    const { store, env } = kvEnv();
+    await fetchAuthed(
+      new Request("https://x/shop-info/denair", {
+        method: "PUT",
+        body: JSON.stringify({ linktreeUrl: " linktr.ee/denairservice " }),
+      }),
+      env,
+      ctx,
+    );
+    expect(store.get("shop:denair:linktreeUrl")).toBe("linktr.ee/denairservice");
+    const res = await fetchAuthed(new Request("https://x/shop-info/denair"), env, ctx);
+    const body = (await res.json()) as Record<string, string | null>;
+    expect(body.linktreeUrl).toBe("linktr.ee/denairservice");
+  });
+
+  it("shop-info > given a save that sends some fields > then the fields it left out keep their values", async () => {
+    // The account sheet saves only paymentMethods; the old web page knows nothing of linktreeUrl.
+    const { store, env } = kvEnv();
+    store.set("shop:denair:name", "เด่นแอร์ เซอร์วิส");
+    store.set("shop:denair:linktreeUrl", "linktr.ee/denairservice");
+    await fetchAuthed(
+      new Request("https://x/shop-info/denair", {
+        method: "PUT",
+        body: JSON.stringify({ paymentMethods: "[]", qrHeadline: "" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(store.get("shop:denair:name")).toBe("เด่นแอร์ เซอร์วิส");
+    expect(store.get("shop:denair:linktreeUrl")).toBe("linktr.ee/denairservice");
+    expect(store.get("shop:denair:paymentMethods")).toBe("[]");
+    expect(store.get("shop:denair:qrHeadline")).toBe("");
+  });
+
   it("shop-info 404s an unknown profile instead of defaulting to one", async () => {
     // Defaulting would write one shop's settings into the other's namespace.
     const { env } = kvEnv();
