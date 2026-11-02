@@ -29,6 +29,7 @@ import {
   roleCanBeLocked,
 } from "@l-shopee/core";
 import type { StaffRole } from "@l-shopee/core";
+import { logActivity } from "./staffActivityLog";
 
 /** Header the admin app forwards the raw session token in. The cookie itself lives on the admin origin. */
 export const STAFF_SESSION_HEADER = "X-Staff-Session";
@@ -39,7 +40,8 @@ export const SESSION_ROLL_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export interface StaffIdentity {
   userId: string;
-  email: string;
+  /** Null for people who sign in by PIN alone and have no email (0097). */
+  email: string | null;
   name: string;
   role: StaffRole;
 }
@@ -437,6 +439,15 @@ export async function recordAccountFailure(
     )
     .bind(next.failedAttempts, next.lockedUntil, next.lastFailedAt, userId)
     .run();
+
+  // THIS failure set the lock — "เข้าใช้งานผิด 3 ครั้ง — ล็อก" in the owner's work history. One
+  // line per lock: tries that bounce off a lock never reach here, and a failure that leaves the
+  // account open writes nothing. logActivity swallows its own errors, so a log that cannot be
+  // written never changes what the sign-in answers.
+  const wasLocked = state.lockedUntil !== null && state.lockedUntil > now;
+  if (next.lockedUntil !== null && !wasLocked) {
+    await logActivity(db, userId, "locked", null, now);
+  }
 }
 
 /** A clean sign-in wipes the slate, so yesterday's typo can't combine with today's. */

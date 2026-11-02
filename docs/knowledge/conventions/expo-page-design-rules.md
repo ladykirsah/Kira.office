@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-02
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -233,11 +233,29 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Two businesses = one card each, no tabs on top.** *"since i have 2 shops > … see 2 shop cards …
   remove the tab on top > click a card go to each shop set up"*, the shop page drawn after Apple
   Account (round ‹, centred title, big round logo, name, grey line) (2 Nov).
-- **Values you hand out get a copy button.** Phone, LINE link, Linktree: the round copy button after
-  the value (คูปอง's). Nothing saved → "—" and no button. *"please add copy icon button to contact
-  list"* (2 Nov).
+- **Values you hand out get a copy button — a plain icon.** Phone, LINE link, Linktree, account
+  number, codes: the copy mark alone after the value, no round grey button behind it. Nothing saved →
+  "—" and no button. *"please add copy icon button to contact list"*, then *"copy button > plain
+  i con"* — on every page, ข้อมูลร้าน and คูปอง too (พนักงาน, 2 Nov).
 - **Leave out what the page isn't for.** I put พนักงาน on the shop cards and page: *"i think we do
   not need member here on anywhere on this section > remove them"* (2 Nov).
+- **A proof photo is shown big, one size everywhere.** A slip (or cash photo) sits on the page at
+  full width, the same size on every page and sheet, with no "ดู" button: *"i want the insert slip to
+  be able to be saved and viewed in big pic as evident"*, *"big slip … so we do not need view
+  button"*, *"pick one slip size for everywhere > fix the gap size too"*. Its two actions are small
+  round buttons on the photo's corner: ⬇ save and 📎 change — *"change เปลี่ยน to be in attach
+  icon"*, *"change save button to be like เปลี่ยน in the same place"*. Mock it with the owner's real
+  picture: *"use the pic i sent you for slip mock"* (พนักงาน, 2 Nov).
+- **One ＋ for every "add" on a page.** The header ＋ opens a small menu under it: the main add first
+  (เพิ่มคน), a gap, then the records (บันทึกวันหยุด · จ่ายเงินเดือน · บันทึกเงินเบิก). *"merge that 2
+  shortcut into the + button"*. Different money stays separate: *"i want paying salary and advance
+  paying separate"* (พนักงาน, 2 Nov).
+- **A person page = the shop page's pattern** (photo, one hero line, edit in place), without the
+  language switch: *"let's do the same as on Shop info into member page, without Thai and English
+  setup"*. The hero line is "ตำแหน่ง · ชื่อ": *"please swap [position] dot [name]"*. Order: ชื่อ ·
+  ผู้ติดต่อฉุกเฉิน (its own section) · งาน · บัญชีธนาคาร · เงินเดือน · วันหยุด · การเข้าใช้งาน; ติดต่อ
+  shows only in แก้ไข, the phone already sits under the name: *"remove ติดต่อ > only appear on edit
+  mode"*. A new-person form is a full page, not a sheet: *"make it full page not popup"* (2 Nov).
 
 ## 5 · Words, numbers, lists, search
 
@@ -297,6 +315,13 @@ again before saying a build matches.** The owner's words are quoted where they s
   history would go; the server refuses to delete a product that has history (the August rule). The
   built sheet says why and to turn AirPlus off instead. Read the endpoint before writing a sheet's
   words, the same way as its errors below (สินค้า, 31 Oct).
+- **What is owed lists every month, not only the recorded ones** — from the day the person started
+  work, but never before the shop's first pay recorded in the app (older months were paid by hand
+  and would all read as owed): *"past month since the member start working"*, then *"Hide them"*
+  (พนักงาน pay history, 2 Nov). Before building a list "since …", look at what old data will show
+  and say it first.
+- **Most of the team has no email.** A person can be PIN-only; the form asks for a PIN when the
+  email is empty: *"most of my team does not have Email"* (พนักงาน, 2 Nov).
 - **Draw what the server refuses.** For every form, look up its 400 / 409 answers and draw each as a
   small red line under its field (ชื่อซ้ำ, มีโค้ด NEWNOV แล้ว, เดือนนี้จ่ายครบแล้ว …).
 - **A form fills in any order; บันทึก names only what is still empty.** The line goes under each empty
@@ -396,6 +421,9 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A board is at most 8000px tall.** The canvas silently cuts taller ones; split into
   "ขั้น 1–2" / "ขั้น 3–4".
 - **Re-read the live `canvas.json` before every publish.** The canvas rewrites it.
+- **Draw every combination of a flow's choices.** Two kinds × two ways = four rows: *"i want to see all
+  stages · salary > bank transfer · salary > cash · advance > bank transfer · advance > cash"*, after
+  *"there are some missing flow and stage i did not see it here"* (พนักงาน, 2 Nov).
 - **Clean up after a build.** Delete old versions and options that weren't picked, and say which
   ones went.
 - **Mockups live on the artifact only.** The preview always shows the real app.
@@ -493,6 +521,16 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Type in the browser pane, look on the iPhone.** The simulator's typing pastes, asks permission
   and lags; fill boxes with the pane's form_input, then check the look and the toasts (the wide pane
   hides toasts) on the simulator (2 Nov).
+- **Test the route, not only the function.** The add form refused every PIN: the function's tests
+  passed, but the route never handed it the PIN settings. And the new staff routes sent no CORS
+  headers, so the Expo app (another address) got nothing. A new endpoint gets one test through the
+  real route (พนักงาน, 2 Nov).
+- **A web text box takes its default width.** In a label + box row it squeezed the label onto two
+  lines; the label keeps its width and the box takes the rest (`ui/staff/parts.tsx` CodeInput).
+- **No toast the drawing doesn't have.** I added "ลบ … แล้ว" after deleting a person; the drawing shows
+  the person simply gone from the list (พนักงาน, 2 Nov).
+- **Badges and order for people:** a one-word Thai nickname shows its first and last consonants
+  (บอย → บย), owners first, then Thai name order, switched-off people last (พนักงาน, 2 Nov).
 
 ## 9 · Get the push OK in chat, early
 

@@ -65,7 +65,7 @@ export function LangSwitch(props: { value: ShopLang; onChange: (lang: ShopLang) 
   );
 }
 
-/** A ติดต่อ row: the value, and the round copy button when there is something to copy. */
+/** A ติดต่อ row: the value, and the plain copy mark when there is something to copy (owner, 2 Nov). */
 export function CopyLine(props: {
   label: string;
   what: Phrase;
@@ -98,7 +98,7 @@ export function CopyLine(props: {
                 th: `คัดลอก${props.what.th}`,
                 en: `Copy the ${props.what.en}`,
               })}
-              style={[styles.copy, { backgroundColor: theme.hover }]}
+              style={styles.copy}
             >
               <LineIcon d={ICON.copy} color={theme.text} size={16} strokeWidth={2} />
             </Pressable>

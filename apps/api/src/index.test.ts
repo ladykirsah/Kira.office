@@ -1779,6 +1779,15 @@ describe("api worker routes", () => {
     expect(await res.json()).toEqual({ ok: true, service: "kiraoffice-api" });
   });
 
+  it("GET /staff > given the Expo app reads it from its own origin > then the reply carries CORS", async () => {
+    // The old back office reads the staff routes through its same-origin relay; the Expo app reads
+    // them straight from the API, so without these headers the browser drops every reply.
+    const res = await fetchAuthed(new Request("https://x/staff"), {} as Env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("content-type")).toContain("application/json");
+  });
+
   it("OPTIONS > 204 CORS preflight (no auth)", async () => {
     const res = await fetchAuthed(
       new Request("https://x/products", { method: "OPTIONS" }),
@@ -9378,6 +9387,67 @@ describe("staffPayments — one person's wage history", () => {
     expect((await staffPayments(db, mech, "s1", "2026-07")).status).toBe(200);
     const other = { ...mech, userId: "s2", email: "s2@shop.test" };
     expect((await staffPayments(db, other, "s1", "2026-07")).status).toBe(403);
+  });
+
+  // Owner, 2 Nov 2026: a month that was never paid must still show — every month since the person
+  // started work — but not the months before the shop recorded its first pay in the app, which were
+  // paid by hand and would otherwise all read as owed.
+  async function seedWithStart() {
+    const seeded = await seed();
+    seeded.raw
+      .prepare(`UPDATE users SET started_on = ? WHERE id = 's1'`)
+      .run(Date.UTC(2026, 3, 15));
+    seeded.raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at,day_rate_satang)
+         VALUES ('s2','Eak','e@shop.test','mechanic','active',?,40000)`,
+      )
+      .run(NOW);
+    return seeded;
+  }
+  type Months = { payments: { period: string; paidAt: number | null; earnedSatang: number }[] };
+
+  it("given a start date after the shop's first pay > then every month from the start month is listed", async () => {
+    const { db } = await seedWithStart();
+    await markSalaryPaid(db, boss, "s2", "2026-02", NOW, { method: "cash", slipKey: null });
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as Months;
+    expect(body.payments.map((p) => p.period)).toEqual([
+      "2026-07",
+      "2026-06",
+      "2026-05",
+      "2026-04",
+    ]);
+    const may = body.payments.find((p) => p.period === "2026-05")!;
+    expect(may.paidAt).toBeNull();
+    expect(may.earnedSatang).toBe(40_000 * 31);
+  });
+
+  it("given a start date before the shop's first pay (an advance) > then nothing before that pay", async () => {
+    const { db } = await seedWithStart();
+    await recordAdvance(
+      db,
+      boss,
+      "s2",
+      { period: "2026-06", givenOn: "2026-06-10", amountSatang: 50_000, method: "cash" },
+      NOW,
+    );
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as Months;
+    expect(body.payments.map((p) => p.period)).toEqual(["2026-07", "2026-06"]);
+  });
+
+  it("given a start date and no pay recorded in the shop yet > then only the running month", async () => {
+    const { db } = await seedWithStart();
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as Months;
+    expect(body.payments.map((p) => p.period)).toEqual(["2026-07"]);
+  });
+
+  it("given no start date > then only the recorded months and the running month are listed", async () => {
+    const { db } = await seed();
+    await markSalaryPaid(db, boss, "s1", "2026-04", NOW, { method: "cash", slipKey: null });
+    const body = (await (await staffPayments(db, boss, "s1", "2026-07")).json()) as {
+      payments: { period: string }[];
+    };
+    expect(body.payments.map((p) => p.period)).toEqual(["2026-07", "2026-04"]);
   });
 
   // The wage table reads as a ledger: the month's salary, then every advance that came out of it,

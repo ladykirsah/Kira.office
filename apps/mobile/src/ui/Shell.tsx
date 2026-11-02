@@ -1,6 +1,6 @@
 import { PRIMARY_TABS, activeHref, navGroupsFor, type NavGroup } from "@l-shopee/shared/nav";
 import { usePathname, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState, type ComponentRef } from "react";
 import type { ReactNode } from "react";
 import {
   Modal,
@@ -392,9 +392,17 @@ function RoundButton({ button }: { button: HeaderButton }) {
   const { theme } = useTheme();
   const s = styles(theme);
   const count = button.badge ?? 0;
+  const self = useRef<ComponentRef<typeof View>>(null);
+  // The button tells the screen where it is: a press on the web carries no position.
+  const press = () => {
+    const node = self.current;
+    if (!node?.measureInWindow) return button.onPress();
+    node.measureInWindow((x, y, width, height) => button.onPress({ x, y, width, height }));
+  };
   return (
     <Pressable
-      onPress={button.onPress}
+      ref={self}
+      onPress={press}
       accessibilityRole="button"
       accessibilityLabel={count > 0 ? `${button.label} ${count}` : button.label}
       style={button.icon ? s.roundButton : [s.roundButton, s.wordButton]}

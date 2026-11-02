@@ -107,7 +107,7 @@ export function CouponScreen() {
               onPress={() => void copy()}
               accessibilityRole="button"
               accessibilityLabel={t({ th: "คัดลอกโค้ด", en: "Copy the code" })}
-              style={[styles.copy, { backgroundColor: theme.hover }]}
+              style={styles.copy}
             >
               <LineIcon d={ICON.copy} color={theme.text} size={18} strokeWidth={2} />
             </Pressable>

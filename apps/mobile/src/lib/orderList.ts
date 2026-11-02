@@ -282,7 +282,7 @@ export function nextStep(orderStatus: string | null, paymentStatus: string | nul
   return { text: operationalStatusPhrase(s), waiting: false, icon: null, tone: "muted" };
 }
 
-const MONTHS_TH = [
+export const MONTHS_TH = [
   "ม.ค.",
   "ก.พ.",
   "มี.ค.",
@@ -296,7 +296,7 @@ const MONTHS_TH = [
   "พ.ย.",
   "ธ.ค.",
 ];
-const MONTHS_EN = [
+export const MONTHS_EN = [
   "Jan",
   "Feb",
   "Mar",
