@@ -2,6 +2,12 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import { formatBaht } from "./money";
 import { dayPill, rangeLabel, shortDate } from "./orderList";
 import { parseBaht } from "./productEdit";
+import {
+  NEW_CUSTOMER_DAYS,
+  scopeProblem,
+  type CouponScope,
+  type CouponTarget,
+} from "./couponRules";
 
 /**
  * The rules behind คูปอง (owner approved the drawing, canvas v252, 1 Nov 2026): AirPlus checkout
@@ -31,7 +37,20 @@ export interface Coupon {
   redemptions: number;
   /** The staff member who made it; null for coupons made before the shop kept this. */
   createdByName: string | null;
+  /** order (the product price) or shipping (ส่งฟรี = 100% off the fee). */
+  appliesTo: string;
+  /** ใช้กับ: all, or the brands / categories / car models / products in targets. */
+  scope: string;
+  targets: CouponTarget[];
+  /** ลูกค้าใหม่: accounts made in this window hold it for validDays; null = everyone. */
+  signupFrom: number | null;
+  signupTo: number | null;
+  validDays: number | null;
 }
+
+const onShipping = (c: Pick<Coupon, "appliesTo">) => c.appliesTo === "shipping";
+const isFreeShipping = (c: Pick<Coupon, "appliesTo" | "type" | "value">) =>
+  onShipping(c) && c.type === "percent" && c.value >= 10000;
 
 /** usedUp is not on the drawing: a coupon with every use taken can't be used, so it doesn't say ใช้ได้อยู่. */
 export type CouponState = "live" | "waiting" | "off" | "ended" | "usedUp";
@@ -91,25 +110,10 @@ export function filterCounts(
   return counts;
 }
 
-/** The ticket's big value: "10%" (basis points), "฿200" (satang). */
+/** The card's big value: "10%" (basis points), "฿200" (satang), "ส่งฟรี". */
 export function bigValue(c: Coupon): string {
+  if (isFreeShipping(c)) return "ส่งฟรี";
   return c.type === "percent" ? `${c.value / 100}%` : formatBaht(c.value);
-}
-
-/**
- * After the code: the minimum spend, else the cap, else ไม่มีขั้นต่ำ (as drawn). Only a percent coupon
- * has a cap (the form has no ลดสูงสุด for baht), so one the web back office gave a baht coupon is not said.
- */
-export function conditionLine(c: Coupon): Phrase {
-  if (c.minSubtotalSatang > 0) {
-    const min = formatBaht(c.minSubtotalSatang);
-    return { th: `เมื่อซื้อครบ ${min}`, en: `On ${min} or more` };
-  }
-  if (c.type === "percent" && c.maxDiscountSatang != null) {
-    const cap = formatBaht(c.maxDiscountSatang);
-    return { th: `ลดสูงสุด ${cap}`, en: `Up to ${cap} off` };
-  }
-  return { th: "ไม่มีขั้นต่ำ", en: "No minimum" };
 }
 
 function usedLine(c: Coupon): Phrase {
@@ -118,30 +122,87 @@ function usedLine(c: Coupon): Phrase {
     : { th: `ใช้ไป ${c.redemptions}`, en: `${c.redemptions} used` };
 }
 
-/** "ใช้ได้อยู่ · ใช้ไป 12 จาก 100"; a coupon still waiting also says its first day. */
-export function cardLine(c: Coupon, now: number): Phrase {
+// ── card C (owner picked it with changes, canvas v266) ──────────────────────────────────────────
+
+/** The card's top line: what the coupon takes money off. */
+export function kindLine(c: Coupon): Phrase {
+  return onShipping(c)
+    ? { th: "ส่วนลดค่าส่ง", en: "Shipping discount" }
+    : { th: "ส่วนลดสินค้า", en: "Product discount" };
+}
+
+/** Beside the big value: "สูงสุด ฿300". Only a percent has a cap (the form has none for baht). */
+export function capLine(c: Coupon): Phrase | null {
+  if (c.type !== "percent" || isFreeShipping(c) || c.maxDiscountSatang == null) return null;
+  const cap = formatBaht(c.maxDiscountSatang);
+  return { th: `สูงสุด ${cap}`, en: `Up to ${cap}` };
+}
+
+/** What a ใช้กับ rule covers, said after สำหรับ: "สินค้า DENSO, Sanden"; null for every product. */
+function coverage(c: Coupon): Phrase | null {
+  const names = c.targets.map((t) => t.name).join(", ");
+  if (c.scope === "products" && c.targets.length > 0) {
+    const n = c.targets.length;
+    return { th: `สินค้าที่เลือก ${n} ชิ้น`, en: `${n} picked products` };
+  }
+  if (!names) return null;
+  if (c.scope === "brand") return { th: `สินค้า ${names}`, en: `${names} products` };
+  if (c.scope === "category") return { th: `สินค้าหมวด ${names}`, en: `${names} products` };
+  if (c.scope === "car_model") {
+    return { th: `สินค้า ${names} เท่านั้น`, en: `${names} products only` };
+  }
+  return null;
+}
+
+/**
+ * The card's short rule: สำหรับทุกออเดอร์ · สำหรับสินค้า Cool Gear · สำหรับลูกค้าใหม่ (owner's words,
+ * 1 Nov 2026). Not drawn: a ลูกค้าใหม่ coupon on some products says both, who first.
+ */
+export function forLine(c: Coupon): Phrase {
+  const what = coverage(c);
+  if (c.signupFrom != null) {
+    return what
+      ? { th: `สำหรับลูกค้าใหม่ · ${what.th}`, en: `For new customers · ${what.en}` }
+      : { th: "สำหรับลูกค้าใหม่", en: "For new customers" };
+  }
+  return what
+    ? { th: `สำหรับ${what.th}`, en: `For ${what.en}` }
+    : { th: "สำหรับทุกออเดอร์", en: "For every order" };
+}
+
+/** A day on the card: "30 พ.ย.", with the Thai year when it is not this year's. */
+function cardDay(ms: number, now: number): Phrase {
+  return new Date(ms).getFullYear() === new Date(now).getFullYear() ? shortDate(ms) : dayPill(ms);
+}
+
+/** How it stands: ใช้ได้ถึง 30 พ.ย. · ใช้ได้ตลอด · เปิดตัว 11 พ.ย. · ใช้ไม่ได้ · หมดอายุแล้ว. */
+export function stateLine(c: Coupon, now: number): Phrase {
   const state = couponState(c, now);
-  const words = STATE_WORDS[state];
-  const parts: Phrase[] = [words];
-  if (state === "waiting" && c.startsAt != null) parts.push(shortDate(c.startsAt));
-  parts.push(usedLine(c));
-  return {
-    th: parts.map((p) => p.th).join(" · "),
-    en: parts.map((p) => p.en).join(" · "),
-  };
+  if (state === "off") return { th: "ใช้ไม่ได้", en: "Can't be used" };
+  if (state === "waiting" && c.startsAt != null) {
+    const day = cardDay(c.startsAt, now);
+    return { th: `เปิดตัว ${day.th}`, en: `Starts ${day.en}` };
+  }
+  if (state === "live") {
+    if (c.endsAt == null) return { th: "ใช้ได้ตลอด", en: "No end date" };
+    const day = cardDay(c.endsAt, now);
+    return { th: `ใช้ได้ถึง ${day.th}`, en: `Until ${day.en}` };
+  }
+  return STATE_WORDS[state];
+}
+
+/** The grey line under the hairline: "ซื้อครบ ฿1,000 · ใช้ไป 12 จาก 100". */
+export function footLine(c: Coupon): Phrase {
+  const min = formatBaht(c.minSubtotalSatang);
+  const first: Phrase =
+    c.minSubtotalSatang > 0
+      ? { th: `ซื้อครบ ${min}`, en: `On ${min} or more` }
+      : { th: "ไม่มีขั้นต่ำ", en: "No minimum" };
+  const used = usedLine(c);
+  return { th: `${first.th} · ${used.th}`, en: `${first.en} · ${used.en}` };
 }
 
 // ── one coupon's page ────────────────────────────────────────────────────────────────────────────
-
-/** Under the big code: "ลด 10% สูงสุด ฿300", "ลด ฿80". */
-export function discountLine(c: Coupon): Phrase {
-  const value = bigValue(c);
-  if (c.type === "percent" && c.maxDiscountSatang != null) {
-    const cap = formatBaht(c.maxDiscountSatang);
-    return { th: `ลด ${value} สูงสุด ${cap}`, en: `${value} off, up to ${cap}` };
-  }
-  return { th: `ลด ${value}`, en: `${value} off` };
-}
 
 /** ใช้ไปแล้ว: "12 จาก 100", or the count alone when there is no limit. */
 export function usedValue(c: Coupon): Phrase {
@@ -198,7 +259,10 @@ export function COPIED_TOAST(code: string): Phrase {
 /** The boxes as typed. Money in baht ("1,000"), percent as "10". */
 export interface CouponForm {
   name: string;
-  kind: "percent" | "fixed";
+  /** ส่วนลด on ราคาสินค้า (the product price) or ค่าส่ง (the shipping fee). */
+  cuts: "product" | "shipping";
+  /** free = ส่งฟรี (shipping only). */
+  kind: "percent" | "fixed" | "free";
   amount: string;
   /** ลดสูงสุด (percent only); empty or ฿0 = no cap. */
   cap: string;
@@ -212,11 +276,18 @@ export interface CouponForm {
   endsAt: number | null;
   /** เปิดใช้ (edit only; a new coupon starts on). */
   on: boolean;
+  scope: CouponScope;
+  targets: CouponTarget[];
+  /** ใครใช้ได้ = ลูกค้าใหม่: accounts made in สมัครช่วง get it, for a year each. */
+  newCustomers: boolean;
+  signupFrom: number | null;
+  signupTo: number | null;
 }
 
 export function emptyForm(): CouponForm {
   return {
     name: "",
+    cuts: "product",
     kind: "percent",
     amount: "",
     cap: "",
@@ -227,6 +298,11 @@ export function emptyForm(): CouponForm {
     startsAt: null,
     endsAt: null,
     on: true,
+    scope: "all",
+    targets: [],
+    newCustomers: false,
+    signupFrom: null,
+    signupTo: null,
   };
 }
 
@@ -235,10 +311,12 @@ const moneyBox = (satang: number | null) => (satang == null ? "" : formatBaht(sa
 
 export function formOf(c: Coupon): CouponForm {
   const percent = c.type === "percent";
+  const free = isFreeShipping(c);
   return {
     name: c.name ?? "",
-    kind: percent ? "percent" : "fixed",
-    amount: percent ? String(c.value / 100) : moneyBox(c.value),
+    cuts: onShipping(c) ? "shipping" : "product",
+    kind: free ? "free" : percent ? "percent" : "fixed",
+    amount: free ? "" : percent ? String(c.value / 100) : moneyBox(c.value),
     cap: moneyBox(c.maxDiscountSatang),
     minimum: c.minSubtotalSatang > 0 ? moneyBox(c.minSubtotalSatang) : "",
     code: c.code,
@@ -247,6 +325,11 @@ export function formOf(c: Coupon): CouponForm {
     startsAt: c.startsAt,
     endsAt: c.endsAt,
     on: c.status === "active",
+    scope: (c.scope as CouponScope) ?? "all",
+    targets: c.targets ?? [],
+    newCustomers: c.signupFrom != null,
+    signupFrom: c.signupFrom,
+    signupTo: c.signupTo,
   };
 }
 
@@ -254,6 +337,7 @@ const PERCENT = /^\d+(\.\d{1,2})?$/;
 
 /** The discount as the server keeps it: basis points or satang; 0 when missing or not a number. */
 function amountValue(form: CouponForm): number {
+  if (form.kind === "free") return 10000;
   const raw = form.amount.replace(/,/g, "").trim();
   if (form.kind === "percent") return PERCENT.test(raw) ? Math.round(Number(raw) * 100) : 0;
   return parseBaht(raw) ?? 0;
@@ -262,18 +346,28 @@ function amountValue(form: CouponForm): number {
 const count = (text: string) => Math.round(Number(text.trim()) || 0);
 
 function sharedBody(form: CouponForm) {
-  const cap = form.kind === "percent" ? (parseBaht(form.cap) ?? 0) : 0;
+  const shipping = form.cuts === "shipping";
+  const cap = form.kind === "percent" && !shipping ? (parseBaht(form.cap) ?? 0) : 0;
   const uses = count(form.maxUses);
+  // A ลูกค้าใหม่ coupon has no dates of its own: each customer holds it a year from joining.
+  const fresh = form.newCustomers;
   return {
     name: form.name.trim(),
-    type: form.kind,
+    // ส่งฟรี is 100% off the shipping fee.
+    type: form.kind === "free" ? "percent" : form.kind,
     value: amountValue(form),
     maxDiscountSatang: cap > 0 ? cap : null,
     minSubtotalSatang: parseBaht(form.minimum) ?? 0,
     maxUses: uses > 0 ? uses : null,
     maxUsesPerCustomer: Math.max(1, count(form.perCustomer)),
-    startsAt: form.startsAt,
-    endsAt: form.endsAt,
+    startsAt: fresh ? null : form.startsAt,
+    endsAt: fresh ? null : form.endsAt,
+    appliesTo: shipping ? "shipping" : "order",
+    scope: form.scope,
+    targets: form.scope === "all" ? [] : form.targets.map((t) => t.id),
+    signupFrom: fresh ? form.signupFrom : null,
+    signupTo: fresh ? form.signupTo : null,
+    validDays: fresh ? NEW_CUSTOMER_DAYS : null,
   };
 }
 
@@ -286,7 +380,7 @@ export function patchBody(form: CouponForm) {
   return { ...sharedBody(form), status: form.on ? "active" : "disabled" };
 }
 
-export type FormField = "name" | "amount" | "code" | "perCustomer";
+export type FormField = "name" | "amount" | "code" | "perCustomer" | "scope" | "when";
 
 /**
  * บันทึก with a box left empty: only the empty ones say so, under themselves (owner, 1 Nov 2026: fill
@@ -303,6 +397,11 @@ export function formProblems(form: CouponForm, isNew: boolean): Partial<Record<F
   if (isNew && !cleanCode(form.code)) out.code = { th: "ยังไม่ได้ใส่โค้ด", en: "No code yet" };
   if (count(form.perCustomer) <= 0) {
     out.perCustomer = { th: "ยังไม่ได้ใส่จำนวนครั้งต่อคน", en: "No uses per customer yet" };
+  }
+  const scope = scopeProblem(form.scope, form.targets);
+  if (scope) out.scope = scope;
+  if (form.newCustomers && (form.signupFrom == null || form.signupTo == null)) {
+    out.when = { th: "ยังไม่ได้เลือกช่วงสมัคร", en: "No sign-up dates yet" };
   }
   return out;
 }

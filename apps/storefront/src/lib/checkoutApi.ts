@@ -78,7 +78,10 @@ export type CheckoutResponse = CheckoutSuccess | CheckoutFailure;
 
 export interface CouponCheckRequest {
   code: string;
-  subtotalSatang: number;
+  /** the cart, re-priced on the server like checkout (flash prices, brands, car models) */
+  lines: { variantId: string; qty: number }[];
+  /** for ส่งฟรี / ลดค่าส่ง: the shipping fee needs the address's postcode */
+  postcode?: string;
 }
 
 export type CouponCheckResponse =
@@ -93,7 +96,10 @@ export type CouponFailReason =
   | "expired"
   | "min_subtotal"
   | "exhausted"
-  | "customer_limit";
+  | "customer_limit"
+  | "not_eligible"
+  | "no_items"
+  | "flash_only";
 
 /** Thai, customer-readable message for a failed coupon validation (shared by both routes). */
 export function couponReasonThai(reason: CouponFailReason, minSubtotalSatang: number): string {
@@ -111,5 +117,11 @@ export function couponReasonThai(reason: CouponFailReason, minSubtotalSatang: nu
       return "คูปองถูกใช้ครบแล้ว";
     case "customer_limit":
       return "คุณใช้คูปองนี้ครบสิทธิ์แล้ว";
+    case "not_eligible":
+      return "คูปองนี้สำหรับลูกค้าใหม่ที่สมัครในช่วงที่กำหนด";
+    case "no_items":
+      return "คูปองนี้ใช้กับสินค้าในตะกร้าไม่ได้";
+    case "flash_only":
+      return "คูปองใช้กับสินค้าราคาแฟลชเซลไม่ได้";
   }
 }

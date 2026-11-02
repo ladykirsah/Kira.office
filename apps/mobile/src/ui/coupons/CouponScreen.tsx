@@ -5,17 +5,16 @@ import { API_BASE } from "@/lib/config";
 import { copyText } from "@/lib/copyText";
 import {
   COPIED_TOAST,
-  STATE_WORDS,
   USED_TOAST,
-  bigValue,
   couponState,
   creatorName,
-  discountLine,
   pageWindow,
+  stateLine,
   usedShare,
   usedValue,
   type Coupon,
 } from "@/lib/couponPage";
+import { whoLine } from "@/lib/couponRules";
 import { deleteCoupon } from "@/lib/couponsApi";
 import { formatBaht } from "@/lib/money";
 import { dayPill } from "@/lib/orderList";
@@ -30,15 +29,16 @@ import { Sheet } from "../orders/Sheet";
 import { Divider, Line } from "../products/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
-import { StateDot, Ticket } from "./parts";
+import { CouponFace, StateDot } from "./parts";
 import { useCouponList } from "./useCouponList";
 
 const BASE = "/settings/coupons";
 
 /**
- * One coupon (canvas v252, คูปอง 3): its name, the big ticket with the code to copy, then how it
- * stands — สถานะ, ใช้ไปแล้ว with its bar, the limits, ช่วงเวลา, and who made it when. แก้ไข opens the
- * form; ลบคูปอง asks first, and says no for one already used.
+ * One coupon (canvas v266): its name, card C with the code to copy, then how it stands — สถานะ,
+ * ใช้ไปแล้ว with its bar, the limits, ใครใช้ได้, ช่วงเวลา (or a ลูกค้าใหม่ coupon's สมัครช่วง), and who
+ * made it when; the card's สำหรับ… line says what it is for. แก้ไข opens the form; ลบคูปอง asks first,
+ * and says no for one already used.
  */
 export function CouponScreen() {
   const { t } = useLang();
@@ -97,15 +97,12 @@ export function CouponScreen() {
         {coupon.name || coupon.code}
       </Text>
 
-      <View style={styles.ticket}>
-        <Ticket big={bigValue(coupon)} stub={100} bigSize={28} radius={20}>
-          <View style={styles.ticketBody}>
-            <View style={styles.grow}>
-              <Text style={[styles.code, { color: theme.text }]} numberOfLines={1}>
-                {coupon.code}
-              </Text>
-              <Text style={[TYPE.body, { color: theme.textMuted }]}>{t(discountLine(coupon))}</Text>
-            </View>
+      <View style={styles.card}>
+        <CouponFace coupon={coupon} radius={20} padding={16}>
+          <View style={styles.codeRow}>
+            <Text style={[styles.code, styles.grow, { color: theme.text }]} numberOfLines={1}>
+              {coupon.code}
+            </Text>
             <Pressable
               onPress={() => void copy()}
               accessibilityRole="button"
@@ -115,7 +112,7 @@ export function CouponScreen() {
               <LineIcon d={ICON.copy} color={theme.text} size={18} strokeWidth={2} />
             </Pressable>
           </View>
-        </Ticket>
+        </CouponFace>
       </View>
 
       <Facts coupon={coupon} />
@@ -151,7 +148,7 @@ export function CouponScreen() {
 function Facts({ coupon }: { coupon: Coupon }) {
   const { t } = useLang();
   const { theme } = useTheme();
-  const state = couponState(coupon, Date.now());
+  const now = Date.now();
   const share = usedShare(coupon);
   const value = (text: string) => (
     <Text style={[TYPE.body, styles.value, { color: theme.text }]} numberOfLines={1}>
@@ -165,8 +162,8 @@ function Facts({ coupon }: { coupon: Coupon }) {
           label={t({ th: "สถานะ", en: "Status" })}
           right={
             <View style={styles.state}>
-              <StateDot state={state} />
-              {value(t(STATE_WORDS[state]))}
+              <StateDot state={couponState(coupon, now)} />
+              {value(t(stateLine(coupon, now)))}
             </View>
           }
         />
@@ -199,10 +196,18 @@ function Facts({ coupon }: { coupon: Coupon }) {
           label={t({ th: "ซื้อขั้นต่ำ", en: "Minimum" })}
           right={value(coupon.minSubtotalSatang > 0 ? formatBaht(coupon.minSubtotalSatang) : "—")}
         />
-        <Line
-          label={t({ th: "ช่วงเวลา", en: "When" })}
-          right={value(t(pageWindow(coupon.startsAt, coupon.endsAt)))}
-        />
+        <Line label={t({ th: "ใครใช้ได้", en: "Who" })} right={value(t(whoLine(coupon, true)))} />
+        {coupon.signupFrom != null ? (
+          <Line
+            label={t({ th: "สมัครช่วง", en: "Signed up" })}
+            right={value(t(pageWindow(coupon.signupFrom, coupon.signupTo)))}
+          />
+        ) : (
+          <Line
+            label={t({ th: "ช่วงเวลา", en: "When" })}
+            right={value(t(pageWindow(coupon.startsAt, coupon.endsAt)))}
+          />
+        )}
         <Line
           label={t({ th: "สร้างเมื่อ", en: "Made on" })}
           right={value(t(dayPill(coupon.createdAt)))}
@@ -270,15 +275,8 @@ const styles = StyleSheet.create({
     boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
   } as never,
   name: { marginHorizontal: 2 },
-  ticket: { marginTop: 14 },
-  ticketBody: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACE.m,
-    padding: SPACE.l,
-  },
+  card: { marginTop: 14 },
+  codeRow: { flexDirection: "row", alignItems: "center", gap: SPACE.m },
   code: { fontSize: 28, lineHeight: 36, fontWeight: "700", letterSpacing: 0.5 },
   copy: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   grow: { flex: 1, minWidth: 0 },

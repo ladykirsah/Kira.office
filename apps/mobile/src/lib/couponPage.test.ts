@@ -3,12 +3,9 @@ import {
   COPIED_TOAST,
   USED_TOAST,
   bigValue,
-  cardLine,
-  conditionLine,
   couponState,
   createBody,
   creatorName,
-  discountLine,
   duplicateProblem,
   emptyForm,
   filterCounts,
@@ -22,6 +19,11 @@ import {
   cleanCode,
   cleanCount,
   cleanMoney,
+  capLine,
+  footLine,
+  forLine,
+  kindLine,
+  stateLine,
   type Coupon,
 } from "./couponPage";
 
@@ -45,6 +47,12 @@ const coupon = (over: Partial<Coupon> = {}): Coupon => ({
   createdAt: at(2026, 10, 28),
   redemptions: 12,
   createdByName: "คุณเก๋",
+  appliesTo: "order",
+  scope: "all",
+  targets: [],
+  signupFrom: null,
+  signupTo: null,
+  validDays: null,
   ...over,
 });
 
@@ -124,28 +132,76 @@ describe("the card's words", () => {
     expect(bigValue(coupon({ value: 1250 }))).toBe("12.5%");
     expect(bigValue(DRAWN[1]!)).toBe("฿200");
   });
+});
 
-  it("conditionLine > the minimum first, then the cap, else ไม่มีขั้นต่ำ", () => {
-    expect(conditionLine(coupon()).th).toBe("เมื่อซื้อครบ ฿1,000");
-    expect(conditionLine(DRAWN[4]!).th).toBe("ลดสูงสุด ฿500");
-    expect(conditionLine(DRAWN[2]!).th).toBe("ไม่มีขั้นต่ำ");
+describe("card C (canvas v266): the list's card and the coupon page's card", () => {
+  const t = (id: string, name: string) => ({ id, name, imageKey: null });
+  const fresh = { signupFrom: at(2026, 12, 1), signupTo: at(2026, 12, 31), validDays: 365 };
+
+  it("kindLine > ส่วนลดสินค้า, or ส่วนลดค่าส่ง for a coupon on the shipping fee", () => {
+    expect(kindLine(coupon()).th).toBe("ส่วนลดสินค้า");
+    expect(kindLine(coupon({ appliesTo: "shipping", type: "fixed", value: 3000 })).th).toBe(
+      "ส่วนลดค่าส่ง",
+    );
   });
 
-  it("cardLine > the state, the start day when waiting, then how many were used", () => {
-    expect(cardLine(coupon(), NOW).th).toBe("ใช้ได้อยู่ · ใช้ไป 12 จาก 100");
-    expect(cardLine(DRAWN[2]!, NOW).th).toBe("รอเริ่ม · 11 พ.ย. · ใช้ไป 0 จาก 200");
-    expect(cardLine(DRAWN[3]!, NOW).th).toBe("ปิดอยู่ · ใช้ไป 12");
-    expect(cardLine(DRAWN[4]!, NOW).th).toBe("หมดอายุแล้ว · ใช้ไป 88");
+  it("capLine > สูงสุด ฿300 beside a percent; nothing without a cap, on baht or on ส่งฟรี", () => {
+    expect(capLine(coupon())?.th).toBe("สูงสุด ฿300");
+    expect(capLine(coupon({ maxDiscountSatang: null }))).toBeNull();
+    // TECH200 is baht; the old back office may have saved a cap on it, which nobody can change.
+    expect(capLine(DRAWN[1]!)).toBeNull();
+    expect(capLine(coupon({ appliesTo: "shipping", value: 10000 }))).toBeNull();
+  });
+
+  it("forLine > สำหรับทุกออเดอร์, or the brands, category, car or picked products", () => {
+    expect(
+      [
+        coupon(),
+        coupon({ scope: "brand", targets: [t("b1", "Cool Gear")] }),
+        coupon({ scope: "brand", targets: [t("b1", "DENSO"), t("b2", "Sanden")] }),
+        coupon({ scope: "category", targets: [t("t1", "คอมเพรสเซอร์")] }),
+        coupon({ scope: "car_model", targets: [t("m1", "Toyota Vigo")] }),
+        coupon({ scope: "products", targets: [t("p1", "a"), t("p2", "b")] }),
+      ].map((c) => forLine(c).th),
+    ).toEqual([
+      "สำหรับทุกออเดอร์",
+      "สำหรับสินค้า Cool Gear",
+      "สำหรับสินค้า DENSO, Sanden",
+      "สำหรับสินค้าหมวด คอมเพรสเซอร์",
+      "สำหรับสินค้า Toyota Vigo เท่านั้น",
+      "สำหรับสินค้าที่เลือก 2 ชิ้น",
+    ]);
+  });
+
+  it("forLine > given ลูกค้าใหม่ > then สำหรับลูกค้าใหม่, then what it is for when not everything", () => {
+    expect(forLine(coupon(fresh)).th).toBe("สำหรับลูกค้าใหม่");
+    expect(forLine(coupon({ ...fresh, scope: "brand", targets: [t("b1", "DENSO")] })).th).toBe(
+      "สำหรับลูกค้าใหม่ · สินค้า DENSO",
+    );
+  });
+
+  it("stateLine > ใช้ได้ถึง its last day, ใช้ได้ตลอด with none, เปิดตัว its first day, ใช้ไม่ได้ when off", () => {
+    expect(stateLine(coupon(), NOW).th).toBe("ใช้ได้ถึง 30 พ.ย.");
+    expect(stateLine(coupon({ startsAt: null, endsAt: null }), NOW).th).toBe("ใช้ได้ตลอด");
+    expect(stateLine(coupon(fresh), NOW).th).toBe("ใช้ได้ถึง 30 พ.ย.");
+    expect(stateLine(DRAWN[2]!, NOW).th).toBe("เปิดตัว 11 พ.ย.");
+    expect(stateLine(DRAWN[3]!, NOW).th).toBe("ใช้ไม่ได้");
+    expect(stateLine(DRAWN[4]!, NOW).th).toBe("หมดอายุแล้ว");
+  });
+
+  it("stateLine > given a day in another year > then with its Thai year; every use taken > ใช้ครบแล้ว", () => {
+    expect(stateLine(coupon({ endsAt: at(2027, 1, 15) }), NOW).th).toBe("ใช้ได้ถึง 15 ม.ค. 2570");
+    expect(stateLine(coupon({ redemptions: 100 }), NOW).th).toBe("ใช้ครบแล้ว");
+  });
+
+  it("footLine > the minimum or ไม่มีขั้นต่ำ, then how many were used", () => {
+    expect(footLine(coupon()).th).toBe("ซื้อครบ ฿1,000 · ใช้ไป 12 จาก 100");
+    expect(footLine(DRAWN[2]!).th).toBe("ไม่มีขั้นต่ำ · ใช้ไป 0 จาก 200");
+    expect(footLine(DRAWN[4]!).th).toBe("ไม่มีขั้นต่ำ · ใช้ไป 88");
   });
 });
 
 describe("the coupon page's words", () => {
-  it("discountLine > ลด 10% สูงสุด ฿300, ลด 5% with no cap, ลด ฿80", () => {
-    expect(discountLine(coupon()).th).toBe("ลด 10% สูงสุด ฿300");
-    expect(discountLine(coupon({ maxDiscountSatang: null })).th).toBe("ลด 10%");
-    expect(discountLine(DRAWN[2]!).th).toBe("ลด ฿80");
-  });
-
   it("usedValue / usedShare > 12 จาก 100 with its bar; no limit → just the count, no bar", () => {
     expect(usedValue(coupon()).th).toBe("12 จาก 100");
     expect(usedShare(coupon())).toBeCloseTo(0.12);
@@ -200,6 +256,13 @@ describe("the form", () => {
       maxUsesPerCustomer: 1,
       startsAt: null,
       endsAt: null,
+      // Every product, for everyone — the coupon rules added on 1 Nov 2026 at their defaults.
+      appliesTo: "order",
+      scope: "all",
+      targets: [],
+      signupFrom: null,
+      signupTo: null,
+      validDays: null,
     });
   });
 
@@ -234,6 +297,12 @@ describe("the form", () => {
       maxUsesPerCustomer: 1,
       startsAt: coupon().startsAt,
       endsAt: coupon().endsAt,
+      appliesTo: "order",
+      scope: "all",
+      targets: [],
+      signupFrom: null,
+      signupTo: null,
+      validDays: null,
       status: "disabled",
     });
   });

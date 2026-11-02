@@ -350,10 +350,14 @@ export function whenRows(
 
 const FILL_BOTH: Phrase = { th: "ใส่วันและเวลาให้ครบ", en: "Fill in both days and times" };
 
-/** ✓ on ช่วงเวลา: an empty row leaves that side open; half a row, or no row at all, needs filling in. */
+/**
+ * ✓ on ช่วงเวลา: an empty row leaves that side open; half a row, or no row at all, needs filling in.
+ * `both` (แฟลชเซล): neither side may be left open.
+ */
 export function windowFromRows(
   start: WhenRow,
   end: WhenRow,
+  both = false,
 ): { startsAt: number | null; endsAt: number | null } | { problem: Phrase } {
   const at = (row: WhenRow): number | null | "half" =>
     row.day == null && row.minutes == null
@@ -362,7 +366,8 @@ export function windowFromRows(
         ? "half"
         : joinDayTime(row.day, row.minutes);
   const [startsAt, endsAt] = [at(start), at(end)];
-  if (startsAt === "half" || endsAt === "half" || (startsAt == null && endsAt == null)) {
+  const open = both ? startsAt == null || endsAt == null : startsAt == null && endsAt == null;
+  if (startsAt === "half" || endsAt === "half" || open) {
     return { problem: FILL_BOTH };
   }
   const wrong = windowProblem(startsAt, endsAt);

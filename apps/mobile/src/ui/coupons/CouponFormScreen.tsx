@@ -2,6 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { windowLabel } from "@/lib/bannerPage";
 import { cleanCode, cleanCount, cleanMoney } from "@/lib/couponPage";
+import { cutsPatch, scopeLine, whoLine } from "@/lib/couponRules";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { WhenSheet } from "../banners/WhenSheet";
@@ -13,9 +14,13 @@ import { FormPage } from "../products/FormPage";
 import { Heading, InputRow, SwitchRow } from "../products/parts";
 import { Segmented } from "../Segmented";
 import { SPACE } from "../theme";
+import { ScopeSheet, WhoSheet } from "./RuleSheets";
 import { useCouponForm, type CouponFormState } from "./useCouponForm";
 
-/** เพิ่มคูปอง (no id) or แก้คูปอง — one form (canvas v252); the code is locked once made. */
+/**
+ * เพิ่มคูปอง (no id) or แก้คูปอง — one form (canvas v266): ชื่อคูปอง, ประเภท (ราคาสินค้า or ค่าส่ง, ใช้กับ,
+ * ใครใช้ได้, ช่วงเวลา), ส่วนลด, โค้ดและสิทธิ์, and on แก้คูปอง เปิดใช้ alone; the code is locked once made.
+ */
 export function CouponFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { t } = useLang();
@@ -59,6 +64,7 @@ function Fields({ edit }: { edit: CouponFormState }) {
   const f = edit.form!;
   const e = edit.errors;
   const percent = f.kind === "percent";
+  const shipping = f.cuts === "shipping";
   const times = (v: string) => (v ? t({ th: "ครั้ง", en: "times" }) : undefined);
   return (
     <>
@@ -73,30 +79,80 @@ function Fields({ edit }: { edit: CouponFormState }) {
       </Group>
       {e.name && <FieldError text={t(e.name)} />}
 
+      <Heading text={t({ th: "ประเภท", en: "Type" })} />
+      <View style={styles.seg}>
+        <Segmented
+          label={t({ th: "ลดอะไร", en: "Discount on" })}
+          options={[
+            { value: "product", label: t({ th: "ราคาสินค้า", en: "Product price" }) },
+            { value: "shipping", label: t({ th: "ค่าส่ง", en: "Shipping" }) },
+          ]}
+          value={f.cuts}
+          onChange={(cuts) => edit.set(cutsPatch(f.kind, cuts))}
+        />
+      </View>
+      <Group>
+        <ChoiceRow
+          label={t({ th: "ใช้กับ", en: "For" })}
+          value={t(scopeLine(f.scope, f.targets))}
+          onPress={() => edit.setSheet("scope")}
+        />
+        <ChoiceRow
+          label={t({ th: "ใครใช้ได้", en: "Who" })}
+          value={t(whoLine({ signupFrom: f.newCustomers ? 0 : null }, false))}
+          onPress={() => edit.setSheet("who")}
+        />
+        {f.newCustomers ? (
+          <ChoiceRow
+            label={t({ th: "สมัครช่วง", en: "Signed up" })}
+            value={f.signupFrom == null ? "" : t(windowLabel(f.signupFrom, f.signupTo))}
+            onPress={() => edit.setSheet("signup")}
+            last
+          />
+        ) : (
+          <ChoiceRow
+            label={t({ th: "ช่วงเวลา", en: "When" })}
+            value={t(windowLabel(f.startsAt, f.endsAt))}
+            onPress={() => edit.setSheet("when")}
+            last
+          />
+        )}
+      </Group>
+      {e.scope && <FieldError text={t(e.scope)} />}
+      {e.when && <FieldError text={t(e.when)} />}
+
       <Heading text={t({ th: "ส่วนลด", en: "Discount" })} />
       <View style={styles.seg}>
         <Segmented
           label={t({ th: "ลดแบบไหน", en: "Discount type" })}
           options={[
-            { value: "percent", label: t({ th: "ลดเป็น %", en: "Percent" }) },
-            { value: "fixed", label: t({ th: "ลดเป็นบาท", en: "Baht" }) },
+            shipping
+              ? { value: "free" as const, label: t({ th: "ส่งฟรี", en: "Free" }) }
+              : { value: "percent" as const, label: t({ th: "ลดเป็น %", en: "Percent" }) },
+            { value: "fixed" as const, label: t({ th: "ลดเป็นบาท", en: "Baht" }) },
           ]}
           value={f.kind}
           onChange={(kind) => edit.set({ kind })}
         />
       </View>
       <Group>
-        <InputRow
-          label={t({ th: "ลด", en: "Off" })}
-          value={f.amount}
-          placeholder={t(
-            percent ? { th: "เช่น 10", en: "e.g. 10" } : { th: "เช่น 200", en: "e.g. 200" },
-          )}
-          unit={percent && f.amount ? "%" : undefined}
-          lead={percent ? undefined : "฿"}
-          keyboardType="decimal-pad"
-          onChange={(v) => edit.set({ amount: cleanMoney(v) })}
-        />
+        {f.kind !== "free" && (
+          <InputRow
+            label={t({ th: "ลด", en: "Off" })}
+            value={f.amount}
+            placeholder={t(
+              percent
+                ? { th: "เช่น 10", en: "e.g. 10" }
+                : shipping
+                  ? { th: "เช่น 30", en: "e.g. 30" }
+                  : { th: "เช่น 200", en: "e.g. 200" },
+            )}
+            unit={percent && f.amount ? "%" : undefined}
+            lead={percent ? undefined : "฿"}
+            keyboardType="decimal-pad"
+            onChange={(v) => edit.set({ amount: cleanMoney(v) })}
+          />
+        )}
         {percent && (
           <InputRow
             label={t({ th: "ลดสูงสุด", en: "Up to" })}
@@ -150,40 +206,86 @@ function Fields({ edit }: { edit: CouponFormState }) {
       {edit.taken && <FieldError text={t(edit.taken)} />}
       {e.perCustomer && <FieldError text={t(e.perCustomer)} />}
 
-      <View style={styles.when}>
-        <Group>
-          <ChoiceRow
-            label={t({ th: "ช่วงเวลา", en: "When" })}
-            value={t(windowLabel(f.startsAt, f.endsAt))}
-            onPress={() => edit.setWhen(true)}
-            last={edit.isNew}
-          />
-          {!edit.isNew && (
+      {!edit.isNew && (
+        <View style={styles.on}>
+          <Group>
             <SwitchRow
               label={t({ th: "เปิดใช้", en: "On" })}
               value={f.on}
               onChange={(on) => edit.set({ on })}
               last
             />
-          )}
-        </Group>
-      </View>
-      {edit.when && (
+          </Group>
+        </View>
+      )}
+      <Sheets edit={edit} />
+    </>
+  );
+}
+
+/** The sheet open over the form, if any. */
+function Sheets({ edit }: { edit: CouponFormState }) {
+  const f = edit.form!;
+  const close = () => edit.setSheet(null);
+  switch (edit.sheet) {
+    case "when":
+      return (
         <WhenSheet
           startsAt={f.startsAt}
           endsAt={f.endsAt}
           onApply={(window) => {
             edit.set(window);
-            edit.setWhen(false);
+            close();
           }}
-          onClose={() => edit.setWhen(false)}
+          onClose={close}
         />
-      )}
-    </>
-  );
+      );
+    case "signup":
+      return (
+        <WhenSheet
+          title={{ th: "สมัครช่วง", en: "Signed up" }}
+          startsAt={f.signupFrom}
+          endsAt={f.signupTo}
+          onApply={(window) => {
+            edit.set({ signupFrom: window.startsAt, signupTo: window.endsAt });
+            close();
+          }}
+          onClose={close}
+          required
+        />
+      );
+    case "scope":
+      return (
+        <ScopeSheet
+          scope={f.scope}
+          targets={f.targets}
+          lists={edit.lists}
+          listsFailed={edit.listsFailed}
+          onRetry={() => void edit.reloadLists()}
+          onPick={(rule) => {
+            edit.set(rule);
+            close();
+          }}
+          onClose={close}
+        />
+      );
+    case "who":
+      return (
+        <WhoSheet
+          newCustomers={f.newCustomers}
+          onPick={(newCustomers) => {
+            edit.set({ newCustomers });
+            close();
+          }}
+          onClose={close}
+        />
+      );
+    default:
+      return null;
+  }
 }
 
 const styles = StyleSheet.create({
   seg: { marginBottom: SPACE.m },
-  when: { marginTop: SPACE.xl + SPACE.xs },
+  on: { marginTop: SPACE.xl + SPACE.xs },
 });

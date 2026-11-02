@@ -5,6 +5,7 @@ import type {
   DurableObjectNamespace,
   R2Bucket,
 } from "@cloudflare/workers-types";
+import type { HeldCouponRow } from "./couponCart";
 import type { CategoryRow } from "./groupBySystem";
 
 /**
@@ -53,7 +54,7 @@ export async function getDb(): Promise<D1Database> {
 
 /* ---- catalog ---- */
 
-import type { CampaignPriceInfo } from "@l-shopee/core";
+import type { CampaignPriceInfo, CouponAppliesTo, CouponScope } from "@l-shopee/core";
 
 export interface CatalogItem {
   productId: string;
@@ -633,6 +634,11 @@ export interface CheckoutPricingRow {
   widthMm: number | null;
   lengthMm: number | null;
   heightMm: number | null;
+  /** what the product is, for coupons only for a brand / category / car model / picked products */
+  productId: string;
+  brandId: string | null;
+  categoryId: string | null;
+  carModelIds: string[];
 }
 
 /** Authoritative per-variant pricing for checkout re-pricing. Order NOT preserved — match by id. */
@@ -645,6 +651,7 @@ export async function getCheckoutPricing(
   const rows = await db
     .prepare(
       `SELECT v.id AS variantId, p.name AS name,
+              p.id AS productId, p.brand_id AS brandId, p.type_id AS categoryId,
               p.weight_grams AS weightGrams,
               p.width_mm AS widthMm, p.length_mm AS lengthMm, p.height_mm AS heightMm,
               COALESCE(pp.online_price_satang, 0) AS priceSatang,
@@ -672,6 +679,9 @@ export async function getCheckoutPricing(
     .all<{
       variantId: string;
       name: string;
+      productId: string;
+      brandId: string | null;
+      categoryId: string | null;
       weightGrams: number;
       widthMm: number | null;
       lengthMm: number | null;
@@ -687,11 +697,19 @@ export async function getCheckoutPricing(
       cpStockCap: number | null;
       cpSoldCount: number | null;
     }>();
+  const models = await carModelsFitted(
+    db,
+    (rows.results ?? []).map((r) => r.productId),
+  );
   const out = new Map<string, CheckoutPricingRow>();
   for (const r of rows.results ?? []) {
     out.set(r.variantId, {
       variantId: r.variantId,
       name: r.name,
+      productId: r.productId,
+      brandId: r.brandId,
+      categoryId: r.categoryId,
+      carModelIds: models.get(r.productId) ?? [],
       weightGrams: r.weightGrams,
       widthMm: r.widthMm,
       lengthMm: r.lengthMm,
@@ -716,6 +734,33 @@ export async function getCheckoutPricing(
   return out;
 }
 
+/**
+ * The car models each product fits. A fitment names its car by brand and model (free text from the
+ * product form); it matches the managed car_models row of that name under that brand.
+ */
+async function carModelsFitted(
+  db: D1Database,
+  productIds: string[],
+): Promise<Map<string, string[]>> {
+  const ids = [...new Set(productIds)];
+  if (ids.length === 0) return new Map();
+  const { results } = await db
+    .prepare(
+      `SELECT DISTINCT pf.product_id AS productId, cm.id AS carModelId
+       FROM product_fitments pf
+       JOIN car_models cm ON cm.name = pf.car_model COLLATE NOCASE
+       LEFT JOIN car_brands cb ON cb.id = cm.car_brand_id
+       WHERE pf.product_id IN (${ids.map(() => "?").join(",")})
+         AND (pf.car_brand IS NULL OR cb.name = pf.car_brand COLLATE NOCASE)`,
+    )
+    .bind(...ids)
+    .all<{ productId: string; carModelId: string }>();
+  const out = new Map<string, string[]>();
+  for (const r of results ?? [])
+    out.set(r.productId, [...(out.get(r.productId) ?? []), r.carModelId]);
+  return out;
+}
+
 /* ---- coupons (lookup + usage; validation math lives in @l-shopee/core) ---- */
 
 export interface CouponDbRow {
@@ -730,24 +775,48 @@ export interface CouponDbRow {
   maxUsesPerCustomer: number;
   maxDiscountSatang: number | null;
   status: "active" | "disabled";
+  appliesTo: CouponAppliesTo;
+  scope: CouponScope;
+  targets: string[];
+  signupFrom: number | null;
+  signupTo: number | null;
+  validDays: number | null;
 }
 
 export async function getCouponWithUsage(
   db: D1Database,
   code: string,
   customerId: string,
-): Promise<{ coupon: CouponDbRow; usage: { total: number; byCustomer: number } } | null> {
-  const coupon = await db
+): Promise<{
+  coupon: CouponDbRow;
+  usage: { total: number; byCustomer: number };
+  /** when the customer's account was made — a ลูกค้าใหม่ coupon is held by its window */
+  holder: { createdAt: number } | undefined;
+} | null> {
+  const row = await db
     .prepare(
       `SELECT id, code, type, value, min_subtotal_satang AS minSubtotalSatang,
               starts_at AS startsAt, ends_at AS endsAt, max_uses AS maxUses,
               max_uses_per_customer AS maxUsesPerCustomer,
-              max_discount_satang AS maxDiscountSatang, status
+              max_discount_satang AS maxDiscountSatang, status,
+              applies_to AS appliesTo, scope, signup_from AS signupFrom, signup_to AS signupTo,
+              valid_days AS validDays
        FROM coupons WHERE code = ? COLLATE NOCASE`,
     )
     .bind(code.trim())
-    .first<CouponDbRow>();
-  if (!coupon) return null;
+    .first<Omit<CouponDbRow, "targets">>();
+  if (!row) return null;
+  const [targets, holder] = await Promise.all([
+    db
+      .prepare("SELECT target_id AS id FROM coupon_targets WHERE coupon_id = ?")
+      .bind(row.id)
+      .all<{ id: string }>(),
+    db
+      .prepare("SELECT created_at AS createdAt FROM storefront_customers WHERE id = ?")
+      .bind(customerId)
+      .first<{ createdAt: number }>(),
+  ]);
+  const coupon: CouponDbRow = { ...row, targets: (targets.results ?? []).map((t) => t.id) };
   const usage = await db
     .prepare(
       `SELECT COUNT(*) AS total,
@@ -756,5 +825,40 @@ export async function getCouponWithUsage(
     )
     .bind(customerId, coupon.id)
     .first<{ total: number; byCustomer: number | null }>();
-  return { coupon, usage: { total: usage?.total ?? 0, byCustomer: usage?.byCustomer ?? 0 } };
+  return {
+    coupon,
+    usage: { total: usage?.total ?? 0, byCustomer: usage?.byCustomer ?? 0 },
+    holder: holder ?? undefined,
+  };
+}
+
+/**
+ * The ลูกค้าใหม่ coupons whose sign-up window holds this customer's join date, with how often they
+ * have been used (by everyone and by this customer). `myCoupons` decides which are still theirs.
+ */
+export async function listHeldCoupons(
+  db: D1Database,
+  customerId: string,
+): Promise<{ joinedAt: number; rows: HeldCouponRow[] } | null> {
+  const customer = await db
+    .prepare("SELECT created_at AS joinedAt FROM storefront_customers WHERE id = ?")
+    .bind(customerId)
+    .first<{ joinedAt: number }>();
+  if (!customer) return null;
+  const { results } = await db
+    .prepare(
+      `SELECT c.code, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
+              c.max_discount_satang AS maxDiscountSatang, c.applies_to AS appliesTo, c.scope,
+              c.signup_from AS signupFrom, c.signup_to AS signupTo, c.valid_days AS validDays,
+              c.max_uses AS maxUses, c.max_uses_per_customer AS maxUsesPerCustomer,
+              (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS total,
+              (SELECT COUNT(*) FROM coupon_redemptions r
+                WHERE r.coupon_id = c.id AND r.customer_id = ?) AS byCustomer
+       FROM coupons c
+       WHERE c.status = 'active' AND c.signup_from IS NOT NULL
+         AND ? BETWEEN c.signup_from AND c.signup_to`,
+    )
+    .bind(customerId, customer.joinedAt)
+    .all<HeldCouponRow>();
+  return { joinedAt: customer.joinedAt, rows: results ?? [] };
 }

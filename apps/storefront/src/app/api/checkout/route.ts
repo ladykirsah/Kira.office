@@ -1,6 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import {
-  couponDiscountSatang,
+  applyCoupon,
   defaultPaymentMethod,
   FLASH_TH_RATE_CARD,
   FLASH_TH_REMOTE_POSTCODES,
@@ -9,7 +9,6 @@ import {
   quoteShippingSatang,
   resolveEffectivePrice,
   shopKey,
-  validateCoupon,
   type PaymentStatus,
 } from "@l-shopee/core";
 import { getSession, guardMutation } from "@/lib/auth";
@@ -20,6 +19,7 @@ import {
   type CheckoutPaymentMethod,
   type CheckoutSuccess,
 } from "@/lib/checkoutApi";
+import { couponLinesOf } from "@/lib/couponCart";
 import { getCheckoutPricing, getCouponWithUsage, getDb, getEnv } from "@/lib/db";
 
 /**
@@ -356,6 +356,10 @@ export async function POST(req: Request): Promise<Response> {
       widthMm: number | null;
       lengthMm: number | null;
       heightMm: number | null;
+      productId: string;
+      brandId: string | null;
+      categoryId: string | null;
+      carModelIds: string[];
     }[] = [];
     let priceChanged = false;
     for (const line of body.lines) {
@@ -389,6 +393,10 @@ export async function POST(req: Request): Promise<Response> {
         widthMm: row.widthMm,
         lengthMm: row.lengthMm,
         heightMm: row.heightMm,
+        productId: row.productId,
+        brandId: row.brandId,
+        categoryId: row.categoryId,
+        carModelIds: row.carModelIds,
       });
     }
 
@@ -408,7 +416,23 @@ export async function POST(req: Request): Promise<Response> {
     const subtotal = priced.reduce((sum, p) => sum + p.priceSatang * p.qty, 0);
     const itemCount = priced.reduce((sum, p) => sum + p.qty, 0);
 
-    // 6) Coupon (optional) — validated against the EFFECTIVE subtotal, before any state changes.
+    // 6) Shipping fee — computed server-side from parcel weight/dims × destination,
+    //    never trusted from the client (same rule as pricing). A pass-through the
+    //    customer pays: it lands in grand_total but NOT in sales_satang or profit.
+    const isRemote = isRemotePostcode(shippingPostcode, FLASH_TH_REMOTE_POSTCODES);
+    const shipping = quoteShippingSatang(
+      priced.map((p) => ({
+        weightGrams: p.weightGrams,
+        dims: { widthMm: p.widthMm, lengthMm: p.lengthMm, heightMm: p.heightMm },
+        qty: p.qty,
+      })),
+      isRemote,
+      FLASH_TH_RATE_CARD,
+    );
+
+    // 6b) Coupon (optional) — checked against the EFFECTIVE prices, before any state changes. It
+    //     never cuts a แฟลชเซล price; ส่งฟรี / ลดค่าส่ง cut the shipping fee instead; ใช้กับ narrows
+    //     it to a brand / category / car model / picked products; ลูกค้าใหม่ is held by sign-up date.
     let coupon: {
       id: string;
       code: string;
@@ -420,10 +444,17 @@ export async function POST(req: Request): Promise<Response> {
       const found = await getCouponWithUsage(db, body.couponCode, customer.id);
       if (!found)
         return Response.json({ error: couponReasonThai("not_found", 0) }, { status: 400 });
-      const verdict = validateCoupon(found.coupon, subtotal, now, found.usage);
-      if (!verdict.ok)
+      const out = applyCoupon(
+        found.coupon,
+        couponLinesOf(priced.map((p) => ({ ...p, onFlashSale: p.campaignPriceId != null }))),
+        shipping,
+        now,
+        found.usage,
+        found.holder,
+      );
+      if (!out.ok)
         return Response.json(
-          { error: couponReasonThai(verdict.reason, found.coupon.minSubtotalSatang) },
+          { error: couponReasonThai(out.reason, found.coupon.minSubtotalSatang) },
           { status: 400 },
         );
       coupon = {
@@ -432,21 +463,8 @@ export async function POST(req: Request): Promise<Response> {
         maxUses: found.coupon.maxUses,
         maxUsesPerCustomer: found.coupon.maxUsesPerCustomer,
       };
-      discount = couponDiscountSatang(found.coupon, subtotal);
+      discount = out.discountSatang;
     }
-    // 6b) Shipping fee — computed server-side from parcel weight/dims × destination,
-    //     never trusted from the client (same rule as pricing). A pass-through the
-    //     customer pays: it lands in grand_total but NOT in sales_satang or profit.
-    const isRemote = isRemotePostcode(shippingPostcode, FLASH_TH_REMOTE_POSTCODES);
-    const shipping = quoteShippingSatang(
-      priced.map((p) => ({
-        weightGrams: p.weightGrams,
-        dims: { widthMm: p.widthMm, lengthMm: p.lengthMm, heightMm: p.heightMm },
-        qty: p.qty,
-      })),
-      isRemote,
-      FLASH_TH_RATE_CARD,
-    );
     const grand = subtotal - discount + shipping;
     const profit =
       priced.reduce((sum, p) => sum + (p.priceSatang - p.costSatang) * p.qty, 0) - discount;
