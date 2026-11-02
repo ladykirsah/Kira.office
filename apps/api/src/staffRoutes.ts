@@ -33,15 +33,39 @@ import {
 } from "@l-shopee/core";
 import type { StaffIdentity } from "./staffSession";
 import { revokeAllStaffSessions } from "./staffSession";
+import { logActivity } from "./staffActivityLog";
 
+/**
+ * The add form. Two senders: the old admin page ({name, email, role, password, nameTh, nameEn}) and
+ * the Expo add form, which sends the whole person and never `name`.
+ */
 export interface CreateStaffInput {
+  /** The old admin page's display name. The Expo form leaves it out; `nameTh` then becomes it. */
   name?: string;
-  /** Thai and English kept apart, following the taxonomy convention (name_th / name_en). */
+  /** ชื่อเล่น — the nicknames, Thai and English (name_th / name_en, the taxonomy convention). */
   nameTh?: string | null;
   nameEn?: string | null;
-  email?: string;
+  /** ชื่อจริง — the real full name, Thai and English. */
+  fullNameTh?: string | null;
+  fullNameEn?: string | null;
+  /** Optional. Blank means none — the person then signs in by PIN alone, so a PIN is required. */
+  email?: string | null;
+  phone?: string | null;
+  emergencyName?: string | null;
+  /** เกี่ยวข้องเป็น — e.g. แม่. */
+  emergencyRelation?: string | null;
+  emergencyPhone?: string | null;
   role?: string;
+  dayRateSatang?: number | null;
+  /** Epoch ms of the start day at 00:00 UTC — the same value the profile edit stores. */
+  startedOn?: number | null;
+  bankName?: string | null;
+  bankAccountNo?: string | null;
+  bankAccountName?: string | null;
+  /** Only with an email: without one a password can never be typed anywhere. */
   password?: string;
+  /** Six digits, as a string. Required when there is no email. */
+  pin?: string;
 }
 export interface UpdateStaffInput {
   role?: string;
@@ -50,10 +74,46 @@ export interface UpdateStaffInput {
   dayRateSatang?: number | null;
 }
 
+/**
+ * The CORS and security headers index.ts builds for the request in hand. The old back office reads
+ * these routes through its same-origin relay, but the Expo app reads them straight from the API, and
+ * without the CORS headers the browser drops every reply.
+ */
+let replyHeaders: Record<string, string> = {};
+
+export function setReplyHeaders(headers: Record<string, string>): void {
+  replyHeaders = headers;
+}
+
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...replyHeaders, "content-type": "application/json" },
+  });
 
 const forbidden = () => json({ error: "forbidden", reason: "super_admin_only" }, 403);
+
+/**
+ * A refusal the app can put under the right box: a stable `error` code to map to its own words,
+ * the `field` it belongs to (the request's field name), and an English `message` for anything that
+ * just shows the text.
+ */
+const fieldError = (status: number, error: string, field: string | null, message: string) =>
+  json({ error, field, message }, status);
+
+/** A text box's value: trimmed, and blank stored as NULL rather than as an empty string. */
+const cleanText = (v: unknown): string | null => (typeof v === "string" ? v.trim() || null : null);
+
+/** Which unique index a failed write tripped, if any — the race the pre-checks cannot close. */
+const uniqueClash = (err: unknown): "email" | "pin" | null => {
+  const text = err instanceof Error ? err.message : String(err);
+  if (/UNIQUE constraint failed: users\.email/.test(text)) return "email";
+  if (/UNIQUE constraint failed: users\.pin_lookup/.test(text)) return "pin";
+  return null;
+};
+
+const emailTaken = () =>
+  fieldError(409, "email_taken", "email", "that email already has an account");
 
 /** How many active super admins remain — the number that must never reach zero. */
 async function activeSuperAdmins(db: D1Database, excludingUserId?: string): Promise<number> {
@@ -73,9 +133,17 @@ export async function listStaff(db: D1Database, actor: StaffIdentity): Promise<R
   // someone adds a column, and this response goes to a browser.
   const { results } = await db
     .prepare(
-      `SELECT id, name, email, role, status, created_at AS createdAt,
+      `SELECT id, name, name_th AS nameTh, name_en AS nameEn,
+              full_name_th AS fullNameTh, full_name_en AS fullNameEn,
+              email, phone, emergency_relation AS emergencyRelation,
+              role, status, created_at AS createdAt,
               last_login_at AS lastLoginAt,
+              -- ล็อกอยู่ while this is in the future (three failed sign-ins in a row).
+              locked_until AS lockedUntil,
               day_rate_satang AS dayRateSatang,
+              -- WHETHER there is a photo, PIN or password — never the key or the material itself.
+              CASE WHEN photo_key IS NULL THEN 0 ELSE 1 END AS hasPhoto,
+              CASE WHEN pin_hash IS NULL THEN 0 ELSE 1 END AS hasPin,
               CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword
          FROM users
         WHERE deleted_at IS NULL
@@ -85,58 +153,161 @@ export async function listStaff(db: D1Database, actor: StaffIdentity): Promise<R
   return json({ staff: results ?? [] });
 }
 
+/**
+ * Add a person — the whole add form, saved by ONE insert, PIN included.
+ *
+ * One insert rather than "insert, then set the PIN": a person saved without the PIN they were
+ * given would be an account with no way in, and a retry would then trip over the half-saved row.
+ *
+ * Email is optional (0097). Without one the person signs in by PIN alone, so a PIN is required and
+ * a password is refused — with no email there is no box a password could ever be typed into.
+ *
+ * Every refusal is a `fieldError`, so the app can put it under the box it belongs to.
+ */
 export async function createStaff(
   db: D1Database,
   actor: StaffIdentity,
   input: CreateStaffInput,
   now: number,
+  pepper = "",
+  key = "",
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
 
-  const name = (input.name ?? "").trim();
-  const email = (input.email ?? "").trim().toLowerCase();
+  // The old admin page always sends `name`, the Expo form never does. Only the Expo form has a
+  // phone box, so only it is held to the phone rule — the old page keeps working as it was.
+  const isAppForm = input.name === undefined;
+  const nameTh = cleanText(input.nameTh);
+  const name = cleanText(input.name) ?? nameTh;
+  if (!name) return fieldError(400, "name_th_required", "nameTh", "Enter their nickname.");
+  const phone = cleanText(input.phone);
+  if (isAppForm && !phone) {
+    return fieldError(400, "phone_required", "phone", "Enter a phone number.");
+  }
   const role = input.role ?? "";
-  if (!name || !email) return json({ error: "name and email are required" }, 400);
-  if (!isStaffRole(role)) return json({ error: "unknown role" }, 400);
-
-  // A password is optional at creation — the account simply can't be logged into until one is set,
-  // which `verifyPassword` enforces by refusing a null hash.
-  if (input.password) {
-    const problem = passwordProblem(input.password);
-    if (problem) return json({ error: problem }, 400);
+  if (!isStaffRole(role)) return fieldError(400, "role_invalid", "role", "Choose a role.");
+  const dayRate = input.dayRateSatang ?? null;
+  if (dayRate !== null && (!Number.isInteger(dayRate) || dayRate < 0)) {
+    return fieldError(
+      400,
+      "day_rate_invalid",
+      "dayRateSatang",
+      "day rate must be a whole number of satang",
+    );
+  }
+  const startedOn = input.startedOn ?? null;
+  if (startedOn !== null && !Number.isInteger(startedOn)) {
+    return fieldError(400, "started_on_invalid", "startedOn", "Pick a start date.");
   }
 
-  const existing = await db
-    .prepare(`SELECT id FROM users WHERE lower(email) = ?`)
-    .bind(email)
-    .first<{ id: string }>();
-  if (existing) return json({ error: "that email already has an account" }, 409);
+  const email = cleanText(input.email)?.toLowerCase() ?? null;
+  const pin = input.pin == null || input.pin === "" ? null : String(input.pin).trim();
+  const password = input.password ?? "";
+  if (!email && password) {
+    return fieldError(
+      400,
+      "password_without_email",
+      "password",
+      "A password needs an email to sign in with.",
+    );
+  }
+  if (!email && !pin) {
+    return fieldError(
+      400,
+      "pin_required_without_email",
+      "pin",
+      "Without an email they sign in by PIN — set one.",
+    );
+  }
+  // A password is optional at creation — the account simply can't be logged into with one until
+  // it is set, which `verifyPassword` enforces by refusing a null hash.
+  if (password) {
+    const problem = passwordProblem(password);
+    if (problem) return fieldError(400, "password_too_short", "password", problem);
+  }
 
-  const stored = input.password
-    ? await hashPassword(input.password)
+  if (email) {
+    const existing = await db
+      .prepare(`SELECT id FROM users WHERE lower(email) = ?`)
+      .bind(email)
+      .first<{ id: string }>();
+    if (existing) return emailTaken();
+  }
+
+  let pinColumns: Extract<PreparedPin, { ok: true }>["columns"] | null = null;
+  if (pin) {
+    const prepared = await preparePin(db, null, pin, pepper, key);
+    if (!prepared.ok) {
+      const status =
+        prepared.code === "pin_unavailable" ? 503 : prepared.code === "pin_taken" ? 409 : 400;
+      return fieldError(status, prepared.code, "pin", prepared.message);
+    }
+    pinColumns = prepared.columns;
+  }
+
+  const stored = password
+    ? await hashPassword(password)
     : { hash: null, salt: null, iterations: null };
+  // The readable copy the owner reveals later, as setStaffPassword keeps — without it a password
+  // set here could never be read back. No key configured → no readable copy; login still works.
+  const passwordCipher = password && key ? await encryptSecret(password, key) : null;
   const id = crypto.randomUUID();
-  await db
-    .prepare(
-      `INSERT INTO users (id, name, name_th, name_en, email, role, status, created_at, created_by,
-                          password_hash, password_salt, password_iterations, password_set_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      id,
-      name,
-      input.nameTh?.trim() || null,
-      input.nameEn?.trim() || null,
-      email,
-      role,
-      now,
-      actor.userId,
-      stored.hash,
-      stored.salt,
-      stored.iterations,
-      input.password ? now : null,
-    )
-    .run();
+  try {
+    await db
+      .prepare(
+        `INSERT INTO users (id, name, name_th, name_en, full_name_th, full_name_en, email, role,
+                            status, created_at, created_by, phone, emergency_name,
+                            emergency_relation, emergency_phone, day_rate_satang, started_on,
+                            bank_name, bank_account_no, bank_account_name,
+                            password_hash, password_salt, password_iterations, password_set_at,
+                            password_cipher,
+                            pin_hash, pin_salt, pin_iterations, pin_lookup, pin_set_at, pin_cipher)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        id,
+        name,
+        nameTh,
+        cleanText(input.nameEn),
+        cleanText(input.fullNameTh),
+        cleanText(input.fullNameEn),
+        email,
+        role,
+        now,
+        actor.userId,
+        phone,
+        cleanText(input.emergencyName),
+        cleanText(input.emergencyRelation),
+        cleanText(input.emergencyPhone),
+        dayRate,
+        startedOn,
+        cleanText(input.bankName),
+        cleanText(input.bankAccountNo),
+        cleanText(input.bankAccountName),
+        stored.hash,
+        stored.salt,
+        stored.iterations,
+        password ? now : null,
+        passwordCipher,
+        pinColumns?.hash ?? null,
+        pinColumns?.salt ?? null,
+        pinColumns?.iterations ?? null,
+        pinColumns?.lookup ?? null,
+        pinColumns ? now : null,
+        pinColumns?.cipher ?? null,
+      )
+      .run();
+  } catch (err) {
+    // Somebody else's save landed between the check above and this one. The unique index is what
+    // actually holds the line; this turns its refusal into the same answer the check gives.
+    const clash = uniqueClash(err);
+    if (clash === "email") return emailTaken();
+    if (clash === "pin") {
+      return fieldError(409, "pin_taken", "pin", "Someone already uses that PIN. Choose another.");
+    }
+    throw err;
+  }
   return json({ id, name, email, role, status: "active" }, 201);
 }
 
@@ -264,26 +435,6 @@ export async function logRecoveryLogin(db: D1Database, userId: string, now: numb
   await logActivity(db, userId, "recovery_login", null, now);
 }
 
-/** A line in the owner's activity log. Best-effort: never fail a real action because logging did. */
-async function logActivity(
-  db: D1Database,
-  userId: string,
-  kind: string,
-  detail: string | null,
-  now: number,
-): Promise<void> {
-  try {
-    await db
-      .prepare(
-        `INSERT INTO staff_activity (id, user_id, kind, detail, created_at) VALUES (?, ?, ?, ?, ?)`,
-      )
-      .bind(crypto.randomUUID(), userId, kind, detail, now)
-      .run();
-  } catch (err) {
-    console.error("staff_activity write failed:", err);
-  }
-}
-
 export interface DayOffInput {
   day?: string;
   halves?: number;
@@ -376,30 +527,96 @@ async function writePin(
   pepper: string,
   key: string,
 ): Promise<Response | null> {
-  if (!pepper) return json({ error: "pin_unavailable" }, 503);
-  const problem = pinProblem(pin);
-  if (problem) return json({ error: problem }, 400);
-
-  const lookup = await pinLookup(pin, pepper);
-  const taken = await db
-    .prepare(`SELECT id FROM users WHERE pin_lookup = ? AND id <> ?`)
-    .bind(lookup, userId)
-    .first<{ id: string }>();
-  if (taken) return json({ error: "Someone already uses that PIN. Choose another." }, 409);
-
-  const stored = await hashPassword(pin);
-  // Two copies, same split as the password: the hash authorises, the cipher is what the owner can
-  // reveal (0085). Without a key we simply store no readable copy — the PIN still works.
-  const cipher = key ? await encryptSecret(pin, key) : null;
+  const prepared = await preparePin(db, userId, pin, pepper, key);
+  if (!prepared.ok) {
+    // The wording these routes have always answered with — the old admin shows it as it is.
+    if (prepared.code === "pin_unavailable") return json({ error: "pin_unavailable" }, 503);
+    if (prepared.code === "pin_taken") {
+      return json({ error: "Someone already uses that PIN. Choose another." }, 409);
+    }
+    return json({ error: prepared.message }, 400);
+  }
+  const p = prepared.columns;
   await db
     .prepare(
       `UPDATE users SET pin_hash = ?, pin_salt = ?, pin_iterations = ?, pin_lookup = ?,
                         pin_set_at = ?, pin_cipher = ?
         WHERE id = ?`,
     )
-    .bind(stored.hash, stored.salt, stored.iterations, lookup, now, cipher, userId)
+    .bind(p.hash, p.salt, p.iterations, p.lookup, now, p.cipher, userId)
     .run();
   return null;
+}
+
+/** A PIN ready to store, or the reason it can't be — one set of rules for every door that sets one. */
+type PreparedPin =
+  | {
+      ok: true;
+      columns: Awaited<ReturnType<typeof hashPassword>> & {
+        lookup: string;
+        cipher: string | null;
+      };
+    }
+  | {
+      ok: false;
+      code: "pin_unavailable" | "pin_format" | "pin_too_easy" | "pin_taken";
+      message: string;
+    };
+
+/**
+ * Check a PIN and work out what to store for it — without storing anything.
+ *
+ * Split out of `writePin` so the add form can put the PIN into the same INSERT as the person: a
+ * person saved without the PIN they were given would be a PIN-only account nobody can open.
+ * `userId` is who the PIN is for (null for somebody not saved yet), so their own PIN never counts
+ * as taken.
+ */
+async function preparePin(
+  db: D1Database,
+  userId: string | null,
+  pin: string,
+  pepper: string,
+  key: string,
+): Promise<PreparedPin> {
+  if (!pepper) {
+    return { ok: false, code: "pin_unavailable", message: "PINs are not configured." };
+  }
+  const problem = pinProblem(pin);
+  if (problem) {
+    return {
+      ok: false,
+      code: /^\d{6}$/.test(pin) ? "pin_too_easy" : "pin_format",
+      message: problem,
+    };
+  }
+
+  const lookup = await pinLookup(pin, pepper);
+  const taken = await db
+    .prepare(`SELECT id FROM users WHERE pin_lookup = ? AND id <> ?`)
+    .bind(lookup, userId ?? "")
+    .first<{ id: string }>();
+  if (taken) {
+    return {
+      ok: false,
+      code: "pin_taken",
+      message: "Someone already uses that PIN. Choose another.",
+    };
+  }
+
+  const stored = await hashPassword(pin);
+  // Two copies, same split as the password: the hash authorises, the cipher is what the owner can
+  // reveal (0085). Without a key we simply store no readable copy — the PIN still works.
+  const cipher = key ? await encryptSecret(pin, key) : null;
+  return {
+    ok: true,
+    columns: {
+      hash: stored.hash,
+      salt: stored.salt,
+      iterations: stored.iterations,
+      lookup,
+      cipher,
+    },
+  };
 }
 
 /**
@@ -739,6 +956,38 @@ export interface AdvanceInput {
   method?: string;
   slipKey?: string | null;
   note?: string | null;
+  /** คนจ่าย — who handed it over. An active super admin; defaults to whoever is signed in. */
+  paidBy?: string | null;
+}
+
+/**
+ * คนจ่าย — who handed the money over (0097). Defaults to the signed-in owner; anyone named instead
+ * must be an ACTIVE super admin who has not been deleted. Money out is the owners' alone, so a
+ * payment "handed over" by a mechanic, a switched-off account or a stranger is not a record.
+ */
+async function resolvePayer(
+  db: D1Database,
+  actor: StaffIdentity,
+  requested: string | null | undefined,
+): Promise<{ ok: true; payerId: string } | { ok: false; response: Response }> {
+  const payerId = cleanText(requested) ?? actor.userId;
+  const row = await db
+    .prepare(
+      `SELECT id FROM users
+        WHERE id = ? AND role = 'super_admin' AND status = 'active' AND deleted_at IS NULL`,
+    )
+    .bind(payerId)
+    .first<{ id: string }>();
+  if (row) return { ok: true, payerId };
+  return {
+    ok: false,
+    response: fieldError(
+      400,
+      "payer_invalid",
+      "paidBy",
+      "The payer must be an active owner (super admin).",
+    ),
+  };
 }
 
 export async function recordAdvance(
@@ -765,6 +1014,8 @@ export async function recordAdvance(
   }
   const problem = payoutProblem({ method: input.method, slipKey: input.slipKey ?? null });
   if (problem) return json({ error: problem }, 400);
+  const payer = await resolvePayer(db, actor, input.paidBy);
+  if (!payer.ok) return payer.response;
 
   const person = await db
     .prepare(
@@ -788,8 +1039,9 @@ export async function recordAdvance(
   await db
     .prepare(
       `INSERT INTO staff_advances
-         (id, user_id, period, given_on, amount_satang, method, slip_key, note, created_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, user_id, period, given_on, amount_satang, method, slip_key, note, created_by,
+          created_at, paid_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       crypto.randomUUID(),
@@ -802,6 +1054,7 @@ export async function recordAdvance(
       input.note?.trim() || null,
       actor.userId,
       now,
+      payer.payerId,
     )
     .run();
 
@@ -827,11 +1080,14 @@ export async function listAdvancesFor(
   if (!canManageStaff(actor.role)) return forbidden();
   const { results } = await db
     .prepare(
-      `SELECT id, given_on AS givenOn, amount_satang AS amountSatang, method,
-              slip_key AS slipKey, note
-         FROM staff_advances
-        WHERE user_id = ? AND period = ?
-        ORDER BY given_on DESC, created_at DESC`,
+      `SELECT a.id, a.given_on AS givenOn, a.amount_satang AS amountSatang, a.method,
+              a.slip_key AS slipKey, a.note,
+              -- คนจ่าย by name; NULL for advances recorded before anyone noted who paid (0097).
+              COALESCE(pb.name_th, pb.name) AS paidBy
+         FROM staff_advances a
+         LEFT JOIN users pb ON pb.id = a.paid_by
+        WHERE a.user_id = ? AND a.period = ?
+        ORDER BY a.given_on DESC, a.created_at DESC`,
     )
     .bind(userId, period)
     .all<{ amountSatang: number }>();
@@ -1037,19 +1293,24 @@ export async function salaryMonth(
               u.bank_account_name AS bankAccountName,
               COALESCE((SELECT SUM(d.halves) FROM staff_days_off d
                          WHERE d.user_id = u.id AND substr(d.day, 1, 7) = ?), 0) AS offHalves,
+              COALESCE((SELECT SUM(a.amount_satang) FROM staff_advances a
+                         WHERE a.user_id = u.id AND a.period = ?), 0) AS advanceSatang,
               p.slip_key AS slipKey,
               p.paid_at AS paidAt,
               p.day_rate_satang AS paidRate,
               p.off_halves AS paidOff,
               p.working_halves AS paidWorking,
-              p.amount_satang AS paidAmount
+              p.amount_satang AS paidAmount,
+              p.advance_satang AS paidAdvance,
+              COALESCE(pb.name_th, pb.name) AS paidBy
          FROM users u
          LEFT JOIN staff_payslips p ON p.user_id = u.id AND p.period = ?
+         LEFT JOIN users pb ON pb.id = p.paid_by
         WHERE u.deleted_at IS NULL
           AND u.day_rate_satang IS NOT NULL
         ORDER BY CASE u.role WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.name`,
     )
-    .bind(period, period)
+    .bind(period, period, period)
     .all<{
       userId: string;
       name: string;
@@ -1060,12 +1321,15 @@ export async function salaryMonth(
       bankAccountNo: string | null;
       bankAccountName: string | null;
       offHalves: number;
+      advanceSatang: number;
       slipKey: string | null;
       paidAt: number | null;
       paidRate: number | null;
       paidOff: number | null;
       paidWorking: number | null;
       paidAmount: number | null;
+      paidAdvance: number | null;
+      paidBy: string | null;
     }>();
 
   const rows = (results ?? []).map((r) => {
@@ -1083,14 +1347,20 @@ export async function salaryMonth(
     };
     // A paid month reports what was PAID, not what today's rate would produce. Recomputing here is
     // how a September raise would silently rewrite August's wage bill.
+    // Advances come off the wage the same way the person page shows it: a paid month uses the
+    // figure its payslip froze, an unpaid one the advances recorded so far.
     if (r.paidAt !== null && r.paidAmount !== null) {
+      const advanceSatang = r.paidAdvance ?? 0;
       return {
         ...payee,
         dayRateSatang: r.paidRate ?? r.dayRateSatang,
         offHalves: r.paidOff ?? 0,
         workingHalves: r.paidWorking ?? 0,
         amountSatang: r.paidAmount,
+        advanceSatang,
+        ...settleMonth({ earnedSatang: r.paidAmount, advanceSatang }),
         paidAt: r.paidAt,
+        paidBy: r.paidBy,
       };
     }
     const pay = payForMonth({
@@ -1104,7 +1374,10 @@ export async function salaryMonth(
       offHalves: r.offHalves,
       workingHalves: pay.workingHalves,
       amountSatang: pay.amountSatang,
+      advanceSatang: r.advanceSatang,
+      ...settleMonth({ earnedSatang: pay.amountSatang, advanceSatang: r.advanceSatang }),
       paidAt: r.paidAt,
+      paidBy: null,
     };
   });
 
@@ -1141,6 +1414,8 @@ export async function markSalaryPaid(
     slipKey: string | null;
     /** The day the money actually changed hands — not necessarily today. "YYYY-MM-DD". */
     paidOn?: string;
+    /** คนจ่าย — an active super admin; defaults to whoever is signed in. */
+    paidBy?: string | null;
   },
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
@@ -1152,6 +1427,8 @@ export async function markSalaryPaid(
   if (payout.paidOn && !/^\d{4}-\d{2}-\d{2}$/.test(payout.paidOn)) {
     return json({ error: "paidOn must look like 2026-09-05" }, 400);
   }
+  const payer = await resolvePayer(db, actor, payout.paidBy);
+  if (!payer.ok) return payer.response;
 
   const person = await db
     .prepare(
@@ -1189,8 +1466,8 @@ export async function markSalaryPaid(
     .prepare(
       `INSERT INTO staff_payslips (id, user_id, period, day_rate_satang, days_in_month,
                                    off_halves, working_halves, amount_satang, advance_satang,
-                                   method, paid_at, created_at, slip_key, slip_uploaded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   method, paid_at, created_at, slip_key, slip_uploaded_at, paid_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, period) DO UPDATE SET
          day_rate_satang = excluded.day_rate_satang,
          days_in_month = excluded.days_in_month,
@@ -1201,7 +1478,8 @@ export async function markSalaryPaid(
          method = excluded.method,
          paid_at = excluded.paid_at,
          slip_key = excluded.slip_key,
-         slip_uploaded_at = excluded.slip_uploaded_at`,
+         slip_uploaded_at = excluded.slip_uploaded_at,
+         paid_by = excluded.paid_by`,
     )
     .bind(
       crypto.randomUUID(),
@@ -1218,6 +1496,7 @@ export async function markSalaryPaid(
       now,
       payout.slipKey ?? null,
       payout.slipKey ? now : null,
+      payer.payerId,
     )
     .run();
 
@@ -1267,6 +1546,21 @@ interface AdvanceLine {
   method: string;
   hasSlip: boolean;
   note: string | null;
+  /** คนจ่าย by name, or null for an advance recorded before anyone noted who paid. */
+  paidBy: string | null;
+}
+
+/** Every "YYYY-MM" from `from` to `to`, both included; none when `from` comes later. */
+function monthsBetween(from: string, to: string): string[] {
+  const index = (period: string) => {
+    const [year, month] = period.split("-").map(Number);
+    return year! * 12 + month! - 1;
+  };
+  const first = index(from);
+  return Array.from({ length: Math.max(0, index(to) - first + 1) }, (_, i) => {
+    const n = first + i;
+    return `${Math.floor(n / 12)}-${String((n % 12) + 1).padStart(2, "0")}`;
+  });
 }
 
 export async function staffPayments(
@@ -1279,18 +1573,22 @@ export async function staffPayments(
   if (!canManageStaff(actor.role) && actor.userId !== userId) return forbidden();
 
   const person = await db
-    .prepare(`SELECT day_rate_satang AS dayRateSatang FROM users WHERE id = ?`)
+    .prepare(
+      `SELECT day_rate_satang AS dayRateSatang, started_on AS startedOn FROM users WHERE id = ?`,
+    )
     .bind(userId)
-    .first<{ dayRateSatang: number | null }>();
+    .first<{ dayRateSatang: number | null; startedOn: number | null }>();
 
   const slips = await db
     .prepare(
-      `SELECT period, amount_satang AS amountSatang, day_rate_satang AS dayRateSatang,
-              working_halves AS workingHalves, off_halves AS offHalves,
-              advance_satang AS advanceSatang, method,
-              paid_at AS paidAt, slip_key AS slipKey
-         FROM staff_payslips
-        WHERE user_id = ? AND paid_at IS NOT NULL`,
+      `SELECT p.period, p.amount_satang AS amountSatang, p.day_rate_satang AS dayRateSatang,
+              p.working_halves AS workingHalves, p.off_halves AS offHalves,
+              p.advance_satang AS advanceSatang, p.method,
+              p.paid_at AS paidAt, p.slip_key AS slipKey,
+              COALESCE(pb.name_th, pb.name) AS paidBy
+         FROM staff_payslips p
+         LEFT JOIN users pb ON pb.id = p.paid_by
+        WHERE p.user_id = ? AND p.paid_at IS NOT NULL`,
     )
     .bind(userId)
     .all<{
@@ -1303,6 +1601,7 @@ export async function staffPayments(
       method: string | null;
       paidAt: number;
       slipKey: string | null;
+      paidBy: string | null;
     }>();
 
   // ONE ROW PER ADVANCE, not a monthly sum (owner, 2026-08-25). The wage table reads as a ledger —
@@ -1310,11 +1609,13 @@ export async function staffPayments(
   // money went, whether it was cash, or whether there is a slip to show for it.
   const advances = await db
     .prepare(
-      `SELECT id, period, given_on AS givenOn, amount_satang AS amountSatang,
-              method, slip_key AS slipKey, note
-         FROM staff_advances
-        WHERE user_id = ?
-        ORDER BY given_on DESC, created_at DESC`,
+      `SELECT a.id, a.period, a.given_on AS givenOn, a.amount_satang AS amountSatang,
+              a.method, a.slip_key AS slipKey, a.note,
+              COALESCE(pb.name_th, pb.name) AS paidBy
+         FROM staff_advances a
+         LEFT JOIN users pb ON pb.id = a.paid_by
+        WHERE a.user_id = ?
+        ORDER BY a.given_on DESC, a.created_at DESC`,
     )
     .bind(userId)
     .all<{
@@ -1325,6 +1626,7 @@ export async function staffPayments(
       method: string;
       slipKey: string | null;
       note: string | null;
+      paidBy: string | null;
     }>();
 
   const daysOff = await db
@@ -1348,6 +1650,7 @@ export async function staffPayments(
       method: a.method,
       hasSlip: a.slipKey !== null,
       note: a.note,
+      paidBy: a.paidBy,
     });
     advanceRowsBy.set(a.period, list);
   }
@@ -1359,9 +1662,32 @@ export async function staffPayments(
   );
   const offBy = new Map((daysOff.results ?? []).map((r) => [r.period, r.offHalves]));
 
-  // Every month worth a row: one that was paid, one with an advance against it, and the month we
-  // are standing in — which may have nothing recorded yet and still needs to show what is coming.
-  const periods = new Set<string>([...paidBy.keys(), ...advanceBy.keys(), currentPeriod]);
+  // The month the shop first recorded any pay in the app — anyone's salary or advance. Months before
+  // it were paid by hand, so listing them would show every one of them as owed.
+  const firstPay = await db
+    .prepare(
+      `SELECT MIN(period) AS period FROM (
+         SELECT period FROM staff_payslips WHERE paid_at IS NOT NULL
+         UNION ALL SELECT period FROM staff_advances)`,
+    )
+    .first<{ period: string | null }>();
+
+  // Every month worth a row: every month since the person started work, but not before the shop's
+  // first pay in the app — a month nobody paid is still owed, so it must not drop off the list
+  // (owner, 2 Nov 2026) — plus one that was paid or has an advance against it, and the month we are
+  // standing in. With no start date, or no pay recorded yet, only those last ones.
+  const startMonth =
+    person?.startedOn == null ? null : new Date(person.startedOn).toISOString().slice(0, 7);
+  const sinceStart =
+    startMonth === null || !firstPay?.period
+      ? []
+      : monthsBetween(startMonth > firstPay.period ? startMonth : firstPay.period, currentPeriod);
+  const periods = new Set<string>([
+    ...sinceStart,
+    ...paidBy.keys(),
+    ...advanceBy.keys(),
+    currentPeriod,
+  ]);
 
   const payments = [...periods]
     .sort((a, b) => b.localeCompare(a))
@@ -1383,6 +1709,7 @@ export async function staffPayments(
           paidAt: slip.paidAt,
           method: slip.method,
           hasSlip: slip.slipKey !== null,
+          paidBy: slip.paidBy,
           advances: advanceRowsBy.get(period) ?? [],
         };
       }
@@ -1404,6 +1731,7 @@ export async function staffPayments(
         paidAt: null,
         method: null,
         hasSlip: false,
+        paidBy: null,
         advances: advanceRowsBy.get(period) ?? [],
       };
     });
@@ -1457,6 +1785,117 @@ export async function advanceSlipKey(
   if (!row) return null;
   if (!canManageStaff(actor.role) && actor.userId !== row.userId) return null;
   return row.slipKey ?? null;
+}
+
+/** Same ceiling as every other image upload (MAX_IMAGE_BYTES in index.ts): 5 MB. */
+const STAFF_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Why a photo upload can't be stored, as a `fieldError` on the "photo" box — or null if it can.
+ *
+ * Any image a phone produces (JPEG, PNG, HEIC…) — but never SVG: it is a document that can carry
+ * script, and these photos are served back with exactly the type they arrived with. Shared by a
+ * person's photo and the optional photo of a cash wage payment.
+ */
+export function photoUploadProblem(contentType: string, byteLength: number): Response | null {
+  const type = contentType.split(";")[0]!.trim().toLowerCase();
+  if (!type.startsWith("image/") || type.startsWith("image/svg")) {
+    return fieldError(400, "photo_type", "photo", "The photo must be an image (JPEG or PNG).");
+  }
+  if (!byteLength) return fieldError(400, "photo_required", "photo", "Choose a photo.");
+  if (byteLength > STAFF_PHOTO_MAX_BYTES) {
+    return fieldError(400, "photo_too_large", "photo", "The photo is too large (max 5 MB).");
+  }
+  return null;
+}
+
+/**
+ * A person's photo — the face on their row and their page (owner, 2026-11).
+ *
+ * The image lives in R2 under staff-photo/<id>/; users.photo_key names it. Super admin only, like
+ * every other change to a person. The body is read only once that is settled, so nobody else can
+ * make the Worker swallow an upload it is going to refuse anyway.
+ *
+ * Order: the new image first, then the row, then the old image. A failure part-way leaves either
+ * the old photo still showing or an unreferenced old image in the bucket — never a row that points
+ * at nothing.
+ */
+export async function putStaffPhoto(
+  db: D1Database,
+  bucket: R2Bucket,
+  actor: StaffIdentity,
+  userId: string,
+  upload: { contentType: string; read: () => Promise<ArrayBuffer> },
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const target = await db
+    .prepare(`SELECT photo_key AS photoKey FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ photoKey: string | null }>();
+  if (!target) return json({ error: "no such person" }, 404);
+
+  const contentType = upload.contentType.split(";")[0]!.trim().toLowerCase();
+  // The type is checked before the body is read, so a refused upload is never swallowed whole.
+  const wrongType = photoUploadProblem(contentType, 1);
+  if (wrongType) return wrongType;
+  const bytes = await upload.read();
+  const problem = photoUploadProblem(contentType, bytes.byteLength);
+  if (problem) return problem;
+
+  const key = `staff-photo/${userId}/${crypto.randomUUID()}.jpg`;
+  await bucket.put(key, bytes, { httpMetadata: { contentType } });
+  await db.prepare(`UPDATE users SET photo_key = ? WHERE id = ?`).bind(key, userId).run();
+  if (target.photoKey) await deleteImageQuietly(bucket, target.photoKey);
+  return json({ ok: true });
+}
+
+/** Take a person's photo away: the row stops naming it, then the image goes. */
+export async function clearStaffPhoto(
+  db: D1Database,
+  bucket: R2Bucket,
+  actor: StaffIdentity,
+  userId: string,
+): Promise<Response> {
+  if (!canManageStaff(actor.role)) return forbidden();
+  const target = await db
+    .prepare(`SELECT photo_key AS photoKey FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ photoKey: string | null }>();
+  if (!target) return json({ error: "no such person" }, 404);
+  await db.prepare(`UPDATE users SET photo_key = NULL WHERE id = ?`).bind(userId).run();
+  if (target.photoKey) await deleteImageQuietly(bucket, target.photoKey);
+  return json({ ok: true });
+}
+
+/**
+ * The stored photo for one person, or null if there isn't one you may see.
+ *
+ * Same rule as `salarySlipKey`: the owner, or the person themself. "No photo", "no such person"
+ * and "not yours" are all null, which the route turns into the same 404.
+ */
+export async function staffPhotoKey(
+  db: D1Database,
+  actor: StaffIdentity,
+  userId: string,
+): Promise<string | null> {
+  if (!canManageStaff(actor.role) && actor.userId !== userId) return null;
+  const row = await db
+    .prepare(`SELECT photo_key AS photoKey FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .bind(userId)
+    .first<{ photoKey: string | null }>();
+  return row?.photoKey ?? null;
+}
+
+/**
+ * Delete an image nothing points at any more. A failure is logged, not thrown: the row is already
+ * right, and failing the request now would tell the owner their new photo didn't save when it did.
+ */
+async function deleteImageQuietly(bucket: R2Bucket, key: string): Promise<void> {
+  try {
+    await bucket.delete(key);
+  } catch (err) {
+    console.error("staff photo: old image left in R2:", key, err);
+  }
 }
 
 /**
@@ -1532,9 +1971,15 @@ export async function staffActivity(
 export interface StaffProfileInput {
   nameTh?: string | null;
   nameEn?: string | null;
-  email?: string;
+  /** ชื่อจริง — the real full name, Thai and English. */
+  fullNameTh?: string | null;
+  fullNameEn?: string | null;
+  /** Blank or null clears it (0097) — allowed only while they have a PIN to sign in with. */
+  email?: string | null;
   phone?: string | null;
   emergencyName?: string | null;
+  /** เกี่ยวข้องเป็น — e.g. แม่. */
+  emergencyRelation?: string | null;
   emergencyPhone?: string | null;
   startedOn?: number | null;
   dayRateSatang?: number | null;
@@ -1544,13 +1989,16 @@ export interface StaffProfileInput {
 }
 
 /** The columns a profile view may show. Listed by hand — a SELECT * here would ship hashes. */
-const PROFILE_COLUMNS = `id, name, name_th AS nameTh, name_en AS nameEn, email, role, status,
+const PROFILE_COLUMNS = `id, name, name_th AS nameTh, name_en AS nameEn,
+       full_name_th AS fullNameTh, full_name_en AS fullNameEn, email, role, status,
        phone, emergency_phone AS emergencyPhone, emergency_name AS emergencyName,
+       emergency_relation AS emergencyRelation,
        started_on AS startedOn, day_rate_satang AS dayRateSatang,
        bank_name AS bankName, bank_account_no AS bankAccountNo,
        bank_account_name AS bankAccountName,
        last_login_at AS lastLoginAt, locked_until AS lockedUntil,
        password_cipher AS cipher, pin_cipher AS pinCipher,
+       CASE WHEN photo_key IS NULL THEN 0 ELSE 1 END AS hasPhoto,
        CASE WHEN pin_hash IS NULL THEN 0 ELSE 1 END AS hasPin,
        CASE WHEN password_hash IS NULL THEN 0 ELSE 1 END AS hasPassword`;
 
@@ -1596,26 +2044,42 @@ export async function updateStaffProfile(
   if (!canManageStaff(actor.role)) return forbidden();
 
   const target = await db
-    .prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .prepare(`SELECT id, pin_hash AS pinHash FROM users WHERE id = ? AND deleted_at IS NULL`)
     .bind(userId)
-    .first<{ id: string }>();
+    .first<{ id: string; pinHash: string | null }>();
   if (!target) return json({ error: "no such person" }, 404);
 
   if (input.dayRateSatang !== undefined && input.dayRateSatang !== null) {
     if (!Number.isInteger(input.dayRateSatang) || input.dayRateSatang < 0) {
-      return json({ error: "day rate must be a whole number of satang" }, 400);
+      return fieldError(
+        400,
+        "day_rate_invalid",
+        "dayRateSatang",
+        "day rate must be a whole number of satang",
+      );
     }
   }
 
-  if (input.email !== undefined) {
-    const email = input.email.trim().toLowerCase();
-    if (!email) return json({ error: "email is required" }, 400);
+  // undefined = not sent, leave it; blank or null = clear it; anything else = the new address.
+  const email =
+    input.email === undefined ? undefined : (cleanText(input.email)?.toLowerCase() ?? null);
+  if (email) {
     // An email IS the username, so a duplicate would make two accounts answer to one sign-in.
     const clash = await db
       .prepare(`SELECT id FROM users WHERE lower(email) = ? AND id <> ?`)
       .bind(email, userId)
       .first<{ id: string }>();
-    if (clash) return json({ error: "that email already has an account" }, 409);
+    if (clash) return emailTaken();
+  }
+  // Clearing the email leaves the PIN as their only way in — the add form's rule, kept here too,
+  // so an edit cannot quietly produce an account nobody can open.
+  if (email === null && target.pinHash === null) {
+    return fieldError(
+      400,
+      "pin_required_without_email",
+      "pin",
+      "Without an email they sign in by PIN — set one first.",
+    );
   }
 
   const sets: string[] = [];
@@ -1629,9 +2093,14 @@ export async function updateStaffProfile(
 
   if (input.nameTh !== undefined) put("name_th", trimmed(input.nameTh));
   if (input.nameEn !== undefined) put("name_en", trimmed(input.nameEn));
-  if (input.email !== undefined) put("email", input.email.trim().toLowerCase());
+  if (input.fullNameTh !== undefined) put("full_name_th", trimmed(input.fullNameTh));
+  if (input.fullNameEn !== undefined) put("full_name_en", trimmed(input.fullNameEn));
+  if (email !== undefined) put("email", email);
   if (input.phone !== undefined) put("phone", trimmed(input.phone));
   if (input.emergencyName !== undefined) put("emergency_name", trimmed(input.emergencyName));
+  if (input.emergencyRelation !== undefined) {
+    put("emergency_relation", trimmed(input.emergencyRelation));
+  }
   if (input.emergencyPhone !== undefined) put("emergency_phone", trimmed(input.emergencyPhone));
   if (input.startedOn !== undefined) put("started_on", input.startedOn);
   if (input.dayRateSatang !== undefined) put("day_rate_satang", input.dayRateSatang);
@@ -1646,10 +2115,16 @@ export async function updateStaffProfile(
   if (sets.length === 0) return json({ ok: true, changed: 0 });
 
   binds.push(userId);
-  await db
-    .prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...binds)
-    .run();
+  try {
+    await db
+      .prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
+      .bind(...binds)
+      .run();
+  } catch (err) {
+    // The email was claimed between the check above and this write; the unique index refused it.
+    if (uniqueClash(err) === "email") return emailTaken();
+    throw err;
+  }
 
   await logActivity(
     db,

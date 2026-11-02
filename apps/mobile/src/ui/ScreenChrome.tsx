@@ -9,12 +9,21 @@ export interface ChromeButton {
   icon?: string;
 }
 
+/** Where a header button sits in the window, so a menu can open just under it. */
+export interface Anchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** A round glass button left of the account badge, for the screen's own tool (e.g. type a code). */
 export interface HeaderButton {
   label: string;
   /** One SVG path on a 24-unit grid (see LineIcon). Empty: the label shows as a word (บิลใหม่). */
   icon: string;
-  onPress: () => void;
+  /** `at` is the button's place on screen (พนักงาน's ＋ opens its menu under it). */
+  onPress: (at?: Anchor) => void;
   /** A count on the button's corner (ทำบิล's drafts tray); none when 0. */
   badge?: number;
 }
@@ -137,7 +146,7 @@ export function useScreenChrome(
         label: h.label,
         icon: h.icon,
         badge: h.badge,
-        onPress: () => latest.current.headers[i]?.onPress(),
+        onPress: (at?: Anchor) => latest.current.headers[i]?.onPress(at),
       })),
       footer: cur.footer.map((b, i) => ({
         label: b.label,

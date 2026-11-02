@@ -183,6 +183,10 @@ import {
   updateStaffProfile,
   clearStaffPin,
   setStaffPin,
+  putStaffPhoto,
+  clearStaffPhoto,
+  staffPhotoKey,
+  photoUploadProblem,
   type StaffProfileInput,
   type DayOffInput,
   type CreateStaffInput,
@@ -190,6 +194,7 @@ import {
   logRecoveryLogin,
   setOwnRecoveryKey,
   clearOwnRecoveryKey,
+  setReplyHeaders,
 } from "./staffRoutes";
 export { resolveActor, requireRole, type ActorContext } from "./auth";
 
@@ -6953,6 +6958,7 @@ export async function deleteAffiliateItem(
 const worker = {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     responseHeaders = buildCorsHeaders(request, env.ALLOWED_CORS_ORIGINS);
+    setReplyHeaders(responseHeaders);
     const url = new URL(request.url);
 
     // CORS preflight — answer before auth (preflights carry no credentials).
@@ -7209,26 +7215,40 @@ const worker = {
         return salaryMonth(env.DB, who, url.searchParams.get("month") ?? "");
       }
       /**
-       * Confirming a wage payment. The month, the method and the day paid are query params; a
-       * TRANSFER additionally carries its slip as the raw image body.
+       * Confirming a wage payment. The month, the method, the day paid and the payer (`paidBy`)
+       * are query params; a TRANSFER additionally carries its slip as the raw image body.
        *
-       * Cash sends no body at all (owner, 2026-08-24) — the shop mostly hands over cash, and
-       * demanding an image for it was pushing people into not recording the payment. The image,
-       * when there is one, still lands in R2 BEFORE the payslip is written, so a payslip never
-       * claims a slip that failed to upload. `markSalaryPaid` re-checks the rule itself.
+       * Cash needs no body (owner, 2026-08-24) — the shop mostly hands over cash, and demanding an
+       * image for it was pushing people into not recording the payment — but MAY carry a photo
+       * (owner, 2026-11), kept as the payslip's slip. The image, when there is one, lands in R2
+       * BEFORE the payslip is written, so a payslip never claims a slip that failed to upload.
+       * `markSalaryPaid` re-checks the rule itself.
        */
       const paid = url.pathname.match(/^\/staff\/([^/]+)\/salary-paid$/);
       if (paid && request.method === "POST") {
+        // Refused BEFORE any image is stored, so nobody else can leave objects in the bucket.
+        if (who.role !== "super_admin") {
+          return json({ error: "forbidden", reason: "super_admin_only" }, 403);
+        }
         const period = url.searchParams.get("period") ?? "";
         const method = url.searchParams.get("method") ?? "";
         const paidOn = url.searchParams.get("paidOn") ?? undefined;
+        // คนจ่าย — an active super admin; markSalaryPaid defaults it to whoever is signed in.
+        const paidBy = url.searchParams.get("paidBy") ?? undefined;
         let key: string | null = null;
+        const bytes = await request.arrayBuffer();
+        const contentType = request.headers.get("content-type") ?? "";
         if (method === "transfer") {
-          const bytes = await request.arrayBuffer();
-          const contentType = request.headers.get("content-type") ?? "";
           if (!bytes.byteLength || !contentType.startsWith("image/")) {
             return json({ error: "a transfer needs its slip attached" }, 400);
           }
+          key = `salary-slip/${paid[1]!}/${period}/${crypto.randomUUID()}.jpg`;
+          await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+        } else if (method === "cash" && bytes.byteLength) {
+          // Cash may bring a photo too (รูป · ไม่บังคับ, owner 2026-11) — kept exactly like a
+          // transfer slip: same place, same gate, same three-month sweep, stored first.
+          const problem = photoUploadProblem(contentType, bytes.byteLength);
+          if (problem) return problem;
           key = `salary-slip/${paid[1]!}/${period}/${crypto.randomUUID()}.jpg`;
           await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
         }
@@ -7236,6 +7256,7 @@ const worker = {
           method,
           slipKey: key,
           paidOn,
+          paidBy,
         });
       }
 
@@ -7348,7 +7369,14 @@ const worker = {
 
       if (url.pathname === "/staff" && request.method === "POST") {
         const body = await readJson<CreateStaffInput>(request);
-        return createStaff(env.DB, who, body ?? {}, Date.now());
+        return createStaff(
+          env.DB,
+          who,
+          body ?? {},
+          Date.now(),
+          env.STAFF_PIN_PEPPER ?? "",
+          env.STAFF_SECRET_KEY ?? "",
+        );
       }
 
       const pw = url.pathname.match(/^\/staff\/([^/]+)\/password$/);
@@ -7375,6 +7403,36 @@ const worker = {
         const body = await readJson<StaffProfileInput>(request);
         return updateStaffProfile(env.DB, who, prof[1]!, body ?? {}, Date.now());
       }
+      /**
+       * A person's photo. PUT takes the raw image as the body (content-type image/*, up to 5 MB) and
+       * DELETE removes it — both super admin only, in the handlers. GET is the owner's or the
+       * person's own; everything else is one 404, like a wage slip.
+       */
+      const photo = url.pathname.match(/^\/staff\/([^/]+)\/photo$/);
+      if (photo && request.method === "PUT") {
+        return putStaffPhoto(env.DB, env.IMAGES, who, photo[1]!, {
+          contentType: request.headers.get("content-type") ?? "",
+          read: () => request.arrayBuffer(),
+        });
+      }
+      if (photo && request.method === "DELETE") {
+        return clearStaffPhoto(env.DB, env.IMAGES, who, photo[1]!);
+      }
+      if (photo && request.method === "GET") {
+        const key = await staffPhotoKey(env.DB, who, photo[1]!);
+        if (!key) return json({ error: "not found" }, 404);
+        const object = await retryRead(() => env.IMAGES.get(key));
+        if (!object) return json({ error: "not found" }, 404);
+        return new Response(object.body, {
+          headers: {
+            ...responseHeaders,
+            "content-type": object.httpMetadata?.contentType ?? "image/jpeg",
+            // Private: a face and a name together are personal data; no shared cache ever.
+            "cache-control": "private, max-age=60",
+          },
+        });
+      }
+
       const pin = url.pathname.match(/^\/staff\/([^/]+)\/pin$/);
       if (pin && request.method === "DELETE") {
         return clearStaffPin(env.DB, who, pin[1]!, Date.now());
