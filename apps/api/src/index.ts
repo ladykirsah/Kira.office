@@ -1840,6 +1840,8 @@ export const SHOP_TEXT_FIELDS = [
   "shipFromPostcode",
   // The shop's own phone, printed on every barcode label (owner, 31 Oct 2026: "add phone box").
   "phone",
+  // The shop's Linktree link, under ติดต่อ on ข้อมูลร้าน (owner, 2 Nov 2026).
+  "linktreeUrl",
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
@@ -7781,8 +7783,12 @@ const worker = {
         return json(out);
       }
       const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      // Only the fields sent change: the app's account sheet saves paymentMethods alone, and the old
+      // web page knows nothing of fields added after it (linktreeUrl) — neither may blank the rest.
       await Promise.all(
-        SHOP_TEXT_FIELDS.map((f) => env.KV.put(shopKey(profile, f), String(body[f] ?? "").trim())),
+        SHOP_TEXT_FIELDS.filter((f) => f in body).map((f) =>
+          env.KV.put(shopKey(profile, f), String(body[f] ?? "").trim()),
+        ),
       );
       return json({ ok: true });
     }

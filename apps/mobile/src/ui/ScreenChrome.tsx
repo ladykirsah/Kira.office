@@ -34,10 +34,14 @@ export interface ChromeToast {
   detail: string;
 }
 
-/** The glass "‹ ออเดอร์" pill above the title of a page that sits under another one. */
+/**
+ * The glass "‹ ออเดอร์" pill above the title of a page that sits under another one. No label: a round
+ * ‹ alone (ข้อมูลร้าน's shop page, Apple Account). `plain`: the words alone, no ‹ (แก้ไข's ยกเลิก).
+ */
 export interface BackLink {
   label: string;
   onPress: () => void;
+  plain?: boolean;
 }
 
 /** A search field that takes the tab bar's place while a screen is searching (Apple's pattern). */
@@ -121,6 +125,7 @@ export function useScreenChrome(
     now.toast,
     now.title,
     now.back?.label,
+    now.back?.plain,
     now.search && [now.search.value, now.search.placeholder],
     now.ownTitle,
   ]);
@@ -150,6 +155,7 @@ export function useScreenChrome(
       title: cur.title,
       back: cur.back && {
         label: cur.back.label,
+        plain: cur.back.plain,
         onPress: () => latest.current.back?.onPress(),
       },
       search: cur.search && {
