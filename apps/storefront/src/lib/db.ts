@@ -7,7 +7,7 @@ import type {
 } from "@cloudflare/workers-types";
 import type { HeldCouponRow } from "./couponCart";
 import type { CategoryRow } from "./groupBySystem";
-import { joinDescriptions } from "./productDescription";
+import { joinDescriptions, productTerms } from "./productDescription";
 
 /**
  * Server-side data access for the storefront: raw SQL over the SAME D1 database as apps/api
@@ -471,6 +471,8 @@ export async function listProductTypes(db: D1Database): Promise<CategoryRow[]> {
 
 export interface ProductDetail extends CatalogItem {
   description: string | null;
+  /** Its category's เงื่อนไข, filled in for this product; null = no เงื่อนไข box. */
+  terms: string | null;
   images: { imageKey: string; sortOrder: number }[];
   fitments: {
     carBrand: string | null;
@@ -494,7 +496,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
   const [meta, images, fitments] = await Promise.all([
     db
       .prepare(
-        `SELECT p.description AS description, pt.description AS categoryDescription,
+        `SELECT p.description AS description, pt.description AS categoryDescription, pt.terms AS categoryTerms,
                 p.weight_grams AS weightGrams, COALESCE(tp.price_includes_vat, 1) AS priceIncludesVat
          FROM products p LEFT JOIN tax_profiles tp ON tp.id = p.tax_profile_id
          LEFT JOIN product_types pt ON pt.id = p.type_id WHERE p.id = ?`,
@@ -503,6 +505,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
       .first<{
         description: string | null;
         categoryDescription: string | null;
+        categoryTerms: string | null;
         weightGrams: number;
         priceIncludesVat: number;
       }>(),
@@ -529,6 +532,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
   return {
     ...head,
     description: joinDescriptions(meta?.description ?? null, meta?.categoryDescription ?? null),
+    terms: productTerms(meta?.categoryTerms ?? null, head),
     weightGrams: meta?.weightGrams ?? 0,
     priceIncludesVat: Boolean(meta?.priceIncludesVat ?? true),
     images: images.results ?? [],

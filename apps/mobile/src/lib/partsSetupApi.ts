@@ -48,6 +48,8 @@ export async function fetchPartsSetup(
       warrantyDays: number | null;
       imageKey: string | null;
       description: string | null;
+      terms?: string | null;
+      sample?: { name: string; brand: string | null; description: string | null } | null;
       productCount: number;
     })[];
   };
@@ -64,6 +66,8 @@ export async function fetchPartsSetup(
       warrantyDays: c.warrantyDays,
       imageKey: c.imageKey,
       description: c.description,
+      terms: c.terms ?? null,
+      sample: c.sample ?? null,
       productCount: c.productCount,
     })),
   };
@@ -165,6 +169,10 @@ export const setDescription = (
   id: string,
   text: string,
 ) => putCategory(fetchFn, base, token, id, "description", { description: text });
+
+/** The category's เงื่อนไข (blank clears it); the server refuses a fill-in no product has. */
+export const setTerms = (fetchFn: FetchFn, base: string, token: string, id: string, text: string) =>
+  putCategory(fetchFn, base, token, id, "terms", { terms: text });
 
 /** A brand's logo or a category's AirPlus picture: its key, or "wrong-picture" when refused (type/size). */
 export async function uploadPicture(

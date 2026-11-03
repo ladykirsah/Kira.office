@@ -14,8 +14,8 @@ interface SheetProps {
   titleTool?: ReactNode;
   /** Left pill; "ยกเลิก" (close) by default. */
   closeLabel?: string;
-  /** A left pill that does something else than close — the filter's "ล้าง". */
-  left?: { label: string; onPress: () => void };
+  /** A left pill that does something else than close — the filter's "ล้าง". `a11y` speaks a bare "‹". */
+  left?: { label: string; onPress: () => void; a11y?: string };
   /** Closing by the backdrop, the system back, or the default left pill. */
   onClose: () => void;
   /** No left pill: a sheet whose one way on is its own button (รับเงินแล้ว → เสร็จ). */
@@ -58,6 +58,7 @@ export function Sheet(props: SheetProps) {
               <Pressable
                 onPress={props.left?.onPress ?? props.onClose}
                 accessibilityRole="button"
+                accessibilityLabel={props.left?.a11y}
                 style={[
                   styles.pill,
                   { backgroundColor: theme.surface, borderColor: theme.glassLine },

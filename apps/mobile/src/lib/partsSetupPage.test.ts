@@ -12,9 +12,14 @@ import {
   categoryDraft,
   categoryLine,
   deleteTitle,
-  descriptionLine,
-  descriptionNote,
-  descriptionPreview,
+  aboutExample,
+  aboutLine,
+  DESCRIPTION_NOTE,
+  FIELDS_HINT,
+  forAllNote,
+  TERMS_NOTE,
+  termsProblem,
+  textPreview,
   findBrands,
   findCategories,
   keepPartsWhole,
@@ -45,6 +50,8 @@ const cat = (over: Partial<Category> & Pick<Category, "id" | "nameEn">): Categor
   warrantyDays: null,
   imageKey: null,
   description: null,
+  terms: null,
+  sample: null,
   productCount: 0,
   ...over,
 });
@@ -215,28 +222,88 @@ describe("deleting", () => {
   });
 });
 
-describe("description", () => {
+describe("เกี่ยวกับสินค้าประเภทนี้", () => {
   const TEXT =
     "👨🏻‍🔧 คำแนะนำจากช่าง\nหากรถยนต์ของคุณเลขไมล์ถึง 150,000 กม. แล้ว\n\nกรณีได้ถอดตู้แอร์\n\n🔥 มีช่าง";
+  const RULES =
+    "สินค้า: {{product_name}}\nยี่ห้อ: {{brand}}\nรับประกัน {{warranty}} นับจากวันที่ซื้อ";
 
-  it("given a long text > its first three lines with words, then …", () => {
-    expect(descriptionPreview(TEXT)).toBe(
-      "👨🏻‍🔧 คำแนะนำจากช่าง\nหากรถยนต์ของคุณเลขไมล์ถึง 150,000 กม. แล้ว\nกรณีได้ถอดตู้แอร์…",
+  it("given a long text > its first two lines with words, then …", () => {
+    expect(textPreview(TEXT, 2)).toBe(
+      "👨🏻‍🔧 คำแนะนำจากช่าง\nหากรถยนต์ของคุณเลขไมล์ถึง 150,000 กม. แล้ว…",
     );
   });
 
-  it("given three lines or fewer > as typed, no …", () => {
-    expect(descriptionPreview("a\n\nb")).toBe("a\nb");
+  it("given as many lines as shown or fewer > as typed, no …", () => {
+    expect(textPreview("a\n\nb", 2)).toBe("a\nb");
   });
 
-  it("given a text > one line joined by · for the form row", () => {
-    expect(descriptionLine("a\n\nb\nc")).toBe("a · b · c");
-  });
-
-  it("says where it shows, with the category's product count", () => {
-    expect(descriptionNote(EVAP).th).toBe(
-      "บน AirPlus: ต่อท้ายคำอธิบายของสินค้า เว้น 1 บรรทัด · ตู้แอร์ทุกชิ้น (40)",
+  it("given both texts > the form row reads the first line of each, joined by ·", () => {
+    expect(aboutLine({ description: TEXT, terms: RULES })).toBe(
+      "👨🏻‍🔧 คำแนะนำจากช่าง · สินค้า: {{product_name}}",
     );
+    expect(aboutLine({ description: "", terms: " \n" + RULES })).toBe("สินค้า: {{product_name}}");
+    expect(aboutLine({ description: " ", terms: "" })).toBe("");
+  });
+
+  it("says where each shows on AirPlus, and which products it covers", () => {
+    expect(DESCRIPTION_NOTE.th).toBe("บน AirPlus: ต่อท้ายคำอธิบายของสินค้า เว้น 1 บรรทัด");
+    expect(TERMS_NOTE.th).toBe(
+      "บน AirPlus: กล่อง เงื่อนไข ของมันเอง · ชื่อ ยี่ห้อ รับประกัน เปลี่ยนตามแต่ละชิ้น",
+    );
+    expect(forAllNote(EVAP).th).toBe("ใช้กับตู้แอร์ทุกชิ้น (40)");
+    expect(forAllNote(DRIER).th).toBe("ยังไม่มีสินค้าในหมวดนี้");
+  });
+
+  it("lists the fill-ins a product has, with what each becomes", () => {
+    expect(FIELDS_HINT.th).toBe(
+      "ใส่ได้: {{product_name}} ชื่อสินค้า · {{brand}} ยี่ห้อ · {{warranty}} รับประกันของหมวดนี้",
+    );
+  });
+
+  it("given a fill-in a product doesn't have > says it under the box; none > nothing", () => {
+    expect(termsProblem(RULES)).toBeNull();
+    expect(termsProblem("รับประกัน {{รับประกันศูนย์}}")?.th).toBe(
+      "{{รับประกันศูนย์}} ไม่มีในสินค้า · ใช้ได้แค่ 3 ช่องข้างล่าง",
+    );
+    expect(termsProblem("{{a}} {{ b }}")?.th).toBe(
+      "{{a}} {{b}} ไม่มีในสินค้า · ใช้ได้แค่ 3 ช่องข้างล่าง",
+    );
+  });
+
+  describe("aboutExample", () => {
+    const WITH = {
+      ...EVAP,
+      sample: { name: "ตู้แอร์ Toyota Vigo", brand: "DENSO", description: "👉🏻 Made in Thailand" },
+    };
+    const draft = { ...categoryDraft(WITH), warrantyDays: 365, description: TEXT, terms: RULES };
+
+    it("given a product in the category > it, as AirPlus shows it, from what is typed now", () => {
+      expect(aboutExample(WITH, draft)).toEqual({
+        from: {
+          th: "ตัวอย่างจาก ตู้แอร์ Toyota Vigo · DENSO · 1 ใน 40 สินค้า",
+          en: "Example: ตู้แอร์ Toyota Vigo · DENSO · 1 of 40 products",
+        },
+        description: `👉🏻 Made in Thailand\n\n${TEXT}`,
+        terms: "สินค้า: ตู้แอร์ Toyota Vigo\nยี่ห้อ: DENSO\nรับประกัน 1 ปี นับจากวันที่ซื้อ",
+      });
+    });
+
+    it("given no brand, no texts > no brand in the line; nothing to show for either", () => {
+      const bare = { ...WITH, sample: { name: "Evap", brand: null, description: null } };
+      expect(aboutExample(bare, { ...draft, description: " ", terms: "" })).toEqual({
+        from: {
+          th: "ตัวอย่างจาก Evap · 1 ใน 40 สินค้า",
+          en: "Example: Evap · 1 of 40 products",
+        },
+        description: null,
+        terms: null,
+      });
+    });
+
+    it("given no product in the category > nothing to show", () => {
+      expect(aboutExample(DRIER, categoryDraft(DRIER))).toBeNull();
+    });
   });
 });
 
@@ -249,6 +316,7 @@ describe("drafts and what บันทึก sends", () => {
       systemId: "uc-ac",
       warrantyDays: 0,
       description: "",
+      terms: "",
     });
   });
 
@@ -267,11 +335,11 @@ describe("drafts and what บันทึก sends", () => {
       system: false,
       warranty: false,
       description: false,
+      terms: false,
     });
-    expect(categoryChanges(null, { ...d, warrantyDays: 30, description: " x " })).toMatchObject({
-      warranty: true,
-      description: true,
-    });
+    expect(
+      categoryChanges(null, { ...d, warrantyDays: 30, description: " x ", terms: "y" }),
+    ).toMatchObject({ warranty: true, description: true, terms: true });
   });
 
   it("given an edit > only what changed is sent", () => {
@@ -281,6 +349,7 @@ describe("drafts and what บันทึก sends", () => {
       system: false,
       warranty: false,
       description: false,
+      terms: false,
     });
     expect(
       categoryChanges(COMPRESSOR, {
@@ -289,8 +358,9 @@ describe("drafts and what บันทึก sends", () => {
         systemId: null,
         warrantyDays: 0,
         description: "a",
+        terms: "b",
       }),
-    ).toEqual({ rename: true, system: true, warranty: true, description: true });
+    ).toEqual({ rename: true, system: true, warranty: true, description: true, terms: true });
   });
 
   it("given a brand or system > its names, or empty for a new one", () => {

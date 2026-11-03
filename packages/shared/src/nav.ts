@@ -120,7 +120,8 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "🚗",
         label: { th: "รุ่นรถที่ใช้ได้", en: "Car fitment" },
       },
-      { href: "/terms", icon: "📝", label: { th: "เงื่อนไข", en: "Terms" } },
+      // No เงื่อนไข page: each category keeps its own under เกี่ยวกับสินค้าประเภทนี้ in Part setup
+      // (owner, 3 Nov 2026), shown on its products' AirPlus page.
     ],
   },
 ];
@@ -157,7 +158,6 @@ const HIDDEN_FROM: Record<StaffRole, ReadonlySet<string>> = {
     "/settings/services",
     "/settings/attributes",
     "/settings/car-fitment",
-    "/terms",
     "/settings/staff",
   ]),
 };
