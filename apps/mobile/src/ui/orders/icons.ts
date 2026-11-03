@@ -3,6 +3,8 @@ import type { Theme } from "../theme";
 
 /** The Orders pages' line icons (24-unit grid), drawn as in the approved Orders drawing. */
 export const ICON = {
+  /** ⓘ — a page's own details (ตั้งค่าอะไหล่'s system). */
+  info: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 11v5M12 7.5h.01",
   plus: "M12 5v14M5 12h14",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5",
   close: "M6 6l12 12M18 6L6 18",

@@ -7,6 +7,7 @@ import type {
 } from "@cloudflare/workers-types";
 import type { HeldCouponRow } from "./couponCart";
 import type { CategoryRow } from "./groupBySystem";
+import { joinDescriptions } from "./productDescription";
 
 /**
  * Server-side data access for the storefront: raw SQL over the SAME D1 database as apps/api
@@ -493,12 +494,18 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
   const [meta, images, fitments] = await Promise.all([
     db
       .prepare(
-        `SELECT p.description AS description, p.weight_grams AS weightGrams,
-                COALESCE(tp.price_includes_vat, 1) AS priceIncludesVat
-         FROM products p LEFT JOIN tax_profiles tp ON tp.id = p.tax_profile_id WHERE p.id = ?`,
+        `SELECT p.description AS description, pt.description AS categoryDescription,
+                p.weight_grams AS weightGrams, COALESCE(tp.price_includes_vat, 1) AS priceIncludesVat
+         FROM products p LEFT JOIN tax_profiles tp ON tp.id = p.tax_profile_id
+         LEFT JOIN product_types pt ON pt.id = p.type_id WHERE p.id = ?`,
       )
       .bind(productId)
-      .first<{ description: string | null; weightGrams: number; priceIncludesVat: number }>(),
+      .first<{
+        description: string | null;
+        categoryDescription: string | null;
+        weightGrams: number;
+        priceIncludesVat: number;
+      }>(),
     db
       .prepare(
         `SELECT image_key AS imageKey, sort_order AS sortOrder FROM product_images
@@ -521,7 +528,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
   ]);
   return {
     ...head,
-    description: meta?.description ?? null,
+    description: joinDescriptions(meta?.description ?? null, meta?.categoryDescription ?? null),
     weightGrams: meta?.weightGrams ?? 0,
     priceIncludesVat: Boolean(meta?.priceIncludesVat ?? true),
     images: images.results ?? [],

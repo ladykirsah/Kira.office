@@ -174,6 +174,8 @@ const MENU_WIDTH = 250;
 export function PhotoChoice(props: {
   children: (open: () => void) => React.ReactNode;
   onChoose: (source: "camera" | "library") => void;
+  /** A red เอารูปออก last, when there is a picture to take away (ตั้งค่าอะไหล่). */
+  onRemove?: () => void;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
@@ -218,7 +220,25 @@ export function PhotoChoice(props: {
             style={[styles.menu, { top: at.y, left: at.x, backgroundColor: theme.surface }]}
           >
             {item(t({ th: "ถ่ายรูป", en: "Take photo" }), "camera")}
-            {item(t({ th: "เลือกจากคลังภาพ", en: "Choose from album" }), "library", true)}
+            {item(
+              t({ th: "เลือกจากคลังภาพ", en: "Choose from album" }),
+              "library",
+              !props.onRemove,
+            )}
+            {props.onRemove && (
+              <Pressable
+                onPress={() => {
+                  setAt(null);
+                  props.onRemove?.();
+                }}
+                accessibilityRole="menuitem"
+                style={styles.item}
+              >
+                <Text style={[TYPE.body, { color: theme.danger }]}>
+                  {t({ th: "เอารูปออก", en: "Remove photo" })}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
       </Modal>
