@@ -31,7 +31,7 @@ const EDGE = 4;
  * Where across the graph a tap landed. A phone app gets it from the touch; in the browser the
  * press event carries no position of its own, so it is read from the click and the graph's box.
  */
-function tapX(e: GestureResponderEvent): number {
+export function tapX(e: GestureResponderEvent): number {
   const native = e.nativeEvent as unknown as { locationX?: number; clientX?: number };
   const box = e.currentTarget as unknown as { getBoundingClientRect?: () => { left: number } };
   if (typeof native.clientX === "number" && typeof box?.getBoundingClientRect === "function") {
