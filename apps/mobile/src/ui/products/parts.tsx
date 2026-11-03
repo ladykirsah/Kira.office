@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
   type KeyboardTypeOptions,
+  type TextInputProps,
 } from "react-native";
 import { API_BASE } from "@/lib/config";
 import { useLang, useTheme } from "../AppProviders";
@@ -286,6 +287,9 @@ export function InputRow(props: {
   unit?: string;
   lead?: string;
   keyboardType?: KeyboardTypeOptions;
+  /** A password or key: dots, no capitals, the phone's password autofill (เข้าใช้งาน). */
+  secure?: boolean;
+  autoComplete?: TextInputProps["autoComplete"];
   onChange: (v: string) => void;
   tool?: ReactNode;
   last?: boolean;
@@ -306,6 +310,10 @@ export function InputRow(props: {
               placeholder={props.placeholder}
               placeholderTextColor={theme.textFaint}
               keyboardType={props.keyboardType}
+              secureTextEntry={props.secure}
+              autoComplete={props.autoComplete}
+              autoCapitalize={props.secure || props.autoComplete ? "none" : undefined}
+              autoCorrect={props.secure || props.autoComplete ? false : undefined}
               accessibilityLabel={props.label}
               style={[TYPE.body, styles.input, { color: theme.text }]}
             />

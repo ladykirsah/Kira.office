@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-03
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -174,6 +174,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   + coloured button. The owner removed four extra signals one message at a time.
 - **No greyed-out main buttons.** The red button stays tappable. If the tap can't work yet, a
   toast or an inline error says why ("ยังไม่ได้เปลี่ยนจำนวน", a red line under the empty field).
+- **The brand is its name, no picture.** I put the turbo app icon on top of เข้าใช้งาน: *"remove logo"*.
+  CrewEngine is the word alone, in Space Grotesk 600, one colour — the owner had already picked
+  *"just the plain text with that font"* for it (29 Oct) (เข้าใช้งาน, 3 Nov).
 - **Real photos for products.** Grey background + product name = a real product photo. White
   background = a category picture (category pages only). The library has no compressor photo
   yet; compressor rows use the คลัชคอม photo until the owner sends one.
@@ -443,7 +446,8 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 ## 6 · Sizes come from the guide, never by eye
 
-- **Gaps:** only the guide's 7 steps.
+- **Gaps:** only the guide's 7 steps — in drawings too. The login drawing used 24 and 32 by eye, and
+  the build had to change them to 28 and 20 (เข้าใช้งาน, 3 Nov).
   - 4 icon↔word
   - 8 inside a group
   - 12 heading→card
@@ -624,6 +628,9 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A list row's grey line breaks only between its "·" parts.** No-break spaces were not enough:
   Thai breaks inside words ("ยังไม่มี / สินค้า"), so each part's letters are joined with a word
   joiner, marks kept on their letter (`keepPartsWhole`, ตั้งค่าอะไหล่, 3 Nov). Look on the phone.
+- **A step back clears its old answer.** After a wrong emergency key, ‹ ลืมรหัส and back in showed
+  "กุญแจนี้เปิดไม่ได้" under an empty box. Step out and in again on every step with a server answer
+  (เข้าใช้งาน, 3 Nov).
 - **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fit the
   owner's iPhone 17 Pro by 2px (ตั้งค่าอะไหล่, 3 Nov). On the phone, "‹ คอมเพรสเซอร์" then covered
   "เกี่ยวกับสินค้าประเภทนี้". **A long sheet title gets the round ‹** (Apple's own back), and screen

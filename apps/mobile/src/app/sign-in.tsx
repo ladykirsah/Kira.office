@@ -1,7 +1,6 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState, type ComponentRef } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,19 +12,39 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE, isLocalApi } from "@/lib/config";
+import { phoneBottoms } from "@/lib/frame";
 import { shortcutTarget } from "@/lib/shortcut";
 import type { Credentials } from "@/lib/signIn";
 import { signInMessage } from "@/lib/signInMessage";
+import {
+  forgotLabel,
+  keyProblem,
+  langSwitchLabel,
+  mailProblems,
+  pinProblem,
+  type SignInTab,
+} from "@/lib/signInPage";
 import { useAuth, useLang, useTheme } from "@/ui/AppProviders";
+import { BigButton } from "@/ui/BigButton";
 import { useBrandFont } from "@/ui/brandFont";
-import type { Theme } from "@/ui/theme";
+import { Group } from "@/ui/orders/parts";
+import { Sheet } from "@/ui/orders/Sheet";
+import { StepRow } from "@/ui/partsSetup/parts";
+import { PinnedFooter, pinnedHeight } from "@/ui/PinnedFooter";
+import { FieldError } from "@/ui/pos/fields";
+import { InputRow } from "@/ui/products/parts";
+import { NO_CHROME, type Chrome } from "@/ui/ScreenChrome";
+import { Segmented } from "@/ui/Segmented";
+import { PillButton } from "@/ui/staff/parts";
+import { SPACE, TYPE } from "@/ui/theme";
 
 /**
- * The web back office's sign-in card, rebuilt for the app: PIN or password, the emergency key under
- * its own rule, and — on a practice copy only — the one-click door. Each door answers in its own
- * place (apps/admin/src/app/login/loginError.ts explains why that matters).
+ * เข้าใช้งาน as drawn (canvas LoginPhone v328, 3 Nov 2026): the name, a รหัส 6 หลัก | อีเมล switch,
+ * the red เข้าใช้งาน pinned at the bottom with ลืมรหัส? under it, the emergency key behind ลืมรหัส?,
+ * and — on a practice copy only — the no-password door. Each door answers in its own place.
  */
 const PRACTICE = isLocalApi(API_BASE);
+type Door = "form" | "key";
 
 export default function SignIn() {
   const auth = useAuth();
@@ -33,16 +52,15 @@ export default function SignIn() {
   const { theme } = useTheme();
   const brandFont = useBrandFont();
   const insets = useSafeAreaInsets();
-  const s = styles(theme);
 
-  const [method, setMethod] = useState<"pin" | "password">("pin");
+  const [tab, setTab] = useState<SignInTab>("pin");
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showKey, setShowKey] = useState(false);
-  const [key, setKey] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ door: "form" | "key"; text: string } | null>(null);
+  const [tried, setTried] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [error, setError] = useState<{ door: Door; text: string } | null>(null);
+  const busy = useRef(false);
   // The owner's shortcut (this computer only): /sign-in?practice=1 goes straight in, to Scan.
   const shortcut = shortcutTarget(API_BASE, useLocalSearchParams());
   const shortcutTried = useRef(false);
@@ -54,335 +72,329 @@ export default function SignIn() {
 
   if (auth.status === "signed-in") return <Redirect href={(shortcut ?? "/") as never} />;
 
-  async function attempt(door: "form" | "key", c: Credentials) {
-    setBusy(true);
+  async function attempt(door: Door, c: Credentials) {
+    if (busy.current) return; // two quick taps sign in once
+    busy.current = true;
     setError(null);
     const result = await auth.signInWith(c);
-    setBusy(false);
+    busy.current = false;
     if (!result.ok) setError({ door, text: t(signInMessage(c.kind, result.failure)) });
   }
 
-  const canSubmit =
-    !busy && (method === "pin" ? /^\d{6}$/.test(pin) : email.trim() !== "" && password !== "");
+  // Typing again takes the server's answer away; the empty-box lines follow what is typed.
+  const typed = (set: (v: string) => void) => (v: string) => {
+    set(v);
+    setError(null);
+  };
+
+  function signIn() {
+    setTried(true);
+    if (tab === "pin") {
+      if (!pinProblem(pin)) void attempt("form", { kind: "pin", pin });
+    } else if (mailProblems(email, password).length === 0) {
+      void attempt("form", { kind: "password", email: email.trim(), password });
+    }
+  }
+
+  const pinLine = tried && tab === "pin" ? pinProblem(pin) : null;
+  const mailLines = tried && tab === "password" ? mailProblems(email, password) : [];
+  const serverLine = error?.door === "form" ? error.text : null;
+  const chrome: Chrome = {
+    ...NO_CHROME,
+    footer: [
+      { label: t({ th: "เข้าใช้งาน", en: "Sign in" }), onPress: signIn },
+      { label: t(forgotLabel(tab)), kind: "grey", onPress: () => setForgot(true) },
+    ],
+  };
+  const bottoms = phoneBottoms({
+    bar: "none",
+    insetBottom: insets.bottom,
+    pinned: pinnedHeight(chrome),
+  });
 
   return (
     <KeyboardAvoidingView
-      style={[s.page, { paddingTop: insets.top }]}
+      style={[styles.page, { backgroundColor: theme.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {PRACTICE && (
-        <Text style={s.practiceBanner}>
-          ⚠ PRACTICE COPY — this is not the real shop. It runs on this computer with its own
-          separate database, so its products, orders and staff passwords are its own and do not
-          match the real ones. The real back office is at admin.airplusauto.com.
-        </Text>
-      )}
-      <ScrollView contentContainerStyle={s.center} keyboardShouldPersistTaps="handled">
-        <View style={s.box}>
-          <View style={s.langRow}>
-            <Pressable
-              onPress={toggleLang}
-              accessibilityRole="button"
-              accessibilityLabel={lang === "th" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"}
-              style={s.iconButton}
-            >
-              <Text style={{ fontSize: 16 }}>{lang === "th" ? "🇬🇧" : "🇹🇭"}</Text>
-            </Pressable>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + SPACE.s, paddingBottom: bottoms.content },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {PRACTICE && (
+          <View style={[styles.practice, { backgroundColor: theme.surface }]}>
+            <View style={[styles.dot, { backgroundColor: theme.waiting }]} />
+            <Text style={[TYPE.subhead, { color: theme.text, flex: 1 }]}>
+              {t({
+                th: "เครื่องซ้อมในคอมนี้ · ไม่ใช่ข้อมูลร้านจริง",
+                en: "Practice copy · not the shop's real data",
+              })}
+            </Text>
           </View>
-          <Text style={[s.title, brandFont]}>CrewEngine</Text>
-          <Text style={s.subtitle}>
-            {t({
-              th: "ระบบหลังร้าน Den Air Service + AirPlus",
-              en: "Den Air Service + AirPlus back office",
-            })}
-          </Text>
-
-          <View style={s.card}>
-            <View style={s.tabs} accessibilityRole="tablist">
-              {(["pin", "password"] as const).map((m) => (
-                <Pressable
-                  key={m}
-                  onPress={() => {
-                    setMethod(m);
-                    setError(null);
-                  }}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: method === m }}
-                  style={[s.tab, method === m && s.tabOn]}
-                >
-                  <Text style={[s.tabText, method === m && s.tabTextOn]}>
-                    {m === "pin"
-                      ? t({ th: "รหัส 6 หลัก", en: "PIN" })
-                      : t({ th: "รหัสผ่าน", en: "Password" })}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {method === "pin" ? (
-              <View>
-                <Text style={s.label}>{t({ th: "รหัส 6 หลัก", en: "6-digit PIN" })}</Text>
-                <PinBoxes value={pin} onChange={setPin} theme={theme} />
-              </View>
-            ) : (
-              <View style={{ gap: 12 }}>
-                <View>
-                  <Text style={s.label}>{t({ th: "อีเมล", en: "Email" })}</Text>
-                  <TextInput
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    keyboardType="email-address"
-                    style={s.input}
-                  />
-                </View>
-                <View>
-                  <Text style={s.label}>{t({ th: "รหัสผ่าน", en: "Password" })}</Text>
-                  <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    autoComplete="password"
-                    style={s.input}
-                  />
-                </View>
-              </View>
-            )}
-
-            {error?.door === "form" && <Text style={s.error}>{error.text}</Text>}
-
-            <Pressable
-              disabled={!canSubmit}
-              onPress={() =>
-                void attempt(
-                  "form",
-                  method === "pin"
-                    ? { kind: "pin", pin }
-                    : { kind: "password", email: email.trim(), password },
-                )
-              }
-              accessibilityRole="button"
-              style={[s.primary, !canSubmit && s.primaryDisabled]}
-            >
-              {busy && !showKey ? (
-                <ActivityIndicator color={theme.onPrimary} />
-              ) : (
-                <Text style={s.primaryText}>{t({ th: "เข้าใช้งาน", en: "Sign in" })}</Text>
-              )}
-            </Pressable>
-
-            <View style={s.rule} />
-            {showKey ? (
-              <View style={{ gap: 10 }}>
-                <Text style={s.label}>{t({ th: "กุญแจฉุกเฉิน", en: "Emergency key" })}</Text>
-                <TextInput
-                  value={key}
-                  onChangeText={setKey}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                  style={s.input}
-                />
-                {error?.door === "key" && <Text style={s.error}>{error.text}</Text>}
-                <Pressable
-                  disabled={busy || key === ""}
-                  onPress={() => void attempt("key", { kind: "key", key })}
-                  accessibilityRole="button"
-                  style={[s.primary, (busy || key === "") && s.primaryDisabled]}
-                >
-                  <Text style={s.primaryText}>
-                    {t({ th: "เข้าใช้งานด้วยกุญแจ", en: "Sign in with the key" })}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setShowKey(false);
-                    setKey("");
-                    setError(null);
-                  }}
-                  accessibilityRole="button"
-                >
-                  <Text style={s.linkCentered}>{t({ th: "ยกเลิก", en: "Cancel" })}</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable onPress={() => setShowKey(true)} accessibilityRole="button">
-                <Text style={[s.linkCentered, s.underline]}>
-                  {t({ th: "ทางเข้าฉุกเฉิน", en: "Emergency entrance" })}
-                </Text>
-              </Pressable>
-            )}
-
-            {PRACTICE && (
-              <>
-                <View style={s.rule} />
-                <Pressable
-                  disabled={busy}
-                  onPress={() => void attempt("form", { kind: "practice" })}
-                  accessibilityRole="button"
-                  style={s.secondary}
-                >
-                  <Text style={s.secondaryText}>
-                    {t({ th: "เข้าใช้งานเครื่องซ้อม", en: "Sign in to the practice copy" })}
-                  </Text>
-                </Pressable>
-                <Text style={s.note}>
-                  {t({
-                    th: "ไม่ต้องใช้รหัส — เครื่องนี้รันอยู่บนคอมของคุณ และไม่มีข้อมูลจริง",
-                    en: "No password — this copy runs on your computer and holds no real data.",
-                  })}
-                </Text>
-              </>
-            )}
-          </View>
-
-          <Text style={s.footer}>
-            {t({
-              th: "ลืมรหัสผ่าน? ให้เจ้าของร้านตั้งให้ใหม่",
-              en: "Forgotten your password? Ask the owner to set a new one.",
-            })}
-          </Text>
+        )}
+        <View style={styles.langRow}>
+          <PillButton label={langSwitchLabel(lang)} onPress={toggleLang} />
         </View>
+        <Text style={[TYPE.title1, styles.center, { color: theme.text }, brandFont]}>
+          CrewEngine
+        </Text>
+        <Text style={[TYPE.subhead, styles.center, styles.sub, { color: theme.textMuted }]}>
+          Den Air Service + AirPlus
+        </Text>
+
+        <View style={styles.switch}>
+          <Segmented
+            label={t({ th: "เข้าใช้งานด้วย", en: "Sign in with" })}
+            options={[
+              { value: "pin", label: t({ th: "รหัส 6 หลัก", en: "PIN" }) },
+              { value: "password", label: t({ th: "อีเมล", en: "Email" }) },
+            ]}
+            value={tab}
+            onChange={(v) => {
+              setTab(v);
+              setTried(false);
+              setError(null);
+            }}
+          />
+        </View>
+
+        {tab === "pin" ? (
+          <>
+            <PinBoxes value={pin} onChange={typed(setPin)} />
+            {(pinLine || serverLine) && (
+              <Text
+                accessibilityRole="alert"
+                style={[TYPE.footnote, styles.center, styles.pinError, { color: theme.danger }]}
+              >
+                {pinLine ? t(pinLine) : serverLine}
+              </Text>
+            )}
+          </>
+        ) : (
+          <>
+            <Group>
+              <InputRow
+                label={t({ th: "อีเมล", en: "Email" })}
+                value={email}
+                placeholder={t({ th: "ชื่อ@อีเมล.com", en: "name@email.com" })}
+                keyboardType="email-address"
+                autoComplete="email"
+                onChange={typed(setEmail)}
+              />
+              <InputRow
+                label={t({ th: "รหัสผ่าน", en: "Password" })}
+                value={password}
+                placeholder={t({ th: "รหัสผ่าน", en: "Password" })}
+                secure
+                autoComplete="password"
+                onChange={typed(setPassword)}
+                last
+              />
+            </Group>
+            {mailLines.map((p) => (
+              <FieldError key={p.en} text={t(p)} />
+            ))}
+            {serverLine && <FieldError text={serverLine} />}
+          </>
+        )}
+
+        {PRACTICE && (
+          <View style={styles.practiceDoor}>
+            <Group>
+              <StepRow
+                label={t({ th: "เข้าเครื่องซ้อม", en: "Sign in to the practice copy" })}
+                second={t({ th: "ไม่ต้องใช้รหัส", en: "No password" })}
+                onPress={() => void attempt("form", { kind: "practice" })}
+              />
+            </Group>
+          </View>
+        )}
       </ScrollView>
+
+      <PinnedFooter chrome={chrome} bottom={bottoms.footer} />
+
+      {forgot && (
+        <ForgotSheet
+          error={error?.door === "key" ? error.text : null}
+          onKey={(key) => void attempt("key", { kind: "key", key })}
+          clearError={() => setError(null)}
+          onClose={() => {
+            setForgot(false);
+            setError(null);
+          }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
 
 /**
  * Six boxes in two groups of three — how people say a PIN out loud. One hidden input carries the
- * digits, so the phone's number pad, paste and one-time-code autofill all just work.
+ * digits, so the phone's number pad, paste and one-time-code autofill all just work. The next box to
+ * fill is ringed while the pad is up.
  */
-function PinBoxes(props: { value: string; onChange: (v: string) => void; theme: Theme }) {
+function PinBoxes(props: { value: string; onChange: (v: string) => void }) {
+  const { theme } = useTheme();
+  const { t } = useLang();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-  const s = styles(props.theme);
-  const digits = props.value.padEnd(6, " ").split("");
+  const [focused, setFocused] = useState(false);
   return (
-    <Pressable onPress={() => input.current?.focus()} accessibilityRole="none" style={s.pinRow}>
-      {digits.map((d, i) => (
-        <View key={i} style={[s.pinBox, i === 2 && { marginRight: 14 }]}>
-          <Text style={s.pinDigit}>{d.trim() === "" ? "" : "•"}</Text>
+    <Pressable onPress={() => input.current?.focus()} accessibilityRole="none" style={styles.pins}>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <View
+          key={i}
+          style={[
+            styles.pinBox,
+            { backgroundColor: theme.surface },
+            i === 2 && styles.pinGroupEnd,
+            focused && i === props.value.length && { borderColor: theme.text },
+          ]}
+        >
+          {i < props.value.length && (
+            <View style={[styles.pinDot, { backgroundColor: theme.text }]} />
+          )}
         </View>
       ))}
       <TextInput
         ref={input}
         value={props.value}
         onChangeText={(v) => props.onChange(v.replace(/\D/g, "").slice(0, 6))}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         keyboardType="number-pad"
         textContentType="oneTimeCode"
         maxLength={6}
         autoFocus
-        accessibilityLabel="PIN"
-        style={s.pinInput}
+        accessibilityLabel={t({ th: "รหัส 6 หลัก", en: "PIN" })}
+        style={styles.pinInput}
       />
     </Pressable>
   );
 }
 
-const styles = (c: Theme) =>
-  StyleSheet.create({
-    page: { flex: 1, backgroundColor: c.bg },
-    practiceBanner: {
-      backgroundColor: "#fff4e5",
-      color: "#7a4100",
-      fontWeight: "700",
-      textAlign: "center",
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      lineHeight: 21,
-    },
-    center: {
-      flexGrow: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 32,
-      paddingHorizontal: 20,
-    },
-    box: { width: "100%", maxWidth: 340 },
-    langRow: { alignItems: "flex-end", marginBottom: 12 },
-    iconButton: {
-      width: 36,
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 10,
-      backgroundColor: c.surface,
-    },
-    title: { color: c.primary, fontSize: 26, fontWeight: "700", textAlign: "center" },
-    subtitle: {
-      color: c.textMuted,
-      fontSize: 15,
-      textAlign: "center",
-      marginTop: 6,
-      marginBottom: 24,
-    },
-    card: {
-      backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 20,
-      gap: 14,
-    },
-    tabs: { flexDirection: "row", gap: 6, backgroundColor: c.codeBg, padding: 4, borderRadius: 10 },
-    tab: {
-      flex: 1,
-      minHeight: 34,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: 8,
-    },
-    tabOn: { backgroundColor: c.surface },
-    tabText: { fontSize: 13.5, fontWeight: "600", color: c.textMuted },
-    tabTextOn: { color: c.text },
-    label: { fontSize: 13, fontWeight: "600", color: c.text, marginBottom: 6 },
-    input: {
-      height: 44,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      fontSize: 16,
-      color: c.text,
-      backgroundColor: c.surface,
-    },
-    pinRow: { flexDirection: "row", gap: 8, width: "100%" },
-    pinBox: {
-      flex: 1,
-      aspectRatio: 1,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pinDigit: { fontSize: 22, fontWeight: "700", color: c.text },
-    pinInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
-    error: { color: c.danger, fontSize: 14, lineHeight: 20 },
-    primary: {
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.primary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryDisabled: { opacity: 0.45 },
-    primaryText: { color: c.onPrimary, fontSize: 16, fontWeight: "600" },
-    rule: { height: 1, backgroundColor: c.border },
-    linkCentered: { textAlign: "center", color: c.textMuted, fontSize: 14, paddingVertical: 4 },
-    underline: { textDecorationLine: "underline" },
-    secondary: {
-      height: 44,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    secondaryText: { color: c.text, fontSize: 15, fontWeight: "600" },
-    note: { color: c.textMuted, fontSize: 13, textAlign: "center", lineHeight: 19 },
-    footer: { color: c.textMuted, fontSize: 13.5, textAlign: "center", marginTop: 18 },
-  });
+/**
+ * ลืมรหัส?: the owner sets a new PIN in พนักงาน; the owner alone, locked out, uses the emergency key —
+ * a step inside the same sheet ("‹ ลืมรหัส").
+ */
+function ForgotSheet(props: {
+  error: string | null;
+  onKey: (key: string) => void;
+  /** Typing a new key, or stepping back, takes the last answer away. */
+  clearError: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const [step, setStep] = useState<"help" | "key">("help");
+  const [key, setKey] = useState("");
+  const [tried, setTried] = useState(false);
+  if (step === "help") {
+    return (
+      <Sheet title={t({ th: "ลืมรหัส", en: "Forgot your PIN" })} onClose={props.onClose}>
+        <Group>
+          <View style={styles.help}>
+            <Text style={[TYPE.body, { color: theme.text }]}>
+              {t({ th: "ให้เจ้าของร้านตั้งรหัสใหม่ให้", en: "Ask the owner to set a new one" })}
+            </Text>
+            <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
+              {t({
+                th: "เมนู พนักงาน → ชื่อคุณ → รหัส 6 หลัก",
+                en: "Menu: Staff → your name → PIN",
+              })}
+            </Text>
+          </View>
+        </Group>
+        <Group>
+          <StepRow
+            label={t({ th: "ใช้กุญแจฉุกเฉิน", en: "Use the emergency key" })}
+            second={t({
+              th: "เจ้าของร้าน เมื่อเข้าไม่ได้เลย",
+              en: "For the owner, when nothing else works",
+            })}
+            onPress={() => setStep("key")}
+          />
+        </Group>
+      </Sheet>
+    );
+  }
+  const keyLine = tried ? keyProblem(key) : null;
+  return (
+    <Sheet
+      title={t({ th: "กุญแจฉุกเฉิน", en: "Emergency key" })}
+      left={{
+        label: t({ th: "‹ ลืมรหัส", en: "‹ Forgot" }),
+        onPress: () => {
+          setStep("help");
+          props.clearError();
+        },
+      }}
+      onClose={props.onClose}
+    >
+      <Group>
+        <InputRow
+          label={t({ th: "กุญแจ", en: "Key" })}
+          value={key}
+          placeholder={t({ th: "วางกุญแจที่เก็บไว้", en: "Paste the key you kept" })}
+          secure
+          onChange={(v) => {
+            setKey(v);
+            props.clearError();
+          }}
+          last
+        />
+      </Group>
+      {keyLine && <FieldError text={t(keyLine)} />}
+      {props.error && <FieldError text={props.error} />}
+      <BigButton
+        label={t({ th: "เข้าใช้งานด้วยกุญแจ", en: "Sign in with the key" })}
+        onPress={() => {
+          setTried(true);
+          if (!keyProblem(key)) props.onKey(key);
+        }}
+      />
+    </Sheet>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: SPACE.l },
+  center: { textAlign: "center" },
+  practice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: SPACE.m,
+  },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  langRow: {
+    height: 44,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginBottom: SPACE.xxl,
+  },
+  sub: { marginTop: SPACE.xs },
+  switch: { marginTop: SPACE.xxl, marginBottom: SPACE.xl },
+  pins: { flexDirection: "row", justifyContent: "center", gap: SPACE.s },
+  pinBox: {
+    width: 46,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinGroupEnd: { marginRight: SPACE.m },
+  pinDot: { width: 12, height: 12, borderRadius: 6 },
+  pinInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
+  pinError: { marginTop: SPACE.m, paddingHorizontal: SPACE.l },
+  practiceDoor: { marginTop: SPACE.xxl },
+  help: { paddingVertical: SPACE.m, paddingHorizontal: SPACE.l },
+});

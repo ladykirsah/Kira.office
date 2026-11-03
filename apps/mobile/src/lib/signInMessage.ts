@@ -2,8 +2,8 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import type { Credentials, SignInFailure } from "./signIn";
 
 /**
- * What the sign-in screen says when a door refuses. Every phrase is the web sign-in card's own
- * (apps/admin/src/app/login/LoginForm.tsx), so the two never disagree about the same refusal.
+ * What the sign-in screen says when a door refuses. Every phrase but needs_reset is the web sign-in
+ * card's own (apps/admin/src/app/login/LoginForm.tsx), so the two agree about the same refusal.
  *
  * One deliberate difference: the web card answers a throttled PIN or password with "wrong PIN",
  * because its relay folds 429 into a plain refusal. Waiting is not failing, so here every door gets
@@ -25,9 +25,10 @@ const NOT_ABOUT_THE_CREDENTIAL: Record<Exclude<SignInFailure, "invalid">, Phrase
     th: "ใส่ผิด 3 ครั้ง บัญชีนี้ถูกล็อก 24 ชั่วโมง",
     en: "This account is locked for 24 hours after 3 failed tries.",
   },
+  // Shorter than the web card's, as drawn on the canvas (เข้าใช้งาน, owner, 3 Nov 2026).
   needs_reset: {
-    th: "บัญชีนี้ต้องตั้งรหัสใหม่ — ระบบตรวจไม่ได้ ถึงจะใส่ถูกก็ตาม ให้ซูเปอร์แอดมินตั้งรหัสผ่านหรือรหัส 6 หลักให้ใหม่",
-    en: "This login needs resetting — it can't be checked, even if it's correct. Ask a super admin to set a new password or PIN.",
+    th: "บัญชีนี้ต้องตั้งรหัสใหม่ ให้เจ้าของร้านตั้งให้ใหม่",
+    en: "This login needs a new password or PIN. Ask the owner to set one.",
   },
   pin_login_unavailable: {
     th: "ยังไม่ได้เปิดให้เข้าด้วยรหัส 6 หลัก ใช้อีเมลกับรหัสผ่านแทน",
