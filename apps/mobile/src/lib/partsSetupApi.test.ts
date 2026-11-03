@@ -7,6 +7,7 @@ import {
   renamePart,
   setCategorySystem,
   setDescription,
+  setTerms,
   setWarranty,
   uploadPicture,
 } from "./partsSetupApi";
@@ -57,6 +58,8 @@ const SERVER = {
       warrantyDays: 365,
       imageKey: null,
       description: "x",
+      terms: "สินค้า: {{product_name}}",
+      sample: { name: "Evap A", brand: "DENSO", description: null },
       productCount: 40,
     },
   ],
@@ -80,6 +83,8 @@ describe("partsSetupApi", () => {
       nameEn: "Evaporator",
       systemId: "uc-ac",
       description: "x",
+      terms: "สินค้า: {{product_name}}",
+      sample: { name: "Evap A", brand: "DENSO", description: null },
     });
   });
 
@@ -136,15 +141,17 @@ describe("partsSetupApi", () => {
     expect(await deletePart(busy.fetchFn, "https://api", "tok", "brand", "br-1")).toBe("in-use");
   });
 
-  it("category settings > PUT system, warranty and description", async () => {
+  it("category settings > PUT system, warranty, description and เงื่อนไข", async () => {
     const { calls, fetchFn } = replying(200, { ok: true });
     await setCategorySystem(fetchFn, "https://api", "tok", "pt-1", "uc-ac");
     await setWarranty(fetchFn, "https://api", "tok", "pt-1", 0);
     await setDescription(fetchFn, "https://api", "tok", "pt-1", "a\n\nb");
+    await setTerms(fetchFn, "https://api", "tok", "pt-1", "{{brand}}");
     expect(calls.map((c) => [c.url, c.method, c.body])).toEqual([
       ["https://api/product-types/pt-1/car-system", "PUT", { usageId: "uc-ac" }],
       ["https://api/product-types/pt-1/warranty", "PUT", { warrantyDays: null }],
       ["https://api/product-types/pt-1/description", "PUT", { description: "a\n\nb" }],
+      ["https://api/product-types/pt-1/terms", "PUT", { terms: "{{brand}}" }],
     ]);
   });
 

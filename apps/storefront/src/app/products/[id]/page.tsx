@@ -339,6 +339,27 @@ export default async function ProductPage(props: PageProps) {
               </>
             )}
 
+            {/* เงื่อนไข — its category's conditions, filled in for this product (Kira: ตั้งค่าอะไหล่ →
+                เกี่ยวกับสินค้าประเภทนี้). A category without any shows no block. */}
+            {detail.terms && (
+              <>
+                <div className="pdp-band" />
+                <CollapsibleSection titleTh="เงื่อนไข" titleEn="Conditions">
+                  <p
+                    style={{
+                      whiteSpace: "pre-line",
+                      color: "var(--gray-dark)",
+                      fontSize: 15,
+                      lineHeight: 1.7,
+                      margin: 0,
+                    }}
+                  >
+                    {detail.terms}
+                  </p>
+                </CollapsibleSection>
+              </>
+            )}
+
             {/* การคืน ยกเลิก เคลม — collapsible block (Returns & Claims). Always shown: the return/
                 claim policy applies to every product; the exact per-category window lives on /returns. */}
             <div className="pdp-band" />

@@ -2,6 +2,7 @@ export * from "./money";
 export * from "./tax";
 export * from "./cost";
 export * from "./terms";
+export * from "./categoryTerms";
 export * from "./pricing";
 export * from "./sync";
 export * from "./channels";

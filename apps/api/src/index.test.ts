@@ -12160,6 +12160,8 @@ describe("ตั้งค่าอะไหล่ (owner, 3 Nov 2026: logos, des
         usageId: string | null;
         warrantyDays: number | null;
         description: string | null;
+        terms: string | null;
+        sample: { name: string; brand: string | null; description: string | null } | null;
         productCount: number;
       }[];
     };
@@ -12202,6 +12204,66 @@ describe("ตั้งค่าอะไหล่ (owner, 3 Nov 2026: logos, des
       "application/json",
     );
     expect((await list()).categories.find((c) => c.id === "pt-evaporator")?.description).toBeNull();
+  });
+
+  it("GET /parts-setup > a category carries its เงื่อนไข and one of its products for ตัวอย่าง", async () => {
+    const { raw, list } = setup();
+    raw.prepare("UPDATE products SET description = 'Made in Thailand' WHERE id = 'p1'").run();
+    const { categories } = await list();
+    expect(categories.find((c) => c.id === "pt-evaporator")).toMatchObject({
+      terms: null,
+      sample: { name: "Evap A", brand: "DENSO", description: "Made in Thailand" },
+    });
+    // Only an archived product: still the example (it is that category's product).
+    expect(categories.find((c) => c.id === "pt-compressor")?.sample).toMatchObject({
+      name: "Comp",
+    });
+    const empty = categories.find((c) => c.productCount === 0);
+    expect(empty?.sample).toBeNull();
+  });
+
+  it("PUT /product-types/:id/terms > stores the เงื่อนไข trimmed; blank clears it", async () => {
+    const { send, list } = setup();
+    const rules = "สินค้า: {{product_name}}\nรับประกัน {{ warranty }}";
+    const put = await send(
+      "PUT",
+      "/product-types/pt-evaporator/terms",
+      JSON.stringify({ terms: `\n${rules}  ` }),
+      "application/json",
+    );
+    expect(put.status).toBe(200);
+    expect((await list()).categories.find((c) => c.id === "pt-evaporator")?.terms).toBe(rules);
+    await send(
+      "PUT",
+      "/product-types/pt-evaporator/terms",
+      JSON.stringify({ terms: " " }),
+      "application/json",
+    );
+    expect((await list()).categories.find((c) => c.id === "pt-evaporator")?.terms).toBeNull();
+  });
+
+  it("PUT /product-types/:id/terms > a fill-in a product doesn't have > 400 naming it, nothing stored", async () => {
+    const { send, list } = setup();
+    const res = await send(
+      "PUT",
+      "/product-types/pt-evaporator/terms",
+      JSON.stringify({ terms: "รับประกัน {{รับประกันศูนย์}}" }),
+      "application/json",
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ fields: ["รับประกันศูนย์"] });
+    expect((await list()).categories.find((c) => c.id === "pt-evaporator")?.terms).toBeNull();
+  });
+
+  it("PUT /product-types/:id/terms > unknown category > 404", async () => {
+    const { send } = setup();
+    const res = await send(
+      "PUT",
+      "/product-types/nope/terms",
+      JSON.stringify({ terms: "x" }),
+      "application/json",
+    );
+    expect(res.status).toBe(404);
   });
 
   it("PUT /product-types/:id/description > unknown category > 404", async () => {

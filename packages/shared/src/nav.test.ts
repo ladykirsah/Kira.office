@@ -12,7 +12,7 @@ describe("NAV_GROUPS", () => {
       ["AirPlus Marketing", ["Insight", "Affiliate Promote", "Banners", "Coupons", "Flash sales"]],
       [
         "Overall management",
-        ["Shop info", "Staff", "Finance", "Service Setup", "Part setup", "Car fitment", "Terms"],
+        ["Shop info", "Staff", "Finance", "Service Setup", "Part setup", "Car fitment"],
       ],
     ]);
   });
@@ -25,6 +25,10 @@ describe("NAV_GROUPS", () => {
   it("names the stock page ประวัติซื้อขาย, the owner's name for it (1 Nov 2026)", () => {
     const link = NAV_GROUPS.flatMap((g) => g.links).find((l) => l.href === "/stock");
     expect(link?.label.th).toBe("ประวัติซื้อขาย");
+  });
+
+  it("has no เงื่อนไข page: each category keeps its own in ตั้งค่าอะไหล่ (3 Nov 2026)", () => {
+    expect(allHrefs).not.toContain("/terms");
   });
 
   it("lists no page twice", () => {

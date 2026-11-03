@@ -50,10 +50,4 @@ export const DASHBOARD_CARDS: DashboardCard[] = [
     title: { th: "ออเดอร์ AirPlus", en: "AirPlus Orders" },
     desc: { th: "ติดตาม จัดส่ง คืนเงิน", en: "Track, ship, refund" },
   },
-  {
-    href: "/terms",
-    icon: "📝",
-    title: { th: "เงื่อนไข", en: "Terms" },
-    desc: { th: "แก้ไขเงื่อนไขภาษาไทย", en: "Thai T&C editor" },
-  },
 ];

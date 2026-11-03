@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-03
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -119,6 +119,11 @@ again before saying a build matches.** The owner's words are quoted where they s
   data — check the API or `apps/mobile/src/lib` before drawing it. Stock is ขายได้ (on hand) and
   งานนอก (held on outside jobs, `scanTabs.ts`); there is no "reserved". *"please do not imagine
   anything yourself, we did not have ถูกจอง and กันไว้, we only have งานนอก"* (สินค้า, 30 Oct).
+- **A new text follows the model of the one just built.** I drew เงื่อนไข as one shop-wide page (a
+  third tab on ตั้งค่าอะไหล่). The owner meant one per category, like the คำอธิบาย we had just made:
+  *"this is not what i meant. the conditions is set based on product type as the description we
+  have just worked on"*. Before drawing, say what the thing belongs to (shop, category or product)
+  and check how the last approved page did the same kind of thing (เงื่อนไข, 3 Nov).
 - **Say which number it really is.** The owner's "order amount" per product: the server counts
   pieces sold (ขาย), not orders per product, so the drawing used ขาย and asked [y/n] — *"Pieces
   sold is fine"* (ภาพรวม AirPlus, 1 Nov).
@@ -204,7 +209,7 @@ again before saying a build matches.** The owner's words are quoted where they s
   - Dividers start where the text starts, never full width. *"make sure that Apple does not make
     the divided line cover the whole length."*
   - Sheets as built (`apps/mobile/src/ui/orders/Sheet.tsx`): a pill on the left (ยกเลิก; ล้าง on
-    a filter; ‹ ยี่ห้อ to step back inside a sheet), the title centred, the red ✓ on the right
+    a filter; ‹ ยี่ห้อ to step back inside a sheet, or a round ‹ when the title is long), the title centred, the red ✓ on the right
     when there is something to confirm. Every approved page uses the ยกเลิก pill, not an ✕.
   - A value that can't be edited is plain black text, not greyed (design guide · Forms).
 - **Neighbouring frames line up.** *"i want scan frame the same height as the below frame."*
@@ -222,6 +227,10 @@ again before saying a build matches.** The owner's words are quoted where they s
   no need popup for full skim"*. แก้ไข turns the same page into the form (Apple Contacts: ยกเลิก
   top left, red บันทึก pinned). Sheets stay for records in a list (one bank account), with their
   own บันทึก (ข้อมูลร้าน, 2 Nov).
+- **Texts about one thing sit together.** A category's คำอธิบาย and เงื่อนไข are one section,
+  เกี่ยวกับสินค้าประเภทนี้: one card on the category, one sheet with both boxes and one
+  แก้ไข | ตัวอย่าง switch. *"make this section about เกี่ยวกับสินค้าประเภทนี้ that included
+  description and conditions together"* (3 Nov).
 - **Group by purpose, not by where it prints.** หัวข้อใต้ QR, ข้อความรอง and หมายเหตุท้ายใบ were
   under ติดต่อ and ใบเสนอราคา: *"for me they are the same purpose of setup bill > make them its own
   section of ตั้งค่าบิล"* (2 Nov).
@@ -615,8 +624,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A list row's grey line breaks only between its "·" parts.** No-break spaces were not enough:
   Thai breaks inside words ("ยังไม่มี / สินค้า"), so each part's letters are joined with a word
   joiner, marks kept on their letter (`keepPartsWhole`, ตั้งค่าอะไหล่, 3 Nov). Look on the phone.
-- **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fits the
-  owner's iPhone 17 Pro by 2px and touches on smaller phones (ตั้งค่าอะไหล่, 3 Nov — open).
+- **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fit the
+  owner's iPhone 17 Pro by 2px (ตั้งค่าอะไหล่, 3 Nov). On the phone, "‹ คอมเพรสเซอร์" then covered
+  "เกี่ยวกับสินค้าประเภทนี้". **A long sheet title gets the round ‹** (Apple's own back), and screen
+  readers hear "กลับไป คอมเพรสเซอร์" (`Sheet` `left.a11y`, เงื่อนไข, 3 Nov).
+- **A box you write paragraphs in grows with the text.** The category text box scrolled inside
+  itself, so the end of the text was hidden. It now grows as you type (`GrowingBox`, เงื่อนไข, 3 Nov).
 
 ## 9 · Get the push OK in chat, early
 

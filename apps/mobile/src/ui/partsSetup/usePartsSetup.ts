@@ -10,6 +10,7 @@ import {
   renamePart,
   setCategorySystem,
   setDescription,
+  setTerms,
   setWarranty,
   uploadPicture,
   type PartsSetup,
@@ -96,6 +97,7 @@ export function usePartsSetup() {
       if (send.system) await setCategorySystem(fetch, API_BASE, token, id, d.systemId);
       if (send.warranty) await setWarranty(fetch, API_BASE, token, id, d.warrantyDays);
       if (send.description) await setDescription(fetch, API_BASE, token, id, d.description);
+      if (send.terms) await setTerms(fetch, API_BASE, token, id, d.terms);
       return picture("type", id, change);
     });
 

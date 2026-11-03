@@ -1,15 +1,20 @@
 import { useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import {
+  aboutExample,
+  aboutLine,
   canDeleteCategory,
   categoryDraft,
+  DESCRIPTION_NOTE,
   deleteTitle,
-  descriptionLine,
-  descriptionNote,
-  descriptionPreview,
+  FIELDS_HINT,
   findSystems,
+  forAllNote,
   nameProblems,
   systemsWithCounts,
+  TERMS_NOTE,
+  termsProblem,
+  textPreview,
   titleOf,
   WARRANTY_CHOICES,
   warrantyWords,
@@ -25,9 +30,10 @@ import { Sheet } from "../orders/Sheet";
 import { FieldError } from "../pos/fields";
 import { AddRow, InputRow, PickRow, SearchBox } from "../products/parts";
 import { photoPreview, pickPhoto } from "../products/pickPhoto";
+import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
 import { WRONG_PICTURE } from "./NameSheets";
-import { DeleteRow, DeleteSheet, DescriptionCard, PictureCard, StepRow, ValueRow } from "./parts";
+import { AboutCard, DeleteRow, DeleteSheet, PictureCard, StepRow, ValueRow } from "./parts";
 import type { PartsSetupState, PictureChange } from "./usePartsSetup";
 
 const products = (n: number) =>
@@ -38,22 +44,82 @@ function systemName(systems: CarSystem[], id: string | null): string | null {
   return s ? titleOf(s) : null;
 }
 
-/** The full text, as the website shows it (pre-line), with where it shows under it. */
-function FullText({ text, note }: { text: string; note: string }) {
+const ABOUT = { th: "เกี่ยวกับสินค้าประเภทนี้", en: "About this kind of product" };
+const CATEGORY = { th: "หมวดหมู่", en: "Category" };
+/** เกี่ยวกับสินค้าประเภทนี้ is too long for "‹ คอมเพรสเซอร์" beside it on a phone: a round ‹, as iOS does. */
+const backTo = (name: string) => ({ th: `กลับไป ${name}`, en: `Back to ${name}` });
+const DESCRIPTION = { th: "คำอธิบาย", en: "Description" };
+const TERMS = { th: "เงื่อนไข", en: "Conditions" };
+const NONE_YET = { th: "ยังไม่มี", en: "None yet" };
+
+/** A small grey name over a card: คำอธิบาย, เงื่อนไข. */
+function Label({ text }: { text: string }) {
+  const { theme } = useTheme();
+  return <Text style={[TYPE.footnote, styles.label, { color: theme.textMuted }]}>{text}</Text>;
+}
+
+/** A small grey line under a card: where it shows, what may be typed. */
+function Note({ text }: { text: string }) {
+  const { theme } = useTheme();
+  return <Text style={[TYPE.footnote, styles.note, { color: theme.textMuted }]}>{text}</Text>;
+}
+
+/** The full text, as the website shows it (pre-line); grey ยังไม่มี when there is none. */
+function FullText({ text, empty = false }: { text: string; empty?: boolean }) {
   const { theme } = useTheme();
   return (
-    <>
-      <View style={[styles.textCard, { backgroundColor: theme.surface }]}>
-        <Text style={[TYPE.subhead, styles.lines, { color: theme.text }]}>{text}</Text>
-      </View>
-      <Text style={[TYPE.footnote, styles.note, { color: theme.textMuted }]}>{note}</Text>
-    </>
+    <View style={[styles.textCard, { backgroundColor: theme.surface }]}>
+      <Text style={[TYPE.subhead, styles.lines, { color: empty ? theme.textMuted : theme.text }]}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/** A box to type a long text in: it grows with what is typed (no scrolling inside the sheet). */
+function GrowingBox(props: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  typing: boolean;
+  onFocus: () => void;
+  autoFocus?: boolean;
+}) {
+  const { theme } = useTheme();
+  const [height, setHeight] = useState(0);
+  return (
+    <View
+      style={[
+        styles.textCard,
+        styles.typing,
+        { backgroundColor: theme.surface, borderColor: props.typing ? theme.text : theme.surface },
+      ]}
+    >
+      <TextInput
+        value={props.value}
+        onChangeText={props.onChange}
+        onFocus={props.onFocus}
+        onContentSizeChange={(e) => setHeight(e.nativeEvent.contentSize.height)}
+        multiline
+        autoFocus={props.autoFocus}
+        placeholder={props.placeholder}
+        placeholderTextColor={theme.textFaint}
+        accessibilityLabel={props.label}
+        style={[
+          TYPE.subhead,
+          styles.lines,
+          styles.input,
+          { color: theme.text, height: Math.max(height, BOX_MIN) },
+        ]}
+      />
+    </View>
   );
 }
 
 /**
- * A tapped category: its AirPlus picture, names, system, warranty, คำอธิบายบน AirPlus (the first
- * lines; tap to read it all) and how many products use it. แก้ไข opens the form.
+ * A tapped category: its AirPlus picture, names, system, warranty, เกี่ยวกับสินค้าประเภทนี้ (the first
+ * lines of its คำอธิบาย and เงื่อนไข; tap to read both) and how many products use it. แก้ไข opens the form.
  */
 function CategoryDetailsSheet(props: {
   cat: Category;
@@ -65,14 +131,22 @@ function CategoryDetailsSheet(props: {
   const c = props.cat;
   const [reading, setReading] = useState(false);
   const text = c.description?.trim() ?? "";
+  const terms = c.terms?.trim() ?? "";
   if (reading) {
     return (
       <Sheet
-        title={t({ th: "คำอธิบายบน AirPlus", en: "AirPlus description" })}
-        left={{ label: `‹ ${titleOf(c)}`, onPress: () => setReading(false) }}
+        title={t(ABOUT)}
+        left={{ label: "‹", a11y: t(backTo(titleOf(c))), onPress: () => setReading(false) }}
         onClose={props.onClose}
+        tall
       >
-        <FullText text={text} note={t(descriptionNote(c))} />
+        <Label text={t(DESCRIPTION)} />
+        <FullText text={text || t(NONE_YET)} empty={!text} />
+        <Note text={t(DESCRIPTION_NOTE)} />
+        <Label text={t(TERMS)} />
+        <FullText text={terms || t(NONE_YET)} empty={!terms} />
+        <Note text={t(TERMS_NOTE)} />
+        <Note text={t(forAllNote(c))} />
       </Sheet>
     );
   }
@@ -108,19 +182,18 @@ function CategoryDetailsSheet(props: {
           last
         />
       </Group>
-      {text ? (
-        <DescriptionCard
-          label={t({ th: "คำอธิบายบน AirPlus", en: "AirPlus description" })}
-          preview={descriptionPreview(text)}
+      {text || terms ? (
+        <AboutCard
+          label={t(ABOUT)}
+          parts={[
+            { label: t(DESCRIPTION), text: textPreview(text, 2) || t(NONE_YET), empty: !text },
+            { label: t(TERMS), text: textPreview(terms, 2) || t(NONE_YET), empty: !terms },
+          ]}
           onPress={() => setReading(true)}
         />
       ) : (
         <Group>
-          <ValueRow
-            label={t({ th: "คำอธิบายบน AirPlus", en: "AirPlus description" })}
-            value={t({ th: "ยังไม่มี", en: "None yet" })}
-            last
-          />
+          <ValueRow label={t(ABOUT)} value={t(NONE_YET)} last />
         </Group>
       )}
       <Group>
@@ -139,7 +212,8 @@ type Step = "main" | "system" | "newSystem" | "warranty" | "text";
 /**
  * เพิ่มหมวดหมู่ / a category's แก้ไข. Its rows open steps inside the same sheet ("‹ หมวดหมู่", red ✓):
  * อยู่ในระบบ (search, pick, ＋ เพิ่มระบบใหม่ — saved then picked), รับประกัน (choices or own days) and
- * คำอธิบายบน AirPlus (type, blank lines and emoji kept). บันทึก saves it all; a picture waits for it.
+ * เกี่ยวกับสินค้าประเภทนี้ (คำอธิบาย and เงื่อนไข, typed as wanted; ตัวอย่าง shows them on one of the
+ * category's products; a fill-in no product has is said under its box). บันทึก saves it all.
  */
 function CategoryFormSheet(props: {
   start: Category | null;
@@ -151,7 +225,6 @@ function CategoryFormSheet(props: {
   onClose: () => void;
 }) {
   const { t } = useLang();
-  const { theme } = useTheme();
   const [d, setD] = useState<CategoryDraft>(
     categoryDraft(props.start ?? undefined, props.systemId),
   );
@@ -163,6 +236,10 @@ function CategoryFormSheet(props: {
   const [q, setQ] = useState("");
   const [ownDays, setOwnDays] = useState<string | null>(null);
   const [text, setText] = useState(d.description);
+  const [terms, setTerms] = useState(d.terms);
+  const [tab, setTab] = useState<"edit" | "example">("edit");
+  const [typing, setTyping] = useState<"description" | "terms">("description");
+  const [termsTried, setTermsTried] = useState(false);
   const [newSystem, setNewSystem] = useState<NameDraft>({ id: null, nameTh: "", nameEn: "" });
   const [systemTried, setSystemTried] = useState(false);
   const busy = useRef(false);
@@ -171,15 +248,6 @@ function CategoryFormSheet(props: {
   const back = () => {
     setQ("");
     setStep("main");
-  };
-  // The typing step's note names this category as it now reads ("ตู้แอร์ทุกชิ้น (40)").
-  const forNote: Category = {
-    ...d,
-    id: d.id ?? "",
-    nameTh: d.nameTh.trim() || null,
-    imageKey: null,
-    description: text,
-    productCount: props.start?.productCount ?? 0,
   };
 
   const choose = async (source: "camera" | "library") => {
@@ -337,42 +405,97 @@ function CategoryFormSheet(props: {
   }
 
   if (step === "text") {
+    const termsError = termsTried ? termsProblem(terms) : null;
     const done = () => {
-      set({ description: text });
+      if (termsProblem(terms)) {
+        setTermsTried(true);
+        setTab("edit");
+        return;
+      }
+      set({ description: text, terms });
       back();
     };
+    const example = props.start
+      ? aboutExample(props.start, { ...d, description: text, terms })
+      : null;
     return (
       <Sheet
-        title={t({ th: "คำอธิบายบน AirPlus", en: "AirPlus description" })}
-        left={{ label: t({ th: "‹ หมวดหมู่", en: "‹ Category" }), onPress: done }}
+        title={t(ABOUT)}
+        left={{
+          label: "‹",
+          a11y: t(backTo(d.nameTh.trim() || d.nameEn.trim() || t(CATEGORY))),
+          onPress: done,
+        }}
         onDone={done}
         onClose={props.onClose}
         tall
       >
-        <View
-          style={[
-            styles.textCard,
-            styles.typing,
-            { backgroundColor: theme.surface, borderColor: theme.text },
+        <Segmented
+          label={t(ABOUT)}
+          options={[
+            { value: "edit", label: t({ th: "แก้ไข", en: "Edit" }) },
+            { value: "example", label: t({ th: "ตัวอย่าง", en: "Example" }) },
           ]}
-        >
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            multiline
-            autoFocus
-            placeholder={t({
-              th: "พิมพ์คำอธิบาย เว้นบรรทัด ใส่อีโมจิได้",
-              en: "Type the description",
+          value={tab}
+          onChange={setTab}
+        />
+        {tab === "edit" ? (
+          <>
+            <Label text={t(DESCRIPTION)} />
+            <GrowingBox
+              label={t(DESCRIPTION)}
+              value={text}
+              onChange={setText}
+              typing={typing === "description"}
+              onFocus={() => setTyping("description")}
+              autoFocus
+              placeholder={t({
+                th: "พิมพ์คำอธิบาย เว้นบรรทัด ใส่อีโมจิได้",
+                en: "Type the description",
+              })}
+            />
+            <Label text={t(TERMS)} />
+            <GrowingBox
+              label={t(TERMS)}
+              value={terms}
+              onChange={setTerms}
+              typing={typing === "terms"}
+              onFocus={() => setTyping("terms")}
+              placeholder={t({
+                th: "พิมพ์เงื่อนไข ใส่ชื่อ ยี่ห้อ รับประกัน ด้วยช่องข้างล่างได้",
+                en: "Type the conditions; the fill-ins below are allowed",
+              })}
+            />
+            {termsError && <FieldError text={t(termsError)} />}
+            <Note text={t(FIELDS_HINT)} />
+          </>
+        ) : example ? (
+          <>
+            <Note text={t(example.from)} />
+            <Label text={t(DESCRIPTION)} />
+            <FullText
+              text={example.description ?? t({ th: "ไม่มีคำอธิบาย", en: "No description" })}
+              empty={!example.description}
+            />
+            <Label text={t(TERMS)} />
+            <FullText
+              text={
+                example.terms ??
+                t({ th: "บน AirPlus ไม่มีกล่อง เงื่อนไข", en: "No Conditions box on AirPlus" })
+              }
+              empty={!example.terms}
+            />
+            <Note text={t({ th: "เหมือนบน AirPlus ทุกตัวอักษร", en: "Exactly as on AirPlus" })} />
+          </>
+        ) : (
+          <FullText
+            text={t({
+              th: "ยังไม่มีสินค้าในหมวดนี้ให้ดู",
+              en: "No product in this category to show",
             })}
-            placeholderTextColor={theme.textFaint}
-            accessibilityLabel={t({ th: "คำอธิบายบน AirPlus", en: "AirPlus description" })}
-            style={[TYPE.subhead, styles.lines, styles.input, { color: theme.text }]}
+            empty
           />
-        </View>
-        <Text style={[TYPE.footnote, styles.note, { color: theme.textMuted }]}>
-          {t(descriptionNote(forNote))}
-        </Text>
+        )}
       </Sheet>
     );
   }
@@ -429,16 +552,16 @@ function CategoryFormSheet(props: {
       {problems.system && <FieldError text={t(problems.system)} />}
       <Group>
         <StepRow
-          label={t({ th: "คำอธิบายบน AirPlus", en: "AirPlus description" })}
-          second={
-            d.description.trim()
-              ? descriptionLine(d.description)
-              : t({ th: "ไม่ใส่ก็ได้", en: "Optional" })
-          }
-          hint={!d.description.trim()}
+          label={t(ABOUT)}
+          second={aboutLine(d) || t({ th: "ไม่ใส่ก็ได้", en: "Optional" })}
+          hint={!aboutLine(d)}
           oneLine
           onPress={() => {
             setText(d.description);
+            setTerms(d.terms);
+            setTab("edit");
+            setTyping("description");
+            setTermsTried(false);
             setStep("text");
           }}
         />
@@ -511,11 +634,14 @@ export function CategoryFlow(props: {
   );
 }
 
+const BOX_MIN = 140;
+
 const styles = StyleSheet.create({
   textCard: { borderRadius: 20, paddingVertical: 14, paddingHorizontal: SPACE.l },
-  typing: { borderWidth: 2, minHeight: 320 },
+  typing: { borderWidth: 2 },
   lines: { lineHeight: 24 },
-  input: { minHeight: 290, textAlignVertical: "top", outlineStyle: "none" } as object,
+  input: { textAlignVertical: "top", outlineStyle: "none" } as object,
+  label: { marginBottom: -6, paddingHorizontal: SPACE.l },
   note: { marginTop: -4, paddingHorizontal: SPACE.l },
   button: { marginTop: SPACE.xs },
 });

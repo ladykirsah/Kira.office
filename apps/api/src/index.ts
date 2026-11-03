@@ -90,6 +90,7 @@ import {
   isPracticeCopy,
   type CouponAppliesTo,
   type CouponScope,
+  unknownTermsFields,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -5452,10 +5453,18 @@ export interface PartsSetupRow {
   nameEn: string | null;
 }
 
+/** One of a category's products, as AirPlus names it, for เกี่ยวกับสินค้าประเภทนี้'s ตัวอย่าง. */
+export interface CategorySample {
+  name: string;
+  brand: string | null;
+  description: string | null;
+}
+
 /**
  * Everything ตั้งค่าอะไหล่ shows in one read: part brands (logo + product count), car systems, and
- * categories (system, warranty, picture, AirPlus description, product count). Counts include every
- * product row, any status — the same rows the delete guard counts, so "no delete" and the 409 agree.
+ * categories (system, warranty, picture, AirPlus description and เงื่อนไข, product count, and one
+ * product for ตัวอย่าง — a live one first). Counts include every product row, any status — the same
+ * rows the delete guard counts, so "no delete" and the 409 agree.
  */
 export async function listPartsSetup(db: D1Database): Promise<{
   brands: (PartsSetupRow & { imageKey: string | null; productCount: number })[];
@@ -5465,11 +5474,13 @@ export async function listPartsSetup(db: D1Database): Promise<{
     warrantyDays: number | null;
     imageKey: string | null;
     description: string | null;
+    terms: string | null;
+    sample: CategorySample | null;
     productCount: number;
   })[];
 }> {
   const names = "t.id, t.name, t.name_th AS nameTh, t.name_en AS nameEn";
-  const [brands, systems, categories] = await Promise.all([
+  const [brands, systems, categories, samples] = await Promise.all([
     db
       .prepare(
         `SELECT ${names}, t.image_key AS imageKey,
@@ -5481,17 +5492,50 @@ export async function listPartsSetup(db: D1Database): Promise<{
     db
       .prepare(
         `SELECT ${names}, t.usage_id AS usageId, t.warranty_days AS warrantyDays,
-                t.image_key AS imageKey, t.description,
+                t.image_key AS imageKey, t.description, t.terms,
                 (SELECT COUNT(*) FROM products p WHERE p.type_id = t.id) AS productCount
            FROM product_types t ORDER BY t.sort_order, t.name`,
       )
       .all(),
+    db
+      .prepare(
+        `SELECT p.type_id AS typeId, p.name, b.name AS brand, p.description
+           FROM products p LEFT JOIN brands b ON b.id = p.brand_id
+          WHERE p.id = (SELECT q.id FROM products q WHERE q.type_id = p.type_id
+                         ORDER BY (q.status = 'active') DESC, q.created_at, q.id LIMIT 1)`,
+      )
+      .all<CategorySample & { typeId: string }>(),
   ]);
+  const sampleOf = new Map((samples.results ?? []).map(({ typeId, ...s }) => [typeId, s] as const));
   return {
     brands: (brands.results ?? []) as never,
     systems: (systems.results ?? []) as never,
-    categories: (categories.results ?? []) as never,
+    categories: ((categories.results ?? []) as { id: string }[]).map((c) => ({
+      ...c,
+      sample: sampleOf.get(c.id) ?? null,
+    })) as never,
   };
+}
+
+/**
+ * Set (or clear) a category's เงื่อนไข — shown on each of its products' AirPlus page with the
+ * product's fill-ins. Trimmed; blank clears it. "unknown" names any {{fill-in}} a product can't fill.
+ */
+export async function setTypeTerms(
+  db: D1Database,
+  id: string,
+  terms: unknown,
+): Promise<"ok" | "not-found" | { unknown: string[] }> {
+  const text = typeof terms === "string" ? terms.trim() : "";
+  const unknown = unknownTermsFields(text);
+  if (unknown.length > 0) return { unknown };
+  const found = await db.prepare("SELECT id FROM product_types WHERE id = ?").bind(id).first();
+  if (!found) return "not-found";
+  await db
+    .prepare("UPDATE product_types SET terms = ? WHERE id = ?")
+    .bind(text === "" ? null : text, id)
+    .run();
+  return "ok";
 }
 
 /**
@@ -8161,6 +8205,15 @@ const worker = {
         body.description,
       );
       return ok ? json({ ok: true }) : json({ error: "not found" }, 404);
+    }
+    // A category's เงื่อนไข (each of its products' AirPlus page shows it, filled in).
+    const typeTerms = url.pathname.match(/^\/product-types\/([^/]+)\/terms$/);
+    if (typeTerms && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { terms?: unknown };
+      const out = await setTypeTerms(env.DB, decodeURIComponent(typeTerms[1]!), body.terms);
+      if (out === "not-found") return json({ error: "not found" }, 404);
+      if (out !== "ok") return json({ error: "unknown fill-in", fields: out.unknown }, 400);
+      return json({ ok: true });
     }
     // Warranty/return window per product category — read for the settings page…
     if (url.pathname === "/product-types/warranty" && request.method === "GET") {

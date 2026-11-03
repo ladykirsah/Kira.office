@@ -161,8 +161,15 @@ function ListPicture(props: { imageKey: string | null; name: string }) {
   );
 }
 
-/** The details sheet's คำอธิบายบน AirPlus: the first lines, tap to read it all. */
-export function DescriptionCard(props: { label: string; preview: string; onPress: () => void }) {
+/**
+ * เกี่ยวกับสินค้าประเภทนี้ on a category's details: its คำอธิบาย and เงื่อนไข, a few lines of each under
+ * their names (ยังไม่มี when empty); tap to read them whole.
+ */
+export function AboutCard(props: {
+  label: string;
+  parts: { label: string; text: string; empty: boolean }[];
+  onPress: () => void;
+}) {
   const { theme } = useTheme();
   return (
     <Pressable
@@ -174,7 +181,14 @@ export function DescriptionCard(props: { label: string; preview: string; onPress
         <Text style={[TYPE.subhead, styles.grow, { color: theme.textMuted }]}>{props.label}</Text>
         <Chevron />
       </View>
-      <Text style={[TYPE.subhead, styles.descText, { color: theme.text }]}>{props.preview}</Text>
+      {props.parts.map((p) => (
+        <View key={p.label} style={styles.aboutPart}>
+          <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{p.label}</Text>
+          <Text style={[TYPE.subhead, { color: p.empty ? theme.textMuted : theme.text }]}>
+            {p.text}
+          </Text>
+        </View>
+      ))}
     </Pressable>
   );
 }
@@ -245,6 +259,6 @@ const styles = StyleSheet.create({
   listPicture: { width: LIST_TILE - 2, height: LIST_TILE - 2 },
   underWords: { height: StyleSheet.hairlineWidth, marginLeft: SPACE.l + LIST_TILE + 10 },
   descCard: { borderRadius: 20, paddingTop: 12, paddingBottom: 14, paddingHorizontal: SPACE.l },
-  descText: { marginTop: 6 },
+  aboutPart: { marginTop: 10, gap: 2 },
   deleteRow: { minHeight: 52, justifyContent: "center", paddingHorizontal: SPACE.l },
 });
