@@ -2542,14 +2542,31 @@ const SALES_SELECT = `SELECT s.id,
         s.sale_type AS saleType,
         s.license_plate AS licensePlate,
         s.vehicle AS vehicle,
+        s.buyer_name AS buyerName,
+        (SELECT c.plate_province FROM customers c WHERE c.license_plate = s.license_plate)
+          AS plateProvince,
         COALESCE(
           (SELECT SUM(gross_profit_satang) FROM onsite_sale_lines WHERE onsite_sale_id = s.id),
           0
-        ) AS grossProfitSatang
+        ) AS grossProfitSatang,
+        (SELECT COUNT(*) FROM onsite_sale_lines
+          WHERE onsite_sale_id = s.id AND line_type = 'part') AS partLineCount
  FROM onsite_sales s
- WHERE s.stage = 'bill'
+ WHERE s.stage = 'bill'`;
+
+/** The latest 100 bills — the old finance page and the CSV export. */
+const SALES_RECENT = `${SALES_SELECT}
  ORDER BY s.created_at DESC
  LIMIT 100`;
+
+/**
+ * Every bill in [from, to) — the Expo การเงิน page totals a whole period, so it cannot work from
+ * the latest 100 (a busy month, or ทุกวัน, would leave bills out of รายได้ and กำไร). The cap only
+ * guards against a runaway request; a shop's year of bills sits well inside it.
+ */
+const SALES_IN_RANGE = `${SALES_SELECT} AND s.created_at >= ? AND s.created_at < ?
+ ORDER BY s.created_at DESC
+ LIMIT 20000`;
 
 /** Finance summary: on-site sales revenue/VAT/profit + refund totals (all-time). */
 async function financeSummary(env: Env): Promise<Response> {
@@ -4097,13 +4114,23 @@ export async function expireUnpaidOrders(
 }
 
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
-async function querySales(db: D1Database): Promise<SaleExportRow[]> {
-  const { results } = await db.prepare(SALES_SELECT).all<SaleExportRow>();
+async function querySales(
+  db: D1Database,
+  range?: { from: number; to: number },
+): Promise<SaleExportRow[]> {
+  const stmt = range
+    ? db.prepare(SALES_IN_RANGE).bind(range.from, range.to)
+    : db.prepare(SALES_RECENT);
+  const { results } = await stmt.all<SaleExportRow>();
   return results ?? [];
 }
 
-async function listSales(env: Env): Promise<Response> {
-  return json({ sales: await querySales(env.DB) });
+async function listSales(env: Env, url: URL): Promise<Response> {
+  const from = Number(url.searchParams.get("from"));
+  const to = Number(url.searchParams.get("to"));
+  const ranged =
+    url.searchParams.has("from") && Number.isFinite(from) && Number.isFinite(to) && to > from;
+  return json({ sales: await querySales(env.DB, ranged ? { from, to } : undefined) });
 }
 
 // ── Finance expenses ─────────────────────────────────────────────────────────────────────────────
@@ -4117,17 +4144,29 @@ interface ExpenseRow {
   note: string | null;
   occurredAt: number;
   createdAt: number;
+  /** A slip is kept (0098); the image itself is GET /finance/expenses/:id/slip. */
+  hasSlip: boolean;
 }
+
+const EXPENSE_COLUMNS = `id, channel, conversion, amount_satang AS amountSatang, note,
+              occurred_at AS occurredAt, created_at AS createdAt,
+              CAST(slip_key IS NOT NULL AS INTEGER) AS hasSlip`;
+
+const expenseRow = (
+  r: Omit<ExpenseRow, "hasSlip"> & { hasSlip: number | boolean },
+): ExpenseRow => ({
+  ...r,
+  hasSlip: Boolean(r.hasSlip),
+});
 
 async function queryExpenses(db: D1Database): Promise<ExpenseRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, channel, conversion, amount_satang AS amountSatang, note,
-              occurred_at AS occurredAt, created_at AS createdAt
+      `SELECT ${EXPENSE_COLUMNS}
        FROM expenses WHERE archived = 0 ORDER BY occurred_at DESC, created_at DESC`,
     )
     .all<ExpenseRow>();
-  return results ?? [];
+  return (results ?? []).map(expenseRow);
 }
 
 async function createExpenseInDb(
@@ -4159,6 +4198,7 @@ async function createExpenseInDb(
       note,
       occurredAt: input.occurredAt!,
       createdAt: now,
+      hasSlip: false,
     },
   };
 }
@@ -4182,14 +4222,51 @@ async function updateExpenseInDb(
     .run();
   if (!res.meta.changes) return { ok: false, error: "expense not found", status: 404 };
   const row = await db
-    .prepare(
-      `SELECT id, channel, conversion, amount_satang AS amountSatang, note,
-              occurred_at AS occurredAt, created_at AS createdAt
-       FROM expenses WHERE id = ?`,
-    )
+    .prepare(`SELECT ${EXPENSE_COLUMNS} FROM expenses WHERE id = ?`)
     .bind(id)
     .first<ExpenseRow>();
-  return { ok: true, expense: row! };
+  return { ok: true, expense: expenseRow(row!) };
+}
+
+/**
+ * Keep a slip on an expense (0098). The image goes to R2 first and the row names it only after,
+ * so an expense never claims a slip whose upload failed. A deleted or unknown expense stores
+ * nothing. A new slip replaces the old one (📎 เปลี่ยนรูป).
+ */
+async function putExpenseSlip(env: Env, id: string, request: Request): Promise<Response> {
+  const live = await env.DB.prepare(`SELECT id FROM expenses WHERE id = ? AND archived = 0`)
+    .bind(id)
+    .first<{ id: string }>();
+  if (!live) return json({ ok: false, error: "expense not found" }, 404);
+  const bytes = await request.arrayBuffer();
+  const contentType = request.headers.get("content-type") ?? "";
+  const problem = photoUploadProblem(contentType, bytes.byteLength);
+  if (problem) return problem;
+  const key = `expense-slip/${id}/${crypto.randomUUID()}.jpg`;
+  await env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+  await env.DB.prepare(`UPDATE expenses SET slip_key = ? WHERE id = ? AND archived = 0`)
+    .bind(key, id)
+    .run();
+  return json({ ok: true });
+}
+
+/** The slip image, private like a wage slip (it carries bank details); one 404 for "none". */
+async function getExpenseSlip(env: Env, id: string): Promise<Response> {
+  const row = await env.DB.prepare(
+    `SELECT slip_key AS slipKey FROM expenses WHERE id = ? AND archived = 0`,
+  )
+    .bind(id)
+    .first<{ slipKey: string | null }>();
+  if (!row?.slipKey) return json({ error: "not found" }, 404);
+  const object = await retryRead(() => env.IMAGES.get(row.slipKey!));
+  if (!object) return json({ error: "not found" }, 404);
+  return new Response(object.body, {
+    headers: {
+      ...responseHeaders,
+      "content-type": object.httpMetadata?.contentType ?? "image/jpeg",
+      "cache-control": "private, max-age=60",
+    },
+  });
 }
 
 /** Soft-delete an expense (archived = 1) — per the soft-delete invariant, no hard deletes. */
@@ -5600,6 +5677,11 @@ export async function listServices(db: D1Database): Promise<ServiceRow[]> {
     )
     .all<ServiceRow>();
   return results ?? [];
+}
+
+/** A service's starting price: whole satang, ฿0 allowed — the price is set on the bill (owner, 3 Nov 2026). */
+function isServicePrice(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0;
 }
 
 /** Add a service (name + base price in satang). Idempotent on name (case-insensitive). */
@@ -7558,7 +7640,7 @@ const worker = {
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {
-      return listSales(env);
+      return listSales(env, url);
     }
 
     if (url.pathname === "/finance/expenses" && request.method === "GET") {
@@ -7568,6 +7650,13 @@ const worker = {
       const body = (await request.json().catch(() => ({}))) as Partial<ExpenseInput>;
       const result = await createExpenseInDb(env.DB, body);
       return json(result, result.ok ? 200 : 400);
+    }
+    const expenseSlip = url.pathname.match(/^\/finance\/expenses\/([^/]+)\/slip$/);
+    if (expenseSlip && request.method === "PUT") {
+      return putExpenseSlip(env, decodeURIComponent(expenseSlip[1]!), request);
+    }
+    if (expenseSlip && request.method === "GET") {
+      return getExpenseSlip(env, decodeURIComponent(expenseSlip[1]!));
     }
     const expenseId = url.pathname.match(/^\/finance\/expenses\/([^/]+)$/);
     if (expenseId && request.method === "PUT") {
@@ -8085,8 +8174,8 @@ const worker = {
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      if (!body.basePriceSatang || body.basePriceSatang <= 0)
-        return json({ error: "basePriceSatang must be greater than 0" }, 400);
+      if (!isServicePrice(body.basePriceSatang))
+        return json({ error: "basePriceSatang must be a whole number of satang, 0 or more" }, 400);
       return json(
         await addService(env.DB, body.name, body.nameEn ?? "", body.basePriceSatang),
         201,
@@ -8100,8 +8189,8 @@ const worker = {
         basePriceSatang?: number;
       };
       if (!body?.name?.trim()) return json({ error: "name is required" }, 400);
-      if (!body.basePriceSatang || body.basePriceSatang <= 0)
-        return json({ error: "basePriceSatang must be greater than 0" }, 400);
+      if (!isServicePrice(body.basePriceSatang))
+        return json({ error: "basePriceSatang must be a whole number of satang, 0 or more" }, 400);
       await updateService(env.DB, serviceById[1]!, {
         name: body.name,
         nameEn: body.nameEn ?? "",

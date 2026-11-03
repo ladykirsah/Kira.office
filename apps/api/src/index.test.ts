@@ -591,9 +591,29 @@ describe("services (bilingual name_en)", () => {
     expect(update?.binds).toEqual(["Wash", "Coil cleaning", 120000, "sv1"]);
   });
 
-  it("POST /services > rejects a zero or absent price with 400", async () => {
+  // Owner, 3 Nov 2026: "service be set as 0 THB / fix the bug" — a service's starting price can
+  // be ฿0 (the price is set on the bill); only a missing, negative or part-satang price is refused.
+  it("POST /services > given a ฿0 price > then saves it", async () => {
     const { env } = makeDb({});
-    for (const body of [{ name: "Free check", basePriceSatang: 0 }, { name: "No price" }]) {
+    const res = await fetchAuthed(
+      new Request("https://x/services", {
+        method: "POST",
+        body: JSON.stringify({ name: "Free check", basePriceSatang: 0 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ name: "Free check", basePriceSatang: 0 });
+  });
+
+  it("POST /services > given no, a negative or a part-satang price > then 400", async () => {
+    const { env } = makeDb({});
+    for (const body of [
+      { name: "No price" },
+      { name: "Minus", basePriceSatang: -100 },
+      { name: "Half", basePriceSatang: 10.5 },
+    ]) {
       const res = await fetchAuthed(
         new Request("https://x/services", { method: "POST", body: JSON.stringify(body) }),
         env,
@@ -603,12 +623,27 @@ describe("services (bilingual name_en)", () => {
     }
   });
 
-  it("PATCH /services/:id > rejects a zero price with 400", async () => {
-    const { env } = makeDb({});
+  it("PATCH /services/:id > given a ฿0 price > then saves it", async () => {
+    const { env, runs } = makeDb({});
     const res = await fetchAuthed(
       new Request("https://x/services/sv1", {
         method: "PATCH",
         body: JSON.stringify({ name: "Wash", basePriceSatang: 0 }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const update = runs.find((r) => r.sql.includes("UPDATE services SET name ="));
+    expect(update?.binds).toEqual(["Wash", "", 0, "sv1"]);
+  });
+
+  it("PATCH /services/:id > given a negative price > then 400", async () => {
+    const { env } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/services/sv1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Wash", basePriceSatang: -1 }),
       }),
       env,
       ctx,
@@ -11907,5 +11942,173 @@ describe("getStorefrontCustomerDetail > each order lists its items", () => {
       ["o-old", ["พัดลมแอร์ DENSO"]],
       ["o-empty", []],
     ]);
+  });
+});
+
+// The Expo การเงิน page (owner, 2 Nov 2026) totals a whole period on the phone. The bill list was the
+// latest 100 only, so a busy month — or ทุกวัน — would quietly leave bills out of รายได้ and กำไร.
+describe("GET /sales > given a date range", () => {
+  const DAY = 86_400_000;
+  const FROM = Date.UTC(2026, 9, 1);
+  const TO = Date.UTC(2026, 10, 1);
+
+  function seed() {
+    const raw = migratedDb();
+    const bill = (id: string, at: number, stage = "bill", buyer: string | null = null) =>
+      raw
+        .prepare(
+          `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, stage, sale_status,
+                                     grand_total_satang, buyer_name, created_at)
+           VALUES (?, ?, ?, ?, ?, 'completed', 100000, ?, ?)`,
+        )
+        .run(id, `u-${id}`, `N-${id}`, buyer ? null : "1กก 1234", stage, buyer, at);
+    const line = (id: string, saleId: string, type: string, profit: number) =>
+      raw
+        .prepare(
+          `INSERT INTO onsite_sale_lines (id, onsite_sale_id, quantity, unit_price_satang, line_type,
+                                          description, gross_profit_satang)
+           VALUES (?, ?, 1, 100, ?, 'x', ?)`,
+        )
+        .run(id, saleId, type, profit);
+    raw
+      .prepare(
+        `INSERT INTO customers (id, license_plate, plate_province, created_at, updated_at)
+         VALUES ('c1', '1กก 1234', 'กรุงเทพมหานคร', 1, 1)`,
+      )
+      .run();
+    bill("before", FROM - DAY);
+    bill("mixed", FROM + DAY);
+    line("m1", "mixed", "part", 30000);
+    line("m2", "mixed", "service", 12000);
+    line("m3", "mixed", "part", 5000);
+    bill("walkin", FROM + 2 * DAY, "bill", "ราคาช่าง");
+    line("w1", "walkin", "part", 7000);
+    bill("quote", FROM + 3 * DAY, "quotation");
+    bill("after", TO);
+    return raw;
+  }
+
+  // Through the real route, signed in as a real owner session on the same database.
+  const get = async (raw: ReturnType<typeof migratedDb>, query: string) => {
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('boss', 'Boss', 'boss@shop.test', 'super_admin', 'active', 1)`,
+      )
+      .run();
+    const db = asD1(raw);
+    const { token } = await createStaffSession(db, "boss", Date.now());
+    const req = new Request(`https://x/sales${query}`, { headers: { "X-Staff-Session": token } });
+    return (await (await worker.fetch!(req, { DB: db } as Env, ctx)).json()) as {
+      sales: {
+        id: string;
+        buyerName: string | null;
+        plateProvince: string | null;
+        partLineCount: number;
+      }[];
+    };
+  };
+
+  it("then only that range's bills, newest first, each with its plate's province", async () => {
+    const { sales } = await get(seed(), `?from=${FROM}&to=${TO}`);
+    expect(sales.map((s) => s.id)).toEqual(["walkin", "mixed"]);
+    expect(sales[1]).toMatchObject({ plateProvince: "กรุงเทพมหานคร", partLineCount: 2 });
+    expect(sales[0]).toMatchObject({ buyerName: "ราคาช่าง", plateProvince: null });
+    expect(sales[1]).not.toHaveProperty("partProfitSatang");
+  });
+
+  it("then more than 100 bills in the range all come back", async () => {
+    const raw = seed();
+    for (let i = 0; i < 120; i++) {
+      raw
+        .prepare(
+          `INSERT INTO onsite_sales (id, client_uuid, stage, sale_status, created_at)
+           VALUES (?, ?, 'bill', 'completed', ?)`,
+        )
+        .run(`many-${i}`, `u-many-${i}`, FROM + 5 * DAY + i);
+    }
+    const { sales } = await get(raw, `?from=${FROM}&to=${TO}`);
+    expect(sales).toHaveLength(122);
+  });
+});
+
+describe('expense slip (owner, 2 Nov 2026: "able to insert slip for expenses")', () => {
+  function setup() {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('boss', 'Boss', 'boss@shop.test', 'super_admin', 'active', 1)`,
+      )
+      .run();
+    raw
+      .prepare(
+        `INSERT INTO expenses (id, channel, conversion, amount_satang, occurred_at, created_at, archived)
+         VALUES ('e1', 'airplus', 'ค่าโฆษณา Facebook', 115000, 1, 1, 0),
+                ('gone', 'onsite', 'ค่าไฟร้าน', 385000, 1, 1, 1)`,
+      )
+      .run();
+    const stored = new Map<string, { bytes: ArrayBuffer; type: string }>();
+    const bucket = {
+      put: async (
+        key: string,
+        bytes: ArrayBuffer,
+        opts: { httpMetadata: { contentType: string } },
+      ) => {
+        stored.set(key, { bytes, type: opts.httpMetadata.contentType });
+      },
+      get: async (key: string) => {
+        const o = stored.get(key);
+        return o ? { body: new Uint8Array(o.bytes), httpMetadata: { contentType: o.type } } : null;
+      },
+    } as unknown as R2Bucket;
+    const db = asD1(raw);
+    const env = { DB: db, IMAGES: bucket } as unknown as Env;
+    const send = async (method: string, path: string, body?: BodyInit, type?: string) => {
+      const { token } = await createStaffSession(db, "boss", Date.now());
+      const headers: Record<string, string> = { "X-Staff-Session": token };
+      if (type) headers["content-type"] = type;
+      return worker.fetch!(new Request(`https://x${path}`, { method, headers, body }), env, ctx);
+    };
+    return { send, stored };
+  }
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+
+  it("expense slip > given an expense > when a slip is put > then the list says so and GET shows it", async () => {
+    const { send } = setup();
+    const put = await send("PUT", "/finance/expenses/e1/slip", JPEG, "image/jpeg");
+    expect(put.status).toBe(200);
+    const list = (await (await send("GET", "/finance/expenses")).json()) as {
+      expenses: { id: string; hasSlip: boolean }[];
+    };
+    expect(list.expenses.find((e) => e.id === "e1")?.hasSlip).toBe(true);
+    const got = await send("GET", "/finance/expenses/e1/slip");
+    expect(got.status).toBe(200);
+    expect(got.headers.get("content-type")).toBe("image/jpeg");
+    expect(got.headers.get("access-control-allow-origin")).toBeTruthy();
+    expect(new Uint8Array(await got.arrayBuffer())).toEqual(JPEG);
+  });
+
+  it("expense slip > given no slip yet > then hasSlip is false and GET is 404", async () => {
+    const { send } = setup();
+    const list = (await (await send("GET", "/finance/expenses")).json()) as {
+      expenses: { id: string; hasSlip: boolean }[];
+    };
+    expect(list.expenses.find((e) => e.id === "e1")?.hasSlip).toBe(false);
+    expect((await send("GET", "/finance/expenses/e1/slip")).status).toBe(404);
+  });
+
+  it("expense slip > given an SVG > refused, nothing stored", async () => {
+    const { send, stored } = setup();
+    const res = await send("PUT", "/finance/expenses/e1/slip", "<svg/>", "image/svg+xml");
+    expect(res.status).toBe(400);
+    expect(stored.size).toBe(0);
+  });
+
+  it("expense slip > given a deleted expense > 404, nothing stored", async () => {
+    const { send, stored } = setup();
+    const res = await send("PUT", "/finance/expenses/gone/slip", JPEG, "image/jpeg");
+    expect(res.status).toBe(404);
+    expect(stored.size).toBe(0);
   });
 });

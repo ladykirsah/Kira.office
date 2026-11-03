@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-11-02
+timestamp: 2026-11-03
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -246,6 +246,18 @@ again before saying a build matches.** The owner's words are quoted where they s
   round buttons on the photo's corner: ⬇ save and 📎 change — *"change เปลี่ยน to be in attach
   icon"*, *"change save button to be like เปลี่ยน in the same place"*. Mock it with the owner's real
   picture: *"use the pic i sent you for slip mock"* (พนักงาน, 2 Nov).
+- **The ＋ lives on the main page only.** A shop's sub-page doesn't repeat the main page's ＋: *"no
+  need + button on Shop page just the main page is enough"* (การเงิน, 2 Nov). A form opened from the
+  main page starts on the first shop.
+- **Pages of two shops read the same way.** Den Air's page had a goods/service split AirPlus didn't:
+  *"make the Den Air page to have the same pattern as AirPlus"* (การเงิน, 2 Nov) — same parts, same
+  order; only the rows' words differ (bill vs order).
+- **A money page shows a line graph that follows the period menu.** *"make it more trackable like
+  adding graph"*, *"based on time selection"*, *"i want line graph"* (การเงิน, 2 Nov). Under the two
+  hero cards: วันนี้ by hour · 7 / 30 วัน and เดือนก่อน by day · เดือนนี้ added up against last month
+  (dashed grey, with นำ / ตามเดือนก่อน ▲▼฿) · ทุกวัน by month · กำหนดเอง by its length (1 day / 2 months
+  / 6 months / longer). Blue = รายได้, orange = กำไร after expenses, and each hero card carries its
+  line's dot. A tap reads that point on the graph's top line. The shop pages show the same graph.
 - **One ＋ for every "add" on a page.** The header ＋ opens a small menu under it: the main add first
   (เพิ่มคน), a gap, then the records (บันทึกวันหยุด · จ่ายเงินเดือน · บันทึกเงินเบิก). *"merge that 2
   shortcut into the + button"*. Different money stays separate: *"i want paying salary and advance
@@ -261,7 +273,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 - **Button labels are short verbs**: เพิ่มสินค้า, ออกบิล, บันทึก, จ่ายเงิน. No counts and no
   result text on buttons. *"I WANT IT CLEAN AND CLEAR + EASY TO USE."*
-  - Only a button that moves money names the amount, e.g. "ยืนยันการชำระเงิน ฿1,450".
+  - **No amount either, even when the button moves money.** The refund confirm "คืนเงิน ฿4,060"
+    became "คืนเงิน"; the amount is already on the sheet above it. *"i want all button label to be
+    simple just like most approved pages"*, *"ยกเลิก is an example"* (การเงิน, 3 Nov). This replaces
+    the old line "only a button that moves money names the amount". ออเดอร์, พนักงาน's pay sheet and
+    การชำระเงิน still carry amounts or counts; they change in their own job after การเงิน.
+  - A red text row in แก้ไข names its thing: ลบคูปอง, ลบแบนเนอร์, ลบค่าใช้จ่าย.
 - **Money on screens:** ฿1,450 (comma, no .00, normal font). Only the printed bill keeps .00.
   Don't show money where it isn't needed: *"no need to mention money here"* (Orders rows).
 - **Cost always comes before price.** One ราคา list: the first row is ต้นทุน (the total cost), then
@@ -280,6 +297,9 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **The name is always the first box of a form.** A new section the owner calls "the 1st section"
   goes right after it: *"sorry coupon name = 1st section"* (คูปอง, 1 Nov). คูปอง reads ชื่อคูปอง →
   ประเภท → ส่วนลด → โค้ดและสิทธิ์, with เปิดใช้ alone at the bottom of แก้คูปอง.
+  - **Except the shop.** A record that belongs to Den Air Service or AirPlus picks the shop first,
+    then its name: เพิ่มค่าใช้จ่าย reads ร้าน → รายการ → จำนวนเงิน · วันที่ · หมายเหตุ → สลิป. *"shop and
+    รายการ swap position"* (การเงิน, 2 Nov) — the same as the store picker above.
 - **What and who stay separate rows.** ใช้กับ picks products; ใครใช้ได้ picks ทุกคน or ลูกค้าใหม่. The
   owner looked for ลูกค้าใหม่ in the ใช้กับ sheet, heard why it sits apart (a coupon can be both "only
   DENSO" and "only new customers"), and kept it: *"drop it the current one is good"* (คูปอง, 1 Nov).
@@ -329,6 +349,10 @@ again before saying a build matches.** The owner's words are quoted where they s
   is a real answer where it means "none" (ลดสูงสุด ฿0 = no cap, ซื้อขั้นต่ำ ฿0 = no minimum). *"these
   error logics do not necessary > remove / admin can refill anything first or late / 0 THB is
   available … / the error appear only some are missing"* (คูปอง, 1 Nov).
+  - **A service can cost ฿0 too.** I drew "ราคาต้องมากกว่า ฿0" because the server refused it; the
+    owner called that a bug: *"service be set as 0 THB / fix the bug"* (ตั้งค่าบริการ, 3 Nov). The
+    server now takes any whole price from ฿0. Before drawing a refusal, ask whether it fits the shop,
+    not only whether the server says it.
 - **Who made a record comes from the sign-in.** สร้างโดย is filled by the server from the signed-in
   account, never typed; records made before the shop kept it show —. *"please file it 'who create the
   coupon' from logged in account"* (คูปอง, 1 Nov).
@@ -378,6 +402,16 @@ again before saying a build matches.** The owner's words are quoted where they s
   keep just main point to show"* · *"replace phone no. with user ID"* (ลูกค้า, 30 Oct).
 - **A record shows its day, not its clock time.** The ledger keeps the time, but ประวัติซื้อขาย shows
   วันนี้ / เมื่อวาน / 27 ต.ค. only: *"we did not collect time only date"* (1 Nov).
+  - **I broke this and the plate rule again on การเงิน** — the drawn bill rows showed a clock time
+    and the car model beside the plate: *"i told you so many time that "NO TIME" don't show time, and
+    only keep plate > remove model"* (2 Nov). Before showing any list or record sheet, search the drawing and the code
+    for a clock time (`:`, clockTime) and for a car model next to a plate. A plate row reads
+    "1กก 1234 กรุงเทพมหานคร", nothing more; the sheet's row is วันที่ with the day only.
+- **A money list holds money in and money out.** A shop's page lists its bills (or orders) and its
+  expenses together, by day; an expense row reads its name, "ค่าใช้จ่าย" under it and −฿3,850.
+  *"make sure the list included both of income and expenses"* (การเงิน, 2 Nov). Search finds both.
+- **Don't split money the owner doesn't split.** Den Air's goods-vs-service profit and its
+  ทั้งหมด / สินค้า / บริการ filter went: *"no separate product and service"* (การเงิน, 2 Nov).
 - **A bill page shows no time.** Each item shows its brand · unit price × quantity, with the line
   amount on the right. *"remove time show the list where there are details about product brand
   and 2 amounts"* (ลูกค้า, 30 Oct).
@@ -506,6 +540,20 @@ again before saying a build matches.** The owner's words are quoted where they s
   you show me on artifact"* (1 Nov). Look at every date, time and pick box on the iPhone simulator.
 - **Bring the preview tab to the front before tapping.** With the pane hidden or another tab in front,
   sheets open slowly and taps land on what was under them (the ทำบิล tab, 1 Nov).
+  - A hidden pane draws **no frames at all**, so a graph never learns its width and the first tap reads
+    the first point. Take a screenshot (it draws one frame) before tapping, and don't chase that
+    "bug" in the code (การเงิน, 3 Nov).
+- **A title strip must not cover the ‹ back.** The expense page's full-width top row (marginTop −44,
+  holding แก้ไข) sat over the back pill, so a real tap did nothing — only a scripted click worked. Float
+  the pill alone (`alignSelf: "flex-end", marginTop: -44`, like คูปอง). Tap ‹ and ยกเลิก with a real
+  click on every new page. พนักงาน's person page and ข้อมูลร้าน have the same fault; they get their own
+  fix after การเงิน (3 Nov).
+- **Check a graph with nothing, with only a loss, and against a longer month.** การเงิน's graph showed
+  "฿0.01" at the top on a day with only an expense, and last month's 31 days ran off a 30-day axis;
+  both were fixed before the owner saw them (3 Nov).
+- **A change made during review goes on the canvas too, in the same step.** I fixed the refund button
+  on the preview only; the owner was looking at the drawing and sent it again (*"ยกเลิก is an
+  example"*). Change both, then say both changed (การเงิน, 3 Nov).
 - **Read this rulebook again at the start of a build**, not only before drawing.
 - **Before adding what the owner asks for, look for where the page already shows it.** *"AirPlus
   also need full address"* — I added a ที่อยู่ผู้ส่ง row, but the shop's address was already at the
@@ -516,6 +564,8 @@ again before saying a build matches.** The owner's words are quoted where they s
   a sheet that saves one list (accounts) sends just that (ข้อมูลร้าน, 2 Nov).
 - **A sheet that saves a list needs a one-at-a-time guard**: a quick second บันทึก added the account
   twice (2 Nov).
+  The guard is a ref, not a state: a double-click lands before the page redraws, so a state guard
+  lets both through (ตั้งค่าบริการ, 3 Nov — checked: one save).
 - **Thai toasts with an English word need a space**: "คัดลอกลิงก์ LINE OAแล้ว" → "…LINE OA แล้ว"
   (2 Nov).
 - **Type in the browser pane, look on the iPhone.** The simulator's typing pastes, asks permission

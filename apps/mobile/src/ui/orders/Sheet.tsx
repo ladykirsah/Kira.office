@@ -10,6 +10,8 @@ interface SheetProps {
   title: string;
   /** A second, grey line under the title — the order number. */
   sub?: string;
+  /** A small tool right after the title — การเงิน's copy mark on a bill number. */
+  titleTool?: ReactNode;
   /** Left pill; "ยกเลิก" (close) by default. */
   closeLabel?: string;
   /** A left pill that does something else than close — the filter's "ล้าง". */
@@ -64,10 +66,13 @@ export function Sheet(props: SheetProps) {
                 </Text>
               </Pressable>
             )}
-            <View style={styles.titles} pointerEvents="none">
-              <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-                {props.title}
-              </Text>
+            <View style={styles.titles} pointerEvents={props.titleTool ? "box-none" : "none"}>
+              <View style={styles.titleRow} pointerEvents="box-none">
+                <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+                  {props.title}
+                </Text>
+                {props.titleTool}
+              </View>
               {props.sub ? (
                 <Text style={[styles.sub, { color: theme.textMuted }]}>{props.sub}</Text>
               ) : null}
@@ -94,6 +99,7 @@ export function Sheet(props: SheetProps) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   topGap: { height: 54 },
   sheet: {
     maxHeight: "92%",
