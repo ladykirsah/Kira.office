@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-03
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -268,6 +268,14 @@ again before saying a build matches.** The owner's words are quoted where they s
   ผู้ติดต่อฉุกเฉิน (its own section) · งาน · บัญชีธนาคาร · เงินเดือน · วันหยุด · การเข้าใช้งาน; ติดต่อ
   shows only in แก้ไข, the phone already sits under the name: *"remove ติดต่อ > only appear on edit
   mode"*. A new-person form is a full page, not a sheet: *"make it full page not popup"* (2 Nov).
+- **A picture you set gets a big card (design C).** A small thumbnail in a row was *"too small"*;
+  the owner picked C: the picture big on the left (104 tile, rounded), its name on the right with a
+  grey เลือกรูป / เปลี่ยนรูป opening ถ่ายรูป · เลือกจากคลังภาพ · red เอารูปออก (when there is one).
+  Reading shows a grey note there instead (brand โลโก้, category รูปบนเว็บ AirPlus — ตั้งค่าอะไหล่, 3 Nov).
+- **Text a setting adds to many products lives where the owner says.** The AirPlus description is
+  per **category**, not per system: *"the detail should be based on each product, not system like
+  evaporator / valve"*. AirPlus shows one paragraph — the product's own text, one empty line, then
+  the category's: *"can we have 2 places > shown as one paragraph on AirPlus"* (ตั้งค่าอะไหล่, 3 Nov).
 
 ## 5 · Words, numbers, lists, search
 
@@ -458,6 +466,9 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Draw every combination of a flow's choices.** Two kinds × two ways = four rows: *"i want to see all
   stages · salary > bank transfer · salary > cash · advance > bank transfer · advance > cash"*, after
   *"there are some missing flow and stage i did not see it here"* (พนักงาน, 2 Nov).
+- **No notes inside a customer page mock.** I put two source pills (จาก สินค้า / จาก ตั้งค่าอะไหล่)
+  on the drawn AirPlus page: *"correct but do not show these 2 pills"*. Say where text comes from in
+  the phone's label; the mock looks exactly as the customer will see it (ตั้งค่าอะไหล่, 3 Nov).
 - **Clean up after a build.** Delete old versions and options that weren't picked, and say which
   ones went.
 - **Mockups live on the artifact only.** The preview always shows the real app.
@@ -581,6 +592,14 @@ again before saying a build matches.** The owner's words are quoted where they s
   the person simply gone from the list (พนักงาน, 2 Nov).
 - **Badges and order for people:** a one-word Thai nickname shows its first and last consonants
   (บอย → บย), owners first, then Thai name order, switched-off people last (พนักงาน, 2 Nov).
+- **Hold the top row against the drawing.** A sub-page with its own big title (แอร์) lost its ⓘ and
+  ＋: the app only drew page tools beside a large title. Tools now sit on the ‹ back row when a page
+  draws its own title — check every new sub-page's top row (ตั้งค่าอะไหล่, 3 Nov).
+- **List rows wrap; a form's summary row is one line with "…".** Making a shared row wrap fixed a
+  cut list line but turned the form's คำอธิบายบน AirPlus row into eight lines; the drawing cuts that
+  one row (ตั้งค่าอะไหล่, 3 Nov).
+- **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fits the
+  owner's iPhone 17 Pro by 2px and touches on smaller phones (ตั้งค่าอะไหล่, 3 Nov — open).
 
 ## 9 · Get the push OK in chat, early
 

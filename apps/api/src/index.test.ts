@@ -12112,3 +12112,124 @@ describe('expense slip (owner, 2 Nov 2026: "able to insert slip for expenses")',
     expect(stored.size).toBe(0);
   });
 });
+
+describe("ตั้งค่าอะไหล่ (owner, 3 Nov 2026: logos, descriptions, counts)", () => {
+  function setup() {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('boss', 'Boss', 'boss@shop.test', 'super_admin', 'active', 1)`,
+      )
+      .run();
+    raw
+      .prepare(
+        `INSERT INTO products (id, product_ref, name, status, created_at, brand_id, type_id)
+         VALUES ('p1', 'R1', 'Evap A', 'active', 1, 'br-denso', 'pt-evaporator'),
+                ('p2', 'R2', 'Evap B', 'active', 1, 'br-denso', 'pt-evaporator'),
+                ('p3', 'R3', 'Comp', 'archived', 1, 'br-sanden', 'pt-compressor')`,
+      )
+      .run();
+    raw.prepare("UPDATE product_types SET warranty_days = 365 WHERE id = 'pt-evaporator'").run();
+    const stored = new Map<string, string>();
+    const bucket = {
+      put: async (
+        key: string,
+        _b: ArrayBuffer,
+        opts: { httpMetadata: { contentType: string } },
+      ) => {
+        stored.set(key, opts.httpMetadata.contentType);
+      },
+      delete: async (key: string) => void stored.delete(key),
+    } as unknown as R2Bucket;
+    const db = asD1(raw);
+    const env = { DB: db, IMAGES: bucket } as unknown as Env;
+    const send = async (method: string, path: string, body?: BodyInit, type?: string) => {
+      const { token } = await createStaffSession(db, "boss", Date.now());
+      const headers: Record<string, string> = { "X-Staff-Session": token };
+      if (type) headers["content-type"] = type;
+      return worker.fetch!(new Request(`https://x${path}`, { method, headers, body }), env, ctx);
+    };
+    type Setup = {
+      brands: { id: string; name: string; imageKey: string | null; productCount: number }[];
+      systems: { id: string; name: string }[];
+      categories: {
+        id: string;
+        usageId: string | null;
+        warrantyDays: number | null;
+        description: string | null;
+        productCount: number;
+      }[];
+    };
+    const list = async () => (await (await send("GET", "/parts-setup")).json()) as Setup;
+    return { raw, send, list, stored };
+  }
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+
+  it("GET /parts-setup > counts every product per brand and category, with warranty and system", async () => {
+    const { list } = setup();
+    const { brands, systems, categories } = await list();
+    expect(brands.find((b) => b.id === "br-denso")?.productCount).toBe(2);
+    expect(brands.find((b) => b.id === "br-sanden")?.productCount).toBe(1); // archived still holds it
+    expect(brands.find((b) => b.id === "br-mahle")?.productCount).toBe(0);
+    expect(systems.map((s) => s.id)).toContain("uc-ac");
+    const evap = categories.find((c) => c.id === "pt-evaporator");
+    expect(evap).toMatchObject({
+      usageId: "uc-ac",
+      warrantyDays: 365,
+      description: null,
+      productCount: 2,
+    });
+  });
+
+  it("PUT /product-types/:id/description > stores the text as typed, trimmed; blank clears it", async () => {
+    const { send, list } = setup();
+    const text = "👨🏻‍🔧 คำแนะนำจากช่าง\n\n🔥 มีช่าง";
+    const put = await send(
+      "PUT",
+      "/product-types/pt-evaporator/description",
+      JSON.stringify({ description: `  ${text}\n` }),
+      "application/json",
+    );
+    expect(put.status).toBe(200);
+    expect((await list()).categories.find((c) => c.id === "pt-evaporator")?.description).toBe(text);
+    await send(
+      "PUT",
+      "/product-types/pt-evaporator/description",
+      JSON.stringify({ description: "  " }),
+      "application/json",
+    );
+    expect((await list()).categories.find((c) => c.id === "pt-evaporator")?.description).toBeNull();
+  });
+
+  it("PUT /product-types/:id/description > unknown category > 404", async () => {
+    const { send } = setup();
+    const res = await send(
+      "PUT",
+      "/product-types/nope/description",
+      JSON.stringify({ description: "x" }),
+      "application/json",
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("PUT /taxonomy-images/brand/:id > stores the logo under taxonomy/ and the list carries it; DELETE clears", async () => {
+    const { send, list, stored } = setup();
+    const put = await send("PUT", "/taxonomy-images/brand/br-denso", JPEG, "image/jpeg");
+    expect(put.status).toBe(200);
+    const key = (await list()).brands.find((b) => b.id === "br-denso")?.imageKey;
+    expect(key).toMatch(/^taxonomy\/brand-br-denso-.+\.jpg$/);
+    expect(stored.has(key!)).toBe(true);
+    expect((await send("DELETE", "/taxonomy-images/brand/br-denso")).status).toBe(200);
+    expect((await list()).brands.find((b) => b.id === "br-denso")?.imageKey).toBeNull();
+    expect(stored.size).toBe(0);
+  });
+
+  it("DELETE /attributes/usage/:id > 409 while a category is in the system; 200 once empty", async () => {
+    const { send, raw } = setup();
+    const busy = await send("DELETE", "/attributes/usage/uc-ac");
+    expect(busy.status).toBe(409);
+    raw.prepare("UPDATE product_types SET usage_id = NULL").run();
+    expect((await send("DELETE", "/attributes/usage/uc-ac")).status).toBe(200);
+  });
+});

@@ -37,4 +37,8 @@ describe("TAXONOMY_IMAGE_TABLE > maps each kind to its table", () => {
     expect(TAXONOMY_IMAGE_TABLE.type).toBe("product_types");
     expect(TAXONOMY_IMAGE_TABLE["car-brand"]).toBe("car_brands");
   });
+
+  it("points brand at brands (part-brand logos, 3 Nov 2026)", () => {
+    expect(TAXONOMY_IMAGE_TABLE.brand).toBe("brands");
+  });
 });

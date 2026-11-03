@@ -155,7 +155,18 @@ function PhoneShell({ children }: { children: ReactNode }) {
           },
         ]}
       >
-        {chrome.back && <BackPill back={chrome.back} />}
+        {chrome.ownTitle && chrome.headers.length > 0 ? (
+          // A page with its own heading keeps its tools beside the way back (ตั้งค่าอะไหล่'s ⓘ ＋).
+          <View style={s.backRow}>
+            {chrome.back && <BackPill back={chrome.back} />}
+            <View style={s.fill} />
+            {chrome.headers.map((h) => (
+              <RoundButton key={h.label} button={h} />
+            ))}
+          </View>
+        ) : (
+          chrome.back && <BackPill back={chrome.back} />
+        )}
         {!chrome.ownTitle && (
           <View style={s.titleRow}>
             <Text style={s.largeTitle} accessibilityRole="header" numberOfLines={1}>
@@ -574,6 +585,7 @@ const styles = (c: Theme) =>
       borderColor: c.glassLine,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
     },
+    backRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
     backRound: { width: 36, paddingLeft: 0, paddingRight: 0, justifyContent: "center" },
     backPlain: { paddingLeft: 14 },
     backText: { ...TYPE.body, color: c.text },

@@ -5444,6 +5444,75 @@ export async function listAttributes(db: D1Database): Promise<{
   };
 }
 
+/** One row of ตั้งค่าอะไหล่: names (`name` = identity), and how many products hold it. */
+export interface PartsSetupRow {
+  id: string;
+  name: string;
+  nameTh: string | null;
+  nameEn: string | null;
+}
+
+/**
+ * Everything ตั้งค่าอะไหล่ shows in one read: part brands (logo + product count), car systems, and
+ * categories (system, warranty, picture, AirPlus description, product count). Counts include every
+ * product row, any status — the same rows the delete guard counts, so "no delete" and the 409 agree.
+ */
+export async function listPartsSetup(db: D1Database): Promise<{
+  brands: (PartsSetupRow & { imageKey: string | null; productCount: number })[];
+  systems: PartsSetupRow[];
+  categories: (PartsSetupRow & {
+    usageId: string | null;
+    warrantyDays: number | null;
+    imageKey: string | null;
+    description: string | null;
+    productCount: number;
+  })[];
+}> {
+  const names = "t.id, t.name, t.name_th AS nameTh, t.name_en AS nameEn";
+  const [brands, systems, categories] = await Promise.all([
+    db
+      .prepare(
+        `SELECT ${names}, t.image_key AS imageKey,
+                (SELECT COUNT(*) FROM products p WHERE p.brand_id = t.id) AS productCount
+           FROM brands t ORDER BY t.sort_order, t.name`,
+      )
+      .all(),
+    db.prepare(`SELECT ${names} FROM usage_categories t ORDER BY t.sort_order, t.name`).all(),
+    db
+      .prepare(
+        `SELECT ${names}, t.usage_id AS usageId, t.warranty_days AS warrantyDays,
+                t.image_key AS imageKey, t.description,
+                (SELECT COUNT(*) FROM products p WHERE p.type_id = t.id) AS productCount
+           FROM product_types t ORDER BY t.sort_order, t.name`,
+      )
+      .all(),
+  ]);
+  return {
+    brands: (brands.results ?? []) as never,
+    systems: (systems.results ?? []) as never,
+    categories: (categories.results ?? []) as never,
+  };
+}
+
+/**
+ * Set (or clear) a category's AirPlus description — the text the website adds, after one empty line,
+ * under every one of its products' own description. Trimmed; blank clears it. False = no such category.
+ */
+export async function setTypeDescription(
+  db: D1Database,
+  id: string,
+  description: unknown,
+): Promise<boolean> {
+  const text = typeof description === "string" ? description.trim() : "";
+  const found = await db.prepare("SELECT id FROM product_types WHERE id = ?").bind(id).first();
+  if (!found) return false;
+  await db
+    .prepare("UPDATE product_types SET description = ? WHERE id = ?")
+    .bind(text === "" ? null : text, id)
+    .run();
+  return true;
+}
+
 export interface TypeWarranty {
   id: string;
   name: string;
@@ -8055,6 +8124,21 @@ const worker = {
     if (url.pathname === "/attributes" && request.method === "GET") {
       return json(await listAttributes(env.DB));
     }
+    // ตั้งค่าอะไหล่: brands, systems and categories with their product counts, in one read.
+    if (url.pathname === "/parts-setup" && request.method === "GET") {
+      return json(await listPartsSetup(env.DB));
+    }
+    // A category's AirPlus description (added under each of its products' own text on the website).
+    const typeDescription = url.pathname.match(/^\/product-types\/([^/]+)\/description$/);
+    if (typeDescription && request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { description?: unknown };
+      const ok = await setTypeDescription(
+        env.DB,
+        decodeURIComponent(typeDescription[1]!),
+        body.description,
+      );
+      return ok ? json({ ok: true }) : json({ error: "not found" }, 404);
+    }
     // Warranty/return window per product category — read for the settings page…
     if (url.pathname === "/product-types/warranty" && request.method === "GET") {
       return json(await listTypeWarranties(env.DB));
@@ -8075,8 +8159,9 @@ const worker = {
         .run();
       return json({ ok: true });
     }
-    // Cover image for a product category / car brand: PUT the raw bytes, DELETE to clear.
-    const taxImage = url.pathname.match(/^\/taxonomy-images\/(type|car-brand)\/([^/]+)$/);
+    // Cover image for a product category / car brand, logo for a part brand: PUT the raw bytes,
+    // DELETE to clear.
+    const taxImage = url.pathname.match(/^\/taxonomy-images\/(type|car-brand|brand)\/([^/]+)$/);
     if (taxImage) {
       const kind = taxImage[1] as TaxonomyImageKind;
       const id = decodeURIComponent(taxImage[2]!);
@@ -8147,6 +8232,16 @@ const worker = {
         (await countProductsUsingAttribute(env.DB, table, attrDel[2]!)) ||
         (await countFitmentsUsingAttribute(env.DB, table, attrDel[2]!));
       if (inUse > 0) return json({ error: `still used by ${inUse} product(s)`, count: inUse }, 409);
+      // A car system that still holds categories would leave them system-less: empty it first.
+      if (table === "usage_categories") {
+        const held = await env.DB.prepare(
+          "SELECT COUNT(*) AS n FROM product_types WHERE usage_id = ?",
+        )
+          .bind(attrDel[2]!)
+          .first<{ n: number }>();
+        const n = Number(held?.n ?? 0);
+        if (n > 0) return json({ error: `still holds ${n} categories`, count: n }, 409);
+      }
       await deleteAttribute(env.DB, table, attrDel[2]!);
       return json({ ok: true });
     }
