@@ -5819,19 +5819,25 @@ export async function resolveAttribute(
 }
 
 /** A car model plus its service notes, as returned in the fitment tree. */
-export interface CarModelNode extends AttrOption, CarModelInfo {}
+export interface CarModelNode extends AttrOption, CarModelInfo {
+  /** Products whose fitments name this model (under its brand) — 0 means it can be deleted. */
+  productCount?: number;
+}
 
 export interface CarBrandTree {
   id: string;
   name: string;
   /** Cover image for the storefront's car-brand tile (null → ✦ placeholder). */
   imageKey?: string | null;
+  /** Products whose fitments name this brand — the รุ่นรถที่ใช้ได้ page's ใช้ใน, and its delete. */
+  productCount?: number;
   models: CarModelNode[];
 }
 
 /** Car brands with their models nested — for the fitment dropdowns and the Car fitment settings. */
 export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrandTree[] }> {
-  const [brands, models] = await Promise.all([
+  // Fitments name the brand and model as text (see countFitmentsUsingAttribute), so count by name.
+  const [brands, models, brandUse, modelUse] = await Promise.all([
     db
       .prepare(
         "SELECT id, name, name_th AS nameTh, name_en AS nameEn, image_key AS imageKey FROM car_brands ORDER BY sort_order, name",
@@ -5855,7 +5861,22 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
         coolantLiters: string | null;
         notes: string | null;
       }>(),
+    db
+      .prepare(
+        "SELECT car_brand AS brand, COUNT(DISTINCT product_id) AS n FROM product_fitments WHERE car_brand IS NOT NULL GROUP BY car_brand",
+      )
+      .all<{ brand: string; n: number }>(),
+    db
+      .prepare(
+        "SELECT car_brand AS brand, car_model AS model, COUNT(DISTINCT product_id) AS n FROM product_fitments WHERE car_model IS NOT NULL GROUP BY car_brand, car_model",
+      )
+      .all<{ brand: string | null; model: string; n: number }>(),
   ]);
+  const brandCount = new Map((brandUse.results ?? []).map((r) => [r.brand, Number(r.n)]));
+  const modelCount = new Map(
+    (modelUse.results ?? []).map((r) => [`${r.brand ?? ""}\u0000${r.model}`, Number(r.n)]),
+  );
+  const brandName = new Map((brands.results ?? []).map((b) => [b.id, b.name]));
   const byBrand = new Map<string, CarModelNode[]>();
   for (const m of models.results ?? []) {
     if (!m.carBrandId) continue;
@@ -5871,6 +5892,7 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
       oringUsage: parseOringUsage(m.oringUsage),
       coolantLiters: m.coolantLiters ?? null,
       notes: m.notes ?? null,
+      productCount: modelCount.get(`${brandName.get(m.carBrandId) ?? ""}\u0000${m.name}`) ?? 0,
     };
     const list = byBrand.get(m.carBrandId);
     if (list) list.push(node);
@@ -5883,6 +5905,7 @@ export async function listCarFitment(db: D1Database): Promise<{ brands: CarBrand
       nameTh: b.nameTh ?? null,
       nameEn: b.nameEn ?? null,
       imageKey: b.imageKey ?? null,
+      productCount: brandCount.get(b.name) ?? 0,
       models: byBrand.get(b.id) ?? [],
     })),
   };

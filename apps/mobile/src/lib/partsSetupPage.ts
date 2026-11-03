@@ -53,6 +53,21 @@ const products = (n: number): Phrase =>
     ? { th: `${n} สินค้า`, en: `${n} products` }
     : { th: "ยังไม่มีสินค้า", en: "no products yet" };
 
+/**
+ * A list row's second line next to its picture: it may wrap between the · parts, never inside one.
+ * Spaces become no-break spaces, and a word joiner sits between letters (Thai breaks inside words);
+ * a vowel or tone mark stays glued to its letter.
+ */
+export const keepPartsWhole = (line: string): string =>
+  line
+    .split(" · ")
+    .map((part) =>
+      [...part.replace(/ /g, "\u00A0")]
+        .map((c, i) => (i === 0 || /\p{M}/u.test(c) ? c : `\u2060${c}`))
+        .join(""),
+    )
+    .join(" · ");
+
 export const brandLine = (b: Brand): Phrase =>
   line(b, [
     b.productCount > 0
@@ -172,23 +187,12 @@ export function nameProblems(
 export const canDeleteBrand = (b: Brand): boolean => b.productCount === 0;
 export const canDeleteSystem = (s: CarSystem, cats: Category[]): boolean =>
   !cats.some((c) => c.systemId === s.id);
+export const canDeleteCategory = (c: Category): boolean => c.productCount === 0;
 
 export const deleteTitle = (kind: Kind, p: PartName): Phrase => ({
   th: `ลบ${KIND_TH[kind]} ${titleOf(p)}?`,
   en: `Delete ${KIND_EN[kind]} ${p.nameEn}?`,
 });
-
-/** A category in use can't go: say how many products hold it and what to do first. */
-export const blockedDelete = (c: Category): { title: Phrase; body: Phrase } | null =>
-  c.productCount === 0
-    ? null
-    : {
-        title: { th: `ลบ ${titleOf(c)} ไม่ได้`, en: `Can't delete ${c.nameEn}` },
-        body: {
-          th: `ยังใช้อยู่ใน ${c.productCount} สินค้า · ย้ายสินค้าไปหมวดอื่นก่อน`,
-          en: `Still used by ${c.productCount} products · move them to another category first`,
-        },
-      };
 
 const wordLines = (t: string) =>
   t

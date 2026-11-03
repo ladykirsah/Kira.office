@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import {
-  blockedDelete,
+  canDeleteCategory,
   categoryDraft,
   deleteTitle,
   descriptionLine,
@@ -27,15 +27,7 @@ import { AddRow, InputRow, PickRow, SearchBox } from "../products/parts";
 import { photoPreview, pickPhoto } from "../products/pickPhoto";
 import { SPACE, TYPE } from "../theme";
 import { WRONG_PICTURE } from "./NameSheets";
-import {
-  BlockedSheet,
-  DeleteRow,
-  DeleteSheet,
-  DescriptionCard,
-  PictureCard,
-  StepRow,
-  ValueRow,
-} from "./parts";
+import { DeleteRow, DeleteSheet, DescriptionCard, PictureCard, StepRow, ValueRow } from "./parts";
 import type { PartsSetupState, PictureChange } from "./usePartsSetup";
 
 const products = (n: number) =>
@@ -451,7 +443,7 @@ function CategoryFormSheet(props: {
           }}
         />
       </Group>
-      {props.start && (
+      {props.start && canDeleteCategory(props.start) && (
         <DeleteRow
           label={t({ th: "ลบหมวดหมู่", en: "Delete category" })}
           onPress={() => props.onDelete(props.start!)}
@@ -507,9 +499,6 @@ export function CategoryFlow(props: {
       />
     );
   }
-  const blocked = blockedDelete(o.cat);
-  if (blocked)
-    return <BlockedSheet title={t(blocked.title)} body={t(blocked.body)} onClose={close} />;
   return (
     <DeleteSheet
       title={t(deleteTitle("category", o.cat))}

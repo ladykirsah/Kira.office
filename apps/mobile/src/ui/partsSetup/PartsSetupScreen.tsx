@@ -98,6 +98,7 @@ export function PartsSetupScreen() {
             key={b.id}
             label={titleOf(b)}
             second={t(brandLine(b))}
+            picture={b.imageKey}
             onPress={() => setBrandView(b)}
             last={i === brands.length - 1}
           />
@@ -149,6 +150,7 @@ export function PartsSetupScreen() {
                   key={c.id}
                   label={titleOf(c)}
                   second={t(categoryLine(c))}
+                  picture={c.imageKey}
                   onPress={() => setCat({ mode: "view", cat: c })}
                   last={i === cats.length - 1}
                 />

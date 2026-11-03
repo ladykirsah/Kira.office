@@ -88,9 +88,11 @@ export function SystemDetailsSheet(props: {
 /**
  * เพิ่มยี่ห้อ / a brand's แก้ไข, and เพิ่มระบบ / แก้ระบบ: (a brand's logo,) ชื่อไทย, ชื่ออังกฤษ, then
  * ลบ… only when nothing uses it, and บันทึก. No English name, or another one's, says so under them.
+ * รุ่นรถที่ใช้ได้'s car brands use it too: the same form with a รูปปก (owner, 3 Nov 2026: "use the same
+ * layout and pattern as on ตั้งค่าอะไหล่").
  */
 export function NameFormSheet(props: {
-  kind: "brand" | "system";
+  kind: "brand" | "system" | "carBrand";
   start: PartName | null;
   startImageKey?: string | null;
   list: PartName[];
@@ -107,15 +109,19 @@ export function NameFormSheet(props: {
   const [refused, setRefused] = useState(false);
   // A second quick tap on บันทึก lands before the page redraws, so the guard can't be a state.
   const busy = useRef(false);
-  const problems = tried ? nameProblems(props.kind, d, props.list) : {};
-  const brand = props.kind === "brand";
+  const kind = props.kind === "carBrand" ? "brand" : props.kind;
+  const problems = tried ? nameProblems(kind, d, props.list) : {};
+  const car = props.kind === "carBrand";
+  const brand = kind === "brand";
   const title = props.start
     ? brand
       ? titleOf(props.start)
       : t({ th: "แก้ระบบ", en: "Edit system" })
-    : brand
-      ? t({ th: "เพิ่มยี่ห้อ", en: "Add a brand" })
-      : t({ th: "เพิ่มระบบ", en: "Add a system" });
+    : car
+      ? t({ th: "เพิ่มยี่ห้อรถ", en: "Add a car brand" })
+      : brand
+        ? t({ th: "เพิ่มยี่ห้อ", en: "Add a brand" })
+        : t({ th: "เพิ่มระบบ", en: "Add a system" });
 
   const choose = async (source: "camera" | "library") => {
     const photo = await pickPhoto(source);
@@ -126,7 +132,7 @@ export function NameFormSheet(props: {
 
   const save = async () => {
     setTried(true);
-    if (busy.current || Object.keys(nameProblems(props.kind, d, props.list)).length > 0) return;
+    if (busy.current || Object.keys(nameProblems(kind, d, props.list)).length > 0) return;
     busy.current = true;
     setRefused(false);
     const out = await props.onSave(d, change);
@@ -138,7 +144,7 @@ export function NameFormSheet(props: {
     <Sheet title={title} onClose={props.onClose}>
       {brand && (
         <PictureCard
-          name={t({ th: "โลโก้", en: "Logo" })}
+          name={car ? t({ th: "รูปปก", en: "Cover" }) : t({ th: "โลโก้", en: "Logo" })}
           imageKey={change === "remove" ? null : (props.startImageKey ?? null)}
           preview={preview}
           onChoose={(source) => void choose(source)}
@@ -153,9 +159,11 @@ export function NameFormSheet(props: {
           label={t({ th: "ชื่อไทย", en: "Thai name" })}
           value={d.nameTh}
           placeholder={
-            brand
-              ? t({ th: "เช่น เดนโซ่", en: "e.g. เดนโซ่" })
-              : t({ th: "เช่น ระบบหล่อเย็น", en: "e.g. ระบบหล่อเย็น" })
+            car
+              ? t({ th: "เช่น ซูซูกิ", en: "e.g. ซูซูกิ" })
+              : brand
+                ? t({ th: "เช่น เดนโซ่", en: "e.g. เดนโซ่" })
+                : t({ th: "เช่น ระบบหล่อเย็น", en: "e.g. ระบบหล่อเย็น" })
           }
           onChange={(nameTh) => setD((now) => ({ ...now, nameTh }))}
         />
@@ -163,9 +171,11 @@ export function NameFormSheet(props: {
           label={t({ th: "ชื่ออังกฤษ", en: "English name" })}
           value={d.nameEn}
           placeholder={
-            brand
-              ? t({ th: "เช่น DENSO", en: "e.g. DENSO" })
-              : t({ th: "เช่น Cooling", en: "e.g. Cooling" })
+            car
+              ? t({ th: "เช่น Suzuki", en: "e.g. Suzuki" })
+              : brand
+                ? t({ th: "เช่น DENSO", en: "e.g. DENSO" })
+                : t({ th: "เช่น Cooling", en: "e.g. Cooling" })
           }
           onChange={(nameEn) => setD((now) => ({ ...now, nameEn }))}
           last

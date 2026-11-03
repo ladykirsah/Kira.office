@@ -3,10 +3,10 @@ import {
   type Brand,
   type Category,
   type CarSystem,
-  blockedDelete,
   brandLine,
   brandsTab,
   canDeleteBrand,
+  canDeleteCategory,
   canDeleteSystem,
   categoryChanges,
   categoryDraft,
@@ -17,6 +17,7 @@ import {
   descriptionPreview,
   findBrands,
   findCategories,
+  keepPartsWhole,
   nameDraft,
   nameProblems,
   sortBrands,
@@ -208,15 +209,9 @@ describe("deleting", () => {
     expect(deleteTitle("category", DRIER).th).toBe("ลบหมวดหมู่ ไดเออร์?");
   });
 
-  it("given a category still used > says why it can't go", () => {
-    expect(blockedDelete(COMPRESSOR)).toEqual({
-      title: { th: "ลบ คอมเพรสเซอร์ ไม่ได้", en: "Can't delete Compressor" },
-      body: {
-        th: "ยังใช้อยู่ใน 42 สินค้า · ย้ายสินค้าไปหมวดอื่นก่อน",
-        en: "Still used by 42 products · move them to another category first",
-      },
-    });
-    expect(blockedDelete(DRIER)).toBeNull();
+  it("given a category with products > no delete; none > delete", () => {
+    expect(canDeleteCategory(COMPRESSOR)).toBe(false);
+    expect(canDeleteCategory(DRIER)).toBe(true);
   });
 });
 
@@ -301,5 +296,25 @@ describe("drafts and what บันทึก sends", () => {
   it("given a brand or system > its names, or empty for a new one", () => {
     expect(nameDraft(DENSO)).toEqual({ id: "br-denso", nameTh: "เดนโซ่", nameEn: "DENSO" });
     expect(nameDraft()).toEqual({ id: null, nameTh: "", nameEn: "" });
+  });
+});
+
+describe("keepPartsWhole", () => {
+  const line = "Compressor · รับประกัน 1 ปี · ยังไม่มีสินค้า";
+  const out = keepPartsWhole(line);
+
+  it("given a list row's second line > reads the same", () => {
+    expect(out.replace(/\u2060/g, "").replace(/\u00A0/g, " ")).toBe(line);
+  });
+
+  it("given a part > no place to break inside it: no plain space, letters joined (no ยังไม่มี / สินค้า)", () => {
+    const parts = out.split(" · ");
+    expect(parts).toHaveLength(3);
+    expect(parts.every((p) => !p.includes(" "))).toBe(true);
+    expect(out).toContain("มี\u2060สิ\u2060น");
+  });
+
+  it("given Thai marks > they stay on their letter, never split from it", () => {
+    expect(out).not.toMatch(/\u2060[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/);
   });
 });

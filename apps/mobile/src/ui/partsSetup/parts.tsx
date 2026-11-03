@@ -1,5 +1,6 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { API_BASE } from "@/lib/config";
+import { keepPartsWhole } from "@/lib/partsSetupPage";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
 import { LineIcon } from "../LineIcon";
@@ -13,6 +14,7 @@ import { SPACE, TYPE } from "../theme";
 const PICTURE =
   "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 11.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6M21 16l-5-5-9 9";
 const TILE = 104;
+const LIST_TILE = 44;
 
 /**
  * Design C (owner's pick, 3 Nov 2026): the picture big on the left, its name on the right, in one
@@ -94,7 +96,9 @@ export function ValueRow(props: {
 
 /**
  * A row that opens something: the name, a grey second line (or a faint hint), and ›. The lists'
- * rows ("เดนโซ่ / DENSO · ใช้ใน 86 สินค้า") and a form's step rows (คำอธิบายบน AirPlus).
+ * rows ("เดนโซ่ / DENSO · ใช้ใน 86 สินค้า") and a form's step rows (คำอธิบายบน AirPlus). A list row of
+ * something with a picture (a category, a part brand) shows it on the left (owner, 3 Nov 2026: "add
+ * insert image to all these list"), and its hairline starts under the words.
  */
 export function StepRow(props: {
   label: string;
@@ -102,32 +106,58 @@ export function StepRow(props: {
   hint?: boolean;
   /** The second line cut to one line with … (a form's คำอธิบายบน AirPlus); list rows wrap. */
   oneLine?: boolean;
+  /** The saved picture's key (null = none yet, the faint mark); leave out for rows with no picture. */
+  picture?: string | null;
   onPress: () => void;
   /** In a list: a hairline under every row but the last. */
   last?: boolean;
 }) {
   const { theme } = useTheme();
+  const pictured = props.picture !== undefined;
   const row = (
     <Pressable onPress={props.onPress} accessibilityRole="button" style={styles.step}>
+      {pictured && <ListPicture imageKey={props.picture ?? null} name={props.label} />}
       <View style={styles.grow}>
         <Text style={[TYPE.body, { color: theme.text }]}>{props.label}</Text>
         <Text
           numberOfLines={props.oneLine ? 1 : undefined}
           style={[TYPE.subhead, { color: props.hint ? theme.textFaint : theme.textMuted }]}
         >
-          {props.second}
+          {pictured ? keepPartsWhole(props.second) : props.second}
         </Text>
       </View>
       <Chevron />
     </Pressable>
   );
-  return props.last === false ? (
+  if (props.last !== false) return row;
+  return (
     <View>
       {row}
-      <Divider />
+      {pictured ? (
+        <View style={[styles.underWords, { backgroundColor: theme.border }]} />
+      ) : (
+        <Divider />
+      )}
     </View>
-  ) : (
-    row
+  );
+}
+
+/** The 44px tile the Orders and product lists use: the picture, or a faint picture mark. */
+function ListPicture(props: { imageKey: string | null; name: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={[styles.listTile, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      {props.imageKey ? (
+        <Image
+          source={{ uri: `${API_BASE}/img/${props.imageKey}` }}
+          style={styles.listPicture}
+          resizeMode="contain"
+          accessibilityLabel={props.name}
+        />
+      ) : (
+        <LineIcon d={PICTURE} color={theme.textFaint} size={20} strokeWidth={1.6} />
+      )}
+    </View>
   );
 }
 
@@ -156,20 +186,6 @@ export function DeleteSheet(props: { title: string; onDelete: () => void; onClos
     <Sheet title={props.title} onClose={props.onClose} noPill>
       <BigButton label={t({ th: "ลบ", en: "Delete" })} onPress={props.onDelete} />
       <BigButton label={t({ th: "ยกเลิก", en: "Cancel" })} kind="grey" onPress={props.onClose} />
-    </Sheet>
-  );
-}
-
-/** "ลบ คอมเพรสเซอร์ ไม่ได้": why, and one grey เข้าใจแล้ว. */
-export function BlockedSheet(props: { title: string; body: string; onClose: () => void }) {
-  const { t } = useLang();
-  const { theme } = useTheme();
-  return (
-    <Sheet title={props.title} onClose={props.onClose}>
-      <Group>
-        <Text style={[TYPE.subhead, styles.blocked, { color: theme.textMuted }]}>{props.body}</Text>
-      </Group>
-      <BigButton label={t({ th: "เข้าใจแล้ว", en: "OK" })} kind="grey" onPress={props.onClose} />
     </Sheet>
   );
 }
@@ -217,8 +233,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   grow: { flex: 1, minWidth: 0 },
+  listTile: {
+    width: LIST_TILE,
+    height: LIST_TILE,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  listPicture: { width: LIST_TILE - 2, height: LIST_TILE - 2 },
+  underWords: { height: StyleSheet.hairlineWidth, marginLeft: SPACE.l + LIST_TILE + 10 },
   descCard: { borderRadius: 20, paddingTop: 12, paddingBottom: 14, paddingHorizontal: SPACE.l },
   descText: { marginTop: 6 },
-  blocked: { padding: SPACE.l },
   deleteRow: { minHeight: 52, justifyContent: "center", paddingHorizontal: SPACE.l },
 });

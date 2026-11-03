@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-03
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -334,8 +334,13 @@ again before saying a build matches.** The owner's words are quoted where they s
   no card, no pill: *"deleting stage > keep 2 button ลบ / ยกเลิก"*, then *"remove"* on the card
   (แบนเนอร์, 1 Nov). Older pages keep the first built sheet (ลบ…? · what goes with it · red ลบ ·
   grey ไม่ลบ) — but a page being redrawn takes the newest: I carried ข้อมูลร้าน's old ลบบัญชี sheet
-  into its new drawing and the owner said *"the same with coupon page"* (2 Nov). Blocked by the server: a sheet that says why and what to do first, with a grey เข้าใจแล้ว — never a
-  greyed button with a grey reason under it.
+  into its new drawing and the owner said *"the same with coupon page"* (2 Nov).
+- **Still in use = no delete at all.** A brand, system, category, car brand or car model that a
+  product still uses shows no ลบ… row — not a greyed one, not a "ลบ X ไม่ได้ · เข้าใจแล้ว" sheet:
+  *"if a brand and system has product inside delete button never show up"*, then on a blocked วีโก้
+  sheet *"i have brief about this one before > fix"* (ตั้งค่าอะไหล่ + รุ่นรถที่ใช้ได้, 3 Nov). A rule
+  given for some kinds of a thing covers its siblings. A refusal that still comes back from the
+  server (someone added a product meanwhile) is a toast.
 - **Dates use the built parts.** One date = a DateBox (the phone's own wheel); a range = the built
   RangeSheet; a period choice = Orders' ▾ menu words (วันนี้ … ทุกวัน · กำหนดเอง…). Offer "no dates"
   (a กำหนดช่วงเวลา switch) only where the server keeps empty dates.
@@ -592,12 +597,24 @@ again before saying a build matches.** The owner's words are quoted where they s
   the person simply gone from the list (พนักงาน, 2 Nov).
 - **Badges and order for people:** a one-word Thai nickname shows its first and last consonants
   (บอย → บย), owners first, then Thai name order, switched-off people last (พนักงาน, 2 Nov).
+- **Page tools: ＋ first, ⓘ at the far right** (*"swap position"*, รุ่นรถที่ใช้ได้ and ตั้งค่าอะไหล่,
+  3 Nov).
+- **Facts of one thing = separate cards, no headings.** แชสซี · น้ำยาแอร์ · น้ำหล่อเย็น / the o-rings /
+  หมายเหตุ each sit in their own card with the 20 gap and no heading over any of them, the same in
+  view and edit: *"separate them into its own section without headline as before, for both of view
+  and edit mode"* (วีโก้, 3 Nov).
+- **A row you type two values into shows two boxes.** A black label like the rows above it
+  (โอริง), then a grey box per value with its hint (ขนาด เช่น 3/4" · จำนวน), then ✕ — not two faint
+  hints in a plain row: *"make it clearer for title and amount"* (3 Nov).
 - **Hold the top row against the drawing.** A sub-page with its own big title (แอร์) lost its ⓘ and
   ＋: the app only drew page tools beside a large title. Tools now sit on the ‹ back row when a page
   draws its own title — check every new sub-page's top row (ตั้งค่าอะไหล่, 3 Nov).
 - **List rows wrap; a form's summary row is one line with "…".** Making a shared row wrap fixed a
   cut list line but turned the form's คำอธิบายบน AirPlus row into eight lines; the drawing cuts that
   one row (ตั้งค่าอะไหล่, 3 Nov).
+- **A list row's grey line breaks only between its "·" parts.** No-break spaces were not enough:
+  Thai breaks inside words ("ยังไม่มี / สินค้า"), so each part's letters are joined with a word
+  joiner, marks kept on their letter (`keepPartsWhole`, ตั้งค่าอะไหล่, 3 Nov). Look on the phone.
 - **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fits the
   owner's iPhone 17 Pro by 2px and touches on smaller phones (ตั้งค่าอะไหล่, 3 Nov — open).
 

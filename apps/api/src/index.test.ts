@@ -4036,6 +4036,7 @@ describe("part attributes (brand / car system / part name)", () => {
           nameTh: null,
           nameEn: null,
           imageKey: null, // no storefront cover set for this brand
+          productCount: 0, // no product fitment names it in this stub
           models: [
             {
               id: "cm1",
@@ -4052,6 +4053,7 @@ describe("part attributes (brand / car system / part name)", () => {
               ],
               coolantLiters: "0.45",
               notes: "belt 4PK",
+              productCount: 0,
             },
           ],
         },
@@ -12231,5 +12233,60 @@ describe("ตั้งค่าอะไหล่ (owner, 3 Nov 2026: logos, des
     expect(busy.status).toBe(409);
     raw.prepare("UPDATE product_types SET usage_id = NULL").run();
     expect((await send("DELETE", "/attributes/usage/uc-ac")).status).toBe(200);
+  });
+});
+
+describe("รุ่นรถที่ใช้ได้ (owner, 3 Nov 2026: no ลบ while products use it; ใช้ใน N สินค้า)", () => {
+  function setup() {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('boss', 'Boss', 'boss@shop.test', 'super_admin', 'active', 1)`,
+      )
+      .run();
+    raw
+      .prepare(
+        `INSERT INTO products (id, product_ref, name, status, created_at)
+         VALUES ('p1', 'R1', 'Evap A', 'active', 1), ('p2', 'R2', 'Evap B', 'active', 1)`,
+      )
+      .run();
+    // p1 fits the Vigo twice (two eras) — still one product.
+    raw
+      .prepare(
+        `INSERT INTO product_fitments (id, product_id, car_brand, car_model, year_from, year_to, created_at)
+         VALUES ('f1', 'p1', 'Toyota', 'Vigo', 2005, 2010, 1),
+                ('f2', 'p1', 'Toyota', 'Vigo', 2011, 2014, 1),
+                ('f3', 'p2', 'Toyota', 'Vios', NULL, NULL, 1)`,
+      )
+      .run();
+    const db = asD1(raw);
+    const env = { DB: db } as unknown as Env;
+    const list = async () => {
+      const { token } = await createStaffSession(db, "boss", Date.now());
+      const res = await worker.fetch!(
+        new Request("https://x/car-fitment", { headers: { "X-Staff-Session": token } }),
+        env,
+        ctx,
+      );
+      return (await res.json()) as {
+        brands: {
+          id: string;
+          productCount: number;
+          models: { id: string; productCount: number }[];
+        }[];
+      };
+    };
+    return { list };
+  }
+
+  it("GET /car-fitment > each brand and model says how many products fit it", async () => {
+    const { brands } = await setup().list();
+    const toyota = brands.find((b) => b.id === "cb-toyota")!;
+    expect(toyota.productCount).toBe(2);
+    expect(toyota.models.find((m) => m.id === "cm-vigo")?.productCount).toBe(1);
+    expect(toyota.models.find((m) => m.id === "cm-vios")?.productCount).toBe(1);
+    expect(toyota.models.find((m) => m.id === "cm-yaris")?.productCount).toBe(0);
+    expect(brands.find((b) => b.id === "cb-honda")?.productCount).toBe(0);
   });
 });

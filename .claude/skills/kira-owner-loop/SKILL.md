@@ -29,6 +29,11 @@ draw on canvas → apply to preview → their approval → file lessons → comm
 
 - An approval counts wherever it sits in the message ("lock this and go").
 - Never make them repeat an approval word just to satisfy a check.
+- **An approved ship stays approved.** If design work on another page comes in before an approved
+  page is live, ship that page with the next ship, without asking again (owner, 3 Nov 2026: *"get
+  ตั้งค่าอะไหล่ done too, since i did tell you before it's approved"*).
+- **A rule they give for some kinds of a thing covers its siblings.** "No delete while products
+  use it" for brands and systems also meant categories, car brands and car models (3 Nov 2026).
 
 ## How they decide
 

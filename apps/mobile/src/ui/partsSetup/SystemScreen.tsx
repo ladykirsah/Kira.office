@@ -48,6 +48,12 @@ export function SystemScreen({ id }: { id: string }) {
 
   useScreenChrome(
     [
+      // ＋ first, ⓘ at the far right (owner, 3 Nov 2026: "swap position").
+      {
+        label: t({ th: "เพิ่มหมวดหมู่", en: "Add a category" }),
+        icon: ICON.plus,
+        onPress: () => setCat({ mode: "form", cat: null, systemId: isLoose ? null : id }),
+      },
       ...(isLoose
         ? []
         : [
@@ -57,11 +63,6 @@ export function SystemScreen({ id }: { id: string }) {
               onPress: () => setDetails(true),
             },
           ]),
-      {
-        label: t({ th: "เพิ่มหมวดหมู่", en: "Add a category" }),
-        icon: ICON.plus,
-        onPress: () => setCat({ mode: "form", cat: null, systemId: isLoose ? null : id }),
-      },
     ],
     [],
     {
@@ -125,6 +126,7 @@ export function SystemScreen({ id }: { id: string }) {
                 key={c.id}
                 label={titleOf(c)}
                 second={t(categoryLine(c))}
+                picture={c.imageKey}
                 onPress={() => setCat({ mode: "view", cat: c })}
                 last={i === shown.length - 1}
               />

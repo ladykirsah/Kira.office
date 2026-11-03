@@ -171,7 +171,7 @@ export async function uploadPicture(
   fetchFn: FetchFn,
   base: string,
   token: string,
-  kind: "brand" | "type",
+  kind: "brand" | "type" | "car-brand",
   id: string,
   photo: Blob,
 ): Promise<string> {
@@ -189,7 +189,7 @@ export async function removePicture(
   fetchFn: FetchFn,
   base: string,
   token: string,
-  kind: "brand" | "type",
+  kind: "brand" | "type" | "car-brand",
   id: string,
 ): Promise<void> {
   const res = await fetchFn(`${base}/taxonomy-images/${kind}/${encodeURIComponent(id)}`, {
