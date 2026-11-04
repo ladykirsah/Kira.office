@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef } from "react";
 export interface ChromeButton {
   label: string;
   onPress: () => void;
-  kind?: "red" | "grey";
+  kind?: "red" | "grey" | "dark";
   /** A small icon before the words (การชำระเงิน's "สร้าง QR รับเงิน"); one SVG path, see LineIcon. */
   icon?: string;
 }

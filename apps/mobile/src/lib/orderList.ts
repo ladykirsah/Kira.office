@@ -425,3 +425,9 @@ export function stamp(ms: number): string {
   const two = (n: number) => String(n).padStart(2, "0");
   return `${two(d.getDate())}/${two(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} · ${clockTime(ms)}`;
 }
+
+/** The Orders tab named in the address (?tab=pending from a หน้าหลัก tile); anything else is ทั้งหมด. */
+export function tabFromParam(raw: string | string[] | undefined): OrderTab | "all" {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return ORDER_TABS.find((t) => t.key === value)?.key ?? "all";
+}

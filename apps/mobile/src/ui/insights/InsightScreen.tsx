@@ -1,7 +1,7 @@
 import { comparisonWindow } from "@l-shopee/core";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import {
   LIST_ROWS,
   PERIOD_OPTIONS,
@@ -18,6 +18,7 @@ import { ICON } from "../orders/icons";
 import { MenuButton } from "../orders/MenuButton";
 import { SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
+import { SectionHeading } from "../SectionHeading";
 import { SPACE, TYPE } from "../theme";
 import { MetricList } from "./MetricList";
 import { SellerList } from "./Sellers";
@@ -116,7 +117,7 @@ function Numbers({ h, data }: { h: Insights; data: InsightsPayload }) {
       <TrendChart data={data} lines={h.lines} />
       {top.length > 0 && (
         <>
-          <Heading
+          <SectionHeading
             title={t({ th: "สินค้าขายดี", en: "Best sellers" })}
             more={{
               label: t({ th: "ดูทั้งหมด", en: "See all" }),
@@ -126,31 +127,15 @@ function Numbers({ h, data }: { h: Insights; data: InsightsPayload }) {
           <SellerList rows={top} />
         </>
       )}
-      <Heading title={t({ th: "ยอดขาย", en: "Sales" })} />
+      <SectionHeading title={t({ th: "ยอดขาย", en: "Sales" })} />
       <MetricList data={data} keys={LIST_ROWS.money} />
-      <Heading title={t({ th: "การเข้าชม", en: "Visits" })} />
+      <SectionHeading title={t({ th: "การเข้าชม", en: "Visits" })} />
       <MetricList data={data} keys={LIST_ROWS.traffic} />
       {shares.length > 0 && (
         <>
-          <Heading title={t({ th: "ที่มาของการเข้าชม", en: "Where visitors came from" })} />
+          <SectionHeading title={t({ th: "ที่มาของการเข้าชม", en: "Where visitors came from" })} />
           <SourcesCard shares={shares} />
         </>
-      )}
-    </View>
-  );
-}
-
-function Heading(props: { title: string; more?: { label: string; onPress: () => void } }) {
-  const { theme } = useTheme();
-  return (
-    <View style={styles.heading}>
-      <Text style={[TYPE.title2, styles.grow, { color: theme.text }]} accessibilityRole="header">
-        {props.title}
-      </Text>
-      {props.more && (
-        <Pressable onPress={props.more.onPress} accessibilityRole="link" hitSlop={8}>
-          <Text style={[TYPE.body, { color: theme.primary }]}>{props.more.label}</Text>
-        </Pressable>
       )}
     </View>
   );
@@ -160,12 +145,4 @@ const styles = StyleSheet.create({
   menus: { flexDirection: "row" },
   compare: { marginTop: SPACE.s, marginHorizontal: 2 },
   loading: { marginTop: SPACE.xxxl },
-  heading: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginTop: SPACE.xxl,
-    marginBottom: SPACE.m,
-    marginHorizontal: 2,
-  },
-  grow: { flex: 1 },
 });
