@@ -33,6 +33,15 @@ describe("readSignInReply", () => {
     });
   });
 
+  it("given a PIN-only person (no email) > signs in as them", () => {
+    const pinOnly = { userId: "seed-staff-boy", email: null, name: "บอย", role: "mechanic" };
+    expect(readSignInReply(200, { token: "t-2", expiresAt: 1, staff: pinOnly })).toEqual({
+      ok: true,
+      token: "t-2",
+      staff: pinOnly,
+    });
+  });
+
   it("given each refusal the server sends > names it, so the screen can say the right thing", () => {
     expect(readSignInReply(401, { error: "invalid", reason: "locked" })).toEqual({
       ok: false,
