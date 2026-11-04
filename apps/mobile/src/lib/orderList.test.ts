@@ -14,6 +14,7 @@ import {
   viewOrders,
   type OrderListRow,
   type OrderView,
+  tabFromParam,
 } from "./orderList";
 
 const NOW = new Date(2026, 9, 27, 15, 0).getTime(); // 27 Oct 2026, 15:00 local
@@ -329,5 +330,18 @@ describe("dayPill", () => {
 
   it("given no day > then an em dash", () => {
     expect(dayPill(null)).toEqual({ th: "—", en: "—" });
+  });
+});
+
+describe("tabFromParam", () => {
+  it("given ?tab= one of the Orders tabs (a หน้าหลัก tile) > then the list opens on it", () => {
+    expect(tabFromParam("pending")).toBe("pending");
+    expect(tabFromParam("refundclaim")).toBe("refundclaim");
+  });
+
+  it("given no tab or a made-up one > then ทั้งหมด", () => {
+    expect(tabFromParam(undefined)).toBe("all");
+    expect(tabFromParam("nope")).toBe("all");
+    expect(tabFromParam(["toship", "x"])).toBe("toship");
   });
 });

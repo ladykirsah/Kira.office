@@ -1,5 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { API_BASE } from "@/lib/config";
@@ -15,6 +15,7 @@ import {
   searchOrders,
   shortDate,
   tabCounts,
+  tabFromParam,
   viewOrders,
   type OrderListRow,
   type OrderView,
@@ -46,7 +47,12 @@ export function OrdersScreen() {
   const { theme } = useTheme();
   const { t } = useLang();
   const [load, setLoad] = useState<Load>({ status: "loading" });
-  const [view, setView] = useState<OrderView>(DEFAULT_VIEW);
+  // A หน้าหลัก tile opens the list on its tab (?tab=pending); the tab stays in the address.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [view, setView] = useState<OrderView>(() => ({
+    ...DEFAULT_VIEW,
+    tab: tabFromParam(tabParam),
+  }));
   const [rangeOpen, setRangeOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
@@ -155,7 +161,10 @@ export function OrdersScreen() {
       <StatusTabs
         value={view.tab}
         counts={counts}
-        onPick={(tab) => setView((v) => ({ ...v, tab }))}
+        onPick={(tab) => {
+          setView((v) => ({ ...v, tab }));
+          router.setParams({ tab });
+        }}
       />
 
       <View style={s.menus}>
@@ -199,7 +208,10 @@ export function OrdersScreen() {
             narrowed && total > 0
               ? {
                   label: { th: "ดูออเดอร์ทั้งหมด", en: "Show all orders" },
-                  onPress: () => setView((v) => ({ ...DEFAULT_VIEW, sort: v.sort })),
+                  onPress: () => {
+                    setView((v) => ({ ...DEFAULT_VIEW, sort: v.sort }));
+                    router.setParams({ tab: "all" });
+                  },
                 }
               : null
           }

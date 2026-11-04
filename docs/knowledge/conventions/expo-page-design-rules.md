@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-04
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -26,6 +26,11 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **"Ship it" approves all of that, in one turn.** Don't hand back while checks run; wait for them
   and finish. *"approve > file lesson > commit > PR > CI pass > merge > make as done > move on … all
   this should be done, since i told you to ship"* (ประวัติซื้อขาย, 1 Nov).
+- **An approval stays given — a drawing's too.** Their "go ahead" on the หน้าหลัก redraw was its
+  OK; I kept listing it as "waiting for OK" for hours and pointed them to look at it again. *"i did
+  tell you it is approved"* → *"go ahead through the flow i want to finish it ASAP"* (หน้าหลัก,
+  4 Nov). Before calling anything "waiting for you", read their words since it was shown; an OK'd
+  drawing goes straight on to the build, and "go through the flow" means build → check → ship.
 - **One page at a time, in menu order** (`packages/shared` nav.ts). Each page: learn what the old
   back office does → look at Mobbin → draw → their OK → build.
 - **Learn the old functions before drawing.** Orders v1 *"look good, but not functionable"*.
@@ -583,6 +588,10 @@ again before saying a build matches.** The owner's words are quoted where they s
   (`lib/oneAtATime.ts`) and the list reads back what was saved (แบนเนอร์, 1 Nov).
 - **Open a record and come back.** The list forgot its tab (แถบโปรโมชัน → สไลด์หลัก). A list's tab lives
   in the page address (`router.setParams`), so coming back opens the same tab (แบนเนอร์, 1 Nov).
+  A shortcut into a list's tab passes it the same way, and the list reads it on open: หน้าหลัก's
+  tiles open `/orders?tab=toship`; Orders didn't read the address until then (หน้าหลัก, 4 Nov).
+- **A tick the drawing keeps "until ล้าง…" is saved on the phone,** not only in the page — leave
+  and come back, and it's still there (หน้าหลัก's Shopee list, `readPref`/`writePref`, 4 Nov).
 - **No button inside a button.** A card that opens its page and also holds ▲▼ is separate tap areas
   side by side; nested ones break on the web build (แบนเนอร์, 1 Nov).
 - **The browser's own boxes don't use the app's font.** On iPhone the date box showed "Nov 1, 2026"
