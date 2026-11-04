@@ -62,20 +62,48 @@ const back = (to: string) => () =>
  * then every month — the day it was paid, or ที่ต้องจ่าย, which opens the same pay sheet as 2.5.
  */
 export function PayHistoryScreen() {
-  const { t } = useLang();
-  const { theme } = useTheme();
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const team = useTeam();
+  const person = team.people?.find((p) => p.id === id) ?? null;
+  const home = `${BASE}/${encodeURIComponent(id)}`;
+  return (
+    <PayHistory
+      id={id}
+      person={person}
+      back={{ label: person ? shownName(person) : "", to: home }}
+      monthRoute={(period) => `${home}/pay/${period}`}
+      payWith={team}
+    />
+  );
+}
+
+/** Who may pay from the history page — พนักงาน; your own (โปรไฟล์ของฉัน) has no pay button. */
+interface Payer {
+  people: readonly TeamMember[] | null;
+  me: string;
+  token: string;
+}
+
+/** A person's pay history: พนักงาน's, or your own read only from โปรไฟล์ของฉัน (payWith left out). */
+export function PayHistory(props: {
+  id: string;
+  person: TeamMember | null;
+  back: { label: string; to: string };
+  monthRoute: (period: string) => string;
+  payWith?: Payer;
+}) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const { id, person, payWith } = props;
   const { toast, showToast } = useToast();
   const [stamp, setStamp] = useState(0);
   const pay = usePayments(id, stamp);
   const [year, setYear] = useState<string | null>(null);
   const [paying, setPaying] = useState<string | null>(null);
-  const person = team.people?.find((p) => p.id === id) ?? null;
   const name = person ? shownName(person) : "";
 
   useScreenChrome(null, [], {
-    back: { label: name, onPress: back(`${BASE}/${encodeURIComponent(id)}`) },
+    back: { label: props.back.label, onPress: back(props.back.to) },
     ownTitle: true,
     toast: toast ? { title: t(toast.title), detail: t(toast.detail) } : null,
   });
@@ -124,32 +152,39 @@ export function PayHistoryScreen() {
             <Group>
               {inYear.map((m, i) => {
                 const line = historyLine(m);
+                const paid = m.paidAt != null;
+                const opens = paid || payWith != null;
+                const body = (
+                  <>
+                    <View style={styles.grow}>
+                      <Text style={[TYPE.body, { color: theme.text }]}>
+                        {t(monthLabel(m.period))}
+                      </Text>
+                      <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(line.sub)}</Text>
+                    </View>
+                    <Text style={[TYPE.body, styles.amount, { color: theme.text }]}>
+                      {line.amount}
+                    </Text>
+                    {opens && <Chevron />}
+                  </>
+                );
                 return (
                   <View key={m.period}>
-                    <Pressable
-                      onPress={() =>
-                        m.paidAt == null
-                          ? setPaying(m.period)
-                          : router.push(
-                              `${BASE}/${encodeURIComponent(id)}/pay/${m.period}` as never,
-                            )
-                      }
-                      accessibilityRole="button"
-                      style={styles.month}
-                    >
-                      <View style={styles.grow}>
-                        <Text style={[TYPE.body, { color: theme.text }]}>
-                          {t(monthLabel(m.period))}
-                        </Text>
-                        <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
-                          {t(line.sub)}
-                        </Text>
-                      </View>
-                      <Text style={[TYPE.body, styles.amount, { color: theme.text }]}>
-                        {line.amount}
-                      </Text>
-                      <Chevron />
-                    </Pressable>
+                    {opens ? (
+                      <Pressable
+                        onPress={() =>
+                          paid
+                            ? router.push(props.monthRoute(m.period) as never)
+                            : setPaying(m.period)
+                        }
+                        accessibilityRole="button"
+                        style={styles.month}
+                      >
+                        {body}
+                      </Pressable>
+                    ) : (
+                      <View style={styles.month}>{body}</View>
+                    )}
                     {i < inYear.length - 1 && <Divider />}
                   </View>
                 );
@@ -158,12 +193,12 @@ export function PayHistoryScreen() {
           </View>
         </>
       )}
-      {paying && person && (
+      {paying && person && payWith && (
         <PayFromHistory
           person={person}
-          people={team.people ?? []}
-          me={team.me}
-          token={team.token}
+          people={payWith.people ?? []}
+          me={payWith.me}
+          token={payWith.token}
           period={paying}
           onClose={() => setPaying(null)}
           onPaid={(said) => {
@@ -210,20 +245,35 @@ function PayFromHistory(props: {
  * stays and the card says so.
  */
 export function PayRecordScreen() {
-  const { t } = useLang();
-  const { theme } = useTheme();
   const { id = "", period = "" } = useLocalSearchParams<{ id: string; period: string }>();
   const team = useTeam();
-  const pay = usePayments(id);
   const person = team.people?.find((p) => p.id === id) ?? null;
+  return (
+    <PayRecord
+      id={id}
+      period={period}
+      person={person}
+      backTo={`${BASE}/${encodeURIComponent(id)}/pay`}
+    />
+  );
+}
+
+/** One month's payslip: พนักงาน's, or your own from โปรไฟล์ของฉัน — read only either way. */
+export function PayRecord(props: {
+  id: string;
+  period: string;
+  person: TeamMember | null;
+  backTo: string;
+}) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const { id, period, person } = props;
+  const pay = usePayments(id);
   const name = person ? shownName(person) : "";
   const m = pay.months?.find((x) => x.period === period) ?? null;
 
   useScreenChrome(null, [], {
-    back: {
-      label: t({ th: "เงินเดือน", en: "Salary" }),
-      onPress: back(`${BASE}/${encodeURIComponent(id)}/pay`),
-    },
+    back: { label: t({ th: "เงินเดือน", en: "Salary" }), onPress: back(props.backTo) },
     ownTitle: true,
   });
 

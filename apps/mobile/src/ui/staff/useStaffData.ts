@@ -16,7 +16,7 @@ import { useAuth } from "../AppProviders";
  * One read for a tab or a sheet: the data, whether it failed, and load() to read it again. It reads
  * when the page comes into view and whenever what it asks for (`key`) or `stamp` (a save) changes.
  */
-function useRead<T>(read: (token: string) => Promise<T>, key: string, stamp = 0) {
+export function useRead<T>(read: (token: string) => Promise<T>, key: string, stamp = 0) {
   const auth = useAuth();
   const token = auth.status === "signed-in" ? auth.token : "";
   const [data, setData] = useState<{ key: string; value: T } | null>(null);

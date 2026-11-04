@@ -3,7 +3,6 @@ import { usePathname, useRouter } from "expo-router";
 import { useRef, useState, type ComponentRef } from "react";
 import type { ReactNode } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { barBottom as barBottomFor, bottomBar, phoneBottoms } from "@/lib/frame";
 import { initials } from "@/lib/initials";
 import { pageTitle } from "@/lib/pageTitle";
+import { PROFILE_ROUTE } from "@/lib/profilePage";
 import { useAuth, useLang, useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
 import { useBrandFont } from "./brandFont";
@@ -29,6 +29,7 @@ import {
   type HeaderButton,
   type SearchBar,
 } from "./ScreenChrome";
+import { MenuDrawer } from "./MenuDrawer";
 import { Segmented } from "./Segmented";
 import { MENU_ICON, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
@@ -126,11 +127,10 @@ function WideShell({ children }: { children: ReactNode }) {
 
 function PhoneShell({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
-  const brandFont = useBrandFont();
   const { t } = useLang();
   const auth = useAuth();
   const insets = useSafeAreaInsets();
-  const { groups, path, active, go } = useNav();
+  const { path, active, go } = useNav();
   const [open, setOpen] = useState(false);
   const [chrome, setChrome] = useState<Chrome>(NO_CHROME);
   const s = styles(theme);
@@ -176,9 +176,9 @@ function PhoneShell({ children }: { children: ReactNode }) {
               <RoundButton key={h.label} button={h} />
             ))}
             <Pressable
-              onPress={() => setOpen(true)}
+              onPress={() => go(PROFILE_ROUTE)}
               accessibilityRole="button"
-              accessibilityLabel={t({ th: `บัญชีของ ${name}`, en: `${name}'s account` })}
+              accessibilityLabel={t({ th: "โปรไฟล์ของฉัน", en: "My profile" })}
               style={s.avatar}
             >
               <Text style={s.avatarText}>{initials(name)}</Text>
@@ -226,26 +226,7 @@ function PhoneShell({ children }: { children: ReactNode }) {
         </View>
       )}
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View style={[s.fill, s.row]}>
-          <ScrollView
-            style={[s.drawer, { paddingTop: insets.top }]}
-            contentContainerStyle={s.drawerInner}
-            accessibilityLabel={t({ th: "เมนูหลัก", en: "Main" })}
-          >
-            <Pressable onPress={() => goAndClose("/")} accessibilityRole="link">
-              <Text style={[s.brand, brandFont]}>CrewEngine</Text>
-            </Pressable>
-            <MenuGroups groups={groups} active={active} onGo={goAndClose} withPrefs />
-          </ScrollView>
-          <Pressable
-            style={[s.fill, { backgroundColor: theme.scrim }]}
-            onPress={() => setOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel={t({ th: "ปิดเมนู", en: "Close menu" })}
-          />
-        </View>
-      </Modal>
+      <MenuDrawer open={open} path={path} onClose={() => setOpen(false)} onGo={goAndClose} />
     </View>
   );
 }
@@ -255,7 +236,6 @@ function MenuGroups(props: {
   active: string | undefined;
   onGo: (href: string) => void;
   compact?: boolean;
-  withPrefs?: boolean;
 }) {
   const { theme } = useTheme();
   const { t } = useLang();
@@ -289,29 +269,21 @@ function MenuGroups(props: {
           })}
         </View>
       ))}
-      <Account withPrefs={props.withPrefs} />
+      <Account />
     </>
   );
 }
 
-/** Who is signed in, and on a phone the language and light/dark switches that the top bar had. */
-function Account({ withPrefs }: { withPrefs?: boolean }) {
-  const { theme, isDark, toggleTheme } = useTheme();
-  const { lang, t, toggleLang } = useLang();
+/** Who is signed in, under the computer sidebar (the phone's ☰ menu has its own, MenuDrawer). */
+function Account() {
+  const { theme } = useTheme();
+  const { t } = useLang();
   const auth = useAuth();
   const s = styles(theme);
   if (auth.status !== "signed-in") return null;
   return (
     <View style={s.accountBlock}>
       <Text style={s.staffName}>{auth.staff.name}</Text>
-      {withPrefs && (
-        <View style={s.prefRow}>
-          <Pill onPress={toggleLang}>{lang === "th" ? "English" : "ภาษาไทย"}</Pill>
-          <Pill onPress={toggleTheme}>
-            {t(isDark ? { th: "โหมดสว่าง", en: "Light mode" } : { th: "โหมดมืด", en: "Dark mode" })}
-          </Pill>
-        </View>
-      )}
       <Pressable
         onPress={() => void auth.signOutNow()}
         accessibilityRole="button"
@@ -320,16 +292,6 @@ function Account({ withPrefs }: { withPrefs?: boolean }) {
         <Text style={s.signOutText}>{t({ th: "ออกจากระบบ", en: "Sign out" })}</Text>
       </Pressable>
     </View>
-  );
-}
-
-function Pill(props: { onPress: () => void; children: string }) {
-  const { theme } = useTheme();
-  const s = styles(theme);
-  return (
-    <Pressable onPress={props.onPress} accessibilityRole="button" style={s.pill}>
-      <Text style={s.pillText}>{props.children}</Text>
-    </Pressable>
   );
 }
 
@@ -656,13 +618,6 @@ const styles = (c: Theme) =>
       borderColor: c.glassLine,
       boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
     },
-    drawer: {
-      width: 300,
-      maxWidth: "84%",
-      flexGrow: 0,
-      backgroundColor: c.bg,
-    },
-    drawerInner: { paddingVertical: 14, paddingHorizontal: 12, paddingBottom: 40 },
     iconButton: {
       width: 36,
       height: 36,
@@ -683,16 +638,6 @@ const styles = (c: Theme) =>
       gap: SPACE.m,
     },
     staffName: { ...TYPE.headline, color: c.text },
-    prefRow: { flexDirection: "row", gap: SPACE.s, flexWrap: "wrap" },
-    pill: {
-      height: 34,
-      paddingHorizontal: 14,
-      borderRadius: 17,
-      backgroundColor: c.hover,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pillText: { ...TYPE.subhead, color: c.text },
     signOut: { alignSelf: "flex-start", paddingVertical: 6 },
     signOutText: { ...TYPE.body, color: c.primary },
   });
