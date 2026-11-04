@@ -7709,7 +7709,13 @@ describe("shopeeSyncWorklist + markShopeeSynced", () => {
   async function worklist(db: DatabaseSync) {
     const res = await shopeeSyncWorklist(envOf(db));
     return (await res.json()) as {
-      items: { productId: string; productRef: string; deltaSinceSync: number; onHand: number }[];
+      items: {
+        productId: string;
+        productRef: string;
+        deltaSinceSync: number;
+        onHand: number;
+        imageKey: string | null;
+      }[];
     };
   }
 
@@ -7728,6 +7734,15 @@ describe("shopeeSyncWorklist + markShopeeSynced", () => {
     expect(a.onHand).toBe(7); // 10 − 3, the SUM over all movements
     expect(b.deltaSinceSync).toBe(-1); // the pre-sync −5 is excluded
     expect(b.onHand).toBe(2); // 8 − 5 − 1
+  });
+
+  // หน้าหลัก's rows show the product's photo (owner picked B, 4 Nov 2026): photo, code + amount, name.
+  it("gives each row the product's cover photo, or null when it has none", async () => {
+    const { db, ids } = await scenario();
+    db.prepare(`UPDATE products SET image_key = 'products/a/cover.jpg' WHERE id = ?`).run(ids.a);
+    const items = (await worklist(db)).items;
+    expect(items.find((i) => i.productRef === "A-001")!.imageKey).toBe("products/a/cover.jpg");
+    expect(items.find((i) => i.productRef === "B-002")!.imageKey).toBeNull();
   });
 
   it("Clear stamps shopee_synced_at so the cleared product drops off and stays off", async () => {
@@ -10468,6 +10483,27 @@ describe("GET /products — every state the catalog has", () => {
       { carBrand: "Toyota", carModel: "Fortuner", yearFrom: 2005, yearTo: null },
     ]);
     expect(body.products.find((p) => p.id === "p-draft")!.fitments).toEqual([]);
+  });
+
+  // A bill line reads "[type] [brand]" in Thai (owner, 4 Nov 2026: "ตู้แอร์ Cool Gear"), and the
+  // type's identity `name` is English, so the list and the detail page also send its Thai name.
+  it("gives each row its type's Thai name, for the bill", async () => {
+    const { env, raw } = seeded();
+    raw.prepare(`UPDATE product_types SET name_th = 'ตู้แอร์' WHERE id = 'pt-evaporator'`).run();
+    raw.prepare(`UPDATE products SET type_id = 'pt-evaporator' WHERE id = 'p-live'`).run();
+    const res = await worker.fetch!(
+      new Request("https://x/products", { headers: await signedIn(raw, env) }),
+      env,
+      ctx,
+    );
+    const body = (await res.json()) as {
+      products: { id: string; typeName: string | null; typeNameTh: string | null }[];
+    };
+    const live = body.products.find((p) => p.id === "p-live")!;
+    expect([live.typeName, live.typeNameTh]).toEqual(["Evaporator", "ตู้แอร์"]);
+    expect(body.products.find((p) => p.id === "p-draft")!.typeNameTh).toBeNull();
+    const detail = await getProductDetail((env as { DB: D1Database }).DB, "p-live");
+    expect(detail!.product.typeNameTh).toBe("ตู้แอร์");
   });
 });
 

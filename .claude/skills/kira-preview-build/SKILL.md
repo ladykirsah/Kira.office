@@ -51,6 +51,10 @@ description: Build an approved Kira.office canvas drawing into the Expo back off
   - two quick taps;
   - "no connection" (stop the api, use the page, start it again).
 - **Local data:** seed the local D1 only, with removable ids and an `undo.sql` in `design-tools/`. Never write mock data to prod.
+- **Website-only features** (the มีเวอร์ชันใหม่ bar) never show on the dev server. Build the site with
+  `EXPO_PUBLIC_API_BASE=http://localhost:8788 npx expo export --platform web` (in `apps/mobile`), serve it with
+  "app website (built)" (:8790), fake a release by renaming the `entry-<hash>.js` file `index.html` loads, then
+  `rm -rf apps/mobile/dist` afterwards (memory: verify-web-only-feature-with-local-build).
 - **Leave the simulator** on the main page of the work for the owner.
 
 ## 4 · Checks to run (run them; don't paste them)

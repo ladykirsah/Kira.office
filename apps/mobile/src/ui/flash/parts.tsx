@@ -69,11 +69,14 @@ export function OffPhoto(props: { imageKey: string | null; size: number; off?: s
 }
 
 /**
- * One product of a sale: photo with its -%, name, the sale price with the normal one struck through,
- * then a grey line (จำกัด / ขายแล้ว). On the form a tap opens แก้ราคาลด and the bin takes it out.
+ * One product of a sale: photo with its -%, name (regular, 2 lines), its code in grey, the sale price
+ * with the normal one struck through, then a grey line (จำกัด / ขายแล้ว). On the form a tap opens
+ * แก้ราคาลด and the bin takes it out.
  */
 export function ItemRow(props: {
   name: string;
+  /** The product's code, on its own grey line under the name. */
+  code: string | null;
   imageKey: string | null;
   off: string;
   price: string;
@@ -89,9 +92,14 @@ export function ItemRow(props: {
     <View style={styles.itemBody}>
       <OffPhoto imageKey={props.imageKey} size={52} off={props.off} />
       <View style={styles.grow}>
-        <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
+        <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
           {props.name}
         </Text>
+        {props.code ? (
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+            {props.code}
+          </Text>
+        ) : null}
         <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
           <Text style={{ color: theme.text }}>{props.price}</Text>{" "}
           <Text style={styles.struck}>{props.base}</Text>

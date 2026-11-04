@@ -7,8 +7,9 @@ import { Photo } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 
 /**
- * One change, as picked (canvas v228): the product photo, its name on one line, "ขายเด่นแอร์ · เหลือ 4"
- * in grey, the change in a grey badge, then ›. The line under it starts where the text starts.
+ * One change, as picked (canvas v228): the product photo, its name on one line, its code in grey
+ * (v354: "name · id · action and stock"), "ขายเด่นแอร์ · เหลือ 4" in grey, the change in a grey
+ * badge, then ›. The line under it starts where the text starts.
  */
 export function MovementRow(props: { m: Movement; last: boolean; onPress: () => void }) {
   const { theme } = useTheme();
@@ -37,6 +38,11 @@ export function MovementRow(props: { m: Movement; last: boolean; onPress: () => 
           <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
             {m.productName}
           </Text>
+          {m.productRef ? (
+            <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+              {m.productRef}
+            </Text>
+          ) : null}
           <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
             {type} · {left}
           </Text>

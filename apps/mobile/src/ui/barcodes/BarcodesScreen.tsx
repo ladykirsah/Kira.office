@@ -1,7 +1,7 @@
 import type { ComponentRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LABEL_WIDTH_MM } from "@/lib/barcodeLabel";
-import type { SheetItem } from "@/lib/labelList";
+import { cardLine, type SheetItem } from "@/lib/labelList";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
 import { Empty } from "../customers/parts";
@@ -234,9 +234,11 @@ function LabelCard({ list, item }: { list: Barcodes; item: SheetItem }) {
           accessibilityLabel={said}
           style={styles.words}
         >
-          <Text style={[TYPE.headline, { color: theme.text }]}>{row.name}</Text>
-          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-            {t({ th: `ป้าย ${item.size}`, en: `Label ${item.size}` })}
+          <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
+            {row.name}
+          </Text>
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+            {t(cardLine(row.productRef, item.size))}
           </Text>
         </Pressable>
         <View style={styles.stepper}>

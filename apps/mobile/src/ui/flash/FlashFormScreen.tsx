@@ -115,6 +115,7 @@ function Fields({ edit }: { edit: FlashFormState }) {
           <ItemRow
             key={l.productVariantId}
             name={l.name}
+            code={l.productRef}
             imageKey={l.imageKey}
             off={`${offPercent(l.basePriceSatang, toSatang(l.sale))}%`}
             price={formatBaht(toSatang(l.sale))}

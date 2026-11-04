@@ -24,8 +24,11 @@ export function InsetRow(props: {
   value: string;
   last?: boolean;
   stacked?: boolean;
+  /** A long value (a product's name): at most this many lines, then …; the label keeps its width. */
+  valueLines?: number;
 }) {
   const { theme } = useTheme();
+  const clamped = props.valueLines !== undefined && !props.stacked;
   return (
     <View
       style={[
@@ -37,14 +40,22 @@ export function InsetRow(props: {
         },
       ]}
     >
-      <Text style={[TYPE.subhead, { color: theme.text }, !props.stacked && { flex: 1 }]}>
+      <Text
+        style={[
+          TYPE.subhead,
+          { color: theme.text },
+          !props.stacked && (clamped ? styles.keepWidth : styles.grow),
+        ]}
+      >
         {props.label}
       </Text>
       <Text
         style={[
           TYPE.subhead,
           { color: theme.textMuted, flexShrink: 1, textAlign: props.stacked ? "left" : "right" },
+          clamped && styles.grow,
         ]}
+        numberOfLines={props.valueLines}
       >
         {props.value}
       </Text>
@@ -308,6 +319,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   stacked: { flexDirection: "column", alignItems: "stretch", gap: 2 },
+  grow: { flex: 1 },
+  keepWidth: { flex: 0 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 4 },
   area: {
     minHeight: 100,

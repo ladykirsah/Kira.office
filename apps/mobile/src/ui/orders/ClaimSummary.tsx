@@ -63,7 +63,7 @@ function claimRows(
       sub: `${t({ th: "แจ้งเมื่อ", en: "Raised" })} ${stamp(claim.createdAt)}`,
       bold: true,
     },
-    { label: t({ th: "สินค้า", en: "Item" }), value: products.join(", ") || "—" },
+    { label: t({ th: "สินค้า", en: "Item" }), value: products.join(", ") || "—", valueLines: 2 },
   ];
   if (claim.resolution) {
     rows.push({

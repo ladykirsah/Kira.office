@@ -3,7 +3,13 @@ import { Image, Pressable, StyleSheet, Switch, Text, TextInput, View } from "rea
 import { API_BASE } from "@/lib/config";
 import { formatBaht } from "@/lib/money";
 import { searchParts, type CarBrand } from "@/lib/posApi";
-import { discountOf, subtotal, withMechanicPrice, type Discount } from "@/lib/posBill";
+import {
+  billLineText,
+  discountOf,
+  subtotal,
+  withMechanicPrice,
+  type Discount,
+} from "@/lib/posBill";
 import { lookupPart } from "@/lib/scanApi";
 import { useAuth, useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
@@ -106,19 +112,20 @@ export function AddPartSheet({ onClose }: { onClose: () => void }) {
               ) : (
                 <View style={[styles.thumb, { backgroundColor: theme.bg }]} />
               )}
+              {/* You pick here, so the full name: regular, 2 lines …, then the code, then the stock ·
+                  the price (owner, 4 Nov 2026: "name · id · [stock] dot [price]"). */}
               <View style={styles.grow}>
-                <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
+                <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
                   {p.name}
                 </Text>
+                {p.productRef ? (
+                  <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{p.productRef}</Text>
+                ) : null}
                 <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-                  {[p.productRef, t({ th: `เหลือ ${p.onHand}`, en: `${p.onHand} left` })]
-                    .filter(Boolean)
-                    .join(" · ")}
+                  {t({ th: `เหลือ ${p.onHand} · `, en: `${p.onHand} left · ` })}
+                  <Text style={{ color: theme.text }}>{formatBaht(p.offlinePriceSatang)}</Text>
                 </Text>
               </View>
-              <Text style={[TYPE.body, { color: theme.text }]}>
-                {formatBaht(p.offlinePriceSatang)}
-              </Text>
               <Pressable
                 onPress={() => pos.addPart(p)}
                 accessibilityRole="button"
@@ -251,7 +258,9 @@ export function EditLineSheet({ lineKey, onClose }: { lineKey: string; onClose: 
   return (
     <Sheet title={t({ th: "แก้รายการ", en: "Edit item" })} onClose={onClose}>
       <View>
-        <Text style={[TYPE.headline, { color: theme.text }]}>{line.name}</Text>
+        <Text style={[TYPE.headline, { color: theme.text }]}>
+          {billLineText(line, pos.bill.buyer)}
+        </Text>
         {line.kind === "part" && (
           <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
             {[

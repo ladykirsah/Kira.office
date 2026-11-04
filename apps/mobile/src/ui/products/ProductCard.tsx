@@ -26,7 +26,7 @@ export function ProductCard(props: {
       <Pressable onPress={() => open("")} accessibilityRole="link" style={styles.top}>
         <Photo imageKey={row.imageKey} size={74} />
         <View style={styles.text}>
-          <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
+          <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
           <View style={styles.code}>

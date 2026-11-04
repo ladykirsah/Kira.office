@@ -61,11 +61,32 @@ describe("posApi product search", () => {
       useMechanic: false,
       costSatang: 250_000,
       onHand: 4,
+      typeName: null,
+      brandName: "DENSO",
+      carModel: null,
     });
     expect(partLine(product(), "mechanic", "k1")).toMatchObject({
       priceSatang: 310_000,
       useMechanic: true,
     });
+  });
+
+  it("partLine > given a type and cars > then the line keeps the Thai type, the brand and the top car", () => {
+    const coil = product({
+      typeName: "Evaporator",
+      typeNameTh: "ตู้แอร์",
+      brandName: "Cool Gear",
+      fitments: [{ carModel: "Revo" }, { carModel: "Fortuner Gen 2" }],
+    });
+    expect(partLine(coil, "customer", "k1")).toMatchObject({
+      typeName: "ตู้แอร์",
+      brandName: "Cool Gear",
+      carModel: "Revo",
+    });
+    // No Thai name set for the type yet: the bill still says what it is, in English.
+    expect(partLine(product({ typeName: "Evaporator" }), "customer", "k1").typeName).toBe(
+      "Evaporator",
+    );
   });
 
   it("serviceLine > given a saved or typed service > then a line with no stock", () => {

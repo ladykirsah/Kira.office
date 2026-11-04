@@ -1,7 +1,7 @@
 import type { ComponentRef, Ref } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { formatBaht } from "@/lib/money";
-import { discountOf, lineTotal, subtotal, type BillState } from "@/lib/posBill";
+import { billLineText, discountOf, lineTotal, subtotal, type BillState } from "@/lib/posBill";
 import { billDate } from "@/lib/scanSale";
 import type { PrintSettings } from "./usePosSession";
 
@@ -97,7 +97,7 @@ export function BillDoc({ doc, ref }: { doc: DocView; ref?: Ref<ComponentRef<typ
       <View style={styles.rule} />
       {b.lines.map((l) => (
         <View key={l.key} style={styles.line}>
-          <Text style={[styles.text15, styles.grow]}>{l.name}</Text>
+          <Text style={[styles.text15, styles.grow]}>{billLineText(l, b.buyer)}</Text>
           <Text style={styles.grey15}>×{l.quantity}</Text>
           <Text style={[styles.text15, styles.amount]}>{plain(lineTotal(l))}</Text>
         </View>

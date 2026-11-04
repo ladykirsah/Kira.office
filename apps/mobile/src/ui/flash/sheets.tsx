@@ -99,7 +99,9 @@ function PickLine(props: { row: ProductRow; picked: boolean; onPress: () => void
     <View style={[styles.pick, !props.last && styles.rule, { borderBottomColor: theme.border }]}>
       <OffPhoto imageKey={props.row.imageKey} size={44} />
       <View style={styles.grow}>
-        <Text style={[TYPE.body, { color: theme.text }]}>{props.row.name}</Text>
+        <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
+          {props.row.name}
+        </Text>
         <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
           {props.row.productRef}
         </Text>
@@ -197,7 +199,9 @@ export function PriceSheet(props: {
         <View style={styles.product}>
           <OffPhoto imageKey={props.line.imageKey} size={44} />
           <View style={styles.grow}>
-            <Text style={[TYPE.headline, { color: theme.text }]}>{props.line.name}</Text>
+            <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
+              {props.line.name}
+            </Text>
             <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
               {props.line.productRef}
             </Text>

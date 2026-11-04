@@ -1,6 +1,7 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { billLineName } from "@/lib/billName";
 import { API_BASE } from "@/lib/config";
 import { formatBaht } from "@/lib/money";
 import { payQr } from "@/lib/qr";
@@ -146,9 +147,16 @@ function ListStage(props: PaySheetProps) {
                 ]}
               >
                 <View style={styles.rowText}>
+                  {/* Each row reads like the bill it becomes, for the buyer picked above; then the
+                      code and the price × qty on grey lines of their own (owner, 4 Nov 2026). */}
                   <Text style={[styles.body, { color: theme.text }]} numberOfLines={1}>
-                    {c.part.name}
+                    {billLineName(c.part, buyer)}
                   </Text>
+                  {c.part.productRef ? (
+                    <Text style={[styles.sub, { color: theme.textMuted }]}>
+                      {c.part.productRef}
+                    </Text>
+                  ) : null}
                   <Text style={[styles.sub, { color: theme.textMuted }]}>
                     {formatBaht(each)} × {c.value}
                   </Text>

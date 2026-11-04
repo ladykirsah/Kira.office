@@ -134,7 +134,7 @@ function PickProduct(props: {
               >
                 <Photo imageKey={r.imageKey} size={44} radius={10} />
                 <View style={styles.grow}>
-                  <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={1}>
+                  <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
                     {r.name}
                   </Text>
                   <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
@@ -182,7 +182,7 @@ function SetLabel(props: {
       <View style={[styles.card, styles.product, { backgroundColor: theme.surface }]}>
         <Photo imageKey={row.imageKey} size={44} radius={10} />
         <View style={styles.grow}>
-          <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
+          <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
           {sub ? (

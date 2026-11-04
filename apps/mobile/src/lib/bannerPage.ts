@@ -1,5 +1,4 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { formatBaht } from "./money";
 import { rangeLabel, shortDate, startOfDay } from "./orderList";
 import { matchesSearch, type ProductRow } from "./productList";
 import { attrLabel, type Named } from "./productPickers";
@@ -256,11 +255,6 @@ export function productChoices(rows: readonly ProductRow[], q: string): ProductR
   return rows
     .filter((r) => r.status === "active" && matchesSearch(r, q))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
-}
-
-/** "DN-447220 · ฿3,450" — the code and the AirPlus price, under a product's name. */
-export function productSub(r: Pick<ProductRow, "productRef" | "onlinePriceSatang">): string {
-  return `${r.productRef} · ${formatBaht(r.onlinePriceSatang)}`;
 }
 
 // ── the form ─────────────────────────────────────────────────────────────────────────────────────

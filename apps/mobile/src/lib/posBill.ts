@@ -1,4 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
+import { billLineName } from "./billName";
 import { billDate, type Buyer } from "./scanSale";
 
 /**
@@ -32,6 +33,10 @@ export interface PosLine {
   costSatang: number;
   /** Sellable stock when the line was added; null for a service. */
   onHand: number | null;
+  /** What the bill names a part by ("ตู้แอร์ Cool Gear" + the top car for a ช่าง); a service has none. */
+  typeName?: string | null;
+  brandName?: string | null;
+  carModel?: string | null;
 }
 
 export interface Discount {
@@ -179,11 +184,15 @@ function saleType(b: BillState): "parts" | "repair" {
   return car || b.lines.some((l) => l.kind === "service") ? "repair" : "parts";
 }
 
-function payloadLine(l: PosLine): SaleLinePayload {
+/** A part prints its bill name (customer: type + brand; ช่าง: + the top car); a service its own name. */
+export const billLineText = (l: PosLine, buyer: Buyer): string =>
+  l.kind === "part" ? billLineName(l, buyer) : l.name;
+
+function payloadLine(l: PosLine, buyer: Buyer): SaleLinePayload {
   return {
     productVariantId: l.kind === "part" ? l.variantId : null,
     lineType: l.kind,
-    description: l.name,
+    description: billLineText(l, buyer),
     ...(l.barcode ? { barcodeValue: l.barcode } : {}),
     quantity: l.quantity,
     unitPriceSatang: l.priceSatang,
@@ -218,7 +227,7 @@ export function buildBillSale(
     notes: notes.length > 0 ? notes.join(" · ") : undefined,
     mileageKm: customer ? parseMileage(b.mileage) : null,
     buyerName: customer ? null : orNull(b.mechanicName),
-    lines: b.lines.map((l, i) => ({ ...payloadLine(l), discountSatang: shares[i] ?? 0 })),
+    lines: b.lines.map((l, i) => ({ ...payloadLine(l, b.buyer), discountSatang: shares[i] ?? 0 })),
   };
 }
 
@@ -238,7 +247,7 @@ export function buildBillDraft(
     notes: orNull(b.note),
     mileageKm: customer ? parseMileage(b.mileage) : null,
     buyerName: customer ? null : orNull(b.mechanicName),
-    lines: b.lines.map(payloadLine),
+    lines: b.lines.map((l) => payloadLine(l, b.buyer)),
     discountSatang: discountOf(subtotal(b.lines), b.discount),
     discountKind: b.discount.kind,
     discountValue: b.discount.value,

@@ -181,6 +181,26 @@ describe("posBill what is sent", () => {
     });
   });
 
+  it("buildBillSale > part lines > print [type] [brand]; a ช่าง bill adds the top car; a service keeps its name", () => {
+    const coil = part({
+      name: "ตู้แอร์ คอยล์เย็น Toyota Revo / Fortuner Gen 2 | Cool Gear DI261416-03704W",
+      typeName: "ตู้แอร์",
+      brandName: "Cool Gear",
+      carModel: "Revo",
+    });
+    const send = (buyer: BillState["buyer"]) =>
+      buildBillSale(bill({ buyer, mechanicName: "ช่างโอ๊ต", lines: [coil, service()] }), {
+        clientUuid: "u3",
+        saleNumber: "DAS202611-04001",
+        paymentMethod: "cash",
+        receivedBy: "",
+      }).lines.map((l) => l.description);
+    expect(send("customer")).toEqual(["ตู้แอร์ Cool Gear", "เติมน้ำยาแอร์ R134a"]);
+    expect(send("mechanic")).toEqual(["ตู้แอร์ Cool Gear Revo", "เติมน้ำยาแอร์ R134a"]);
+    const draft = buildBillDraft(bill({ lines: [coil] }), { draftId: "d3", saleNumber: null });
+    expect(draft.lines[0]!.description).toBe("ตู้แอร์ Cool Gear");
+  });
+
   it("buildBillDraft > given a quotation > then keeps its number and the raw discount", () => {
     const draft = buildBillDraft(bill({ doc: "quote", note: "รับประกัน 6 เดือน" }), {
       draftId: "d1",
