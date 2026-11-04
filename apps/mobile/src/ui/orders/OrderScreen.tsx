@@ -381,7 +381,10 @@ function Sections(props: {
                   },
                 ]}
               >
-                <Text style={[TYPE.headline, { color: theme.text }]}>{l.name ?? dash}</Text>
+                {/* Real names are long: regular weight, 2 lines then … (owner's C, 4 Nov). */}
+                <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
+                  {l.name ?? dash}
+                </Text>
                 <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
                   {[
                     `× ${l.quantity}`,

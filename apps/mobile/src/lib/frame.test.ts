@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bottomBar, phoneBottoms } from "./frame";
+import { bandOverhang, bottomBar, phoneBottoms } from "./frame";
 
 describe("bottomBar", () => {
   it("given a main page > then the tab bar shows", () => {
@@ -34,5 +34,15 @@ describe("phoneBottoms", () => {
 
   it("given no bar > then the last card stops 16 above the pinned buttons", () => {
     expect(phoneBottoms({ bar: "none", insetBottom: 0, pinned: 120 }).content).toBe(34 + 120 + 16);
+  });
+});
+
+describe("bandOverhang", () => {
+  it("given pinned buttons > then the last line needs room for the band's solid part and its fade (20 + 28)", () => {
+    expect(bandOverhang(true)).toBe(48);
+  });
+
+  it("given no pinned buttons > then no band, no extra room", () => {
+    expect(bandOverhang(false)).toBe(0);
   });
 });

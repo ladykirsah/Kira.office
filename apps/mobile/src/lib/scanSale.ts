@@ -1,4 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
+import { billLineName } from "./billName";
 import { formatBaht } from "./money";
 import type { ScanCard, ScannedPart } from "./scanTabs";
 
@@ -37,17 +38,11 @@ export function saleTotal(cards: readonly ScanCard[], buyer: Buyer): number {
   return cards.reduce((sum, c) => sum + unitPrice(c.part, buyer) * c.value, 0);
 }
 
-/** The line name ทำบิล prints: the brand inline ("Compressor · Denso"), or just the name. */
-function lineName(part: ScannedPart): string {
-  const brand = part.brandName?.trim();
-  return brand ? `${part.name} · ${brand}` : part.name;
-}
-
 export function saleLines(cards: readonly ScanCard[], buyer: Buyer): BillLine[] {
   return cards.map((c) => ({
     productVariantId: c.part.variantId,
     lineType: "part",
-    description: lineName(c.part),
+    description: billLineName(c.part, buyer),
     barcodeValue: c.part.barcode,
     quantity: c.value,
     unitPriceSatang: unitPrice(c.part, buyer),

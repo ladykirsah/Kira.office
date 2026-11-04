@@ -7,6 +7,8 @@ export interface ShopeeWorkItem {
   /** The product code (= Shopee SKU), what the copy icon copies. */
   productRef: string;
   name: string;
+  /** The cover photo the row shows (owner picked B, 4 Nov 2026); null = none. */
+  imageKey: string | null;
   onHand: number;
   /** Net change since the last update; negative = lower it on Shopee. */
   deltaSinceSync: number;

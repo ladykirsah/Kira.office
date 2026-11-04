@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-04
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -320,6 +320,53 @@ again before saying a build matches.** The owner's words are quoted where they s
     the old line "only a button that moves money names the amount". ออเดอร์, พนักงาน's pay sheet and
     การชำระเงิน still carry amounts or counts; they change in their own job after การเงิน.
   - A red text row in แก้ไข names its thing: ลบคูปอง, ลบแบนเนอร์, ลบค่าใช้จ่าย.
+- **A bill names a product by type and brand, never by its full name or code.** Services keep their
+  own name.
+  - **Customer bill: [ประเภทสินค้า] [ยี่ห้อ]**, e.g. ตู้แอร์ Cool Gear, น้ำมันคอมแอร์ DENSO. This covers
+    ใบเสนอราคา and บิลเงินสด on ทำบิล, and the bills on a customer's page.
+  - **B2B bill (ขายให้ ช่าง, ราคาช่าง): [ประเภทสินค้า] [ยี่ห้อ] [รุ่นรถ]**, e.g. ตู้แอร์ Cool Gear Tiger
+    D4D, ตู้แอร์ Cool Gear Revo. รุ่นรถ = **one** model, the one at the top of the product's
+    ใช้ได้กับรถ list: *"pick one car model on the top of the list"* (on "Revo / Fortuner Gen 2", v347).
+    A product made for no particular car (the oils) shows type and brand only.
+    Scan's bill after ออกบิล is the ช่าง flow, so it is a B2B bill.
+  - **ทำบิล's and Scan's own lines read the same way.** On ทำบิล: the รายการ rows, the แก้รายการ sheet, and
+    a waiting bill's stock line. On Scan: the card after a scan (every tab) and the ขาย sheet's rows (ลูกค้า
+    → type + brand, ช่าง → + first car model). The code always goes on a grey line under the short name;
+    a "CODE · ฿ × n" line that would break goes on two lines instead. *"use the same naming pattern i have
+    just set for bill here too"* (ทำบิล, v350) · *"naming pattern on bill here too"* (Scan card, v352).
+  - **A product picker keeps the full name**, regular weight, 2 lines then …. Under it the code, then
+    "เหลือ 4 · ฿3,450" (stock, then price), with ＋ on the right; the price no longer squeezes the name
+    from the side. *"fix the second card layout too"* — the เพิ่มสินค้า result card had wrapped to 6
+    lines — then *"make it · name · id · [stock] dot [price]"* (ทำบิล, v350–v351).
+- **A list row that shows a product's full name**: regular weight (not bold), at most 2 lines then
+  …; the grey line under it keeps the code (× จำนวน · รหัสสินค้า on orders, CODE · ป้าย L on
+  ออกบาร์โค้ด). The owner picked C for the order page's รายการสินค้า (4 Nov, v349), then said *"fix the
+  messy long name"* on ออกบาร์โค้ด's cards, picker and add row (v353).
+  - A sheet title that is a long product name: 2 lines then …, padded clear of the pills on both
+    sides (the ดูป้าย title ran under ปิด).
+  - **A product row shows its code on its own grey line under the name.** The real names start alike
+    ("ตู้แอร์ คอยล์เย็น …"), so the code tells them apart. ประวัติซื้อขาย reads name · code · what
+    happened and stock: *"show ID here too · name · id · action and stock"* (v354).
+  - **These rules cover every page** — *"you did fix messy long product name well > fix them the left
+    over page"* (v355): แบนเนอร์, คูปอง and แฟลชเซล pickers and items, ภาพรวม AirPlus best sellers, ลูกค้า
+    AirPlus order cards, every ออเดอร์ board (item rows C, the claim/cancel สินค้า line 2 lines), สินค้า
+    list rows (regular weight), guide examples. **The full name stays whole** on that product's own page
+    (title and ชื่อสินค้า card), in form name boxes, error sentences, the parcel label and the description
+    preview.
+  - *"new rule for product name on bill [product type] [product brand]"* · *"customer bill : [product
+    type] [product brand] · B2B bill : [product type] [product brand] [car model]"*, both sent with the
+    Scan bill line (4 Nov). Drawn on the canvas v345–v352; built 4 Nov.
+  - **The type is its Thai name** (ตู้แอร์, not Evaporator); a type with no Thai name yet shows its
+    English name. **A product with no type keeps its full name**, so a line is never a bare brand. Bills
+    already made keep the text they were saved with.
+- **Draw with the shop's real products.** Made-up short names hid how long the real ones are: on the
+  live หน้าหลัก a real name wrapped to three lines and pushed the bottom row away. *"the mock name is
+  short, but real name is long … i want to make sure all page look ok"* · *"use the real product name
+  … with mock image"* (4 Nov). Use the real names and codes (pictures may stay drawn).
+  - **"Everywhere" means every board on the canvas**, not the page in hand. It took three asks:
+    *"put the real product name everywhere on this artifact meant all artifact pages"*, then *"not real
+    product name here > re-check all pages"*. Change all boards by one script, then search every board
+    for the old names before saying it is done.
 - **Money on screens:** ฿1,450 (comma, no .00, normal font). Only the printed bill keeps .00.
   Don't show money where it isn't needed: *"no need to mention money here"* (Orders rows).
 - **Cost always comes before price.** One ราคา list: the first row is ต้นทุน (the total cost), then

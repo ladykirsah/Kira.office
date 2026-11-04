@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLang, useTheme } from "../AppProviders";
@@ -8,6 +8,11 @@ import { ICON } from "./icons";
 
 interface SheetProps {
   title: string;
+  /**
+   * A long title (a product's name): at most this many lines, then …, kept clear of the pills on
+   * both sides (owner, 4 Nov: the ดูป้าย title ran under ปิด).
+   */
+  titleLines?: number;
   /** A second, grey line under the title — the order number. */
   sub?: string;
   /** A small tool right after the title — การเงิน's copy mark on a bill number. */
@@ -34,6 +39,15 @@ export function Sheet(props: SheetProps) {
   const { theme } = useTheme();
   const { t } = useLang();
   const insets = useSafeAreaInsets();
+  // The widest pill, measured, so a long title can keep clear of both sides and stay centred.
+  const [pillWidth, setPillWidth] = useState(0);
+  const long = props.titleLines !== undefined;
+  const measure = long
+    ? (e: { nativeEvent: { layout: { width: number } } }) => {
+        const w = e.nativeEvent.layout.width;
+        setPillWidth((now) => Math.max(now, w));
+      }
+    : undefined;
   return (
     <Modal visible transparent animationType="slide" onRequestClose={props.onClose}>
       <View style={[styles.fill, { backgroundColor: theme.scrim }]}>
@@ -51,12 +65,13 @@ export function Sheet(props: SheetProps) {
           ]}
           accessibilityViewIsModal
         >
-          <View style={styles.head}>
+          <View style={[styles.head, long && styles.longHead]}>
             {props.noPill ? (
               <View />
             ) : (
               <Pressable
                 onPress={props.left?.onPress ?? props.onClose}
+                onLayout={measure}
                 accessibilityRole="button"
                 accessibilityLabel={props.left?.a11y}
                 style={[
@@ -69,9 +84,19 @@ export function Sheet(props: SheetProps) {
                 </Text>
               </Pressable>
             )}
-            <View style={styles.titles} pointerEvents={props.titleTool ? "box-none" : "none"}>
+            <View
+              style={[
+                styles.titles,
+                long && [styles.longTitles, { paddingHorizontal: pillWidth + SPACE.s }],
+              ]}
+              pointerEvents={props.titleTool ? "box-none" : "none"}
+            >
               <View style={styles.titleRow} pointerEvents="box-none">
-                <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+                <Text
+                  style={[styles.title, long && styles.longTitle, { color: theme.text }]}
+                  accessibilityRole="header"
+                  numberOfLines={props.titleLines}
+                >
                   {props.title}
                 </Text>
                 {props.titleTool}
@@ -83,6 +108,7 @@ export function Sheet(props: SheetProps) {
             {props.right && !props.onDone && (
               <Pressable
                 onPress={props.right.onPress}
+                onLayout={measure}
                 accessibilityRole="button"
                 style={[
                   styles.pill,
@@ -95,6 +121,7 @@ export function Sheet(props: SheetProps) {
             {props.onDone && (
               <Pressable
                 onPress={props.onDone}
+                onLayout={measure}
                 accessibilityRole="button"
                 accessibilityLabel={t({ th: "ใช้ตัวกรอง", en: "Apply" })}
                 style={[styles.done, { backgroundColor: theme.button }]}
@@ -124,6 +151,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.l,
   },
   head: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  /** Room for a two-line title (2 × the headline's 24). */
+  longHead: { height: 48 },
   pill: {
     height: 44,
     paddingHorizontal: SPACE.l,
@@ -135,6 +164,8 @@ const styles = StyleSheet.create({
   pillText: { ...TYPE.body },
   titles: { position: "absolute", left: 0, right: 0, alignItems: "center" },
   title: { ...TYPE.headline },
+  longTitles: { top: 0, bottom: 0, justifyContent: "center" },
+  longTitle: { flexShrink: 1, textAlign: "center" },
   sub: { ...TYPE.footnote },
   done: {
     width: 44,

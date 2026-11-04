@@ -110,6 +110,7 @@ export function FlashScreen() {
           <ItemRow
             key={p.id}
             name={p.productName}
+            code={p.productRef}
             imageKey={p.imageKey}
             off={`${offPercent(p.basePriceSatang, p.campaignPriceSatang)}%`}
             price={formatBaht(p.campaignPriceSatang)}

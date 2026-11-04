@@ -22,8 +22,8 @@ export function SellerList(props: { rows: readonly ProductInsightRow[] }) {
 
 /**
  * One best seller, as picked (owner, 1 Nov: "C … only keep sales amount, views, order amount"):
- * the number, the photo, the name on one line, then ยอดขาย in its own column and "ขาย 2 · ดู 64" in
- * grey. A tap opens the product's page.
+ * the number, the photo, the name on one line, its code in grey (4 Nov), then ยอดขาย in its own
+ * column and "ขาย 2 · ดู 64" in grey. A tap opens the product's page.
  */
 function SellerRow(props: { rank: number; row: ProductInsightRow; last: boolean }) {
   const { theme } = useTheme();
@@ -52,6 +52,11 @@ function SellerRow(props: { rank: number; row: ProductInsightRow; last: boolean 
         <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
           {name}
         </Text>
+        {row.productRef ? (
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+            {row.productRef}
+          </Text>
+        ) : null}
         <View style={styles.numbers}>
           <Text
             style={[TYPE.subhead, styles.money, styles.nums, { color: theme.text }]}

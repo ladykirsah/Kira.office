@@ -33,6 +33,7 @@ import { MenuDrawer } from "./MenuDrawer";
 import { Segmented } from "./Segmented";
 import { MENU_ICON, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
+import { UpdateBar } from "./UpdateBar";
 
 /**
  * The frame around every screen. On a phone it follows the approved design guide (2026-10-26): the
@@ -85,6 +86,7 @@ function WideShell({ children }: { children: ReactNode }) {
           <Toolbar />
         </View>
         <ScrollView style={s.fill} contentContainerStyle={s.content}>
+          <UpdateBar />
           {chrome.back && <BackPill back={chrome.back} />}
           {/* A title still loading is "" — a ternary, so no bare text lands in the View. */}
           {chrome.title ? (
@@ -155,6 +157,7 @@ function PhoneShell({ children }: { children: ReactNode }) {
           },
         ]}
       >
+        <UpdateBar />
         {chrome.ownTitle && chrome.headers.length > 0 ? (
           // A page with its own heading keeps its tools beside the way back (ตั้งค่าอะไหล่'s ⓘ ＋).
           <View style={s.backRow}>

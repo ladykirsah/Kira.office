@@ -101,7 +101,7 @@ export function ListRow(props: {
 }
 
 /** A visit's or an order's items: at most 3, then "และอีก N รายการ". */
-function ItemLines({ items }: { items: readonly string[] }) {
+function ItemLines({ items, lines }: { items: readonly string[]; lines?: number }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const { shown, more } = itemsPreview(items);
@@ -110,7 +110,9 @@ function ItemLines({ items }: { items: readonly string[] }) {
       {shown.map((it, i) => (
         <View key={`${i}-${it}`} style={styles.item}>
           <View style={[styles.itemDot, { backgroundColor: theme.textFaint }]} />
-          <Text style={[TYPE.subhead, styles.grow, { color: theme.text }]}>{it}</Text>
+          <Text style={[TYPE.subhead, styles.grow, { color: theme.text }]} numberOfLines={lines}>
+            {it}
+          </Text>
         </View>
       ))}
       {more > 0 && (
@@ -126,6 +128,8 @@ function ItemLines({ items }: { items: readonly string[] }) {
 export function ItemCard(props: {
   head: ReactNode;
   items: readonly string[];
+  /** Product names are long: each item at most this many lines, then … (AirPlus orders, 4 Nov). */
+  itemLines?: number;
   onPress?: () => void;
 }) {
   const { theme } = useTheme();
@@ -140,7 +144,7 @@ export function ItemCard(props: {
       {props.items.length > 0 ? (
         <>
           <View style={[styles.cardRule, { backgroundColor: theme.border }]} />
-          <ItemLines items={props.items} />
+          <ItemLines items={props.items} lines={props.itemLines} />
         </>
       ) : (
         <View style={styles.cardEnd} />

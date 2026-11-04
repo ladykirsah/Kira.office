@@ -141,6 +141,7 @@ function Orders({ orders }: { orders: AccountOrder[] }) {
             <View key={o.id} style={styles.order}>
               <ItemCard
                 items={o.items}
+                itemLines={2}
                 onPress={() => router.push(`/orders/${encodeURIComponent(o.id)}` as never)}
                 head={
                   <>

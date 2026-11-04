@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addLabel,
+  cardLine,
   copiesOf,
   labelCount,
   removeLabel,
@@ -67,5 +68,18 @@ describe("copiesOf and labelCount", () => {
       { size: "S", lines: 1, item: "b:S" },
     ]);
     expect(labelCount(list)).toBe(3);
+  });
+});
+
+describe("cardLine", () => {
+  it("given a product code and a size > then the code, then the size word", () => {
+    expect(cardLine("DI446610-19504W", "L")).toEqual({
+      th: "DI446610-19504W · ป้าย L",
+      en: "DI446610-19504W · Label L",
+    });
+  });
+
+  it("given no code > then the size word alone, no stray dot", () => {
+    expect(cardLine("  ", "S")).toEqual({ th: "ป้าย S", en: "Label S" });
   });
 });

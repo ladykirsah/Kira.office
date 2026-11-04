@@ -1,4 +1,5 @@
 import { defaultPaymentMethod, parsePaymentMethods } from "@l-shopee/core";
+import { firstCarModel } from "./billName";
 import type { BillLine, SaleRecord, SyncResult } from "./scanSale";
 import type { HoldLine, ScannedPart, StockMove } from "./scanTabs";
 import type { FetchFn } from "./signIn";
@@ -27,11 +28,18 @@ interface BarcodeHit {
 }
 
 interface ProductDetail {
-  product: { imageKey: string | null; brandName: string | null };
+  product: {
+    imageKey: string | null;
+    brandName: string | null;
+    typeName?: string | null;
+    typeNameTh?: string | null;
+  };
   onHand: number;
   held: number;
   pricing: { targetPriceSatang: number; b2bPriceSatang: number; itemCostSatang: number } | null;
   images: { imageKey: string }[];
+  /** Its cars in the ใช้ได้กับรถ list order. */
+  fitments?: { carModel?: string | null }[];
 }
 
 /** The PromptPay account a mechanic's QR pays into, as set on the Shop page. */
@@ -90,6 +98,8 @@ export async function lookupPart(
     productRef: hit.productRef,
     name: hit.name,
     brandName: detail.product.brandName ?? null,
+    typeName: detail.product.typeNameTh?.trim() || detail.product.typeName?.trim() || null,
+    carModel: firstCarModel(detail.fitments),
     barcode: hit.barcode,
     photoKeys: gallery.length > 0 ? gallery : cover ? [cover] : [],
     onHand: detail.onHand,

@@ -33,6 +33,7 @@ const oil = part({
   variantId: "v3",
   productRef: "ND-OIL-8",
   name: "น้ำมันคอมแอร์ ND-OIL 8",
+  typeName: "น้ำมันคอมแอร์",
   brandName: "DENSO",
   barcode: "8850001112223",
   unitPriceSatang: 32000,
@@ -73,12 +74,12 @@ describe("saleTotal", () => {
 });
 
 describe("saleLines", () => {
-  it("turns the cards into bill lines as ทำบิล writes them: name · brand, the scanned barcode, the buyer's price, cost kept for profit", () => {
+  it("turns the cards into bill lines as ทำบิล writes them: the bill name, the scanned barcode, the buyer's price, cost kept for profit", () => {
     expect(saleLines(sale, "mechanic")).toEqual([
       {
         productVariantId: "v3",
         lineType: "part",
-        description: "น้ำมันคอมแอร์ ND-OIL 8 · DENSO",
+        description: "น้ำมันคอมแอร์ DENSO",
         barcodeValue: "8850001112223",
         quantity: 2,
         unitPriceSatang: 29000,
@@ -94,6 +95,20 @@ describe("saleLines", () => {
         unitCostSatang: 44000,
       },
     ]);
+  });
+  // Owner, 4 Nov 2026: customer bill = [type] [brand]; ช่าง bill = [type] [brand] [the top car model].
+  it("a customer's bill reads [type] [brand]; a ช่าง's adds the top car", () => {
+    const coil: ScanCard = {
+      part: part({
+        name: "ตู้แอร์ คอยล์เย็น Toyota Revo / Fortuner Gen 2 | Cool Gear DI261416-03704W",
+        typeName: "ตู้แอร์",
+        brandName: "Cool Gear",
+        carModel: "Revo",
+      }),
+      value: 1,
+    };
+    expect(saleLines([coil], "customer")[0]!.description).toBe("ตู้แอร์ Cool Gear");
+    expect(saleLines([coil], "mechanic")[0]!.description).toBe("ตู้แอร์ Cool Gear Revo");
   });
 });
 

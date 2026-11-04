@@ -5,10 +5,10 @@ import {
   choiceLabel,
   externalProblem,
   productChoices,
-  productSub,
   type LinkChoice,
   type LinkNames,
 } from "@/lib/bannerPage";
+import { formatBaht } from "@/lib/money";
 import type { ProductRow } from "@/lib/productList";
 import { attrLabel, pickList, type Named } from "@/lib/productPickers";
 import { useLang, useTheme } from "../AppProviders";
@@ -304,7 +304,10 @@ function ProductList(props: {
   );
 }
 
-/** A product with its photo (grey when it has none), name, and "code · price". */
+/**
+ * A product with its photo (grey when it has none), its name (regular, 2 lines), then its code and
+ * its AirPlus price, each on a grey line of its own (owner, 4 Nov: long names, alike but for the code).
+ */
 export function ProductLine(props: {
   product: Pick<ProductRow, "name" | "imageKey" | "productRef" | "onlinePriceSatang">;
   checked?: boolean;
@@ -316,11 +319,14 @@ export function ProductLine(props: {
     <View style={styles.product}>
       <Photo imageKey={props.product.imageKey} size={48} radius={10} />
       <View style={styles.text}>
-        <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={1}>
+        <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
           {props.product.name}
         </Text>
+        <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+          {props.product.productRef}
+        </Text>
         <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
-          {productSub(props.product)}
+          {formatBaht(props.product.onlinePriceSatang)}
         </Text>
       </View>
       {props.checked && (

@@ -106,7 +106,11 @@ export function ClaimJob({ ctx }: { ctx: JobContext }) {
       <JobBox>
         <JobHead icon={STEP_ICON.claim} color={theme.waiting} title={t(stepTitle[step])} />
         <View style={insetBox}>
-          <InsetRow label={t({ th: "สินค้า", en: "Item" })} value={products || "—"} />
+          <InsetRow
+            label={t({ th: "สินค้า", en: "Item" })}
+            value={products || "—"}
+            valueLines={2}
+          />
           <InsetRow label={t({ th: "แจ้งเมื่อ", en: "Raised" })} value={stamp(claim.createdAt)} />
           <InsetRow
             label={t({ th: "ลูกค้าเลือก", en: "Customer chose" })}

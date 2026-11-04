@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+import { BAND_FADE as FADE, BAND_SOLID_ABOVE as SOLID_ABOVE } from "@/lib/frame";
 import { useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
 import type { Chrome } from "./ScreenChrome";
@@ -10,9 +11,6 @@ import { SPACE, TYPE } from "./theme";
 const BUTTON_ROW = 60;
 /** The choice above the buttons (32 + its padding) and the gap under it. */
 const CHOICE_ROW = 46;
-/** The band stays solid this far above the top of the pinned stack, then fades out over FADE. */
-const SOLID_ABOVE = 20;
-const FADE = 28;
 
 /** How much the pinned stack covers, so the page can leave room for it under its last card. */
 export function pinnedHeight(chrome: Chrome): number {

@@ -46,3 +46,15 @@ export function phoneBottoms(input: { bar: BottomBar; insetBottom: number; pinne
     content: BAR_CLEARANCE + input.pinned + input.insetBottom,
   };
 }
+
+/** The pinned band stays solid this far above the pinned stack, then fades out over BAND_FADE. */
+export const BAND_SOLID_ABOVE = 20;
+export const BAND_FADE = 28;
+
+/**
+ * How far the pinned band reaches above the pinned stack. A page whose last line must stay readable
+ * at the end of the scroll (หน้าหลัก's ทำแล้ว · ล้างที่ทำแล้ว, owner 4 Nov 2026) leaves this much more room.
+ */
+export function bandOverhang(hasPinned: boolean): number {
+  return hasPinned ? BAND_SOLID_ABOVE + BAND_FADE : 0;
+}

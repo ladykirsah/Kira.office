@@ -13,6 +13,9 @@ export interface ScannedPart {
   productRef: string;
   name: string;
   brandName: string | null;
+  /** The type (Thai when set) and the top car, for the bill line (owner, 4 Nov 2026). */
+  typeName?: string | null;
+  carModel?: string | null;
   /** The code that was scanned — what ทำบิล stores on the bill line. */
   barcode: string;
   /** The product's photos in gallery order; empty when it has none. */

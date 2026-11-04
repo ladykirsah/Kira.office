@@ -1,3 +1,4 @@
+import type { Phrase } from "@l-shopee/shared/lang";
 import type { LabelSize } from "./barcodeLabel";
 
 /**
@@ -51,4 +52,10 @@ export function copiesOf(
 
 export function labelCount(list: readonly SheetItem[]): number {
   return list.reduce((n, i) => n + i.qty, 0);
+}
+
+/** A บนแผ่น card's grey line: "DI446610-19504W · ป้าย L" — the code tells alike names apart (4 Nov). */
+export function cardLine(code: string, size: LabelSize): Phrase {
+  const withCode = (word: string) => [code.trim(), word].filter(Boolean).join(" · ");
+  return { th: withCode(`ป้าย ${size}`), en: withCode(`Label ${size}`) };
 }

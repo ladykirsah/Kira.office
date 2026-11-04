@@ -9,6 +9,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
+import { billLineName } from "@/lib/billName";
 import { API_BASE } from "@/lib/config";
 import { priceTag } from "@/lib/scanSale";
 import type { ScannedPart } from "@/lib/scanTabs";
@@ -85,11 +86,15 @@ export function ProductCard(props: ProductCardProps) {
         accessibilityLabel={t({ th: `เปิดหน้าสินค้า ${part.name}`, en: `Open ${part.name}` })}
         style={styles.nameRow}
       >
+        {/* The bill's name, [ประเภท] [ยี่ห้อ], with the code under it (owner, 4 Nov 2026). */}
         <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-          {part.name}
+          {billLineName(part, "customer")}
         </Text>
         <LineIcon d={CHEVRON} color={theme.textFaint} size={15} strokeWidth={2.4} />
       </Pressable>
+      {part.productRef ? (
+        <Text style={[styles.code, { color: theme.textMuted }]}>{part.productRef}</Text>
+      ) : null}
       <Text
         style={[styles.price, { color: theme.text }]}
         accessibilityLabel={t({
@@ -154,6 +159,7 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACE.l,
   },
   name: { ...TYPE.headline, flex: 1 },
+  code: { ...TYPE.subhead, marginTop: 2, marginHorizontal: SPACE.l, fontVariant: ["tabular-nums"] },
   price: {
     ...TYPE.body,
     marginTop: SPACE.xs,

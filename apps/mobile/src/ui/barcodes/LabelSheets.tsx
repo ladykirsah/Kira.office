@@ -41,6 +41,7 @@ export function LabelSheet({ list, itemKey }: { list: Barcodes; itemKey: string 
   return (
     <Sheet
       title={row.name}
+      titleLines={2}
       closeLabel={t({ th: "ปิด", en: "Close" })}
       onClose={() => list.setSheet(null)}
     >

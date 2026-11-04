@@ -2382,6 +2382,7 @@ export interface ShopeeWorklistItem {
   productId: string; // products.id — what "Clear done" stamps
   productRef: string; // the Kira product code = Product ID = SKU (the copy value)
   name: string;
+  imageKey: string | null; // the cover photo หน้าหลัก shows on the row (owner picked B, 4 Nov 2026)
   onHand: number; // current on-hand across the product's variants (ledger invariant: SUM of deltas)
   deltaSinceSync: number; // net stock change since last reconciled — negative = reduced
   lastChangedAt: number; // ms of the most recent counting change since sync
@@ -2404,6 +2405,7 @@ const SHOPEE_COUNTED = `e.movement_type <> 'online_sale'
 export async function shopeeSyncWorklist(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT p.id AS productId, p.product_ref AS productRef, p.name AS name,
+            p.image_key AS imageKey,
             SUM(e.quantity_delta) AS onHand,
             SUM(CASE WHEN e.created_at > COALESCE(p.shopee_synced_at, 0)
                           AND ${SHOPEE_COUNTED}
@@ -2470,7 +2472,7 @@ async function listProducts(env: Env, seesProfit = true): Promise<Response> {
             p.shopee_listed AS shopeeListed, p.updated_at AS updatedAt,
             v.id AS variantId,
             b.name AS brandName,
-            t.name AS typeName,
+            t.name AS typeName, t.name_th AS typeNameTh,
             u.name AS usageName,
             COALESCE(pp.target_price_satang, 0) AS offlinePriceSatang,
             COALESCE(pp.online_price_satang, 0) AS onlinePriceSatang,
@@ -5220,6 +5222,8 @@ export interface ProductDetail {
     brandName: string | null;
     typeId: string | null;
     typeName: string | null;
+    /** The type's Thai name: a bill line reads "[type] [brand]" in Thai (owner, 4 Nov 2026). */
+    typeNameTh: string | null;
     usageId: string | null;
     usageName: string | null;
     updatedAt: number | null;
@@ -5252,7 +5256,7 @@ export async function getProductDetail(db: D1Database, id: string): Promise<Prod
               p.category, p.weight_grams AS weightGrams,
               p.width_mm AS widthMm, p.length_mm AS lengthMm, p.height_mm AS heightMm,
               p.brand_id AS brandId, b.name AS brandName,
-              p.type_id AS typeId, t.name AS typeName,
+              p.type_id AS typeId, t.name AS typeName, t.name_th AS typeNameTh,
               p.usage_id AS usageId, u.name AS usageName,
               p.updated_at AS updatedAt
        FROM products p

@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions, type BarcodeType } from "expo-camera";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { cameraBoxHeight } from "@/lib/cameraFit";
 import { sightCode, type Sighting } from "@/lib/wedge";
 import { useLang } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
@@ -22,6 +23,7 @@ const TORCH_ICON = "M13 2L4 14h7l-1 8 9-12h-7z";
 const FRAME_WIDTH = 236;
 
 interface CameraBoxProps {
+  /** The usual height; the box grows to the camera's own shape once the camera says its size. */
   height: number;
   /** "Aim inside the frame" — on the big camera only. */
   showHint: boolean;
@@ -38,6 +40,10 @@ export function CameraBox({ height, showHint, onCode }: CameraBoxProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [failed, setFailed] = useState(false);
   const [torch, setTorch] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [width, setWidth] = useState(0);
+  const [video, setVideo] = useState<{ width: number; height: number } | null>(null);
+  const box = useRef<ComponentRef<typeof View>>(null);
   const last = useRef<Sighting | null>(null);
   // The web camera keeps the first handler it is given, so it calls through to the newest one.
   const latest = useRef(onCode);
@@ -56,9 +62,33 @@ export function CameraBox({ height, showHint, onCode }: CameraBoxProps) {
   }, []);
 
   const live = permission?.granted === true && !failed;
-  const frameHeight = Math.min(124, height - 56);
+  // On the web the picture is a <video> that shrank to fit, leaving dark sides on an iPhone: make it
+  // fill the box, and learn the camera's shape so the box can take it (owner, 4 Nov 2026).
+  useEffect(() => {
+    if (Platform.OS !== "web" || !live || !ready) return;
+    const el = (box.current as unknown as HTMLElement | null)?.querySelector?.("video");
+    if (!el) return;
+    el.style.objectFit = "cover";
+    const measure = () => {
+      if (el.videoWidth > 0) setVideo({ width: el.videoWidth, height: el.videoHeight });
+    };
+    measure();
+    el.addEventListener("loadedmetadata", measure);
+    el.addEventListener("resize", measure);
+    return () => {
+      el.removeEventListener("loadedmetadata", measure);
+      el.removeEventListener("resize", measure);
+    };
+  }, [live, ready]);
+
+  const boxHeight = live ? cameraBoxHeight(width, video, height) : height;
+  const frameHeight = Math.min(124, boxHeight - 56);
   return (
-    <View style={[styles.box, { height }]}>
+    <View
+      ref={box}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={[styles.box, { height: boxHeight }]}
+    >
       {live ? (
         <CameraView
           style={StyleSheet.absoluteFill}
@@ -66,6 +96,7 @@ export function CameraBox({ height, showHint, onCode }: CameraBoxProps) {
           enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
           onBarcodeScanned={onScanned}
+          onCameraReady={() => setReady(true)}
           onMountError={() => setFailed(true)}
         />
       ) : (
@@ -102,7 +133,7 @@ export function CameraBox({ height, showHint, onCode }: CameraBoxProps) {
             {
               width: FRAME_WIDTH,
               height: frameHeight,
-              top: (height - frameHeight) / 2 - (showHint ? 16 : 0),
+              top: (boxHeight - frameHeight) / 2 - (showHint ? 16 : 0),
             },
           ]}
         >

@@ -40,6 +40,8 @@ export interface RowProps {
   opens?: boolean;
   /** A small round button on the right (copy). */
   tool?: { label: string; icon: string; onPress: () => void };
+  /** A long value (a product's name): at most this many lines, then …; the label keeps its width. */
+  valueLines?: number;
 }
 
 /** A label on the left, its value grey on the right; bold for a total. */
@@ -48,7 +50,7 @@ export function Row(props: RowProps) {
   const s = rowStyles(theme);
   const body = (
     <View style={[s.row, props.sub ? s.twoLine : null, !props.last && s.divider]}>
-      <View style={s.labels}>
+      <View style={[s.labels, props.valueLines !== undefined && s.keepWidth]}>
         <Text
           style={[
             s.label,
@@ -66,7 +68,9 @@ export function Row(props: RowProps) {
             s.value,
             props.bold && [s.bold, { color: theme.text }],
             props.valueLink && { color: theme.primary },
+            props.valueLines !== undefined && s.longValue,
           ]}
+          numberOfLines={props.valueLines}
         >
           {props.value}
         </Text>
@@ -189,6 +193,8 @@ const rowStyles = (c: Theme) =>
     twoLine: { minHeight: 68 },
     divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border },
     labels: { flex: 1, minWidth: 0 },
+    keepWidth: { flex: 0 },
+    longValue: { flex: 1 },
     label: { ...TYPE.body, color: c.text },
     bold: { fontWeight: "600" },
     sub: { ...TYPE.footnote, color: c.textMuted },

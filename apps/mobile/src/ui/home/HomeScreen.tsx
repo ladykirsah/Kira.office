@@ -2,6 +2,7 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { bandOverhang } from "@/lib/frame";
 import type { ShopeeWorkItem } from "@/lib/homeApi";
 import {
   HOME_TILES,
@@ -16,7 +17,7 @@ import { useAuth, useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import { Group } from "../orders/parts";
 import { ICON, STEP_ICON } from "../orders/icons";
-import { Divider } from "../products/parts";
+import { Photo } from "../products/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SectionHeading } from "../SectionHeading";
 import { CopyIcon } from "../staff/parts";
@@ -61,9 +62,10 @@ export function HomeScreen() {
     timer.current = setTimeout(() => setToast(null), TOAST_MS);
   };
 
+  const insight = showsInsightButton(role);
   useScreenChrome(
     null,
-    showsInsightButton(role)
+    insight
       ? [
           {
             label: t({ th: "ดูภาพรวม AirPlus", en: "AirPlus overview" }),
@@ -77,7 +79,8 @@ export function HomeScreen() {
   );
 
   return (
-    <View>
+    // The last line (ทำแล้ว · ล้างที่ทำแล้ว) must clear the pinned button's band at the end of the scroll.
+    <View style={{ paddingBottom: bandOverhang(insight) }}>
       <Text style={[TYPE.subhead, styles.date, { color: theme.textMuted }]}>
         {t(todayLine(Date.now()))}
       </Text>
@@ -171,23 +174,34 @@ function ShopeeList(props: {
         {props.items.map((item, i) => {
           const on = props.ticked.includes(item.productId);
           return (
-            <View key={item.productId}>
-              <View style={styles.row}>
+            // Pick B (owner, 4 Nov 2026): the photo, then the code to copy, how much to change, and
+            // the name in grey on one line, so a long name never pushes the work down.
+            <View key={item.productId} style={styles.row}>
+              <Photo imageKey={item.imageKey} size={48} radius={10} />
+              <View
+                style={[
+                  styles.rowBody,
+                  i < props.items.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: theme.border,
+                  },
+                ]}
+              >
                 <View style={styles.grow}>
-                  <Text style={[TYPE.body, { color: theme.text }]}>{item.name}</Text>
                   <View style={styles.codeLine}>
-                    <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-                      {item.productRef}
-                    </Text>
+                    <Text style={[TYPE.body, { color: theme.text }]}>{item.productRef}</Text>
                     <CopyIcon
                       value={item.productRef}
                       what={{ th: ` ${item.productRef} `, en: item.productRef }}
                       onCopied={props.onCopied}
                     />
-                    <Text style={[TYPE.subhead, styles.grow, { color: theme.textMuted }]}>
-                      · {t(shopeeChange(item.deltaSinceSync))}
-                    </Text>
                   </View>
+                  <Text style={[TYPE.subhead, { color: theme.text }]}>
+                    {t(shopeeChange(item.deltaSinceSync))}
+                  </Text>
+                  <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
                 </View>
                 <Pressable
                   onPress={() => props.onToggle(item.productId)}
@@ -205,7 +219,6 @@ function ShopeeList(props: {
                   {on && <LineIcon d={ICON.check} color="#FFFFFF" size={14} strokeWidth={3} />}
                 </Pressable>
               </View>
-              {i < props.items.length - 1 && <Divider />}
             </View>
           );
         })}
@@ -288,16 +301,19 @@ const styles = StyleSheet.create({
   tileTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   dot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   count: { fontSize: 28, lineHeight: 31, fontVariant: ["tabular-nums"] },
-  row: {
-    minHeight: 68,
+  row: { flexDirection: "row", alignItems: "center", gap: SPACE.m, paddingLeft: SPACE.l },
+  /** The text and the tick; its hairline starts after the photo, as on the drawing. */
+  rowBody: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: SPACE.m,
     paddingVertical: 10,
-    paddingHorizontal: SPACE.l,
+    paddingRight: SPACE.l,
   },
+  codeLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   grow: { flex: 1, minWidth: 0 },
-  codeLine: { flexDirection: "row", alignItems: "center", gap: SPACE.xs },
   tick: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   doneRow: {
     flexDirection: "row",

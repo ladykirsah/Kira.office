@@ -1,4 +1,5 @@
 import { parsePaymentMethods } from "@l-shopee/core";
+import { firstCarModel } from "./billName";
 import type { BillDraft, BillSale, CustomerUpsert, PosLine } from "./posBill";
 import { failure, sendJson, session } from "./scanApi";
 import type { Buyer, SyncResult } from "./scanSale";
@@ -18,6 +19,11 @@ export interface ProductRow {
   status: string;
   imageKey: string | null;
   brandName: string | null;
+  /** The type's identity name (English) and its Thai name, for the bill line (owner, 4 Nov 2026). */
+  typeName?: string | null;
+  typeNameTh?: string | null;
+  /** Its cars in the ใช้ได้กับรถ list order; a ช่าง bill names the top one. */
+  fitments?: readonly { carModel?: string | null }[];
   offlinePriceSatang: number;
   b2bPriceSatang?: number;
   itemCostSatang: number;
@@ -56,6 +62,9 @@ export function partLine(p: ProductRow, buyer: Buyer, key: string): PosLine {
     useMechanic,
     costSatang: p.itemCostSatang,
     onHand: p.onHand,
+    typeName: p.typeNameTh?.trim() || p.typeName?.trim() || null,
+    brandName: p.brandName,
+    carModel: firstCarModel(p.fitments),
   };
 }
 

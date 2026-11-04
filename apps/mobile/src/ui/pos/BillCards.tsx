@@ -1,7 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { API_BASE } from "@/lib/config";
 import { formatBaht } from "@/lib/money";
-import { discountOf, lineTotal, subtotal, type PosLine } from "@/lib/posBill";
+import { billLineText, discountOf, lineTotal, subtotal, type PosLine } from "@/lib/posBill";
 import { billDate } from "@/lib/scanSale";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
@@ -107,6 +107,8 @@ function LineRow({ line, last }: { line: PosLine; last: boolean }) {
   const pos = usePos();
   const available = line.variantId ? pos.short[line.variantId] : undefined;
   const short = available !== undefined;
+  // The row reads like the bill: ประเภท ยี่ห้อ, + the top car for a ช่าง (owner, 4 Nov 2026).
+  const name = billLineText(line, pos.bill.buyer);
   const sub = [line.productRef, `${formatBaht(line.priceSatang)} × ${line.quantity}`]
     .filter(Boolean)
     .join(" · ");
@@ -135,11 +137,11 @@ function LineRow({ line, last }: { line: PosLine; last: boolean }) {
         <Pressable
           onPress={() => pos.setSheet({ line: line.key })}
           accessibilityRole="button"
-          accessibilityLabel={t({ th: `แก้ ${line.name}`, en: `Edit ${line.name}` })}
+          accessibilityLabel={t({ th: `แก้ ${name}`, en: `Edit ${name}` })}
           style={styles.nameRow}
         >
           <Text style={[TYPE.headline, { color: theme.text, flex: 1 }]}>
-            {line.name}
+            {name}
             {line.kind === "service" ? (
               <Text style={[TYPE.footnote, { color: theme.textMuted, fontWeight: "400" }]}>
                 {t({ th: " · บริการ", en: " · service" })}

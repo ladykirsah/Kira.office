@@ -30,11 +30,17 @@ const found = {
   name: "วาล์ว",
 };
 const detail = {
-  product: { imageKey: "img/valve.jpg", brandName: "Sanden" },
+  product: {
+    imageKey: "img/valve.jpg",
+    brandName: "Sanden",
+    typeName: "Expansion valve",
+    typeNameTh: "วาล์วแอร์",
+  },
   onHand: 3,
   held: 1,
   pricing: { targetPriceSatang: 65000, b2bPriceSatang: 58000, itemCostSatang: 44000 },
   images: [{ imageKey: "img/valve.jpg" }, { imageKey: "img/valve-side.jpg" }],
+  fitments: [{ carModel: "Vigo" }, { carModel: "Fortuner Gen 1" }],
 };
 
 describe("lookupPart", () => {
@@ -52,6 +58,8 @@ describe("lookupPart", () => {
       productRef: "TY-VIGO-08",
       name: "วาล์ว",
       brandName: "Sanden",
+      typeName: "วาล์วแอร์",
+      carModel: "Vigo",
       barcode: "885",
       photoKeys: ["img/valve.jpg", "img/valve-side.jpg"],
       onHand: 3,
