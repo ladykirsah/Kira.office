@@ -25,6 +25,20 @@ function parseEmails(raw: string | null | undefined): Set<string> {
   );
 }
 
+/**
+ * The shop owner's own account (owner, 4 Nov 2026: "i want my account to be the only one that cannot
+ * be delete" — and not switched off, demoted or re-emailed either). It is the account whose email
+ * is on SUPER_ADMIN_EMAILS, the list that already names the owner for the Access sign-in.
+ * STRICT, unlike isSuperAdmin: no list or no email means nobody is locked.
+ */
+export function isLockedOwner(
+  email: string | null,
+  ownerEmails: string | null | undefined,
+): boolean {
+  if (!email) return false;
+  return parseEmails(ownerEmails).has(email.trim().toLowerCase());
+}
+
 /** True when this email may see super-admin-only material (bank slips). */
 export function isSuperAdmin(email: string | null, ctx: Omit<AccessContext, "email">): boolean {
   if (!ctx.accessConfigured) return true; // local dev: Access off ⇒ open, mirrors requireAccess

@@ -8159,6 +8159,91 @@ describe("staff management", () => {
     expect(disable.status).toBe(409);
   });
 
+  // ── The owner's own account is locked (owner, 4 Nov 2026: "Yes, all three") ──────────────────
+  describe("the owner's account (email on SUPER_ADMIN_EMAILS)", () => {
+    const OWNER_EMAILS = "boss@shop.test";
+    async function withSecondOwner() {
+      const { raw, db } = await seed();
+      raw
+        .prepare(
+          `INSERT INTO users (id, name, email, role, status, created_at)
+           VALUES ('two','Two','two@shop.test','super_admin','active',?)`,
+        )
+        .run(NOW);
+      const two = {
+        userId: "two",
+        email: "two@shop.test",
+        name: "Two",
+        role: "super_admin",
+      } as const;
+      return { raw, db, two };
+    }
+
+    it("deleteStaff > given another owner-level account > then 409 owner_locked, and nothing changes", async () => {
+      const { raw, db, two } = await withSecondOwner();
+      const res = await deleteStaff(db, two, "boss", NOW, OWNER_EMAILS);
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: string }).error).toBe("owner_locked");
+      const row = raw.prepare(`SELECT deleted_at AS d FROM users WHERE id='boss'`).get() as {
+        d: number | null;
+      };
+      expect(row.d).toBeNull();
+    });
+
+    it("updateStaff > given a switch-off or a new role > then 409 owner_locked", async () => {
+      const { db, two } = await withSecondOwner();
+      const off = await updateStaff(db, two, "boss", { status: "disabled" }, NOW, OWNER_EMAILS);
+      expect(off.status).toBe(409);
+      const demote = await updateStaff(db, two, "boss", { role: "admin" }, NOW, OWNER_EMAILS);
+      expect(demote.status).toBe(409);
+    });
+
+    it("updateStaff > given only a day rate > then it saves (the lock is role and switch only)", async () => {
+      const { db, two } = await withSecondOwner();
+      const res = await updateStaff(db, two, "boss", { dayRateSatang: 50000 }, NOW, OWNER_EMAILS);
+      expect(res.status).toBe(200);
+    });
+
+    it("updateStaffProfile > given a new email > then 409, since the email is what locks it", async () => {
+      const { db, two } = await withSecondOwner();
+      const res = await updateStaffProfile(
+        db,
+        two,
+        "boss",
+        { email: "x@shop.test" },
+        NOW,
+        OWNER_EMAILS,
+      );
+      expect(res.status).toBe(409);
+      const name = await updateStaffProfile(
+        db,
+        two,
+        "boss",
+        { nameTh: "เคิร์ส" },
+        NOW,
+        OWNER_EMAILS,
+      );
+      expect(name.status).toBe(200);
+    });
+
+    it("staffProfileFor > tells the app which account is locked", async () => {
+      const { db, two } = await withSecondOwner();
+      const read = async (id: string) =>
+        (
+          (await (await staffProfileFor(db, two, id, "", OWNER_EMAILS)).json()) as {
+            profile: { locked: boolean };
+          }
+        ).profile.locked;
+      expect(await read("boss")).toBe(true);
+      expect(await read("two")).toBe(false);
+    });
+
+    it("given no owner list > then nobody is locked (the old rules still apply)", async () => {
+      const { db, two } = await withSecondOwner();
+      expect((await deleteStaff(db, two, "boss", NOW, "")).status).toBe(200);
+    });
+  });
+
   it("a second super admin makes the first one demotable again", async () => {
     const { db } = await seed();
     await createStaff(db, boss, { name: "Two", email: "two@shop.test", role: "super_admin" }, NOW);
@@ -9950,6 +10035,40 @@ describe("role enforcement on money, catalog and payment routes", () => {
       env,
       ctx,
     );
+
+  describe("a page outside your menu is a page you can't change (owner, 4 Nov 2026)", () => {
+    const writes: [string, string][] = [
+      ["PUT", "/shop-info/airplus"],
+      ["POST", "/coupons"],
+      ["POST", "/banners"],
+      ["POST", "/campaigns"],
+      ["POST", "/services"],
+      ["POST", "/affiliate-items"],
+      ["PUT", "/terms/template"],
+      ["POST", "/import/customers"],
+      ["PATCH", "/storefront-customers/u1"],
+    ];
+    for (const [method, path] of writes) {
+      it(`given a mechanic > ${method} ${path} > 403 mechanic_read_only`, async () => {
+        const { env, token } = await asRole("mechanic");
+        const res = await call(env, path, { method, body: "{}" }, token);
+        expect(res.status).toBe(403);
+        expect(((await res.json()) as { reason: string }).reason).toBe("mechanic_read_only");
+      });
+    }
+
+    it("given an admin > the same write passes this gate", async () => {
+      const { env, token } = await asRole("admin");
+      const res = await call(env, "/coupons", { method: "POST", body: "{}" }, token);
+      expect(res.status).not.toBe(403);
+    });
+
+    it("given a mechanic > their own 6-digit code still saves", async () => {
+      const { env, token } = await asRole("mechanic");
+      const res = await call(env, "/staff/me/pin", { method: "POST", body: "{}" }, token);
+      expect(res.status).not.toBe(403);
+    });
+  });
 
   describe("cancelling an order: the owner or an admin, never a mechanic (owner, 30 Oct 2026)", () => {
     /** The DO stub records what reached it, so a refused call can be shown to never get there. */

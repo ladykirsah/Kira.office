@@ -68,13 +68,13 @@ import {
   type CancelBlock,
   type CancelReason,
   canWrite,
+  writeAreaOf,
   canReviewPaymentRole,
   canViewSlips,
   canEditPrice,
   canSeeProfit,
   sellingPricesChanged,
   type SellingPriceFields,
-  type WriteArea,
   type StaffRole,
   type ViewerRole,
   canRecordDropOff,
@@ -7615,11 +7615,24 @@ const worker = {
 
       const prof = url.pathname.match(/^\/staff\/([^/]+)\/profile$/);
       if (prof && request.method === "GET") {
-        return staffProfileFor(env.DB, who, prof[1]!, env.STAFF_SECRET_KEY ?? "");
+        return staffProfileFor(
+          env.DB,
+          who,
+          prof[1]!,
+          env.STAFF_SECRET_KEY ?? "",
+          env.SUPER_ADMIN_EMAILS ?? "",
+        );
       }
       if (prof && request.method === "PATCH") {
         const body = await readJson<StaffProfileInput>(request);
-        return updateStaffProfile(env.DB, who, prof[1]!, body ?? {}, Date.now());
+        return updateStaffProfile(
+          env.DB,
+          who,
+          prof[1]!,
+          body ?? {},
+          Date.now(),
+          env.SUPER_ADMIN_EMAILS ?? "",
+        );
       }
       /**
        * A person's photo. PUT takes the raw image as the body (content-type image/*, up to 5 MB) and
@@ -7670,11 +7683,18 @@ const worker = {
 
       const one = url.pathname.match(/^\/staff\/([^/]+)$/);
       if (one && request.method === "DELETE") {
-        return deleteStaff(env.DB, who, one[1]!, Date.now());
+        return deleteStaff(env.DB, who, one[1]!, Date.now(), env.SUPER_ADMIN_EMAILS ?? "");
       }
       if (one && request.method === "PATCH") {
         const body = await readJson<UpdateStaffInput>(request);
-        return updateStaff(env.DB, who, one[1]!, body ?? {}, Date.now());
+        return updateStaff(
+          env.DB,
+          who,
+          one[1]!,
+          body ?? {},
+          Date.now(),
+          env.SUPER_ADMIN_EMAILS ?? "",
+        );
       }
 
       return json({ error: "not found" }, 404);
@@ -7738,13 +7758,10 @@ const worker = {
       if (gate instanceof Response) return gate;
     }
 
-    // A mechanic reads the catalog and the customer directory; they do not edit either.
+    // A mechanic reads the catalog and the customer directory, and changes nothing behind a page
+    // their menu doesn't show — settings, marketing, imports (owner, 4 Nov 2026). core writeAreaOf.
     if (request.method !== "GET" && request.method !== "HEAD") {
-      const area: WriteArea | null = /^\/products(\/|$)/.test(url.pathname)
-        ? "products"
-        : /^\/customers(\/|$)/.test(url.pathname)
-          ? "customers"
-          : null;
+      const area = writeAreaOf(url.pathname);
       if (area) {
         const gate = await requireRole(
           request,

@@ -34,6 +34,8 @@ import {
   type PayRow,
   type PaymentMonth,
   type StaffPerson,
+  OWNER_LOCK_LINE,
+  showsDelete,
 } from "./staffPage";
 
 const at = (y: number, m: number, d: number, h = 12, min = 0) =>
@@ -484,5 +486,23 @@ describe("teamOrder", () => {
       p("boy", "บอย", "mechanic"),
     ]).map((x) => x.id);
     expect(order).toEqual(["boss", "nun", "boy", "eak", "tom"]);
+  });
+});
+
+describe("the owner's locked account (พนักงาน 8, 4 Nov 2026)", () => {
+  it("showsDelete > given the locked owner > then no ลบคนนี้, even for another owner", () => {
+    expect(showsDelete({ id: "boss", locked: true }, "two")).toBe(false);
+  });
+
+  it("showsDelete > given your own page > then no ลบคนนี้ (nobody can delete themselves)", () => {
+    expect(showsDelete({ id: "two", locked: false }, "two")).toBe(false);
+  });
+
+  it("showsDelete > given someone else > then ลบคนนี้", () => {
+    expect(showsDelete({ id: "m1", locked: false }, "two")).toBe(true);
+  });
+
+  it("OWNER_LOCK_LINE > says what can't be done, as drawn", () => {
+    expect(OWNER_LOCK_LINE.th).toBe("บัญชีเจ้าของร้าน · ลบ ปิดใช้ หรือเปลี่ยนตำแหน่งไม่ได้");
   });
 });

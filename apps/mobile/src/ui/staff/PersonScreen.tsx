@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { API_BASE } from "@/lib/config";
 import { draftOf, profileChanges, type PersonDraft } from "@/lib/staffForm";
-import { refusalWords, roleWord, shownName } from "@/lib/staffPage";
+import { refusalWords, roleWord, showsDelete, shownName } from "@/lib/staffPage";
 import {
   StaffRefusal,
   deleteStaff,
@@ -245,6 +245,7 @@ export function PersonScreen() {
           onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
           problems={problems}
           codes={false}
+          locked={person.locked}
           active={active}
           onActive={setActive}
           onCopied={(said) => showToast(said)}
@@ -257,7 +258,7 @@ export function PersonScreen() {
           onPassword={() => setOpen("password")}
           onPin={() => setOpen("pin")}
           onDayOff={(d) => setOpen({ dayOff: d })}
-          onDelete={() => setOpen("delete")}
+          onDelete={showsDelete(person, team.me) ? () => setOpen("delete") : undefined}
         />
       )}
 

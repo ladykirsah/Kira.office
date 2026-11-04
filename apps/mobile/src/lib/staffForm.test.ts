@@ -31,6 +31,7 @@ const profile: StaffProfile = {
   pin: "482913",
   hasPin: true,
   hasPassword: false,
+  locked: false,
 };
 
 describe("blankDraft", () => {
