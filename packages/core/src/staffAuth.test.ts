@@ -25,6 +25,7 @@ import {
   pinLookup,
   credentialNeedsReset,
   type StaffRole,
+  writeAreaOf,
 } from "./staffAuth";
 
 describe("STAFF_ROLES", () => {
@@ -293,5 +294,56 @@ describe("credentials hashed above the platform ceiling", () => {
     // "reset" flow on accounts that never had a password.
     expect(credentialNeedsReset({ hash: "", salt: "", iterations: 0 })).toBe(false);
     expect(credentialNeedsReset({ hash: "x", salt: "y", iterations: 100_000 })).toBe(false);
+  });
+});
+
+// ── Menu = permission for writes (owner, 4 Nov 2026: "yes" to closing the safety gap) ───────────
+describe("writeAreaOf > the page a write belongs to", () => {
+  it("given the pages hidden from a mechanic > then their writes are setup, which a mechanic can't change", () => {
+    for (const path of [
+      "/shop-info/airplus",
+      "/shop-info/denair/qr",
+      "/coupons",
+      "/coupons/c1",
+      "/banners/b1",
+      "/campaigns",
+      "/affiliate-items/a1",
+      "/affiliate-categories",
+      "/services/s1",
+      "/attributes/brand",
+      "/parts-setup/x",
+      "/product-types/t1/terms",
+      "/taxonomy-images/brand/b1",
+      "/car-fitment/brands",
+      "/terms/template",
+      "/import/customers",
+    ]) {
+      expect(writeAreaOf(path), path).toBe("setup");
+      expect(canWrite("mechanic", "setup")).toBe(false);
+    }
+  });
+
+  it("given products and customers (AirPlus ones too) > then their own areas", () => {
+    expect(writeAreaOf("/products/p1")).toBe("products");
+    expect(writeAreaOf("/customers/1กก1234")).toBe("customers");
+    expect(writeAreaOf("/storefront-customers/u1")).toBe("customers");
+  });
+
+  it("given counter work and the person's own account > then no area, so nobody is stopped here", () => {
+    for (const path of [
+      "/onsite/drafts",
+      "/payments",
+      "/stock/adjust",
+      "/sync",
+      "/staff/me/pin",
+      "/orders/o1/ship",
+    ]) {
+      expect(writeAreaOf(path), path).toBeNull();
+    }
+  });
+
+  it("given an admin or the owner > then setup is theirs to change", () => {
+    expect(canWrite("admin", "setup")).toBe(true);
+    expect(canWrite("super_admin", "setup")).toBe(true);
   });
 });

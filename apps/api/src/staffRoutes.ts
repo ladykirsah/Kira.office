@@ -13,6 +13,7 @@
  */
 import {
   canManageStaff,
+  isLockedOwner,
   decryptSecret,
   encryptSecret,
   hashPassword,
@@ -354,19 +355,30 @@ export async function setStaffPassword(
   return json({ ok: true });
 }
 
+/**
+ * The owner's own account can't be deleted, switched off, demoted or re-emailed — not even by another
+ * เจ้าของร้าน (owner, 4 Nov 2026). Its email on SUPER_ADMIN_EMAILS is what marks it.
+ */
+const ownerLocked = () =>
+  json(
+    { error: "owner_locked", message: "The shop owner's account can't be changed this way." },
+    409,
+  );
+
 export async function updateStaff(
   db: D1Database,
   actor: StaffIdentity,
   userId: string,
   input: UpdateStaffInput,
   now: number,
+  ownerEmails = "",
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
 
   const target = await db
-    .prepare(`SELECT id, role, status FROM users WHERE id = ?`)
+    .prepare(`SELECT id, role, status, email FROM users WHERE id = ?`)
     .bind(userId)
-    .first<{ id: string; role: string; status: string }>();
+    .first<{ id: string; role: string; status: string; email: string | null }>();
   if (!target) return json({ error: "no such person" }, 404);
 
   const nextRole = input.role ?? target.role;
@@ -374,6 +386,8 @@ export async function updateStaff(
   if (!isStaffRole(nextRole)) return json({ error: "unknown role" }, 400);
   if (nextStatus !== "active" && nextStatus !== "disabled")
     return json({ error: "unknown status" }, 400);
+  const moves = nextRole !== target.role || nextStatus !== target.status;
+  if (moves && isLockedOwner(target.email, ownerEmails)) return ownerLocked();
 
   // The one door that must never lock behind you: if this change would remove the last active
   // super admin, refuse it. Nobody could then create staff, set passwords, or see a bank slip —
@@ -1228,6 +1242,7 @@ export async function deleteStaff(
   actor: StaffIdentity,
   userId: string,
   now: number,
+  ownerEmails = "",
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
   // Deleting the account you are signed in with destroys your own session mid-request. If someone
@@ -1237,10 +1252,11 @@ export async function deleteStaff(
   }
 
   const target = await db
-    .prepare(`SELECT id, role, status FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .prepare(`SELECT id, role, status, email FROM users WHERE id = ? AND deleted_at IS NULL`)
     .bind(userId)
-    .first<{ id: string; role: string; status: string }>();
+    .first<{ id: string; role: string; status: string; email: string | null }>();
   if (!target) return json({ error: "no such person" }, 404);
+  if (isLockedOwner(target.email, ownerEmails)) return ownerLocked();
 
   // Same door that must never lock behind you as in updateStaff — deleting the last super admin
   // would leave nobody able to create staff, set passwords or see a slip.
@@ -2010,6 +2026,7 @@ export async function staffProfileFor(
   actor: StaffIdentity,
   userId: string,
   key: string,
+  ownerEmails = "",
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
   const row = await db
@@ -2024,6 +2041,8 @@ export async function staffProfileFor(
       ...profile,
       password: key ? await decryptSecret(cipher, key) : null,
       pin: key ? await decryptSecret(pinCipher, key) : null,
+      // The app hides ลบคนนี้ and locks ตำแหน่ง · เปิดใช้ · อีเมล on this account.
+      locked: isLockedOwner(typeof row.email === "string" ? row.email : null, ownerEmails),
     },
   });
 }
@@ -2042,13 +2061,14 @@ export async function updateStaffProfile(
   userId: string,
   input: StaffProfileInput,
   now: number,
+  ownerEmails = "",
 ): Promise<Response> {
   if (!canManageStaff(actor.role)) return forbidden();
 
   const target = await db
-    .prepare(`SELECT id, pin_hash AS pinHash FROM users WHERE id = ? AND deleted_at IS NULL`)
+    .prepare(`SELECT id, pin_hash AS pinHash, email FROM users WHERE id = ? AND deleted_at IS NULL`)
     .bind(userId)
-    .first<{ id: string; pinHash: string | null }>();
+    .first<{ id: string; pinHash: string | null; email: string | null }>();
   if (!target) return json({ error: "no such person" }, 404);
 
   if (input.dayRateSatang !== undefined && input.dayRateSatang !== null) {
@@ -2065,6 +2085,11 @@ export async function updateStaffProfile(
   // undefined = not sent, leave it; blank or null = clear it; anything else = the new address.
   const email =
     input.email === undefined ? undefined : (cleanText(input.email)?.toLowerCase() ?? null);
+  // The owner's email IS the lock; changing it would quietly unlock the account.
+  const ownEmail = target.email?.toLowerCase() ?? null;
+  if (email !== undefined && email !== ownEmail && isLockedOwner(target.email, ownerEmails)) {
+    return ownerLocked();
+  }
   if (email) {
     // An email IS the username, so a duplicate would make two accounts answer to one sign-in.
     const clash = await db

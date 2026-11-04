@@ -2,7 +2,7 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import * as Crypto from "expo-crypto";
 import { StyleSheet, View, type KeyboardTypeOptions } from "react-native";
 import type { PersonDraft } from "@/lib/staffForm";
-import { ROLE_KEYS, randomPassword, randomPin, roleWord } from "@/lib/staffPage";
+import { OWNER_LOCK_LINE, ROLE_KEYS, randomPassword, randomPin, roleWord } from "@/lib/staffPage";
 import { useLang } from "../AppProviders";
 import { DateBox } from "../orders/DateBox";
 import { Group } from "../orders/parts";
@@ -10,7 +10,7 @@ import { FieldError } from "../pos/fields";
 import { Heading, InputRow, Line, SwitchRow } from "../products/parts";
 import { Segmented } from "../Segmented";
 import { SPACE } from "../theme";
-import { CodeInput, CopyIcon, Hint, PillButton } from "./parts";
+import { CodeInput, CopyIcon, Hint, PillButton, ValueRow } from "./parts";
 
 type DraftKey = keyof PersonDraft;
 export type Problems = Partial<Record<string, Phrase>>;
@@ -28,6 +28,11 @@ export function PersonFields(props: {
   problems: Problems;
   /** เพิ่มคน sets the two codes; แก้ไข has เปิดใช้ instead (the codes have their own sheets). */
   codes: boolean;
+  /**
+   * The owner's locked account (พนักงาน 8.1): ตำแหน่ง is a plain row, the email can't change, and
+   * there is no เปิดใช้ — the server refuses all three.
+   */
+  locked?: boolean;
   active?: boolean;
   onActive?: (on: boolean) => void;
   onCopied: (said: Phrase) => void;
@@ -44,9 +49,11 @@ export function PersonFields(props: {
       copy?: Phrase;
       last?: boolean;
       lead?: string;
+      fixed?: boolean;
     } = {},
   ) => (
     <InputRow
+      editable={!opts.fixed}
       label={t(label)}
       value={String(draft[key] ?? "")}
       placeholder={opts.placeholder ?? notNeeded}
@@ -90,7 +97,11 @@ export function PersonFields(props: {
             copy: { th: "เบอร์โทร", en: "phone number" },
           },
         )}
-        {box("email", { th: "อีเมล", en: "Email" }, { keyboard: "email-address", last: true })}
+        {box(
+          "email",
+          { th: "อีเมล", en: "Email" },
+          { keyboard: "email-address", last: true, fixed: props.locked },
+        )}
       </Group>
       {errors("phone", "email")}
 
@@ -110,14 +121,22 @@ export function PersonFields(props: {
       </Group>
 
       <Heading text={t({ th: "งาน", en: "Work" })} />
-      <Segmented
-        label={t({ th: "ตำแหน่ง", en: "Position" })}
-        options={ROLE_KEYS.map((r) => ({ value: r, label: t(roleWord(r)) }))}
-        value={draft.role}
-        onChange={(role) => props.onChange({ role })}
-      />
-      <View style={styles.after}>
+      {!props.locked && (
+        <Segmented
+          label={t({ th: "ตำแหน่ง", en: "Position" })}
+          options={ROLE_KEYS.map((r) => ({ value: r, label: t(roleWord(r)) }))}
+          value={draft.role}
+          onChange={(role) => props.onChange({ role })}
+        />
+      )}
+      <View style={props.locked ? undefined : styles.after}>
         <Group>
+          {props.locked && (
+            <ValueRow
+              label={t({ th: "ตำแหน่ง", en: "Position" })}
+              value={t(roleWord(draft.role))}
+            />
+          )}
           {box(
             "dayRate",
             { th: "ค่าแรงต่อวัน", en: "Day rate" },
@@ -140,6 +159,7 @@ export function PersonFields(props: {
           />
         </Group>
       </View>
+      {props.locked && <Hint text={t(OWNER_LOCK_LINE)} />}
       {errors("dayRateSatang", "role", "startedOn")}
 
       <Heading text={t({ th: "บัญชีธนาคาร", en: "Bank account" })} />
@@ -222,7 +242,7 @@ export function PersonFields(props: {
             })}
           />
         </>
-      ) : (
+      ) : props.locked ? null : (
         <View style={styles.switch}>
           <Group>
             <SwitchRow

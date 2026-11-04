@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isLockedOwner,
   isSuperAdmin,
   privateFileAccess,
   viewerRole,
@@ -139,5 +140,23 @@ describe("Zone-A rights by role", () => {
     expect(canReviewPayment("super_admin")).toBe(true);
     expect(canReviewPayment("admin")).toBe(true);
     expect(canReviewPayment("mechanic")).toBe(false);
+  });
+});
+
+describe('isLockedOwner (owner, 4 Nov 2026: "my account cannot be deleted")', () => {
+  it("given the owner's email on the list > then locked, whatever the letter case", () => {
+    expect(isLockedOwner("Lady.Kirsah@Gmail.com", "lady.kirsah@gmail.com, other@shop.test")).toBe(
+      true,
+    );
+  });
+
+  it("given anyone else > then not locked", () => {
+    expect(isLockedOwner("nun@shop.test", "lady.kirsah@gmail.com")).toBe(false);
+  });
+
+  it("given no email, or no list > then not locked (never open the other way)", () => {
+    expect(isLockedOwner(null, "lady.kirsah@gmail.com")).toBe(false);
+    expect(isLockedOwner("lady.kirsah@gmail.com", "")).toBe(false);
+    expect(isLockedOwner("lady.kirsah@gmail.com", undefined)).toBe(false);
   });
 });

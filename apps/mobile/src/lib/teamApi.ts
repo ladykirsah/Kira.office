@@ -109,6 +109,8 @@ export interface StaffProfile extends StaffPerson {
   pin: string | null;
   hasPin: boolean;
   hasPassword: boolean;
+  /** The shop owner's account: can't be deleted, switched off, given another role or re-emailed. */
+  locked: boolean;
 }
 
 export async function fetchProfile(
@@ -141,6 +143,7 @@ export async function fetchProfile(
     pin: text(r.pin),
     hasPin: yes(r.hasPin),
     hasPassword: yes(r.hasPassword),
+    locked: yes(r.locked),
   };
 }
 

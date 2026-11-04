@@ -25,7 +25,7 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 export type ScanMode = "add" | "view" | "hold" | "fill" | "pos";
 
 /** Areas a role may or may not WRITE to. Reading is governed by the menu + route gating. */
-export type WriteArea = "products" | "customers" | "pos" | "payment" | "stock";
+export type WriteArea = "products" | "customers" | "pos" | "payment" | "stock" | "setup";
 
 export interface StoredPassword {
   hash: string | null;
@@ -262,7 +262,39 @@ export function canCancelOrderRole(role: StaffRole): boolean {
   return role === "super_admin" || role === "admin";
 }
 
-/** A mechanic reads the catalog and the customer directory; they do not edit either. */
+/**
+ * The settings and marketing pages a mechanic's menu never shows (packages/shared/nav HIDDEN_FROM),
+ * by the API areas behind them, plus bulk imports. A page you can't see is a page you can't change
+ * (owner, 4 Nov 2026): until now only the menu hid these, so a mechanic could still change the shop's
+ * PromptPay accounts by calling the API.
+ */
+const SETUP_AREAS = [
+  "/shop-info",
+  "/coupons",
+  "/banners",
+  "/campaigns",
+  "/affiliate-items",
+  "/affiliate-categories",
+  "/services",
+  "/attributes",
+  "/parts-setup",
+  "/product-types",
+  "/taxonomy-images",
+  "/car-fitment",
+  "/terms",
+  "/import",
+];
+
+const under = (path: string, area: string) => path === area || path.startsWith(`${area}/`);
+
+/** Which write area a request path belongs to; null for counter work and your own account. */
+export function writeAreaOf(path: string): WriteArea | null {
+  if (under(path, "/products")) return "products";
+  if (under(path, "/customers") || under(path, "/storefront-customers")) return "customers";
+  return SETUP_AREAS.some((a) => under(path, a)) ? "setup" : null;
+}
+
+/** A mechanic reads the catalog and the customer directory; they edit neither, nor any setup page. */
 export function canWrite(role: StaffRole, area: WriteArea): boolean {
   if (role !== "mechanic") return true;
   return area === "pos" || area === "payment" || area === "stock";

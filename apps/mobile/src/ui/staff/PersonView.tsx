@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { formatBaht } from "@/lib/money";
 import { dayPill, parseDayField, shortDate } from "@/lib/orderList";
 import {
+  OWNER_LOCK_LINE,
   accessState,
   halvesWord,
   monthLabel,
@@ -17,7 +18,7 @@ import { Group } from "../orders/parts";
 import { Divider, Heading, Line } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 import { spacedPin } from "./CodeSheets";
-import { Chevron, CopyIcon, ValueRow } from "./parts";
+import { Chevron, CopyIcon, Hint, ValueRow } from "./parts";
 import { BASE } from "./Tabs";
 import { useDaysOff, usePayments } from "./useStaffData";
 
@@ -31,7 +32,8 @@ export function PersonView(props: {
   onPassword: () => void;
   onPin: () => void;
   onDayOff: (d: DayOff) => void;
-  onDelete: () => void;
+  /** Left out where ลบคนนี้ can't work: the owner's locked account, and your own page. */
+  onDelete?: () => void;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
@@ -180,15 +182,18 @@ export function PersonView(props: {
         />
       </Group>
 
-      <View style={styles.deleteGroup}>
-        <Group>
-          <Pressable onPress={props.onDelete} accessibilityRole="button" style={styles.deleteRow}>
-            <Text style={[TYPE.body, { color: theme.danger }]}>
-              {t({ th: "ลบคนนี้", en: "Delete this person" })}
-            </Text>
-          </Pressable>
-        </Group>
-      </View>
+      {p.locked && <Hint text={t(OWNER_LOCK_LINE)} />}
+      {props.onDelete && (
+        <View style={styles.deleteGroup}>
+          <Group>
+            <Pressable onPress={props.onDelete} accessibilityRole="button" style={styles.deleteRow}>
+              <Text style={[TYPE.body, { color: theme.danger }]}>
+                {t({ th: "ลบคนนี้", en: "Delete this person" })}
+              </Text>
+            </Pressable>
+          </Group>
+        </View>
+      )}
     </View>
   );
 }

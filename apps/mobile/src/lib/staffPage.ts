@@ -588,3 +588,16 @@ export function teamOrder<T extends StaffPerson>(people: readonly T[]): T[] {
     (a, b) => rank(a) - rank(b) || shownName(a).localeCompare(shownName(b), "th"),
   );
 }
+
+/**
+ * The grey line on the owner's locked account (พนักงาน 8, owner 4 Nov 2026: "Yes, all three"): the
+ * server refuses to delete it, switch it off or change its role.
+ */
+export const OWNER_LOCK_LINE: Phrase = {
+  th: "บัญชีเจ้าของร้าน · ลบ ปิดใช้ หรือเปลี่ยนตำแหน่งไม่ได้",
+  en: "Owner's account · can't be deleted, switched off or given another role",
+};
+
+/** ลบคนนี้ shows only where it can work: never on the locked owner, never on your own page. */
+export const showsDelete = (p: { id: string; locked: boolean }, me: string): boolean =>
+  !p.locked && p.id !== me;

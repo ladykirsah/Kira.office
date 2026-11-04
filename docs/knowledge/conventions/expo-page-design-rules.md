@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-04
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -369,6 +369,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   sheet *"i have brief about this one before > fix"* (ตั้งค่าอะไหล่ + รุ่นรถที่ใช้ได้, 3 Nov). A rule
   given for some kinds of a thing covers its siblings. A refusal that still comes back from the
   server (someone added a product meanwhile) is a toast.
+- **The shop owner's account is locked, and the page says so.** *"i want my account to be the only
+  one that cannot be delete"* → *"Yes, all three"*: no one can delete it, switch it off or give it
+  another role — the server refuses (409), not just a hidden button. It is the account whose email
+  is the owner's in the system (`SUPER_ADMIN_EMAILS`). Its page has no ลบคนนี้; its แก้ไข shows
+  ตำแหน่ง as a plain row, no เปิดใช้, and one grey line *บัญชีเจ้าของร้าน · ลบ ปิดใช้ หรือเปลี่ยน
+  ตำแหน่งไม่ได้*. Your own page has no ลบคนนี้ either (พนักงาน 8, 4 Nov).
 - **Dates use the built parts.** One date = a DateBox (the phone's own wheel); a range = the built
   RangeSheet; a period choice = Orders' ▾ menu words (วันนี้ … ทุกวัน · กำหนดเอง…). Offer "no dates"
   (a กำหนดช่วงเวลา switch) only where the server keeps empty dates.
@@ -658,6 +664,11 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Check a page as a PIN-only person too.** Sign in with their practice PIN in the browser pane, then
   move inside the app (`history.pushState` + a `popstate` event) — a typed address or reload signs
   out. บอย's profile proved no owner-only list is asked for (every call 200) (4 Nov).
+- **A page outside someone's menu is a page the server won't let them change.** Hiding a menu
+  item is not the lock: a ช่าง could still change the shop's payment accounts through the server.
+  Since 4 Nov every setup page's saves are refused for a ช่าง (`writeAreaOf` → "setup"). A new
+  back-office page that a role must not change goes on that list, with a 403 test, in the same
+  build; check it by saving as บอย, not only by looking at his menu (owner lock, 4 Nov).
 - **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fit the
   owner's iPhone 17 Pro by 2px (ตั้งค่าอะไหล่, 3 Nov). On the phone, "‹ คอมเพรสเซอร์" then covered
   "เกี่ยวกับสินค้าประเภทนี้". **A long sheet title gets the round ‹** (Apple's own back), and screen

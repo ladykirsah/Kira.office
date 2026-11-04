@@ -18,6 +18,7 @@ description: Build an approved Kira.office canvas drawing into the Expo back off
   - Code: `apps/api/src/index.ts`, tests in `index.test.ts` (real-schema tests; use the seeded ids such as `br-denso` and `cm-vios`).
   - A new migration is `packages/db/migrations/NNNN_<what>.sql`. Take the next number after `origin/main`'s, and write a comment on what each column means.
   - Apply it locally: `npx wrangler d1 migrations apply kira-office --local`.
+  - **A new page a role must not change** (it's outside that role's menu) goes on the setup list in `writeAreaOf` (`packages/core/src/staffAuth.ts`) with a 403 test. A hidden menu item is not a lock.
 - **Green, then refactor.** Delete words and parts the new design replaces, together with their tests. Run the whole related folder again.
 
 ## 2 · Screens (`apps/mobile/src/ui/<page>/`)

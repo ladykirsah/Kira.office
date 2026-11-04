@@ -4,6 +4,7 @@ import {
   StaffRefusal,
   createStaff,
   fetchActivity,
+  fetchProfile,
   fetchSalary,
   fetchTeam,
   paySalary,
@@ -191,5 +192,17 @@ describe("slipPath", () => {
       "/staff/u1/salary-slip?period=2026-09",
     );
     expect(slipPath({ kind: "advance", id: "a 1" }, "u1")).toBe("/staff/advances/a%201/slip");
+  });
+});
+
+describe("fetchProfile > the owner's lock (4 Nov 2026)", () => {
+  it("given locked from the server > then locked is true; missing > false", async () => {
+    const { fetchFn } = replying((url) =>
+      Response.json({
+        profile: { id: url.includes("boss") ? "boss" : "m1", locked: url.includes("boss") },
+      }),
+    );
+    expect((await fetchProfile(fetchFn, "http://api", "tok", "boss")).locked).toBe(true);
+    expect((await fetchProfile(fetchFn, "http://api", "tok", "m1")).locked).toBe(false);
   });
 });
