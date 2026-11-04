@@ -21,7 +21,8 @@ export type StaffRole = "super_admin" | "admin" | "mechanic";
 
 export interface SignedInStaff {
   userId: string;
-  email: string;
+  /** Null for a PIN-only person (email is optional since พนักงาน, 2 Nov 2026). */
+  email: string | null;
   name: string;
   role: StaffRole;
 }
@@ -45,13 +46,13 @@ const NAMED_REASONS: readonly SignInFailure[] = ["locked", "needs_reset", "pin_l
 export function readStaff(raw: unknown): SignedInStaff | null {
   if (typeof raw !== "object" || raw === null) return null;
   const s = raw as Record<string, unknown>;
-  const fields = [s.userId, s.email, s.name];
-  if (!fields.every((f) => typeof f === "string")) return null;
+  if (typeof s.userId !== "string" || typeof s.name !== "string") return null;
+  if (typeof s.email !== "string" && s.email !== null) return null;
   if (!ROLES.includes(s.role as StaffRole)) return null;
   return {
-    userId: s.userId as string,
-    email: s.email as string,
-    name: s.name as string,
+    userId: s.userId,
+    email: s.email,
+    name: s.name,
     role: s.role as StaffRole,
   };
 }

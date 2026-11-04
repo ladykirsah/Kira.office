@@ -628,6 +628,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A list row's grey line breaks only between its "·" parts.** No-break spaces were not enough:
   Thai breaks inside words ("ยังไม่มี / สินค้า"), so each part's letters are joined with a word
   joiner, marks kept on their letter (`keepPartsWhole`, ตั้งค่าอะไหล่, 3 Nov). Look on the phone.
+- **Sign in as every kind of person, not only the practice door.** The new sign-in shipped refusing
+  anyone without an email (บอย, PIN only), though the server let them in — email became optional on
+  พนักงาน (2 Nov) and the app still demanded it. Found only when the owner asked to *"check on ช่าง
+  stage on preview"*. Keep one practice login per role and sign in with each before calling a sign-in
+  change done; when the server makes a field optional, grep every reader of it in `apps/mobile`
+  (เข้าใช้งาน, 4 Nov).
 - **A step back clears its old answer.** After a wrong emergency key, ‹ ลืมรหัส and back in showed
   "กุญแจนี้เปิดไม่ได้" under an empty box. Step out and in again on every step with a server answer
   (เข้าใช้งาน, 3 Nov).
