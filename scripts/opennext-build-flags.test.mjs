@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 const FLAG = "--dangerouslyUseUnsupportedNextVersion";
 const LAST_UNSUPPORTED_MAJOR = 15;
 const APPS = ["admin", "storefront"];
+// CI builds only what it deploys. The old admin is parked (owner, 4 Nov 2026: the Expo app took
+// admin.airplusauto.com over), so only its package.json scripts are still checked.
+const DEPLOYED_BY_CI = ["storefront"];
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -41,7 +44,8 @@ describe("OpenNext build commands", () => {
       const ci = ciBuildCommands(app);
       const commands = [...ci, ...scriptBuildCommands(app)];
 
-      expect(ci.length).toBeGreaterThan(0);
+      if (DEPLOYED_BY_CI.includes(app)) expect(ci.length).toBeGreaterThan(0);
+      else expect(ci).toEqual([]);
       for (const cmd of commands) {
         if (onUnsupportedNext) expect(cmd).toContain(FLAG);
         else expect(cmd).not.toContain(FLAG);

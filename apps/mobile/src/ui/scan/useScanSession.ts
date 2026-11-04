@@ -11,7 +11,7 @@ import {
   type BillDoc,
 } from "@/lib/mechanicBill";
 import { payQr } from "@/lib/qr";
-import { OLD_BACK_OFFICE, addProductPage, productPage } from "@/lib/oldBackOffice";
+import { addProductRoute, productRoute } from "@/lib/appRoutes";
 import { posDraftRoute } from "@/lib/posDraft";
 import {
   adjustStock,
@@ -42,7 +42,6 @@ import {
   type ScanTab,
 } from "@/lib/scanTabs";
 import { useAuth } from "../AppProviders";
-import { openPage } from "../openPage";
 import { readPref, writePref } from "../prefs";
 import type { Notice } from "./ScanCards";
 
@@ -139,12 +138,6 @@ function savedNotice(done: number, refused: number): Notice {
     },
   };
 }
-
-const blockedTab = (url: string, label: Phrase): Notice => ({
-  tone: "done",
-  text: { th: "แตะลิงก์ด้านล่างเพื่อเปิดหน้านั้น", en: "Tap the link below to open it" },
-  action: { label, onPress: () => openPage(url) },
-});
 
 /**
  * Everything Scan v2 remembers and does. Each tab keeps its own cards, so switching from ขาย to
@@ -511,18 +504,9 @@ export function useScanSession() {
     closeSheet: () => {
       if (!sheet?.busy) setSheet(null);
     },
-    openProduct: (productId: string) => {
-      const url = productPage(OLD_BACK_OFFICE, productId);
-      if (!openPage(url)) {
-        setNotice(blockedTab(url, { th: "เปิดหน้าสินค้า", en: "Open the product" }));
-      }
-    },
+    openProduct: (productId: string) => router.push(productRoute(productId) as never),
     addProduct: () => {
-      if (!notFound) return;
-      const url = addProductPage(OLD_BACK_OFFICE, notFound);
-      if (!openPage(url)) {
-        setNotice(blockedTab(url, { th: "เปิดหน้าเพิ่มสินค้า", en: "Open Add product" }));
-      }
+      if (notFound) router.push(addProductRoute(notFound) as never);
     },
   };
 }

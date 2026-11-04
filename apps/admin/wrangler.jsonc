@@ -13,19 +13,19 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true },
-  // The back-office login domains. Both zones are on GoGoCash, so these custom_domains resolve
-  // same-account. airplusauto.com is the destination of the single-domain move; homeseeker.me stays
-  // until every bookmark has moved, so the owner is never locked out mid-migration.
+  // PARKED (owner, 4 Nov 2026: "i want to swap for the old one … i am going to keep using the new
+  // one"). The Expo app (apps/mobile, kiraoffice-app) now serves admin.airplusauto.com; CI no longer
+  // deploys this Worker, and admin.homeseeker.me was taken off with it. The Worker stays on the
+  // account, with no address, for two weeks in case something was missed — then it is deleted.
   //
-  // Gate a hostname with Cloudflare Access BEFORE it is attached here, never after — see
-  // docs/KIRA_OFFICE_ACCESS_SETUP.md. Access destinations are per-app and REPLACING the destination
-  // instead of ADDING one silently unprotects the old hostname: that happened on 2026-07-21 and left
-  // admin.homeseeker.me serving with no login challenge for ~6 minutes. Both hostnames below must
-  // appear as destinations on the "admin" Access app (aud dfcb79fc…) at all times.
-  "routes": [
-    { "pattern": "admin.airplusauto.com", "custom_domain": true },
-    { "pattern": "admin.homeseeker.me", "custom_domain": true },
-  ],
+  // Both keys are load-bearing, like the staging note below says: a manual `npm run deploy` with the
+  // old routes would pull admin.airplusauto.com back off the new app. Empty routes + no workers.dev
+  // = a deploy reaches no one.
+  //
+  // If it ever goes back up: gate a hostname with Cloudflare Access BEFORE attaching it here, and ADD
+  // Access destinations, never replace them (docs/KIRA_OFFICE_ACCESS_SETUP.md, 2026-07-21 incident).
+  "routes": [],
+  "workers_dev": false,
 
   // Staging back office. Deploy with `opennextjs-cloudflare deploy -- --env staging`.
   //

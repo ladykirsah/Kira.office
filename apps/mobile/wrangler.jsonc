@@ -1,0 +1,24 @@
+{
+  // The Expo back office as a website, at the back office's own address (owner, 4 Nov 2026: "Publish
+  // first", "A: PIN every open", then "i want to swap for the old one"). It takes admin.airplusauto.com
+  // over from the old Next.js admin (kiraoffice-admin, now parked — see apps/admin/wrangler.jsonc).
+  //
+  // `expo export --platform web` writes a static single-page app to ./dist; this Worker only serves
+  // those files — there is no server code. The browser talks to api.airplusauto.com itself with the
+  // x-staff-session header, which the api already allows from any origin.
+  //
+  // The sign-in lives in memory only (src/ui/prefs.web.ts), so every open asks for the PIN — the
+  // owner's choice A. The PIN is the lock; a LINE MINI App (next) could not pass an Access login.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "kiraoffice-app",
+  // GoGoCash — the same account as the api, admin and storefront, and the airplusauto.com zone.
+  "account_id": "187ab61ed9dbc6e616cb23e6b95aa8f1",
+  "compatibility_date": "2026-01-01",
+  // Every path (/orders/123, /settings/staff) gets index.html; the app routes itself.
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
+  // Only the shop's own address: no second, unlisted *.workers.dev copy of the back office.
+  "workers_dev": false,
+  // custom_domain: in CI (no terminal) wrangler moves the address off kiraoffice-admin onto this
+  // Worker when the token is allowed to; otherwise move it in the dashboard (ci-pipeline.md).
+  "routes": [{ "pattern": "admin.airplusauto.com", "custom_domain": true }],
+}

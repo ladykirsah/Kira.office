@@ -1,7 +1,8 @@
+import { router } from "expo-router";
 import { Fragment } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { formatBaht } from "@/lib/money";
-import { OLD_BACK_OFFICE, shopInfoPage } from "@/lib/oldBackOffice";
+import { SHOP_INFO_ROUTE } from "@/lib/appRoutes";
 import {
   STATE_WORDS,
   maskPromptpay,
@@ -14,7 +15,6 @@ import {
 } from "@/lib/paymentPage";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
-import { openPage } from "../openPage";
 import { ICON } from "../orders/icons";
 import { SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
@@ -96,7 +96,7 @@ function NoAccount() {
         })}
       </Text>
       <Pressable
-        onPress={() => openPage(shopInfoPage(OLD_BACK_OFFICE))}
+        onPress={() => router.push(SHOP_INFO_ROUTE as never)}
         accessibilityRole="link"
         hitSlop={8}
       >

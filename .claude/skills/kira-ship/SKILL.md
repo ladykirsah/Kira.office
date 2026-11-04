@@ -49,9 +49,10 @@ If the PR adds a migration, apply it to prod **before** merging. Use the `kira-p
 - **Checks already green** (auto-merge refuses a "clean" PR): `gh api -X PUT repos/ladykirsah/Kira.office/pulls/<n>/merge -f merge_method=squash`. Never `--admin`, never a force push.
 - **Find the run:** `gh run list --repo ladykirsah/Kira.office --branch main --limit 3`. Pick the **CI** run (event `push`) for the merge sha.
 - **Wait once:** `gh run watch <id> --repo ladykirsah/Kira.office --exit-status`. Run it in the foreground with timeout 600000, or in the background, but not both. Don't poll.
-- **Expect** `build`, `deploy` (API), `deploy-admin` and `deploy-storefront` all to succeed. Merging to main deploys all three apps. The "Workers Builds" check always fails and can be ignored.
+- **Expect** `build`, `deploy` (API), `deploy-storefront` and `deploy-app` (the back office) all to succeed. Merging to main deploys all three live apps; the old admin is parked and has no job. The "Workers Builds" check always fails and can be ignored.
 - **Health check:**
   - `curl https://api.airplusauto.com/health` returns 200.
+  - `curl https://admin.airplusauto.com/` returns 200 with `_expo/static` in the page — the Expo app, not the old admin (the `deploy-app` job checks this too).
   - Gated routes (for example `/coupons`, `https://airplusauto.com/api/account/coupons`) return **401**. A 404 means the deploy didn't land; a 500 means the schema doesn't match.
 
 ## 5 · Close the loop

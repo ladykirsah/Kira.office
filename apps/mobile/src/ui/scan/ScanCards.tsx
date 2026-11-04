@@ -1,5 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import { RADIUS, SPACE, TYPE } from "../theme";
@@ -45,8 +45,6 @@ export function NotFoundCard({ code }: { code: string }) {
 export interface Notice {
   tone: "done" | "problem";
   text: Phrase;
-  /** A follow-up the person can tap, e.g. "open the bill" when the browser blocked the new tab. */
-  action?: { label: Phrase; onPress: () => void };
 }
 
 /** What just happened, as an icon and plain words — the guide's status rule, never coloured text. */
@@ -70,11 +68,6 @@ export function NoticeCard({ notice }: { notice: Notice }) {
       )}
       <View style={styles.text}>
         <Text style={[styles.body, { color: theme.text }]}>{t(notice.text)}</Text>
-        {notice.action && (
-          <Pressable onPress={notice.action.onPress} accessibilityRole="link" style={styles.link}>
-            <Text style={[styles.subhead, { color: theme.primary }]}>{t(notice.action.label)}</Text>
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -112,6 +105,5 @@ const styles = StyleSheet.create({
   headline: { ...TYPE.headline },
   body: { ...TYPE.body },
   subhead: { ...TYPE.subhead },
-  link: { marginTop: SPACE.xs, alignSelf: "flex-start" },
   hint: { ...TYPE.footnote, marginTop: 10, marginHorizontal: SPACE.xs },
 });
