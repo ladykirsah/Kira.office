@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-11-03
+timestamp: 2026-11-04
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -253,6 +253,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   number, codes: the copy mark alone after the value, no round grey button behind it. Nothing saved →
   "—" and no button. *"please add copy icon button to contact list"*, then *"copy button > plain
   i con"* — on every page, ข้อมูลร้าน and คูปอง too (พนักงาน, 2 Nov).
+- **An empty optional note shows nothing, not "—".** A day off with no reason showed "—" (the built
+  row's default); the drawing has nothing on the right. "—" is for a fact the record should have (a
+  bank, a start date), never for a note the person may leave out (โปรไฟล์ของฉัน, 4 Nov).
 - **Leave out what the page isn't for.** I put พนักงาน on the shop cards and page: *"i think we do
   not need member here on anywhere on this section > remove them"* (2 Nov).
 - **A proof photo is shown big, one size everywhere.** A slip (or cash photo) sits on the page at
@@ -284,6 +287,15 @@ again before saying a build matches.** The owner's words are quoted where they s
   ผู้ติดต่อฉุกเฉิน (its own section) · งาน · บัญชีธนาคาร · เงินเดือน · วันหยุด · การเข้าใช้งาน; ติดต่อ
   shows only in แก้ไข, the phone already sits under the name: *"remove ติดต่อ > only appear on edit
   mode"*. A new-person form is a full page, not a sheet: *"make it full page not popup"* (2 Nov).
+- **Your own page (โปรไฟล์ของฉัน): what you set yourself sits high.** The owner reordered my drawing:
+  *"reordering · name · app · การใช้งาน · บัญชี · วันหยุด · ผู้ติดต่อฉุกเฉิน"* — ชื่อ · แอป (ภาษา,
+  โหมดมืด) · การเข้าใช้งาน · บัญชีธนาคาร · วันหยุด · ผู้ติดต่อฉุกเฉิน, then ออกจากระบบ alone at the end.
+  I had put แอป at the bottom, where the old ☰ sheet kept it. Sections their list didn't name (งาน,
+  เงินเดือน for someone paid by the day) stay beside their nearest relative — either side of
+  บัญชีธนาคาร — and the reply says where (4 Nov).
+- **Every badge and button opens a page that is drawn.** *"i think we forgot this page?"*, pointing at
+  the KS badge on หน้าหลัก: it was on every main page but had no page of its own (it opened ☰). It
+  opens โปรไฟล์ของฉัน now, and so does the name at the top of ☰ (4 Nov).
 - **A picture you set gets a big card (design C).** A small thumbnail in a row was *"too small"*;
   the owner picked C: the picture big on the left (104 tile, rounded), its name on the right with a
   grey เลือกรูป / เปลี่ยนรูป opening ถ่ายรูป · เลือกจากคลังภาพ · red เอารูปออก (when there is one).
@@ -641,6 +653,11 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A step back clears its old answer.** After a wrong emergency key, ‹ ลืมรหัส and back in showed
   "กุญแจนี้เปิดไม่ได้" under an empty box. Step out and in again on every step with a server answer
   (เข้าใช้งาน, 3 Nov).
+- **Take a fresh simulator screenshot after a swipe, then tap.** The page was still gliding, so a tap
+  meant for ⧉ เลขบัญชี opened รหัส 6 หลัก instead (โปรไฟล์ของฉัน, 4 Nov).
+- **Check a page as a PIN-only person too.** Sign in with their practice PIN in the browser pane, then
+  move inside the app (`history.pushState` + a `popstate` event) — a typed address or reload signs
+  out. บอย's profile proved no owner-only list is asked for (every call 200) (4 Nov).
 - **Check sheets at 375 wide too.** "‹ หมวดหมู่" beside the title "คำอธิบายบน AirPlus" fit the
   owner's iPhone 17 Pro by 2px (ตั้งค่าอะไหล่, 3 Nov). On the phone, "‹ คอมเพรสเซอร์" then covered
   "เกี่ยวกับสินค้าประเภทนี้". **A long sheet title gets the round ‹** (Apple's own back), and screen

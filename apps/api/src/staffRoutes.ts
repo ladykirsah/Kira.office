@@ -453,8 +453,10 @@ export async function ownProfile(
 ): Promise<Response> {
   const row = await db
     .prepare(
-      `SELECT id, name, name_th AS nameTh, name_en AS nameEn, email, role, phone,
+      `SELECT id, name, name_th AS nameTh, name_en AS nameEn,
+              full_name_th AS fullNameTh, full_name_en AS fullNameEn, email, role, phone,
               emergency_phone AS emergencyPhone, emergency_name AS emergencyName,
+              emergency_relation AS emergencyRelation,
               started_on AS startedOn, day_rate_satang AS dayRateSatang,
               bank_name AS bankName, bank_account_no AS bankAccountNo,
               bank_account_name AS bankAccountName,

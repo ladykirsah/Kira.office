@@ -8311,6 +8311,22 @@ describe("staff profile (their own)", () => {
     expect(body.profile.dayRateSatang).toBe(40000);
   });
 
+  it("ownProfile > given full names and an emergency relation > then sends them (โปรไฟล์ของฉัน, 4 Nov 2026)", async () => {
+    const { raw, db } = await seed();
+    raw
+      .prepare(
+        `UPDATE users SET full_name_th = 'สมชาย ใจดี', full_name_en = 'Somchai Jaidee',
+                          emergency_relation = 'แม่' WHERE id = 'm1'`,
+      )
+      .run();
+    const body = (await (await ownProfile(db, me, KEY)).json()) as {
+      profile: { fullNameTh: string; fullNameEn: string; emergencyRelation: string };
+    };
+    expect(body.profile.fullNameTh).toBe("สมชาย ใจดี");
+    expect(body.profile.fullNameEn).toBe("Somchai Jaidee");
+    expect(body.profile.emergencyRelation).toBe("แม่");
+  });
+
   it("never leaks the password hash to the browser", async () => {
     const { db } = await seed();
     await changeOwnPassword(db, me, "aircon-2026", NOW, KEY);
