@@ -68,56 +68,9 @@ jobs:
           echo "::error::API Worker deploy failed (beyond the custom-domain step)."
           exit 1
 
-  # Auto-deploy the admin (kiraoffice-admin) via OpenNext after checks pass on main.
-  # It shares CLOUDFLARE_API_TOKEN with the api job: the admin is on the SAME GoGoCash account
-  # (187ab61e… in apps/admin/wrangler.jsonc) and the SAME homeseeker.me zone, so a second token
-  # bought no isolation — and the old CF_ADMIN_API_TOKEN was never set, which silently left every
-  # merged admin change undeployed behind a green check (PR #27 needed a manual deploy).
-  # Same contract as the api job: missing token FAILS LOUDLY; the known custom-domain re-assert
-  # wart is tolerated with a warning so it can't mask a genuine deploy failure.
-  deploy-admin:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      # The build runs project code — next.config, the ESLint config, every page — so it gets NO
-      # Cloudflare key. The Oct 2026 loader ran from the ESLint config inside the old combined
-      # build+deploy step while the key sat in its environment. Only the upload below holds it.
-      #
-      # --dangerouslyUseUnsupportedNextVersion: OpenNext refuses Next majors more than 2 years old,
-      # so Next 15 stopped deploying on 2026-10-21. STOPGAP until the move to Next 16; remove it then
-      # (scripts/opennext-build-flags.test.mjs fails if it outlives Next 15).
-      - name: Build admin (OpenNext, no secrets)
-        working-directory: apps/admin
-        run: npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
-      - name: Deploy admin (OpenNext)
-        working-directory: apps/admin
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error::CLOUDFLARE_API_TOKEN is not set — the admin was NOT deployed; admin.homeseeker.me is still serving the previous build."
-            exit 1
-          fi
-          set +e
-          out=$(npx opennextjs-cloudflare deploy 2>&1)
-          code=$?
-          echo "$out"
-          if [ $code -eq 0 ]; then exit 0; fi
-          # Code uploaded + deployed, but wrangler couldn't re-assert the custom domain — same known
-          # wart the api job tolerates. Warn, don't fail; anything else is a real deploy failure.
-          if echo "$out" | grep -q "Deployed kiraoffice-admin"; then
-            echo "::warning::Admin code deployed, but wrangler could not re-assert the admin.homeseeker.me custom domain (known — needs a Cloudflare dashboard fix). Not failing the run."
-            exit 0
-          fi
-          echo "::error::Admin deploy failed (beyond the custom-domain step)."
-          exit 1
+  # The old Next.js admin (kiraoffice-admin) is PARKED and no longer deployed (owner, 4 Nov 2026:
+  # "i want to swap for the old one"): the Expo app below took admin.airplusauto.com over.
+  # apps/admin/wrangler.jsonc has no routes and no workers.dev, so a stray manual deploy reaches no one.
 
   # Auto-deploy the AirPlus storefront (airplus-storefront → airplusauto.com) via OpenNext.
   #
@@ -128,7 +81,7 @@ jobs:
   # of the page would have read zero forever, with every check green and nothing to look at. It took
   # a manual `npm run deploy -w @l-shopee/storefront` to finish the release (2026-08-04).
   #
-  # Same account and token as the other two (187ab61e… GoGoCash, in apps/storefront/wrangler.jsonc),
+  # Same account and token as the api (187ab61e… GoGoCash, in apps/storefront/wrangler.jsonc),
   # same contract: missing token FAILS LOUDLY, and only the known custom-domain re-assert wart is
   # tolerated with a warning.
   deploy-storefront:
@@ -154,8 +107,13 @@ jobs:
             echo "::error::NEXT_PUBLIC_* is set in the build environment and would be inlined into the production bundle: $leaked. These must stay unset so the in-source production defaults apply."
             exit 1
           fi
-      # Same split as deploy-admin: the build runs project code without the key; only the upload
-      # holds it. Same Next 15 stopgap flag as deploy-admin, for the same reason.
+      # The build runs project code — next.config, the ESLint config, every page — so it gets NO
+      # Cloudflare key. The Oct 2026 loader ran from the ESLint config inside the old combined
+      # build+deploy step while the key sat in its environment. Only the upload below holds it.
+      #
+      # --dangerouslyUseUnsupportedNextVersion: OpenNext refuses Next majors more than 2 years old,
+      # so Next 15 stopped deploying on 2026-10-21. STOPGAP until the move to Next 16; remove it then
+      # (scripts/opennext-build-flags.test.mjs fails if it outlives Next 15).
       - name: Build storefront (OpenNext, no secrets)
         working-directory: apps/storefront
         run: npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
@@ -178,4 +136,71 @@ jobs:
             exit 0
           fi
           echo "::error::Storefront deploy failed (beyond the custom-domain step)."
+          exit 1
+
+  # Auto-deploy the Expo back office as a website (kiraoffice-app → admin.airplusauto.com).
+  # Owner, 4 Nov 2026: "Publish first", "A: PIN every open", then "i want to swap for the old one".
+  # A static export only — no server code — on the same GoGoCash account and token as the api and
+  # storefront, with the same contract: the build runs project code WITHOUT the key, a missing token
+  # FAILS LOUDLY, and only the known custom-domain wart is tolerated, with a warning.
+  deploy-app:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # EXPO_PUBLIC_* is baked into the bundle at export time, like NEXT_PUBLIC_* on the storefront.
+      # The in-source defaults point at the live api and admin, so the safe state is ABSENT: a stray
+      # EXPO_PUBLIC_API_BASE=http://localhost:8788 would ship a back office that talks to nothing.
+      - name: Refuse to bake an EXPO_PUBLIC_* override into the bundle
+        run: |
+          leaked=$(env | grep -E '^EXPO_PUBLIC_' | cut -d= -f1 || true)
+          if [ -n "$leaked" ]; then
+            echo "::error::EXPO_PUBLIC_* is set in the build environment and would be inlined into the production bundle: $leaked. These must stay unset so the in-source production defaults apply."
+            exit 1
+          fi
+      # EXPO_NO_DOTENV=1: never read a .env file either — a local preview's .env.local points at a
+      # localhost api (none is committed today; this keeps it that way if one ever is).
+      - name: Build app website (expo export, no secrets)
+        working-directory: apps/mobile
+        run: EXPO_NO_DOTENV=1 npx expo export --platform web
+      - name: Deploy app website
+        working-directory: apps/mobile
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set — the app website was NOT deployed; admin.airplusauto.com is still serving the previous build."
+            exit 1
+          fi
+          set +e
+          out=$(npx wrangler deploy 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -eq 0 ]; then exit 0; fi
+          if echo "$out" | grep -q "Deployed kiraoffice-app"; then
+            echo "::warning::App website deployed, but wrangler could not attach the admin.airplusauto.com custom domain (known — the token has no zone edit). The check below decides."
+            exit 0
+          fi
+          echo "::error::App website deploy failed (beyond the custom-domain step)."
+          exit 1
+      # The token may lack zone edit, and then the warning above passes green while the address
+      # still points at the old admin (docs/knowledge/operations/ci-pipeline.md (b)). The old admin is
+      # also titled CrewEngine, so only the Expo export's own code path proves THIS app answers.
+      # Ten minutes: room for a dashboard move of the address during the first swap.
+      - name: Check admin.airplusauto.com answers with the app
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 10 https://admin.airplusauto.com/ | grep -q "_expo/static"; then
+              echo "admin.airplusauto.com is serving the app."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::admin.airplusauto.com does not answer with the app. If wrangler warned about the custom domain, move admin.airplusauto.com in the Cloudflare dashboard: Workers & Pages → kiraoffice-admin → Settings → Domains & Routes → remove it, then kiraoffice-app → Domains & Routes → add it. Then re-run this job."
           exit 1

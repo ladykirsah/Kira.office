@@ -12,10 +12,11 @@ from one workspace.
 - **Live API on Cloudflare:** the `kiraoffice` Worker (script id — **no hyphen**; the D1 database is
   the hyphenated `kira-office`, they are different names) runs at **`https://api.homeseeker.me`**,
   backed by **D1** (`kira-office`) + **R2** (`kiraoffice-images`) + **KV** + the **`StockLedger`
-  Durable Object**, with a daily backup cron. **Pushing to `main` auto-deploys the API Worker**
-  (GitHub Actions `deploy` job; `CLOUDFLARE_API_TOKEN` secret set 2026-07-05). The **admin and the
-  AirPlus storefront still deploy manually** — `deploy-admin` exits green without deploying while
-  `CF_ADMIN_API_TOKEN` is unset. See [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) §6.
+  Durable Object**, with a daily backup cron. **Pushing to `main` auto-deploys the API Worker,
+  the AirPlus storefront and the back office** (GitHub Actions `deploy`, `deploy-storefront`,
+  `deploy-app`; one `CLOUDFLARE_API_TOKEN` secret). The back office is the Expo app (`apps/mobile`) at
+  admin.airplusauto.com since 4 Nov 2026; the old Next.js admin is parked. See
+  [docs/knowledge/operations/ci-pipeline.md](docs/knowledge/operations/ci-pipeline.md).
 - **Full REST surface** — products CRUD + image gallery, pricing, stock/ledger, barcodes, attributes,
   car-fitment tree, services, **bilingual shop info + logo/QR uploads**, sales/refunds, finance, CSV
   imports, idempotent `/sync`. See [docs/API_REFERENCE.md](docs/API_REFERENCE.md).

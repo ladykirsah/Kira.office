@@ -202,11 +202,12 @@ NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin type
 `CLOUDFLARE_API_TOKEN` repo secret was added 2026-07-05, so the GitHub Actions `deploy` job now
 deploys the `kira-office` API Worker on every `main` push (wrangler deployments at 2026-07-19 08:26
 and 17:21 match the PR #24/#25 merge pushes). The job fails loudly if the token goes missing; the
-known custom-domain re-assert wart is downgraded to a warning (see `ci.yml`). **Admin and storefront
-remain manual:** `deploy-admin` still **skips** because `CF_ADMIN_API_TOKEN` is unset — it exits
-green WITHOUT deploying, so never read a green `deploy-admin` check as a real deploy. The owner
-deploys the admin with `npm run deploy -w @l-shopee/admin`, and the AirPlus storefront per its
-runbook ([apps/storefront/README.md](../apps/storefront/README.md)). The Cloudflare **Workers
+known custom-domain re-assert wart is downgraded to a warning (see `ci.yml`). **Since then the
+storefront (`deploy-storefront`) and the back office (`deploy-app`) deploy on every `main` push too.**
+On 4 Nov 2026 the Expo app (`apps/mobile`, Worker `kiraoffice-app`) took **admin.airplusauto.com**
+over and the old Next.js admin was **parked**: the `deploy-admin` job is gone and
+`apps/admin/wrangler.jsonc` has no routes. Details:
+[knowledge/operations/ci-pipeline.md](knowledge/operations/ci-pipeline.md). The Cloudflare **Workers
 Builds** integration still fails on every push and has never deployed anything (see §7).
 
 **Migrations workflow (important):** write a new numbered SQL file in `packages/db/migrations/`,
@@ -241,6 +242,6 @@ Keep changes additive/nullable when an older Worker may still be live during rol
 - **One CI check fails on every push and is NOT a code bug:** `Workers Builds: kira-office` (Cloudflare's
   redundant Git integration; its managed token lacks zone-DNS edit — it has never deployed anything).
   Ignore it / disconnect it in the Cloudflare dashboard. The real gates are GitHub Actions `build` and
-  `deploy` (the API auto-deploy, §6); a green `deploy-admin` is still NOT a real deploy (token unset).
+  `deploy`, `deploy-storefront` and `deploy-app` (§6).
 - **Owner's UI vocabulary:** the tall input is the "L input box" (`inputL`), the compact one the "S input
   box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.

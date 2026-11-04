@@ -27,7 +27,10 @@ Backend runs on the **Cloudflare developer platform** — full design in
 - `packages/db` — **D1** schema as hand-written SQL migrations (`wrangler d1 migrations apply`). No TypeScript: nothing imports `@l-shopee/db`.
 - `packages/core` — pure-TypeScript pricing, inventory, tax, cost, and terms logic (no I/O, no Cloudflare deps).
 - `apps/mobile` — the **Expo** rebuild of the back office (owner, 2026-10-26: all new building is in Expo),
-  phone-size web first. Not deployed yet; pages not rebuilt still hand off to `apps/admin`.
+  phone-size web first. **It is the back office now:** published as a website at
+  `admin.airplusauto.com` (`kiraoffice-app`, a static export; the PIN is asked on every open).
+- `apps/admin` — the old Next.js back office. **Parked** (owner, 4 Nov 2026: "i want to swap for the
+  old one"): not deployed, no address (`routes: []`); the Worker is deleted after two weeks.
 - `packages/shared` — the menu and the Thai/English wording, shared by `apps/admin` and `apps/mobile`.
 - `docs` — requirements and implementation notes.
 - Tests: **Vitest**. App UIs are initialized with `create-cloudflare` (`--framework=next`); see each app README.
@@ -91,8 +94,8 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
   NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
 ```
 
-- **Merging to `main` deploys all three apps.** After the `build` check passes, GitHub Actions runs
-  `deploy` (API), `deploy-admin` and `deploy-storefront` with the `CLOUDFLARE_API_TOKEN` repo secret; a
+- **Merging to `main` deploys all three live apps.** After the `build` check passes, GitHub Actions runs
+  `deploy` (API), `deploy-storefront` and `deploy-app` (the back office) with the `CLOUDFLARE_API_TOKEN` repo secret; a
   missing token fails the job loudly instead of skipping green. So "merged" means "live" — merge only
   when the owner says so. CI does **not** run D1 migrations: apply them to prod before the merge. The
   Cloudflare **Workers Builds** check fails on every push and is not a code bug — ignore it. Details:

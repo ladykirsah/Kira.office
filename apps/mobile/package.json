@@ -8,6 +8,8 @@
     "web": "expo start --web",
     "ios": "expo start --ios",
     "android": "expo start --android",
+    "build:web": "EXPO_NO_DOTENV=1 expo export --platform web",
+    "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
