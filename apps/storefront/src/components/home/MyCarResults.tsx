@@ -1,40 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { CarModelOption } from "@/lib/db";
-import { cartCount, useCart } from "@/lib/cart";
 import { carName } from "@/lib/myCar";
-import { Icon } from "@/components/Icon";
 import { BrandLogo, CarPicker, MyCarSheet, type CarBrandOption } from "./CarSheets";
 import { MyCarCard } from "./MyCarCard";
 import { useMyCar } from "./MyCarProvider";
 import { PhoneCard } from "./PhoneCard";
-
-/** Sub-page bar (owner's pick B, 5 Nov 2026): the same grey as the page — ‹ back · title · search, cart. */
-function SubHeader({ title }: { title: string }) {
-  const router = useRouter();
-  const count = cartCount(useCart());
-  const back = () => (window.history.length > 1 ? router.back() : router.push("/"));
-  return (
-    <header className="sub-head">
-      <button type="button" className="sub-head-btn" aria-label="กลับ" onClick={back}>
-        <Icon name="back" size={22} />
-      </button>
-      <h1 className="sub-head-t">{title}</h1>
-      <div className="sub-head-tools">
-        <Link href="/search" className="sub-head-btn" aria-label="ค้นหา">
-          <Icon name="search" size={22} />
-        </Link>
-        <Link href="/cart" className="sub-head-btn" aria-label={`ตะกร้า (${count} ชิ้น)`}>
-          <Icon name="cart" size={22} />
-          {count > 0 && <span className="sub-head-badge">{count}</span>}
-        </Link>
-      </div>
-    </header>
-  );
-}
+import { SubHeader } from "./SubHeader";
 
 /**
  * Board 1 · 1.7: the saved car on a strip (เปลี่ยน → the รถของฉัน sheet), "ใส่ได้กับ … · N รายการ", then

@@ -1,0 +1,505 @@
+/*
+ * Board 2 on the phone (owner-approved 5 Nov 2026) — ค้นหา (/search), the results (/products) and the
+ * หมวดหมู่ tab (/categories). Sizes and colours are the drawing's (design kit airplus_kit.py); the
+ * colour tokens (--hm-*) come from board 1's home-phone.css. Phones (<720px) see .b2-phone; computers
+ * keep today's pages (.b2-desk).
+ */
+.b2-phone {
+  display: none;
+}
+@media (max-width: 719px) {
+  .b2-phone {
+    display: block;
+    /* full bleed: cancel <main class="wrap">'s 16px padding on every side */
+    margin: -16px;
+    min-height: 100vh;
+    padding-bottom: 24px;
+    background: var(--hm-bg);
+    color: var(--hm-ink);
+  }
+  .b2-desk {
+    display: none;
+  }
+  /* these pages draw their own grey top bar; the old red headers and the footer step aside */
+  body:has(.b2-phone) .inner-head,
+  body:has(.b2-phone) .search-head-bar,
+  body:has(.b2-phone) .site-footer {
+    display: none;
+  }
+  body:has(.b2-phone) {
+    background: var(--hm-bg);
+  }
+}
+
+/* ── white cards (ค้นหาล่าสุด · ค้นหาตามรถของคุณ · สินค้าแนะนำ) ─────────────────────────── */
+.b2-card {
+  margin: 12px 12px 0;
+  padding: 16px;
+  border-radius: 20px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.b2-card--rail {
+  padding-right: 0;
+  overflow: hidden;
+}
+.b2-ct {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+/* ── search bar (2.1 · 2.2): grey like the page, white box ─────────────────────────────── */
+.b2-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: calc(6px + env(safe-area-inset-top)) 12px 8px 4px;
+  background: var(--hm-bg);
+}
+.b2-icon-btn {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.b2-box {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.b2-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 16px; /* 16px keeps iPhone from zooming in on focus */
+}
+.b2-box-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hm-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.b2-box-clear {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #c7c7cc;
+  display: flex;
+  cursor: pointer;
+}
+
+/* ── chips ───────────────────────────────────────────────────────────────────────── */
+.b2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.b2-chip-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 12px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.b2-chip-row::-webkit-scrollbar {
+  display: none;
+}
+.b2-chip {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--hm-line);
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.b2-chip--on {
+  background: var(--hm-ink);
+  box-shadow: none;
+  color: #fff;
+}
+
+/* ── ค้นหาตามรถของคุณ: logo, name + Thai name as one block, rows apart (owner's spacing rule) ── */
+.b2-brands {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 8px;
+}
+.b2-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--hm-ink);
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+}
+.b2-brand-names {
+  display: flex;
+  flex-direction: column;
+}
+.b2-brand-th {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--hm-grey);
+}
+.b2-brand .hm-logo {
+  box-shadow: 0 0 0 1px var(--hm-line);
+}
+
+/* ── สินค้าแนะนำ = E: photos only, one sliding row ───────────────────────────────────── */
+.b2-rail {
+  display: flex;
+  gap: 10px;
+  padding-right: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.b2-rail::-webkit-scrollbar {
+  display: none;
+}
+.b2-rail a {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.b2-rail img,
+.b2-rail .b2-photo-none {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.b2-photo-none {
+  background: #fff;
+  color: var(--hm-red);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── sort bar (2.2): เกี่ยวข้อง · ขายดี · ใหม่ · ราคา | ตัวกรอง ─────────────────────────────── */
+.b2-sort {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 8px 0 12px;
+  font-size: 14px;
+}
+.b2-sort-tab {
+  flex: 1;
+  height: 44px;
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.b2-sort-tab--on {
+  color: var(--hm-red);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--hm-red);
+}
+.b2-sort-line {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 20px;
+  background: var(--hm-line);
+}
+.b2-filter-btn {
+  height: 44px;
+  padding: 0 6px 0 10px;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.b2-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--hm-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── my car as a filter: tap the card = change the car · plain × = filter off ──────────── */
+.b2-car {
+  margin: 12px 12px 0;
+  padding: 0 8px 0 0;
+  border-radius: 20px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+}
+.b2-car-main {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px 10px 16px;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  font-family: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.b2-car-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.b2-car-text b {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.b2-car-x {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ── count line ─────────────────────────────────────── */
+.b2-count {
+  margin: 0;
+  padding: 12px 16px 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+
+/* ── ไม่พบสินค้า (2.6) ───────────────────────────────────────────────────────────── */
+.b2-empty {
+  padding: 80px 32px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.b2-empty-ic {
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  background: #fff;
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.b2-empty-t {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.b2-empty-s {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  color: var(--hm-grey);
+}
+.b2-btn-red {
+  width: 220px;
+  height: 50px;
+  margin-top: 8px;
+  border-radius: 25px;
+  background: var(--hm-red);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.b2-btn-line {
+  height: 44px;
+  margin-top: 4px;
+  padding: 0 18px;
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 1px var(--hm-ink);
+  color: var(--hm-ink);
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── ตัวกรอง = C: rows that tell the value; the pick lists ───────────────────────────── */
+.b2-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.b2-pick-en {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.b2-pick-pic {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--hm-line);
+}
+
+/* ── หมวดหมู่ tab (2.7 · 2.8) ─────────────────────────────────────────────────────── */
+.b2-big {
+  margin: 0;
+  padding: calc(16px + env(safe-area-inset-top)) 16px 0;
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+}
+.b2-seg {
+  margin: 12px 16px 0;
+  height: 36px;
+  padding: 2px;
+  border-radius: 12px;
+  background: #e3e3e8;
+  display: flex;
+}
+.b2-seg a {
+  flex: 1;
+  border-radius: 10px;
+  color: var(--hm-ink);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.b2-seg a[aria-current="page"] {
+  background: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.b2-sys {
+  margin: 0;
+  padding: 20px 16px 8px;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.b2-flat {
+  margin: 12px 12px 0;
+  border-radius: 20px;
+  background: #fff;
+  overflow: hidden;
+}
+.b2-sys + .b2-flat {
+  margin-top: 0;
+}
+.b2-li {
+  padding-left: 16px;
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.b2-li-in {
+  flex: 1;
+  min-width: 0;
+  min-height: 68px;
+  padding-right: 16px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.b2-li:last-child .b2-li-in {
+  box-shadow: none;
+}
+.b2-li-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 16px;
+}
+.b2-li-name small {
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.b2-li-cnt {
+  font-size: 14px;
+  color: var(--hm-grey);
+  white-space: nowrap;
+}
+.b2-li > svg,
+.b2-li-in > svg:last-child {
+  color: #c7c7cc;
+}
+.b2-thumb {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--hm-line);
+}

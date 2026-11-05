@@ -130,6 +130,7 @@ export function InnerHeader() {
   return (
     <>
       <header
+        className="inner-head"
         style={{
           position: "sticky",
           top: 0,

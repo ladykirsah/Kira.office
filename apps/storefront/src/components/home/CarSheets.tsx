@@ -29,11 +29,12 @@ export function BrandLogo({ src, size }: { src: string | null; size: number }) {
 }
 
 /** Bottom sheet: ยกเลิก / ‹ back pill on the left, title in the middle, red ✓ on the right. */
-function Sheet({
+export function Sheet({
   title,
   sub,
   left,
   onLeft,
+  onDim,
   onOk,
   tall = false,
   children,
@@ -42,6 +43,8 @@ function Sheet({
   sub?: string;
   left: string;
   onLeft: () => void;
+  /** tapping outside the sheet; defaults to the left pill (ตัวกรอง's ล้าง clears, it doesn't close) */
+  onDim?: () => void;
   onOk?: () => void;
   /** the brand › model › year steps fill the screen (drawing 1.2–1.4); รถของฉัน fits its rows */
   tall?: boolean;
@@ -56,7 +59,7 @@ function Sheet({
   }, []);
   return (
     <div className="hm-sheet-wrap" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" className="hm-dim" aria-label="ปิด" onClick={onLeft} />
+      <button type="button" className="hm-dim" aria-label="ปิด" onClick={onDim ?? onLeft} />
       <div className={tall ? "hm-sheet hm-sheet--tall" : "hm-sheet"}>
         <div className="hm-sheet-head">
           <button type="button" className="hm-pill" onClick={onLeft}>

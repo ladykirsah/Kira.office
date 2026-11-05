@@ -37,7 +37,9 @@ export type IconName =
   | "shield"
   | "card"
   | "store"
-  | "line";
+  | "line"
+  // board 2 (5 Nov 2026): the ⇅ on ราคา in the search sort bar
+  | "sort";
 
 export interface Glyph {
   /** inner SVG markup (stroke-only) drawn in a 0 0 24 24 viewBox */
@@ -172,6 +174,9 @@ export const ICONS: Record<IconName, Glyph> = {
   line: {
     inner:
       '<path d="M12 4C7 4 3.5 7.1 3.5 11c0 3.4 2.8 6.2 6.6 6.8L10 20l3.2-2.2C17.3 17.3 20.5 14.4 20.5 11 20.5 7.1 17 4 12 4z"/>',
+  },
+  sort: {
+    inner: '<path d="M8 9l4-4 4 4M8 15l4 4 4-4"/>',
   },
 };
 

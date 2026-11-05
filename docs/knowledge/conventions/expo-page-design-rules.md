@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -72,6 +72,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   *"C is best … only keep sales amount, views, order amount"* → the row keeps just those three; a
   number dropped from a row stays wherever else the page shows it (กำไร on the tiles and graph)
   (ภาพรวม AirPlus, 1 Nov).
+- **"Design 1 … design 2 …" = draw both as choices.** With a crop of ดูล่าสุด they wrote *"design 1 - 6
+  image design 2 - slide aside"*; I turned the section into one new design. They meant *"make them as
+  choices here"* (AirPlus ค้นหา, 5 Nov). Numbered designs in their message are options side by side.
+- **A doubt about a part = options for that part, never a removal.** *"i am not sure that filter is
+  necessary"* — I deleted ตัวกรอง. *"reverse > re-design the section 3 options"*: they wanted it shown
+  better, not gone (AirPlus ค้นหา, 5 Nov).
 - **A picked option replaces the options.** I drew the owner's changes to card C next to the five
   old designs; they could not find it: *"where is the change?"*, then *"Yes, remove them"* (คูปอง,
   1 Nov). Once one is picked, the board shows only the picked one, changed.
@@ -272,6 +278,12 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **One "see all" per section.** With ดูทั้งหมด on the title row there is no extra "all" tile, and tile
   names fit one line. *"make them 4 shown categories since you already have ดูทั้งหมด on top right"*, *"i
   want the title to fit in one line only"* (AirPlus หมวดหมู่, 5 Nov).
+- **Spacing says what belongs together.** Small gaps inside a group, a bigger gap between groups — never
+  one gap for both. *"different group with the same spacing size make them all the same group"*: a brand
+  tile's logo, name and Thai name are one block, and the rows sit 20 apart (AirPlus ค้นหา, 5 Nov).
+- **A filter card has two actions.** Tap the card to change it (รถของฉัน → the car sheet); a plain ×
+  with no frame takes the filter off. *"click card > edit · cross icon button > delate filter"*, *"i want
+  it plain icon button without frame"* (AirPlus ค้นหา, 5 Nov).
 - **A best-seller list has to look like one.** *"it does not look catchy, since it is best seller"* → A
   wide rows: big photo, TOP-N pennant in medal colours, ขายดีอันดับ N, price, ขายเดือนละ N ชิ้น. ดูล่าสุด
   is photos only (*"remove price"*) (AirPlus, 5 Nov).
@@ -452,6 +464,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   live หน้าหลัก a real name wrapped to three lines and pushed the bottom row away. *"the mock name is
   short, but real name is long … i want to make sure all page look ok"* · *"use the real product name
   … with mock image"* (4 Nov). Use the real names and codes (pictures may stay drawn).
+  - **The full real list, not a few.** I drew 6 of the categories and 4 brands; *"i did add some info and
+    detail on Crew engine, please add them all … i want to see the real full info version"* — all 18
+    categories, every brand, with their real pictures and counts (AirPlus ค้นหา, 5 Nov).
   - **"Everywhere" means every board on the canvas**, not the page in hand. It took three asks:
     *"put the real product name everywhere on this artifact meant all artifact pages"*, then *"not real
     product name here > re-check all pages"*. Change all boards by one script, then search every board
@@ -556,6 +571,13 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A pick list shows the name the system saves.** Car makes are saved in English (Toyota, Honda),
   so the รถ picker and its chips show the English names, never a Thai name the server doesn't keep
   (สินค้า, 31 Oct).
+- **A pick list marks the chosen row with ✓ and has no ›.** A tap picks and goes back; a › would promise
+  another page (ตัวกรอง → หมวดหมู่, AirPlus, 5 Nov).
+- **Changing a filter drops the filters that lived inside the old choice.** On a category page I picked
+  another category in ตัวกรอง and the old car-brand chip (Isuzu) stayed, so the new category showed
+  ไม่พบสินค้า with no chip left to tap (my mistake, found on the simulator, 5 Nov).
+- **A category on a customer page is its Thai name too.** The saved `name` is English (Evaporator);
+  the AirPlus Toyota page's chips showed it until I switched them to ตู้แอร์ คอยล์เย็น (5 Nov).
 - **ถ่ายรูป opens the normal camera**, then the after-shot check, with the album beside it. The
   barcode scanner is a different sheet for a different job. *"camera here should be a normal one to
   take picture"* (สินค้า, 31 Oct).
@@ -707,6 +729,15 @@ again before saying a build matches.** The owner's words are quoted where they s
   file in the browser pane, open it and look at every page (31 Oct).
 - **Build what happens after each tap, as drawn.** The drawing closed the label's sheet and showed
   "บันทึกรูปแล้ว"; my first build saved behind the open sheet, so the message never showed (31 Oct).
+- **Every state matches its phone — including what the phone leaves out.** 2.6 ไม่พบสินค้า draws only
+  the bars and the empty card; my build also showed the chips and the car card. A red "ดูเฉพาะที่ใส่กับ…"
+  link from a design the owner reversed crept in too. Hold each built state beside its phone and take
+  out anything the phone doesn't have (AirPlus ค้นหา, 5 Nov).
+- **Try the filters together.** One at a time every chip and sheet worked; a car chip, then another
+  category in ตัวกรอง, gave an empty page (AirPlus, 5 Nov).
+- **Don't flash the other list while a saved choice loads.** The saved car is read after the page shows,
+  so a category page first showed every part with the car chips, then jumped to my car's 2 parts. It now
+  waits ("กำลังโหลด…") wherever the saved car changes the list (AirPlus, 5 Nov).
 - **A copy button says "copied" only when it copied.** `void clipboard.writeText()` showed "คัดลอกแล้ว"
   even when the browser refused, and the refusal brought up the error screen. Use `lib/copyText.ts`
   (true / false). Inside a sheet a toast sits hidden under it, so the icon turns into a ✓ for a moment

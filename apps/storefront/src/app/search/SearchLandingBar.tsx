@@ -32,6 +32,7 @@ export function SearchLandingBar() {
 
   return (
     <header
+      className="search-head-bar"
       style={{
         position: "sticky",
         top: 0,
