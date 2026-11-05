@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -356,6 +356,16 @@ again before saying a build matches.** The owner's words are quoted where they s
   amount we have been charged"* (ค่าคอม Shopee, 5 Nov).
   - **A total over its limit keeps its number.** รวม reads 112% with "รวมเกิน 100%" under it, not a dash
     that hides what went wrong (ค่าคอม Shopee build, 5 Nov).
+  - **Fees are judged by the total really charged.** Check a fee setting against the baht Shopee took on
+    real orders (Seller Centre's order breakdown), then round to the total the owner picks. *"what i care
+    most is total charged > re-check the real %"*, then *"go for 25%"* (5 Nov): 20 orders came to 24.98%.
+  - **Check real data before adding detail.** A rate per product type was dropped after 20 orders showed one
+    commission for every A/C part; only ฟองน้ำเส้น differed, by about ฿3. *"agree and go"* (5 Nov).
+- **A profit line takes off only the fees of the place that price is for.** Shopee's price minus ค่าคอม
+  Shopee; an AirPlus price (หน้าสินค้า AirPlus, แฟลชเซล) is price − cost, as drawn. The built แฟลชเซล sheet
+  took the old per-product Shopee commission off AirPlus prices until 5 Nov. I even suggested putting the
+  new Shopee total there, which was wrong; the owner chose to *"finish them all"* and it now matches the
+  drawing.
 - **A second price says whose it is.** "฿3,450 · ช่าง 3,100", not "฿3,450 (3,100)": *"mark what price
   is it (3,100) > maybe ช่าง 3,100"* (computer สแกน, 5 Nov).
 - **A count sits on its label's line.** "พร้อมขาย 4" with งานนอก 1 under it — not พร้อมขาย alone and the
@@ -783,6 +793,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   (64 for a %); other forms are unchanged (ค่าคอม Shopee, 5 Nov).
 - **One ลองอีกครั้ง brings back everything the page lost.** With no connection, ข้อมูลร้าน needed two
   presses: one for the shops, then one for the Shopee row. The page's retry now reloads both (5 Nov).
+- **Read each sheet line against its drawing, not only the page.** The แฟลชเซล price sheet shipped with a
+  "ค่าคอม 12%" line the drawing never had; it only showed for products the old back office had given a
+  commission, so practice data with 0 hid it. Seed one record with the old value to see it (5 Nov).
 - **Check a page as a PIN-only person too.** Sign in with their practice PIN in the browser pane, then
   move inside the app (`history.pushState` + a `popstate` event) — a typed address or reload signs
   out. บอย's profile proved no owner-only list is asked for (every call 200) (4 Nov).

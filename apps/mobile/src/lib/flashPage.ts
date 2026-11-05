@@ -368,10 +368,7 @@ export interface SheetLine {
   loss: boolean;
 }
 
-type Costed = Pick<
-  ProductRow,
-  "itemCostSatang" | "taxOnCost" | "onlineCommissionBp" | "onlinePriceSatang"
->;
+type Costed = Pick<ProductRow, "itemCostSatang" | "taxOnCost" | "onlinePriceSatang">;
 
 export const totalCost = (r: Costed) => totalCostSatang(r.itemCostSatang, r.taxOnCost === 1);
 
@@ -394,32 +391,19 @@ export function costLines(r: Costed): SheetLine[] {
   return lines;
 }
 
-/** What is left at a price: the fee if AirPlus takes one, then กำไร, or ขาดทุน per piece in red. */
+/**
+ * What is left at an AirPlus price: กำไร, or ขาดทุน per piece in red — price − cost, as drawn. AirPlus is
+ * the shop's own website, so no Shopee commission comes off (the old per-product one is not read).
+ */
 export function profitLines(r: Costed, priceSatang: number): SheetLine[] {
-  const fee = Math.round((priceSatang * r.onlineCommissionBp) / 10000);
-  const profit = priceSatang - totalCost(r) - fee;
-  const lines: SheetLine[] =
-    fee > 0
-      ? [
-          {
-            label: {
-              th: `ค่าคอม ${r.onlineCommissionBp / 100}%`,
-              en: `Fee ${r.onlineCommissionBp / 100}%`,
-            },
-            text: `– ${formatBaht(fee)}`,
-            loss: false,
-          },
-        ]
-      : [];
+  const profit = priceSatang - totalCost(r);
   if (profit < 0) {
     return [
-      ...lines,
       { label: { th: "ขาดทุน", en: "Loss" }, text: `${formatBaht(-profit)} ต่อชิ้น`, loss: true },
     ];
   }
   const margin = priceSatang > 0 ? Math.round((profit / priceSatang) * 100) : 0;
   return [
-    ...lines,
     {
       label: { th: "กำไร", en: "Profit" },
       text: `${formatBaht(profit)} · ${margin}%`,

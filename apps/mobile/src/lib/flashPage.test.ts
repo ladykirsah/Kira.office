@@ -298,6 +298,16 @@ describe("the ราคาลด sheet", () => {
     ]);
   });
 
+  it("saleLines > given an old per-product Shopee commission > then AirPlus profit ignores it (canvas: price − cost)", () => {
+    // The old back office kept Shopee's commission per product; AirPlus is the shop's own website,
+    // and the drawn sheet reads กำไร = ราคา − ต้นทุน with no fee line (owner's flash design).
+    const out = saleLines(product({ onlineCommissionBp: 1200 }), 299000, true);
+    expect(out.map((l) => [l.label.th, l.text])).toEqual([
+      ["ลด", "฿460 · 13%"],
+      ["กำไร", "฿422 · 14%"],
+    ]);
+  });
+
   it("saleLines > under the cost says the loss per piece, in red", () => {
     const out = saleLines(product(), 200000, true);
     expect(out[1]).toEqual({
