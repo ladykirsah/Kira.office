@@ -77,7 +77,7 @@ const expense = (over: Partial<Expense>): Expense => ({
 describe("money words", () => {
   it("money > given satang > then baht with commas and no .00", () => {
     expect(money(31260000)).toBe("฿312,600");
-    expect(money(150)).toBe("฿1.5");
+    expect(money(150)).toBe("฿1.50");
   });
   it("money > given a loss > then a real minus sign before the baht", () => {
     expect(money(-214000)).toBe("−฿2,140");

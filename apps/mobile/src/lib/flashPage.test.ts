@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bahtText,
   capLine,
   clock,
   costLines,
@@ -355,5 +356,16 @@ describe("grouped", () => {
       "399",
       "",
     ]);
+  });
+});
+
+describe("bahtText (a price in its box)", () => {
+  it("given whole baht > then no decimals", () => {
+    expect(bahtText(299000)).toBe("2,990");
+  });
+
+  it("given satang > then both satang digits, as its note says", () => {
+    expect(bahtText(299050)).toBe("2,990.50");
+    expect(bahtText(281410)).toBe("2,814.10");
   });
 });

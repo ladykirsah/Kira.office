@@ -21,7 +21,7 @@ const PRICING: Pricing = {
 
 describe("priceRows", () => {
   it("given someone who sees cost > then ต้นทุน first, as the total with VAT, then the four prices", () => {
-    const rows = priceRows(PRICING, true);
+    const rows = priceRows(PRICING, true, 1700);
     expect(rows.map((r) => [r.label.th, r.satang])).toEqual([
       ["ต้นทุน", 256800],
       ["เด่นแอร์", 345000],
@@ -32,54 +32,61 @@ describe("priceRows", () => {
   });
 
   it("given VAT on the cost > then ⌄ shows the item cost and the VAT added", () => {
-    expect(priceRows(PRICING, true)[0]!.lines).toEqual([
+    expect(priceRows(PRICING, true, 1700)[0]!.lines).toEqual([
       { label: { th: "ต้นทุนสินค้า", en: "Item cost" }, text: "฿2,400", loss: false },
       { label: { th: "VAT 7%", en: "VAT 7%" }, text: "+ ฿168", loss: false },
     ]);
   });
 
   it("given no VAT on the cost > then the cost has nothing to drop down", () => {
-    expect(priceRows({ ...PRICING, taxOnCost: 0 }, true)[0]).toMatchObject({
+    expect(priceRows({ ...PRICING, taxOnCost: 0 }, true, 1700)[0]).toMatchObject({
       satang: 240000,
       lines: [],
     });
   });
 
   it("given a counter price > then ⌄ shows its profit over the total cost", () => {
-    expect(priceRows(PRICING, true)[1]!.lines).toEqual([
+    expect(priceRows(PRICING, true, 1700)[1]!.lines).toEqual([
       { label: { th: "กำไร", en: "Profit" }, text: "฿882 · 26%", loss: false },
     ]);
   });
 
-  it("given the Shopee price > then ⌄ takes Shopee's fee off first", () => {
-    expect(priceRows(PRICING, true)[4]!.lines).toEqual([
-      { label: { th: "ค่าคอม 12%", en: "Fee 12%" }, text: "– ฿480", loss: false },
-      { label: { th: "กำไร", en: "Profit" }, text: "฿952 · 24%", loss: false },
+  it("given the Shopee price > then ⌄ takes the shop's Shopee fees (their total) off first", () => {
+    // ค่าคอม Shopee (owner, 5 Nov 2026): 12% + 3% + 2% = 17% of ฿4,000 = ฿680; ฿4,000 − ฿2,568 − ฿680 = ฿752.
+    expect(priceRows(PRICING, true, 1700)[4]!.lines).toEqual([
+      { label: { th: "ค่าคอม Shopee 17%", en: "Shopee fees 17%" }, text: "– ฿680", loss: false },
+      { label: { th: "กำไร", en: "Profit" }, text: "฿752 · 19%", loss: false },
+    ]);
+  });
+
+  it("given a product's own commission from the old back office > then the shop's total replaces it", () => {
+    expect(priceRows({ ...PRICING, onlineCommissionBp: 1200 }, true, 0)[4]!.lines).toEqual([
+      { label: { th: "กำไร", en: "Profit" }, text: "฿1,432 · 36%", loss: false },
     ]);
   });
 
   it("given a price under the cost > then the profit says so as a loss", () => {
-    const rows = priceRows({ ...PRICING, b2bPriceSatang: 250000 }, true);
+    const rows = priceRows({ ...PRICING, b2bPriceSatang: 250000 }, true, 1700);
     expect(rows[2]!.lines).toEqual([
       { label: { th: "ขาดทุน", en: "Loss" }, text: "฿68", loss: true },
     ]);
   });
 
   it("given a price not set > then nothing to drop down", () => {
-    expect(priceRows({ ...PRICING, shopeePriceSatang: 0 }, true)[4]).toMatchObject({
+    expect(priceRows({ ...PRICING, shopeePriceSatang: 0 }, true, 1700)[4]).toMatchObject({
       satang: 0,
       lines: [],
     });
   });
 
   it("given someone who may not see cost > then no ต้นทุน row and no ⌄ on the prices", () => {
-    const rows = priceRows(PRICING, false);
+    const rows = priceRows(PRICING, false, 1700);
     expect(rows.map((r) => r.label.th)).toEqual(["เด่นแอร์", "ช่าง", "AirPlus", "Shopee"]);
     expect(rows.every((r) => r.lines.length === 0)).toBe(true);
   });
 
   it("given no prices at all > then the four prices with nothing set", () => {
-    expect(priceRows(null, false).map((r) => r.satang)).toEqual([0, 0, 0, 0]);
+    expect(priceRows(null, false, 1700).map((r) => r.satang)).toEqual([0, 0, 0, 0]);
   });
 });
 

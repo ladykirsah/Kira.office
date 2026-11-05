@@ -197,6 +197,7 @@ import {
   clearOwnRecoveryKey,
   setReplyHeaders,
 } from "./staffRoutes";
+import { checkShopeeFees, readShopeeFees, SHOPEE_FEES_KEY } from "./shopeeFees";
 export { resolveActor, requireRole, type ActorContext } from "./auth";
 
 interface SyncLine {
@@ -8095,6 +8096,21 @@ const worker = {
         ),
       );
       return json({ ok: true });
+    }
+
+    // ค่าคอม Shopee: what Shopee takes off every sale there, one set for the whole business (owner,
+    // 5 Nov 2026). Anyone signed in reads it (the product page's profit uses it); only the owner
+    // changes it — the old back office kept the commission with the owner's selling prices too.
+    if (url.pathname === "/shopee-fees" && request.method === "GET") {
+      return json(readShopeeFees(await retryRead(() => env.KV.get(SHOPEE_FEES_KEY))));
+    }
+    if (url.pathname === "/shopee-fees" && request.method === "PUT") {
+      const gate = await requireRole(request, env, (r) => r === "super_admin", "super_admin_only");
+      if (gate instanceof Response) return gate;
+      const fees = checkShopeeFees(await readJson<unknown>(request));
+      if (typeof fees === "string") return json({ error: fees }, 400);
+      await env.KV.put(SHOPEE_FEES_KEY, JSON.stringify(fees));
+      return json(fees);
     }
 
     if (url.pathname === "/stock/adjust" && request.method === "POST") {

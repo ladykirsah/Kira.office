@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -347,6 +347,15 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 - **Money shows no .00.** ฿3,450, never ฿3,450.00 or a small raised .00 — on every page and drawing:
   *"remove .00"* (computer สแกน, 5 Nov).
+  - **Satang show both digits.** ฿2,814.10, never ฿2,814.1; a whole amount still has no .00. I spotted
+    "฿2,814.1" on the computer หน้าสินค้า and the owner said *"Yes, fix it here"* (5 Nov). `formatBaht`
+    and `bahtText` do this everywhere.
+- **A setting made of several charges shows its total on the row; the sheet shows each charge.**
+  ข้อมูลร้าน reads "ค่าคอม Shopee 17%"; a tap lists ค่าคอมมิชชั่น, ค่าธรรมเนียมธุรกรรม and ค่าบริการโปรแกรม,
+  each with its own %, then รวม. *"i want A, but on the main page is total %, and the pop up shown all
+  amount we have been charged"* (ค่าคอม Shopee, 5 Nov).
+  - **A total over its limit keeps its number.** รวม reads 112% with "รวมเกิน 100%" under it, not a dash
+    that hides what went wrong (ค่าคอม Shopee build, 5 Nov).
 - **A second price says whose it is.** "฿3,450 · ช่าง 3,100", not "฿3,450 (3,100)": *"mark what price
   is it (3,100) > maybe ช่าง 3,100"* (computer สแกน, 5 Nov).
 - **A count sits on its label's line.** "พร้อมขาย 4" with งานนอก 1 under it — not พร้อมขาย alone and the
@@ -762,6 +771,13 @@ again before saying a build matches.** The owner's words are quoted where they s
   (เข้าใช้งาน, 3 Nov).
 - **Take a fresh simulator screenshot after a swipe, then tap.** The page was still gliding, so a tap
   meant for ⧉ เลขบัญชี opened รหัส 6 หลัก instead (โปรไฟล์ของฉัน, 4 Nov).
+  - **The same after typing.** Closing the keyboard slides the sheet down, so a tap meant for บันทึก
+    landed on the ทำบิล tab (ค่าคอม Shopee, 5 Nov). Close the keyboard, take a screenshot, then tap.
+- **A short number box beside a long Thai label gets a narrow box.** On the web a TextInput is wide by
+  default, so "ค่าธรรมเนียมธุรกรรม" broke onto two lines next to a % box. `InputRow` takes `boxWidth`
+  (64 for a %); other forms are unchanged (ค่าคอม Shopee, 5 Nov).
+- **One ลองอีกครั้ง brings back everything the page lost.** With no connection, ข้อมูลร้าน needed two
+  presses: one for the shops, then one for the Shopee row. The page's retry now reloads both (5 Nov).
 - **Check a page as a PIN-only person too.** Sign in with their practice PIN in the browser pane, then
   move inside the app (`history.pushState` + a `popstate` event) — a typed address or reload signs
   out. บอย's profile proved no owner-only list is asked for (every call 200) (4 Nov).
