@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getDb, listProductTypes } from "@/lib/db";
+import { carBrandTiles, getDb, listProductTypes } from "@/lib/db";
+import { resolveBrandLogo } from "@/lib/brandLogo";
 import { groupCategoriesBySystem } from "@/lib/groupBySystem";
 import { displayNames } from "@l-shopee/core";
 import { imgUrl } from "@/lib/img";
 import { Icon } from "@/components/Icon";
+import { CategoriesPhone } from "@/components/browse/CategoriesPhone";
 
 export const metadata: Metadata = { title: "หมวดหมู่สินค้า · AirPlus" };
 
@@ -17,83 +19,96 @@ export const dynamic = "force-dynamic";
  * English + count + chevron. The home "ดูทั้งหมด →" on the category strip links here; each row opens
  * that category's products. Same in-stock filtering as the home strip (listProductTypes), so empty
  * categories never show. With a single-system catalogue this is one section; more appear as the shop
- * stocks other systems.
+ * stocks other systems. Phones (<720px) see board 2 · 2.7–2.8 (CategoriesPhone) instead.
  */
-export default async function CategoriesPage() {
+export default async function CategoriesPage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await props.searchParams;
   const db = await getDb();
-  const types = await listProductTypes(db);
+  const [types, carTiles] = await Promise.all([listProductTypes(db), carBrandTiles(db, 64)]);
   const groups = groupCategoriesBySystem(types);
 
   return (
-    <div className="section">
-      <div style={{ marginBottom: 20 }}>
-        <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
-          🗂️ หมวดหมู่ · Categories
+    <>
+      <CategoriesPhone
+        tab={tab === "cars" ? "cars" : "cats"}
+        groups={groups}
+        cars={carTiles.map((b) => ({
+          brand: b.brand,
+          nameTh: b.nameTh,
+          logo: resolveBrandLogo(b.brand, b.imageKey),
+          productCount: b.productCount,
+        }))}
+      />
+      <div className="section b2-desk">
+        <div style={{ marginBottom: 20 }}>
+          <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
+            🗂️ หมวดหมู่ · Categories
+          </div>
+          <h1 className="t-h1" style={{ color: "var(--gray-dark)", margin: 0 }}>
+            เลือกตามระบบและหมวดหมู่
+          </h1>
         </div>
-        <h1 className="t-h1" style={{ color: "var(--gray-dark)", margin: 0 }}>
-          เลือกตามระบบและหมวดหมู่
-        </h1>
+        {types.length === 0 ? (
+          <div className="card" style={{ padding: 32, textAlign: "center" }}>
+            <p style={{ margin: 0, color: "var(--gray-mid)" }}>ยังไม่มีหมวดหมู่สินค้า</p>
+          </div>
+        ) : (
+          <div className="catgroups">
+            {groups.map((g, i) => {
+              const sys = g.system ? displayNames(g.system) : null;
+              return (
+                <section key={g.system?.id ?? `other-${i}`} className="catgroup">
+                  <h2 className="catgroup-head">
+                    <span className="catgroup-th">{sys ? sys.th : "อื่นๆ"}</span>
+                    {sys?.en && <span className="catgroup-en">{sys.en}</span>}
+                  </h2>
+                  <div className="catlist">
+                    {g.categories.map((t) => (
+                      <Link
+                        key={t.id}
+                        href={`/products?type=${encodeURIComponent(t.id)}&ctx=cat`}
+                        className="catlist-row"
+                        aria-label={`ดูสินค้าในหมวด ${t.name} (${t.productCount} รายการ)`}
+                      >
+                        <div className="catlist-thumb">
+                          {/* Owner-uploaded cover (Kira.office → Part attributes); ✦ until one is set. */}
+                          {t.imageKey ? (
+                            <img
+                              src={imgUrl(t.imageKey)}
+                              alt=""
+                              loading="lazy"
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                borderRadius: 10,
+                              }}
+                            />
+                          ) : (
+                            <span aria-hidden="true" className="star">
+                              ✦
+                            </span>
+                          )}
+                        </div>
+                        <div className="catlist-info">
+                          <div className="catlist-name">{displayNames(t).th}</div>
+                          {displayNames(t).en && (
+                            <div className="catlist-name-en">{displayNames(t).en}</div>
+                          )}
+                          <div className="catlist-count">{t.productCount} รายการ</div>
+                        </div>
+                        <span className="catlist-chev" aria-hidden="true">
+                          <Icon name="chevron" size={22} />
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
       </div>
-      {types.length === 0 ? (
-        <div className="card" style={{ padding: 32, textAlign: "center" }}>
-          <p style={{ margin: 0, color: "var(--gray-mid)" }}>ยังไม่มีหมวดหมู่สินค้า</p>
-        </div>
-      ) : (
-        <div className="catgroups">
-          {groups.map((g, i) => {
-            const sys = g.system ? displayNames(g.system) : null;
-            return (
-              <section key={g.system?.id ?? `other-${i}`} className="catgroup">
-                <h2 className="catgroup-head">
-                  <span className="catgroup-th">{sys ? sys.th : "อื่นๆ"}</span>
-                  {sys?.en && <span className="catgroup-en">{sys.en}</span>}
-                </h2>
-                <div className="catlist">
-                  {g.categories.map((t) => (
-                    <Link
-                      key={t.id}
-                      href={`/products?type=${encodeURIComponent(t.id)}&ctx=cat`}
-                      className="catlist-row"
-                      aria-label={`ดูสินค้าในหมวด ${t.name} (${t.productCount} รายการ)`}
-                    >
-                      <div className="catlist-thumb">
-                        {/* Owner-uploaded cover (Kira.office → Part attributes); ✦ until one is set. */}
-                        {t.imageKey ? (
-                          <img
-                            src={imgUrl(t.imageKey)}
-                            alt=""
-                            loading="lazy"
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              borderRadius: 10,
-                            }}
-                          />
-                        ) : (
-                          <span aria-hidden="true" className="star">
-                            ✦
-                          </span>
-                        )}
-                      </div>
-                      <div className="catlist-info">
-                        <div className="catlist-name">{displayNames(t).th}</div>
-                        {displayNames(t).en && (
-                          <div className="catlist-name-en">{displayNames(t).en}</div>
-                        )}
-                        <div className="catlist-count">{t.productCount} รายการ</div>
-                      </div>
-                      <span className="catlist-chev" aria-hidden="true">
-                        <Icon name="chevron" size={22} />
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import type {
   DurableObjectNamespace,
   R2Bucket,
 } from "@cloudflare/workers-types";
+import type { SortKey } from "./browse";
 import type { HeldCouponRow } from "./couponCart";
 import type { CategoryRow } from "./groupBySystem";
 import { joinDescriptions, productTerms } from "./productDescription";
@@ -118,6 +119,22 @@ const CATALOG_SELECT = `
     AND (SELECT COALESCE(SUM(quantity_delta), 0)
            FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0`;
 const CATALOG_NOW_BINDS = 2;
+const BEST_SELLER_DAYS = 90;
+
+/** ORDER BY per sort. Price is what the shopper pays now (an active flash price wins); ties fall back
+ *  to the newest change so the order never jumps between visits. */
+const CATALOG_ORDER: Record<SortKey, string> = {
+  relevant: "COALESCE(p.updated_at, p.created_at) DESC, p.id",
+  new: "p.created_at DESC, p.id",
+  price_asc:
+    "COALESCE(cp.campaign_price_satang, pp.online_price_satang, 0) ASC, COALESCE(p.updated_at, p.created_at) DESC",
+  price_desc:
+    "COALESCE(cp.campaign_price_satang, pp.online_price_satang, 0) DESC, COALESCE(p.updated_at, p.created_at) DESC",
+  best: `(SELECT COALESCE(SUM(l.quantity), 0) FROM sales_order_lines l
+            JOIN sales_orders o ON o.id = l.sales_order_id
+           WHERE l.product_variant_id = v.id AND o.channel = 'airplus' AND o.order_created_at >= ?) DESC,
+         COALESCE(p.updated_at, p.created_at) DESC`,
+};
 
 function toCatalogItem(row: CatalogRow): CatalogItem {
   const { cpPriceSatang, cpStartsAt, cpEndsAt, cpStatus, cpStockCap, cpSoldCount, ...item } = row;
@@ -147,6 +164,8 @@ export async function listCatalog(
     carModel?: string;
     year?: number;
     onSaleOnly?: boolean;
+    /** board 2 sort bar: เกี่ยวข้อง (default) · ขายดี · ใหม่ · ราคา ↑/↓ */
+    sort?: SortKey;
     limit?: number;
   } = {},
 ): Promise<CatalogItem[]> {
@@ -189,11 +208,12 @@ export async function listCatalog(
   if (opts.onSaleOnly) conds.push(`cp.id IS NOT NULL`);
   const where = conds.length ? ` AND ${conds.join(" AND ")}` : "";
   const limit = Math.min(opts.limit ?? 48, 100);
+  const sort = opts.sort ?? "relevant";
+  // ขายดี ranks by AirPlus units sold in the last 90 days (same window as the home ขายดี list).
+  const orderBinds = sort === "best" ? [now - BEST_SELLER_DAYS * 24 * 60 * 60 * 1000] : [];
   const rows = await db
-    .prepare(
-      `${CATALOG_SELECT}${where} ORDER BY COALESCE(p.updated_at, p.created_at) DESC LIMIT ${limit}`,
-    )
-    .bind(...Array(CATALOG_NOW_BINDS).fill(now), ...binds)
+    .prepare(`${CATALOG_SELECT}${where} ORDER BY ${CATALOG_ORDER[sort]} LIMIT ${limit}`)
+    .bind(...Array(CATALOG_NOW_BINDS).fill(now), ...binds, ...orderBinds)
     .all<CatalogRow>();
   return (rows.results ?? []).map(toCatalogItem);
 }

@@ -10,6 +10,7 @@ import { TabBar } from "@/components/home/TabBar";
 import { SITE_ORIGIN } from "@/lib/seo";
 import "./globals.css";
 import "@/components/home/home-phone.css";
+import "@/components/browse/browse-phone.css";
 
 // Prompt is a genuine LAST-RESORT fallback for the CI's system-first stack (see --font-body in
 // globals.css): every real platform has a Thai system font (Thonburi / Leelawadee / Noto) that is

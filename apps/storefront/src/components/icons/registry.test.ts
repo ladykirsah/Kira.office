@@ -29,10 +29,12 @@ const EXPECTED: IconName[] = [
   "card",
   "store",
   "line",
+  // board 2 (5 Nov 2026): the ⇅ on ราคา in the search sort bar
+  "sort",
 ];
 
 describe("icon registry", () => {
-  it("exposes exactly the 25 chosen interface icons", () => {
+  it("exposes exactly the 26 chosen interface icons", () => {
     expect([...ICON_NAMES].sort()).toEqual([...EXPECTED].sort());
   });
 

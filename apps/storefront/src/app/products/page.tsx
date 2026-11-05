@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import {
+  carBrandTiles,
   carBrandsForType,
+  carModelOptions,
   fitmentOptions,
   getDb,
   listBrands,
@@ -9,8 +11,12 @@ import {
   listProductTypes,
   productTypesForCarBrand,
 } from "@/lib/db";
+import { byMostStocked, parseSort } from "@/lib/browse";
+import { resolveBrandLogo } from "@/lib/brandLogo";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductFilter } from "@/components/ProductFilter";
+import { ResultsPhone, type BrowseMode } from "@/components/browse/ResultsPhone";
+import { MyCarProvider } from "@/components/home/MyCarProvider";
 
 // Live catalog data from D1 — must render per-request on the Worker, never prerender at build
 // time (the build environment has no real database).
@@ -25,6 +31,7 @@ export const metadata: Metadata = { title: "สินค้า — AirPlus" };
  *  • ctx=brand→ 🚗 Car Fitment: a specific car brand; shortcut chips narrow by PART CATEGORY.
  *  • (none)   → 🛒 Products: all products / search results; shortcut chips pick a category.
  * The shortcut always offers the CROSS axis, scoped so it never lists a dead-end (0-result) chip.
+ * Phones (<720px) see board 2 (ResultsPhone: sort bar, my car as a filter, ตัวกรอง); computers keep this.
  */
 export default async function ProductsPage(props: {
   searchParams: Promise<{
@@ -35,32 +42,39 @@ export default async function ProductsPage(props: {
     carModel?: string;
     year?: string;
     ctx?: string;
+    sort?: string;
+    car?: string;
   }>;
 }) {
-  const { q, type, brand, carBrand, carModel, year, ctx } = await props.searchParams;
+  const params = await props.searchParams;
+  const { q, type, brand, carBrand, carModel, year, ctx } = params;
   const db = await getDb();
   const isCategoryView = ctx === "cat" && Boolean(type);
   const isBrandView = ctx === "brand" && Boolean(carBrand);
   const isSaleView = ctx === "sale"; // on-sale deals; the ctx marker also drives the onSaleOnly filter
-  const [types, brands, fitments, items, catCarBrands, brandTypes] = await Promise.all([
-    listProductTypes(db),
-    listBrands(db),
-    fitmentOptions(db),
-    listCatalog(db, {
-      q,
-      typeId: type,
-      brandId: brand,
-      carBrand,
-      carModel,
-      year: year ? Number(year) : undefined,
-      onSaleOnly: isSaleView,
-      limit: 48,
-    }),
-    isCategoryView && type ? carBrandsForType(db, type) : Promise.resolve<string[]>([]),
-    isBrandView && carBrand
-      ? productTypesForCarBrand(db, carBrand)
-      : Promise.resolve<{ id: string; name: string }[]>([]),
-  ]);
+  const [types, brands, fitments, items, catCarBrands, brandTypes, carTiles, carModels] =
+    await Promise.all([
+      listProductTypes(db),
+      listBrands(db),
+      fitmentOptions(db),
+      listCatalog(db, {
+        q,
+        typeId: type,
+        brandId: brand,
+        carBrand,
+        carModel,
+        year: year ? Number(year) : undefined,
+        onSaleOnly: isSaleView,
+        sort: parseSort(params.sort),
+        limit: 48,
+      }),
+      isCategoryView && type ? carBrandsForType(db, type) : Promise.resolve<string[]>([]),
+      isBrandView && carBrand
+        ? productTypesForCarBrand(db, carBrand)
+        : Promise.resolve<{ id: string; name: string }[]>([]),
+      carBrandTiles(db, 64),
+      carModelOptions(db),
+    ]);
 
   // One href builder: start from the current params, apply overrides (undefined = drop that key).
   const hrefWith = (over: Partial<Record<string, string | undefined>>) => {
@@ -106,31 +120,107 @@ export default async function ProductsPage(props: {
         ? "🗂️ หมวดหมู่ · Categories"
         : "🛒 สินค้า · Products";
 
-  return (
-    <div className="section">
-      <div style={{ marginBottom: 20 }}>
-        <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
-          {overline}
-        </div>
-        <h1 className="t-h1" style={{ color: "var(--gray-dark)", margin: 0 }}>
-          {headline}
-        </h1>
-      </div>
+  const mode: BrowseMode = isSaleView
+    ? "sale"
+    : isBrandView
+      ? "brand"
+      : isCategoryView
+        ? "cat"
+        : "search";
+  const typeRow = type ? types.find((t) => t.id === type) : undefined;
+  const phoneTitle =
+    mode === "sale"
+      ? "สินค้าลดราคา"
+      : mode === "brand"
+        ? (carBrand ?? "")
+        : (typeRow?.nameTh ?? typeRow?.name ?? "สินค้า");
 
-      {/* Every filter chip uses `replace`: narrowing this list is an in-page action, so it overwrites
+  return (
+    <>
+      <MyCarProvider>
+        <ResultsPhone
+          mode={mode}
+          title={phoneTitle}
+          params={params}
+          items={items}
+          types={byMostStocked(types)}
+          brands={brands}
+          carChips={catCarBrands}
+          // the phone speaks Thai: the same categories, by their Thai name (the computer page keeps its own)
+          typeChips={brandTypes.map((t) => ({
+            id: t.id,
+            name: types.find((x) => x.id === t.id)?.nameTh ?? t.name,
+          }))}
+          carBrands={carTiles.map((b) => ({
+            brand: b.brand,
+            nameTh: b.nameTh,
+            logo: resolveBrandLogo(b.brand, b.imageKey),
+            productCount: b.productCount,
+          }))}
+          carModels={carModels}
+        />
+      </MyCarProvider>
+      <div className="section b2-desk">
+        <div style={{ marginBottom: 20 }}>
+          <div className="t-overline" style={{ color: "var(--brand-deep)", marginBottom: 6 }}>
+            {overline}
+          </div>
+          <h1 className="t-h1" style={{ color: "var(--gray-dark)", margin: 0 }}>
+            {headline}
+          </h1>
+        </div>
+
+        {/* Every filter chip uses `replace`: narrowing this list is an in-page action, so it overwrites
           the current history entry rather than stacking one. The back arrow then returns to the
           previous PAGE (home/category) — not a prior filter state the shopper didn't navigate to. */}
-      {isSaleView ? null : isBrandView ? ( // On-Sale is a flat deals list — no cross-axis shortcut
-        // By Brand: narrow this car brand by part category (only categories it actually has).
-        brandTypes.length > 0 && (
+        {isSaleView ? null : isBrandView ? ( // On-Sale is a flat deals list — no cross-axis shortcut
+          // By Brand: narrow this car brand by part category (only categories it actually has).
+          brandTypes.length > 0 && (
+            <div className="chip-row" style={{ marginBottom: 12 }}>
+              <Link href={brandTypeChipHref()} replace className={type ? "chip" : "chip on"}>
+                ทั้งหมด
+              </Link>
+              {brandTypes.map((t) => (
+                <Link
+                  key={t.id}
+                  href={brandTypeChipHref(t.id)}
+                  replace
+                  className={t.id === type ? "chip on" : "chip"}
+                >
+                  {t.name}
+                </Link>
+              ))}
+            </div>
+          )
+        ) : isCategoryView ? (
+          // Categories: narrow this category by car brand (only brands present in it).
+          catCarBrands.length > 0 && (
+            <div className="chip-row" style={{ marginBottom: 12 }}>
+              <Link href={catCarChipHref()} replace className={carBrand ? "chip" : "chip on"}>
+                ทั้งหมด
+              </Link>
+              {catCarBrands.map((cb) => (
+                <Link
+                  key={cb}
+                  href={catCarChipHref(cb)}
+                  replace
+                  className={cb === carBrand ? "chip on" : "chip"}
+                >
+                  {cb}
+                </Link>
+              ))}
+            </div>
+          )
+        ) : (
+          // Products / search: pick a part category.
           <div className="chip-row" style={{ marginBottom: 12 }}>
-            <Link href={brandTypeChipHref()} replace className={type ? "chip" : "chip on"}>
+            <Link href={catChipHref()} replace className={type ? "chip" : "chip on"}>
               ทั้งหมด
             </Link>
-            {brandTypes.map((t) => (
+            {types.map((t) => (
               <Link
                 key={t.id}
-                href={brandTypeChipHref(t.id)}
+                href={catChipHref(t.id)}
                 replace
                 className={t.id === type ? "chip on" : "chip"}
               >
@@ -138,81 +228,45 @@ export default async function ProductsPage(props: {
               </Link>
             ))}
           </div>
-        )
-      ) : isCategoryView ? (
-        // Categories: narrow this category by car brand (only brands present in it).
-        catCarBrands.length > 0 && (
-          <div className="chip-row" style={{ marginBottom: 12 }}>
-            <Link href={catCarChipHref()} replace className={carBrand ? "chip" : "chip on"}>
-              ทั้งหมด
-            </Link>
-            {catCarBrands.map((cb) => (
-              <Link
-                key={cb}
-                href={catCarChipHref(cb)}
-                replace
-                className={cb === carBrand ? "chip on" : "chip"}
-              >
-                {cb}
-              </Link>
+        )}
+
+        <div style={{ marginBottom: 12 }}>
+          <ProductFilter
+            fitments={fitments}
+            types={types}
+            brands={brands}
+            current={{ q, carBrand, carModel, year, type, brand, ctx }}
+          />
+        </div>
+
+        <p className="muted" style={{ margin: "0 0 12px" }}>
+          {q
+            ? `ผลการค้นหา “${q}” — พบ ${items.length} รายการ`
+            : isSaleView || isBrandView || typeName
+              ? `ผลการค้นหา “${headline}” — พบ ${items.length} รายการ`
+              : `พบ ${items.length} รายการ`}
+        </p>
+
+        {items.length > 0 ? (
+          <div className="product-grid">
+            {items.map((item) => (
+              <ProductCard key={item.variantId} item={item} />
             ))}
           </div>
-        )
-      ) : (
-        // Products / search: pick a part category.
-        <div className="chip-row" style={{ marginBottom: 12 }}>
-          <Link href={catChipHref()} replace className={type ? "chip" : "chip on"}>
-            ทั้งหมด
-          </Link>
-          {types.map((t) => (
-            <Link
-              key={t.id}
-              href={catChipHref(t.id)}
-              replace
-              className={t.id === type ? "chip on" : "chip"}
-            >
-              {t.name}
+        ) : (
+          <div className="card" style={{ padding: 24, textAlign: "center" }}>
+            <div className="t-h4" style={{ marginBottom: 6 }}>
+              ไม่พบสินค้า
+            </div>
+            <p className="muted" style={{ margin: "0 0 16px" }}>
+              ลองค้นหาด้วยรุ่นรถ เช่น Vigo, D-Max หรือเลขอะไหล่
+            </p>
+            <Link href="/products" replace className="btn">
+              ดูสินค้าทั้งหมด
             </Link>
-          ))}
-        </div>
-      )}
-
-      <div style={{ marginBottom: 12 }}>
-        <ProductFilter
-          fitments={fitments}
-          types={types}
-          brands={brands}
-          current={{ q, carBrand, carModel, year, type, brand, ctx }}
-        />
-      </div>
-
-      <p className="muted" style={{ margin: "0 0 12px" }}>
-        {q
-          ? `ผลการค้นหา “${q}” — พบ ${items.length} รายการ`
-          : isSaleView || isBrandView || typeName
-            ? `ผลการค้นหา “${headline}” — พบ ${items.length} รายการ`
-            : `พบ ${items.length} รายการ`}
-      </p>
-
-      {items.length > 0 ? (
-        <div className="product-grid">
-          {items.map((item) => (
-            <ProductCard key={item.variantId} item={item} />
-          ))}
-        </div>
-      ) : (
-        <div className="card" style={{ padding: 24, textAlign: "center" }}>
-          <div className="t-h4" style={{ marginBottom: 6 }}>
-            ไม่พบสินค้า
           </div>
-          <p className="muted" style={{ margin: "0 0 16px" }}>
-            ลองค้นหาด้วยรุ่นรถ เช่น Vigo, D-Max หรือเลขอะไหล่
-          </p>
-          <Link href="/products" replace className="btn">
-            ดูสินค้าทั้งหมด
-          </Link>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

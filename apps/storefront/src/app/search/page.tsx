@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import { bestSellers, carBrandTiles, getDb, listCatalog, type CatalogItem } from "@/lib/db";
+import { resolveBrandLogo } from "@/lib/brandLogo";
 import { suggestionPool } from "@/lib/suggest";
+import { SearchPhone } from "@/components/browse/SearchPhone";
 import { CarBrandGrid } from "./CarBrandGrid";
 import { RecentSearches } from "./RecentSearches";
 import { SuggestedProducts } from "./SuggestedProducts";
@@ -13,11 +15,12 @@ export const metadata: Metadata = { title: "ค้นหาสินค้า �
 
 /**
  * Search landing (Shopee-style, owner-briefed): recent searches → search by car → suggested products.
- * The sticky orange search bar is SearchLandingBar (a layout header, shown only on /search). The
- * suggested pool is on-sale → best-sellers → latest; the client shows the head to new visitors and
- * re-ranks it toward a returning visitor's viewed part-types.
+ * Phones (<720px) see board 2 · 2.1 (SearchPhone, its own grey search bar); computers keep this page
+ * with the sticky orange SearchLandingBar. The suggested pool is on-sale → best-sellers → latest; the
+ * client shows the head to new visitors and re-ranks it toward a returning visitor's viewed part-types.
  */
-export default async function SearchPage() {
+export default async function SearchPage(props: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await props.searchParams;
   const db = await getDb();
   const now = Date.now();
   const [brands, onSaleRaw, best, latest] = await Promise.all([
@@ -32,12 +35,20 @@ export default async function SearchPage() {
     (i) => resolveEffectivePrice(i.priceSatang, i.campaign, now).onSale,
   );
   const pool = suggestionPool<CatalogItem>(onSale, best, latest, 16);
+  const tiles = brands.map((b) => ({
+    brand: b.brand,
+    th: b.nameTh?.trim() || null, // only a real Thai name (Hino has none → the English name alone)
+    logo: resolveBrandLogo(b.brand, b.imageKey),
+  }));
 
   return (
-    <div className="search-sections">
-      <RecentSearches />
-      <CarBrandGrid brands={brands} />
-      <SuggestedProducts pool={pool} />
-    </div>
+    <>
+      <SearchPhone initialQ={q ?? ""} brands={tiles} pool={pool} />
+      <div className="search-sections b2-desk">
+        <RecentSearches />
+        <CarBrandGrid brands={brands} />
+        <SuggestedProducts pool={pool} />
+      </div>
+    </>
   );
 }
