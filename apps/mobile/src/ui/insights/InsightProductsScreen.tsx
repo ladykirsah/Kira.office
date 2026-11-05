@@ -3,11 +3,13 @@ import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { useLang } from "../AppProviders";
 import { Empty } from "../customers/parts";
+import { DeskCard } from "../desk/DeskCard";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE } from "../theme";
-import { PeriodButton, Waiting } from "./InsightScreen";
-import { SellerList } from "./Sellers";
+import { PeriodButton, PeriodChoice, Waiting } from "./InsightScreen";
+import { SellerList, SellerTable } from "./Sellers";
 import { useInsights } from "./useInsights";
 
 /**
@@ -18,6 +20,7 @@ export function InsightProductsScreen() {
   const { t } = useLang();
   const { period = "" } = useLocalSearchParams<{ period: string }>();
   const h = useInsights(isInsightPeriod(period) ? period : "realtime");
+  const wide = useWide();
   useScreenChrome(null, [], {
     title: t({ th: "สินค้าขายดี", en: "Best sellers" }),
     back: {
@@ -27,12 +30,25 @@ export function InsightProductsScreen() {
   });
   return (
     <View>
-      <PeriodButton h={h} />
-      <View style={styles.list}>
+      {/* A computer: the five periods side by side and the products as a table (DeskInsight 3). */}
+      {wide ? (
+        <View style={styles.wideTop}>
+          <PeriodChoice h={h} />
+        </View>
+      ) : (
+        <PeriodButton h={h} />
+      )}
+      <View style={wide ? null : styles.list}>
         <Waiting h={h}>
           {(data) =>
             data.products.length > 0 ? (
-              <SellerList rows={data.products} />
+              wide ? (
+                <DeskCard pad={4}>
+                  <SellerTable rows={data.products} />
+                </DeskCard>
+              ) : (
+                <SellerList rows={data.products} />
+              )
             ) : (
               <Empty
                 icon={ICON.box}
@@ -48,4 +64,5 @@ export function InsightProductsScreen() {
 
 const styles = StyleSheet.create({
   list: { marginTop: SPACE.l },
+  wideTop: { flexDirection: "row", justifyContent: "flex-end", marginBottom: SPACE.l },
 });

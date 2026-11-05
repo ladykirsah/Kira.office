@@ -10,12 +10,16 @@ import { Group } from "../orders/parts";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { ChoiceRow, FieldError, Heading, Note } from "./fields";
 import { usePos } from "./PosSessionProvider";
+import { CodeCopy } from "../CodeCopy";
 
 const WRENCH =
   "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z";
 
-/** รายการ — each line with its photo, a › to edit it, the stepper and its total. */
-export function ItemsSection() {
+/**
+ * รายการ — each line with its photo, a › to edit it, the stepper and its total. `noAdd`: a computer,
+ * where the picker is always open beside the bill (DeskPos board), so no add buttons here.
+ */
+export function ItemsSection({ noAdd = false }: { noAdd?: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const pos = usePos();
@@ -26,7 +30,17 @@ export function ItemsSection() {
   return (
     <>
       {shortCount > 0 && (
-        <View style={[styles.banner, { backgroundColor: theme.surface }]} accessibilityRole="alert">
+        <View
+          style={[
+            styles.banner,
+            {
+              backgroundColor: theme.surface,
+              borderWidth: theme.cardLine,
+              borderColor: theme.border,
+            },
+          ]}
+          accessibilityRole="alert"
+        >
           <LineIcon d={ICON.alert} color={theme.danger} size={18} strokeWidth={2.4} />
           <Text style={[TYPE.subhead, { color: theme.danger, flex: 1 }]}>
             {t({
@@ -55,17 +69,19 @@ export function ItemsSection() {
           text={t({ th: "เพิ่มสินค้าหรือบริการก่อน", en: "Add a part or service first" })}
         />
       )}
-      <View style={styles.addRow}>
-        <AddButton
-          label={t({ th: "เพิ่มสินค้า", en: "Add part" })}
-          dark
-          onPress={() => pos.setSheet("part")}
-        />
-        <AddButton
-          label={t({ th: "เพิ่มบริการ", en: "Add service" })}
-          onPress={() => pos.setSheet("service")}
-        />
-      </View>
+      {!noAdd && (
+        <View style={styles.addRow}>
+          <AddButton
+            label={t({ th: "เพิ่มสินค้า", en: "Add part" })}
+            dark
+            onPress={() => pos.setSheet("part")}
+          />
+          <AddButton
+            label={t({ th: "เพิ่มบริการ", en: "Add service" })}
+            onPress={() => pos.setSheet("service")}
+          />
+        </View>
+      )}
       {lines.length === 0 && (
         <Note>
           {t({
@@ -109,9 +125,7 @@ function LineRow({ line, last }: { line: PosLine; last: boolean }) {
   const short = available !== undefined;
   // The row reads like the bill: ประเภท ยี่ห้อ, + the top car for a ช่าง (owner, 4 Nov 2026).
   const name = billLineText(line, pos.bill.buyer);
-  const sub = [line.productRef, `${formatBaht(line.priceSatang)} × ${line.quantity}`]
-    .filter(Boolean)
-    .join(" · ");
+  const each = `${formatBaht(line.priceSatang)} × ${line.quantity}`;
   return (
     <View
       style={[
@@ -150,7 +164,15 @@ function LineRow({ line, last }: { line: PosLine; last: boolean }) {
           </Text>
           <LineIcon d={ICON.chevron} color={theme.textFaint} size={15} strokeWidth={2.4} />
         </Pressable>
-        <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{sub}</Text>
+        {line.productRef ? (
+          <CodeCopy
+            code={line.productRef}
+            after={` · ${each}`}
+            style={[TYPE.subhead, { color: theme.textMuted }]}
+          />
+        ) : (
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{each}</Text>
+        )}
         <View style={styles.stepRow}>
           <View style={[styles.stepper, short && { borderColor: theme.danger, borderWidth: 1.5 }]}>
             <StepButton
@@ -195,8 +217,11 @@ function StepButton(props: { label: string; d: string; onPress: () => void }) {
   );
 }
 
-/** สรุปยอด — the subtotal, the whole-bill discount (tap to change), the total. */
-export function SummarySection() {
+/**
+ * สรุปยอด — the subtotal, the whole-bill discount (tap to change), the total. `noTotal`: a computer,
+ * where the total sits in the bill's foot beside ชำระเงิน (DeskPos board).
+ */
+export function SummarySection({ noTotal = false }: { noTotal?: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const pos = usePos();
@@ -213,25 +238,29 @@ export function SummarySection() {
             label={t({ th: "ส่วนลด", en: "Discount" })}
             value={`−${formatBaht(off)}`}
             onPress={() => pos.setSheet("discount")}
+            last={noTotal}
           />
         ) : (
           <ChoiceRow
             label={t({ th: "เพิ่มส่วนลด", en: "Add a discount" })}
             action
             onPress={() => pos.setSheet("discount")}
+            last={noTotal}
           />
         )}
-        <SumRow
-          label={
-            quote
-              ? t({ th: "รวมโดยประมาณ", en: "Estimated total" })
-              : t({ th: "รวมทั้งสิ้น", en: "Total" })
-          }
-          value={formatBaht(sub - off)}
-          bold
-          last
-          color={theme.text}
-        />
+        {!noTotal && (
+          <SumRow
+            label={
+              quote
+                ? t({ th: "รวมโดยประมาณ", en: "Estimated total" })
+                : t({ th: "รวมทั้งสิ้น", en: "Total" })
+            }
+            value={formatBaht(sub - off)}
+            bold
+            last
+            color={theme.text}
+          />
+        )}
       </Group>
     </>
   );
@@ -262,8 +291,11 @@ function SumRow(props: {
   );
 }
 
-/** ตั้งค่าบิล and ดูบิล — what the printed bill says, and its file before payment. */
-export function SettingsSection() {
+/**
+ * ตั้งค่าบิล and ดูบิล — what the printed bill says, and its file before payment. `noPreview`: a
+ * computer, where ดูบิล is a button in the bill's foot (DeskPos board).
+ */
+export function SettingsSection({ noPreview = false }: { noPreview?: boolean }) {
   const { t } = useLang();
   const pos = usePos();
   const quote = pos.bill.doc === "quote";
@@ -312,20 +344,24 @@ export function SettingsSection() {
           last
         />
       </Group>
-      <Heading
-        text={
-          quote
-            ? t({ th: "ดูใบเสนอราคา", en: "See the quotation" })
-            : t({ th: "ดูบิล", en: "See the bill" })
-        }
-      />
-      <Group>
-        <ChoiceRow
-          label={t({ th: "ดูบิล · บันทึก PDF / รูป", en: "See it · save PDF / picture" })}
-          onPress={() => pos.setSheet("preview")}
-          last
-        />
-      </Group>
+      {!noPreview && (
+        <>
+          <Heading
+            text={
+              quote
+                ? t({ th: "ดูใบเสนอราคา", en: "See the quotation" })
+                : t({ th: "ดูบิล", en: "See the bill" })
+            }
+          />
+          <Group>
+            <ChoiceRow
+              label={t({ th: "ดูบิล · บันทึก PDF / รูป", en: "See it · save PDF / picture" })}
+              onPress={() => pos.setSheet("preview")}
+              last
+            />
+          </Group>
+        </>
+      )}
       {!quote && (
         <Note>
           {t({

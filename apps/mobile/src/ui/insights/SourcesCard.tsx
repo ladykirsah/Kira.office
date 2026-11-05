@@ -8,12 +8,30 @@ import { RADIUS, SPACE, TYPE } from "../theme";
  * big % to catch"): one coloured bar for the whole split on top, then each source with its big %
  * first, a dot of its bar colour before its name, and its people and views in grey.
  */
-export function SourcesCard(props: { shares: readonly SourceShare[] }) {
+export function SourcesCard(props: {
+  shares: readonly SourceShare[];
+  /** On a computer it sits in a titled card (DeskInsight board): no card or side room of its own. */
+  bare?: boolean;
+}) {
   const { theme } = useTheme();
   const { t } = useLang();
+  const bare = props.bare === true;
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
-      <View style={styles.barBox} aria-hidden>
+    <View
+      style={
+        bare
+          ? null
+          : [
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]
+      }
+    >
+      <View style={[styles.barBox, bare && styles.bareBar]} aria-hidden>
         <View style={styles.bar}>
           {props.shares.map((s) => (
             <View key={s.source} style={{ flex: s.visitors, backgroundColor: s.colour }} />
@@ -28,7 +46,7 @@ export function SourcesCard(props: { shares: readonly SourceShare[] }) {
         return (
           <View
             key={s.source}
-            style={styles.row}
+            style={[styles.row, bare && styles.bareRow]}
             accessible
             accessibilityLabel={`${t(s.label)} ${s.pct}%, ${people}`}
           >
@@ -36,6 +54,7 @@ export function SourcesCard(props: { shares: readonly SourceShare[] }) {
             <View
               style={[
                 styles.body,
+                bare && styles.bareBody,
                 i < props.shares.length - 1 && {
                   borderBottomWidth: StyleSheet.hairlineWidth,
                   borderBottomColor: theme.border,
@@ -65,6 +84,9 @@ export function SourcesCard(props: { shares: readonly SourceShare[] }) {
 const styles = StyleSheet.create({
   card: { borderRadius: RADIUS.card, overflow: "hidden" },
   barBox: { paddingTop: SPACE.l, paddingHorizontal: SPACE.l, paddingBottom: 6 },
+  bareBar: { paddingTop: 0, paddingHorizontal: 0 },
+  bareRow: { paddingLeft: 0 },
+  bareBody: { minHeight: 56, paddingRight: 0 },
   bar: { height: 12, borderRadius: 6, overflow: "hidden", flexDirection: "row", gap: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: SPACE.m, paddingLeft: SPACE.l },
   pct: { width: 56, fontVariant: ["tabular-nums"] },

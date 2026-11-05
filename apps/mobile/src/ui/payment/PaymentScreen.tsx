@@ -14,12 +14,14 @@ import {
   type PaymentRow,
 } from "@/lib/paymentPage";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { PaymentSheets } from "./PaymentSheets";
+import { PaymentTable } from "./PaymentTable";
 import { usePaymentPage, type PaymentPage } from "./usePaymentPage";
 
 /**
@@ -29,21 +31,21 @@ import { usePaymentPage, type PaymentPage } from "./usePaymentPage";
 export function PaymentScreen() {
   const { t } = useLang();
   const page = usePaymentPage();
+  const wide = useWide();
   const ready = page.accounts !== null;
   const noAccount = ready && page.accounts!.length === 0;
 
+  const take = ready && !noAccount;
+  const qr = { label: t({ th: "สร้าง QR รับเงิน", en: "Make a QR" }), icon: ICON.qr };
   useScreenChrome(
-    null,
-    ready && !noAccount
-      ? [
-          {
-            label: t({ th: "สร้าง QR รับเงิน", en: "Make a QR" }),
-            icon: ICON.qr,
-            onPress: page.startTake,
-          },
-        ]
-      : [],
-    { toast: page.toast ? { title: t(page.toast.title), detail: t(page.toast.detail) } : null },
+    // A computer puts the red สร้าง QR รับเงิน beside the title (DeskPayment board); a phone pins it.
+    wide && take ? { ...qr, onPress: () => page.startTake(), main: true } : null,
+    !wide && take ? [{ ...qr, onPress: page.startTake }] : [],
+    {
+      toast: page.toast ? { title: t(page.toast.title), detail: t(page.toast.detail) } : null,
+      // A computer shows the payments as one full-width table (DeskPayment board).
+      layout: "full",
+    },
   );
 
   return (
@@ -60,7 +62,11 @@ export function PaymentScreen() {
           />
         </View>
       )}
-      {noAccount ? <NoAccount /> : ready && <PaymentList page={page} />}
+      {noAccount ? (
+        <NoAccount />
+      ) : (
+        ready && (wide ? <PaymentTable page={page} /> : <PaymentList page={page} />)
+      )}
       <PaymentSheets page={page} />
     </View>
   );
@@ -117,7 +123,16 @@ function PaymentList({ page }: { page: PaymentPage }) {
   const days = paymentDays(page.rows, now);
   return (
     <>
-      <View style={[styles.today, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.today,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
           {t({ th: "รับผ่านพร้อมเพย์วันนี้", en: "Taken by PromptPay today" })}
         </Text>
@@ -142,7 +157,16 @@ function PaymentList({ page }: { page: PaymentPage }) {
               </Pressable>
             )}
           </View>
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             {day.rows.map((r, n) => (
               <PayRow key={r.id} row={r} page={page} last={n === day.rows.length - 1} />
             ))}

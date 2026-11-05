@@ -291,7 +291,16 @@ export function PayRecord(props: {
         <Loading failed={pay.failed} onRetry={() => void pay.load()} />
       ) : (
         <>
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Text style={[styles.big, { color: theme.text }]}>{formatBaht(m.earnedSatang)}</Text>
             <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(recordHead(m))}</Text>
           </View>

@@ -4,7 +4,9 @@ import {
   dayPill,
   daySections,
   nextStep,
+  orderDay,
   parseDayField,
+  payWord,
   rangeLabel,
   searchOrders,
   stamp,
@@ -343,5 +345,34 @@ describe("tabFromParam", () => {
     expect(tabFromParam(undefined)).toBe("all");
     expect(tabFromParam("nope")).toBe("all");
     expect(tabFromParam(["toship", "x"])).toBe("toship");
+  });
+});
+
+describe("payWord (the computer table's การชำระเงิน column)", () => {
+  it("given a slip waiting to be checked > then รอตรวจสลิป, the payment menu's own word", () => {
+    expect(payWord("verifying")).toEqual({ th: "รอตรวจสลิป", en: "Slip to check" });
+  });
+
+  it("given cash on delivery > then เก็บเงินปลายทาง", () => {
+    expect(payWord("cod").th).toBe("เก็บเงินปลายทาง");
+  });
+
+  it("given no payment status or one the menu doesn't know > then a dash", () => {
+    expect(payWord(null)).toEqual({ th: "—", en: "—" });
+    expect(payWord("something_new")).toEqual({ th: "—", en: "—" });
+  });
+});
+
+describe("orderDay (the computer table's วันที่สั่ง column — a day, never a clock time)", () => {
+  it("given an order placed today > then วันนี้", () => {
+    expect(orderDay(order({ id: "1", orderCreatedAt: at(27, 9) }), NOW).th).toBe("วันนี้");
+  });
+
+  it("given an order placed yesterday > then เมื่อวาน", () => {
+    expect(orderDay(order({ id: "1", orderCreatedAt: at(26, 22) }), NOW).th).toBe("เมื่อวาน");
+  });
+
+  it("given an older order > then its short date", () => {
+    expect(orderDay(order({ id: "1", orderCreatedAt: at(20) }), NOW).th).toBe("20 ต.ค.");
   });
 });

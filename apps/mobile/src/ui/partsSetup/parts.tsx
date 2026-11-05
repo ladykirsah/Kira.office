@@ -43,7 +43,12 @@ export function PictureCard(props: {
     </View>
   );
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       {tile}
       <View style={styles.words}>
         <Text style={[TYPE.body, { color: theme.text }]}>{props.name}</Text>
@@ -175,7 +180,10 @@ export function AboutCard(props: {
     <Pressable
       onPress={props.onPress}
       accessibilityRole="button"
-      style={[styles.descCard, { backgroundColor: theme.surface }]}
+      style={[
+        styles.descCard,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
     >
       <View style={styles.right}>
         <Text style={[TYPE.subhead, styles.grow, { color: theme.textMuted }]}>{props.label}</Text>

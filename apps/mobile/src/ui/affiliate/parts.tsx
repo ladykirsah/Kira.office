@@ -66,9 +66,6 @@ export function ItemRow(props: {
 }) {
   const { theme } = useTheme();
   const { t } = useLang();
-  const state = rowState(props.item);
-  const clicks =
-    state.kind === "on" ? t({ th: `คลิก ${state.clicks}`, en: `${state.clicks} clicks` }) : "";
   const body = (
     <>
       <CardPhoto imageKey={props.item.imageKey} size={56} />
@@ -88,24 +85,7 @@ export function ItemRow(props: {
           <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
             {t(rowSub(props.item))}
           </Text>
-          {state.kind === "off" ? (
-            <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-              {t({ th: "ปิดอยู่", en: "Off" })}
-            </Text>
-          ) : (
-            <View style={styles.state}>
-              <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]}>{clicks}</Text>
-              {state.home && (
-                <>
-                  <Text style={[TYPE.subhead, { color: theme.textMuted }]}> · </Text>
-                  <LineIcon d={PIN_ICON} color={theme.textMuted} size={13} strokeWidth={2} />
-                  <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-                    {t({ th: " หน้าแรก", en: " Home" })}
-                  </Text>
-                </>
-              )}
-            </View>
-          )}
+          <ItemState item={props.item} />
         </View>
         {props.action ??
           (props.onPress ? (
@@ -123,6 +103,58 @@ export function ItemRow(props: {
     >
       {body}
     </Pressable>
+  );
+}
+
+/** "คลิก 124 · 📌 หน้าแรก", or ปิดอยู่ for a card that is off — in grey. */
+export function ItemState(props: { item: AffiliateItem; end?: boolean }) {
+  const { theme } = useTheme();
+  const { t } = useLang();
+  const state = rowState(props.item);
+  if (state.kind === "off") {
+    return (
+      <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
+        {t({ th: "ปิดอยู่", en: "Off" })}
+      </Text>
+    );
+  }
+  return (
+    <View style={[styles.state, props.end && styles.stateEnd]}>
+      <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]}>
+        {t({ th: `คลิก ${state.clicks}`, en: `${state.clicks} clicks` })}
+      </Text>
+      {state.home && (
+        <>
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]}> · </Text>
+          <LineIcon d={PIN_ICON} color={theme.textMuted} size={13} strokeWidth={2} />
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
+            {t({ th: " หน้าแรก", en: " Home" })}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+/**
+ * A computer table's card cell (DeskAffiliate board): the photo (or the wrench), the name on up to
+ * two lines, then "Shopee · ฿1,290" in grey.
+ */
+export function ItemCell({ item }: { item: AffiliateItem }) {
+  const { theme } = useTheme();
+  const { t } = useLang();
+  return (
+    <View style={styles.cell}>
+      <CardPhoto imageKey={item.imageKey} size={52} />
+      <View style={styles.text}>
+        <Text style={[styles.cellName, { color: theme.text }]} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={[TYPE.footnote, { color: theme.textMuted }]} numberOfLines={1}>
+          {t(rowSub(item))}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -192,6 +224,9 @@ const styles = StyleSheet.create({
   },
   text: { flex: 1, minWidth: 0 },
   state: { flexDirection: "row", alignItems: "center" },
+  stateEnd: { justifyContent: "flex-end" },
+  cell: { flexDirection: "row", alignItems: "center", gap: SPACE.m, minWidth: 0 },
+  cellName: { fontSize: 15, lineHeight: 21, fontWeight: "600" },
   nums: { fontVariant: ["tabular-nums"] },
   valueRow: {
     minHeight: 52,

@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
+import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { windowLabel } from "@/lib/bannerPage";
 import { cleanCode, cleanCount, cleanMoney } from "@/lib/couponPage";
@@ -7,11 +8,14 @@ import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { WhenSheet } from "../banners/WhenSheet";
 import { Empty } from "../customers/parts";
+import { DeskCard } from "../desk/DeskCard";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { Group } from "../orders/parts";
 import { ChoiceRow, FieldError } from "../pos/fields";
 import { FormPage } from "../products/FormPage";
 import { Heading, InputRow, SwitchRow } from "../products/parts";
+import { useScreenChrome } from "../ScreenChrome";
 import { Segmented } from "../Segmented";
 import { SPACE } from "../theme";
 import { ScopeSheet, WhoSheet } from "./RuleSheets";
@@ -26,24 +30,34 @@ export function CouponFormScreen() {
   const { t } = useLang();
   const { theme } = useTheme();
   const edit = useCouponForm(id ?? null);
+  const wide = useWide();
   const title = edit.isNew
     ? t({ th: "เพิ่มคูปอง", en: "Add a coupon" })
     : t({ th: "แก้คูปอง", en: "Edit coupon" });
 
+  const waiting =
+    edit.problem === "gone" ? (
+      <Empty
+        icon={ICON.search}
+        title={t({ th: "ไม่มีคูปองนี้แล้ว", en: "This coupon is gone" })}
+        detail={t({ th: "อาจถูกลบไปแล้ว", en: "It may have been deleted" })}
+      />
+    ) : edit.problem === "failed" ? (
+      <Retry onPress={() => void edit.reload()} />
+    ) : (
+      <ActivityIndicator color={theme.textMuted} style={{ marginTop: SPACE.xxxl }} />
+    );
+  if (wide) {
+    return (
+      <WidePage edit={edit} title={title}>
+        {edit.form ? <WideFields edit={edit} /> : waiting}
+      </WidePage>
+    );
+  }
   if (!edit.form) {
     return (
       <FormPage title={title} onCancel={edit.leave}>
-        {edit.problem === "gone" ? (
-          <Empty
-            icon={ICON.search}
-            title={t({ th: "ไม่มีคูปองนี้แล้ว", en: "This coupon is gone" })}
-            detail={t({ th: "อาจถูกลบไปแล้ว", en: "It may have been deleted" })}
-          />
-        ) : edit.problem === "failed" ? (
-          <Retry onPress={() => void edit.reload()} />
-        ) : (
-          <ActivityIndicator color={theme.textMuted} style={{ marginTop: SPACE.xxxl }} />
-        )}
+        {waiting}
       </FormPage>
     );
   }
@@ -59,15 +73,91 @@ export function CouponFormScreen() {
   );
 }
 
+/**
+ * The form inside the computer's frame (DeskCoupons board 3–4): the title and the way back on top,
+ * ยกเลิก and the red บันทึก in the pinned bar, any message beside them.
+ */
+function WidePage(props: { edit: CouponFormState; title: string; children: ReactNode }) {
+  const { t } = useLang();
+  const { edit } = props;
+  // แก้คูปอง goes back to the coupon's page, named as it was when the form opened (as drawn).
+  const [from, setFrom] = useState<string | null>(null);
+  useEffect(() => {
+    if (from == null && edit.form && !edit.isNew) setFrom(edit.form.name || edit.form.code);
+  }, [from, edit.form, edit.isNew]);
+  useScreenChrome(
+    null,
+    edit.form
+      ? [
+          { label: t({ th: "บันทึก", en: "Save" }), onPress: () => void edit.save() },
+          { label: t({ th: "ยกเลิก", en: "Cancel" }), kind: "grey", onPress: edit.leave },
+        ]
+      : [],
+    {
+      title: props.title,
+      back: { label: from ?? t({ th: "คูปอง", en: "Coupons" }), onPress: edit.leave },
+      toast: edit.toast ? { title: t(edit.toast.title), detail: t(edit.toast.detail) } : null,
+      layout: "full",
+    },
+  );
+  return <View>{props.children}</View>;
+}
+
+/** The phone form: one column, a heading over each group (canvas v266). */
 function Fields({ edit }: { edit: CouponFormState }) {
+  const { t } = useLang();
+  return (
+    <>
+      <NameBox edit={edit} />
+      <Heading text={t({ th: "ประเภท", en: "Type" })} />
+      <TypeBox edit={edit} />
+      <Heading text={t({ th: "ส่วนลด", en: "Discount" })} />
+      <DiscountBox edit={edit} />
+      <Heading text={t({ th: "โค้ดและสิทธิ์", en: "Code and limits" })} />
+      <CodeBox edit={edit} />
+      {!edit.isNew && (
+        <View style={styles.on}>
+          <OnBox edit={edit} />
+        </View>
+      )}
+      <Sheets edit={edit} />
+    </>
+  );
+}
+
+/** The computer form: name, ประเภท and ส่วนลด on the left; โค้ดและสิทธิ์ and เปิดใช้ on the right. */
+function WideFields({ edit }: { edit: CouponFormState }) {
+  const { t } = useLang();
+  return (
+    <>
+      <View style={styles.wideRow}>
+        <View style={styles.wideMain}>
+          <NameBox edit={edit} />
+          <DeskCard title={t({ th: "ประเภท", en: "Type" })} pad={18}>
+            <TypeBox edit={edit} />
+          </DeskCard>
+          <DeskCard title={t({ th: "ส่วนลด", en: "Discount" })} pad={18}>
+            <DiscountBox edit={edit} />
+          </DeskCard>
+        </View>
+        <View style={styles.wideSide}>
+          <DeskCard title={t({ th: "โค้ดและสิทธิ์", en: "Code and limits" })} pad={18}>
+            <CodeBox edit={edit} />
+          </DeskCard>
+          {!edit.isNew && <OnBox edit={edit} />}
+        </View>
+      </View>
+      <Sheets edit={edit} />
+    </>
+  );
+}
+
+function NameBox({ edit }: { edit: CouponFormState }) {
   const { t } = useLang();
   const f = edit.form!;
   const e = edit.errors;
-  const percent = f.kind === "percent";
-  const shipping = f.cuts === "shipping";
-  const times = (v: string) => (v ? t({ th: "ครั้ง", en: "times" }) : undefined);
   return (
-    <>
+    <View>
       <Group>
         <InputRow
           label={t({ th: "ชื่อคูปอง", en: "Name" })}
@@ -78,9 +168,18 @@ function Fields({ edit }: { edit: CouponFormState }) {
         />
       </Group>
       {e.name && <FieldError text={t(e.name)} />}
+    </View>
+  );
+}
 
-      <Heading text={t({ th: "ประเภท", en: "Type" })} />
-      <View style={styles.seg}>
+function TypeBox({ edit }: { edit: CouponFormState }) {
+  const { t } = useLang();
+  const wide = useWide();
+  const f = edit.form!;
+  const e = edit.errors;
+  return (
+    <View>
+      <View style={[styles.seg, wide && styles.wideSeg]}>
         <Segmented
           label={t({ th: "ลดอะไร", en: "Discount on" })}
           options={[
@@ -120,9 +219,20 @@ function Fields({ edit }: { edit: CouponFormState }) {
       </Group>
       {e.scope && <FieldError text={t(e.scope)} />}
       {e.when && <FieldError text={t(e.when)} />}
+    </View>
+  );
+}
 
-      <Heading text={t({ th: "ส่วนลด", en: "Discount" })} />
-      <View style={styles.seg}>
+function DiscountBox({ edit }: { edit: CouponFormState }) {
+  const { t } = useLang();
+  const wide = useWide();
+  const f = edit.form!;
+  const e = edit.errors;
+  const percent = f.kind === "percent";
+  const shipping = f.cuts === "shipping";
+  return (
+    <View>
+      <View style={[styles.seg, wide && styles.wideSeg]}>
         <Segmented
           label={t({ th: "ลดแบบไหน", en: "Discount type" })}
           options={[
@@ -174,8 +284,17 @@ function Fields({ edit }: { edit: CouponFormState }) {
         />
       </Group>
       {e.amount && <FieldError text={t(e.amount)} />}
+    </View>
+  );
+}
 
-      <Heading text={t({ th: "โค้ดและสิทธิ์", en: "Code and limits" })} />
+function CodeBox({ edit }: { edit: CouponFormState }) {
+  const { t } = useLang();
+  const f = edit.form!;
+  const e = edit.errors;
+  const times = (v: string) => (v ? t({ th: "ครั้ง", en: "times" }) : undefined);
+  return (
+    <View>
       <Group>
         <InputRow
           label={t({ th: "โค้ด", en: "Code" })}
@@ -205,21 +324,22 @@ function Fields({ edit }: { edit: CouponFormState }) {
       {e.code && <FieldError text={t(e.code)} />}
       {edit.taken && <FieldError text={t(edit.taken)} />}
       {e.perCustomer && <FieldError text={t(e.perCustomer)} />}
+    </View>
+  );
+}
 
-      {!edit.isNew && (
-        <View style={styles.on}>
-          <Group>
-            <SwitchRow
-              label={t({ th: "เปิดใช้", en: "On" })}
-              value={f.on}
-              onChange={(on) => edit.set({ on })}
-              last
-            />
-          </Group>
-        </View>
-      )}
-      <Sheets edit={edit} />
-    </>
+/** เปิดใช้ alone, on แก้คูปอง only. */
+function OnBox({ edit }: { edit: CouponFormState }) {
+  const { t } = useLang();
+  return (
+    <Group>
+      <SwitchRow
+        label={t({ th: "เปิดใช้", en: "On" })}
+        value={edit.form!.on}
+        onChange={(on) => edit.set({ on })}
+        last
+      />
+    </Group>
   );
 }
 
@@ -288,4 +408,8 @@ function Sheets({ edit }: { edit: CouponFormState }) {
 const styles = StyleSheet.create({
   seg: { marginBottom: SPACE.m },
   on: { marginTop: SPACE.xl + SPACE.xs },
+  wideSeg: { maxWidth: 320 },
+  wideRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.xl },
+  wideMain: { flex: 1.45, minWidth: 0, gap: SPACE.xl },
+  wideSide: { flex: 1, minWidth: 0, gap: SPACE.xl },
 });

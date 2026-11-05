@@ -12,9 +12,14 @@ import { Divider, Line, Photo, RoundTool, SearchBox, Stepper } from "../products
 import { ScanCodeSheet } from "../products/ScanCodeSheet";
 import { Segmented } from "../Segmented";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { useWide } from "../desk/useWide";
 import { LabelArt } from "./LabelArt";
 import { SHEET_PX_PER_MM, sizeWords } from "./LabelSheets";
+
+/** The label preview on a computer's panel: an L label (46 mm) is about 300 px wide. */
+const WIDE_PX_PER_MM = 6.5;
 import type { Barcodes } from "./useBarcodes";
+import { CodeCopy } from "../CodeCopy";
 
 interface Start {
   productId?: string;
@@ -121,12 +126,21 @@ function PickProduct(props: {
           })}
         />
       ) : (
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderWidth: theme.cardLine,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           {found.map((r, i) => (
             <View key={r.id}>
               <Pressable
                 onPress={() => props.onPick(r.id)}
-                accessibilityRole="button"
+                accessibilityRole="link"
                 style={({ pressed }) => [
                   styles.product,
                   pressed && { backgroundColor: theme.hover },
@@ -137,9 +151,10 @@ function PickProduct(props: {
                   <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
                     {r.name}
                   </Text>
-                  <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-                    {r.productRef}
-                  </Text>
+                  <CodeCopy
+                    code={r.productRef}
+                    style={[TYPE.subhead, { color: theme.textMuted }]}
+                  />
                 </View>
                 <LineIcon d={ICON.chevron} color={theme.textFaint} size={15} strokeWidth={2.4} />
               </Pressable>
@@ -167,10 +182,11 @@ function SetLabel(props: {
   const { t } = useLang();
   const { theme } = useTheme();
   const { list, row } = props;
+  const wide = useWide();
   const [size, setSize] = useState<LabelSize>("L");
   const [qty, setQty] = useState(1);
   const text = list.texts.get(row.id);
-  const sub = [row.productRef, firstCar(row)].filter(Boolean).join(" · ");
+  const car = firstCar(row);
   return (
     <Sheet
       title={t({ th: "เพิ่มป้าย", en: "Add labels" })}
@@ -179,25 +195,65 @@ function SetLabel(props: {
       onClose={props.onClose}
       tall
     >
-      <View style={[styles.card, styles.product, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.card,
+          styles.product,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Photo imageKey={row.imageKey} size={44} radius={10} />
         <View style={styles.grow}>
           <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
-          {sub ? (
+          {row.productRef ? (
+            <CodeCopy
+              code={row.productRef}
+              after={car ? ` · ${car}` : undefined}
+              style={[TYPE.subhead, { color: theme.textMuted }]}
+            />
+          ) : car ? (
             <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-              {sub}
+              {car}
             </Text>
           ) : null}
         </View>
       </View>
       {text && (
-        <View style={[styles.preview, { backgroundColor: theme.surface }]}>
-          <LabelArt text={text} size={size} shop={list.shop} pxPerMm={SHEET_PX_PER_MM} />
+        <View
+          style={[
+            styles.preview,
+            {
+              backgroundColor: theme.surface,
+              borderWidth: theme.cardLine,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          {/* The computer's panel has room: the preview fills it (owner, 5 Nov 2026). */}
+          <LabelArt
+            text={text}
+            size={size}
+            shop={list.shop}
+            pxPerMm={wide ? WIDE_PX_PER_MM : SHEET_PX_PER_MM}
+          />
         </View>
       )}
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Line
           label={t({ th: "ขนาด", en: "Size" })}
           right={

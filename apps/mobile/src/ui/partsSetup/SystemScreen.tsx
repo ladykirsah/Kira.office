@@ -52,6 +52,7 @@ export function SystemScreen({ id }: { id: string }) {
       {
         label: t({ th: "เพิ่มหมวดหมู่", en: "Add a category" }),
         icon: ICON.plus,
+        main: true,
         onPress: () => setCat({ mode: "form", cat: null, systemId: isLoose ? null : id }),
       },
       ...(isLoose

@@ -18,11 +18,13 @@ import { photoPath, type DayOff } from "@/lib/teamApi";
 import { clockTime, startOfDay } from "@/lib/orderList";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
+import { useWide } from "../desk/useWide";
 import { MenuButton } from "../orders/MenuButton";
 import { Group } from "../orders/parts";
 import { Divider } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 import { Avatar, Chevron, DayLabel } from "./parts";
+import { DaysOffTable, PeopleTable, SalaryTable } from "./StaffTables";
 import { useActivity, useDaysOff, useSalary } from "./useStaffData";
 import type { TeamMember } from "./useTeam";
 
@@ -70,8 +72,20 @@ export function PeopleTab(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
   if (!props.people) return <Loading failed={props.failed} onRetry={props.onRetry} />;
   const now = Date.now();
+  if (wide) {
+    return (
+      <View style={styles.cards}>
+        <PeopleTable
+          people={teamOrder(props.people)}
+          now={now}
+          onOpen={(p) => router.push(`${BASE}/${encodeURIComponent(p.id)}` as never)}
+        />
+      </View>
+    );
+  }
   return (
     <View style={styles.cards}>
       {teamOrder(props.people).map((p) => {
@@ -81,7 +95,14 @@ export function PeopleTab(props: {
             key={p.id}
             onPress={() => router.push(`${BASE}/${encodeURIComponent(p.id)}` as never)}
             accessibilityRole="button"
-            style={[styles.card, { backgroundColor: theme.surface }]}
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <Avatar
               name={shownName(p)}
@@ -117,9 +138,15 @@ export function SalaryTab(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
   const salary = useSalary(props.month, props.stamp);
   const rows = salary.rows;
   const sum = rows ? monthSummary(rows) : null;
+  // Not paid yet: pay it; paid: open that month's record.
+  const open = (r: PayRow) =>
+    r.paidAt == null
+      ? props.onPay(r)
+      : router.push(`${BASE}/${encodeURIComponent(r.userId)}/pay/${props.month}` as never);
   return (
     <View>
       <View style={styles.menus}>
@@ -136,7 +163,17 @@ export function SalaryTab(props: {
         />
       ) : (
         <>
-          <View style={[styles.summary, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              styles.summary,
+              wide && styles.summaryWide,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <View style={styles.summaryTop}>
               <Text style={[TYPE.footnote, styles.grow, { color: theme.textMuted }]}>
                 {t({ th: "รวมเดือนนี้", en: "This month" })}
@@ -148,33 +185,33 @@ export function SalaryTab(props: {
             <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(sum.split)}</Text>
           </View>
           <View style={styles.after}>
-            <Group>
-              {rows.map((r, i) => (
-                <View key={r.userId}>
-                  <Pressable
-                    onPress={() =>
-                      r.paidAt == null
-                        ? props.onPay(r)
-                        : router.push(
-                            `${BASE}/${encodeURIComponent(r.userId)}/pay/${props.month}` as never,
-                          )
-                    }
-                    accessibilityRole="button"
-                    style={styles.row}
-                  >
-                    <Avatar name={r.name} size={36} />
-                    <View style={styles.grow}>
-                      <Text style={[TYPE.body, styles.name, { color: theme.text }]}>{r.name}</Text>
-                      <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
-                        {t(salaryLine(r))}
-                      </Text>
-                    </View>
-                    <Chevron />
-                  </Pressable>
-                  {i < rows.length - 1 && <Divider />}
-                </View>
-              ))}
-            </Group>
+            {wide ? (
+              <SalaryTable rows={rows} onOpen={open} />
+            ) : (
+              <Group>
+                {rows.map((r, i) => (
+                  <View key={r.userId}>
+                    <Pressable
+                      onPress={() => open(r)}
+                      accessibilityRole="button"
+                      style={styles.row}
+                    >
+                      <Avatar name={r.name} size={36} />
+                      <View style={styles.grow}>
+                        <Text style={[TYPE.body, styles.name, { color: theme.text }]}>
+                          {r.name}
+                        </Text>
+                        <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
+                          {t(salaryLine(r))}
+                        </Text>
+                      </View>
+                      <Chevron />
+                    </Pressable>
+                    {i < rows.length - 1 && <Divider />}
+                  </View>
+                ))}
+              </Group>
+            )}
           </View>
         </>
       )}
@@ -191,6 +228,7 @@ export function DaysOffTab(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
   const off = useDaysOff(props.month, props.stamp);
   const days = off.days;
   const byDay = new Map<string, DayOff[]>();
@@ -206,6 +244,15 @@ export function DaysOffTab(props: {
         <Loading failed={off.failed} onRetry={() => void off.load()} />
       ) : days.length === 0 ? (
         <Nothing text={t({ th: "ไม่มีวันหยุดเดือนนี้", en: "No days off this month" })} />
+      ) : wide ? (
+        <View style={styles.after}>
+          <DaysOffTable
+            lines={[...byDay].flatMap(([, list]) =>
+              list.map((d, i) => ({ day: d, first: i === 0 })),
+            )}
+            onOpen={props.onOpen}
+          />
+        </View>
       ) : (
         [...byDay].map(([day, list]) => (
           <View key={day}>
@@ -251,6 +298,7 @@ export function HistoryTab(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
   const history = useActivity(props.person, props.month, props.stamp);
   const rows = history.rows;
   const now = Date.now();
@@ -304,7 +352,8 @@ export function HistoryTab(props: {
                       </Text>
                     </View>
                     <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
-                      {`${r.name} · ${clockTime(r.createdAt)}`}
+                      {/* A computer leaves the clock time out (DeskStaff 6, owner rule). */}
+                      {wide ? r.name : `${r.name} · ${clockTime(r.createdAt)}`}
                     </Text>
                   </View>
                   {i < g.rows.length - 1 && <Divider />}
@@ -335,6 +384,7 @@ const styles = StyleSheet.create({
   menus: { marginTop: SPACE.l, flexDirection: "row", gap: SPACE.s },
   none: { textAlign: "center", marginTop: SPACE.xxxl, marginHorizontal: SPACE.l },
   summary: { marginTop: SPACE.m, borderRadius: 14, padding: SPACE.l, gap: 2 },
+  summaryWide: { maxWidth: 520, borderRadius: 16, padding: SPACE.xl },
   summaryTop: { flexDirection: "row", alignItems: "center" },
   total: { fontSize: 34, lineHeight: 42, fontWeight: "700", fontVariant: ["tabular-nums"] },
   rule: { height: StyleSheet.hairlineWidth, marginVertical: SPACE.s },

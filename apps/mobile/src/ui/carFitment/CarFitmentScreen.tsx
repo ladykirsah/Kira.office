@@ -31,6 +31,7 @@ export function CarFitmentScreen() {
     {
       label: t({ th: "เพิ่มยี่ห้อรถ", en: "Add a car brand" }),
       icon: ICON.plus,
+      main: true,
       onPress: () => setAdding(true),
     },
     [],

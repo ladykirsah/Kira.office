@@ -107,6 +107,21 @@ export function stockLine(part: ScannedPart, tab: ScanTab): Phrase {
   };
 }
 
+/**
+ * The computer card's words (owner, 5 Nov 2026: "shouldn't 4 be in the same line as พร้อมขาย"): on
+ * จัดการสต็อก the count sits beside พร้อมขาย with งานนอก under it; the other tabs keep their label
+ * and the stock-now line.
+ */
+export function deskStockWords(part: ScannedPart, tab: ScanTab): { label: Phrase; sub: Phrase } {
+  if (tab === "stock") {
+    return {
+      label: { th: `พร้อมขาย ${part.onHand}`, en: `For sale ${part.onHand}` },
+      sub: { th: `งานนอก ${part.held}`, en: `Out on jobs ${part.held}` },
+    };
+  }
+  return { label: stepLabel(tab), sub: stockLine(part, tab) };
+}
+
 export interface HoldLine {
   productVariantId: string;
   takeAway: number;

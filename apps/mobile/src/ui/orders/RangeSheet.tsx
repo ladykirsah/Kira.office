@@ -28,7 +28,16 @@ export function RangeSheet({ range, now, onApply, onClose }: RangeSheetProps) {
       onClose={onClose}
       onDone={picked ? () => onApply(picked) : undefined}
     >
-      <View style={[styles.group, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.group,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <View style={[styles.row, { borderBottomColor: theme.border }, styles.divider]}>
           <Text style={[styles.label, { color: theme.text }]}>{fromLabel}</Text>
           <DateBox value={from} onChange={setFrom} label={fromLabel} />

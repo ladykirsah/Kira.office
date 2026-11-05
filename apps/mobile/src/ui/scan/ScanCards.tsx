@@ -1,6 +1,7 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { StyleSheet, Text, View } from "react-native";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { BarcodeView } from "./BarcodeView";
@@ -12,10 +13,23 @@ const CHECK_ICON = "M5 12.5l4.5 4.5L19 7.5";
 export function NotFoundCard({ code }: { code: string }) {
   const { theme } = useTheme();
   const { t } = useLang();
+  // A computer lays it sideways: the words on the left, the barcode on the right (DeskScan board).
+  const wide = useWide();
   return (
     <>
-      <View style={[styles.card, styles.notFound, { backgroundColor: theme.surface }]}>
-        <View style={styles.rowCenter}>
+      <View
+        style={[
+          styles.card,
+          styles.notFound,
+          wide && styles.wideNotFound,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <View style={[styles.rowCenter, wide && styles.text]}>
           <View style={[styles.icon, { backgroundColor: theme.hover }]}>
             <LineIcon d={SEARCH_ICON} color={theme.text} size={18} strokeWidth={2.2} />
           </View>
@@ -28,7 +42,7 @@ export function NotFoundCard({ code }: { code: string }) {
             </Text>
           </View>
         </View>
-        <View style={styles.barcode}>
+        <View style={wide ? styles.wideBarcode : styles.barcode}>
           <BarcodeView value={code} />
         </View>
       </View>
@@ -54,7 +68,11 @@ export function NoticeCard({ notice }: { notice: Notice }) {
   const done = notice.tone === "done";
   return (
     <View
-      style={[styles.card, styles.row, { backgroundColor: theme.surface }]}
+      style={[
+        styles.card,
+        styles.row,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
       accessibilityLiveRegion="polite"
     >
       {done ? (
@@ -86,6 +104,15 @@ const styles = StyleSheet.create({
   rowCenter: { flexDirection: "row", alignItems: "center", gap: SPACE.m },
   text: { flex: 1, gap: 2 },
   barcode: { marginTop: SPACE.m, alignItems: "center" },
+  wideNotFound: {
+    minHeight: 0,
+    padding: 22,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 24,
+  },
+  wideBarcode: { alignItems: "center", flexShrink: 0 },
   icon: {
     width: 36,
     height: 36,

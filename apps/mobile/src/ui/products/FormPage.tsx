@@ -4,7 +4,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
+import { useWide } from "../desk/useWide";
 import { PHONE_MAX_WIDTH, SPACE, TYPE } from "../theme";
+import { DeskFormPage } from "./DeskFormPage";
 
 const HOME = 34;
 const FADE = 28;
@@ -15,11 +17,19 @@ const FADE = 28;
  * on a band that fades upward, with any message just above it. เพิ่มสินค้า's pill says ปิด, and a
  * background save that failed says so in a small note under the head (canvas v196).
  */
-export function FormPage(props: {
+export interface FormPageProps {
   title: string;
   onCancel: () => void;
   /** The top-left pill; ยกเลิก unless the page says otherwise. */
   cancelLabel?: string;
+  /**
+   * On a computer, the page this form sits under ("สินค้า"): the form then opens inside the frame,
+   * with ‹ back above its title and ยกเลิก / บันทึก on the pinned bar (DeskAddProduct board). Left
+   * out, a computer shows the phone's whole-screen form, as before.
+   */
+  back?: string;
+  /** On a computer: "full" for a two-column form (สินค้า), "column" for a short one (แบนเนอร์). */
+  deskLayout?: "column" | "full";
   /** A short line under the head, e.g. a draft that did not save. */
   note?: string | null;
   /** When this changes the form scrolls back to the top (เพิ่มสินค้า's next product). */
@@ -27,7 +37,15 @@ export function FormPage(props: {
   save?: { label: string; onPress: () => void };
   toast?: { title: string; detail: string } | null;
   children: ReactNode;
-}) {
+}
+
+export function FormPage(props: FormPageProps) {
+  const wide = useWide();
+  if (wide && props.back) return <DeskFormPage {...props} back={props.back} />;
+  return <PhoneFormPage {...props} />;
+}
+
+function PhoneFormPage(props: FormPageProps) {
   const { theme } = useTheme();
   const { t } = useLang();
   const insets = useSafeAreaInsets();
@@ -63,7 +81,14 @@ export function FormPage(props: {
           {props.note ? (
             <View style={styles.noteRow} pointerEvents="none">
               <View
-                style={[styles.note, { backgroundColor: theme.surface }]}
+                style={[
+                  styles.note,
+                  {
+                    backgroundColor: theme.surface,
+                    borderWidth: theme.cardLine,
+                    borderColor: theme.border,
+                  },
+                ]}
                 accessibilityRole="alert"
                 accessibilityLiveRegion="polite"
               >

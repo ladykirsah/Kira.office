@@ -26,6 +26,7 @@ import { SearchBox } from "../products/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
+import { useWide } from "../desk/useWide";
 import { CategoryFlow, type CategoryOpen } from "./CategorySheets";
 import { BrandDetailsSheet, NameFormSheet, WRONG_PICTURE } from "./NameSheets";
 import { DeleteSheet, StepRow } from "./parts";
@@ -51,6 +52,7 @@ export function PartsSetupScreen() {
   const [systemForm, setSystemForm] = useState(false);
   const [deleting, setDeleting] = useState<Brand | null>(null);
   const [cat, setCat] = useState<CategoryOpen>(null);
+  const wide = useWide();
   const data = state.data;
 
   useScreenChrome(
@@ -60,6 +62,7 @@ export function PartsSetupScreen() {
           ? t({ th: "เพิ่มยี่ห้อ", en: "Add a brand" })
           : t({ th: "เพิ่มระบบ", en: "Add a system" }),
       icon: ICON.plus,
+      main: true,
       onPress: () => (tab === "brands" ? setBrandForm({ start: null }) : setSystemForm(true)),
     },
     [],
@@ -167,30 +170,44 @@ export function PartsSetupScreen() {
     close();
   };
 
+  const tabs = (
+    <Segmented
+      label={t({ th: "ตั้งค่าอะไหล่", en: "Part setup" })}
+      options={[
+        { value: "brands", label: t(brandsTab(data.brands.length)) },
+        { value: "systems", label: t({ th: "ระบบและหมวดหมู่", en: "Systems & categories" }) },
+      ]}
+      value={tab}
+      onChange={pick}
+    />
+  );
+  const searchBox = (
+    <SearchBox
+      value={q}
+      onChange={setQ}
+      grow={wide}
+      placeholder={
+        tab === "brands"
+          ? t({ th: "ค้นยี่ห้อ", en: "Find a brand" })
+          : t({ th: "ค้นระบบ หรือหมวดหมู่", en: "Find a system or category" })
+      }
+    />
+  );
+
   return (
     <View>
-      <View style={styles.tabs}>
-        <Segmented
-          label={t({ th: "ตั้งค่าอะไหล่", en: "Part setup" })}
-          options={[
-            { value: "brands", label: t(brandsTab(data.brands.length)) },
-            { value: "systems", label: t({ th: "ระบบและหมวดหมู่", en: "Systems & categories" }) },
-          ]}
-          value={tab}
-          onChange={pick}
-        />
-      </View>
-      <View style={styles.search}>
-        <SearchBox
-          value={q}
-          onChange={setQ}
-          placeholder={
-            tab === "brands"
-              ? t({ th: "ค้นยี่ห้อ", en: "Find a brand" })
-              : t({ th: "ค้นระบบ หรือหมวดหมู่", en: "Find a system or category" })
-          }
-        />
-      </View>
+      {wide ? (
+        // Computer (canvas คอม · ตั้งค่าอะไหล่): the two tabs and the search share one row.
+        <View style={styles.toolsRow}>
+          <View style={styles.tabsWide}>{tabs}</View>
+          {searchBox}
+        </View>
+      ) : (
+        <>
+          <View style={styles.tabs}>{tabs}</View>
+          <View style={styles.search}>{searchBox}</View>
+        </>
+      )}
       <View style={styles.list}>{tab === "brands" ? brandList : systemList}</View>
 
       {brandView && (
@@ -256,6 +273,8 @@ export function PartsSetupScreen() {
 const styles = StyleSheet.create({
   tabs: { marginTop: SPACE.s },
   search: { marginTop: SPACE.m },
+  toolsRow: { flexDirection: "row", alignItems: "center", gap: SPACE.m },
+  tabsWide: { width: 400 },
   list: { marginTop: SPACE.m },
   heading: { marginTop: SPACE.xl, marginBottom: SPACE.s, marginHorizontal: 2 },
   none: { textAlign: "center", paddingVertical: 72, paddingHorizontal: SPACE.m },

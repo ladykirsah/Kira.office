@@ -33,17 +33,29 @@ export function Tiles(props: {
   data: InsightsPayload;
   lines: readonly MetricKey[];
   onTap: (key: MetricKey) => void;
+  /**
+   * A computer (DeskInsight board, 4 Nov 2026): the three groups side by side in one row, each tile
+   * with a thin line, the money group a little wider.
+   */
+  wide?: boolean;
 }) {
   const now = metricValues(props.data.totals);
   const before = metricValues(props.data.previous);
   return (
-    <View style={styles.lines}>
+    <View style={props.wide ? styles.wideLines : styles.lines}>
       {TILE_LINES.map((line, i) => (
-        <View key={line.join()} style={styles.line}>
+        <View
+          key={line.join()}
+          style={[
+            styles.line,
+            props.wide && { flex: line.length * (i === 0 ? BIG_SHARE : 1), minWidth: 0 },
+          ]}
+        >
           {line.map((key) => (
             <Tile
               key={key}
               big={i === 0}
+              wide={props.wide}
               tileKey={key}
               value={now[key]}
               change={changeOf(key, now[key], before[key])}
@@ -59,6 +71,7 @@ export function Tiles(props: {
 
 function Tile(props: {
   big: boolean;
+  wide?: boolean;
   tileKey: MetricKey;
   value: number;
   change: Change;
@@ -81,6 +94,7 @@ function Tile(props: {
       style={({ pressed }) => [
         styles.tile,
         props.big ? styles.big : styles.small,
+        props.wide && [styles.wideTile, { borderColor: theme.border }],
         { backgroundColor: pressed ? theme.hover : theme.surface },
       ]}
     >
@@ -91,7 +105,12 @@ function Tile(props: {
         </Text>
       </View>
       <Text
-        style={[props.big ? TYPE.title1 : TYPE.title2, styles.nums, { color: theme.text }]}
+        style={[
+          props.big ? TYPE.title1 : TYPE.title2,
+          props.wide && (props.big ? styles.wideBig : styles.wideSmall),
+          styles.nums,
+          { color: theme.text },
+        ]}
         numberOfLines={1}
         adjustsFontSizeToFit
       >
@@ -107,8 +126,15 @@ function Tile(props: {
   );
 }
 
+/** The money tiles are a little wider than the others on a computer (as drawn). */
+const BIG_SHARE = 1.35;
+
 const styles = StyleSheet.create({
   lines: { marginTop: SPACE.l, gap: SPACE.s },
+  wideLines: { flexDirection: "row", gap: SPACE.xl },
+  wideTile: { borderRadius: 12, borderWidth: 1, paddingVertical: SPACE.m, paddingHorizontal: 14 },
+  wideBig: { fontSize: 24, lineHeight: 31 },
+  wideSmall: { fontSize: 19, lineHeight: 25 },
   line: { flexDirection: "row", gap: SPACE.s },
   tile: { flex: 1, minWidth: 0, borderRadius: 16, gap: 2 },
   big: { paddingVertical: SPACE.m, paddingHorizontal: SPACE.l },

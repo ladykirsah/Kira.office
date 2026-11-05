@@ -45,10 +45,28 @@ export function LabelSheet({ list, itemKey }: { list: Barcodes; itemKey: string 
       closeLabel={t({ th: "ปิด", en: "Close" })}
       onClose={() => list.setSheet(null)}
     >
-      <View style={[styles.preview, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.preview,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <LabelArt text={text} size={item.size} shop={list.shop} pxPerMm={SHEET_PX_PER_MM} />
       </View>
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Line
           label={t({ th: "ขนาด", en: "Size" })}
           last

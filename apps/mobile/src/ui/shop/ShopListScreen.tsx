@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { titleIn, type ShopProfile } from "@/lib/shopInfoPage";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { useScreenChrome } from "../ScreenChrome";
@@ -18,6 +19,8 @@ export function ShopListScreen() {
   const { t, lang } = useLang();
   const { theme } = useTheme();
   const shops = useShopInfo(SHOP_ORDER);
+  // On a computer the two shops sit side by side, one card each (DeskShop 1).
+  const wide = useWide();
   useScreenChrome(null, []);
 
   if (!shops.shops) {
@@ -28,7 +31,7 @@ export function ShopListScreen() {
     );
   }
   return (
-    <View style={styles.list}>
+    <View style={wide ? styles.listWide : styles.list}>
       {SHOP_ORDER.map((profile: ShopProfile) => {
         const info = shops.shops?.[profile];
         if (!info) return null;
@@ -41,7 +44,15 @@ export function ShopListScreen() {
             onPress={() => router.push(`/settings/shop/${profile}` as never)}
             accessibilityRole="button"
             accessibilityLabel={name}
-            style={[styles.card, { backgroundColor: theme.surface }]}
+            style={[
+              styles.card,
+              wide && styles.cardWide,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <ShopLogo profile={profile} logoKey={info.logoKey} size={64} />
             <View style={styles.words}>
@@ -64,6 +75,14 @@ export function ShopListScreen() {
 
 const styles = StyleSheet.create({
   list: { marginTop: SPACE.xl, gap: SPACE.l },
+  listWide: { flexDirection: "row", alignItems: "stretch", gap: SPACE.xl },
+  cardWide: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: SPACE.xl,
+    paddingHorizontal: SPACE.xl,
+    gap: SPACE.l,
+  },
   card: {
     borderRadius: 20,
     paddingVertical: 14,

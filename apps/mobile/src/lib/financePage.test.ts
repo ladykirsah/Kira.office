@@ -12,6 +12,7 @@ import {
   expenseSub,
   expensesIn,
   financeOrders,
+  ledgerLine,
   minus,
   money,
   orderRows,
@@ -316,5 +317,50 @@ describe("a shop's list: money in and money out together", () => {
     expect(orderRows([order({ id: "o1" })], [ads], "facebook").map((r) => r.kind)).toEqual([
       "expense",
     ]);
+  });
+});
+
+describe("ledgerLine: a shop's list row on the computer (DeskFinance, 5 Nov 2026)", () => {
+  it("ledgerLine > given a bill > then plate, bill number, total and profit", () => {
+    expect(ledgerLine({ kind: "bill", at: 0, bill: bill({}) })).toEqual({
+      title: { th: "1กก 1234 กรุงเทพมหานคร", en: "1กก 1234 กรุงเทพมหานคร" },
+      sub: { th: "DAS202610-29004", en: "DAS202610-29004" },
+      amount: "฿4,060",
+      profit: "฿1,320",
+      state: null,
+    });
+  });
+  it("ledgerLine > given a refunded bill > then its state instead of the profit", () => {
+    const line = ledgerLine({ kind: "bill", at: 0, bill: bill({ saleStatus: "refunded" }) });
+    expect(line.profit).toBeNull();
+    expect(line.state).toEqual({ th: "คืนเงินแล้ว", en: "Refunded" });
+  });
+  it("ledgerLine > given an order > then buyer, order number, sales and profit", () => {
+    expect(ledgerLine({ kind: "order", at: 0, order: order({}) })).toEqual({
+      title: { th: "คุณมานพ", en: "คุณมานพ" },
+      sub: { th: "AP-2006", en: "AP-2006" },
+      amount: "฿3,530",
+      profit: "฿1,020",
+      state: null,
+    });
+  });
+  it("ledgerLine > given an order with no buyer or sales > then its number and its total", () => {
+    const line = ledgerLine({
+      kind: "order",
+      at: 0,
+      order: order({ buyerUsername: null, salesSatang: null, profitSatang: null }),
+    });
+    expect(line.title.th).toBe("AP-2006");
+    expect(line.amount).toBe("฿3,530");
+    expect(line.profit).toBe("฿0");
+  });
+  it("ledgerLine > given an expense > then its name, ค่าใช้จ่าย, the amount out and no profit", () => {
+    expect(ledgerLine({ kind: "expense", at: 0, expense: expense({}) })).toEqual({
+      title: { th: "แพ็กเกจ LINE OA รายเดือน", en: "แพ็กเกจ LINE OA รายเดือน" },
+      sub: { th: "ค่าใช้จ่าย", en: "Expense" },
+      amount: "−฿1,200",
+      profit: null,
+      state: null,
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef } from "react";
+import type { PageLayout } from "@/lib/frame";
 
 /** A big button: the guide's one red main action, or grey for the quiet alternative beside it. */
 export interface ChromeButton {
@@ -26,6 +27,8 @@ export interface HeaderButton {
   onPress: (at?: Anchor) => void;
   /** A count on the button's corner (ทำบิล's drafts tray); none when 0. */
   badge?: number;
+  /** On a computer, the page's one main action: a red named pill (เพิ่ม… on a list). */
+  main?: boolean;
 }
 
 /** A choice pinned just above the bottom button, e.g. why a count went down. */
@@ -72,6 +75,8 @@ export interface Chrome {
   search: SearchBar | null;
   /** The page draws its own heading under the back link (a car's plate beside its brand). */
   ownTitle: boolean;
+  /** On a computer: one centred column (settings, forms) or the full width (a list with a table). */
+  layout: PageLayout;
 }
 
 export const NO_CHROME: Chrome = {
@@ -83,6 +88,7 @@ export const NO_CHROME: Chrome = {
   back: null,
   search: null,
   ownTitle: false,
+  layout: "column",
 };
 
 const SetChromeContext = createContext<((chrome: Chrome) => void) | null>(null);
@@ -97,6 +103,7 @@ interface Above {
   back?: BackLink | null;
   search?: SearchBar | null;
   ownTitle?: boolean;
+  layout?: PageLayout;
 }
 
 /**
@@ -122,13 +129,14 @@ export function useScreenChrome(
     back: above.back ?? null,
     search: above.search ?? null,
     ownTitle: above.ownTitle ?? false,
+    layout: above.layout ?? "column",
   };
   const latest = useRef(now);
   useEffect(() => {
     latest.current = now;
   });
   const shape = JSON.stringify([
-    headers.map((h) => [h.label, h.icon, h.badge ?? 0]),
+    headers.map((h) => [h.label, h.icon, h.badge ?? 0, h.main ?? false]),
     footer.map((b) => [b.label, b.kind ?? "red", b.icon ?? ""]),
     now.choice && [now.choice.label, now.choice.options, now.choice.value],
     now.toast,
@@ -137,6 +145,7 @@ export function useScreenChrome(
     now.back?.plain,
     now.search && [now.search.value, now.search.placeholder],
     now.ownTitle,
+    now.layout,
   ]);
   useEffect(() => {
     if (!set) return;
@@ -146,6 +155,7 @@ export function useScreenChrome(
         label: h.label,
         icon: h.icon,
         badge: h.badge,
+        main: h.main,
         onPress: (at?: Anchor) => latest.current.headers[i]?.onPress(at),
       })),
       footer: cur.footer.map((b, i) => ({
@@ -174,6 +184,7 @@ export function useScreenChrome(
         onClose: () => latest.current.search?.onClose(),
       },
       ownTitle: cur.ownTitle,
+      layout: cur.layout,
     });
   }, [set, shape]);
   useEffect(() => () => set?.(NO_CHROME), [set]);

@@ -28,6 +28,7 @@ import { FieldError } from "../pos/fields";
 import { DOWN, InputRow, Line, SearchBox, UP } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 import { OffPhoto } from "./parts";
+import { CodeCopy } from "../CodeCopy";
 
 /**
  * เพิ่มสินค้า (canvas v259, แฟลชเซล 4): search by name or code; each product that can be sold on
@@ -102,9 +103,7 @@ function PickLine(props: { row: ProductRow; picked: boolean; onPress: () => void
         <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
           {props.row.name}
         </Text>
-        <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-          {props.row.productRef}
-        </Text>
+        <CodeCopy code={props.row.productRef} style={[TYPE.subhead, { color: theme.textMuted }]} />
         <View style={styles.dotLine}>
           {line.low && <Dot color={theme.waiting} />}
           <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
@@ -122,11 +121,7 @@ function PickLine(props: { row: ProductRow; picked: boolean; onPress: () => void
   // One already in the sale is changed from the form (tap its row there), not picked twice.
   if (props.picked) return body;
   return (
-    <Pressable
-      onPress={props.onPress}
-      accessibilityRole="button"
-      accessibilityLabel={props.row.name}
-    >
+    <Pressable onPress={props.onPress} accessibilityRole="link" accessibilityLabel={props.row.name}>
       {body}
     </Pressable>
   );
@@ -202,9 +197,12 @@ export function PriceSheet(props: {
             <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
               {props.line.name}
             </Text>
-            <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-              {props.line.productRef}
-            </Text>
+            {props.line.productRef ? (
+              <CodeCopy
+                code={props.line.productRef}
+                style={[TYPE.subhead, { color: theme.textMuted }]}
+              />
+            ) : null}
           </View>
         </View>
       </Group>

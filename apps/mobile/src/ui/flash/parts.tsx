@@ -16,6 +16,7 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Divider } from "../products/parts";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { CodeCopy } from "../CodeCopy";
 
 /** The drawn icons (canvas v259): a picture for a product with no photo yet, and the red bin. */
 export const PICTURE_ICON =
@@ -96,9 +97,7 @@ export function ItemRow(props: {
           {props.name}
         </Text>
         {props.code ? (
-          <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-            {props.code}
-          </Text>
+          <CodeCopy code={props.code} style={[TYPE.subhead, { color: theme.textMuted }]} />
         ) : null}
         <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
           <Text style={{ color: theme.text }}>{props.price}</Text>{" "}
@@ -117,7 +116,7 @@ export function ItemRow(props: {
         {props.onPress ? (
           <Pressable
             onPress={props.onPress}
-            accessibilityRole="button"
+            accessibilityRole="link"
             accessibilityLabel={props.name}
             style={styles.grow}
           >
@@ -162,6 +161,70 @@ function Clock({ sale, now }: { sale: FlashSale; now: number }) {
         ))}
       </View>
     </View>
+  );
+}
+
+/**
+ * One sale on a computer (DeskFlash board 1): one line — the name and its state, the photos with
+ * their -% and what sold, the countdown (room kept for it when there is none), and ›.
+ */
+export function SaleRow(props: {
+  sale: FlashSale;
+  now: number;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const { sale, now } = props;
+  const s = strip(sale, now);
+  return (
+    <Pressable
+      onPress={props.onPress}
+      accessibilityRole="button"
+      accessibilityLabel={sale.name}
+      style={(state) => [
+        styles.wideRow,
+        !props.last && { borderBottomWidth: 1, borderBottomColor: theme.border },
+        ((state as { hovered?: boolean }).hovered || state.pressed) && {
+          backgroundColor: theme.sideOn,
+        },
+      ]}
+    >
+      <View style={styles.wideName}>
+        <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={2}>
+          {sale.name}
+        </Text>
+        <View style={styles.state}>
+          <StateDot state={flashState(sale, now)} />
+          <Text style={[TYPE.subhead, styles.grow, { color: theme.textMuted }]} numberOfLines={1}>
+            {t(listLine(sale, now))}
+          </Text>
+        </View>
+      </View>
+      <View style={[styles.strip, styles.grow]}>
+        {s.photos.map((p) => (
+          <OffPhoto key={p.key} imageKey={p.imageKey} size={48} off={p.off} />
+        ))}
+        {s.more > 0 && (
+          <View style={[styles.photo, styles.wideMore, { backgroundColor: theme.bg }]}>
+            <Text style={[TYPE.subhead, { color: theme.textMuted }]}>+{s.more}</Text>
+          </View>
+        )}
+        {s.sold && (
+          <Text
+            style={[TYPE.subhead, styles.wideSold, { color: theme.textMuted }]}
+            numberOfLines={1}
+          >
+            {t(s.sold)}
+          </Text>
+        )}
+      </View>
+      <View style={styles.wideClock}>
+        <Clock sale={sale} now={now} />
+      </View>
+      <LineIcon d={ICON.chevron} color={theme.textFaint} size={15} strokeWidth={2.4} />
+    </Pressable>
   );
 }
 
@@ -272,4 +335,16 @@ const styles = StyleSheet.create({
   strip: { flexDirection: "row", alignItems: "center", gap: 6 },
   more: { width: 52, height: 52 },
   sold: { flex: 1, textAlign: "right", fontVariant: ["tabular-nums"] },
+  wideRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.xl,
+    paddingVertical: 14,
+    paddingHorizontal: SPACE.l,
+    borderRadius: 10,
+  },
+  wideName: { width: 300, flexShrink: 0, gap: 2 },
+  wideMore: { width: 48, height: 48 },
+  wideSold: { marginLeft: SPACE.xs, fontVariant: ["tabular-nums"] },
+  wideClock: { width: 100, alignItems: "flex-end" },
 });

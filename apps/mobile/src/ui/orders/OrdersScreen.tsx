@@ -23,11 +23,13 @@ import {
 import { fetchOrders } from "@/lib/ordersApi";
 import { useAuth, useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
+import { useWide } from "../desk/useWide";
 import { useScreenChrome } from "../ScreenChrome";
 import { RADIUS, SPACE, TYPE, type Theme } from "../theme";
 import { ICON } from "./icons";
 import { MenuButton } from "./MenuButton";
 import { OrderRowItem } from "./OrderRowItem";
+import { OrdersTable } from "./OrdersTable";
 import { RangeSheet } from "./RangeSheet";
 import { StatusTabs } from "./StatusTabs";
 
@@ -57,6 +59,7 @@ export function OrdersScreen() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const token = auth.status === "signed-in" ? auth.token : null;
+  const wide = useWide();
   const s = styles(theme);
 
   const reload = useCallback(() => {
@@ -83,6 +86,7 @@ export function OrdersScreen() {
           {
             label: t({ th: "ทำบิลใหม่", en: "New bill" }),
             icon: ICON.plus,
+            main: true,
             onPress: () => router.push("/pos" as never),
           },
           {
@@ -94,6 +98,8 @@ export function OrdersScreen() {
     [],
     {
       title: t({ th: "ออเดอร์", en: "Orders" }),
+      // A computer shows the orders as one full-width table (DeskOrders board).
+      layout: "full",
       search: searching
         ? {
             value: query,
@@ -128,7 +134,7 @@ export function OrdersScreen() {
 
   const { orders, at: now } = load;
   if (searching) {
-    return <SearchResults orders={orders} query={query} now={now} onOpen={open} />;
+    return <SearchResults orders={orders} query={query} now={now} onOpen={open} wide={wide} />;
   }
 
   const counts = tabCounts(orders, view, now);
@@ -216,6 +222,10 @@ export function OrdersScreen() {
               : null
           }
         />
+      ) : wide ? (
+        <View style={s.table}>
+          <OrdersTable orders={shown} now={now} onOpen={open} />
+        </View>
       ) : (
         listSections(shown, view.sort, now).map((section) => (
           <View key={section.title.en}>
@@ -283,6 +293,7 @@ function SearchResults(props: {
   query: string;
   now: number;
   onOpen: (o: OrderListRow) => void;
+  wide: boolean;
 }) {
   const { theme } = useTheme();
   const { t } = useLang();
@@ -321,28 +332,38 @@ function SearchResults(props: {
       <Text style={[s.heading, { color: theme.text, marginTop: 0 }]} accessibilityRole="header">
         {t({ th: `พบ ${found.length} ออเดอร์`, en: `${found.length} orders found` })}
       </Text>
-      {found.map((o, i) => (
-        <OrderRowItem
-          key={o.id}
-          order={o}
-          when={when(o)}
-          first={i === 0}
-          last={i === found.length - 1}
-          onPress={() => props.onOpen(o)}
-        />
-      ))}
+      {props.wide ? (
+        <OrdersTable orders={found} now={props.now} onOpen={props.onOpen} />
+      ) : (
+        found.map((o, i) => (
+          <OrderRowItem
+            key={o.id}
+            order={o}
+            when={when(o)}
+            first={i === 0}
+            last={i === found.length - 1}
+            onPress={() => props.onOpen(o)}
+          />
+        ))
+      )}
     </View>
   );
 }
 
 const styles = (c: Theme) =>
   StyleSheet.create({
-    card: { borderRadius: RADIUS.card, backgroundColor: c.surface },
+    card: {
+      borderRadius: RADIUS.card,
+      backgroundColor: c.surface,
+      borderWidth: c.cardLine,
+      borderColor: c.border,
+    },
     padded: { padding: SPACE.l, gap: SPACE.xs },
     body: { ...TYPE.body },
     sub: { ...TYPE.subhead },
     menus: { marginTop: SPACE.m, flexDirection: "row", flexWrap: "wrap", gap: SPACE.s },
     heading: { ...TYPE.title2, marginTop: 26, marginBottom: SPACE.m },
+    table: { marginTop: SPACE.xl },
     empty: { marginTop: 72, alignItems: "center", gap: SPACE.s, paddingHorizontal: SPACE.xl },
     emptyTitle: { ...TYPE.title2, fontSize: 20, textAlign: "center", marginTop: SPACE.xs },
   });

@@ -1,5 +1,6 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import type { Anchor } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
@@ -20,8 +21,12 @@ export function PlusMenu(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
+  const { width } = useWindowDimensions();
   if (!props.at) return null;
   const top = props.at.y + props.at.height + 6;
+  // A computer's เพิ่ม sits at the page's edge, not the window's: the menu lines up under it.
+  const right = wide ? Math.max(SPACE.l, width - props.at.x - props.at.width) : SPACE.l;
   const item = (choice: PlusChoice, icon: string, label: string, line: boolean) => (
     <Pressable
       key={choice}
@@ -50,7 +55,7 @@ export function PlusMenu(props: {
       />
       <View
         accessibilityRole="menu"
-        style={[styles.menu, { top, right: SPACE.l, backgroundColor: theme.surface }]}
+        style={[styles.menu, { top, right, backgroundColor: theme.surface }]}
       >
         {item("add", STAFF_ICON.personAdd, t({ th: "เพิ่มคน", en: "Add a person" }), false)}
         <View style={[styles.gap, { backgroundColor: theme.segBg }]} />

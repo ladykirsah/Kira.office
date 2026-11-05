@@ -9,6 +9,7 @@ import {
   needsReason,
   readTab,
   step,
+  deskStockWords,
   stepLabel,
   stockLine,
   stockMoves,
@@ -296,5 +297,26 @@ describe("keepAfterSave", () => {
 
   it("given a part whose outcome is unknown (the connection dropped) > then it goes too, so it is never sent twice", () => {
     expect(keepAfterSave(cards, { v3: "unsure" }).map((c) => c.part.variantId)).not.toContain("v3");
+  });
+});
+
+describe("deskStockWords (the computer scan card, owner 5 Nov 2026)", () => {
+  it("given จัดการสต็อก > then the count sits on the same line as พร้อมขาย, งานนอก under it", () => {
+    expect(deskStockWords(clutch, "stock")).toEqual({
+      label: { th: "พร้อมขาย 3", en: "For sale 3" },
+      sub: { th: "งานนอก 2", en: "Out on jobs 2" },
+    });
+  });
+
+  it("given ขาย > then the label says what the number is, the stock now under it", () => {
+    expect(deskStockWords(clutch, "sell")).toEqual({
+      label: { th: "จำนวนที่ขาย", en: "To sell" },
+      sub: { th: "พร้อมขาย 3 · งานนอก 2", en: "For sale 3 · out on jobs 2" },
+    });
+  });
+
+  it("given งานนอก > then the same: what the number is, then the stock now", () => {
+    expect(deskStockWords(clutch, "away").label.th).toBe("อยู่งานนอก");
+    expect(deskStockWords(clutch, "away").sub.th).toBe("พร้อมขาย 3 · งานนอก 2");
   });
 });

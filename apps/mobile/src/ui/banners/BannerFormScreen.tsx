@@ -45,7 +45,12 @@ export function BannerFormScreen() {
 
   if (!edit.form || !edit.banners) {
     return (
-      <FormPage title={title} onCancel={edit.leave}>
+      <FormPage
+        title={title}
+        back={t({ th: "แบนเนอร์", en: "Banners" })}
+        deskLayout="column"
+        onCancel={edit.leave}
+      >
         {edit.problem === "gone" ? (
           <Empty
             icon={ICON.search}
@@ -65,6 +70,9 @@ export function BannerFormScreen() {
   return (
     <FormPage
       title={title}
+      // On a computer the form opens inside the frame, under its list (DeskAddProduct's form frame).
+      back={t({ th: "แบนเนอร์", en: "Banners" })}
+      deskLayout="column"
       onCancel={edit.leave}
       save={{ label: t({ th: "บันทึก", en: "Save" }), onPress: () => void edit.save() }}
       toast={edit.toast ? { title: t(edit.toast.title), detail: t(edit.toast.detail) } : null}

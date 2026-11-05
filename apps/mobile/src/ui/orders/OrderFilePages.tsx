@@ -45,7 +45,12 @@ export function LoadState({ load }: { load: OrderLoad }) {
     return <ActivityIndicator color={theme.textMuted} style={{ marginTop: SPACE.xxxl }} />;
   }
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Text style={[TYPE.body, { color: theme.text }]}>
         {load.status === "missing"
           ? t({ th: "ไม่พบออเดอร์", en: "Order not found" })
@@ -96,7 +101,16 @@ export function SlipScreen({ id }: { id: string }) {
       </Text>
       {/* The API refuses the picture to anyone else as well; this only saves them a dead frame. */}
       {viewerIsSuperAdmin && order.slipImageKey && (
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderWidth: theme.cardLine,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           <PrivateImage
             fileKey={order.slipImageKey}
             label={t({ th: "สลิปการชำระเงิน", en: "Payment slip" })}

@@ -48,6 +48,8 @@ export function CouponFace(props: {
   padding: number;
   /** The list says how it stands at the top right; the page has a สถานะ row instead. */
   now?: number;
+  /** Fill the height it is given (a computer's row of tickets, all the same height). */
+  fill?: boolean;
   children: ReactNode;
 }) {
   const { t } = useLang();
@@ -60,10 +62,13 @@ export function CouponFace(props: {
         styles.face,
         {
           backgroundColor: theme.surface,
+          borderWidth: theme.cardLine,
+          borderColor: theme.border,
           borderRadius: props.radius,
           paddingHorizontal: 16,
           paddingVertical: props.padding,
         },
+        props.fill && styles.fill,
       ]}
     >
       <View style={styles.row}>
@@ -105,17 +110,18 @@ export function CouponFace(props: {
 }
 
 /** One coupon in the list: card C, then the grey line, the code and ›. */
-export function CouponCard({ coupon, onPress }: { coupon: Coupon; onPress: () => void }) {
+export function CouponCard(props: { coupon: Coupon; onPress: () => void; fill?: boolean }) {
+  const { coupon } = props;
   const { t } = useLang();
   const { theme } = useTheme();
   return (
     <Pressable
-      onPress={onPress}
+      onPress={props.onPress}
       accessibilityRole="button"
       accessibilityLabel={coupon.name ?? coupon.code}
-      style={({ pressed }) => pressed && styles.pressed}
+      style={({ pressed }) => [props.fill && styles.fill, pressed && styles.pressed]}
     >
-      <CouponFace coupon={coupon} radius={16} padding={14} now={Date.now()}>
+      <CouponFace coupon={coupon} radius={16} padding={14} now={Date.now()} fill={props.fill}>
         <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
           {t(footLine(coupon))}
         </Text>
@@ -140,4 +146,5 @@ const styles = StyleSheet.create({
   code: { fontWeight: "700", letterSpacing: 0.5 },
   grow: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.6 },
+  fill: { flex: 1 },
 });

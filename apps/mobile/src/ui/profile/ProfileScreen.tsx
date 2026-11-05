@@ -35,7 +35,8 @@ import { Segmented } from "../Segmented";
 import { Chevron, CopyIcon, ValueRow } from "../staff/parts";
 import { usePayments } from "../staff/useStaffData";
 import { useToast } from "../staff/useTeam";
-import { SPACE, TYPE } from "../theme";
+import { RADIUS, SPACE, TYPE } from "../theme";
+import { useWide } from "../desk/useWide";
 import { OwnCodeSheet, OwnDayOffSheet } from "./ProfileSheets";
 import { useOwnDaysOff, useOwnProfile } from "./useOwnProfile";
 
@@ -59,11 +60,15 @@ export function ProfileScreen() {
   const me = useOwnProfile(stamp);
   const { toast, showToast } = useToast();
   const [open, setOpen] = useState<Open>(null);
+  // Computer (canvas คอม · โปรไฟล์ของฉัน): opened from your name at the foot of the menu, so the page
+  // has the plain title and no ‹; your badge sits in a card beside your name.
+  const wide = useWide();
 
   const leave = () => (router.canGoBack() ? router.back() : router.replace("/" as never));
   useScreenChrome(null, [], {
-    back: { label: "", onPress: leave },
-    ownTitle: true,
+    back: wide ? null : { label: "", onPress: leave },
+    ownTitle: !wide,
+    title: wide ? t(TITLE) : null,
     toast: toast ? { title: t(toast.title), detail: t(toast.detail) } : null,
   });
 
@@ -77,11 +82,13 @@ export function ProfileScreen() {
   return (
     <View>
       {/* On the back pill's line, but never over it: taps go through to ‹. */}
-      <View style={styles.top} pointerEvents="none">
-        <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
-          {t(TITLE)}
-        </Text>
-      </View>
+      {!wide && (
+        <View style={styles.top} pointerEvents="none">
+          <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
+            {t(TITLE)}
+          </Text>
+        </View>
+      )}
 
       {!p ? (
         me.failed ? (
@@ -91,24 +98,33 @@ export function ProfileScreen() {
         )
       ) : (
         <>
-          <View style={styles.hero}>
-            <View style={[styles.avatar, { backgroundColor: theme.segBg }]}>
-              <Text style={[styles.avatarText, { color: theme.text }]}>{initials(badge)}</Text>
-            </View>
-            <Text style={[TYPE.title1, styles.name, { color: theme.text }]}>
-              {`${t(roleWord(p.role))} · ${shownName(p)}`}
-            </Text>
-            {p.phone ? (
-              <View style={styles.phone}>
-                <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{p.phone}</Text>
-                <CopyIcon
-                  value={p.phone}
-                  what={{ th: "เบอร์โทร", en: "phone number" }}
-                  onCopied={(said) => showToast(said)}
-                />
+          {wide ? (
+            <WideHero
+              badge={badge}
+              name={`${t(roleWord(p.role))} · ${shownName(p)}`}
+              phone={p.phone}
+              onCopied={(said) => showToast(said)}
+            />
+          ) : (
+            <View style={styles.hero}>
+              <View style={[styles.avatar, { backgroundColor: theme.segBg }]}>
+                <Text style={[styles.avatarText, { color: theme.text }]}>{initials(badge)}</Text>
               </View>
-            ) : null}
-          </View>
+              <Text style={[TYPE.title1, styles.name, { color: theme.text }]}>
+                {`${t(roleWord(p.role))} · ${shownName(p)}`}
+              </Text>
+              {p.phone ? (
+                <View style={styles.phone}>
+                  <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{p.phone}</Text>
+                  <CopyIcon
+                    value={p.phone}
+                    what={{ th: "เบอร์โทร", en: "phone number" }}
+                    onCopied={(said) => showToast(said)}
+                  />
+                </View>
+              ) : null}
+            </View>
+          )}
 
           {profileSections(p).map((s) => (
             <SectionView
@@ -126,7 +142,7 @@ export function ProfileScreen() {
               <Pressable
                 onPress={() => void auth.signOutNow()}
                 accessibilityRole="button"
-                style={styles.signOut}
+                style={[styles.signOut, wide && styles.signOutWide]}
               >
                 <Text style={[TYPE.body, { color: theme.danger }]}>
                   {t({ th: "ออกจากระบบ", en: "Sign out" })}
@@ -154,6 +170,43 @@ export function ProfileScreen() {
   );
 }
 
+/** Computer: your badge in a card with your name and phone beside it (canvas คอม · โปรไฟล์ของฉัน 1). */
+function WideHero(props: {
+  badge: string;
+  name: string;
+  phone: string | null;
+  onCopied: (said: Phrase) => void;
+}) {
+  const { theme } = useTheme();
+  return (
+    <View
+      style={[
+        styles.heroCard,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
+      <View style={[styles.wideAvatar, { backgroundColor: theme.graphite }]}>
+        <Text style={[styles.wideAvatarText, { color: theme.onPrimary }]}>
+          {initials(props.badge)}
+        </Text>
+      </View>
+      <View style={styles.heroWords}>
+        <Text style={[TYPE.title2, styles.heroName, { color: theme.text }]}>{props.name}</Text>
+        {props.phone ? (
+          <View style={styles.phone}>
+            <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{props.phone}</Text>
+            <CopyIcon
+              value={props.phone}
+              what={{ th: "เบอร์โทร", en: "phone number" }}
+              onCopied={props.onCopied}
+            />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 function SectionView(props: {
   section: Section;
   p: OwnProfile;
@@ -162,11 +215,23 @@ function SectionView(props: {
   onOpen: (o: Open) => void;
 }) {
   const { t } = useLang();
+  const { theme } = useTheme();
+  const wide = useWide();
   const { p } = props;
   const copy = (what: Phrase) => ({ what, onCopied: props.onCopied });
+  // A computer names each card with a small grey word above it, as System Settings does (canvas คอม).
   const block = (title: Phrase, rows: ReactNode) => (
     <>
-      <Heading text={t(title)} />
+      {wide ? (
+        <Text
+          style={[TYPE.footnote, styles.wideHeading, { color: theme.textMuted }]}
+          accessibilityRole="header"
+        >
+          {t(title)}
+        </Text>
+      ) : (
+        <Heading text={t(title)} />
+      )}
       <Group>{rows}</Group>
     </>
   );
@@ -369,6 +434,7 @@ function DayOffRows({ stamp, onAdd }: { stamp: number; onAdd: () => void }) {
 }
 
 const AVATAR = 96;
+const WIDE_AVATAR = 64;
 
 const styles = StyleSheet.create({
   // The frame's back pill is 36 tall with 8 under it; the title sits centred on its line.
@@ -388,4 +454,29 @@ const styles = StyleSheet.create({
   langSwitch: { width: 140 },
   signOutGroup: { marginTop: SPACE.xl },
   signOut: { minHeight: 52, alignItems: "center", justifyContent: "center" },
+  // Computer (canvas คอม · โปรไฟล์ของฉัน): the badge card, small grey headings, ออกจากระบบ on the left.
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    padding: SPACE.xl,
+    borderRadius: RADIUS.card,
+  },
+  wideAvatar: {
+    width: WIDE_AVATAR,
+    height: WIDE_AVATAR,
+    borderRadius: WIDE_AVATAR / 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wideAvatarText: { fontSize: 24, fontWeight: "600" },
+  heroWords: { flex: 1, minWidth: 0, gap: 2 },
+  heroName: { fontWeight: "600" },
+  wideHeading: {
+    fontWeight: "600",
+    marginTop: SPACE.xl,
+    marginBottom: SPACE.s,
+    marginHorizontal: SPACE.xs,
+  },
+  signOutWide: { alignItems: "flex-start", paddingHorizontal: SPACE.l },
 });

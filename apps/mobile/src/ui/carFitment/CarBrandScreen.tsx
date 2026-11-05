@@ -37,6 +37,7 @@ export function CarBrandScreen({ id }: { id: string }) {
           {
             label: t({ th: "เพิ่มรุ่น", en: "Add a model" }),
             icon: ICON.plus,
+            main: true,
             onPress: () => setOpen("add"),
           },
           {

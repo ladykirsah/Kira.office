@@ -58,3 +58,23 @@ export const BAND_FADE = 28;
 export function bandOverhang(hasPinned: boolean): number {
   return hasPinned ? BAND_SOLID_ABOVE + BAND_FADE : 0;
 }
+
+/** A phone sheet on a computer: a panel this wide on the right, the page still in sight. */
+export const SIDE_PANEL_WIDTH = 440;
+
+export function sheetPlacement(windowWidth: number, phoneMax: number): "bottom" | "side" {
+  return windowWidth > phoneMax ? "side" : "bottom";
+}
+
+/**
+ * How wide a computer page is (guide C · Mercury, 4 Nov 2026): settings and forms read as one
+ * column, 880 wide and centred; a list page with a table takes the full width, up to 1280.
+ */
+export type PageLayout = "column" | "full";
+
+const COLUMN_WIDTH = 880;
+const FULL_WIDTH = 1280;
+
+export function pageWidth(layout: PageLayout): number {
+  return layout === "full" ? FULL_WIDTH : COLUMN_WIDTH;
+}

@@ -22,7 +22,12 @@ export function ProductCard(props: {
   const open = (path: string) =>
     router.push(`/products/${encodeURIComponent(row.id)}${path}` as never);
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Pressable onPress={() => open("")} accessibilityRole="link" style={styles.top}>
         <Photo imageKey={row.imageKey} size={74} />
         <View style={styles.text}>

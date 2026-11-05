@@ -20,12 +20,12 @@ import { PhotoStrip } from "./PhotoStrip";
 import { ScanCodeSheet } from "./ScanCodeSheet";
 import type { ProductFormState } from "./useProductEdit";
 
-type Mode = "edit" | "add";
+export type Mode = "edit" | "add";
 
 const DASH: Phrase = { th: "—", en: "—" };
 
 /** What an empty field shows: a dash on a product being edited, the drawn hints on a new one. */
-const HINTS: Record<
+export const HINTS: Record<
   Mode,
   {
     name?: Phrase;
@@ -128,32 +128,21 @@ export function ProductFields({
       <Prices edit={edit} blank={hint.money} />
       <Heading text={t({ th: "สต็อก", en: "Stock" })} />
       <Group>
-        <Line
-          label={t({ th: "ขายได้", en: "For sale" })}
-          right={
-            <Stepper
-              value={f.sellable}
-              label={t({ th: "ขายได้", en: "For sale" })}
-              onChange={(n) => edit.set({ sellable: n })}
-            />
-          }
-        />
-        <Line
-          label={t({ th: "งานนอก", en: "Out on jobs" })}
-          last
-          right={
-            <Stepper
-              value={f.held}
-              label={t({ th: "งานนอก", en: "Out on jobs" })}
-              onChange={(n) => edit.set({ held: n })}
-            />
-          }
-        />
+        <StockSteppers edit={edit} />
       </Group>
       <Cars edit={edit} />
       <PartDetails edit={edit} mode={mode} />
       <Heading text={t({ th: "รายละเอียด", en: "Description" })} />
-      <View style={[styles.textCard, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.textCard,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <TextInput
           value={f.description}
           onChangeText={(description) => edit.set({ description })}
@@ -166,27 +155,82 @@ export function ProductFields({
       </View>
       <Heading text={t({ th: "ขายออนไลน์", en: "Sold online" })} />
       <Group>
-        <SwitchRow
-          label="AirPlus"
-          value={f.onAirplus}
-          onChange={edit.rights.channels ? (onAirplus) => edit.set({ onAirplus }) : undefined}
-        />
-        <SwitchRow
-          label="Shopee"
-          value={f.onShopee}
-          onChange={edit.rights.channels ? (onShopee) => edit.set({ onShopee }) : undefined}
-          last
-        />
+        <OnlineSwitches edit={edit} />
       </Group>
+      <FieldSheets edit={edit} scanning={scanning} onScanned={() => setScanning(false)} />
+    </>
+  );
+}
+
+/** ขายได้ and งานนอก, each with − n +. */
+export function StockSteppers({ edit }: { edit: ProductFormState }) {
+  const { t } = useLang();
+  const f = edit.form!;
+  return (
+    <>
+      <Line
+        label={t({ th: "ขายได้", en: "For sale" })}
+        right={
+          <Stepper
+            value={f.sellable}
+            label={t({ th: "ขายได้", en: "For sale" })}
+            onChange={(n) => edit.set({ sellable: n })}
+          />
+        }
+      />
+      <Line
+        label={t({ th: "งานนอก", en: "Out on jobs" })}
+        last
+        right={
+          <Stepper
+            value={f.held}
+            label={t({ th: "งานนอก", en: "Out on jobs" })}
+            onChange={(n) => edit.set({ held: n })}
+          />
+        }
+      />
+    </>
+  );
+}
+
+/** AirPlus and Shopee: the owner's switches; others see them as they are. */
+export function OnlineSwitches({ edit }: { edit: ProductFormState }) {
+  const f = edit.form!;
+  return (
+    <>
+      <SwitchRow
+        label="AirPlus"
+        value={f.onAirplus}
+        onChange={edit.rights.channels ? (onAirplus) => edit.set({ onAirplus }) : undefined}
+      />
+      <SwitchRow
+        label="Shopee"
+        value={f.onShopee}
+        onChange={edit.rights.channels ? (onShopee) => edit.set({ onShopee }) : undefined}
+        last
+      />
+    </>
+  );
+}
+
+/** The form's sheets: เพิ่มรถ, the three pick lists, and the code scanner. */
+export function FieldSheets(props: {
+  edit: ProductFormState;
+  scanning: boolean;
+  onScanned: () => void;
+}) {
+  const { edit } = props;
+  return (
+    <>
       {edit.sheet === "car" && <CarAddSheet edit={edit} />}
       {(edit.sheet === "brand" || edit.sheet === "usage" || edit.sheet === "type") && (
         <PartSheet edit={edit} kind={edit.sheet} />
       )}
-      {scanning && (
+      {props.scanning && (
         <ScanCodeSheet
-          onClose={() => setScanning(false)}
+          onClose={props.onScanned}
           onCode={(code) => {
-            setScanning(false);
+            props.onScanned();
             edit.set({ code });
           }}
         />
@@ -233,7 +277,7 @@ function NameRow(props: {
 }
 
 /** The code is another product's: say whose, under the field, and let it be opened. */
-function CodeTaken({ edit }: { edit: ProductFormState }) {
+export function CodeTaken({ edit }: { edit: ProductFormState }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const owner = edit.codeOwner!;
@@ -258,7 +302,7 @@ function CodeTaken({ edit }: { edit: ProductFormState }) {
   );
 }
 
-const PRICES = [
+export const PRICES = [
   { key: "den", label: { th: "เด่นแอร์", en: "Den Air" } },
   { key: "mechanic", label: { th: "ช่าง", en: "Mechanic" } },
   { key: "airplus", label: { th: "AirPlus", en: "AirPlus" } },
@@ -324,41 +368,48 @@ function Prices({ edit, blank }: { edit: ProductFormState; blank: string }) {
 
 function Cars({ edit }: { edit: ProductFormState }) {
   const { t } = useLang();
-  const { theme } = useTheme();
-  const f = edit.form!;
   return (
     <>
       <Heading text={t({ th: "ใช้ได้กับรถ", en: "Fits these cars" })} />
       <Group>
-        {f.fitments.map((car, i) => (
-          <Line
-            key={`${car.carBrand}|${car.carModel}|${car.yearFrom}|${car.yearTo}`}
-            label={[car.carBrand, car.carModel].filter(Boolean).join(" ")}
-            right={
-              <View style={styles.carRight}>
-                <Text style={[TYPE.body, { color: theme.textMuted }]}>
-                  {yearRange(car.yearFrom, car.yearTo)}
-                </Text>
-                <Pressable
-                  onPress={() => edit.set({ fitments: f.fitments.filter((_, j) => j !== i) })}
-                  accessibilityRole="button"
-                  accessibilityLabel={t({
-                    th: `เอา ${car.carModel ?? ""} ออก`,
-                    en: `Remove ${car.carModel ?? ""}`,
-                  })}
-                  hitSlop={10}
-                >
-                  <LineIcon d={ICON.close} color={theme.textMuted} size={14} strokeWidth={2.2} />
-                </Pressable>
-              </View>
-            }
-          />
-        ))}
-        <AddRow
-          label={t({ th: "เพิ่มรถ", en: "Add a car" })}
-          onPress={() => edit.setSheet("car")}
-        />
+        <CarRows edit={edit} />
       </Group>
+    </>
+  );
+}
+
+/** The cars it fits, each with its years and ✕, then ＋ เพิ่มรถ. */
+export function CarRows({ edit }: { edit: ProductFormState }) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const f = edit.form!;
+  return (
+    <>
+      {f.fitments.map((car, i) => (
+        <Line
+          key={`${car.carBrand}|${car.carModel}|${car.yearFrom}|${car.yearTo}`}
+          label={[car.carBrand, car.carModel].filter(Boolean).join(" ")}
+          right={
+            <View style={styles.carRight}>
+              <Text style={[TYPE.body, { color: theme.textMuted }]}>
+                {yearRange(car.yearFrom, car.yearTo)}
+              </Text>
+              <Pressable
+                onPress={() => edit.set({ fitments: f.fitments.filter((_, j) => j !== i) })}
+                accessibilityRole="button"
+                accessibilityLabel={t({
+                  th: `เอา ${car.carModel ?? ""} ออก`,
+                  en: `Remove ${car.carModel ?? ""}`,
+                })}
+                hitSlop={10}
+              >
+                <LineIcon d={ICON.close} color={theme.textMuted} size={14} strokeWidth={2.2} />
+              </Pressable>
+            </View>
+          }
+        />
+      ))}
+      <AddRow label={t({ th: "เพิ่มรถ", en: "Add a car" })} onPress={() => edit.setSheet("car")} />
     </>
   );
 }

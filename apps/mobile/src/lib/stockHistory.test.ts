@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   changeText,
+  leftText,
   movementSections,
   movementSubtitle,
   noMatchDetail,
@@ -83,6 +84,13 @@ describe("shownMovements", () => {
 describe("changeText", () => {
   it("given a change > then the badge's sign and number", () => {
     expect([changeText(-1), changeText(6), changeText(0)]).toEqual(["−1", "+6", "0"]);
+  });
+});
+
+describe("leftText", () => {
+  it("given what is left after a change > then เหลือ and the number", () => {
+    expect(leftText(12)).toEqual({ th: "เหลือ 12", en: "12 left" });
+    expect(leftText(0)).toEqual({ th: "เหลือ 0", en: "0 left" });
   });
 });
 

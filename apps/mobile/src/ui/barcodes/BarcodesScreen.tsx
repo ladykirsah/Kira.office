@@ -5,18 +5,22 @@ import { cardLine, type SheetItem } from "@/lib/labelList";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
 import { Empty } from "../customers/parts";
+import { DeskCard } from "../desk/DeskCard";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { SmallButton } from "../orders/parts";
-import { Heading, Line, Stepper } from "../products/parts";
+import { Heading, Stepper } from "../products/parts";
 import { ScanCodeSheet } from "../products/ScanCodeSheet";
 import { useScreenChrome } from "../ScreenChrome";
-import { Segmented } from "../Segmented";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { AddLabelSheet } from "./AddLabelSheet";
+import { BarcodesDesk } from "./BarcodesDesk";
+import { PaperChoices } from "./PaperChoices";
 import { LabelArt } from "./LabelArt";
 import { DOWNLOAD_ICON, LabelSheet, PreviewSheet, Printer } from "./LabelSheets";
 import { saveOneLabel, savePages } from "./saveSheet";
 import { useBarcodes, type Barcodes } from "./useBarcodes";
+import { CodeCopy } from "../CodeCopy";
 
 /** A card's label picture: one scale for all, so L shows wider than S as on paper (style B). */
 const CARD_PX_PER_MM = 2.6;
@@ -33,6 +37,7 @@ export function BarcodesScreen() {
   const { t } = useLang();
   const { theme } = useTheme();
   const list = useBarcodes();
+  const wide = useWide();
   const has = list.items.length > 0;
 
   useScreenChrome(
@@ -58,7 +63,11 @@ export function BarcodesScreen() {
           },
         ]
       : [],
-    { toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null },
+    {
+      toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null,
+      // A computer puts บนแผ่น and the paper side by side, full width (DeskBarcodes board).
+      layout: "full",
+    },
   );
 
   const printed = async (nodes: ComponentRef<typeof View>[]) => {
@@ -116,22 +125,20 @@ export function BarcodesScreen() {
           />
         </View>
       ) : has ? (
-        <SheetBody list={list} />
+        wide ? (
+          <BarcodesDesk list={list} />
+        ) : (
+          <SheetBody list={list} />
+        )
+      ) : wide ? (
+        // A computer: the empty page in a card, the red button its own size (DeskBarcodes board 4).
+        <DeskCard>
+          <View style={styles.deskEmpty}>
+            <NoLabels list={list} wide />
+          </View>
+        </DeskCard>
       ) : (
-        <Empty
-          icon={TAG_ICON}
-          title={t({ th: "ยังไม่มีป้ายบนแผ่น", en: "No labels on the sheet yet" })}
-          detail=""
-          action={
-            <View style={styles.scanButton}>
-              <BigButton
-                icon={ICON.scan}
-                label={t({ th: "สแกนบาร์โค้ดบนกล่อง", en: "Scan the barcode on the box" })}
-                onPress={() => list.setSheet({ kind: "scan" })}
-              />
-            </View>
-          }
-        />
+        <NoLabels list={list} />
       )}
       <Sheets list={list} />
       {list.printing && <Printer list={list} onReady={(nodes) => void printed(nodes)} />}
@@ -143,58 +150,20 @@ export function BarcodesScreen() {
 function SheetBody({ list }: { list: Barcodes }) {
   const { t } = useLang();
   const { theme } = useTheme();
-  const choice = <T extends string>(
-    label: string,
-    width: number,
-    options: { value: T; label: string }[],
-    value: T,
-    onChange: (v: T) => void,
-    last?: boolean,
-  ) => (
-    <Line
-      label={label}
-      last={last}
-      right={
-        <View style={{ width }}>
-          <Segmented label={label} options={options} value={value} onChange={onChange} />
-        </View>
-      }
-    />
-  );
   return (
     <>
-      <View style={[styles.card, styles.paperCard, { backgroundColor: theme.surface }]}>
-        {choice(
-          t({ th: "ขนาดกระดาษ", en: "Paper size" }),
-          120,
-          [
-            { value: "A4", label: "A4" },
-            { value: "A5", label: "A5" },
-          ],
-          list.paper,
-          list.setPaper,
-        )}
-        {choice(
-          t({ th: "แนวกระดาษ", en: "Paper direction" }),
-          170,
-          [
-            { value: "portrait", label: t({ th: "แนวตั้ง", en: "Upright" }) },
-            { value: "landscape", label: t({ th: "แนวนอน", en: "Sideways" }) },
-          ],
-          list.way,
-          list.setWay,
-        )}
-        {choice(
-          t({ th: "ไฟล์", en: "File" }),
-          120,
-          [
-            { value: "pdf", label: "PDF" },
-            { value: "png", label: "PNG" },
-          ],
-          list.file,
-          list.setFile,
-          true,
-        )}
+      <View
+        style={[
+          styles.card,
+          styles.paperCard,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <PaperChoices list={list} />
       </View>
       <Heading text={t({ th: "บนแผ่น", en: "On the sheet" })} />
       <View style={styles.cards}>
@@ -218,7 +187,13 @@ function LabelCard({ list, item }: { list: Barcodes; item: SheetItem }) {
   // The label and the words open the label's sheet; the − n + beside them is its own control
   // (a button may not hold other buttons).
   return (
-    <View style={[styles.card, styles.labelCard, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        styles.labelCard,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Pressable
         onPress={open}
         accessibilityRole="button"
@@ -230,16 +205,18 @@ function LabelCard({ list, item }: { list: Barcodes; item: SheetItem }) {
       <View style={styles.cardText}>
         <Pressable
           onPress={open}
-          accessibilityRole="button"
+          accessibilityRole="link"
           accessibilityLabel={said}
           style={styles.words}
         >
           <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
-          <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-            {t(cardLine(row.productRef, item.size))}
-          </Text>
+          <CodeCopy
+            code={row.productRef}
+            after={t(cardLine(row.productRef, item.size)).slice(row.productRef.trim().length)}
+            style={[TYPE.subhead, { color: theme.textMuted }]}
+          />
         </Pressable>
         <View style={styles.stepper}>
           <Stepper
@@ -250,6 +227,27 @@ function LabelCard({ list, item }: { list: Barcodes; item: SheetItem }) {
         </View>
       </View>
     </View>
+  );
+}
+
+/** ยังไม่มีป้ายบนแผ่น, with the red สแกนบาร์โค้ดบนกล่อง. */
+function NoLabels({ list, wide }: { list: Barcodes; wide?: boolean }) {
+  const { t } = useLang();
+  return (
+    <Empty
+      icon={TAG_ICON}
+      title={t({ th: "ยังไม่มีป้ายบนแผ่น", en: "No labels on the sheet yet" })}
+      detail=""
+      action={
+        <View style={wide ? styles.deskScanButton : styles.scanButton}>
+          <BigButton
+            icon={ICON.scan}
+            label={t({ th: "สแกนบาร์โค้ดบนกล่อง", en: "Scan the barcode on the box" })}
+            onPress={() => list.setSheet({ kind: "scan" })}
+          />
+        </View>
+      }
+    />
   );
 }
 
@@ -274,6 +272,8 @@ const styles = StyleSheet.create({
   retry: { flexDirection: "row", alignItems: "center", gap: SPACE.s, marginTop: SPACE.m },
   grow: { flex: 1 },
   scanButton: { alignSelf: "stretch", marginTop: SPACE.l },
+  deskScanButton: { alignSelf: "center", minWidth: 260, marginTop: SPACE.l },
+  deskEmpty: { minHeight: 320, justifyContent: "center", paddingBottom: 48 },
   card: { borderRadius: RADIUS.card, overflow: "hidden" },
   paperCard: { marginTop: SPACE.l },
   cards: { gap: SPACE.m },

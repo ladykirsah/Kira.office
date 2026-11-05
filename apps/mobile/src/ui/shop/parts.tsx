@@ -1,5 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { useRef, useState, type ComponentRef } from "react";
+import { Fragment, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import {
   Image,
   Modal,
@@ -14,9 +14,13 @@ import { API_BASE } from "@/lib/config";
 import { copyText } from "@/lib/copyText";
 import { copiedToast, type ShopLang, type ShopProfile } from "@/lib/shopInfoPage";
 import { useLang, useTheme } from "../AppProviders";
+import { DeskCard } from "../desk/DeskCard";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
-import { Divider, Line } from "../products/parts";
+import { Group } from "../orders/parts";
+import { Sheet } from "../orders/Sheet";
+import { Divider, Heading, Line } from "../products/parts";
 import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
 
@@ -153,15 +157,90 @@ export function ColumnInput(props: {
   );
 }
 
-/** The contact QR's small picture on the right of its row. */
+/**
+ * A titled group of rows. On a phone: the 22-bold heading over a white group, as before. On a
+ * computer: one card with its title inside (guide C · Mercury), so cards can sit side by side.
+ * `top` goes between the title and the rows (พนักงาน's ตำแหน่ง switch).
+ */
+export function Block(props: { title: string; top?: ReactNode; children: ReactNode }) {
+  const wide = useWide();
+  if (wide) {
+    return (
+      <DeskCard title={props.title} pad={4}>
+        {props.top ? <View style={styles.blockTop}>{props.top}</View> : null}
+        {props.children}
+      </DeskCard>
+    );
+  }
+  const group = <Group>{props.children}</Group>;
+  return (
+    <>
+      <Heading text={props.title} />
+      {props.top}
+      {props.top ? <View style={styles.afterTop}>{group}</View> : group}
+    </>
+  );
+}
+
+/** Cards side by side on a computer (each column a stack); on a phone, one after another. */
+export function DeskColumns(props: { columns: ReactNode[]; flex?: number[] }) {
+  const wide = useWide();
+  if (!wide) {
+    return (
+      <>
+        {props.columns.map((c, i) => (
+          <Fragment key={i}>{c}</Fragment>
+        ))}
+      </>
+    );
+  }
+  return (
+    <View style={styles.deskColumns}>
+      {props.columns.map((c, i) => (
+        <View key={i} style={[styles.deskColumn, { flex: props.flex?.[i] ?? 1 }]}>
+          {c}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The contact QR's small picture on the right of its row. Small is fine; a tap shows it big, so it can
+ * be checked or scanned from the screen (owner, 5 Nov 2026).
+ */
 export function QrThumb({ qrKey }: { qrKey: string | null }) {
   const { theme } = useTheme();
+  const { t } = useLang();
+  const [big, setBig] = useState(false);
   if (!qrKey) return <Text style={[TYPE.body, { color: theme.text }]}>—</Text>;
+  const uri = `${API_BASE}/img/${qrKey}`;
   return (
-    <Image
-      source={{ uri: `${API_BASE}/img/${qrKey}` }}
-      style={[styles.qr, { borderColor: theme.border }]}
-    />
+    <>
+      <Pressable
+        onPress={() => setBig(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t({ th: "ดู QR ติดต่อใหญ่", en: "Show the contact QR big" })}
+        hitSlop={6}
+      >
+        <Image source={{ uri }} style={[styles.qr, { borderColor: theme.border }]} />
+      </Pressable>
+      {big && (
+        <Sheet
+          title={t({ th: "QR ติดต่อ", en: "Contact QR" })}
+          closeLabel={t({ th: "ปิด", en: "Close" })}
+          onClose={() => setBig(false)}
+        >
+          <View style={styles.qrBigBox}>
+            <Image
+              source={{ uri }}
+              style={[styles.qrBig, { borderColor: theme.border }]}
+              accessibilityLabel={t({ th: "QR ติดต่อ", en: "Contact QR" })}
+            />
+          </View>
+        </Sheet>
+      )}
+    </>
   );
 }
 
@@ -272,6 +351,17 @@ const styles = StyleSheet.create({
   column: { paddingVertical: SPACE.m, paddingHorizontal: SPACE.l, gap: 2 },
   columnInput: { padding: 0, minHeight: 22 },
   qr: { width: 44, height: 44, borderRadius: 6, borderWidth: 1 },
+  qrBigBox: { alignItems: "center", paddingVertical: SPACE.s },
+  qrBig: { width: 320, height: 320, borderRadius: 12, borderWidth: 1 },
+  blockTop: { paddingHorizontal: SPACE.l, paddingBottom: SPACE.s },
+  afterTop: { marginTop: SPACE.s },
+  deskColumns: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACE.xl,
+    marginTop: SPACE.xl,
+  },
+  deskColumn: { minWidth: 0, gap: SPACE.xl },
   dim: { backgroundColor: "rgba(0,0,0,0.08)" },
   menu: {
     position: "absolute",

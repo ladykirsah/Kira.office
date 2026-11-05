@@ -9,6 +9,7 @@ import {
 } from "@/lib/stockHistory";
 import { useLang, useTheme } from "../AppProviders";
 import { Empty } from "../customers/parts";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { MenuButton } from "../orders/MenuButton";
 import { SmallButton } from "../orders/parts";
@@ -19,6 +20,7 @@ import { useScreenChrome } from "../ScreenChrome";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { KindChips } from "./KindChips";
 import { MovementRow } from "./MovementRow";
+import { MovementsTable } from "./MovementsTable";
 import { MovementSheet } from "./MovementSheet";
 import { useStockHistory, type StockHistory } from "./useStockHistory";
 
@@ -26,12 +28,26 @@ import { useStockHistory, type StockHistory } from "./useStockHistory";
  * ประวัติซื้อขาย (owner approved the drawing, canvas v228, 1 Nov 2026): every stock change by day,
  * newest first; search with scan beside it, the type buttons, and Orders' date button. A tap opens
  * what sold, for how much, and what is left. No แก้สต็อก here (owner: "no need many function here").
+ * A computer puts search, scan and the date button in one row and each day in a table (DeskStock).
  */
 export function StockScreen() {
   const { t } = useLang();
   const { theme } = useTheme();
   const h = useStockHistory();
-  useScreenChrome(null, []);
+  const wide = useWide();
+  // A computer shows each day as a full-width table (DeskStock board).
+  useScreenChrome(null, [], { layout: "full" });
+  const searchHint = t({ th: "รหัสหรือชื่อสินค้า", en: "Code or product name" });
+  const dates = (
+    <MenuButton
+      name={t({ th: "ช่วงวันที่", en: "Dates" })}
+      label={t(periodLabel(h.date, h.custom))}
+      on={h.date !== "all"}
+      options={DATE_PRESETS}
+      value={h.date}
+      onPick={(date) => (date === "custom" ? h.setSheet("range") : h.pickDate(date))}
+    />
+  );
 
   return (
     <View>
@@ -41,30 +57,23 @@ export function StockScreen() {
         </Text>
       )}
       <View style={styles.searchRow}>
-        <SearchBox
-          grow
-          value={h.q}
-          onChange={h.setQ}
-          placeholder={t({ th: "รหัสหรือชื่อสินค้า", en: "Code or product name" })}
-        />
+        {wide ? (
+          <View style={styles.wideSearch}>
+            <SearchBox value={h.q} onChange={h.setQ} placeholder={searchHint} />
+          </View>
+        ) : (
+          <SearchBox grow value={h.q} onChange={h.setQ} placeholder={searchHint} />
+        )}
         <RoundTool
           icon={ICON.scan}
           label={t({ th: "สแกนหาสินค้า", en: "Scan a product" })}
           onPress={() => h.setSheet("scan")}
         />
+        {wide && dates}
       </View>
       <KindChips value={h.kind} onPick={h.setKind} />
-      <View style={styles.menus}>
-        <MenuButton
-          name={t({ th: "ช่วงวันที่", en: "Dates" })}
-          label={t(periodLabel(h.date, h.custom))}
-          on={h.date !== "all"}
-          options={DATE_PRESETS}
-          value={h.date}
-          onPick={(date) => (date === "custom" ? h.setSheet("range") : h.pickDate(date))}
-        />
-      </View>
-      <List h={h} />
+      {!wide && <View style={styles.menus}>{dates}</View>}
+      <List h={h} wide={wide} />
       {h.sheet === "scan" && <ScanCodeSheet onClose={() => h.setSheet(null)} onCode={h.scanned} />}
       {h.sheet === "range" && (
         <RangeSheet
@@ -82,7 +91,7 @@ export function StockScreen() {
   );
 }
 
-function List({ h }: { h: StockHistory }) {
+function List({ h, wide }: { h: StockHistory; wide: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
   if (h.failed) {
@@ -136,6 +145,20 @@ function List({ h }: { h: StockHistory }) {
       />
     );
   }
+  if (wide) {
+    return (
+      <View>
+        {movementSections(h.shown, Date.now()).map((section) => (
+          <View key={section.title.en}>
+            <Text style={[styles.deskHeading, { color: theme.text }]} accessibilityRole="header">
+              {t(section.title)}
+            </Text>
+            <MovementsTable rows={section.rows} onOpen={h.setOpen} />
+          </View>
+        ))}
+      </View>
+    );
+  }
   return (
     <View>
       {movementSections(h.shown, Date.now()).map((section) => (
@@ -143,7 +166,16 @@ function List({ h }: { h: StockHistory }) {
           <Text style={[styles.heading, { color: theme.text }]} accessibilityRole="header">
             {t(section.title)}
           </Text>
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             {section.rows.map((m, i) => (
               <MovementRow
                 key={m.id}
@@ -177,6 +209,13 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   loading: { marginTop: SPACE.xxxl },
   heading: { ...TYPE.title2, marginTop: SPACE.xxl, marginBottom: SPACE.m, marginHorizontal: 2 },
+  deskHeading: {
+    ...TYPE.headline,
+    marginTop: SPACE.xl,
+    marginBottom: SPACE.s + 2,
+    marginHorizontal: 2,
+  },
+  wideSearch: { width: 320 },
   card: { borderRadius: RADIUS.card, overflow: "hidden" },
   link: { marginTop: SPACE.xs },
 });

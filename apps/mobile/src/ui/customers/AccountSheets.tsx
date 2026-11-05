@@ -94,7 +94,16 @@ export function EraseSheet({ page }: { page: AccountPage }) {
           {t({ th: "ทำแล้วย้อนกลับไม่ได้", en: "This cannot be undone" })}
         </Text>
       </View>
-      <View style={[styles.field, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.field,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <TextInput
           value={typed}
           onChangeText={setTyped}

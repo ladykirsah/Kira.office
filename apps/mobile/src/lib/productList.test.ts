@@ -5,9 +5,12 @@ import {
   carOptions,
   countBy,
   listSubtitle,
+  channelWords,
   matchesSearch,
+  sortLabel,
   stockLevel,
   stockLine,
+  stockWords,
   tabCounts,
   visibleRows,
   yearRange,
@@ -219,6 +222,46 @@ describe("stockLine", () => {
   });
   it("given none and not live > then หมด and no channel", () => {
     expect(stockLine(ROWS[2]!)).toEqual({ level: "out", text: { th: "หมด", en: "Sold out" } });
+  });
+});
+
+describe("stockWords (the computer's สต็อก column)", () => {
+  it("given plenty > then the count alone, no channels", () => {
+    expect(stockWords(ROWS[0]!)).toEqual({ level: "ok", text: { th: "เหลือ 4", en: "4 left" } });
+  });
+  it("given 1 left > then เหลือน้อย", () => {
+    expect(stockWords(ROWS[1]!)).toEqual({
+      level: "low",
+      text: { th: "เหลือน้อย 1", en: "Low 1" },
+    });
+  });
+  it("given none > then หมด", () => {
+    expect(stockWords(ROWS[2]!)).toEqual({ level: "out", text: { th: "หมด", en: "Sold out" } });
+  });
+});
+
+describe("channelWords (the computer's ขายบน column)", () => {
+  it("given live on AirPlus and listed on Shopee > then both", () => {
+    expect(channelWords(ROWS[0]!)).toBe("AirPlus · Shopee");
+  });
+  it("given live on AirPlus only > then AirPlus", () => {
+    expect(channelWords(ROWS[1]!)).toBe("AirPlus");
+  });
+  it("given not live and not on Shopee > then nothing", () => {
+    expect(channelWords(ROWS[2]!)).toBe("");
+  });
+  it("given not live but on Shopee > then Shopee", () => {
+    expect(channelWords(row({ id: "s", status: "draft", shopeeListed: 1 }))).toBe("Shopee");
+  });
+});
+
+describe("sortLabel (the computer's sort pill)", () => {
+  it("given a sort > then เรียงตาม: and its name", () => {
+    expect(sortLabel("updated")).toEqual({ th: "เรียงตาม: แก้ไขล่าสุด", en: "Sort: Last edited" });
+    expect(sortLabel("low")).toEqual({
+      th: "เรียงตาม: เหลือน้อยก่อน",
+      en: "Sort: Lowest stock first",
+    });
   });
 });
 

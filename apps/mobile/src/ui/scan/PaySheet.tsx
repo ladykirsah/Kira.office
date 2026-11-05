@@ -4,12 +4,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { billLineName } from "@/lib/billName";
 import { API_BASE } from "@/lib/config";
 import { formatBaht } from "@/lib/money";
+import { SIDE_PANEL_WIDTH } from "@/lib/frame";
 import { payQr } from "@/lib/qr";
 import type { PayAccount } from "@/lib/scanApi";
 import { saleTotal, unitPrice, type Buyer } from "@/lib/scanSale";
 import type { ScanCard } from "@/lib/scanTabs";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { Segmented } from "../Segmented";
 import { RADIUS, SPACE, TYPE } from "../theme";
@@ -17,6 +19,7 @@ import { BillCard } from "./BillCard";
 import { QrView } from "./QrView";
 import { NoticeCard } from "./ScanCards";
 import type { PaySheet as Sheet, PayWay } from "./useScanSession";
+import { CodeCopy } from "../CodeCopy";
 
 const CHECK = "M5 12.5l4.5 4.5L19 7.5";
 const BUTTON_BOTTOM = 34;
@@ -51,6 +54,8 @@ export function PaySheet(props: PaySheetProps) {
   const { theme } = useTheme();
   const { t } = useLang();
   const insets = useSafeAreaInsets();
+  // A computer opens it as a panel on the right, like every other sheet (DeskScan board).
+  const wide = useWide();
   const { sheet } = props;
   const cards = sheet.cards;
   const title =
@@ -69,9 +74,13 @@ export function PaySheet(props: PaySheetProps) {
       <View style={[styles.fill, { backgroundColor: theme.scrim }]}>
         <View
           accessibilityViewIsModal
-          style={[styles.sheet, { top: insets.top + 96, backgroundColor: theme.bg }]}
+          style={[
+            styles.sheet,
+            wide ? styles.side : [styles.bottom, { top: insets.top + 96 }],
+            { backgroundColor: theme.bg },
+          ]}
         >
-          <View style={[styles.handle, { backgroundColor: theme.textFaint }]} />
+          {!wide && <View style={[styles.handle, { backgroundColor: theme.textFaint }]} />}
           <View style={styles.titleRow}>
             <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
               {title}
@@ -79,7 +88,14 @@ export function PaySheet(props: PaySheetProps) {
             <Pressable
               onPress={props.onClose}
               accessibilityRole="button"
-              style={[styles.close, { backgroundColor: theme.surface }]}
+              style={[
+                styles.close,
+                {
+                  backgroundColor: theme.surface,
+                  borderWidth: theme.cardLine,
+                  borderColor: theme.border,
+                },
+              ]}
             >
               <Text style={[styles.closeText, { color: theme.text }]}>
                 {t({ th: "ปิด", en: "Close" })}
@@ -124,7 +140,16 @@ function ListStage(props: PaySheetProps) {
         onChange={props.onBuyer}
       />
       <Text style={[styles.foot, { color: theme.textMuted }]}>{t(BUYER_FOOT[buyer])}</Text>
-      <View style={[styles.group, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.group,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         {cards.map((c, i) => {
           const each = unitPrice(c.part, buyer);
           return (
@@ -153,9 +178,10 @@ function ListStage(props: PaySheetProps) {
                     {billLineName(c.part, buyer)}
                   </Text>
                   {c.part.productRef ? (
-                    <Text style={[styles.sub, { color: theme.textMuted }]}>
-                      {c.part.productRef}
-                    </Text>
+                    <CodeCopy
+                      code={c.part.productRef}
+                      style={[styles.sub, { color: theme.textMuted }]}
+                    />
                   ) : null}
                   <Text style={[styles.sub, { color: theme.textMuted }]}>
                     {formatBaht(each)} × {c.value}
@@ -185,7 +211,15 @@ function ListStage(props: PaySheetProps) {
           <View
             accessibilityRole="radiogroup"
             accessibilityLabel={t({ th: "ชำระด้วย", en: "Paying by" })}
-            style={[styles.group, styles.groupAfterCap, { backgroundColor: theme.surface }]}
+            style={[
+              styles.group,
+              styles.groupAfterCap,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
           >
             {WAYS.map((w, i) => {
               const on = sheet.pay === w.value;
@@ -230,7 +264,12 @@ function QrStage({ cards, account }: { cards: readonly ScanCard[]; account: PayA
   const total = saleTotal(cards, "mechanic");
   const grid = account ? payQr(account.promptpayId, total) : null;
   return (
-    <View style={[styles.qrPanel, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.qrPanel,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.sub, { color: theme.textMuted }]}>
         {t({ th: "พร้อมเพย์", en: "PromptPay" })} · {account?.label ?? "—"}
       </Text>
@@ -284,7 +323,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   sheet: {
     position: "absolute",
-    left: 0,
     right: 0,
     bottom: 0,
     borderTopLeftRadius: RADIUS.sheet,
@@ -292,6 +330,16 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: SPACE.l,
   },
+  /** The computer's right-hand panel: full height, square on the right edge. */
+  side: {
+    top: 0,
+    width: SIDE_PANEL_WIDTH,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: RADIUS.sheet,
+    boxShadow: "-12px 0 40px rgba(0,0,0,0.14)",
+  },
+  /** A phone's sheet spans the screen. */
+  bottom: { left: 0 },
   handle: { alignSelf: "center", width: 36, height: 5, borderRadius: 3 },
   titleRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
   title: { ...TYPE.title2, flex: 1 },

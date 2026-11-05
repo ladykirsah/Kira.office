@@ -9,7 +9,13 @@ import { ICON } from "./icons";
 export function Group({ children, spaced }: { children: ReactNode; spaced?: boolean }) {
   const { theme } = useTheme();
   return (
-    <View style={[styles.group, spaced && styles.spaced, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.group,
+        spaced && styles.spaced,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       {children}
     </View>
   );
@@ -125,7 +131,16 @@ export function SmallButton(props: { label: string; onPress: () => void }) {
 /** The white box at the top of the page that holds the one job waiting on the shop. */
 export function JobBox({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
-  return <View style={[styles.job, { backgroundColor: theme.surface }]}>{children}</View>;
+  return (
+    <View
+      style={[
+        styles.job,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 /** The job box's heading: a coloured round icon and a name, optionally with tools on the right. */

@@ -14,6 +14,7 @@ import {
 } from "@/lib/staffPage";
 import type { DayOff } from "@/lib/teamApi";
 import { useLang } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { useScreenChrome, type Anchor } from "../ScreenChrome";
 import { Segmented } from "../Segmented";
@@ -60,15 +61,21 @@ export function StaffScreen() {
   const [month, setMonth] = useState(thisMonth(Date.now()));
   const [person, setPerson] = useState<string | null>(null);
   const [stamp, setStamp] = useState(0);
+  const wide = useWide();
 
   useScreenChrome(
     {
       label: t({ th: "เพิ่ม", en: "Add" }),
       icon: ICON.plus,
+      main: true,
       onPress: (at) => setMenuAt(at ?? { x: width - 112, y: 48, width: 44, height: 44 }),
     },
     [],
-    { toast: toast ? { title: t(toast.title), detail: t(toast.detail) } : null },
+    {
+      toast: toast ? { title: t(toast.title), detail: t(toast.detail) } : null,
+      // A computer shows the tabs' lists as full-width tables (DeskStaff 1, 4, 5).
+      layout: "full",
+    },
   );
 
   // Back from เพิ่มคน: the list says who was added, once (canvas 1.5).
@@ -102,7 +109,7 @@ export function StaffScreen() {
 
   return (
     <View>
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, wide && styles.tabsWide]}>
         <Segmented
           label={t({ th: "พนักงาน", en: "Staff" })}
           options={TABS.map((x) => ({ value: x.value, label: t(x.label) }))}
@@ -267,4 +274,5 @@ function AdvancePick(props: {
 
 const styles = StyleSheet.create({
   tabs: { marginTop: SPACE.xs },
+  tabsWide: { marginTop: 0, maxWidth: 440 },
 });

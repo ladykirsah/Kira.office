@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { bandOverhang, bottomBar, phoneBottoms } from "./frame";
+import {
+  bandOverhang,
+  bottomBar,
+  pageWidth,
+  phoneBottoms,
+  sheetPlacement,
+  SIDE_PANEL_WIDTH,
+} from "./frame";
 
 describe("bottomBar", () => {
   it("given a main page > then the tab bar shows", () => {
@@ -44,5 +51,30 @@ describe("bandOverhang", () => {
 
   it("given no pinned buttons > then no band, no extra room", () => {
     expect(bandOverhang(false)).toBe(0);
+  });
+});
+
+describe("sheetPlacement", () => {
+  it("given a phone-size window > then a sheet rises from the bottom", () => {
+    expect(sheetPlacement(390, 741)).toBe("bottom");
+  });
+
+  it("given exactly the phone limit > then it is still the phone's sheet", () => {
+    expect(sheetPlacement(741, 741)).toBe("bottom");
+  });
+
+  it("given a computer window > then the sheet opens as a panel on the right (computer guide, 4 Nov)", () => {
+    expect(sheetPlacement(1440, 741)).toBe("side");
+    expect(SIDE_PANEL_WIDTH).toBe(440);
+  });
+});
+
+describe("pageWidth", () => {
+  it("given a page laid out as one column (settings, forms) > then it is 880 wide, centred (guide)", () => {
+    expect(pageWidth("column")).toBe(880);
+  });
+
+  it("given a list page with a table > then it uses the full width, up to 1280", () => {
+    expect(pageWidth("full")).toBe(1280);
   });
 });

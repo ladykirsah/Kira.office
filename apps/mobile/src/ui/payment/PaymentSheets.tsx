@@ -7,6 +7,7 @@ import type { ReceiveAccount } from "@/lib/posApi";
 import { payQr } from "@/lib/qr";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Group, Row } from "../orders/parts";
@@ -15,10 +16,12 @@ import { ChoiceRow, FieldError, Note } from "../pos/fields";
 import { CameraBox } from "../scan/CameraBox";
 import { QrView } from "../scan/QrView";
 import { SPACE, TYPE } from "../theme";
+import { ClearDialog } from "./ClearDialog";
 import type { PaymentPage } from "./usePaymentPage";
 
 /** The one pop-up that is open, if any. */
 export function PaymentSheets({ page }: { page: PaymentPage }) {
+  const wide = useWide();
   const close = () => page.setSheet(null);
   const s = page.sheet;
   if (s === null) return null;
@@ -26,7 +29,13 @@ export function PaymentSheets({ page }: { page: PaymentPage }) {
   if (s === "account") return <AccountSheet page={page} />;
   if (s === "qr") return <QrSheet page={page} onClose={close} />;
   if (s === "done") return <DoneSheet page={page} onClose={close} />;
-  if (s === "clear") return <ClearSheet page={page} onClose={close} />;
+  // A computer asks in the middle of the screen (DeskPayment board).
+  if (s === "clear")
+    return wide ? (
+      <ClearDialog page={page} onClose={close} />
+    ) : (
+      <ClearSheet page={page} onClose={close} />
+    );
   return <SlipSheet page={page} row={s.slip} onClose={close} />;
 }
 
@@ -47,7 +56,16 @@ function AmountSheet({ page, onClose }: { page: PaymentPage; onClose: () => void
       title={t({ th: "รับเงินผ่านพร้อมเพย์", en: "Take a PromptPay payment" })}
       onClose={onClose}
     >
-      <View style={[styles.amountBox, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.amountBox,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
           {t({ th: "จำนวนเงิน", en: "Amount" })}
         </Text>
@@ -250,6 +268,8 @@ function DoneSheet({ page, onClose }: { page: PaymentPage; onClose: () => void }
 function MoneyTick() {
   const { t } = useLang();
   const { theme } = useTheme();
+  // The computer's panel has room: the same icon O, bigger (owner, 5 Nov 2026).
+  const size = useWide() ? 168 : 120;
   return (
     <View
       style={styles.center}
@@ -257,8 +277,8 @@ function MoneyTick() {
       accessibilityLabel={t({ th: "รับเงินแล้ว", en: "Received" })}
     >
       <Svg
-        width={120}
-        height={120}
+        width={size}
+        height={size}
         viewBox="0 0 24 24"
         fill="none"
         strokeLinecap="round"

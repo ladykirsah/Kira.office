@@ -4,12 +4,15 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { unfiled, type AffiliateItem } from "@/lib/affiliatePage";
 import { useLang, useTheme } from "../AppProviders";
 import { Empty } from "../customers/parts";
+import { DeskCard } from "../desk/DeskCard";
+import { Table, type TableColumn } from "../desk/Table";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { Group, SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
 import { CategorySheet } from "./CategorySheet";
-import { ItemRow, Retry } from "./parts";
+import { ItemCell, ItemRow, ItemState, Retry } from "./parts";
 import { useAffiliateList } from "./useAffiliateList";
 
 /**
@@ -21,6 +24,7 @@ export function UnfiledScreen() {
   const { theme } = useTheme();
   const list = useAffiliateList();
   const [filing, setFiling] = useState<AffiliateItem | null>(null);
+  const wide = useWide();
 
   useScreenChrome(null, [], {
     back: {
@@ -51,6 +55,8 @@ export function UnfiledScreen() {
           title={t({ th: "จัดหมวดครบแล้ว", en: "Everything is filed" })}
           detail={t({ th: "ทุกรายการอยู่ในหมวดแล้ว", en: "Every card has a category" })}
         />
+      ) : wide ? (
+        <WideTable items={loose} onPick={setFiling} />
       ) : (
         <View style={styles.list}>
           <Group>
@@ -88,7 +94,51 @@ export function UnfiledScreen() {
   );
 }
 
+/**
+ * ยังไม่จัดหมวด on a computer (DeskAffiliate board 3): one narrow table, each card with its
+ * เลือกหมวด button where a row's › would be.
+ */
+function WideTable(props: { items: AffiliateItem[]; onPick: (item: AffiliateItem) => void }) {
+  const { t } = useLang();
+  const columns: TableColumn<AffiliateItem>[] = [
+    { key: "card", label: "", cell: (item) => <ItemCell item={item} /> },
+    {
+      key: "state",
+      label: "",
+      width: 130,
+      align: "right",
+      cell: (item) => <ItemState item={item} end />,
+    },
+    {
+      key: "pick",
+      label: "",
+      width: 110,
+      align: "right",
+      cell: (item) => (
+        <SmallButton
+          label={t({ th: "เลือกหมวด", en: "Choose" })}
+          onPress={() => props.onPick(item)}
+        />
+      ),
+    },
+  ];
+  return (
+    <View style={styles.wide}>
+      <DeskCard pad={4}>
+        <Table
+          columns={columns}
+          rows={props.items}
+          rowKey={(item) => item.id}
+          minRowHeight={76}
+          noHead
+        />
+      </DeskCard>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  wide: { marginTop: SPACE.l, maxWidth: 640 },
   count: { marginTop: -SPACE.xs, marginHorizontal: 2 },
   list: { marginTop: SPACE.l },
 });

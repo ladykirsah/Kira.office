@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-11-04
+timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts]
 ---
 
 # Designing for the owner — every rule they have set
@@ -192,6 +192,31 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 ## 4 · Page layout
 
+- **Computer: use the room, don't copy the phone's sizes.** A preview in a computer panel fills it (the
+  label preview: *"there are plenty of spaces > make the the preview bigger"*); one photo on a computer
+  scan card, not two (*"1 pic not 2"*); the same icon the phone picked, bigger and with no grey frame
+  behind it (icon O on รับเงินแล้ว: *"make sure the paid icon the same as on mobile > and bigger with no
+  gray frame"*); a product photo's preview keeps its 1:1 shape (*"product pic is 1:1 make the preview
+  1:1 too"*) (computer drawings, 5 Nov).
+- **One column of rows inside a card.** Two label–value pairs side by side in one row (ทะเบียน | จังหวัด,
+  รวมย่อย | ส่วนลด) read as a mess: *"the bill creating section seem messy"* (computer ทำบิล, 5 Nov).
+- **Computer product page = A2.** One card on top: the 1:1 photo (344) beside what describes the
+  product — the full name, รหัส + copy, แก้ไขล่าสุด, ใช้ได้กับรถ, รายละเอียด. Under it three columns in this
+  order: รายละเอียดอะไหล่ | สต็อก + ขายออนไลน์ | ราคา (+ ลบสินค้า). The owner picked A2 and moved the parts:
+  *"swap the area on 1st pic with the 2nd pic content · … รายละเอียด > สต็อก > ราคา"* (หน้าสินค้า, 5 Nov).
+- **No holes beside a photo; columns end even.** The first layout A had the photo floating in a big box,
+  an empty half under the facts and the prices far down — *"A best but not good enough"*. When the owner
+  says "not good enough" and names no part, say what was weak and draw 3 better versions of the same pick
+  (A1–A3), not new ideas (หน้าสินค้า, 5 Nov).
+- **The form takes its page's layout — and every page that shares the form changes with it.** On the
+  computer แก้ไขสินค้า is A2 with boxes in place of values: ชื่อ + รหัส as label-over-box at the top, every
+  other field one row (name left, box right) in the same cards as the page. เพิ่มสินค้า shares the form, so
+  it changed too — say so and draw both before building (*"show me new edit form"* → *"Yes, build it"*,
+  5 Nov).
+- **Photos on a computer form:** the first photo big at the page's size with รูปหลัก and ✕ inside its
+  corners; the others small under it, then เพิ่มรูป; no photo yet → the big square is เพิ่มรูป (built and
+  approved 5 Nov).
+
 - **Main page vs sub-page.**
   - Main pages (reached from the tab bar or ☰) show the floating tab bar.
   - Any page with a ‹ back link has no tab bar. *"Nav bar only appear on Main page."*
@@ -258,6 +283,14 @@ again before saying a build matches.** The owner's words are quoted where they s
   number, codes: the copy mark alone after the value, no round grey button behind it. Nothing saved →
   "—" and no button. *"please add copy icon button to contact list"*, then *"copy button > plain
   i con"* — on every page, ข้อมูลร้าน and คูปอง too (พนักงาน, 2 Nov).
+  - **Every product code (รหัสสินค้า) has its copy mark, everywhere** — every list row, table, sheet,
+    picker, bill line and card, phone and computer: *"always add copy icon button to ID everywhere"*
+    (computer สแกน, 5 Nov). Use `ui/CodeCopy.tsx` (code + mark, `before`/`after` words on the same
+    line); a table cell uses `NameCell code=`. Not on a printed label's picture or inside a form box.
+    A row that holds the mark is a link, not a button (no button inside a button on the web).
+- **A small picture opens big.** A thumbnail can stay small (the contact QR) when a tap shows it large:
+  *"ok for QR code to be this tiny > make sure it can be clicked for bigger view"* (computer
+  ข้อมูลร้าน, 5 Nov).
 - **An empty optional note shows nothing, not "—".** A day off with no reason showed "—" (the built
   row's default); the drawing has nothing on the right. "—" is for a fact the record should have (a
   bank, a start date), never for a note the person may leave out (โปรไฟล์ของฉัน, 4 Nov).
@@ -311,6 +344,13 @@ again before saying a build matches.** The owner's words are quoted where they s
   the category's: *"can we have 2 places > shown as one paragraph on AirPlus"* (ตั้งค่าอะไหล่, 3 Nov).
 
 ## 5 · Words, numbers, lists, search
+
+- **Money shows no .00.** ฿3,450, never ฿3,450.00 or a small raised .00 — on every page and drawing:
+  *"remove .00"* (computer สแกน, 5 Nov).
+- **A second price says whose it is.** "฿3,450 · ช่าง 3,100", not "฿3,450 (3,100)": *"mark what price
+  is it (3,100) > maybe ช่าง 3,100"* (computer สแกน, 5 Nov).
+- **A count sits on its label's line.** "พร้อมขาย 4" with งานนอก 1 under it — not พร้อมขาย alone and the
+  4 starting the next line: *"shouldn't 4 be in the same line as พร้อมขาย"* (computer สแกน, 5 Nov).
 
 - **Button labels are short verbs**: เพิ่มสินค้า, ออกบิล, บันทึก, จ่ายเงิน. No counts and no
   result text on buttons. *"I WANT IT CLEAN AND CLEAR + EASY TO USE."*

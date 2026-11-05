@@ -167,7 +167,7 @@ const NO_ADVANCE: Phrase = { th: "ยังไม่เบิก", en: "No advan
 /** A salary row: the month's whole pay, then the day it was paid or what is left to do. */
 export function salaryLine(r: PayRow): Phrase {
   const amount = formatBaht(r.amountSatang);
-  const state = r.paidAt == null ? TO_PAY : join(shortDate(r.paidAt), PAID);
+  const state = payState(r);
   return { th: `${amount} · ${state.th}`, en: `${amount} · ${state.en}` };
 }
 
@@ -601,3 +601,25 @@ export const OWNER_LOCK_LINE: Phrase = {
 /** ลบคนนี้ shows only where it can work: never on the locked owner, never on your own page. */
 export const showsDelete = (p: { id: string; locked: boolean }, me: string): boolean =>
   !p.locked && p.id !== me;
+
+/** คน's เข้าใช้ล่าสุด column on a computer (DeskStaff, 5 Nov 2026): the day only, never a clock time. */
+export function lastSeenDay(ms: number | null, now: number): Phrase {
+  if (ms == null) return { th: "ยังไม่เคย", en: "Never" };
+  const day = startOfDay(ms);
+  const today = startOfDay(now);
+  if (day === today) return { th: "วันนี้", en: "Today" };
+  if (day === startOfDay(today - 1)) return { th: "เมื่อวาน", en: "Yesterday" };
+  if (new Date(ms).getFullYear() === new Date(now).getFullYear()) return shortDate(ms);
+  return dayPill(ms);
+}
+
+/** คน's ตำแหน่ง column: the position, or ปิดอยู่ with its grey dot for someone switched off. */
+export function positionWord(p: StaffPerson): { dot: "off" | null; text: Phrase } {
+  if (p.status !== "active") return { dot: "off", text: { th: "ปิดอยู่", en: "Off" } };
+  return { dot: null, text: roleWord(p.role) };
+}
+
+/** เงินเดือน's การจ่าย column: the day it was paid, or what is left to do. */
+export function payState(r: PayRow): Phrase {
+  return r.paidAt == null ? TO_PAY : join(shortDate(r.paidAt), PAID);
+}

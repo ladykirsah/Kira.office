@@ -1,4 +1,4 @@
-import { PRIMARY_TABS, activeHref, navGroupsFor, type NavGroup } from "@l-shopee/shared/nav";
+import { PRIMARY_TABS, activeHref } from "@l-shopee/shared/nav";
 import { usePathname, useRouter } from "expo-router";
 import { useRef, useState, type ComponentRef } from "react";
 import type { ReactNode } from "react";
@@ -12,10 +12,12 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { barBottom as barBottomFor, bottomBar, phoneBottoms } from "@/lib/frame";
+import { barBottom as barBottomFor, bottomBar, pageWidth, phoneBottoms } from "@/lib/frame";
 import { initials } from "@/lib/initials";
+import { drawerFor } from "@/lib/menuDrawer";
 import { pageTitle } from "@/lib/pageTitle";
 import { PROFILE_ROUTE } from "@/lib/profilePage";
+import { roleWord } from "@/lib/staffPage";
 import { useAuth, useLang, useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
 import { useBrandFont } from "./brandFont";
@@ -31,9 +33,10 @@ import {
 } from "./ScreenChrome";
 import { MenuDrawer } from "./MenuDrawer";
 import { Segmented } from "./Segmented";
-import { MENU_ICON, TAB_ICONS } from "./tabIcons";
+import { MENU_ICON, PAGE_ICONS, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
 import { UpdateBar } from "./UpdateBar";
+import { WideButton, WideSearch, WideToast } from "./desk/WideTools";
 
 /**
  * The frame around every screen. On a phone it follows the approved design guide (2026-10-26): the
@@ -51,12 +54,9 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 function useNav() {
-  const auth = useAuth();
   const router = useRouter();
   const path = usePathname();
-  const groups = auth.status === "signed-in" ? navGroupsFor(auth.staff.role) : [];
   return {
-    groups,
     path,
     active: activeHref(path),
     go: (href: string) => router.push(href as never),
@@ -65,63 +65,81 @@ function useNav() {
 
 function WideShell({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
+  const { t } = useLang();
   const brandFont = useBrandFont();
-  const { groups, active, go } = useNav();
+  const { go, path } = useNav();
   const [chrome, setChrome] = useState<Chrome>(NO_CHROME);
   const s = styles(theme);
   return (
-    <View style={[s.fill, s.row, { backgroundColor: theme.bg }]}>
-      <ScrollView style={s.sidebar} contentContainerStyle={s.sidebarInner}>
-        <Pressable onPress={() => go("/")} accessibilityRole="link">
-          <Text style={[s.brand, brandFont]}>CrewEngine</Text>
-        </Pressable>
-        <MenuGroups groups={groups} active={active} onGo={go} compact />
-      </ScrollView>
+    <View style={[s.fill, s.row, { backgroundColor: theme.deskPage }]}>
+      {/* Computer guide C · Mercury (owner, 4 Nov 2026): a light sidebar with the phone's menu. */}
+      <View style={s.sidebar}>
+        <ScrollView contentContainerStyle={s.sidebarInner}>
+          <Pressable onPress={() => go("/")} accessibilityRole="link">
+            <Text style={[s.brand, brandFont]}>CrewEngine</Text>
+          </Pressable>
+          <DeskMenu path={path} onGo={go} />
+        </ScrollView>
+        <DeskAccount onGo={go} />
+      </View>
       <View style={s.fill}>
-        <View style={s.topbar}>
-          <View style={s.fill} />
-          {chrome.headers.map((h) => (
-            <RoundButton key={h.label} button={h} />
-          ))}
-          <Toolbar />
-        </View>
         <ScrollView style={s.fill} contentContainerStyle={s.content}>
-          <UpdateBar />
-          {chrome.back && <BackPill back={chrome.back} />}
-          {/* A title still loading is "" — a ternary, so no bare text lands in the View. */}
-          {chrome.title ? (
-            <Text style={s.wideTitle} accessibilityRole="header">
-              {chrome.title}
-            </Text>
-          ) : null}
-          <ChromeProvider value={setChrome}>{children}</ChromeProvider>
-          {chrome.footer.length > 0 && (
-            <View style={s.wideFooter}>
+          {/* One centred column, or the full width for a list with a table (guide). */}
+          <View style={[s.page, { maxWidth: pageWidth(chrome.layout) }]}>
+            <UpdateBar />
+            {chrome.ownTitle && chrome.headers.length > 0 ? (
+              // A page with its own heading keeps its tools beside the way back, as on the phone.
+              <View style={s.backRow}>
+                {chrome.back && <BackPill back={chrome.back} />}
+                <View style={s.fill} />
+                {chrome.headers.map((h) => (
+                  <WideButton key={h.label} button={h} />
+                ))}
+              </View>
+            ) : (
+              chrome.back && <BackPill back={chrome.back} />
+            )}
+            {!chrome.ownTitle && (
+              <View style={s.wideHead}>
+                {/* A title still loading is "" — a ternary, so no bare text lands in the View. */}
+                <Text style={s.wideTitle} accessibilityRole="header" numberOfLines={2}>
+                  {chrome.title ?? t(pageTitle(path))}
+                </Text>
+                {chrome.headers.map((h) => (
+                  <WideButton key={h.label} button={h} />
+                ))}
+              </View>
+            )}
+            {chrome.search && <WideSearch search={chrome.search} />}
+            <ChromeProvider value={setChrome}>{children}</ChromeProvider>
+          </View>
+        </ScrollView>
+        {chrome.toast && chrome.footer.length === 0 && <WideToast toast={chrome.toast} />}
+        {chrome.footer.length > 0 && (
+          // The computer's pinned bar (guide #8): words on the left, grey second, red main on the right.
+          <View style={s.wideBar}>
+            <View style={s.fill}>
               {chrome.toast && (
                 <Text style={s.wideToast} accessibilityRole="alert">
-                  {chrome.toast.title} · {chrome.toast.detail}
+                  {[chrome.toast.title, chrome.toast.detail].filter(Boolean).join(" · ")}
                 </Text>
               )}
-              {chrome.choice && (
-                <Segmented
-                  label={chrome.choice.label}
-                  options={chrome.choice.options}
-                  value={chrome.choice.value ?? ""}
-                  onChange={chrome.choice.onChange}
-                />
-              )}
-              {chrome.footer.map((b) => (
-                <BigButton
-                  key={b.label}
-                  label={b.label}
-                  onPress={b.onPress}
-                  kind={b.kind}
-                  icon={b.icon}
-                />
-              ))}
             </View>
-          )}
-        </ScrollView>
+            {chrome.choice && (
+              <Segmented
+                label={chrome.choice.label}
+                options={chrome.choice.options}
+                value={chrome.choice.value ?? ""}
+                onChange={chrome.choice.onChange}
+              />
+            )}
+            {[...chrome.footer].reverse().map((b) => (
+              <View key={b.label} style={s.wideBarButton}>
+                <BigButton label={b.label} onPress={b.onPress} kind={b.kind} icon={b.icon} />
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -234,70 +252,75 @@ function PhoneShell({ children }: { children: ReactNode }) {
   );
 }
 
-function MenuGroups(props: {
-  groups: NavGroup[];
-  active: string | undefined;
-  onGo: (href: string) => void;
-  compact?: boolean;
-}) {
+/** The computer sidebar: หน้าหลัก, then the role's pages in their four sections (the phone's ☰ menu). */
+function DeskMenu(props: { path: string; onGo: (href: string) => void }) {
   const { theme } = useTheme();
   const { t } = useLang();
+  const auth = useAuth();
   const s = styles(theme);
+  if (auth.status !== "signed-in") return null;
+  const menu = drawerFor(auth.staff.role, props.path);
+  const link = (href: string, label: string, on: boolean) => (
+    <Pressable
+      key={href}
+      onPress={() => props.onGo(href)}
+      accessibilityRole="link"
+      accessibilityState={{ selected: on }}
+      style={({ pressed }) => [s.link, (on || pressed) && { backgroundColor: theme.sideOn }]}
+    >
+      <LineIcon
+        d={PAGE_ICONS[href] ?? PAGE_ICONS["/"]!}
+        color={on ? theme.text : theme.textMuted}
+        size={17}
+        strokeWidth={1.8}
+      />
+      <Text style={[s.linkText, on && s.linkTextOn]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
   return (
     <>
-      {props.groups.map((g) => (
+      {link("/", t({ th: "หน้าหลัก", en: "Home" }), menu.home.on)}
+      {menu.groups.map((g) => (
         <View key={g.section.en}>
           <Text style={s.section}>{t(g.section)}</Text>
-          {g.links.map((l) => {
-            const on = l.href === props.active;
-            return (
-              <Pressable
-                key={l.href}
-                onPress={() => props.onGo(l.href)}
-                accessibilityRole="link"
-                accessibilityState={{ selected: on }}
-                style={({ pressed }) => [
-                  s.link,
-                  props.compact && s.linkCompact,
-                  pressed && !on && { backgroundColor: theme.hover },
-                  on && s.linkOn,
-                ]}
-              >
-                <Text style={s.linkIcon}>{l.icon}</Text>
-                <Text style={[s.linkText, props.compact && s.linkTextCompact, on && s.linkTextOn]}>
-                  {t(l.label)}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {g.links.map((l) => link(l.href, t(l.label), l.on))}
         </View>
       ))}
-      <Account />
     </>
   );
 }
 
-/** Who is signed in, under the computer sidebar (the phone's ☰ menu has its own, MenuDrawer). */
-function Account() {
+/** Who is signed in, at the foot of the sidebar; a tap opens โปรไฟล์ของฉัน (ภาษา · โหมดมืด · ออกจากระบบ). */
+function DeskAccount({ onGo }: { onGo: (href: string) => void }) {
   const { theme } = useTheme();
   const { t } = useLang();
   const auth = useAuth();
   const s = styles(theme);
   if (auth.status !== "signed-in") return null;
   return (
-    <View style={s.accountBlock}>
-      <Text style={s.staffName}>{auth.staff.name}</Text>
-      <Pressable
-        onPress={() => void auth.signOutNow()}
-        accessibilityRole="button"
-        style={s.signOut}
-      >
-        <Text style={s.signOutText}>{t({ th: "ออกจากระบบ", en: "Sign out" })}</Text>
-      </Pressable>
-    </View>
+    <Pressable
+      onPress={() => onGo(PROFILE_ROUTE)}
+      accessibilityRole="button"
+      accessibilityLabel={t({ th: "โปรไฟล์ของฉัน", en: "My profile" })}
+      style={({ pressed }) => [s.account, pressed && { backgroundColor: theme.sideOn }]}
+    >
+      <View style={s.avatar}>
+        <Text style={s.avatarText}>{initials(auth.staff.name)}</Text>
+      </View>
+      <View style={s.fill}>
+        <Text style={s.staffName} numberOfLines={1}>
+          {auth.staff.name}
+        </Text>
+        <Text style={s.staffRole}>{t(roleWord(auth.staff.role))}</Text>
+      </View>
+      <LineIcon d={ICON_CHEVRON} color={theme.textFaint} size={14} strokeWidth={2.4} />
+    </Pressable>
   );
 }
 
+const ICON_CHEVRON = "M9 5l7 7-7 7";
 const BACK_ICON = "M15 5l-7 7 7 7";
 const SEARCH_ICON = "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5";
 const CLOSE_ICON = "M6 6l12 12M18 6L6 18";
@@ -397,45 +420,6 @@ function RoundButton({ button }: { button: HeaderButton }) {
   );
 }
 
-/** Language and light/dark, the same two buttons the web top bar carries. */
-function Toolbar() {
-  const { lang, t, toggleLang } = useLang();
-  const { isDark, toggleTheme } = useTheme();
-  return (
-    <View style={{ flexDirection: "row", gap: 8 }}>
-      <IconButton
-        label={lang === "th" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"}
-        onPress={toggleLang}
-      >
-        {lang === "th" ? "🇬🇧" : "🇹🇭"}
-      </IconButton>
-      <IconButton
-        label={t(
-          isDark ? { th: "โหมดสว่าง", en: "Light mode" } : { th: "โหมดมืด", en: "Dark mode" },
-        )}
-        onPress={toggleTheme}
-      >
-        {isDark ? "☀️" : "🌙"}
-      </IconButton>
-    </View>
-  );
-}
-
-function IconButton(props: { label: string; onPress: () => void; children: string }) {
-  const { theme } = useTheme();
-  const s = styles(theme);
-  return (
-    <Pressable
-      onPress={props.onPress}
-      accessibilityRole="button"
-      accessibilityLabel={props.label}
-      style={s.iconButton}
-    >
-      <Text style={s.iconButtonText}>{props.children}</Text>
-    </Pressable>
-  );
-}
-
 const styles = (c: Theme) =>
   StyleSheet.create({
     fill: { flex: 1 },
@@ -443,51 +427,52 @@ const styles = (c: Theme) =>
     sidebar: {
       width: 232,
       flexGrow: 0,
-      backgroundColor: c.surface,
+      backgroundColor: c.sidebar,
       borderRightWidth: 1,
       borderRightColor: c.border,
     },
-    sidebarInner: { paddingVertical: 14, paddingHorizontal: 12 },
+    sidebarInner: { paddingTop: 16, paddingBottom: SPACE.m, paddingHorizontal: 12 },
     brand: {
-      color: c.primary,
-      fontWeight: "700",
-      fontSize: 18,
-      paddingTop: 8,
+      color: c.text,
+      fontSize: 20,
+      paddingTop: 2,
       paddingHorizontal: 10,
-      paddingBottom: 4,
+      paddingBottom: 10,
     },
     section: {
       ...TYPE.footnote,
+      fontSize: 12,
+      lineHeight: 16,
       color: c.textMuted,
-      marginTop: SPACE.xxl,
+      marginTop: 12,
       marginHorizontal: 10,
-      marginBottom: SPACE.xs,
+      marginBottom: 2,
     },
     link: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      minHeight: 44,
-      paddingVertical: 10,
+      height: 30,
       paddingHorizontal: 10,
-      borderRadius: 10,
+      borderRadius: 8,
     },
-    linkCompact: { minHeight: 0, paddingVertical: 6 },
-    linkOn: { backgroundColor: c.tabOn },
-    linkIcon: { fontSize: 17, width: 22, textAlign: "center" },
-    linkText: { ...TYPE.body, color: c.text },
-    linkTextCompact: { ...TYPE.subhead },
-    linkTextOn: { color: c.primary, fontWeight: "600" },
-    topbar: {
-      height: 56,
+    linkText: { ...TYPE.subhead, flex: 1, color: c.text },
+    linkTextOn: { fontWeight: "600" },
+    account: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 24,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
+      gap: 10,
+      margin: 12,
+      marginTop: 0,
+      padding: 10,
+      borderRadius: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
     },
-    content: { padding: 24, maxWidth: 1280 },
+    staffRole: { ...TYPE.footnote, fontSize: 12, color: c.textMuted },
+    content: { paddingHorizontal: 40, paddingTop: 28, paddingBottom: 40 },
+    page: { width: "100%", alignSelf: "center" },
+    wideHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: SPACE.l },
     phoneContent: { paddingHorizontal: SPACE.l },
     titleRow: {
       height: 52,
@@ -533,8 +518,18 @@ const styles = (c: Theme) =>
       justifyContent: "center",
     },
     badgeText: { fontSize: 11, lineHeight: 14, fontWeight: "700", color: c.bg },
-    wideFooter: { marginTop: SPACE.xxl, maxWidth: 420, gap: 10 },
-    wideTitle: { ...TYPE.largeTitle, color: c.text, marginBottom: SPACE.m },
+    wideBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 32,
+      paddingVertical: 12,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      backgroundColor: c.surface,
+    },
+    wideBarButton: { minWidth: 180 },
+    wideTitle: { flex: 1, fontSize: 28, lineHeight: 35, fontWeight: "600", color: c.text },
     backPill: {
       alignSelf: "flex-start",
       height: 36,
@@ -621,26 +616,5 @@ const styles = (c: Theme) =>
       borderColor: c.glassLine,
       boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
     },
-    iconButton: {
-      width: 36,
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 10,
-      backgroundColor: c.surface,
-    },
-    iconButtonText: { fontSize: 16, color: c.text },
-    accountBlock: {
-      marginTop: SPACE.xxl,
-      marginHorizontal: 10,
-      paddingTop: SPACE.l,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-      gap: SPACE.m,
-    },
-    staffName: { ...TYPE.headline, color: c.text },
-    signOut: { alignSelf: "flex-start", paddingVertical: 6 },
-    signOutText: { ...TYPE.body, color: c.primary },
+    staffName: { ...TYPE.subhead, color: c.text },
   });

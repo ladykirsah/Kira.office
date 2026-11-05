@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   amountSatang,
   amountText,
+  billCell,
   clearSummary,
+  countLine,
   keypadPress,
   maskPromptpay,
   payState,
@@ -10,6 +12,7 @@ import {
   paymentDays,
   rowSub,
   summaryLine,
+  todayAccounts,
   todaySummary,
   type PaymentRow,
 } from "./paymentPage";
@@ -110,6 +113,31 @@ describe("paymentPage", () => {
     expect(summaryLine(todaySummary(list, NOW, true)).th).toBe(
       "2 รายการ · ตรวจแล้ว 1 · ร้าน ฿2,500",
     );
+  });
+
+  it("countLine > given today's summary > then the count, with the checked slips while slip checking is on", () => {
+    expect(countLine(todaySummary(LIST, NOW, false))).toEqual({ th: "5 รายการ", en: "5 payments" });
+    const list = [row({ status: "confirmed", slipRef: "x" }), row({ id: "2" })];
+    expect(countLine(todaySummary(list, NOW, true))).toEqual({
+      th: "2 รายการ · ตรวจแล้ว 1",
+      en: "2 payments · 1 checked",
+    });
+  });
+
+  it("todayAccounts > given the drawing's list > then each account today with its hidden number, biggest first", () => {
+    expect(todayAccounts(LIST, NOW)).toEqual([
+      { label: "ร้าน", satang: 986_000, masked: "08x-xxx-4421" },
+      { label: "แม่", satang: 259_000, masked: "08x-xxx-7710" },
+    ]);
+  });
+
+  it("todayAccounts > given nothing taken today > then no accounts", () => {
+    expect(todayAccounts(LIST.slice(5), NOW)).toEqual([]);
+  });
+
+  it("billCell > given a bill, or a QR made on this page > then the bill number, or a dash", () => {
+    expect(billCell(LIST[0]!)).toBe("DAS202610-29004");
+    expect(billCell(LIST[1]!)).toBe("—");
   });
 
   it("clearSummary > given the drawing's list > then all seven, ฿19,540, by account", () => {

@@ -46,12 +46,23 @@ export function FinanceGraph(props: {
   points: readonly Money[];
   /** เดือนนี้ only: last month's points, for the dashed line. */
   lastMonth: readonly Money[];
+  /** On a computer the graph sits inside the summary card beside the numbers: no card of its own. */
+  bare?: boolean;
+  /** The plot's height; 132 unless the computer's wider graph asks for more. */
+  height?: number;
 }) {
+  const look = { bare: props.bare ?? false, plot: props.height ?? PLOT };
   return graphStep(props.preset, props.range) === "running" ? (
-    <Running points={props.points} lastMonth={props.lastMonth} now={props.now} />
+    <Running points={props.points} lastMonth={props.lastMonth} now={props.now} look={look} />
   ) : (
-    <Lines {...props} />
+    <Lines {...props} look={look} />
   );
+}
+
+/** How the graph is framed: in its own card (phone) or bare, and the plot's height. */
+interface Look {
+  bare: boolean;
+  plot: number;
 }
 
 /** True when the graph draws รายได้ and กำไร, so the two money cards carry the line colours. */
@@ -63,7 +74,13 @@ function useWidth() {
   return { width, onLayout: (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width) };
 }
 
-function Lines(props: { preset: DatePreset; range: Range; now: number; points: readonly Money[] }) {
+function Lines(props: {
+  preset: DatePreset;
+  range: Range;
+  now: number;
+  points: readonly Money[];
+  look: Look;
+}) {
   const { t } = useLang();
   const { theme } = useTheme();
   const { width, onLayout } = useWidth();
@@ -78,8 +95,9 @@ function Lines(props: { preset: DatePreset; range: Range; now: number; points: r
   const scale = graphScale([revenue, profit]);
   const n = starts.length;
   const plotWidth = Math.max(0, width - EDGE * 2);
+  const plot = props.look.plot;
   const x = (i: number) => EDGE + (n <= 1 ? plotWidth / 2 : (i / (n - 1)) * plotWidth);
-  const y = (v: number) => ((scale.max - v) / (scale.max - scale.min)) * (PLOT - 2) + 1;
+  const y = (v: number) => ((scale.max - v) / (scale.max - scale.min)) * (plot - 2) + 1;
   const line = (vals: readonly number[]) => vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
   const at = tapped != null && tapped < n ? tapped : null;
   const colours = [theme.lineA, theme.lineB];
@@ -104,7 +122,7 @@ function Lines(props: { preset: DatePreset; range: Range; now: number; points: r
     );
 
   return (
-    <GraphCard top={top}>
+    <GraphCard top={top} bare={props.look.bare}>
       <Pressable
         onLayout={onLayout}
         onPress={(e) => {
@@ -116,11 +134,11 @@ function Lines(props: { preset: DatePreset; range: Range; now: number; points: r
           th: "กราฟรายได้และกำไร แตะเพื่อดูตัวเลข",
           en: "Graph of revenue and profit, tap to read",
         })}
-        style={styles.plot}
+        style={{ height: plot }}
       >
         {width > 0 && (
-          <Svg width={width} height={PLOT} aria-hidden>
-            <Grid width={width} colour={theme.border} />
+          <Svg width={width} height={plot} aria-hidden>
+            <Grid width={width} height={plot} colour={theme.border} />
             {scale.min < 0 && (
               <Line
                 x1={0}
@@ -136,7 +154,7 @@ function Lines(props: { preset: DatePreset; range: Range; now: number; points: r
                 x1={x(at)}
                 x2={x(at)}
                 y1={0}
-                y2={PLOT}
+                y2={plot}
                 stroke={theme.textFaint}
                 strokeWidth={1}
               />
@@ -181,7 +199,12 @@ function Lines(props: { preset: DatePreset; range: Range; now: number; points: r
   );
 }
 
-function Running(props: { points: readonly Money[]; lastMonth: readonly Money[]; now: number }) {
+function Running(props: {
+  points: readonly Money[];
+  lastMonth: readonly Money[];
+  now: number;
+  look: Look;
+}) {
   const { t } = useLang();
   const { theme } = useTheme();
   const { width, onLayout } = useWidth();
@@ -189,10 +212,11 @@ function Running(props: { points: readonly Money[]; lastMonth: readonly Money[];
   const totals = runningTotals(props.points, props.lastMonth, props.now);
   const max = niceMax([...totals.now, ...totals.before]);
   const plotWidth = Math.max(0, width - EDGE * 2);
+  const plot = props.look.plot;
   // Last month can be a day longer than this one (31 against 30): the axis holds the longer.
   const span = Math.max(totals.days, totals.before.length);
   const x = (day: number) => EDGE + ((day - 1) / (span - 1)) * plotWidth;
-  const y = (v: number) => ((max - v) / max) * (PLOT - 2) + 1;
+  const y = (v: number) => ((max - v) / max) * (plot - 2) + 1;
   const line = (vals: readonly number[]) => vals.map((v, i) => `${x(i + 1)},${y(v)}`).join(" ");
   const today = totals.now.length;
   const month = new Date(props.now).getMonth();
@@ -223,7 +247,7 @@ function Running(props: { points: readonly Money[]; lastMonth: readonly Money[];
   const ahead = totals.ahead >= 0;
 
   return (
-    <GraphCard top={top}>
+    <GraphCard top={top} bare={props.look.bare}>
       <Pressable
         onLayout={onLayout}
         onPress={(e) => {
@@ -235,17 +259,17 @@ function Running(props: { points: readonly Money[]; lastMonth: readonly Money[];
           th: "กราฟรายได้สะสม เดือนนี้เทียบเดือนก่อน แตะเพื่อดูตัวเลข",
           en: "Revenue added up, this month against last month, tap to read",
         })}
-        style={styles.plot}
+        style={{ height: plot }}
       >
         {width > 0 && (
-          <Svg width={width} height={PLOT} aria-hidden>
-            <Grid width={width} colour={theme.border} />
+          <Svg width={width} height={plot} aria-hidden>
+            <Grid width={width} height={plot} colour={theme.border} />
             {at != null && (
               <Line
                 x1={x(at)}
                 x2={x(at)}
                 y1={0}
-                y2={PLOT}
+                y2={plot}
                 stroke={theme.textFaint}
                 strokeWidth={1}
               />
@@ -322,10 +346,23 @@ const topValue = (max: number, series: readonly (readonly number[])[]) => {
   return top === null ? "" : money(top);
 };
 
-function GraphCard(props: { top: ReactNode; children: ReactNode }) {
+function GraphCard(props: { top: ReactNode; bare: boolean; children: ReactNode }) {
   const { theme } = useTheme();
+  if (props.bare) {
+    return (
+      <View>
+        <View style={styles.top}>{props.top}</View>
+        {props.children}
+      </View>
+    );
+  }
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <View style={styles.top}>{props.top}</View>
       {props.children}
     </View>
@@ -374,7 +411,7 @@ function DashMark({ colour }: { colour: string }) {
   );
 }
 
-function Grid({ width, colour }: { width: number; colour: string }) {
+function Grid({ width, height, colour }: { width: number; height: number; colour: string }) {
   return (
     <>
       {[0, 0.5, 1].map((f) => (
@@ -382,8 +419,8 @@ function Grid({ width, colour }: { width: number; colour: string }) {
           key={f}
           x1={0}
           x2={width}
-          y1={f * (PLOT - 1) + 0.5}
-          y2={f * (PLOT - 1) + 0.5}
+          y1={f * (height - 1) + 0.5}
+          y2={f * (height - 1) + 0.5}
           stroke={colour}
           strokeWidth={1}
         />
@@ -433,7 +470,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: SPACE.s,
   },
-  plot: { height: PLOT },
   items: { flexDirection: "row", gap: SPACE.m },
   key: { flexDirection: "row", alignItems: "center", gap: 5 },
   dot: { width: 8, height: 8, borderRadius: 4 },

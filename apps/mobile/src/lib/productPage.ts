@@ -161,3 +161,12 @@ export function galleryKeys(cover: string | null, images: readonly GalleryImage[
     return [...images].sort((a, b) => a.sortOrder - b.sortOrder).map((i) => i.imageKey);
   return cover ? [cover] : [];
 }
+
+/**
+ * A computer's product page and form (A2, owner 5 Nov 2026): the first photo big beside the name,
+ * the others small under it. No photos: no big one (the form puts เพิ่มรูป in that square).
+ */
+export function leadAndRest<T>(items: readonly T[]): { lead: T | null; rest: T[] } {
+  const [lead = null, ...rest] = items;
+  return { lead, rest };
+}

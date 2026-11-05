@@ -18,11 +18,15 @@ import { LineIcon } from "../LineIcon";
 import { Group } from "../orders/parts";
 import { ICON, STEP_ICON } from "../orders/icons";
 import { Photo } from "../products/parts";
+import { seesMoney } from "@/lib/homeToday";
+import { useWide } from "../desk/useWide";
 import { useScreenChrome } from "../ScreenChrome";
 import { SectionHeading } from "../SectionHeading";
 import { CopyIcon } from "../staff/parts";
 import { RADIUS, SPACE, TYPE, type Theme } from "../theme";
+import { DeskHome } from "./DeskHome";
 import { useHome } from "./useHome";
+import { useTodayMoney } from "./useTodayMoney";
 
 const TOAST_MS = 3500;
 const CHART = "M3 3v18h18M7 15l4-4 3 3 6-6";
@@ -52,6 +56,9 @@ export function HomeScreen() {
   const token = auth.status === "signed-in" ? auth.token : null;
   const role = auth.status === "signed-in" ? auth.staff.role : "mechanic";
   const home = useHome(token);
+  const wide = useWide();
+  const showsToday = wide && seesMoney(role);
+  const today = useTodayMoney(token, showsToday);
   const [toast, setToast] = useState<Phrase | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
@@ -63,20 +70,49 @@ export function HomeScreen() {
   };
 
   const insight = showsInsightButton(role);
+  const insightLabel = t({ th: "ดูภาพรวม AirPlus", en: "AirPlus overview" });
+  const openInsight = () => router.push("/insights" as never);
   useScreenChrome(
-    null,
-    insight
-      ? [
-          {
-            label: t({ th: "ดูภาพรวม AirPlus", en: "AirPlus overview" }),
-            kind: "dark",
-            icon: CHART,
-            onPress: () => router.push("/insights" as never),
-          },
-        ]
+    // A computer puts ดูภาพรวม AirPlus beside the title (DeskHome board); a phone pins it at the foot.
+    wide && insight ? { label: insightLabel, icon: CHART, onPress: openInsight } : null,
+    !wide && insight
+      ? [{ label: insightLabel, kind: "dark", icon: CHART, onPress: openInsight }]
       : [],
-    { toast: toast && { title: t(toast), detail: "" } },
+    // On a computer the cards sit side by side across the full width (DeskHome board).
+    { toast: toast && { title: t(toast), detail: "" }, layout: "full" },
   );
+
+  if (wide) {
+    return (
+      <View>
+        <Text style={[TYPE.subhead, styles.date, { color: theme.textMuted }]}>
+          {t(todayLine(Date.now()))}
+        </Text>
+        <DeskHome
+          home={home}
+          role={role}
+          today={today}
+          showsToday={showsToday}
+          onCopied={showToast}
+          offline={home.offline ? <Offline /> : null}
+          nothing={<NothingWaiting bare />}
+          tile={(tab, inCard) => {
+            const tile = HOME_TILES.find((x) => x.tab === tab)!;
+            return (
+              <Tile
+                label={t(tile.label)}
+                count={home.counts?.[tab] ?? null}
+                icon={TILE_ICON[tab]}
+                colour={tileColour(tab, theme)}
+                inCard={inCard}
+                onPress={() => router.push(ordersTabRoute(tab) as never)}
+              />
+            );
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     // The last line (ทำแล้ว · ล้างที่ทำแล้ว) must clear the pinned button's band at the end of the scroll.
@@ -132,6 +168,8 @@ function Tile(props: {
   count: number | null;
   icon: string;
   colour: string;
+  /** Inside a computer card: a soft grey tile, no line of its own (DeskHome board). */
+  inCard?: boolean;
   onPress: () => void;
 }) {
   const { theme } = useTheme();
@@ -141,7 +179,16 @@ function Tile(props: {
       onPress={props.onPress}
       accessibilityRole="button"
       accessibilityLabel={`${props.label} ${props.count ?? "—"}`}
-      style={[styles.tile, { backgroundColor: theme.surface }]}
+      style={[
+        styles.tile,
+        props.inCard
+          ? [styles.tileInCard, { backgroundColor: theme.bg }]
+          : {
+              backgroundColor: theme.surface,
+              borderWidth: theme.cardLine,
+              borderColor: theme.border,
+            },
+      ]}
     >
       <View style={styles.tileTop}>
         <View style={[styles.dot, { backgroundColor: idle ? theme.textFaint : props.colour }]}>
@@ -239,29 +286,29 @@ function ShopeeList(props: {
   );
 }
 
-function NothingWaiting() {
+/** `bare`: inside a computer card, so no card of its own. */
+function NothingWaiting({ bare }: { bare?: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
-  return (
-    <Group>
-      <View style={styles.note}>
-        <View style={[styles.dot, { backgroundColor: theme.success }]}>
-          <LineIcon d={ICON.check} color="#FFFFFF" size={15} strokeWidth={2.8} />
-        </View>
-        <View style={styles.grow}>
-          <Text style={[TYPE.body, { color: theme.text }]}>
-            {t({ th: "ไม่มีรายการต้องอัปเดต", en: "Nothing to update" })}
-          </Text>
-          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-            {t({
-              th: "สต็อกใน Shopee ตรงกับในร้านแล้ว",
-              en: "Shopee's stock matches the shop's",
-            })}
-          </Text>
-        </View>
+  const note = (
+    <View style={styles.note}>
+      <View style={[styles.dot, { backgroundColor: theme.success }]}>
+        <LineIcon d={ICON.check} color="#FFFFFF" size={15} strokeWidth={2.8} />
       </View>
-    </Group>
+      <View style={styles.grow}>
+        <Text style={[TYPE.body, { color: theme.text }]}>
+          {t({ th: "ไม่มีรายการต้องอัปเดต", en: "Nothing to update" })}
+        </Text>
+        <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
+          {t({
+            th: "สต็อกใน Shopee ตรงกับในร้านแล้ว",
+            en: "Shopee's stock matches the shop's",
+          })}
+        </Text>
+      </View>
+    </View>
   );
+  return bare ? note : <Group>{note}</Group>;
 }
 
 function Offline() {
@@ -298,6 +345,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     justifyContent: "space-between",
   },
+  tileInCard: { borderRadius: 14 },
   tileTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   dot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   count: { fontSize: 28, lineHeight: 31, fontVariant: ["tabular-nums"] },

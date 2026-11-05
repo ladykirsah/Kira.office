@@ -20,6 +20,8 @@ import { useAuth, useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { BigButton } from "../BigButton";
 import { Empty } from "../customers/parts";
+import { useWide } from "../desk/useWide";
+import { WideButton } from "../desk/WideTools";
 import { ICON } from "../orders/icons";
 import { Sheet } from "../orders/Sheet";
 import { pickPhoto } from "../products/pickPhoto";
@@ -58,6 +60,8 @@ export function PersonScreen() {
   const [busy, setBusy] = useState(false);
   const [stamp, setStamp] = useState(0);
   const [photoAt, setPhotoAt] = useState(0);
+  // A computer shows the whole person at once, in three columns of cards (DeskStaff 2–3).
+  const wide = useWide();
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -112,15 +116,25 @@ export function PersonScreen() {
   };
 
   const name = person ? shownName(person) : "";
+  const saveButton = { label: t({ th: "บันทึก", en: "Save" }), onPress: () => void save() };
+  const cancelLabel = t({ th: "ยกเลิก", en: "Cancel" });
   useScreenChrome(
     null,
-    draft ? [{ label: t({ th: "บันทึก", en: "Save" }), onPress: () => void save() }] : [],
+    // A computer's form ends in the pinned bar: ยกเลิก beside the red บันทึก (DeskStaff 3).
+    draft
+      ? wide
+        ? [saveButton, { label: cancelLabel, kind: "grey", onPress: () => setDraft(null) }]
+        : [saveButton]
+      : [],
     {
       back: draft
-        ? { label: t({ th: "ยกเลิก", en: "Cancel" }), plain: true, onPress: () => setDraft(null) }
-        : { label: "", onPress: leave },
+        ? wide
+          ? null
+          : { label: cancelLabel, plain: true, onPress: () => setDraft(null) }
+        : { label: wide ? t({ th: "พนักงาน", en: "Staff" }) : "", onPress: leave },
       ownTitle: true,
       toast: toast ? { title: t(toast.title), detail: t(toast.detail) } : null,
+      layout: "full",
     },
   );
 
@@ -179,89 +193,54 @@ export function PersonScreen() {
     setDraft(draftOf(person));
   };
 
-  return (
-    <View>
-      <View style={styles.top}>
-        <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
-          {draft
-            ? t({ th: `แก้ไข${name}`, en: `Edit ${name}` })
-            : t({ th: "พนักงาน", en: "Staff" })}
-        </Text>
-        {!draft && (
-          <Pressable
-            onPress={edit}
-            accessibilityRole="button"
-            style={[
-              styles.editPill,
-              { backgroundColor: theme.glass, borderColor: theme.glassLine },
-            ]}
-          >
-            <Text style={[TYPE.body, { color: theme.text }]}>{t({ th: "แก้ไข", en: "Edit" })}</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <View style={styles.hero}>
-        {draft ? (
-          <PhotoChoice onChoose={(s) => void changePhoto(s)}>
-            {(openMenu) => (
-              <Pressable
-                onPress={openMenu}
-                accessibilityRole="button"
-                accessibilityLabel={t({ th: "เปลี่ยนรูป", en: "Change photo" })}
-              >
-                <Avatar
-                  name={name}
-                  photo={photo}
-                  size={88}
-                  band={t({ th: "เปลี่ยน", en: "Change" })}
-                />
-              </Pressable>
-            )}
-          </PhotoChoice>
-        ) : (
-          <>
-            <Avatar name={name} photo={photo} size={88} />
-            <Text style={[TYPE.title1, styles.name, { color: theme.text }]}>
-              {`${t(roleWord(person.role))} · ${name}`}
-            </Text>
-            {person.phone ? (
-              <View style={styles.phone}>
-                <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{person.phone}</Text>
-                <CopyIcon
-                  value={person.phone}
-                  what={{ th: "เบอร์โทร", en: "phone number" }}
-                  onCopied={(said) => showToast(said)}
-                />
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
-
-      {draft ? (
-        <PersonFields
-          draft={draft}
-          onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
-          problems={problems}
-          codes={false}
-          locked={person.locked}
-          active={active}
-          onActive={setActive}
-          onCopied={(said) => showToast(said)}
-        />
-      ) : (
-        <PersonView
-          person={person}
-          stamp={stamp}
-          onCopied={(said) => showToast(said)}
-          onPassword={() => setOpen("password")}
-          onPin={() => setOpen("pin")}
-          onDayOff={(d) => setOpen({ dayOff: d })}
-          onDelete={showsDelete(person, team.me) ? () => setOpen("delete") : undefined}
-        />
+  const changeablePhoto = (size: number) => (
+    <PhotoChoice onChoose={(s) => void changePhoto(s)}>
+      {(openMenu) => (
+        <Pressable
+          onPress={openMenu}
+          accessibilityRole="button"
+          accessibilityLabel={t({ th: "เปลี่ยนรูป", en: "Change photo" })}
+        >
+          <Avatar name={name} photo={photo} size={size} band={t({ th: "เปลี่ยน", en: "Change" })} />
+        </Pressable>
       )}
-
+    </PhotoChoice>
+  );
+  const phoneLine = person.phone ? (
+    <View style={styles.phone}>
+      <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{person.phone}</Text>
+      <CopyIcon
+        value={person.phone}
+        what={{ th: "เบอร์โทร", en: "phone number" }}
+        onCopied={(said) => showToast(said)}
+      />
+    </View>
+  ) : null;
+  const body = draft ? (
+    <PersonFields
+      draft={draft}
+      onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
+      problems={problems}
+      codes={false}
+      locked={person.locked}
+      active={active}
+      onActive={setActive}
+      onCopied={(said) => showToast(said)}
+      deskColumns
+    />
+  ) : (
+    <PersonView
+      person={person}
+      stamp={stamp}
+      onCopied={(said) => showToast(said)}
+      onPassword={() => setOpen("password")}
+      onPin={() => setOpen("pin")}
+      onDayOff={(d) => setOpen({ dayOff: d })}
+      onDelete={showsDelete(person, team.me) ? () => setOpen("delete") : undefined}
+    />
+  );
+  const sheets = (
+    <>
       {open === "password" && (
         <PasswordSheet
           id={person.id}
@@ -306,6 +285,74 @@ export function PersonScreen() {
           onDone={done}
         />
       )}
+    </>
+  );
+
+  if (wide) {
+    // DeskStaff 2–3: photo, ตำแหน่ง · ชื่อ and the phone on one line, แก้ไข at its end.
+    return (
+      <View>
+        <View style={styles.deskHead}>
+          {draft ? changeablePhoto(64) : <Avatar name={name} photo={photo} size={64} />}
+          <View style={styles.grow}>
+            <Text style={[styles.deskTitle, { color: theme.text }]} accessibilityRole="header">
+              {draft
+                ? t({ th: `แก้ไข${name}`, en: `Edit ${name}` })
+                : `${t(roleWord(person.role))} · ${name}`}
+            </Text>
+            {!draft && phoneLine}
+          </View>
+          {!draft && (
+            <WideButton
+              button={{ label: t({ th: "แก้ไข", en: "Edit" }), icon: "", onPress: edit }}
+            />
+          )}
+        </View>
+        {body}
+        {sheets}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <View style={styles.top}>
+        <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
+          {draft
+            ? t({ th: `แก้ไข${name}`, en: `Edit ${name}` })
+            : t({ th: "พนักงาน", en: "Staff" })}
+        </Text>
+        {!draft && (
+          <Pressable
+            onPress={edit}
+            accessibilityRole="button"
+            style={[
+              styles.editPill,
+              { backgroundColor: theme.glass, borderColor: theme.glassLine },
+            ]}
+          >
+            <Text style={[TYPE.body, { color: theme.text }]}>{t({ th: "แก้ไข", en: "Edit" })}</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <View style={styles.hero}>
+        {draft ? (
+          changeablePhoto(88)
+        ) : (
+          <>
+            <Avatar name={name} photo={photo} size={88} />
+            <Text style={[TYPE.title1, styles.name, { color: theme.text }]}>
+              {`${t(roleWord(person.role))} · ${name}`}
+            </Text>
+            {phoneLine}
+          </>
+        )}
+      </View>
+
+      {body}
+
+      {sheets}
     </View>
   );
 }
@@ -326,4 +373,7 @@ const styles = StyleSheet.create({
   hero: { marginTop: SPACE.m, alignItems: "center" },
   name: { marginTop: 14, textAlign: "center" },
   phone: { flexDirection: "row", alignItems: "center", gap: 2 },
+  deskHead: { flexDirection: "row", alignItems: "center", gap: SPACE.l, marginBottom: SPACE.xs },
+  deskTitle: { fontSize: 28, lineHeight: 35, fontWeight: "600" },
+  grow: { flex: 1, minWidth: 0 },
 });
