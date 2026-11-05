@@ -342,6 +342,36 @@ export async function carBrandTiles(
   return rows.results ?? [];
 }
 
+/** One car model era for the รถของฉัน model sheet (board 1 · 1.3): the owner's taxonomy row plus how
+ *  many active, in-stock products are fitted to that brand + model (any year). */
+export interface CarModelOption {
+  brand: string;
+  model: string;
+  yearFrom: number | null;
+  yearTo: number | null;
+  productCount: number;
+}
+
+/** Every model in the owner's car taxonomy (Kira.office → Car fitment), grouped later by brand on
+ *  the client. Models with no products still show ("0 รายการ" is the owner's full coverage). */
+export async function carModelOptions(db: D1Database): Promise<CarModelOption[]> {
+  const rows = await db
+    .prepare(
+      `SELECT b.name AS brand, m.name AS model, m.year_from AS yearFrom, m.year_to AS yearTo,
+              (SELECT COUNT(DISTINCT p.id) FROM product_fitments f
+                 JOIN products p ON p.id = f.product_id AND p.status = 'active'
+                WHERE f.car_brand = b.name AND f.car_model = m.name
+                  AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id
+                    AND (SELECT COALESCE(SUM(quantity_delta), 0)
+                           FROM stock_ledger_entries WHERE product_variant_id = pv.id) > 0)
+              ) AS productCount
+         FROM car_models m JOIN car_brands b ON b.id = m.car_brand_id
+        ORDER BY b.sort_order, b.name, m.sort_order, m.year_from, m.name`,
+    )
+    .all<CarModelOption>();
+  return rows.results ?? [];
+}
+
 /** Car brands (Toyota, Honda, …) that have ≥1 active, in-stock product IN a given part category —
  *  powers the car-brand shortcut chips on a specific-category page. Scoped to the type so a brand
  *  that has no product in this category never appears (no dead-end chip → 0 results). */

@@ -1,0 +1,1039 @@
+/*
+ * Board 1 on the phone (owner-approved 5 Nov 2026) — the phone home page, the รถของฉัน sheets, the
+ * /my-car page and the bottom bar. Sizes and colours are the drawing's (design kit airplus_kit.py).
+ * Phones (<720px) see .home-phone and the bottom bar; computers keep today's home (.home-desk).
+ */
+:root {
+  --hm-red: #e10000;
+  --hm-deep: #960101;
+  --hm-blue: #015abf;
+  --hm-ink: #1a1a1a;
+  --hm-grey: #6e6e73;
+  --hm-line: #e5e5ea;
+  --hm-bg: #f2f2f7;
+  --hm-green: #059669;
+  --hm-tint: #fdeaea;
+}
+
+/* ── which home shows ─────────────────────────────────────────────────────────── */
+.home-phone {
+  display: none;
+}
+@media (max-width: 719px) {
+  .home-phone {
+    display: block;
+    /* full bleed: cancel <main class="wrap">'s 16px padding on every side */
+    margin: -16px;
+    padding-bottom: 12px;
+    background: var(--hm-bg);
+    color: var(--hm-ink);
+  }
+  .home-desk,
+  .site-header,
+  .site-footer {
+    display: none;
+  }
+  /* the space kept for the bottom bar takes the page's grey, not the old paper colour */
+  body:has(.home-phone),
+  body:has(.mycar-page) {
+    background: var(--hm-bg);
+  }
+}
+
+/* ── header: red top that fades into the grey behind the car card (pick A) ─────────── */
+.hm-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 100px;
+  background: linear-gradient(
+    180deg,
+    var(--hm-red) 0,
+    var(--hm-red) calc(100% - 96px),
+    var(--hm-bg) 100%
+  );
+  color: #fff;
+}
+.hm-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+}
+.hm-head-logo {
+  display: flex;
+  margin-left: -6px;
+}
+.hm-head-logo img {
+  display: block;
+  width: auto;
+  height: 34px;
+}
+.hm-head-tools {
+  display: flex;
+  margin-right: -8px;
+}
+.hm-head-btn {
+  position: relative;
+  width: 40px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.hm-head-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--hm-red);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-head-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--hm-grey);
+  font-size: 15px;
+}
+.hm-head-search span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── shared words ──────────────────────────────────────────────────────────────── */
+.hm-muted {
+  color: var(--hm-grey);
+}
+.hm-muted-sm {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+.hm-muted-xs {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--hm-grey);
+}
+.hm-red {
+  color: var(--hm-red);
+}
+.hm-one-line {
+  white-space: nowrap;
+}
+.hm-name2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+}
+.hm-name2--15 {
+  font-size: 15px;
+  line-height: 21px;
+}
+.hm-name2--13 {
+  font-size: 13px;
+  line-height: 18px;
+}
+.hm-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--hm-deep);
+  cursor: pointer;
+}
+.hm-btn {
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-radius: 25px;
+  background: var(--hm-red);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.hm-btn:disabled {
+  opacity: 0.6;
+}
+
+/* ── รถของฉัน card ──────────────────────────────────────────────────────────────── */
+.hm-car {
+  position: relative;
+  margin: 12px 12px 0;
+  padding: 16px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--hm-ink);
+}
+.hm-car--lift {
+  margin-top: -84px;
+}
+.hm-car-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hm-car-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hm-car-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hm-car-text .hm-muted {
+  font-size: 15px;
+  line-height: 20px;
+}
+.hm-car-ask {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.hm-car-name {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.hm-logo {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #fff;
+  object-fit: cover;
+}
+.hm-logo--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+}
+
+/* ── white section cards ───────────────────────────────────────────────────────── */
+.hm-sec {
+  margin: 12px 12px 0;
+  padding: 16px;
+  border-radius: 20px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--hm-ink);
+}
+.hm-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hm-sec-t {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--hm-ink);
+}
+.hm-more {
+  font-size: 13px;
+  color: var(--hm-deep);
+}
+.hm-plain {
+  margin: 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hm-plain > .hm-sec-head {
+  padding: 8px 4px 0;
+}
+.hm-hero,
+.hm-promo {
+  margin: 12px 12px 0;
+}
+.hm-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.hm-grid2--8 {
+  gap: 8px;
+}
+.hm-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.hm-grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+.hm-pad {
+  padding: 12px 12px 0;
+}
+
+/* a square picture that fills its frame (✦ when the owner has none) */
+.hm-pic1,
+.hm-cat-pic,
+.hm-brand-pic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #fff;
+  color: var(--hm-red);
+}
+.hm-pic1 {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+}
+.hm-cat-pic {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+.hm-brand-pic {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+}
+.hm-pic1 img,
+.hm-cat-pic img,
+.hm-brand-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── shortcuts · categories · brands ───────────────────────────────────────────── */
+.hm-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+.hm-sc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--hm-ink);
+}
+.hm-sc-ic {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background: #fff1f1;
+  color: var(--hm-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── FLASH SALE ────────────────────────────────────────────────────────────────── */
+.hm-flash-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hm-flash-t {
+  margin-right: 4px;
+  font-size: 17px;
+  font-weight: 800;
+  font-style: italic;
+  color: var(--hm-red);
+}
+.hm-flash-head .hm-more {
+  margin-left: auto;
+}
+.hm-flash-head .cd-boxes {
+  gap: 3px;
+}
+.hm-flash-head .cd-box {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--hm-ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-flash-head .cd-sep {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hm-ink);
+}
+.hm-flash-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--hm-ink);
+}
+.hm-flash-price {
+  font-size: 16px;
+  color: var(--hm-red);
+}
+.hm-bar {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: #f9caca;
+  overflow: hidden;
+}
+.hm-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--hm-red);
+}
+
+/* ── product card: photo · name · พร้อมส่ง · fits · price + cart (no code) ─────────── */
+.hm-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--hm-ink);
+}
+.hm-card-link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+}
+.hm-card-pic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  background: #fff;
+  color: var(--hm-red);
+}
+.hm-card-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hm-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 0;
+}
+.hm-ready {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--hm-grey);
+}
+.hm-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hm-green);
+}
+.hm-fit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-ink);
+}
+.hm-fit svg {
+  color: var(--hm-blue);
+}
+.hm-nofit {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+.hm-card-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding: 8px 12px 12px;
+}
+.hm-price {
+  font-size: 17px;
+  color: var(--hm-ink);
+}
+.hm-price--sale {
+  color: var(--hm-red);
+}
+.hm-price-sale {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+.hm-was {
+  font-size: 13px;
+  color: var(--hm-grey);
+  text-decoration: line-through;
+}
+.hm-pct {
+  font-size: 12px;
+  color: var(--hm-red);
+}
+.hm-cart-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.hm-cart-btn::after {
+  content: "";
+  position: absolute;
+  inset: -6px; /* a 44px finger target around the 32px circle */
+}
+
+/* ── ขายดี (pick "A with horizon frames for all") ─────────────────────────────────── */
+.hm-best {
+  gap: 16px;
+}
+.hm-best-t {
+  margin: 0;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+}
+.hm-best-row {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  color: var(--hm-ink);
+}
+.hm-best-row:not(:last-child) {
+  padding-bottom: 16px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+}
+.hm-best-pic {
+  position: relative;
+  flex-shrink: 0;
+  width: 132px;
+  height: 132px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hm-red);
+}
+.hm-best-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hm-ribbon {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  width: 30px;
+  padding: 4px 0 9px;
+  color: #fff;
+  text-align: center;
+  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+}
+.hm-ribbon-top {
+  font-size: 9px;
+  font-weight: 700;
+}
+.hm-ribbon-n {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.hm-best-info {
+  flex: 1;
+  min-width: 0;
+  height: 132px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.hm-best-upper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hm-rank {
+  align-self: flex-start;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+.hm-best-lower {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hm-best-price {
+  font-size: 22px;
+  line-height: 28px;
+}
+
+/* ── mechanic picks · trust · help · footer ────────────────────────────────────── */
+.hm-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--hm-ink);
+}
+.hm-tool-price {
+  font-size: 15px;
+}
+.hm-partner {
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--hm-grey);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+.hm-partner--shopee {
+  background: #ee4d2d;
+}
+.hm-partner--lazada {
+  background: #0f146d;
+}
+.hm-trust {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 12px;
+}
+.hm-trust-item {
+  display: flex;
+  gap: 8px;
+}
+.hm-trust-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hm-trust-text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.hm-help-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hm-outl {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 1px var(--hm-ink);
+  color: var(--hm-ink);
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.hm-outl--grey {
+  box-shadow: none;
+  background: var(--hm-bg);
+}
+.hm-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px 24px 8px;
+  font-size: 13px;
+}
+.hm-foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.hm-foot-links a {
+  color: #515154;
+}
+
+/* ── sheets: pick brand › model › year, and รถของฉัน ───────────────────────────────── */
+.hm-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.hm-dim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.hm-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100% - 64px);
+  margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  color: var(--hm-ink);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.hm-sheet--tall {
+  height: calc(100% - 64px);
+}
+.hm-sheet-head {
+  display: grid;
+  grid-template-columns: 110px 1fr 110px;
+  align-items: center;
+  padding: 14px 16px 12px;
+}
+.hm-pill {
+  justify-self: start;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 15px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.hm-sheet-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  text-align: center;
+}
+.hm-sheet-title b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.hm-sheet-title span {
+  font-size: 12px;
+  color: var(--hm-grey);
+}
+.hm-ok {
+  justify-self: end;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--hm-red);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.hm-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.hm-sheet-search {
+  margin: 0 16px 6px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--hm-bg);
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hm-sheet-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 16px; /* 16px keeps iPhone from zooming in on focus */
+}
+.hm-list {
+  display: flex;
+  flex-direction: column;
+}
+.hm-row {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 0;
+  /* the line under each row starts after the left padding (iOS list) */
+  background: linear-gradient(var(--hm-line), var(--hm-line)) no-repeat 16px 100% /
+    calc(100% - 16px) 1px;
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 16px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.hm-row:last-child {
+  background: none;
+}
+.hm-row:has(.hm-row-two) {
+  min-height: 68px;
+}
+.hm-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.hm-row-two {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hm-row-two .hm-muted {
+  font-size: 13px;
+}
+.hm-row-end {
+  font-size: 14px;
+  color: var(--hm-grey);
+  white-space: nowrap;
+}
+.hm-row > svg:last-child {
+  color: #c7c7cc;
+}
+.hm-row[aria-pressed="true"] svg {
+  color: var(--hm-red);
+}
+.hm-row.hm-red {
+  color: var(--hm-red);
+}
+.hm-empty {
+  margin: 0;
+  padding: 16px;
+  font-size: 15px;
+  color: var(--hm-grey);
+}
+
+/* ── /my-car (1.7) with the grey sub-page bar (pick B) ─────────────────────────────── */
+.mycar-page {
+  min-height: 100vh;
+  margin: -16px;
+  padding-bottom: 24px;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+}
+.sub-head {
+  display: grid;
+  grid-template-columns: 96px 1fr 96px;
+  align-items: center;
+  padding: calc(6px + env(safe-area-inset-top)) 8px 6px;
+  background: var(--hm-bg);
+}
+.sub-head-t {
+  margin: 0;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sub-head-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+.sub-head-btn {
+  position: relative;
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.sub-head-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--hm-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-strip {
+  margin: 12px 12px 0;
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hm-strip-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.hm-strip-text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.hm-note {
+  margin: 0;
+  padding: 12px 16px 0;
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+
+/* ── bottom bar (pick C): phones only, main pages only ─────────────────────────────── */
+.tb,
+.tb-space {
+  display: none;
+}
+@media (max-width: 719px) {
+  .tb-space {
+    display: block;
+    height: calc(60px + env(safe-area-inset-bottom));
+  }
+  .tb {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    height: calc(60px + env(safe-area-inset-bottom));
+    padding: 10px 16px env(safe-area-inset-bottom);
+    background: #fff;
+    box-shadow: 0 -1px 0 var(--hm-line);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+.tb-tab {
+  width: 44px;
+  height: 40px;
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tb-tab--on {
+  width: auto;
+  gap: 6px;
+  padding: 0 14px 0 12px;
+  border-radius: 20px;
+  background: var(--hm-tint);
+  color: var(--hm-red);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tb-ic {
+  position: relative;
+  display: flex;
+}
+.tb-badge {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--hm-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px #fff;
+}

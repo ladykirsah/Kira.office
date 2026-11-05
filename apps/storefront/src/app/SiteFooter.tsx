@@ -14,7 +14,10 @@ export function SiteFooter() {
   if (pathname !== "/") return null;
 
   return (
-    <footer style={{ background: "var(--footer-bg)", color: "var(--footer-text)" }}>
+    <footer
+      className="site-footer"
+      style={{ background: "var(--footer-bg)", color: "var(--footer-text)" }}
+    >
       <div className="wrap" style={{ padding: "28px 16px", fontSize: 14 }}>
         <div
           style={{

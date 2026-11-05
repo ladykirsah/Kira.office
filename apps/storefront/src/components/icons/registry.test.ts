@@ -19,10 +19,20 @@ const EXPECTED: IconName[] = [
   "trash",
   "logout",
   "chevron",
+  // board 1 (5 Nov 2026): รถของฉัน card + the bottom bar (หน้าแรก · หมวดหมู่ · ติดตาม)
+  "car",
+  "home",
+  "grid",
+  "box",
+  // board 1 trust card + help card: ส่งไว · จ่ายสะดวก · ของแท้ · ร้านจริง · ถามช่างทาง LINE
+  "shield",
+  "card",
+  "store",
+  "line",
 ];
 
 describe("icon registry", () => {
-  it("exposes exactly the 17 chosen interface icons", () => {
+  it("exposes exactly the 25 chosen interface icons", () => {
     expect([...ICON_NAMES].sort()).toEqual([...EXPECTED].sort());
   });
 

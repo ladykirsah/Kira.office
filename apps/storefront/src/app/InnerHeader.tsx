@@ -123,7 +123,9 @@ export function InnerHeader() {
     // "shared" / "cancelled" → the OS share sheet already handled it; no toast.
   };
 
-  if (pathname === "/" || pathname === "/cart" || pathname === "/search") return null;
+  // /my-car draws its own grey sub-page bar (board 1 · 1.7, owner's pick B).
+  if (pathname === "/" || pathname === "/cart" || pathname === "/search" || pathname === "/my-car")
+    return null;
 
   return (
     <>
