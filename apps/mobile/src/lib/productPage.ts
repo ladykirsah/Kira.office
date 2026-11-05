@@ -1,6 +1,7 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { longDate } from "./customerPage";
 import { formatBaht } from "./money";
+import { percentText } from "./shopeeFees";
 
 /**
  * What หน้าสินค้า shows (canvas v194): one ราคา list — ต้นทุน first as the total, then the four prices
@@ -51,8 +52,6 @@ export function totalCostSatang(costSatang: number, taxOnCost: boolean): number 
   return taxOnCost ? Math.round(costSatang * (1 + VAT_RATE)) : costSatang;
 }
 
-const percent = (bp: number) => `${bp / 100}%`;
-
 function profitLines(price: number, cost: number, feeBp: number): PriceLine[] {
   if (price <= 0) return [];
   const fee = Math.round((price * feeBp) / 10000);
@@ -61,7 +60,11 @@ function profitLines(price: number, cost: number, feeBp: number): PriceLine[] {
     fee > 0
       ? [
           {
-            label: { th: `ค่าคอม ${percent(feeBp)}`, en: `Fee ${percent(feeBp)}` },
+            // The shop's total Shopee fees (ข้อมูลร้าน · ค่าคอม Shopee).
+            label: {
+              th: `ค่าคอม Shopee ${percentText(feeBp)}`,
+              en: `Shopee fees ${percentText(feeBp)}`,
+            },
             text: `– ${formatBaht(fee)}`,
             loss: false,
           },
@@ -84,7 +87,15 @@ function profitLines(price: number, cost: number, feeBp: number): PriceLine[] {
   ];
 }
 
-export function priceRows(pricing: Pricing | null, seesCost: boolean): PriceRow[] {
+/**
+ * The ราคา list. `shopeeFeeBp` is the shop's total Shopee fees (owner, 5 Nov 2026): it replaces the
+ * per-product commission the old back office kept in `pricing.onlineCommissionBp`, which is not read.
+ */
+export function priceRows(
+  pricing: Pricing | null,
+  seesCost: boolean,
+  shopeeFeeBp: number,
+): PriceRow[] {
   const p = pricing ?? {
     itemCostSatang: 0,
     taxOnCost: 0,
@@ -105,7 +116,7 @@ export function priceRows(pricing: Pricing | null, seesCost: boolean): PriceRow[
     price("den", { th: "เด่นแอร์", en: "Den Air" }, p.targetPriceSatang),
     price("mechanic", { th: "ช่าง", en: "Mechanic" }, p.b2bPriceSatang),
     price("airplus", { th: "AirPlus", en: "AirPlus" }, p.onlinePriceSatang),
-    price("shopee", { th: "Shopee", en: "Shopee" }, p.shopeePriceSatang, p.onlineCommissionBp),
+    price("shopee", { th: "Shopee", en: "Shopee" }, p.shopeePriceSatang, shopeeFeeBp),
   ];
   if (!seesCost) return prices;
   const costLines: PriceLine[] =

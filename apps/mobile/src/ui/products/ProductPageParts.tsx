@@ -24,12 +24,12 @@ export function Value({ text, grey }: { text: string; grey?: boolean }) {
   );
 }
 
-/** ต้นทุน first, then the four prices. */
+/** ต้นทุน first, then the four prices; Shopee's ⌄ takes off the shop's Shopee fees (ข้อมูลร้าน). */
 export function PriceLines({ page }: { page: ProductPage }) {
   const d = page.detail!;
   return (
     <>
-      {priceRows(d.pricing, page.rights.seesCost).map((row, i, all) => (
+      {priceRows(d.pricing, page.rights.seesCost, page.shopeeFeeBp).map((row, i, all) => (
         <PriceItem key={row.key} row={row} last={i === all.length - 1} />
       ))}
     </>

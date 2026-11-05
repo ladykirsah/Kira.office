@@ -7,8 +7,9 @@ describe("formatBaht", () => {
     expect(formatBaht(0)).toBe("฿0");
   });
 
-  it("given satang > then it keeps them without trailing zeros", () => {
-    expect(formatBaht(129050)).toBe("฿1,290.5");
+  it("given satang > then it shows both satang digits", () => {
+    expect(formatBaht(281410)).toBe("฿2,814.10");
+    expect(formatBaht(129050)).toBe("฿1,290.50");
     expect(formatBaht(5)).toBe("฿0.05");
   });
 });

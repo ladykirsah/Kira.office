@@ -54,7 +54,7 @@ const ADMIN = { prices: false, channels: false };
 describe("bahtText / parseBaht", () => {
   it("given satang > then baht with commas and no ฿, empty when not set", () => {
     expect(bahtText(345000)).toBe("3,450");
-    expect(bahtText(129050)).toBe("1,290.5");
+    expect(bahtText(129050)).toBe("1,290.50");
     expect(bahtText(0)).toBe("");
   });
   it("given typed baht > then satang", () => {
