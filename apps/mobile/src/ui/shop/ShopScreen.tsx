@@ -267,12 +267,15 @@ export function ShopScreen() {
 
   return (
     <View>
-      <View style={styles.top}>
-        <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
-          {draft
-            ? t({ th: "แก้ไขข้อมูลร้าน", en: "Edit shop info" })
-            : t({ th: "ข้อมูลร้าน", en: "Shop info" })}
-        </Text>
+      {/* The strip lies over the frame's ‹ / ยกเลิก: only แก้ไข takes a tap, the rest lets it through. */}
+      <View style={styles.top} pointerEvents="box-none">
+        <View pointerEvents="none">
+          <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
+            {draft
+              ? t({ th: "แก้ไขข้อมูลร้าน", en: "Edit shop info" })
+              : t({ th: "ข้อมูลร้าน", en: "Shop info" })}
+          </Text>
+        </View>
         {!draft && (
           <Pressable
             onPress={() => setDraft(textDraft(info))}

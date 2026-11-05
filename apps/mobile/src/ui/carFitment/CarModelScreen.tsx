@@ -105,11 +105,14 @@ export function CarModelScreen({ brandId, modelId }: { brandId: string; modelId:
   return (
     <View>
       {!wideEdit && (
-        <View style={styles.top}>
+        // The strip lies over the frame's ‹ / ยกเลิก: only แก้ไข takes a tap, the rest lets it through.
+        <View style={styles.top} pointerEvents="box-none">
           {draft ? (
-            <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
-              {editTitle}
-            </Text>
+            <View pointerEvents="none">
+              <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
+                {editTitle}
+              </Text>
+            </View>
           ) : (
             <Pressable
               onPress={edit}
