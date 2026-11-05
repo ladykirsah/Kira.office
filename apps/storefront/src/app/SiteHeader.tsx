@@ -17,6 +17,7 @@ export function SiteHeader() {
 
   return (
     <header
+      className="site-header"
       style={{
         position: "sticky",
         top: 0,

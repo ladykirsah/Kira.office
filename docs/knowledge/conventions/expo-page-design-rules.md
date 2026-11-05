@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -250,6 +250,31 @@ again before saying a build matches.** The owner's words are quoted where they s
     when there is something to confirm. Every approved page uses the ยกเลิก pill, not an ✕.
   - A value that can't be edited is plain black text, not greyed (design guide · Forms).
 - **Neighbouring frames line up.** *"i want scan frame the same height as the below frame."*
+- **A picture is its frame — every picture, every app (CrewEngine and AirPlus).** A logo, product
+  photo, category picture, banner or slip fills its frame edge to edge: no grey frame, no gap, no small
+  picture floating in a bigger box. Where the system has a real picture (car-brand logos, category
+  pictures, tool photos, banners, the owner's slip), draw that one — a grey box with an icon is the
+  same mistake. *"since the gray frame is image area, why don't you fill it up with the image? plus, i
+  did feedback you in before"*, *"not just brand logo but all images"* (AirPlus, 5 Nov 2026).
+- **The shop's own logo and banners, never made-up ones.** Draw with the real files from the live site.
+  *"do you have real logo and banner?"* — I had typed the name and drawn a pretend banner (AirPlus, 5 Nov).
+- **No hard line where a coloured top meets the page.** AirPlus home: the red top fades into the grey
+  behind the รถของฉัน card (pick A). A sub-page bar is the page's own grey, no line, white cards on it
+  (pick B). *"can you make the connect line between red and gray background smoother?"*, *"all edge is
+  smooth now, but the one on the 2nd pic not"* (AirPlus, 5 Nov).
+- **A product card reads default info → extra info → price last.** Photo, name (2 lines), พร้อมส่ง, then
+  extras such as ✓ ใส่ได้กับ Vigo 2012, then the price + cart. *"if the left hand is default info > extra
+  info add on the bottom, not include the price"*. No product code on AirPlus customer cards: *"remove ID"*
+  → *"Remove everywhere"* (CrewEngine keeps its codes) (AirPlus, 5 Nov).
+- **A photo row balances its photo with its words.** The photo is as tall as the words beside it, with a
+  gap between the name and the price. *"make the image height and info section balance * smaller image *
+  create gap between product name and price"* (AirPlus ขายดี, 5 Nov).
+- **One "see all" per section.** With ดูทั้งหมด on the title row there is no extra "all" tile, and tile
+  names fit one line. *"make them 4 shown categories since you already have ดูทั้งหมด on top right"*, *"i
+  want the title to fit in one line only"* (AirPlus หมวดหมู่, 5 Nov).
+- **A best-seller list has to look like one.** *"it does not look catchy, since it is best seller"* → A
+  wide rows: big photo, TOP-N pennant in medal colours, ขายดีอันดับ N, price, ขายเดือนละ N ชิ้น. ดูล่าสุด
+  is photos only (*"remove price"*) (AirPlus, 5 Nov).
 - **A preview uses the space.** The paper fills the grey area's width and grows to match; the gaps
   at the top, left and right equal the gap under it. *"make the preview paper width fill up the
   area width too"*, *"make the top / left / right gap … look balance with the bottom"* (31 Oct).
@@ -640,6 +665,11 @@ again before saying a build matches.** The owner's words are quoted where they s
   tool that opens its own Chrome window — it pops up over the owner's work. *"stop pushing preview
   on Chrome it disturb me working > use Claude browser"* (31 Oct). The pane can't go below 768
   wide; full-screen forms still show as the phone column there.
+- **AirPlus phone pages: Safari in the iPhone simulator.** The shop's phone design shows under 720 wide,
+  the pane stops at 768, and the shop refuses to sit in a frame, so a phone-sized frame in the pane
+  stays blank. Open `localhost:3002` in the simulator's Safari. Swipe from the middle of the screen
+  (a fast swipe low down opens Safari's tab list). A picture in a hidden layout never loads, so check
+  a missing photo on the layout that shows (board 1 build, 5 Nov).
 - **Open every › page and sheet the drawing shows**, and press the pinned buttons, before saying
   it matches.
 - **Check every state, not only the drawn one** — empty lists, a record with no items, a switch

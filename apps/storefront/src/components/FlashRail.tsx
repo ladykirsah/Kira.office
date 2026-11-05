@@ -2,6 +2,7 @@ import Link from "next/link";
 import { resolveEffectivePrice } from "@l-shopee/core";
 import type { CatalogItem } from "@/lib/db";
 import { baht } from "@/lib/format";
+import { flashScarcity } from "@/lib/flashScarcity";
 import { imgUrl } from "@/lib/img";
 import { productHref } from "@/lib/seo";
 
@@ -17,18 +18,12 @@ function FlashCard({ item }: { item: CatalogItem }) {
       ? Math.round(((eff.compareAtSatang - eff.priceSatang) / eff.compareAtSatang) * 100)
       : 0;
 
-  const cap = item.campaign?.stockCap ?? null;
-  const sold = item.campaign?.soldCount ?? 0;
-  const remaining = cap != null ? Math.max(0, cap - sold) : null;
-  // Reserve "100%" for a genuinely exhausted cap — floor + clamp so "97/100 sold" never reads 100%.
-  const soldPct =
-    cap && cap > 0
-      ? remaining && remaining > 0
-        ? Math.min(99, Math.floor((sold / cap) * 100))
-        : 100
-      : null;
+  const scarcity = flashScarcity(item.campaign);
+  const soldPct = scarcity?.soldPct ?? null;
   const barLabel =
-    remaining != null && remaining <= 2 ? `⚡ เหลือ ${remaining} ชิ้น` : `ขายแล้ว ${soldPct ?? 0}%`;
+    scarcity && scarcity.remaining <= 2
+      ? `⚡ เหลือ ${scarcity.remaining} ชิ้น`
+      : `ขายแล้ว ${soldPct ?? 0}%`;
 
   return (
     <Link href={productHref(item)} className="flash-card">

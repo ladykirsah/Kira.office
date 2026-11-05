@@ -28,7 +28,16 @@ export type IconName =
   | "close"
   | "trash"
   | "logout"
-  | "chevron";
+  | "chevron"
+  // board 1 (5 Nov 2026): รถของฉัน card + bottom bar (หน้าแรก · หมวดหมู่ · ติดตาม)
+  | "car"
+  | "home"
+  | "grid"
+  | "box"
+  | "shield"
+  | "card"
+  | "store"
+  | "line";
 
 export interface Glyph {
   /** inner SVG markup (stroke-only) drawn in a 0 0 24 24 viewBox */
@@ -130,6 +139,39 @@ export const ICONS: Record<IconName, Glyph> = {
   },
   chevron: {
     inner: '<path d="M9 6l6 6-6 6"/>',
+  },
+  car: {
+    inner:
+      '<path d="M5 15l1.6-5.2A2 2 0 0 1 8.5 8.4h7a2 2 0 0 1 1.9 1.4L19 15"/><rect x="3" y="15" width="18" height="4" rx="1.5"/><path d="M5 19v2M19 19v2"/><circle cx="7.5" cy="17" r=".8"/><circle cx="16.5" cy="17" r=".8"/>',
+    cy: 14.7,
+  },
+  home: {
+    inner: '<path d="M3 11l9-7 9 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>',
+  },
+  grid: {
+    inner:
+      '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+    scale: 0.95,
+  },
+  box: {
+    inner:
+      '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5"/><path d="M12 12v9"/>',
+    scale: 0.95,
+  },
+  shield: {
+    inner:
+      '<path d="M12 3.5l7 2.8v5.4c0 4.3-2.9 7.3-7 8.8-4.1-1.5-7-4.5-7-8.8V6.3z"/><path d="M9 12l2 2 4-4"/>',
+  },
+  card: {
+    inner: '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18"/>',
+  },
+  store: {
+    inner:
+      '<path d="M4 9.5L5.5 4.5h13L20 9.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/>',
+  },
+  line: {
+    inner:
+      '<path d="M12 4C7 4 3.5 7.1 3.5 11c0 3.4 2.8 6.2 6.6 6.8L10 20l3.2-2.2C17.3 17.3 20.5 14.4 20.5 11 20.5 7.1 17 4 12 4z"/>',
   },
 };
 

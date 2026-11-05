@@ -5,11 +5,11 @@ import {
   activeBanners,
   bestSellers,
   carBrandTiles,
+  carModelOptions,
   getDb,
   listAffiliateItems,
   listCatalog,
   listProductTypes,
-  type BannerRow,
   type CatalogItem,
 } from "@/lib/db";
 import { AffiliateShelf } from "@/components/AffiliateShelf";
@@ -24,7 +24,9 @@ import { CollectionRow } from "@/components/CollectionRow";
 import { Countdown } from "@/components/Countdown";
 import { FlashRail } from "@/components/FlashRail";
 import { HeroCarousel } from "@/components/HeroCarousel";
+import { HomePhone } from "@/components/home/HomePhone";
 import { ProductCard } from "@/components/ProductCard";
+import { PromoStrip } from "@/components/PromoStrip";
 import { QuickAccessBar } from "@/components/QuickAccessBar";
 import { imgUrl } from "@/lib/img";
 
@@ -40,11 +42,13 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const db = await getDb();
   const now = Date.now();
-  const [heroBanners, types, brands, flashRaw, best, latest, promoBanners, tools] =
+  const [heroBanners, types, allBrands, models, flashRaw, best, latest, promoBanners, tools] =
     await Promise.all([
       activeBanners(db, "hero"),
       listProductTypes(db),
-      carBrandTiles(db),
+      // every brand: the phone's รถของฉัน picker lists them all; the computer row shows the first 8
+      carBrandTiles(db, 64),
+      carModelOptions(db),
       listCatalog(db, { onSaleOnly: true, limit: 8 }),
       bestSellers(db, { limit: 5 }),
       listCatalog(db, { limit: 8 }),
@@ -63,279 +67,271 @@ export default async function Home() {
   const flashEndsAt = flashEnds.length > 0 ? Math.min(...flashEnds) : null;
 
   const facebookUrl = process.env.NEXT_PUBLIC_FACEBOOK_URL;
+  const brands = allBrands.slice(0, 8);
 
   return (
-    <div className="home-sections">
+    <>
       {/* LocalBusiness structured data — the site's half of the site↔Google-listing link (matching NAP). */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(localBusinessJsonLd()) }}
       />
-      <section className="section qa-section">
-        <QuickAccessBar />
-      </section>
-
-      {heroBanners.length > 0 && (
-        <section className="section">
-          <HeroCarousel banners={heroBanners} />
+      {/* Phones (<720px) get board 1; computers keep the page below (owner, 5 Nov 2026). */}
+      <HomePhone
+        heroBanners={heroBanners}
+        types={types}
+        brands={allBrands.map((b) => ({
+          brand: b.brand,
+          nameTh: b.nameTh,
+          logo: resolveBrandLogo(b.brand, b.imageKey),
+          productCount: b.productCount,
+        }))}
+        models={models}
+        flash={flash}
+        flashEndsAt={flashEndsAt}
+        best={best}
+        latest={latest}
+        promoBanners={promoBanners}
+        tools={tools}
+      />
+      <div className="home-sections home-desk">
+        <section className="section qa-section">
+          <QuickAccessBar />
         </section>
-      )}
 
-      <section className="section">
-        <h1
-          className="t-display-l"
-          style={{ margin: "0 0 12px", color: "var(--gray-dark)", textWrap: "balance" }}
-        >
-          อะไหล่แอร์รถยนต์ <span style={{ color: "var(--brand)" }}>ของแท้</span> ส่งไว
-        </h1>
-        <p className="t-body-l" style={{ color: "var(--gray-mid)", margin: "0 0 4px" }}>
-          ตู้แอร์ คอมเพรสเซอร์ แผงร้อน และอะไหล่ระบบแอร์ โดยช่างตัวจริงจาก Den Air Service
-        </p>
-      </section>
+        {heroBanners.length > 0 && (
+          <section className="section">
+            <HeroCarousel banners={heroBanners} />
+          </section>
+        )}
 
-      {types.length > 0 && (
         <section className="section">
-          <SectionHead
-            eyebrow="🗂️ หมวดหมู่ · Categories"
-            title="เลือกตามหมวดหมู่"
-            link={{ href: "/categories", label: "ดูทั้งหมด →" }}
-          />
-          <CategoryRow
-            items={types.map((t) => {
-              // Same two-line treatment as the car-brand row below — one helper, one rule.
-              const n = displayNames(t);
-              return {
-                href: `/products?type=${encodeURIComponent(t.id)}&ctx=cat`,
-                name: n.th,
-                nameEn: n.en ?? undefined,
-                subtitle: `${t.productCount} รายการ`,
-                image: t.imageKey ? imgUrl(t.imageKey) : undefined, // owner-uploaded cover, else ✦
-              };
-            })}
-          />
+          <h1
+            className="t-display-l"
+            style={{ margin: "0 0 12px", color: "var(--gray-dark)", textWrap: "balance" }}
+          >
+            อะไหล่แอร์รถยนต์ <span style={{ color: "var(--brand)" }}>ของแท้</span> ส่งไว
+          </h1>
+          <p className="t-body-l" style={{ color: "var(--gray-mid)", margin: "0 0 4px" }}>
+            ตู้แอร์ คอมเพรสเซอร์ แผงร้อน และอะไหล่ระบบแอร์ โดยช่างตัวจริงจาก Den Air Service
+          </p>
         </section>
-      )}
 
-      {brands.length > 0 && (
-        <section className="section">
-          <SectionHead
-            eyebrow="🚗 ยี่ห้อรถ · Car Fitment"
-            title="เลือกตามยี่ห้อรถ"
-            link={{ href: "/brands", label: "ดูทั้งหมด →" }}
-          />
-          <CategoryRow
-            items={brands.map((b) => {
-              const n = displayNames({ name: b.brand, nameTh: b.nameTh, nameEn: b.nameEn });
-              return {
-                href: `/products?carBrand=${encodeURIComponent(b.brand)}&ctx=brand`,
-                name: n.th,
-                nameEn: n.en ?? undefined,
-                subtitle: `${b.productCount} รายการ`,
-                image: resolveBrandLogo(b.brand, b.imageKey) ?? undefined,
-              };
-            })}
-          />
-        </section>
-      )}
+        {types.length > 0 && (
+          <section className="section">
+            <SectionHead
+              eyebrow="🗂️ หมวดหมู่ · Categories"
+              title="เลือกตามหมวดหมู่"
+              link={{ href: "/categories", label: "ดูทั้งหมด →" }}
+            />
+            <CategoryRow
+              items={types.map((t) => {
+                // Same two-line treatment as the car-brand row below — one helper, one rule.
+                const n = displayNames(t);
+                return {
+                  href: `/products?type=${encodeURIComponent(t.id)}&ctx=cat`,
+                  name: n.th,
+                  nameEn: n.en ?? undefined,
+                  subtitle: `${t.productCount} รายการ`,
+                  image: t.imageKey ? imgUrl(t.imageKey) : undefined, // owner-uploaded cover, else ✦
+                };
+              })}
+            />
+          </section>
+        )}
 
-      {flash.length > 0 && flashEndsAt !== null && (
-        <section
-          className="section"
-          style={{
-            background: "var(--brand)",
-            padding: "18px 14px 16px",
-            borderRadius: "var(--radius)",
-            color: "var(--white)",
-          }}
-        >
-          {/* Design 3 "lightning countdown": centered header, big HH:MM:SS boxes as the hero, then a
+        {brands.length > 0 && (
+          <section className="section">
+            <SectionHead
+              eyebrow="🚗 ยี่ห้อรถ · Car Fitment"
+              title="เลือกตามยี่ห้อรถ"
+              link={{ href: "/brands", label: "ดูทั้งหมด →" }}
+            />
+            <CategoryRow
+              items={brands.map((b) => {
+                const n = displayNames({ name: b.brand, nameTh: b.nameTh, nameEn: b.nameEn });
+                return {
+                  href: `/products?carBrand=${encodeURIComponent(b.brand)}&ctx=brand`,
+                  name: n.th,
+                  nameEn: n.en ?? undefined,
+                  subtitle: `${b.productCount} รายการ`,
+                  image: resolveBrandLogo(b.brand, b.imageKey) ?? undefined,
+                };
+              })}
+            />
+          </section>
+        )}
+
+        {flash.length > 0 && flashEndsAt !== null && (
+          <section
+            className="section"
+            style={{
+              background: "var(--brand)",
+              padding: "18px 14px 16px",
+              borderRadius: "var(--radius)",
+              color: "var(--white)",
+            }}
+          >
+            {/* Design 3 "lightning countdown": centered header, big HH:MM:SS boxes as the hero, then a
               swipe rail of deals with scarcity bars. */}
-          <div style={{ textAlign: "center", marginBottom: 12 }}>
-            <div className="t-overline" style={{ color: "rgba(255,255,255,0.9)" }}>
-              🔥 แฟลชเซล · Flash Sale
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <div className="t-overline" style={{ color: "rgba(255,255,255,0.9)" }}>
+                🔥 แฟลชเซล · Flash Sale
+              </div>
+              <h3 className="t-h3" style={{ color: "var(--white)", margin: "6px 0 12px" }}>
+                ลดวันนี้เท่านั้น
+              </h3>
+              <Countdown endsAt={flashEndsAt} variant="boxes" />
             </div>
-            <h3 className="t-h3" style={{ color: "var(--white)", margin: "6px 0 12px" }}>
-              ลดวันนี้เท่านั้น
-            </h3>
-            <Countdown endsAt={flashEndsAt} variant="boxes" />
-          </div>
-          <FlashRail items={flash} />
-        </section>
-      )}
+            <FlashRail items={flash} />
+          </section>
+        )}
 
-      {best.length > 0 && (
-        <section className="section">
-          <SectionHead eyebrow="🏆 ยอดขายดี · Best Sellers" title="สินค้าขายดี" />
-          <BestSellerList items={best} />
-        </section>
-      )}
+        {best.length > 0 && (
+          <section className="section">
+            <SectionHead eyebrow="🏆 ยอดขายดี · Best Sellers" title="สินค้าขายดี" />
+            <BestSellerList items={best} />
+          </section>
+        )}
 
-      {flash.length > 0 && (
-        <section className="section">
-          <CollectionRow
-            items={flash}
-            icon="🏷️"
-            title="สินค้าลดราคา"
-            subtitle="ดีลราคาพิเศษ"
-            seeAllHref="/products?ctx=sale"
-          />
-        </section>
-      )}
+        {flash.length > 0 && (
+          <section className="section">
+            <CollectionRow
+              items={flash}
+              icon="🏷️"
+              title="สินค้าลดราคา"
+              subtitle="ดีลราคาพิเศษ"
+              seeAllHref="/products?ctx=sale"
+            />
+          </section>
+        )}
 
-      {latest.length > 0 && (
-        <section className="section">
-          <SectionHead
-            eyebrow="✨ ใหม่ · New Arrivals"
-            title="สินค้ามาใหม่"
-            link={{ href: "/products", label: "ดูทั้งหมด →" }}
-          />
-          <div className="product-grid">
-            {latest.map((item) => (
-              <ProductCard key={item.variantId} item={item} />
+        {latest.length > 0 && (
+          <section className="section">
+            <SectionHead
+              eyebrow="✨ ใหม่ · New Arrivals"
+              title="สินค้ามาใหม่"
+              link={{ href: "/products", label: "ดูทั้งหมด →" }}
+            />
+            <div className="product-grid">
+              {latest.map((item) => (
+                <ProductCard key={item.variantId} item={item} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {promoBanners.length > 0 && (
+          <section className="section">
+            {promoBanners.map((b) => (
+              <PromoStrip key={b.id} banner={b} />
             ))}
+          </section>
+        )}
+
+        {tools.length > 0 && (
+          <section className="section">
+            <SectionHead
+              eyebrow="🔧 ช่างแอร์คัดให้ · Mechanic Picks"
+              title="เครื่องมือช่างแนะนำ"
+              link={{ href: "/tools", label: "ดูทั้งหมด →" }}
+            />
+            <AffiliateShelf items={tools} />
+          </section>
+        )}
+
+        <section className="section">
+          {/* .product-grid = 2 cols mobile / 4 cols ≥720px — the exact trust-strip layout */}
+          <div className="product-grid">
+            <TrustTile icon={truckIcon} title="ส่งไวทั่วไทย" desc="แพ็คส่งภายใน 1-2 วันทำการ" />
+            <TrustTile
+              icon={payIcon}
+              title="จ่ายสะดวก"
+              desc="PromptPay · โอนธนาคาร · เก็บเงินปลายทาง"
+            />
+            <TrustTile
+              icon={shieldIcon}
+              title="ของแท้ 100%"
+              desc="อะไหล่แท้จากผู้ผลิต เช่น Denso"
+            />
+            <TrustTile
+              icon={storeIcon}
+              title="ร้านจริง มีหน้าร้าน"
+              desc="โดย Den Air Service จดทะเบียนนิติบุคคล"
+            />
           </div>
         </section>
-      )}
 
-      {promoBanners.length > 0 && (
-        <section className="section">
-          {promoBanners.map((b) => (
-            <PromoStrip key={b.id} banner={b} />
-          ))}
-        </section>
-      )}
-
-      {tools.length > 0 && (
-        <section className="section">
-          <SectionHead
-            eyebrow="🔧 ช่างแอร์คัดให้ · Mechanic Picks"
-            title="เครื่องมือช่างแนะนำ"
-            link={{ href: "/tools", label: "ดูทั้งหมด →" }}
-          />
-          <AffiliateShelf items={tools} />
-        </section>
-      )}
-
-      <section className="section">
-        {/* .product-grid = 2 cols mobile / 4 cols ≥720px — the exact trust-strip layout */}
-        <div className="product-grid">
-          <TrustTile icon={truckIcon} title="ส่งไวทั่วไทย" desc="แพ็คส่งภายใน 1-2 วันทำการ" />
-          <TrustTile
-            icon={payIcon}
-            title="จ่ายสะดวก"
-            desc="PromptPay · โอนธนาคาร · เก็บเงินปลายทาง"
-          />
-          <TrustTile icon={shieldIcon} title="ของแท้ 100%" desc="อะไหล่แท้จากผู้ผลิต เช่น Denso" />
-          <TrustTile
-            icon={storeIcon}
-            title="ร้านจริง มีหน้าร้าน"
-            desc="โดย Den Air Service จดทะเบียนนิติบุคคล"
-          />
-        </div>
-      </section>
-
-      {/* Help card: routes to the FAQ first, but keeps LINE as the secondary action — LINE is still
+        {/* Help card: routes to the FAQ first, but keeps LINE as the secondary action — LINE is still
           the fastest way to reach a mechanic, and the FAQ itself tells people to ask there when
           unsure, so this section leads with self-serve without removing the human route. */}
-      <section className="section">
-        <div className="card" style={{ padding: "18px 16px", textAlign: "center" }}>
-          <div aria-hidden="true" style={{ fontSize: 30, lineHeight: 1, marginBottom: 8 }}>
-            💬
-          </div>
-          <p
-            style={{
-              margin: "0 0 4px",
-              fontSize: 18,
-              fontWeight: 700,
-              color: "var(--gray-dark)",
-              textWrap: "balance",
-            }}
-          >
-            ไม่แน่ใจว่าต้องใช้ตัวไหน?
-          </p>
-          <p
-            style={{
-              margin: "0 0 14px",
-              fontSize: 13.5,
-              color: "var(--gray-mid)",
-              lineHeight: 1.5,
-              textWrap: "balance",
-            }}
-          >
-            รวมคำถามที่ลูกค้าถามบ่อย เรื่องความเข้ากับรุ่นรถ การจัดส่ง การรับประกัน และการเคลม
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <Link className="btn btn-primary" href="/faq" style={{ textAlign: "center" }}>
-              อ่านคำถามที่พบบ่อย
-            </Link>
-            <a
-              href={LINE_OA_URL}
-              target="_blank"
-              rel="noopener"
-              className="btn"
+        <section className="section">
+          <div className="card" style={{ padding: "18px 16px", textAlign: "center" }}>
+            <div aria-hidden="true" style={{ fontSize: 30, lineHeight: 1, marginBottom: 8 }}>
+              💬
+            </div>
+            <p
               style={{
-                background: "#06C755",
-                borderColor: "#06C755",
-                color: "var(--white)",
-                textAlign: "center",
+                margin: "0 0 4px",
+                fontSize: 18,
+                fontWeight: 700,
+                color: "var(--gray-dark)",
+                textWrap: "balance",
               }}
             >
-              ถามช่างทาง LINE
-            </a>
-            {facebookUrl && (
+              ไม่แน่ใจว่าต้องใช้ตัวไหน?
+            </p>
+            <p
+              style={{
+                margin: "0 0 14px",
+                fontSize: 13.5,
+                color: "var(--gray-mid)",
+                lineHeight: 1.5,
+                textWrap: "balance",
+              }}
+            >
+              รวมคำถามที่ลูกค้าถามบ่อย เรื่องความเข้ากับรุ่นรถ การจัดส่ง การรับประกัน และการเคลม
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <Link className="btn btn-primary" href="/faq" style={{ textAlign: "center" }}>
+                อ่านคำถามที่พบบ่อย
+              </Link>
               <a
-                href={facebookUrl}
+                href={LINE_OA_URL}
                 target="_blank"
                 rel="noopener"
                 className="btn"
                 style={{
-                  background: "#1877F2",
-                  borderColor: "#1877F2",
+                  background: "#06C755",
+                  borderColor: "#06C755",
                   color: "var(--white)",
                   textAlign: "center",
                 }}
               >
-                ติดตามบน Facebook
+                ถามช่างทาง LINE
               </a>
-            )}
+              {facebookUrl && (
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="btn"
+                  style={{
+                    background: "#1877F2",
+                    borderColor: "#1877F2",
+                    color: "var(--white)",
+                    textAlign: "center",
+                  }}
+                >
+                  ติดตามบน Facebook
+                </a>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </>
   );
-}
-
-/** Promo strip: like a hero slide but static, wider ratio, one per row (server-safe). */
-function PromoStrip({ banner }: { banner: BannerRow }) {
-  const image = (
-    <div
-      className="frame"
-      style={{ aspectRatio: "2659 / 984", borderRadius: "var(--radius)", marginBottom: 10 }}
-    >
-      {banner.imageKey ? (
-        <img src={imgUrl(banner.imageKey)} alt="" loading="lazy" style={{ objectFit: "cover" }} />
-      ) : (
-        <span aria-hidden="true" style={{ color: "var(--brand)", fontSize: 44, lineHeight: 1 }}>
-          ✦
-        </span>
-      )}
-    </div>
-  );
-  if (banner.linkUrl && banner.linkUrl.startsWith("/")) {
-    return (
-      <Link href={banner.linkUrl} style={{ display: "block" }}>
-        {image}
-      </Link>
-    );
-  }
-  if (banner.linkUrl && banner.linkUrl.startsWith("https://")) {
-    return (
-      <a href={banner.linkUrl} target="_blank" rel="noopener" style={{ display: "block" }}>
-        {image}
-      </a>
-    );
-  }
-  return image;
 }
 
 /**
