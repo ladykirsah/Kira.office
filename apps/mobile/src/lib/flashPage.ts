@@ -260,7 +260,10 @@ export const emptyForm = (): FlashForm => ({
 
 /** Baht as the box shows it: "2,990" (whole baht) or "2,990.50". */
 export const bahtText = (satang: number) =>
-  (satang / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  (satang / 100).toLocaleString("en-US", {
+    minimumFractionDigits: satang % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 
 export const toSatang = (text: string) => Math.round(Number(text.replace(/,/g, "")) * 100);
 

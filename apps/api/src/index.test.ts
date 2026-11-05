@@ -12523,3 +12523,82 @@ describe("รุ่นรถที่ใช้ได้ (owner, 3 Nov 2026: no �
     expect(brands.find((b) => b.id === "cb-honda")?.productCount).toBe(0);
   });
 });
+
+describe('ค่าคอม Shopee (owner, 5 Nov 2026: "on the main page is total %, and the pop up shown all amount we have been charged")', () => {
+  const NOW = 1_800_000_000_000;
+
+  async function signedIn(role: string) {
+    const raw = migratedDb();
+    const db = asD1(raw);
+    raw
+      .prepare(
+        `INSERT INTO users (id,name,email,role,status,created_at)
+         VALUES ('u1','Somchai','s@shop.test',?,'active',?)`,
+      )
+      .run(role, NOW);
+    const { token } = await createStaffSession(db, "u1", NOW);
+    const store = new Map<string, string>();
+    const KV = {
+      get: async (k: string) => store.get(k) ?? null,
+      put: async (k: string, v: string) => void store.set(k, v),
+    };
+    return { store, env: { DB: db, KV } as unknown as Env, token };
+  }
+
+  const call = (env: Env, init: RequestInit = {}, token?: string) =>
+    worker.fetch!(
+      new Request("https://x/shopee-fees", {
+        ...init,
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { "X-Staff-Session": token } : {}),
+        },
+      }),
+      env,
+      ctx,
+    );
+  const FEES = { commissionBp: 1200, transactionBp: 300, serviceBp: 200 };
+
+  it("GET > given nothing saved > then every fee is 0", async () => {
+    const { env, token } = await signedIn("admin");
+    const res = await call(env, {}, token);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ commissionBp: 0, transactionBp: 0, serviceBp: 0 });
+  });
+
+  it("PUT > given the owner > then the fees are saved and read back", async () => {
+    const { env, token, store } = await signedIn("super_admin");
+    const put = await call(env, { method: "PUT", body: JSON.stringify(FEES) }, token);
+    expect(put.status).toBe(200);
+    expect(JSON.parse(store.get("shopee:fees")!)).toEqual(FEES);
+    expect(await (await call(env, {}, token)).json()).toEqual(FEES);
+  });
+
+  for (const role of ["admin", "mechanic"]) {
+    it(`PUT > given a ${role} > then 403 and nothing changes (the owner's alone)`, async () => {
+      const { env, token, store } = await signedIn(role);
+      const res = await call(env, { method: "PUT", body: JSON.stringify(FEES) }, token);
+      expect(res.status).toBe(403);
+      expect(store.has("shopee:fees")).toBe(false);
+    });
+  }
+
+  it("PUT > given fees that are not three whole hundredths > then 400 and nothing changes", async () => {
+    const { env, token, store } = await signedIn("super_admin");
+    const res = await call(
+      env,
+      {
+        method: "PUT",
+        body: JSON.stringify({ commissionBp: 12.5, transactionBp: 0, serviceBp: 0 }),
+      },
+      token,
+    );
+    expect(res.status).toBe(400);
+    expect(store.has("shopee:fees")).toBe(false);
+  });
+
+  it("given no session > 401, never an open door", async () => {
+    const { env } = await signedIn("super_admin");
+    expect((await call(env)).status).toBe(401);
+  });
+});

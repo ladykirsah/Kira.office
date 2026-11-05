@@ -294,6 +294,8 @@ export function InputRow(props: {
   tool?: ReactNode;
   last?: boolean;
   editable?: boolean;
+  /** A short value's box ("12" %): this wide, so a long name beside it keeps one line. */
+  boxWidth?: number;
 }) {
   const { theme } = useTheme();
   const editable = props.editable !== false;
@@ -315,7 +317,12 @@ export function InputRow(props: {
               autoCapitalize={props.secure || props.autoComplete ? "none" : undefined}
               autoCorrect={props.secure || props.autoComplete ? false : undefined}
               accessibilityLabel={props.label}
-              style={[TYPE.body, styles.input, { color: theme.text }]}
+              style={[
+                TYPE.body,
+                styles.input,
+                { color: theme.text },
+                props.boxWidth !== undefined && { width: props.boxWidth, minWidth: 0 },
+              ]}
             />
           ) : (
             <Text style={[TYPE.body, styles.fixed, { color: theme.text }]}>

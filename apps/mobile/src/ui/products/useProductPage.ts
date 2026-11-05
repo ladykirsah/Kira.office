@@ -5,6 +5,7 @@ import { API_BASE } from "@/lib/config";
 import type { ProductDetail } from "@/lib/productEdit";
 import { nameLabel } from "@/lib/productPickers";
 import { fetchAttributes, fetchProductDetail, type Attributes } from "@/lib/productsApi";
+import { fetchShopeeFees, totalBp } from "@/lib/shopeeFees";
 import { useAuth, useLang } from "../AppProviders";
 import { useRights } from "./useRights";
 
@@ -18,6 +19,8 @@ export function useProductPage(id: string) {
   const rights = useRights();
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [attrs, setAttrs] = useState<Attributes | null>(null);
+  /** The shop's Shopee fees, all added up (ข้อมูลร้าน · ค่าคอม Shopee): the Shopee ⌄ takes them off. */
+  const [shopeeFeeBp, setShopeeFeeBp] = useState(0);
   /** "gone": deleted elsewhere; "failed": did not load. */
   const [problem, setProblem] = useState<"gone" | "failed" | null>(null);
   const [toast, setToastState] = useState<{ title: Phrase; detail: Phrase } | null>(null);
@@ -32,12 +35,14 @@ export function useProductPage(id: string) {
   const load = useCallback(async () => {
     if (!token || !id) return;
     try {
-      const [d, lists] = await Promise.all([
+      const [d, lists, fees] = await Promise.all([
         fetchProductDetail(fetch, API_BASE, token, id),
         fetchAttributes(fetch, API_BASE, token),
+        fetchShopeeFees(fetch, API_BASE, token),
       ]);
       setDetail(d);
       setAttrs(lists);
+      setShopeeFeeBp(totalBp(fees));
       setProblem(d ? null : "gone");
     } catch {
       setProblem("failed");
@@ -58,7 +63,7 @@ export function useProductPage(id: string) {
     showToast({ th: `คัดลอก ${code} แล้ว`, en: `${code} copied` });
   };
 
-  return { token, rights, detail, problem, load, label, copy, toast, showToast };
+  return { token, rights, detail, shopeeFeeBp, problem, load, label, copy, toast, showToast };
 }
 
 export type ProductPage = ReturnType<typeof useProductPage>;
