@@ -13,7 +13,7 @@ import { AmountHead, MethodSwitch, PayWays, type Method, type Photo } from "./Pa
 
 /**
  * จ่ายเงินเดือน (canvas v292, 2.5 – 2.13): what payday hands over — the month's pay less what was
- * advanced — then โอน with the slip, or เงินสด with who paid. ยืนยันว่าจ่าย records it.
+ * advanced — then โอน with the slip, or เงินสด with who paid. ยืนยันการจ่ายเงิน records it.
  */
 export function PaySheet(props: {
   row: PayRow;
@@ -76,10 +76,7 @@ export function PaySheet(props: {
       {refused ? <FieldError text={refused} /> : null}
       <View style={{ marginTop: SPACE.xs }}>
         <BigButton
-          label={t({
-            th: `ยืนยันว่าจ่าย ${head.amount} แล้ว`,
-            en: `Confirm ${head.amount} paid`,
-          })}
+          label={t({ th: "ยืนยันการจ่ายเงิน", en: "Confirm payment" })}
           onPress={() => void confirm()}
         />
       </View>

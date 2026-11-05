@@ -52,9 +52,7 @@ export function PayJob({ ctx }: { ctx: JobContext }) {
     order.slipImageKey && allowed
       ? [
           {
-            label: ctx.busy
-              ? t(SAVING)
-              : t({ th: `ยืนยันการชำระเงิน ${total}`, en: `Confirm payment ${total}` }),
+            label: ctx.busy ? t(SAVING) : t({ th: "ยืนยันการชำระเงิน", en: "Confirm payment" }),
             onPress: () =>
               ctx.run(() => reviewPayment(fetch, API_BASE, ctx.token, order.id, "confirm"), {
                 title: t({
@@ -390,7 +388,7 @@ export function RefundJob({ ctx }: { ctx: JobContext }) {
                 </Text>
                 <SlipConfirm
                   busy={ctx.busy}
-                  label={t({ th: `ยืนยันการคืนเงิน ${total}`, en: `Confirm refund ${total}` })}
+                  label={t({ th: "ยืนยันการคืนเงิน", en: "Confirm refund" })}
                   onConfirm={(slip) =>
                     ctx.run(() => recordRefund(fetch, API_BASE, ctx.token, order.id, slip), {
                       title: t({ th: `คืนเงิน ${total} แล้ว`, en: `Refunded ${total}` }),
