@@ -331,9 +331,7 @@ function ClearSheet({ page, onClose }: { page: PaymentPage; onClose: () => void 
       </Text>
       <BigButton
         label={
-          page.busy
-            ? t({ th: "กำลังล้าง…", en: "Clearing…" })
-            : t({ th: `ล้าง ${sum.count} รายการ`, en: `Clear ${sum.count}` })
+          page.busy ? t({ th: "กำลังล้าง…", en: "Clearing…" }) : t({ th: "ล้าง", en: "Clear" })
         }
         onPress={() => void page.clearAll()}
       />
