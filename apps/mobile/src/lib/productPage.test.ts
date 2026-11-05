@@ -3,6 +3,7 @@ import {
   boxText,
   editedLine,
   galleryKeys,
+  leadAndRest,
   priceRows,
   weightText,
   type Pricing,
@@ -123,5 +124,19 @@ describe("galleryKeys", () => {
   });
   it("given nothing > then no photos", () => {
     expect(galleryKeys(null, [])).toEqual([]);
+  });
+});
+
+describe("leadAndRest (the computer's photos: the first big, the others small)", () => {
+  it("given three photos > the first is the big one and the other two follow it", () => {
+    expect(leadAndRest(["a", "b", "c"])).toEqual({ lead: "a", rest: ["b", "c"] });
+  });
+
+  it("given one photo > it is the big one and nothing is small", () => {
+    expect(leadAndRest(["a"])).toEqual({ lead: "a", rest: [] });
+  });
+
+  it("given no photos > there is no big photo (that square becomes เพิ่มรูป)", () => {
+    expect(leadAndRest([])).toEqual({ lead: null, rest: [] });
   });
 });

@@ -11,7 +11,12 @@ export function NotMovedYet() {
   const { t } = useLang();
   const { theme } = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.title, { color: theme.text }]}>
         {t({ th: "ยังไม่ได้ย้ายมาแอปใหม่", en: "Not in the new app yet" })}
       </Text>

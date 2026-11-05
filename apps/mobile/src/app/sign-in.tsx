@@ -27,6 +27,8 @@ import {
 import { useAuth, useLang, useTheme } from "@/ui/AppProviders";
 import { BigButton } from "@/ui/BigButton";
 import { useBrandFont } from "@/ui/brandFont";
+import { useWide } from "@/ui/desk/useWide";
+import { WideButton } from "@/ui/desk/WideTools";
 import { Group } from "@/ui/orders/parts";
 import { Sheet } from "@/ui/orders/Sheet";
 import { StepRow } from "@/ui/partsSetup/parts";
@@ -36,7 +38,7 @@ import { InputRow } from "@/ui/products/parts";
 import { NO_CHROME, type Chrome } from "@/ui/ScreenChrome";
 import { Segmented } from "@/ui/Segmented";
 import { PillButton } from "@/ui/staff/parts";
-import { SPACE, TYPE } from "@/ui/theme";
+import { RADIUS, SPACE, TYPE } from "@/ui/theme";
 
 /**
  * เข้าใช้งาน as drawn (canvas LoginPhone v328, 3 Nov 2026): the name, a รหัส 6 หลัก | อีเมล switch,
@@ -44,6 +46,9 @@ import { SPACE, TYPE } from "@/ui/theme";
  * and — on a practice copy only — the no-password door. Each door answers in its own place.
  */
 const PRACTICE = isLocalApi(API_BASE);
+/** The computer's sign-in card: its width, and how far below the top of the window it starts. */
+const CARD_WIDTH = 420;
+const CARD_TOP = 120;
 type Door = "form" | "key";
 
 export default function SignIn() {
@@ -52,6 +57,7 @@ export default function SignIn() {
   const { theme } = useTheme();
   const brandFont = useBrandFont();
   const insets = useSafeAreaInsets();
+  const wide = useWide();
 
   const [tab, setTab] = useState<SignInTab>("pin");
   const [pin, setPin] = useState("");
@@ -112,6 +118,150 @@ export default function SignIn() {
     pinned: pinnedHeight(chrome),
   });
 
+  const practiceBanner = PRACTICE && (
+    <View style={[styles.practice, { backgroundColor: theme.surface }]}>
+      <View style={[styles.dot, { backgroundColor: theme.waiting }]} />
+      <Text style={[TYPE.subhead, { color: theme.text, flex: 1 }]}>
+        {t({
+          th: "เครื่องซ้อมในคอมนี้ · ไม่ใช่ข้อมูลร้านจริง",
+          en: "Practice copy · not the shop's real data",
+        })}
+      </Text>
+    </View>
+  );
+  const brand = (
+    <>
+      <Text
+        style={[
+          TYPE.title1,
+          styles.center,
+          { color: theme.text },
+          brandFont,
+          wide && styles.brandWide,
+        ]}
+      >
+        CrewEngine
+      </Text>
+      <Text style={[TYPE.subhead, styles.center, styles.sub, { color: theme.textMuted }]}>
+        Den Air Service + AirPlus
+      </Text>
+    </>
+  );
+  const doors = (
+    <Segmented
+      label={t({ th: "เข้าใช้งานด้วย", en: "Sign in with" })}
+      options={[
+        { value: "pin", label: t({ th: "รหัส 6 หลัก", en: "PIN" }) },
+        { value: "password", label: t({ th: "อีเมล", en: "Email" }) },
+      ]}
+      value={tab}
+      onChange={(v) => {
+        setTab(v);
+        setTried(false);
+        setError(null);
+      }}
+    />
+  );
+  const mailRows = (
+    <>
+      <InputRow
+        label={t({ th: "อีเมล", en: "Email" })}
+        value={email}
+        placeholder={t({ th: "ชื่อ@อีเมล.com", en: "name@email.com" })}
+        keyboardType="email-address"
+        autoComplete="email"
+        onChange={typed(setEmail)}
+      />
+      <InputRow
+        label={t({ th: "รหัสผ่าน", en: "Password" })}
+        value={password}
+        placeholder={t({ th: "รหัสผ่าน", en: "Password" })}
+        secure
+        autoComplete="password"
+        onChange={typed(setPassword)}
+        last
+      />
+    </>
+  );
+  const middle =
+    tab === "pin" ? (
+      <>
+        {/* In the computer's white card the boxes take the page grey, so they still show. */}
+        <PinBoxes value={pin} onChange={typed(setPin)} fill={wide ? theme.bg : theme.surface} />
+        {(pinLine || serverLine) && (
+          <Text
+            accessibilityRole="alert"
+            style={[TYPE.footnote, styles.center, styles.pinError, { color: theme.danger }]}
+          >
+            {pinLine ? t(pinLine) : serverLine}
+          </Text>
+        )}
+      </>
+    ) : (
+      <>
+        {wide ? (
+          <View style={[styles.mailBox, { backgroundColor: theme.bg }]}>{mailRows}</View>
+        ) : (
+          <Group>{mailRows}</Group>
+        )}
+        {mailLines.map((p) => (
+          <FieldError key={p.en} text={t(p)} />
+        ))}
+        {serverLine && <FieldError text={serverLine} />}
+      </>
+    );
+  const practiceDoor = PRACTICE && (
+    <View style={styles.practiceDoor}>
+      <Group>
+        <StepRow
+          label={t({ th: "เข้าเครื่องซ้อม", en: "Sign in to the practice copy" })}
+          second={t({ th: "ไม่ต้องใช้รหัส", en: "No password" })}
+          onPress={() => void attempt("form", { kind: "practice" })}
+        />
+      </Group>
+    </View>
+  );
+  const forgotSheet = forgot && (
+    <ForgotSheet
+      error={error?.door === "key" ? error.text : null}
+      onKey={(key) => void attempt("key", { kind: "key", key })}
+      clearError={() => setError(null)}
+      onClose={() => {
+        setForgot(false);
+        setError(null);
+      }}
+    />
+  );
+
+  if (wide) {
+    // Computer (canvas คอม · เข้าใช้งาน): no menu yet, so one card in the middle of a light page —
+    // the name, the switch, the boxes, then เข้าใช้งาน and ลืมรหัส? inside it; the language top right.
+    return (
+      <View style={[styles.page, { backgroundColor: theme.sidebar }]}>
+        <ScrollView contentContainerStyle={styles.wideContent} keyboardShouldPersistTaps="handled">
+          {practiceBanner && <View style={styles.wideBanner}>{practiceBanner}</View>}
+          <View
+            style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          >
+            {brand}
+            <View style={styles.switchWide}>{doors}</View>
+            {middle}
+            {practiceDoor}
+            <View style={styles.cardButtons}>
+              {chrome.footer.map((b) => (
+                <BigButton key={b.label} label={b.label} onPress={b.onPress} kind={b.kind} />
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+        <View style={styles.langCorner}>
+          <WideButton button={{ label: langSwitchLabel(lang), icon: "", onPress: toggleLang }} />
+        </View>
+        {forgotSheet}
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.page, { backgroundColor: theme.bg }]}
@@ -124,109 +274,22 @@ export default function SignIn() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {PRACTICE && (
-          <View style={[styles.practice, { backgroundColor: theme.surface }]}>
-            <View style={[styles.dot, { backgroundColor: theme.waiting }]} />
-            <Text style={[TYPE.subhead, { color: theme.text, flex: 1 }]}>
-              {t({
-                th: "เครื่องซ้อมในคอมนี้ · ไม่ใช่ข้อมูลร้านจริง",
-                en: "Practice copy · not the shop's real data",
-              })}
-            </Text>
-          </View>
-        )}
+        {practiceBanner}
         <View style={styles.langRow}>
           <PillButton label={langSwitchLabel(lang)} onPress={toggleLang} />
         </View>
-        <Text style={[TYPE.title1, styles.center, { color: theme.text }, brandFont]}>
-          CrewEngine
-        </Text>
-        <Text style={[TYPE.subhead, styles.center, styles.sub, { color: theme.textMuted }]}>
-          Den Air Service + AirPlus
-        </Text>
+        {brand}
 
-        <View style={styles.switch}>
-          <Segmented
-            label={t({ th: "เข้าใช้งานด้วย", en: "Sign in with" })}
-            options={[
-              { value: "pin", label: t({ th: "รหัส 6 หลัก", en: "PIN" }) },
-              { value: "password", label: t({ th: "อีเมล", en: "Email" }) },
-            ]}
-            value={tab}
-            onChange={(v) => {
-              setTab(v);
-              setTried(false);
-              setError(null);
-            }}
-          />
-        </View>
+        <View style={styles.switch}>{doors}</View>
 
-        {tab === "pin" ? (
-          <>
-            <PinBoxes value={pin} onChange={typed(setPin)} />
-            {(pinLine || serverLine) && (
-              <Text
-                accessibilityRole="alert"
-                style={[TYPE.footnote, styles.center, styles.pinError, { color: theme.danger }]}
-              >
-                {pinLine ? t(pinLine) : serverLine}
-              </Text>
-            )}
-          </>
-        ) : (
-          <>
-            <Group>
-              <InputRow
-                label={t({ th: "อีเมล", en: "Email" })}
-                value={email}
-                placeholder={t({ th: "ชื่อ@อีเมล.com", en: "name@email.com" })}
-                keyboardType="email-address"
-                autoComplete="email"
-                onChange={typed(setEmail)}
-              />
-              <InputRow
-                label={t({ th: "รหัสผ่าน", en: "Password" })}
-                value={password}
-                placeholder={t({ th: "รหัสผ่าน", en: "Password" })}
-                secure
-                autoComplete="password"
-                onChange={typed(setPassword)}
-                last
-              />
-            </Group>
-            {mailLines.map((p) => (
-              <FieldError key={p.en} text={t(p)} />
-            ))}
-            {serverLine && <FieldError text={serverLine} />}
-          </>
-        )}
+        {middle}
 
-        {PRACTICE && (
-          <View style={styles.practiceDoor}>
-            <Group>
-              <StepRow
-                label={t({ th: "เข้าเครื่องซ้อม", en: "Sign in to the practice copy" })}
-                second={t({ th: "ไม่ต้องใช้รหัส", en: "No password" })}
-                onPress={() => void attempt("form", { kind: "practice" })}
-              />
-            </Group>
-          </View>
-        )}
+        {practiceDoor}
       </ScrollView>
 
       <PinnedFooter chrome={chrome} bottom={bottoms.footer} />
 
-      {forgot && (
-        <ForgotSheet
-          error={error?.door === "key" ? error.text : null}
-          onKey={(key) => void attempt("key", { kind: "key", key })}
-          clearError={() => setError(null)}
-          onClose={() => {
-            setForgot(false);
-            setError(null);
-          }}
-        />
-      )}
+      {forgotSheet}
     </KeyboardAvoidingView>
   );
 }
@@ -236,7 +299,7 @@ export default function SignIn() {
  * digits, so the phone's number pad, paste and one-time-code autofill all just work. The next box to
  * fill is ringed while the pad is up.
  */
-function PinBoxes(props: { value: string; onChange: (v: string) => void }) {
+function PinBoxes(props: { value: string; onChange: (v: string) => void; fill: string }) {
   const { theme } = useTheme();
   const { t } = useLang();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
@@ -248,7 +311,7 @@ function PinBoxes(props: { value: string; onChange: (v: string) => void }) {
           key={i}
           style={[
             styles.pinBox,
-            { backgroundColor: theme.surface },
+            { backgroundColor: props.fill },
             i === 2 && styles.pinGroupEnd,
             focused && i === props.value.length && { borderColor: theme.text },
           ]}
@@ -397,4 +460,27 @@ const styles = StyleSheet.create({
   pinError: { marginTop: SPACE.m, paddingHorizontal: SPACE.l },
   practiceDoor: { marginTop: SPACE.xxl },
   help: { paddingVertical: SPACE.m, paddingHorizontal: SPACE.l },
+  // Computer (canvas คอม · เข้าใช้งาน): the card in the middle, 420 wide.
+  wideContent: {
+    flexGrow: 1,
+    alignItems: "center",
+    paddingTop: CARD_TOP,
+    paddingBottom: SPACE.xxxl,
+    paddingHorizontal: SPACE.l,
+  },
+  wideBanner: { width: CARD_WIDTH },
+  card: {
+    width: CARD_WIDTH,
+    paddingTop: SPACE.xxxl,
+    paddingHorizontal: 32,
+    paddingBottom: SPACE.xxl,
+    borderRadius: 22,
+    borderWidth: 1,
+    boxShadow: "0 12px 40px rgba(0,0,0,0.06)",
+  } as never,
+  brandWide: { fontSize: 34, lineHeight: 41 },
+  switchWide: { marginTop: 24, marginBottom: 18 },
+  mailBox: { borderRadius: RADIUS.field, overflow: "hidden" },
+  cardButtons: { marginTop: 26, gap: 10 },
+  langCorner: { position: "absolute", top: 24, right: 28 },
 });

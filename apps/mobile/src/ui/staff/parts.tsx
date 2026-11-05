@@ -125,6 +125,8 @@ export function CopyIcon(props: {
   value: string;
   what: Phrase;
   onCopied?: (said: Phrase) => void;
+  /** Inside a line of text (a code line): a smaller mark that keeps the line's height. */
+  inLine?: boolean;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
@@ -149,13 +151,13 @@ export function CopyIcon(props: {
       onPress={() => void copy()}
       accessibilityRole="button"
       accessibilityLabel={t({ th: `คัดลอก${props.what.th}`, en: `Copy the ${props.what.en}` })}
-      hitSlop={8}
-      style={styles.copy}
+      hitSlop={props.inLine ? 12 : 8}
+      style={props.inLine ? styles.copyInLine : styles.copy}
     >
       <LineIcon
         d={done ? ICON.check : ICON.copy}
         color={done ? theme.success : theme.text}
-        size={16}
+        size={props.inLine ? 14 : 16}
         strokeWidth={done ? 2.6 : 2}
       />
     </Pressable>
@@ -299,7 +301,12 @@ export function SlipCard(props: {
     }
   };
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       {said && (
         <View style={styles.said} accessibilityRole="alert" pointerEvents="none">
           <Text style={[TYPE.subhead, styles.saidText]}>{t(said)}</Text>
@@ -345,7 +352,12 @@ export function GoneCard({ note }: { note: Phrase }) {
   const { t } = useLang();
   const { theme } = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <View style={styles.cardHead}>
         <Text style={[TYPE.body, { color: theme.text }]}>{t({ th: "สลิป", en: "Slip" })}</Text>
       </View>
@@ -407,6 +419,7 @@ const styles = StyleSheet.create({
   },
   bandText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
   copy: { width: 24, height: 34, alignItems: "center", justifyContent: "center" },
+  copyInLine: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
   valueRight: { flexDirection: "row", alignItems: "center", gap: SPACE.s, flexShrink: 1 },
   value: { flexShrink: 1, textAlign: "right", fontVariant: ["tabular-nums"] },
   iconButton: {

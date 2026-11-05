@@ -1,9 +1,18 @@
 import { useState, type ReactNode } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SIDE_PANEL_WIDTH, sheetPlacement } from "@/lib/frame";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
-import { RADIUS, SPACE, TYPE } from "../theme";
+import { PHONE_MAX_WIDTH, RADIUS, SPACE, TYPE } from "../theme";
 import { ICON } from "./icons";
 
 interface SheetProps {
@@ -34,9 +43,13 @@ interface SheetProps {
   children: ReactNode;
 }
 
-/** The Orders pages' pop-up: rounded top, a pill to close on the left, the task named in the middle. */
+/**
+ * The Orders pages' pop-up: rounded top, a pill to close on the left, the task named in the middle.
+ * On a computer it opens as a panel on the right with the same header (computer guide, 4 Nov 2026).
+ */
 export function Sheet(props: SheetProps) {
   const { theme } = useTheme();
+  const side = sheetPlacement(useWindowDimensions().width, PHONE_MAX_WIDTH) === "side";
   const { t } = useLang();
   const insets = useSafeAreaInsets();
   // The widest pill, measured, so a long title can keep clear of both sides and stay centred.
@@ -49,10 +62,15 @@ export function Sheet(props: SheetProps) {
       }
     : undefined;
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={props.onClose}>
-      <View style={[styles.fill, { backgroundColor: theme.scrim }]}>
+    <Modal
+      visible
+      transparent
+      animationType={side ? "fade" : "slide"}
+      onRequestClose={props.onClose}
+    >
+      <View style={[styles.fill, side && styles.sideRow, { backgroundColor: theme.scrim }]}>
         <Pressable
-          style={props.tall ? styles.topGap : styles.fill}
+          style={props.tall && !side ? styles.topGap : styles.fill}
           onPress={props.onClose}
           accessibilityRole="button"
           accessibilityLabel={t({ th: "ปิด", en: "Close" })}
@@ -61,6 +79,7 @@ export function Sheet(props: SheetProps) {
           style={[
             styles.sheet,
             props.tall && styles.fill,
+            side && [styles.side, { width: SIDE_PANEL_WIDTH }],
             { backgroundColor: theme.bg, paddingBottom: insets.bottom + SPACE.xl },
           ]}
           accessibilityViewIsModal
@@ -143,6 +162,16 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   topGap: { height: 54 },
+  sideRow: { flexDirection: "row" },
+  /** The computer's right-hand panel: full height, square on the right edge. */
+  side: {
+    maxHeight: "100%",
+    height: "100%",
+    borderTopRightRadius: 0,
+    borderTopLeftRadius: RADIUS.sheet,
+    borderBottomLeftRadius: RADIUS.sheet,
+    boxShadow: "-12px 0 40px rgba(0,0,0,0.14)",
+  },
   sheet: {
     maxHeight: "92%",
     borderTopLeftRadius: RADIUS.sheet,

@@ -34,6 +34,18 @@ export function priceTag(part: ScannedPart): { price: string; mechanic: string }
   };
 }
 
+/**
+ * The computer card's price line (owner, 5 Nov 2026: "mark what price is it"): ฿3,450 · ช่าง 3,100 —
+ * the second price says it is the mechanic's; no .00.
+ */
+export function deskPriceTag(part: ScannedPart): { price: string; mechanic: Phrase } {
+  const mechanic = formatBaht(unitPrice(part, "mechanic")).replace("฿", "");
+  return {
+    price: formatBaht(part.unitPriceSatang),
+    mechanic: { th: `ช่าง ${mechanic}`, en: `Mechanic ${mechanic}` },
+  };
+}
+
 export function saleTotal(cards: readonly ScanCard[], buyer: Buyer): number {
   return cards.reduce((sum, c) => sum + unitPrice(c.part, buyer) * c.value, 0);
 }

@@ -1,14 +1,22 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { useState } from "react";
-import { View } from "react-native";
-import { stepLabel, stockLine, type DownReason, type ScanTab } from "@/lib/scanTabs";
+import { StyleSheet, View } from "react-native";
+import {
+  deskStockWords,
+  stepLabel,
+  stockLine,
+  type DownReason,
+  type ScanTab,
+} from "@/lib/scanTabs";
 import { useLang } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { useScreenChrome, type ChromeButton } from "../ScreenChrome";
 import { Segmented } from "../Segmented";
 import { CameraBox } from "./CameraBox";
 import { CodeSheet } from "./CodeSheet";
 import { PaySheet } from "./PaySheet";
 import { ProductCard } from "./ProductCard";
+import { ScanBox } from "./ScanBox";
 import { Hint, NoticeCard, NotFoundCard } from "./ScanCards";
 import { useHandheldScanner } from "./useHandheldScanner";
 import { useScan } from "./ScanSessionProvider";
@@ -38,7 +46,10 @@ const REASONS: { value: DownReason; label: Phrase }[] = [
 export function ScanScreen() {
   const { t } = useLang();
   const s = useScan();
+  const wide = useWide();
   const [typing, setTyping] = useState(false);
+  // A computer opens on the scan box; its own camera (a webcam) only when asked for.
+  const [camera, setCamera] = useState(false);
 
   const onCode = (code: string) => {
     if (!typing && !s.sheet) void s.handleCode(code);
@@ -61,11 +72,14 @@ export function ScanScreen() {
           ];
   const lowered = s.tab === "stock" && !s.notFound && s.cards.some((c) => c.value < c.part.onHand);
   useScreenChrome(
-    {
-      label: t({ th: "พิมพ์รหัสเอง", en: "Type a code" }),
-      icon: KEYBOARD_ICON,
-      onPress: () => setTyping(true),
-    },
+    // A computer types into its scan box, so it has no "type a code" button (DeskScan board).
+    wide
+      ? null
+      : {
+          label: t({ th: "พิมพ์รหัสเอง", en: "Type a code" }),
+          icon: KEYBOARD_ICON,
+          onPress: () => setTyping(true),
+        },
     footer,
     {
       choice: lowered
@@ -82,8 +96,20 @@ export function ScanScreen() {
 
   return (
     <View>
-      <CameraBox height={CAMERA_HEIGHT} showHint={false} onCode={onCode} />
-      <View style={{ marginTop: 10 }}>
+      {wide ? (
+        <>
+          {/* A USB scanner types here (DeskScan board); the scan mark opens the webcam. */}
+          <ScanBox onCode={onCode} camera={camera} onCamera={() => setCamera((c) => !c)} />
+          {camera && (
+            <View style={styles.camera}>
+              <CameraBox height={CAMERA_HEIGHT} showHint={false} onCode={onCode} />
+            </View>
+          )}
+        </>
+      ) : (
+        <CameraBox height={CAMERA_HEIGHT} showHint={false} onCode={onCode} />
+      )}
+      <View style={wide ? styles.wideTabs : styles.tabs}>
         <Segmented
           label={t({ th: "ทำอะไร", en: "What to do" })}
           options={TABS.map((x) => ({ value: x.value, label: t(x.label) }))}
@@ -99,11 +125,12 @@ export function ScanScreen() {
           <ProductCard
             key={c.part.variantId}
             part={c.part}
-            label={t(stepLabel(s.tab))}
+            // A computer puts the count beside พร้อมขาย (owner, 5 Nov 2026); a phone is unchanged.
+            label={t(wide ? deskStockWords(c.part, s.tab).label : stepLabel(s.tab))}
             sub={
               refusal
                 ? t({ th: `ไม่ผ่าน: ${refusal}`, en: `Refused: ${refusal}` })
-                : t(stockLine(c.part, s.tab))
+                : t(wide ? deskStockWords(c.part, s.tab).sub : stockLine(c.part, s.tab))
             }
             value={c.value}
             onMinus={() => s.stepOf(c.part.variantId, -1)}
@@ -142,3 +169,9 @@ export function ScanScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  tabs: { marginTop: 10 },
+  wideTabs: { marginTop: 14, width: 420 },
+  camera: { marginTop: 10 },
+});

@@ -46,7 +46,12 @@ export function tapX(e: GestureResponderEvent): number {
  * its top shows (฿4,000); baht against a headcount each keep their own, so no top number. A tap
  * reads that hour or day ("11:00–12:00 · ยอดขาย ฿3,450 · กำไร ฿1,050"); tapping it again closes it.
  */
-export function TrendChart(props: { data: InsightsPayload; lines: readonly MetricKey[] }) {
+export function TrendChart(props: {
+  data: InsightsPayload;
+  lines: readonly MetricKey[];
+  /** On a computer the graph sits in the tiles' card (DeskInsight board): no card of its own. */
+  bare?: boolean;
+}) {
   const { theme } = useTheme();
   const { t } = useLang();
   const [width, setWidth] = useState(0);
@@ -82,7 +87,20 @@ export function TrendChart(props: { data: InsightsPayload; lines: readonly Metri
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={
+        props.bare
+          ? styles.bare
+          : [
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]
+      }
+    >
       {shared && plotted[0] && (
         <Text style={[TYPE.footnote, styles.top, styles.nums, { color: theme.textMuted }]}>
           {valueText(plotted[0].key, scales[0] ?? 0)}
@@ -202,6 +220,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.l,
     paddingBottom: SPACE.m,
   },
+  bare: { marginTop: SPACE.xl },
   top: { alignSelf: "flex-end", marginBottom: SPACE.xs },
   plot: { height: PLOT_HEIGHT },
   tip: {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addFitment,
   bahtText,
+  belowCost,
   formFrom,
   parseBaht,
   saveBody,
@@ -151,6 +152,27 @@ describe("saveBody", () => {
   it("given a box side cleared > then that side is sent empty", () => {
     const form = { ...formFrom(DETAIL), widthCm: "" };
     expect(saveBody(DETAIL, form, OWNER).widthMm).toBeNull();
+  });
+});
+
+describe("belowCost (a typed price under the total cost turns red on the computer)", () => {
+  it("given a price under the cost with VAT > then true (990 < 1,000 + 7%)", () => {
+    expect(belowCost("990", "1,000", true)).toBe(true);
+  });
+  it("given a price between the cost and the cost with VAT > then true only with VAT", () => {
+    expect(belowCost("1,050", "1,000", true)).toBe(true);
+    expect(belowCost("1,050", "1,000", false)).toBe(false);
+  });
+  it("given a price at the total cost > then false", () => {
+    expect(belowCost("1,070", "1,000", true)).toBe(false);
+  });
+  it("given an empty price or no cost > then false (nothing to compare)", () => {
+    expect(belowCost("", "1,000", true)).toBe(false);
+    expect(belowCost("990", "", true)).toBe(false);
+  });
+  it("given words that are not an amount > then false (the field's own error says so)", () => {
+    expect(belowCost("abc", "1,000", true)).toBe(false);
+    expect(belowCost("990", "abc", true)).toBe(false);
   });
 });
 

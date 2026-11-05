@@ -21,6 +21,12 @@ export const LIGHT = {
   codeBg: "#E9E9EE",
   onPrimary: "#FFFFFF",
   graphite: "#2C3036",
+  /** The computer sidebar and its lit page (computer guide C · Mercury, 4 Nov 2026). */
+  sidebar: "#F7F7F9",
+  sideOn: "#EBEBEF",
+  /** The computer's page colour, and the line round its white cards (0 = none, on a phone). */
+  deskPage: "#FFFFFF",
+  cardLine: 0,
   glass: "rgba(255,255,255,0.86)",
   glassLine: "rgba(0,0,0,0.06)",
   tabOn: "rgba(0,0,0,0.06)",
@@ -36,6 +42,14 @@ export const LIGHT = {
 };
 
 export type Theme = typeof LIGHT;
+
+/**
+ * The colours for this screen. On a computer (guide C · Mercury, 4 Nov 2026) the page is white and
+ * the white cards on it get a thin grey line instead of a grey page around them; a phone is unchanged.
+ */
+export function forScreen(theme: Theme, wide: boolean): Theme {
+  return wide ? { ...theme, cardLine: 1 } : theme;
+}
 
 export const DARK: Theme = {
   bg: "#000000",
@@ -55,6 +69,10 @@ export const DARK: Theme = {
   codeBg: "#2C2C2E",
   onPrimary: "#FFFFFF",
   graphite: "#2C3036",
+  sidebar: "#161618",
+  sideOn: "#2C2C2E",
+  deskPage: "#000000",
+  cardLine: 0,
   glass: "rgba(44,44,46,0.82)",
   glassLine: "rgba(255,255,255,0.10)",
   tabOn: "rgba(255,255,255,0.10)",

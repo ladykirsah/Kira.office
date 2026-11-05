@@ -2,7 +2,7 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import { formatBaht } from "./money";
 import type { HoldLine } from "./scanTabs";
 import type { Fitment } from "./productList";
-import type { GalleryImage, Pricing } from "./productPage";
+import { totalCostSatang, type GalleryImage, type Pricing } from "./productPage";
 
 /**
  * แก้ไขสินค้า's rules (canvas v194): the form a product opens into, and the one POST /products/full
@@ -109,6 +109,17 @@ export function parseBaht(text: string): number | null {
   if (!raw) return 0;
   if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
   return Math.round(Number(raw) * 100);
+}
+
+/**
+ * A typed sell price under the total cost (cost + VAT when switched on): the computer form shows
+ * that price in red (owner, แฟลชเซล 1 Nov). Nothing to compare when either is empty or not an amount.
+ */
+export function belowCost(price: string, cost: string, vat: boolean): boolean {
+  const sell = parseBaht(price);
+  const paid = parseBaht(cost);
+  if (!sell || !paid) return false;
+  return sell < totalCostSatang(paid, vat);
 }
 
 const cmText = (mm: number | null) => (mm ? String(Math.round(mm) / 10) : "");

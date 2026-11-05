@@ -331,3 +331,46 @@ export function byDay<T>(rows: readonly T[], when: (row: T) => number, now: numb
   }
   return out;
 }
+
+/** What one row of a shop's list says, as the computer's table lays it out (DeskFinance, 5 Nov 2026). */
+export interface LedgerLine {
+  title: Phrase;
+  /** The grey line: the bill or order number, or ค่าใช้จ่าย. */
+  sub: Phrase;
+  amount: string;
+  /** กำไร; none for an expense, or when the row has a state instead. */
+  profit: string | null;
+  /** "คืนเงินแล้ว", "เคลม" — said once, with its grey dot. */
+  state: Phrase | null;
+}
+
+export function ledgerLine(r: LedgerRow): LedgerLine {
+  if (r.kind === "expense") {
+    return {
+      title: same(r.expense.conversion),
+      sub: { th: "ค่าใช้จ่าย", en: "Expense" },
+      amount: minus(r.expense.amountSatang),
+      profit: null,
+      state: null,
+    };
+  }
+  if (r.kind === "bill") {
+    const state = billState(r.bill);
+    return {
+      title: billTitle(r.bill),
+      sub: same(billSub(r.bill)),
+      amount: money(r.bill.grandTotalSatang),
+      profit: state ? null : money(r.bill.grossProfitSatang),
+      state,
+    };
+  }
+  const o = r.order;
+  const state = orderState(o);
+  return {
+    title: same(o.buyerUsername ?? o.externalOrderId),
+    sub: same(orderSub(o)),
+    amount: money(o.salesSatang ?? o.grandTotalSatang),
+    profit: state ? null : money(o.profitSatang ?? 0),
+    state,
+  };
+}

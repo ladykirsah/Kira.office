@@ -15,24 +15,37 @@ const shortDay = (at: number) => billDate(at).date.replace(/ \d{4}$/, "");
  * customer and car; a new plate asks only for รถ + เลขไมล์, name and phone are optional. ช่าง: a
  * name if any, nothing else, and every part at the mechanic price.
  */
-export function BuyerSection() {
+export function BuyerSection({ noPicker = false }: { noPicker?: boolean }) {
   const { t } = useLang();
   const pos = usePos();
   return (
     <>
-      <Heading text={t({ th: "ขายให้", en: "Sell to" })} />
-      <Segmented
-        label={t({ th: "ขายให้", en: "Sell to" })}
-        options={[
-          { value: "customer", label: t({ th: "ลูกค้า", en: "Customer" }) },
-          { value: "mechanic", label: t({ th: "ช่าง", en: "Mechanic" }) },
-        ]}
-        value={pos.bill.buyer}
-        onChange={(v) => pos.setBuyer(v as "customer" | "mechanic")}
-      />
-      <View style={styles.gap} />
+      {!noPicker && (
+        <>
+          <Heading text={t({ th: "ขายให้", en: "Sell to" })} />
+          <BuyerPicker />
+          <View style={styles.gap} />
+        </>
+      )}
       {pos.bill.buyer === "customer" ? <CustomerCards /> : <MechanicCard />}
     </>
+  );
+}
+
+/** ลูกค้า | ช่าง. A computer puts it beside บิลเงินสด | ใบเสนอราคา (`noPicker` above, DeskPos board). */
+export function BuyerPicker() {
+  const { t } = useLang();
+  const pos = usePos();
+  return (
+    <Segmented
+      label={t({ th: "ขายให้", en: "Sell to" })}
+      options={[
+        { value: "customer", label: t({ th: "ลูกค้า", en: "Customer" }) },
+        { value: "mechanic", label: t({ th: "ช่าง", en: "Mechanic" }) },
+      ]}
+      value={pos.bill.buyer}
+      onChange={(v) => pos.setBuyer(v as "customer" | "mechanic")}
+    />
   );
 }
 

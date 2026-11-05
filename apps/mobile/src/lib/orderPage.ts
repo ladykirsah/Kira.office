@@ -63,6 +63,18 @@ export function pageSections(): PageSection[] {
   return ["address", "delivery", "items", "payment", "files", "customer", "actions"];
 }
 
+/**
+ * The same sections on a computer (DeskOrders board, 4 Nov 2026): what is in the box and the money
+ * sit left, under the job; who bought it, where it goes, the parcel, the files and the quiet actions
+ * sit in the right column.
+ */
+export function deskSections(): { main: PageSection[]; side: PageSection[] } {
+  return {
+    main: ["items", "payment"],
+    side: ["customer", "address", "delivery", "files", "actions"],
+  };
+}
+
 export type ClaimStep = "receive" | "review" | "refund" | "replace" | "sendBack";
 
 export function claimStep(claim: OrderClaim): ClaimStep {

@@ -87,7 +87,14 @@ export function CancelSheet(props: {
         {t({ th: "เหตุผล (จำเป็น)", en: "Reason (required)" })}
       </Text>
       <View
-        style={[styles.card, { backgroundColor: theme.surface }]}
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
         accessibilityRole="radiogroup"
       >
         {CANCEL_REASONS.map((r, i) => (
@@ -117,7 +124,16 @@ export function CancelSheet(props: {
       {missing && <ErrorLine text={t({ th: "เลือกเหตุผลก่อน", en: "Choose a reason first" })} />}
 
       <Text style={[styles.label, styles.next, { color: theme.text }]}>{noteLabel}</Text>
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <TextInput
           value={note}
           onChangeText={setNote}

@@ -155,20 +155,37 @@ export function listSubtitle(
   };
 }
 
-/** The card's grey line: how many are left, then where it is sold. The dot comes from `level`. */
-export function stockLine(row: ProductRow): { level: StockLevel; text: Phrase } {
+/** How many are left, in words (the computer's สต็อก column; the dot comes from `level`). */
+export function stockWords(row: ProductRow): { level: StockLevel; text: Phrase } {
   const level = stockLevel(row.onHand);
-  const count: Phrase =
+  const text: Phrase =
     level === "out"
       ? { th: "หมด", en: "Sold out" }
       : level === "low"
         ? { th: `เหลือน้อย ${row.onHand}`, en: `Low ${row.onHand}` }
         : { th: `เหลือ ${row.onHand}`, en: `${row.onHand} left` };
-  const channels = [row.status === "active" ? "AirPlus" : null, row.shopeeListed ? "Shopee" : null]
+  return { level, text };
+}
+
+/** Where it is sold: "AirPlus · Shopee", one of them, or "" (the computer's ขายบน column). */
+export function channelWords(row: ProductRow): string {
+  return [row.status === "active" ? "AirPlus" : null, row.shopeeListed ? "Shopee" : null]
     .filter(Boolean)
-    .map((c) => ` · ${c}`)
-    .join("");
-  return { level, text: { th: count.th + channels, en: count.en + channels } };
+    .join(" · ");
+}
+
+/** The card's grey line: how many are left, then where it is sold. The dot comes from `level`. */
+export function stockLine(row: ProductRow): { level: StockLevel; text: Phrase } {
+  const { level, text } = stockWords(row);
+  const where = channelWords(row);
+  const channels = where ? ` · ${where}` : "";
+  return { level, text: { th: text.th + channels, en: text.en + channels } };
+}
+
+/** The computer's sort pill: "เรียงตาม: แก้ไขล่าสุด". */
+export function sortLabel(sort: ProductSort): Phrase {
+  const label = PRODUCT_SORTS.find((s) => s.key === sort)?.label ?? PRODUCT_SORTS[0]!.label;
+  return { th: `เรียงตาม: ${label.th}`, en: `Sort: ${label.en}` };
 }
 
 /** The values a filter can take, each with how many rows have it, most first. */

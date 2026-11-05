@@ -68,7 +68,12 @@ function Note({ text }: { text: string }) {
 function FullText({ text, empty = false }: { text: string; empty?: boolean }) {
   const { theme } = useTheme();
   return (
-    <View style={[styles.textCard, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.textCard,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Text style={[TYPE.subhead, styles.lines, { color: empty ? theme.textMuted : theme.text }]}>
         {text}
       </Text>

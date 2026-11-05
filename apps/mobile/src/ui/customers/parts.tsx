@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { itemsPreview, monthBars, type StatusTone } from "@/lib/customerPage";
 import type { CustomerSummary } from "@/lib/customersApi";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { RADIUS, SPACE, TYPE, type Theme } from "../theme";
@@ -21,11 +22,69 @@ export function SummaryCard(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
   const s = props.summary;
   const unit = ` ${t(props.unit)}`;
   const bars = monthBars(s.months);
+  const line = {
+    backgroundColor: theme.surface,
+    borderWidth: theme.cardLine,
+    borderColor: theme.border,
+  };
+  const chart = (
+    <View style={styles.bars} accessible accessibilityLabel={t(props.barsLabel)}>
+      {bars.map((b, i) => {
+        const now = i === bars.length - 1;
+        return (
+          <View key={b.key} style={styles.barCol}>
+            {now && <Text style={[TYPE.footnote, { color: theme.text }]}>{b.count}</Text>}
+            <View
+              style={[
+                styles.bar,
+                {
+                  height: Math.max(2, Math.round(BAR_AREA * b.share)),
+                  backgroundColor: now ? theme.text : theme.textFaint,
+                },
+              ]}
+            />
+            <Text style={[styles.month, { color: now ? theme.text : theme.textMuted }]}>
+              {t(b.label)}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+  if (wide) {
+    // A computer reads it in one row: the total, this month, then the six bars (DeskCustomers board).
+    return (
+      <View style={[styles.card, styles.wideSummary, line]}>
+        <View style={styles.grow}>
+          <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(props.totalLabel)}</Text>
+          <Text style={[styles.big, { color: theme.text }]}>
+            {s.total.toLocaleString("en-US")}
+            <Text style={TYPE.body}>{unit}</Text>
+          </Text>
+        </View>
+        <View style={styles.grow}>
+          <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(props.activeLabel)}</Text>
+          <Text style={[styles.mid, { color: theme.text }]}>
+            {s.activeThisMonth.toLocaleString("en-US")}
+            <Text style={TYPE.subhead}>{unit}</Text>
+          </Text>
+          <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
+            {`${t(props.newLabel)} ${s.newThisMonth.toLocaleString("en-US")}${unit}`}
+          </Text>
+        </View>
+        <View style={styles.wideBars}>
+          <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(props.barsLabel)}</Text>
+          {chart}
+        </View>
+      </View>
+    );
+  }
   return (
-    <View style={[styles.card, styles.summary, { backgroundColor: theme.surface }]}>
+    <View style={[styles.card, styles.summary, line]}>
       <View style={styles.summaryTop}>
         <View style={styles.grow}>
           <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(props.totalLabel)}</Text>
@@ -47,28 +106,7 @@ export function SummaryCard(props: {
       </View>
       <View style={[styles.rule, { backgroundColor: theme.border }]} />
       <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(props.barsLabel)}</Text>
-      <View style={styles.bars} accessible accessibilityLabel={t(props.barsLabel)}>
-        {bars.map((b, i) => {
-          const now = i === bars.length - 1;
-          return (
-            <View key={b.key} style={styles.barCol}>
-              {now && <Text style={[TYPE.footnote, { color: theme.text }]}>{b.count}</Text>}
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    height: Math.max(2, Math.round(BAR_AREA * b.share)),
-                    backgroundColor: now ? theme.text : theme.textFaint,
-                  },
-                ]}
-              />
-              <Text style={[styles.month, { color: now ? theme.text : theme.textMuted }]}>
-                {t(b.label)}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
+      {chart}
     </View>
   );
 }
@@ -134,7 +172,12 @@ export function ItemCard(props: {
 }) {
   const { theme } = useTheme();
   const body = (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <View style={styles.cardHead}>
         <View style={[styles.line, styles.grow]}>{props.head}</View>
         {props.onPress && (
@@ -176,11 +219,15 @@ export function SearchField(props: {
   value: string;
   placeholder: string;
   onChange: (v: string) => void;
+  /** Beside the tabs on a computer (DeskCustomers board), not under the summary. */
+  inline?: boolean;
 }) {
   const { theme } = useTheme();
   const { t } = useLang();
   return (
-    <View style={[styles.search, { backgroundColor: theme.segBg }]}>
+    <View
+      style={[styles.search, props.inline && styles.inlineSearch, { backgroundColor: theme.segBg }]}
+    >
       <LineIcon d={ICON.search} color={theme.textMuted} size={17} strokeWidth={2} />
       <TextInput
         value={props.value}
@@ -278,6 +325,16 @@ const styles = StyleSheet.create({
     gap: SPACE.s,
     paddingHorizontal: SPACE.m - 2,
   },
+  inlineSearch: { marginTop: 0, width: 360 },
+  wideSummary: {
+    marginTop: SPACE.l,
+    padding: 22,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 40,
+  },
+  wideBars: { width: 360, flexShrink: 0, gap: 6 },
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 0, outlineStyle: "none" } as never,
   empty: { marginTop: 56, alignItems: "center", gap: SPACE.s, paddingHorizontal: 24 },
   emptyIcon: {

@@ -66,6 +66,7 @@ export function ServicesScreen() {
     {
       label: t({ th: "เพิ่มบริการ", en: "Add a service" }),
       icon: ICON.plus,
+      main: true,
       onPress: () => setEditing(newDraft()),
     },
     [],

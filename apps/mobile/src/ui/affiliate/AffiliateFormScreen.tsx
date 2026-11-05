@@ -40,7 +40,12 @@ export function AffiliateFormScreen() {
 
   if (!edit.form || !edit.items) {
     return (
-      <FormPage title={title} onCancel={edit.leave}>
+      <FormPage
+        title={title}
+        back={t({ th: "สินค้านายหน้า", en: "Affiliate items" })}
+        deskLayout="column"
+        onCancel={edit.leave}
+      >
         {edit.problem === "gone" ? (
           <Empty
             icon={ICON.search}
@@ -60,6 +65,9 @@ export function AffiliateFormScreen() {
   return (
     <FormPage
       title={title}
+      // On a computer the form opens inside the frame, under its list (DeskAddProduct's form frame).
+      back={t({ th: "สินค้านายหน้า", en: "Affiliate items" })}
+      deskLayout="column"
       onCancel={edit.leave}
       save={{ label: t({ th: "บันทึก", en: "Save" }), onPress: () => void edit.save() }}
       toast={edit.toast ? { title: t(edit.toast.title), detail: t(edit.toast.detail) } : null}

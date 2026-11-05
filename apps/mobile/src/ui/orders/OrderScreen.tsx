@@ -21,6 +21,7 @@ import {
   cancelButton,
   deliveryNow,
   jobFor,
+  deskSections,
   pageSections,
   pinsTracking,
   progressStep,
@@ -31,6 +32,8 @@ import {
 import { saveNote, type OrderDetail } from "@/lib/ordersApi";
 import { useAuth, useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
+import { Columns } from "../desk/Columns";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { openPage } from "../openPage";
 import { useScreenChrome, type ChromeButton, type ChromeToast } from "../ScreenChrome";
@@ -46,6 +49,7 @@ import { PinProvider } from "./pin";
 import { PrivateImage } from "./PrivateImage";
 import { Sheet } from "./Sheet";
 import { useOrderDetail } from "./useOrderDetail";
+import { CodeCopy } from "../CodeCopy";
 
 const TOAST_MS = 2600;
 const PATH: Phrase[] = [
@@ -66,6 +70,7 @@ export function OrderScreen({ id }: { id: string }) {
   const router = useRouter();
   const { theme } = useTheme();
   const { t } = useLang();
+  const wide = useWide();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [toast, setToast] = useState<ChromeToast | null>(null);
@@ -135,6 +140,8 @@ export function OrderScreen({ id }: { id: string }) {
       : [];
   useScreenChrome(null, [...Object.values(pins).flat(), ...trackButton], {
     title: detail?.order.externalOrderId ?? "",
+    // Two columns on a computer need the full width (DeskOrders board).
+    layout: "full",
     back: {
       label: t({ th: "ออเดอร์", en: "Orders" }),
       onPress: () => (router.canGoBack() ? router.back() : router.replace("/orders" as never)),
@@ -161,6 +168,17 @@ export function OrderScreen({ id }: { id: string }) {
   }
 
   const d = load.detail;
+  const sectionProps = {
+    detail: d,
+    token,
+    onSaved: (toast: ChromeToast) => {
+      showToast(toast);
+      reload();
+    },
+    onToast: showToast,
+    onOpen: (page: SubPage) =>
+      router.push(`/orders/${encodeURIComponent(d.order.id)}/${page}` as never),
+  };
   const ctx: JobContext = {
     detail: d,
     token,
@@ -168,8 +186,8 @@ export function OrderScreen({ id }: { id: string }) {
     busy,
   };
 
-  return (
-    <PinProvider value={setPin}>
+  const top = (
+    <>
       <Header detail={d} />
       {problem && (
         <View style={[s.card, s.padded, { marginTop: SPACE.l }]} accessibilityRole="alert">
@@ -183,16 +201,26 @@ export function OrderScreen({ id }: { id: string }) {
       {job === "claim" && <ClaimJob ctx={ctx} />}
       {job == null && <CancelledCard detail={d} />}
       <ClaimSummary detail={d} onCopy={copyTracking} />
-      <Sections
-        detail={d}
-        token={token}
-        onSaved={(toast) => {
-          showToast(toast);
-          reload();
-        }}
-        onToast={showToast}
-        onOpen={(page) => router.push(`/orders/${encodeURIComponent(d.order.id)}/${page}` as never)}
-      />
+    </>
+  );
+
+  if (wide) {
+    // A computer (DeskOrders board): the job, the items and the money left; the rest on the right.
+    const cols = deskSections();
+    return (
+      <PinProvider value={setPin}>
+        <Columns side={<Sections {...sectionProps} only={cols.side} />}>
+          {top}
+          <Sections {...sectionProps} only={cols.main} />
+        </Columns>
+      </PinProvider>
+    );
+  }
+
+  return (
+    <PinProvider value={setPin}>
+      {top}
+      <Sections {...sectionProps} only={pageSections()} />
     </PinProvider>
   );
 }
@@ -291,6 +319,8 @@ function Sections(props: {
   /** A message only, nothing saved (the cancel button on an order with a slip to check). */
   onToast: (toast: ChromeToast) => void;
   onOpen: (page: SubPage) => void;
+  /** Which sections, in order: all of them on a phone, one column's on a computer. */
+  only: readonly PageSection[];
 }) {
   const { theme } = useTheme();
   const { t } = useLang();
@@ -385,17 +415,17 @@ function Sections(props: {
                 <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
                   {l.name ?? dash}
                 </Text>
-                <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
-                  {[
-                    `× ${l.quantity}`,
-                    l.variantName,
-                    l.productRef
-                      ? t({ th: `รหัสสินค้า ${l.productRef}`, en: `ID ${l.productRef}` })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
+                {l.productRef ? (
+                  <CodeCopy
+                    before={`${[`× ${l.quantity}`, l.variantName].filter(Boolean).join(" · ")} · ${t({ th: "รหัสสินค้า", en: "ID" })} `}
+                    code={l.productRef}
+                    style={[TYPE.subhead, { color: theme.textMuted }]}
+                  />
+                ) : (
+                  <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
+                    {[`× ${l.quantity}`, l.variantName].filter(Boolean).join(" · ")}
+                  </Text>
+                )}
               </View>
             </View>
           ))}
@@ -527,7 +557,16 @@ function Sections(props: {
     actions: () => (
       <View style={infoStyles.actions}>
         {order.staffNote ? (
-          <View style={[infoStyles.noteCard, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              infoStyles.noteCard,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
               {t({ th: "บันทึกภายใน", en: "Internal note" })}
             </Text>
@@ -573,7 +612,7 @@ function Sections(props: {
 
   return (
     <>
-      {pageSections().map((key) => (
+      {props.only.map((key) => (
         <Fragment key={key}>{render[key]()}</Fragment>
       ))}
 
@@ -641,7 +680,7 @@ function Info(props: {
       style={[
         infoStyles.block,
         props.spaced ? infoStyles.next : infoStyles.first,
-        { backgroundColor: theme.surface },
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
       ]}
     >
       <View style={infoStyles.icon}>
@@ -871,6 +910,11 @@ const lineStyles = StyleSheet.create({
 
 const styles = (c: Theme) =>
   StyleSheet.create({
-    card: { borderRadius: RADIUS.card, backgroundColor: c.surface },
+    card: {
+      borderRadius: RADIUS.card,
+      backgroundColor: c.surface,
+      borderWidth: c.cardLine,
+      borderColor: c.border,
+    },
     padded: { padding: SPACE.l, gap: SPACE.xs },
   });

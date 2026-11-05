@@ -48,7 +48,17 @@ export function MovementSheet(props: { m: Movement; onClose: () => void }) {
       closeLabel={t({ th: "ปิด", en: "Close" })}
       onClose={props.onClose}
     >
-      <View style={[styles.card, styles.head, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.card,
+          styles.head,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Text style={[TYPE.subhead, { color: theme.textMuted }]}>
           {t(movementLabel(m.movementType))}
         </Text>
@@ -57,7 +67,16 @@ export function MovementSheet(props: { m: Movement; onClose: () => void }) {
           {t({ th: `เหลือ ${m.quantityAfter}`, en: `${m.quantityAfter} left` })}
         </Text>
       </View>
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <View style={styles.line}>
           <Text style={[TYPE.body, { color: theme.text }]}>
             {t({ th: "สินค้า", en: "Product" })}

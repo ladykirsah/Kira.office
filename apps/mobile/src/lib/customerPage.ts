@@ -56,6 +56,11 @@ export function plateLine(plate: string, province: string | null): string {
   return p ? `${plate.trim()} ${p}` : plate.trim();
 }
 
+/** A car row's รถ: the car picked on a bill, else the old vehicle text, else a dash. */
+export function carLine(car: { carModel: string | null; vehicle: string | null }): string {
+  return car.carModel?.trim() || car.vehicle?.trim() || "—";
+}
+
 /**
  * A car is stored as one text ("Toyota Vigo 2014"); the page shows the brand over the model. The
  * brand is found by matching the shop's car-brand list, as a whole word at the start.

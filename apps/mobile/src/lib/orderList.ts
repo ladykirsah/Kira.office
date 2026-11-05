@@ -431,3 +431,13 @@ export function tabFromParam(raw: string | string[] | undefined): OrderTab | "al
   const value = Array.isArray(raw) ? raw[0] : raw;
   return ORDER_TABS.find((t) => t.key === value)?.key ?? "all";
 }
+
+const DASH: Phrase = { th: "—", en: "—" };
+
+/** The computer table's การชำระเงิน column: the payment menu's own word for it, or a dash. */
+export const payWord = (paymentStatus: string | null): Phrase =>
+  PAY_FILTERS.find((p) => p.key !== "all" && p.key === paymentStatus)?.label ?? DASH;
+
+/** The computer table's วันที่สั่ง column: วันนี้, เมื่อวาน or the date — a day, never a clock time. */
+export const orderDay = (o: OrderListRow, now: number): Phrase =>
+  dayTitle(startOfDay(placedAt(o)), now);

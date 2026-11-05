@@ -20,7 +20,12 @@ export function BillCard({ bill }: { bill: BillDoc }) {
   const when = billDate(bill.at);
   const rule = [styles.rule, { backgroundColor: theme.border }];
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.shop, { color: theme.text }]}>{bill.shopName}</Text>
       <Text style={[styles.date, { color: theme.text }]}>
         {t({ th: `วันที่ ${when.date}`, en: `Date ${when.date}` })}

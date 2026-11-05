@@ -16,6 +16,7 @@ import {
 } from "@/lib/bannerPage";
 import { useLang, useTheme } from "../AppProviders";
 import { Dot } from "../customers/parts";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { Retry } from "../affiliate/parts";
 import { ICON } from "../orders/icons";
@@ -40,6 +41,7 @@ export function BannerListScreen() {
   // The tab lives in the address, so coming back from a banner's page opens the same tab.
   const slot: BannerSlot = params.slot === "promo" ? "promo" : "hero";
   const list = useBannerList();
+  const wide = useWide();
   const rows = list.banners ? slotRows(list.banners, slot) : [];
   const full = slotFull(slot, rows.length);
 
@@ -48,7 +50,7 @@ export function BannerListScreen() {
     router.push(`${BASE}/new?slot=${slot}` as never);
   };
 
-  useScreenChrome({ label: t(addTitle(slot)), icon: ICON.plus, onPress: add }, [], {
+  useScreenChrome({ label: t(addTitle(slot)), icon: ICON.plus, onPress: add, main: true }, [], {
     toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null,
   });
 
@@ -65,7 +67,7 @@ export function BannerListScreen() {
   return (
     <View>
       {list.failed && <Retry onPress={() => void list.load()} />}
-      <View style={styles.seg}>
+      <View style={[styles.seg, wide && styles.wideSeg]}>
         <Segmented
           label={t({ th: "ที่แสดงแบนเนอร์", en: "Where the banner shows" })}
           options={SLOTS.map((s) => ({ value: s, label: t(segmentLabel(s, counts(s))) }))}
@@ -74,22 +76,45 @@ export function BannerListScreen() {
         />
       </View>
       <View style={styles.list}>
-        {rows.map((b, i) => (
-          <BannerCard
-            key={b.id}
-            banner={b}
-            name={t(rowName(slot, i))}
-            first={i === 0}
-            last={i === rows.length - 1}
-            onOpen={() => router.push(`${BASE}/${encodeURIComponent(b.id)}` as never)}
-            onMove={(step) => list.move(slot, i, step)}
-          />
-        ))}
+        {wide
+          ? // A computer: one card, a row per banner — the picture on the left (DeskBanners board).
+            rows.length > 0 && (
+              <View
+                style={[
+                  styles.wideCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                {rows.map((b, i) => (
+                  <BannerCard
+                    key={b.id}
+                    banner={b}
+                    name={t(rowName(slot, i))}
+                    first={i === 0}
+                    last={i === rows.length - 1}
+                    onOpen={() => router.push(`${BASE}/${encodeURIComponent(b.id)}` as never)}
+                    onMove={(step) => list.move(slot, i, step)}
+                    wide
+                  />
+                ))}
+              </View>
+            )
+          : rows.map((b, i) => (
+              <BannerCard
+                key={b.id}
+                banner={b}
+                name={t(rowName(slot, i))}
+                first={i === 0}
+                last={i === rows.length - 1}
+                onOpen={() => router.push(`${BASE}/${encodeURIComponent(b.id)}` as never)}
+                onMove={(step) => list.move(slot, i, step)}
+              />
+            ))}
         {showTile && (
           <Pressable
             onPress={add}
             accessibilityRole="button"
-            style={[styles.tile, { borderColor: theme.textFaint }]}
+            style={[styles.tile, wide && styles.wideTile, { borderColor: theme.textFaint }]}
           >
             <LineIcon d={ICON.plus} color={theme.primary} size={22} strokeWidth={2.2} />
             <Text style={[styles.tileText, { color: theme.primary }]}>
@@ -113,19 +138,45 @@ function BannerCard(props: {
   last: boolean;
   onOpen: () => void;
   onMove: (step: -1 | 1) => void;
+  /** A row in the computer's one card: the picture 256 wide on the left, the words beside it. */
+  wide?: boolean;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const now = Date.now();
   const tone = STATE_TONE[bannerState(props.banner, now)];
+  const picture = (
+    <Pressable
+      onPress={props.onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={props.name}
+      style={props.wide && styles.widePicture}
+    >
+      <BannerPicture imageKey={props.banner.imageKey} />
+    </Pressable>
+  );
   // The picture and the words open the banner; ▲ ▼ sit beside them (a button inside a button is
   // not allowed on the web).
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
-      <Pressable onPress={props.onOpen} accessibilityRole="button" accessibilityLabel={props.name}>
-        <BannerPicture imageKey={props.banner.imageKey} />
-      </Pressable>
-      <View style={styles.info}>
+    <View
+      style={
+        props.wide
+          ? [
+              styles.wideRow,
+              !props.last && { borderBottomWidth: 1, borderBottomColor: theme.border },
+            ]
+          : [
+              styles.card,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]
+      }
+    >
+      {picture}
+      <View style={[styles.info, props.wide && styles.wideInfo]}>
         <Pressable onPress={props.onOpen} style={styles.text}>
           <Text style={[TYPE.headline, { color: theme.text }]}>{props.name}</Text>
           <View style={styles.state}>
@@ -183,4 +234,16 @@ const styles = StyleSheet.create({
     gap: SPACE.xs,
   },
   tileText: { fontSize: 15 },
+  wideSeg: { width: 420 },
+  wideCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  wideRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.xl,
+    paddingVertical: 14,
+    paddingHorizontal: SPACE.l,
+  },
+  widePicture: { width: 256 },
+  wideInfo: { flex: 1, minWidth: 0, paddingHorizontal: 0 },
+  wideTile: { height: 96 },
 });

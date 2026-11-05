@@ -5,6 +5,7 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Photo } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
+import { CodeCopy } from "../CodeCopy";
 
 /**
  * One change, as picked (canvas v228): the product photo, its name on one line, its code in grey
@@ -20,7 +21,7 @@ export function MovementRow(props: { m: Movement; last: boolean; onPress: () => 
   return (
     <Pressable
       onPress={props.onPress}
-      accessibilityRole="button"
+      accessibilityRole="link"
       accessibilityLabel={`${m.productName}, ${type}, ${changeText(m.quantityDelta)}, ${left}`}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.hover }]}
     >
@@ -39,9 +40,7 @@ export function MovementRow(props: { m: Movement; last: boolean; onPress: () => 
             {m.productName}
           </Text>
           {m.productRef ? (
-            <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-              {m.productRef}
-            </Text>
+            <CodeCopy code={m.productRef} style={[TYPE.subhead, { color: theme.textMuted }]} />
           ) : null}
           <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
             {type} · {left}

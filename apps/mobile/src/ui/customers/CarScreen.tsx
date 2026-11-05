@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import type { ReactNode } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   longDate,
@@ -12,6 +13,8 @@ import { formatBaht } from "@/lib/money";
 import { posDraftRoute } from "@/lib/posDraft";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
+import { Columns } from "../desk/Columns";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Group, SmallButton } from "../orders/parts";
@@ -27,8 +30,11 @@ export function CarScreen() {
   const { theme } = useTheme();
   const { plate = "" } = useLocalSearchParams<{ plate: string }>();
   const page = useCarPage(plate);
+  const wide = useWide();
 
   useScreenChrome(null, [], {
+    // Two columns on a computer need the full width (DeskCustomers board).
+    layout: "full",
     back: {
       label: t({ th: "ลูกค้า", en: "Customers" }),
       onPress: () => (router.canGoBack() ? router.back() : router.replace("/customers" as never)),
@@ -55,18 +61,34 @@ export function CarScreen() {
   const d = page.detail;
   const shownPlate = d.customer?.licensePlate ?? plate;
   const quote = openQuote(d.quotations);
+  const makeQuote = (
+    <BigButton
+      label={t({ th: "ทำใบเสนอราคา", en: "Make a quotation" })}
+      onPress={() => router.push(`/pos?plate=${encodeURIComponent(shownPlate)}&doc=quote` as never)}
+    />
+  );
+  if (wide) {
+    // A computer (DeskCustomers board): the quote and the visits left, the customer right.
+    return (
+      <View>
+        <Header
+          page={page}
+          plate={shownPlate}
+          action={<View style={styles.action}>{makeQuote}</View>}
+        />
+        <Columns side={<Customer page={page} />}>
+          {quote && <Quote quote={quote} />}
+          <History page={page} plate={shownPlate} />
+        </Columns>
+        {page.edit && <EditSheet page={page} />}
+      </View>
+    );
+  }
   return (
     <View>
       <Header page={page} plate={shownPlate} />
       <Customer page={page} />
-      <View style={styles.quoteButton}>
-        <BigButton
-          label={t({ th: "ทำใบเสนอราคา", en: "Make a quotation" })}
-          onPress={() =>
-            router.push(`/pos?plate=${encodeURIComponent(shownPlate)}&doc=quote` as never)
-          }
-        />
-      </View>
+      <View style={styles.quoteButton}>{makeQuote}</View>
       {quote && <Quote quote={quote} />}
       <History page={page} plate={shownPlate} />
       {page.edit && <EditSheet page={page} />}
@@ -74,14 +96,17 @@ export function CarScreen() {
   );
 }
 
-/** Two columns: plate over province | brand over model and year (owner, canvas v146). */
-function Header({ page, plate }: { page: CarPage; plate: string }) {
+/**
+ * Two columns: plate over province | brand over model and year (owner, canvas v146). `action`: a
+ * computer's ทำใบเสนอราคา at the row's end, the car beside the plate (DeskCustomers board).
+ */
+function Header({ page, plate, action }: { page: CarPage; plate: string; action?: ReactNode }) {
   const { theme } = useTheme();
   const c = page.detail!.customer;
   const car = splitCar(c?.carModel?.trim() || page.detail!.vehicle, page.brands);
   return (
-    <View style={styles.header}>
-      <View style={styles.grow}>
+    <View style={[styles.header, action ? styles.wideHeader : null]}>
+      <View style={action ? null : styles.grow}>
         <Text style={[TYPE.largeTitle, { color: theme.text }]} accessibilityRole="header">
           {plate}
         </Text>
@@ -95,6 +120,12 @@ function Header({ page, plate }: { page: CarPage; plate: string }) {
           <Text style={[TYPE.subhead, styles.right, { color: theme.textMuted }]}>{car.model}</Text>
         )}
       </View>
+      {action && (
+        <>
+          <View style={styles.grow} />
+          {action}
+        </>
+      )}
     </View>
   );
 }
@@ -163,7 +194,16 @@ function Quote({ quote }: { quote: QuoteCard }) {
       <Text style={[TYPE.title2, styles.head, { color: theme.text }]} accessibilityRole="header">
         {t({ th: "ใบเสนอราคาที่ยังค้าง", en: "Open quotation" })}
       </Text>
-      <View style={[styles.quote, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.quote,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <View style={styles.line}>
           <Text style={[TYPE.subhead, styles.grow, { color: theme.textMuted }]}>
             {quote.number ?? ""}
@@ -242,6 +282,8 @@ const styles = StyleSheet.create({
     gap: SPACE.l,
   },
   grow: { flex: 1, minWidth: 0 },
+  wideHeader: { alignItems: "flex-end", gap: 40 },
+  action: { minWidth: 200 },
   province: { fontSize: 22, lineHeight: 29, fontWeight: "600" },
   carCol: { alignItems: "flex-end" },
   right: { textAlign: "right" },

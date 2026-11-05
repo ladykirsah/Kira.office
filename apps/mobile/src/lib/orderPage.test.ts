@@ -10,6 +10,7 @@ import {
   deliveryNow,
   finishedClaims,
   jobFor,
+  deskSections,
   pageSections,
   pinsTracking,
   progressStep,
@@ -449,5 +450,20 @@ describe("statusWord > the word beside the order number", () => {
   it("given any other order > then the list's own word", () => {
     expect(statusWord("expired", "expired").th).toBe("ไม่สำเร็จ");
     expect(statusWord("packing", "paid").th).toBe("เตรียมจัดส่ง");
+  });
+});
+
+describe("deskSections (the order page on a computer, DeskOrders board 4 Nov 2026)", () => {
+  it("given a computer > then what's in the box and the money sit left, under the job", () => {
+    expect(deskSections().main).toEqual(["items", "payment"]);
+  });
+
+  it("given a computer > then who bought it, where it goes, the parcel, the files and the quiet actions sit right", () => {
+    expect(deskSections().side).toEqual(["customer", "address", "delivery", "files", "actions"]);
+  });
+
+  it("given both columns > then together they show every section the phone shows, once", () => {
+    const { main, side } = deskSections();
+    expect([...main, ...side].sort()).toEqual([...pageSections()].sort());
   });
 });

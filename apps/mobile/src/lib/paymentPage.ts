@@ -108,6 +108,33 @@ export function summaryLine(s: DaySummary): Phrase {
   return { th: th.filter(Boolean).join(" · "), en: en.filter(Boolean).join(" · ") };
 }
 
+/** The big number's grey line on a computer: "5 รายการ", with "ตรวจแล้ว 2" while slips are checked. */
+export function countLine(s: DaySummary): Phrase {
+  if (s.checked == null) return { th: `${s.count} รายการ`, en: `${s.count} payments` };
+  return {
+    th: `${s.count} รายการ · ตรวจแล้ว ${s.checked}`,
+    en: `${s.count} payments · ${s.checked} checked`,
+  };
+}
+
+/** Today's money by account on a computer, each with its hidden PromptPay number (DeskPayment). */
+export function todayAccounts(
+  rows: readonly PaymentRow[],
+  now: number,
+): { label: string; satang: number; masked: string }[] {
+  const today = rows.filter((r) => startOfDay(r.createdAt) === startOfDay(now));
+  const newest = [...today].sort((a, b) => b.createdAt - a.createdAt);
+  return byAccount(today).map((a) => {
+    const id = newest.find((r) => r.methodLabel === a.label)?.promptpayId ?? "";
+    return { ...a, masked: maskPromptpay(id) };
+  });
+}
+
+/** The บิล column: the counter bill it paid for, or a dash for a QR made on this page. */
+export function billCell(r: PaymentRow): string {
+  return r.saleNumber ?? "—";
+}
+
 /** What ล้าง takes off the list: every payment on it, by account. */
 export function clearSummary(rows: readonly PaymentRow[]): {
   count: number;

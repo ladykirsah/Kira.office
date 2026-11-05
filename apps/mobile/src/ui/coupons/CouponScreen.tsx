@@ -6,6 +6,7 @@ import { copyText } from "@/lib/copyText";
 import {
   COPIED_TOAST,
   USED_TOAST,
+  canDelete,
   couponState,
   creatorName,
   pageWindow,
@@ -22,6 +23,7 @@ import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { BigButton } from "../BigButton";
 import { Empty } from "../customers/parts";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Group } from "../orders/parts";
@@ -46,6 +48,7 @@ export function CouponScreen() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const list = useCouponList();
   const [deleting, setDeleting] = useState(false);
+  const wide = useWide();
   const coupon = list.coupons?.find((c) => c.id === id) ?? null;
 
   useScreenChrome(null, [], {
@@ -84,8 +87,8 @@ export function CouponScreen() {
       ? list.showToast(USED_TOAST.title, USED_TOAST.detail)
       : setDeleting(true);
 
-  return (
-    <View>
+  const head = (
+    <>
       <Pressable
         onPress={() => router.push(`${BASE}/${encodeURIComponent(coupon.id)}/edit` as never)}
         accessibilityRole="button"
@@ -96,56 +99,83 @@ export function CouponScreen() {
       <Text style={[TYPE.title1, styles.name, { color: theme.text }]} accessibilityRole="header">
         {coupon.name || coupon.code}
       </Text>
-
-      <View style={styles.card}>
-        <CouponFace coupon={coupon} radius={20} padding={16}>
-          <View style={styles.codeRow}>
-            <Text style={[styles.code, styles.grow, { color: theme.text }]} numberOfLines={1}>
-              {coupon.code}
-            </Text>
-            <Pressable
-              onPress={() => void copy()}
-              accessibilityRole="button"
-              accessibilityLabel={t({ th: "คัดลอกโค้ด", en: "Copy the code" })}
-              style={styles.copy}
-            >
-              <LineIcon d={ICON.copy} color={theme.text} size={18} strokeWidth={2} />
-            </Pressable>
-          </View>
-        </CouponFace>
-      </View>
-
-      <Facts coupon={coupon} />
-
-      <View style={styles.deleteGroup}>
-        <Group>
-          <Pressable onPress={askDelete} accessibilityRole="button" style={styles.deleteRow}>
-            <Text style={[TYPE.body, { color: theme.danger }]}>
-              {t({ th: "ลบคูปอง", en: "Delete coupon" })}
-            </Text>
+    </>
+  );
+  const ticket = (
+    <View style={wide ? null : styles.card}>
+      <CouponFace coupon={coupon} radius={wide ? 16 : 20} padding={wide ? 20 : 16}>
+        <View style={styles.codeRow}>
+          <Text style={[styles.code, styles.grow, { color: theme.text }]} numberOfLines={1}>
+            {coupon.code}
+          </Text>
+          <Pressable
+            onPress={() => void copy()}
+            accessibilityRole="button"
+            accessibilityLabel={t({ th: "คัดลอกโค้ด", en: "Copy the code" })}
+            style={styles.copy}
+          >
+            <LineIcon d={ICON.copy} color={theme.text} size={18} strokeWidth={2} />
           </Pressable>
-        </Group>
+        </View>
+      </CouponFace>
+    </View>
+  );
+  const remove = (
+    <View style={styles.deleteGroup}>
+      <Group>
+        <Pressable onPress={askDelete} accessibilityRole="button" style={styles.deleteRow}>
+          <Text style={[TYPE.body, { color: theme.danger }]}>
+            {t({ th: "ลบคูปอง", en: "Delete coupon" })}
+          </Text>
+        </Pressable>
+      </Group>
+    </View>
+  );
+  const sheet = deleting && (
+    <DeleteSheet
+      coupon={coupon}
+      token={list.token}
+      onClose={() => setDeleting(false)}
+      onUsed={() => list.showToast(USED_TOAST.title, USED_TOAST.detail)}
+      onFailed={(why) =>
+        list.showToast(
+          { th: "ลบไม่สำเร็จ", en: "Not deleted" },
+          { th: why || "ลองอีกครั้ง", en: why || "Try again" },
+        )
+      }
+    />
+  );
+
+  if (wide) {
+    // A computer (DeskCoupons board 2): the ticket on the left, how it stands on the right; a coupon
+    // someone has used has no ลบคูปอง (in use = no delete).
+    return (
+      <View>
+        {head}
+        <View style={styles.wideRow}>
+          <View style={styles.wideLeft}>{ticket}</View>
+          <View style={styles.wideRight}>
+            <Facts coupon={coupon} flush />
+            {canDelete(coupon) && remove}
+          </View>
+        </View>
+        {sheet}
       </View>
-      {deleting && (
-        <DeleteSheet
-          coupon={coupon}
-          token={list.token}
-          onClose={() => setDeleting(false)}
-          onUsed={() => list.showToast(USED_TOAST.title, USED_TOAST.detail)}
-          onFailed={(why) =>
-            list.showToast(
-              { th: "ลบไม่สำเร็จ", en: "Not deleted" },
-              { th: why || "ลองอีกครั้ง", en: why || "Try again" },
-            )
-          }
-        />
-      )}
+    );
+  }
+  return (
+    <View>
+      {head}
+      {ticket}
+      <Facts coupon={coupon} />
+      {remove}
+      {sheet}
     </View>
   );
 }
 
 /** The rows under the ticket, values in black on the right (as drawn). */
-function Facts({ coupon }: { coupon: Coupon }) {
+function Facts({ coupon, flush }: { coupon: Coupon; flush?: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const now = Date.now();
@@ -156,7 +186,7 @@ function Facts({ coupon }: { coupon: Coupon }) {
     </Text>
   );
   return (
-    <View style={styles.facts}>
+    <View style={flush ? null : styles.facts}>
       <Group>
         <Line
           label={t({ th: "สถานะ", en: "Status" })}
@@ -289,4 +319,7 @@ const styles = StyleSheet.create({
   fill: { height: 6, borderRadius: 3 },
   deleteGroup: { marginTop: SPACE.xl + SPACE.xs },
   deleteRow: { minHeight: 52, justifyContent: "center", paddingHorizontal: SPACE.l },
+  wideRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.xl, marginTop: 14 },
+  wideLeft: { flex: 1, minWidth: 0 },
+  wideRight: { flex: 1.15, minWidth: 0 },
 });

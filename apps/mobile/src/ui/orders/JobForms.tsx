@@ -169,7 +169,16 @@ export function DropOffSheet(props: {
       <Text style={[styles.formHead, { color: theme.text }]}>
         {t({ th: "ข้อมูลพัสดุ", en: "Parcel" })}
       </Text>
-      <View style={[styles.form, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.form,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <Pressable
           onPress={() => setChoosing(!choosing)}
           accessibilityRole="button"

@@ -3,9 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { formatBaht } from "@/lib/money";
 import type { OpenDraft } from "@/lib/posApi";
 import { draftRowText } from "@/lib/posBill";
+import { draftsNote } from "@/lib/posPage";
 import { billDate } from "@/lib/scanSale";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { DateBox } from "../orders/DateBox";
 import { ICON } from "../orders/icons";
@@ -19,11 +21,14 @@ import { usePos } from "./PosSessionProvider";
 import { saveDoc } from "./saveDoc";
 
 const DELETE_WIDTH = 88;
+const TRASH = "M4 7h16M10 11v6M14 11v6M5.5 7l1 13h11l1-13M9 7V4h6v3";
 
 /** ฉบับร่างและใบเสนอราคา — tap to carry on; swipe left to delete (asked first); keep this bill. */
 export function DraftsSheet({ onClose }: { onClose: () => void }) {
   const { t } = useLang();
   const pos = usePos();
+  // A mouse cannot swipe: a computer gets a bin icon on each row (DeskPos board).
+  const wide = useWide();
   const [tab, setTab] = useState<"all" | "draft" | "quotation">("all");
   const all = pos.data.drafts;
   const count = (s: "draft" | "quotation") => all.filter((d) => d.stage === s).length;
@@ -56,17 +61,16 @@ export function DraftsSheet({ onClose }: { onClose: () => void }) {
       />
       {shown.length > 0 && (
         <Group>
-          {shown.map((d, i) => (
-            <SwipeRow key={d.id} draft={d} last={i === shown.length - 1} />
-          ))}
+          {shown.map((d, i) =>
+            wide ? (
+              <BinRow key={d.id} draft={d} last={i === shown.length - 1} />
+            ) : (
+              <SwipeRow key={d.id} draft={d} last={i === shown.length - 1} />
+            ),
+          )}
         </Group>
       )}
-      <Note>
-        {t({
-          th: "แตะเพื่อทำบิลต่อ · บิลที่ทำค้างไว้เก็บเป็นร่างให้ก่อน · ปัดซ้ายเพื่อลบ (ถามก่อนลบ) · ฉบับร่างไม่ตัดสต็อก",
-          en: "Tap to carry on · the bill on screen is kept first · swipe left to delete (asked first) · drafts take no stock",
-        })}
-      </Note>
+      <Note>{t(draftsNote(wide))}</Note>
       <BigButton
         label={t({ th: "เก็บบิลนี้เป็นร่าง", en: "Keep this bill as a draft" })}
         onPress={() => void pos.keepDraft().then((ok) => ok && onClose())}
@@ -125,6 +129,53 @@ function SwipeRow({ draft, last }: { draft: OpenDraft; last: boolean }) {
           </Text>
         </Pressable>
       </ScrollView>
+    </View>
+  );
+}
+
+/** A draft on a computer: click to carry on, the bin asks before it deletes (DeskPos board). */
+function BinRow({ draft, last }: { draft: OpenDraft; last: boolean }) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const pos = usePos();
+  const text = draftRowText({ ...draft, buyerName: draft.buyerName ?? null }, Date.now());
+  return (
+    <View
+      style={[
+        styles.binRow,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+      ]}
+    >
+      <Pressable
+        onPress={() => void pos.openDraft(draft)}
+        accessibilityRole="button"
+        style={[styles.draft, styles.grow]}
+      >
+        <View style={styles.grow}>
+          <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(text.top)}</Text>
+          <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
+            {text.main ?? t({ th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" })}
+          </Text>
+          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{t(text.when)}</Text>
+        </View>
+      </Pressable>
+      <Pressable
+        onPress={() => pos.setSheet({ deleteDraft: draft.id })}
+        accessibilityRole="button"
+        accessibilityLabel={t({ th: "ลบ", en: "Delete" })}
+        hitSlop={6}
+        style={styles.bin}
+      >
+        <LineIcon d={TRASH} color={theme.textMuted} size={18} strokeWidth={1.9} />
+      </Pressable>
+      <Pressable
+        onPress={() => void pos.openDraft(draft)}
+        accessibilityRole="button"
+        accessibilityLabel={t({ th: "ทำบิลต่อ", en: "Carry on" })}
+        style={styles.binChevron}
+      >
+        <LineIcon d={ICON.chevron} color={theme.textFaint} size={15} strokeWidth={2.4} />
+      </Pressable>
     </View>
   );
 }
@@ -474,6 +525,9 @@ const styles = StyleSheet.create({
   },
   grow: { flex: 1, minWidth: 0 },
   delete: { width: DELETE_WIDTH, alignItems: "center", justifyContent: "center" },
+  binRow: { flexDirection: "row", alignItems: "center" },
+  bin: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  binChevron: { height: 40, paddingRight: SPACE.l, justifyContent: "center" },
   top: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   note: {

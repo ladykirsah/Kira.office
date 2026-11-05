@@ -2,10 +2,11 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { changeLine, money, periodRange, type Range } from "@/lib/financePage";
+import { changeLine, minus, money, periodRange, type Range } from "@/lib/financePage";
 import { DATE_PRESETS, rangeLabel, type CustomRange, type DatePreset } from "@/lib/orderList";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
+import { DeskCard } from "../desk/DeskCard";
 import { MenuButton } from "../orders/MenuButton";
 import { RangeSheet } from "../orders/RangeSheet";
 import { Divider } from "../products/parts";
@@ -40,12 +41,21 @@ export function usePeriod() {
   return { preset, custom, range, label, now, query };
 }
 
-/** เดือนนี้ ▾ — Orders' period words; กำหนดเอง… opens the built two-day sheet. */
-export function PeriodMenu({ period }: { period: ReturnType<typeof usePeriod> }) {
+/**
+ * เดือนนี้ ▾ — Orders' period words; กำหนดเอง… opens the built two-day sheet. `inline`: it sits on the
+ * title's line (a computer's shop page), with no space above it.
+ */
+export function PeriodMenu({
+  period,
+  inline,
+}: {
+  period: ReturnType<typeof usePeriod>;
+  inline?: boolean;
+}) {
   const { t } = useLang();
   const [picking, setPicking] = useState(false);
   return (
-    <View style={styles.menus}>
+    <View style={[styles.menus, inline && styles.inline]}>
       <MenuButton
         name={t({ th: "ช่วงวันที่", en: "Dates" })}
         label={t(period.label)}
@@ -80,27 +90,47 @@ export function HeroCards(props: {
   profit: number;
   previous: number | null;
   dots: boolean;
+  /**
+   * A computer (DeskFinance 1, 3): the numbers stand one under another inside the summary card,
+   * with no card of their own.
+   */
+  stacked?: boolean;
+  /** A shop's page on a computer: its ค่าใช้จ่าย as a third number (the phone's own row). */
+  expense?: number;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const change = changeLine(props.revenue, props.previous);
-  const card = (label: Phrase, value: number, under: ReactNode, colour: string) => (
-    <View style={[styles.hero, { backgroundColor: theme.surface }]}>
+  const card = (label: Phrase, value: string, under: ReactNode, colour: string | null) => (
+    <View
+      style={
+        props.stacked
+          ? styles.stat
+          : [
+              styles.hero,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]
+      }
+    >
       <View style={styles.label}>
-        {props.dots && <Dot colour={colour} />}
+        {props.dots && colour && <Dot colour={colour} />}
         <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{t(label)}</Text>
       </View>
       <Text style={[styles.big, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
-        {money(value)}
+        {value}
       </Text>
       {under}
     </View>
   );
   return (
-    <View style={styles.heroes}>
+    <View style={props.stacked ? styles.stats : styles.heroes}>
       {card(
         { th: "รายได้", en: "Revenue" },
-        props.revenue,
+        money(props.revenue),
         change ? (
           <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
             <Text style={{ color: change.tone === "good" ? theme.success : theme.danger }}>
@@ -111,7 +141,29 @@ export function HeroCards(props: {
         ) : null,
         theme.lineA,
       )}
-      {card({ th: "กำไร", en: "Profit" }, props.profit, null, theme.lineB)}
+      {card({ th: "กำไร", en: "Profit" }, money(props.profit), null, theme.lineB)}
+      {props.expense !== undefined &&
+        card({ th: "ค่าใช้จ่าย", en: "Expenses" }, minus(props.expense), null, null)}
+    </View>
+  );
+}
+
+/**
+ * The top of การเงิน on a computer (DeskFinance 1, 3, Mercury's transactions page): the numbers on the
+ * left, a hairline, and the graph across the rest, in one card.
+ */
+export function DeskSummary(props: { stats: ReactNode; graph: ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <View style={styles.deskSummary}>
+      <DeskCard>
+        <View style={styles.summaryRow}>
+          <View style={[styles.statsColumn, { borderRightColor: theme.border }]}>
+            {props.stats}
+          </View>
+          <View style={styles.grow}>{props.graph}</View>
+        </View>
+      </DeskCard>
     </View>
   );
 }
@@ -194,6 +246,12 @@ export function Nothing({ text }: { text: string }) {
 
 const styles = StyleSheet.create({
   menus: { marginTop: SPACE.s, flexDirection: "row" },
+  inline: { marginTop: 0 },
+  stats: { gap: 22 },
+  stat: { gap: 2 },
+  deskSummary: { marginTop: SPACE.l },
+  summaryRow: { flexDirection: "row", alignItems: "stretch", gap: SPACE.xxl },
+  statsColumn: { width: 250, flexShrink: 0, paddingRight: SPACE.xxl, borderRightWidth: 1 },
   heroes: { marginTop: SPACE.l, flexDirection: "row", gap: SPACE.s },
   hero: {
     flex: 1,

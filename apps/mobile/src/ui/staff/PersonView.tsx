@@ -7,6 +7,7 @@ import {
   OWNER_LOCK_LINE,
   accessState,
   halvesWord,
+  lastSeenDay,
   monthLabel,
   personPayLine,
   seenWhen,
@@ -14,8 +15,10 @@ import {
 } from "@/lib/staffPage";
 import type { DayOff, StaffProfile } from "@/lib/teamApi";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { Group } from "../orders/parts";
-import { Divider, Heading, Line } from "../products/parts";
+import { Divider, Line } from "../products/parts";
+import { Block, DeskColumns } from "../shop/parts";
 import { SPACE, TYPE } from "../theme";
 import { spacedPin } from "./CodeSheets";
 import { Chevron, CopyIcon, Hint, ValueRow } from "./parts";
@@ -37,6 +40,7 @@ export function PersonView(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
+  const wide = useWide();
   const p = props.person;
   const now = Date.now();
   const pay = usePayments(p.id, props.stamp);
@@ -48,143 +52,136 @@ export function PersonView(props: {
   const daysOff = off.days ?? [];
   const page = `${BASE}/${encodeURIComponent(p.id)}/pay`;
 
-  return (
-    <View>
-      <Heading text={t({ th: "ชื่อ", en: "Name" })} />
-      <Group>
-        <ValueRow label={t({ th: "ชื่อเล่น ไทย", en: "Nickname (Thai)" })} value={p.nameTh} />
-        <ValueRow label={t({ th: "ชื่อเล่น อังกฤษ", en: "Nickname (English)" })} value={p.nameEn} />
-        <ValueRow label={t({ th: "ชื่อจริง ไทย", en: "Full name (Thai)" })} value={p.fullNameTh} />
+  const name = (
+    <Block title={t({ th: "ชื่อ", en: "Name" })}>
+      <ValueRow label={t({ th: "ชื่อเล่น ไทย", en: "Nickname (Thai)" })} value={p.nameTh} />
+      <ValueRow label={t({ th: "ชื่อเล่น อังกฤษ", en: "Nickname (English)" })} value={p.nameEn} />
+      <ValueRow label={t({ th: "ชื่อจริง ไทย", en: "Full name (Thai)" })} value={p.fullNameTh} />
+      <ValueRow
+        label={t({ th: "ชื่อจริง อังกฤษ", en: "Full name (English)" })}
+        value={p.fullNameEn}
+        last
+      />
+    </Block>
+  );
+  const emergency = (
+    <Block title={t({ th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency contact" })}>
+      <ValueRow label={t({ th: "ชื่อ", en: "Name" })} value={p.emergencyName} />
+      <ValueRow label={t({ th: "เกี่ยวข้องเป็น", en: "Relation" })} value={p.emergencyRelation} />
+      <ValueRow
+        label={t({ th: "เบอร์โทร", en: "Phone" })}
+        value={p.emergencyPhone}
+        copy={copy({ th: "เบอร์โทร", en: "phone number" })}
+        last
+      />
+    </Block>
+  );
+  const work = (
+    <Block title={t({ th: "งาน", en: "Work" })}>
+      <ValueRow
+        label={t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}
+        value={p.dayRateSatang == null ? null : formatBaht(p.dayRateSatang)}
+      />
+      <ValueRow
+        label={t({ th: "เริ่มงาน", en: "Started" })}
+        value={p.startedOn == null ? null : t(dayPill(p.startedOn))}
+        last
+      />
+    </Block>
+  );
+  const bank = (
+    <Block title={t({ th: "บัญชีธนาคาร", en: "Bank account" })}>
+      <ValueRow label={t({ th: "ธนาคาร", en: "Bank" })} value={p.bankName} />
+      <ValueRow
+        label={t({ th: "เลขบัญชี", en: "Account no." })}
+        value={p.bankAccountNo}
+        copy={copy({ th: "เลขบัญชี", en: "account number" })}
+      />
+      <ValueRow label={t({ th: "ชื่อบัญชี", en: "Account name" })} value={p.bankAccountName} last />
+    </Block>
+  );
+  const salary = p.dayRateSatang != null && (
+    <Block title={t({ th: "เงินเดือน", en: "Salary" })}>
+      {months.map((m) => (
         <ValueRow
-          label={t({ th: "ชื่อจริง อังกฤษ", en: "Full name (English)" })}
-          value={p.fullNameEn}
-          last
+          key={m.period}
+          label={t(monthLabel(m.period))}
+          value={t(personPayLine(m))}
+          onPress={m.paidAt == null ? undefined : () => router.push(`${page}/${m.period}` as never)}
+          right={m.paidAt == null ? null : <Chevron />}
         />
-      </Group>
-
-      <Heading text={t({ th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency contact" })} />
-      <Group>
-        <ValueRow label={t({ th: "ชื่อ", en: "Name" })} value={p.emergencyName} />
-        <ValueRow label={t({ th: "เกี่ยวข้องเป็น", en: "Relation" })} value={p.emergencyRelation} />
-        <ValueRow
-          label={t({ th: "เบอร์โทร", en: "Phone" })}
-          value={p.emergencyPhone}
-          copy={copy({ th: "เบอร์โทร", en: "phone number" })}
-          last
-        />
-      </Group>
-
-      <Heading text={t({ th: "งาน", en: "Work" })} />
-      <Group>
-        <ValueRow
-          label={t({ th: "ค่าแรงต่อวัน", en: "Day rate" })}
-          value={p.dayRateSatang == null ? null : formatBaht(p.dayRateSatang)}
-        />
-        <ValueRow
-          label={t({ th: "เริ่มงาน", en: "Started" })}
-          value={p.startedOn == null ? null : t(dayPill(p.startedOn))}
-          last
-        />
-      </Group>
-
-      <Heading text={t({ th: "บัญชีธนาคาร", en: "Bank account" })} />
-      <Group>
-        <ValueRow label={t({ th: "ธนาคาร", en: "Bank" })} value={p.bankName} />
-        <ValueRow
-          label={t({ th: "เลขบัญชี", en: "Account no." })}
-          value={p.bankAccountNo}
-          copy={copy({ th: "เลขบัญชี", en: "account number" })}
-        />
-        <ValueRow
-          label={t({ th: "ชื่อบัญชี", en: "Account name" })}
-          value={p.bankAccountName}
-          last
-        />
-      </Group>
-
-      {p.dayRateSatang != null && (
-        <>
-          <Heading text={t({ th: "เงินเดือน", en: "Salary" })} />
-          <Group>
-            {months.map((m) => (
-              <ValueRow
-                key={m.period}
-                label={t(monthLabel(m.period))}
-                value={t(personPayLine(m))}
-                onPress={
-                  m.paidAt == null ? undefined : () => router.push(`${page}/${m.period}` as never)
-                }
-                right={m.paidAt == null ? null : <Chevron />}
-              />
-            ))}
-            <Line
-              label={t({ th: "ดูเงินเดือนทั้งหมด", en: "All salary" })}
-              onPress={() => router.push(page as never)}
-              right={<Chevron />}
-              last
-            />
-          </Group>
-        </>
+      ))}
+      <Line
+        label={t({ th: "ดูเงินเดือนทั้งหมด", en: "All salary" })}
+        onPress={() => router.push(page as never)}
+        right={<Chevron />}
+        last
+      />
+    </Block>
+  );
+  const days = (
+    <Block title={t({ th: "วันหยุด", en: "Days off" })}>
+      {daysOff.length === 0 ? (
+        <Line label={t({ th: "ไม่มีวันหยุดเดือนนี้", en: "No days off this month" })} last />
+      ) : (
+        daysOff.map((d, i) => (
+          <ValueRow
+            key={d.id}
+            label={`${t(shortDate(parseDayField(d.day) ?? 0))} · ${t(halvesWord(d.halves))}`}
+            value={d.reason ?? ""}
+            onPress={() => props.onDayOff(d)}
+            last={i === daysOff.length - 1}
+          />
+        ))
       )}
-
-      <Heading text={t({ th: "วันหยุด", en: "Days off" })} />
-      <Group>
-        {daysOff.length === 0 ? (
-          <Line label={t({ th: "ไม่มีวันหยุดเดือนนี้", en: "No days off this month" })} last />
-        ) : (
-          daysOff.map((d, i) => (
-            <ValueRow
-              key={d.id}
-              label={`${t(shortDate(parseDayField(d.day) ?? 0))} · ${t(halvesWord(d.halves))}`}
-              value={d.reason ?? ""}
-              onPress={() => props.onDayOff(d)}
-              last={i === daysOff.length - 1}
-            />
-          ))
-        )}
-      </Group>
-
-      <Heading text={t({ th: "การเข้าใช้งาน", en: "Sign-in" })} />
-      <Group>
-        <Line
-          label={t({ th: "สถานะ", en: "Status" })}
-          right={
-            <View style={styles.status}>
-              <View style={[styles.dot, { backgroundColor: dot }]} />
-              <Text style={[TYPE.body, { color: theme.text }]}>{t(access.text)}</Text>
-            </View>
-          }
-        />
-        <ValueRow
-          label={t({ th: "เข้าใช้ล่าสุด", en: "Last sign-in" })}
-          value={
-            p.lastLoginAt == null
+    </Block>
+  );
+  const signIn = (
+    <Block title={t({ th: "การเข้าใช้งาน", en: "Sign-in" })}>
+      <Line
+        label={t({ th: "สถานะ", en: "Status" })}
+        right={
+          <View style={styles.status}>
+            <View style={[styles.dot, { backgroundColor: dot }]} />
+            <Text style={[TYPE.body, { color: theme.text }]}>{t(access.text)}</Text>
+          </View>
+        }
+      />
+      <ValueRow
+        label={t({ th: "เข้าใช้ล่าสุด", en: "Last sign-in" })}
+        value={
+          // A computer says the day only, no clock time (DeskStaff 2).
+          wide
+            ? t(lastSeenDay(p.lastLoginAt, now))
+            : p.lastLoginAt == null
               ? t({ th: "ยังไม่เคย", en: "Never" })
               : t(seenWhen(p.lastLoginAt, now))
-          }
-        />
-        <CodeRow
-          label={t({ th: "รหัสผ่าน", en: "Password" })}
-          shown={p.hasPassword ? "••••••••" : t({ th: "ยังไม่ได้ตั้ง", en: "Not set" })}
-          value={p.password}
-          what={{ th: "รหัสผ่าน", en: "password" }}
-          onCopied={props.onCopied}
-          onPress={props.onPassword}
-        />
-        <CodeRow
-          label={t({ th: "รหัส 6 หลัก", en: "6-digit code" })}
-          shown={p.hasPin ? spacedPin("••••••") : t({ th: "ยังไม่ได้ตั้ง", en: "Not set" })}
-          value={p.pin}
-          what={{ th: "รหัส 6 หลัก", en: "code" }}
-          onCopied={props.onCopied}
-          onPress={props.onPin}
-          last
-        />
-      </Group>
-
+        }
+      />
+      <CodeRow
+        label={t({ th: "รหัสผ่าน", en: "Password" })}
+        shown={p.hasPassword ? "••••••••" : t({ th: "ยังไม่ได้ตั้ง", en: "Not set" })}
+        value={p.password}
+        what={{ th: "รหัสผ่าน", en: "password" }}
+        onCopied={props.onCopied}
+        onPress={props.onPassword}
+      />
+      <CodeRow
+        label={t({ th: "รหัส 6 หลัก", en: "6-digit code" })}
+        shown={p.hasPin ? spacedPin("••••••") : t({ th: "ยังไม่ได้ตั้ง", en: "Not set" })}
+        value={p.pin}
+        what={{ th: "รหัส 6 หลัก", en: "code" }}
+        onCopied={props.onCopied}
+        onPress={props.onPin}
+        last
+      />
+    </Block>
+  );
+  const end = (
+    <>
       {p.locked && <Hint text={t(OWNER_LOCK_LINE)} />}
       {props.onDelete && (
-        <View style={styles.deleteGroup}>
+        <View style={wide ? undefined : styles.deleteGroup}>
           <Group>
             <Pressable onPress={props.onDelete} accessibilityRole="button" style={styles.deleteRow}>
               <Text style={[TYPE.body, { color: theme.danger }]}>
@@ -194,6 +191,30 @@ export function PersonView(props: {
           </Group>
         </View>
       )}
+    </>
+  );
+
+  // A computer: ชื่อ · ผู้ติดต่อฉุกเฉิน | งาน · บัญชี · เงินเดือน | วันหยุด · การเข้าใช้งาน · ลบคนนี้ (DeskStaff 2).
+  return (
+    <View>
+      <DeskColumns
+        columns={[
+          <>
+            {name}
+            {emergency}
+          </>,
+          <>
+            {work}
+            {bank}
+            {salary}
+          </>,
+          <>
+            {days}
+            {signIn}
+            {end}
+          </>,
+        ]}
+      />
     </View>
   );
 }

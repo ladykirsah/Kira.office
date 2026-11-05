@@ -15,7 +15,12 @@ export function MetricList(props: { data: InsightsPayload; keys: readonly Metric
   const now = metricValues(props.data.totals);
   const before = metricValues(props.data.previous);
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       {props.keys.map((key, i) => {
         const change = changeOf(key, now[key], before[key]);
         return (
@@ -50,7 +55,57 @@ export function MetricList(props: { data: InsightsPayload; keys: readonly Metric
   );
 }
 
+/**
+ * The same numbers in a computer card (DeskInsight board): one line each — the name, the number,
+ * then its ▲ / ▼ in a column of its own, so the changes line up.
+ */
+export function MetricRows(props: { data: InsightsPayload; keys: readonly MetricKey[] }) {
+  const { theme } = useTheme();
+  const { t } = useLang();
+  const now = metricValues(props.data.totals);
+  const before = metricValues(props.data.previous);
+  return (
+    <View>
+      {props.keys.map((key, i) => {
+        const change = changeOf(key, now[key], before[key]);
+        return (
+          <View
+            key={key}
+            style={[
+              styles.wideRow,
+              i < props.keys.length - 1 && {
+                borderBottomWidth: 1,
+                borderBottomColor: theme.border,
+              },
+            ]}
+          >
+            <Text style={[TYPE.subhead, styles.grow, { color: theme.text }]} numberOfLines={1}>
+              {t(metricLabel(key))}
+            </Text>
+            <Text style={[TYPE.subhead, styles.nums, { color: theme.text }]} numberOfLines={1}>
+              {valueText(key, now[key])}
+            </Text>
+            <Text
+              style={[
+                TYPE.footnote,
+                styles.nums,
+                styles.change,
+                { color: changeColour(change.tone, theme) },
+              ]}
+              numberOfLines={1}
+            >
+              {change.text}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  wideRow: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 10 },
+  change: { width: 72, textAlign: "right" },
   card: { borderRadius: RADIUS.card, overflow: "hidden" },
   row: { paddingLeft: SPACE.l },
   body: {

@@ -244,6 +244,11 @@ export function creatorName(c: Coupon): string {
   return c.createdByName?.trim() || "—";
 }
 
+/** ลบคูปอง shows only while nobody has used it: a used one is part of the shop's sales (in use = no delete). */
+export function canDelete(c: Pick<Coupon, "redemptions">): boolean {
+  return c.redemptions === 0;
+}
+
 /** ลบคูปอง on one that has been used: it is part of the shop's sales, so it is switched off instead. */
 export const USED_TOAST: { title: Phrase; detail: Phrase } = {
   title: { th: "มีคนใช้แล้ว ลบไม่ได้", en: "Already used, so it can't be deleted" },

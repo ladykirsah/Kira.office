@@ -21,6 +21,7 @@ import { FieldError, FieldRow } from "../pos/fields";
 import { Photo, SearchBox } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 import type { PickLists } from "./useBannerForm";
+import { CodeCopy } from "../CodeCopy";
 
 type Step = "types" | "airplus" | "brand" | "category" | "car" | "product" | "external";
 
@@ -322,9 +323,10 @@ export function ProductLine(props: {
         <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
           {props.product.name}
         </Text>
-        <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-          {props.product.productRef}
-        </Text>
+        <CodeCopy
+          code={props.product.productRef}
+          style={[TYPE.subhead, { color: theme.textMuted }]}
+        />
         <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
           {formatBaht(props.product.onlinePriceSatang)}
         </Text>
@@ -337,7 +339,7 @@ export function ProductLine(props: {
   return (
     <View>
       {props.onPress ? (
-        <Pressable onPress={props.onPress} accessibilityRole="button">
+        <Pressable onPress={props.onPress} accessibilityRole="link">
           {body}
         </Pressable>
       ) : (

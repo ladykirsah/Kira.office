@@ -10,6 +10,7 @@ import {
 } from "@/lib/carFitmentPage";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
+import { useWide } from "../desk/useWide";
 import { DeleteRow, DeleteSheet } from "../partsSetup/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
@@ -29,6 +30,7 @@ export function CarModelScreen({ brandId, modelId }: { brandId: string; modelId:
   const [saved, setSaved] = useState(0);
   const [tried, setTried] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const wide = useWide();
   // A second quick tap on บันทึก lands before the page redraws, so the guard can't be a state.
   const busy = useRef(false);
   const brand = state.brands?.find((b) => b.id === brandId);
@@ -60,17 +62,27 @@ export function CarModelScreen({ brandId, modelId }: { brandId: string; modelId:
     } else setDraft(null);
   };
 
+  const saveButton = { label: t({ th: "บันทึก", en: "Save" }), onPress: () => void save() };
+  const cancel = { label: t({ th: "ยกเลิก", en: "Cancel" }), onPress: () => setDraft(null) };
+  const editTitle = t({ th: "แก้รุ่นรถ", en: "Edit model" });
+  // Computer (canvas คอม · รุ่นรถที่ใช้ได้ 6): แก้รุ่นรถ is the page's title, the form spreads over two
+  // columns, and ยกเลิก sits beside บันทึก in the pinned bar instead of above the title.
+  const wideEdit = wide && draft !== null;
   useScreenChrome(
     null,
-    draft ? [{ label: t({ th: "บันทึก", en: "Save" }), onPress: () => void save() }] : [],
+    draft ? (wide ? [saveButton, { ...cancel, kind: "grey" as const }] : [saveButton]) : [],
     {
-      back: draft
-        ? { label: t({ th: "ยกเลิก", en: "Cancel" }), plain: true, onPress: () => setDraft(null) }
-        : {
-            label: brand ? titleOf(brand) : t({ th: "รุ่นรถที่ใช้ได้", en: "Car fitment" }),
-            onPress: leave,
-          },
-      ownTitle: true,
+      back: wideEdit
+        ? null
+        : draft
+          ? { ...cancel, plain: true }
+          : {
+              label: brand ? titleOf(brand) : t({ th: "รุ่นรถที่ใช้ได้", en: "Car fitment" }),
+              onPress: leave,
+            },
+      ownTitle: !wideEdit,
+      title: wideEdit ? editTitle : null,
+      layout: wideEdit ? "full" : "column",
       toast: state.toast ? { title: t(state.toast.title), detail: t(state.toast.detail) } : null,
     },
   );
@@ -92,27 +104,32 @@ export function CarModelScreen({ brandId, modelId }: { brandId: string; modelId:
 
   return (
     <View>
-      <View style={styles.top}>
-        {draft ? (
-          <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
-            {t({ th: "แก้รุ่นรถ", en: "Edit model" })}
-          </Text>
-        ) : (
-          <Pressable
-            onPress={edit}
-            accessibilityRole="button"
-            style={[
-              styles.editPill,
-              { backgroundColor: theme.glass, borderColor: theme.glassLine },
-            ]}
-          >
-            <Text style={[TYPE.body, { color: theme.text }]}>{t({ th: "แก้ไข", en: "Edit" })}</Text>
-          </Pressable>
-        )}
-      </View>
+      {!wideEdit && (
+        <View style={styles.top}>
+          {draft ? (
+            <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
+              {editTitle}
+            </Text>
+          ) : (
+            <Pressable
+              onPress={edit}
+              accessibilityRole="button"
+              style={[
+                styles.editPill,
+                { backgroundColor: theme.glass, borderColor: theme.glassLine },
+              ]}
+            >
+              <Text style={[TYPE.body, { color: theme.text }]}>
+                {t({ th: "แก้ไข", en: "Edit" })}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {draft ? (
         <ModelEdit
+          wide={wide}
           draft={draft}
           saved={saved}
           problems={tried ? modelProblems(draft, brand.models) : {}}

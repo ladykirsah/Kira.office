@@ -193,7 +193,12 @@ export function PayWays(props: {
 export function AmountHead(props: { amount: string; who: string; how: string }) {
   const { theme } = useTheme();
   return (
-    <View style={[styles.head, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.head,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.amount, { color: theme.text }]}>{props.amount}</Text>
       <Text style={[TYPE.subhead, { color: theme.text }]}>{props.who}</Text>
       <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{props.how}</Text>

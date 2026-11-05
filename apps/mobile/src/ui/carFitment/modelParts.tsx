@@ -95,6 +95,8 @@ export function ModelEdit(props: {
   problems: Partial<Record<"nameEn" | "yearFrom", Phrase>>;
   onChange: (patch: Partial<ModelDraft>) => void;
   deleteRow: ReactNode;
+  /** A computer: names and service info on the left, o-rings and the note on the right (canvas คอม 6). */
+  wide?: boolean;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
@@ -103,128 +105,155 @@ export function ModelEdit(props: {
   const setOring = (i: number, patch: Partial<{ size: string; qty: string }>) =>
     props.onChange({ orings: d.orings.map((o, j) => (j === i ? { ...o, ...patch } : o)) });
   const box = [styles.box, { backgroundColor: theme.segBg }];
-  return (
-    <View style={styles.cards}>
-      <View>
-        <Group>
-          <InputRow
-            label={t({ th: "ชื่อไทย", en: "Thai name" })}
-            value={d.nameTh}
-            placeholder={t({ th: "เช่น วีโก้", en: "e.g. วีโก้" })}
-            onChange={(nameTh) => props.onChange({ nameTh })}
-          />
-          <InputRow
-            label={t({ th: "ชื่ออังกฤษ", en: "English name" })}
-            value={d.nameEn}
-            placeholder={t({ th: "เช่น Vigo", en: "e.g. Vigo" })}
-            onChange={(nameEn) => props.onChange({ nameEn })}
-          />
-          <InputRow
-            label={t({ th: "ปีเริ่ม", en: "From" })}
-            value={d.yearFrom}
-            placeholder={t({ th: "เช่น 2005", en: "e.g. 2005" })}
-            keyboardType="number-pad"
-            onChange={(v) => props.onChange({ yearFrom: digits(v) })}
-          />
-          <InputRow
-            label={t({ th: "ปีสิ้นสุด", en: "To" })}
-            value={d.yearTo}
-            placeholder={t({ th: "ไม่บังคับ", en: "Optional" })}
-            keyboardType="number-pad"
-            onChange={(v) => props.onChange({ yearTo: digits(v) })}
-            last
-          />
-        </Group>
-        {props.problems.nameEn && <FieldError text={t(props.problems.nameEn)} />}
-        {props.problems.yearFrom && <FieldError text={t(props.problems.yearFrom)} />}
-      </View>
+  const names = (
+    <View>
       <Group>
         <InputRow
-          label={t({ th: "แชสซี", en: "Chassis" })}
-          value={d.chassis}
-          placeholder={t({ th: "เช่น NSP151", en: "e.g. NSP151" })}
-          onChange={(chassis) => props.onChange({ chassis })}
+          label={t({ th: "ชื่อไทย", en: "Thai name" })}
+          value={d.nameTh}
+          placeholder={t({ th: "เช่น วีโก้", en: "e.g. วีโก้" })}
+          onChange={(nameTh) => props.onChange({ nameTh })}
         />
         <InputRow
-          label={t({ th: "น้ำยาแอร์", en: "Refrigerant" })}
-          value={d.refrigerant}
-          placeholder={t({ th: "เช่น R134a", en: "e.g. R134a" })}
-          onChange={(refrigerant) => props.onChange({ refrigerant })}
+          label={t({ th: "ชื่ออังกฤษ", en: "English name" })}
+          value={d.nameEn}
+          placeholder={t({ th: "เช่น Vigo", en: "e.g. Vigo" })}
+          onChange={(nameEn) => props.onChange({ nameEn })}
         />
         <InputRow
-          label={t({ th: "น้ำหล่อเย็น", en: "Coolant" })}
-          value={d.coolant}
-          placeholder={t({ th: "เช่น 6", en: "e.g. 6" })}
-          unit={NUMBER.test(d.coolant.trim()) ? t({ th: "ลิตร", en: "L" }) : undefined}
-          keyboardType="decimal-pad"
-          onChange={(coolant) => props.onChange({ coolant })}
+          label={t({ th: "ปีเริ่ม", en: "From" })}
+          value={d.yearFrom}
+          placeholder={t({ th: "เช่น 2005", en: "e.g. 2005" })}
+          keyboardType="number-pad"
+          onChange={(v) => props.onChange({ yearFrom: digits(v) })}
+        />
+        <InputRow
+          label={t({ th: "ปีสิ้นสุด", en: "To" })}
+          value={d.yearTo}
+          placeholder={t({ th: "ไม่บังคับ", en: "Optional" })}
+          keyboardType="number-pad"
+          onChange={(v) => props.onChange({ yearTo: digits(v) })}
           last
         />
       </Group>
-      <Group>
-        {d.orings.map((o, i) =>
-          i < props.saved ? (
-            <InputRow
-              key={`saved-${o.size}`}
-              label={`โอริง ${o.size}`}
-              value={o.qty}
-              placeholder="0"
-              keyboardType="number-pad"
-              onChange={(v) => setOring(i, { qty: v.replace(/\D/g, "") })}
-            />
-          ) : (
-            <View key={`new-${i}`}>
-              <View style={styles.newRow}>
-                <Text style={[TYPE.body, { color: theme.text }]}>โอริง</Text>
-                <TextInput
-                  value={o.size}
-                  onChangeText={(size) => setOring(i, { size })}
-                  placeholder={t({ th: 'ขนาด เช่น 3/4"', en: 'Size, e.g. 3/4"' })}
-                  placeholderTextColor={theme.textMuted}
-                  accessibilityLabel={t({ th: "ขนาดโอริง", en: "O-ring size" })}
-                  style={[TYPE.body, box, styles.size, { color: theme.text }]}
-                />
-                <TextInput
-                  value={o.qty}
-                  onChangeText={(v) => setOring(i, { qty: v.replace(/\D/g, "") })}
-                  placeholder={t({ th: "จำนวน", en: "Qty" })}
-                  placeholderTextColor={theme.textMuted}
-                  keyboardType="number-pad"
-                  accessibilityLabel={t({ th: "จำนวนโอริง", en: "O-ring amount" })}
-                  style={[TYPE.body, box, styles.qty, { color: theme.text }]}
-                />
-                <Pressable
-                  onPress={() => props.onChange({ orings: d.orings.filter((_, j) => j !== i) })}
-                  accessibilityRole="button"
-                  accessibilityLabel={t({ th: "เอาขนาดนี้ออก", en: "Remove this size" })}
-                  hitSlop={11}
-                  style={[styles.x, { backgroundColor: theme.hover }]}
-                >
-                  <Text style={[styles.xMark, { color: theme.textMuted }]}>✕</Text>
-                </Pressable>
-              </View>
-              <Divider />
-            </View>
-          ),
-        )}
-        <AddRow
-          label={t({ th: "เพิ่มขนาดโอริง", en: "Add an o-ring size" })}
-          onPress={() => props.onChange({ orings: [...d.orings, { size: "", qty: "" }] })}
-        />
-      </Group>
-      <Group>
-        <NoteRow label={t({ th: "หมายเหตุ", en: "Notes" })}>
-          <TextInput
-            value={d.notes}
-            onChangeText={(notes) => props.onChange({ notes })}
-            placeholder={t({ th: "ไม่ใส่ก็ได้", en: "Optional" })}
-            placeholderTextColor={theme.textFaint}
-            multiline
-            accessibilityLabel={t({ th: "หมายเหตุ", en: "Notes" })}
-            style={[TYPE.subhead, styles.noteInput, { color: theme.text }]}
+      {props.problems.nameEn && <FieldError text={t(props.problems.nameEn)} />}
+      {props.problems.yearFrom && <FieldError text={t(props.problems.yearFrom)} />}
+    </View>
+  );
+  const info = (
+    <Group>
+      <InputRow
+        label={t({ th: "แชสซี", en: "Chassis" })}
+        value={d.chassis}
+        placeholder={t({ th: "เช่น NSP151", en: "e.g. NSP151" })}
+        onChange={(chassis) => props.onChange({ chassis })}
+      />
+      <InputRow
+        label={t({ th: "น้ำยาแอร์", en: "Refrigerant" })}
+        value={d.refrigerant}
+        placeholder={t({ th: "เช่น R134a", en: "e.g. R134a" })}
+        onChange={(refrigerant) => props.onChange({ refrigerant })}
+      />
+      <InputRow
+        label={t({ th: "น้ำหล่อเย็น", en: "Coolant" })}
+        value={d.coolant}
+        placeholder={t({ th: "เช่น 6", en: "e.g. 6" })}
+        unit={NUMBER.test(d.coolant.trim()) ? t({ th: "ลิตร", en: "L" }) : undefined}
+        keyboardType="decimal-pad"
+        onChange={(coolant) => props.onChange({ coolant })}
+        last
+      />
+    </Group>
+  );
+  const rings = (
+    <Group>
+      {d.orings.map((o, i) =>
+        i < props.saved ? (
+          <InputRow
+            key={`saved-${o.size}`}
+            label={`โอริง ${o.size}`}
+            value={o.qty}
+            placeholder="0"
+            keyboardType="number-pad"
+            onChange={(v) => setOring(i, { qty: v.replace(/\D/g, "") })}
           />
-        </NoteRow>
-      </Group>
+        ) : (
+          <View key={`new-${i}`}>
+            <View style={styles.newRow}>
+              <Text style={[TYPE.body, { color: theme.text }]}>โอริง</Text>
+              <TextInput
+                value={o.size}
+                onChangeText={(size) => setOring(i, { size })}
+                placeholder={t({ th: 'ขนาด เช่น 3/4"', en: 'Size, e.g. 3/4"' })}
+                placeholderTextColor={theme.textMuted}
+                accessibilityLabel={t({ th: "ขนาดโอริง", en: "O-ring size" })}
+                style={[TYPE.body, box, styles.size, { color: theme.text }]}
+              />
+              <TextInput
+                value={o.qty}
+                onChangeText={(v) => setOring(i, { qty: v.replace(/\D/g, "") })}
+                placeholder={t({ th: "จำนวน", en: "Qty" })}
+                placeholderTextColor={theme.textMuted}
+                keyboardType="number-pad"
+                accessibilityLabel={t({ th: "จำนวนโอริง", en: "O-ring amount" })}
+                style={[TYPE.body, box, styles.qty, { color: theme.text }]}
+              />
+              <Pressable
+                onPress={() => props.onChange({ orings: d.orings.filter((_, j) => j !== i) })}
+                accessibilityRole="button"
+                accessibilityLabel={t({ th: "เอาขนาดนี้ออก", en: "Remove this size" })}
+                hitSlop={11}
+                style={[styles.x, { backgroundColor: theme.hover }]}
+              >
+                <Text style={[styles.xMark, { color: theme.textMuted }]}>✕</Text>
+              </Pressable>
+            </View>
+            <Divider />
+          </View>
+        ),
+      )}
+      <AddRow
+        label={t({ th: "เพิ่มขนาดโอริง", en: "Add an o-ring size" })}
+        onPress={() => props.onChange({ orings: [...d.orings, { size: "", qty: "" }] })}
+      />
+    </Group>
+  );
+  const note = (
+    <Group>
+      <NoteRow label={t({ th: "หมายเหตุ", en: "Notes" })}>
+        <TextInput
+          value={d.notes}
+          onChangeText={(notes) => props.onChange({ notes })}
+          placeholder={t({ th: "ไม่ใส่ก็ได้", en: "Optional" })}
+          placeholderTextColor={theme.textFaint}
+          multiline
+          accessibilityLabel={t({ th: "หมายเหตุ", en: "Notes" })}
+          style={[TYPE.subhead, styles.noteInput, { color: theme.text }]}
+        />
+      </NoteRow>
+    </Group>
+  );
+  if (props.wide) {
+    return (
+      <View style={styles.wideRow}>
+        <View style={styles.wideCol}>
+          {names}
+          {info}
+        </View>
+        <View style={styles.wideCol}>
+          {rings}
+          {note}
+          {props.deleteRow}
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.cards}>
+      {names}
+      {info}
+      {rings}
+      {note}
       {props.deleteRow}
     </View>
   );
@@ -234,6 +263,8 @@ const styles = StyleSheet.create({
   title: { marginTop: SPACE.s, marginHorizontal: 2 },
   sub: { marginHorizontal: 2 },
   cards: { marginTop: SPACE.xl, gap: SPACE.xl },
+  wideRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.xl },
+  wideCol: { flex: 1, minWidth: 0, gap: SPACE.xl },
   note: { paddingVertical: 12, paddingHorizontal: SPACE.l, gap: 2 },
   noteInput: { padding: 0, minHeight: 22, outlineStyle: "none" } as never,
   newRow: {

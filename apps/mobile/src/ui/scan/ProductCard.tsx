@@ -11,9 +11,11 @@ import {
 } from "react-native";
 import { billLineName } from "@/lib/billName";
 import { API_BASE } from "@/lib/config";
-import { priceTag } from "@/lib/scanSale";
+import { deskPriceTag, priceTag } from "@/lib/scanSale";
 import type { ScannedPart } from "@/lib/scanTabs";
 import { useLang, useTheme } from "../AppProviders";
+import { CodeCopy } from "../CodeCopy";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { RADIUS, SPACE, TYPE } from "../theme";
 
@@ -40,6 +42,11 @@ interface ProductCardProps {
  * what the tab is about.
  */
 export function ProductCard(props: ProductCardProps) {
+  const wide = useWide();
+  return wide ? <WideProductCard {...props} /> : <PhoneProductCard {...props} />;
+}
+
+function PhoneProductCard(props: ProductCardProps) {
   const { theme } = useTheme();
   const { t } = useLang();
   const { part } = props;
@@ -48,7 +55,12 @@ export function ProductCard(props: ProductCardProps) {
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setPage(Math.round(e.nativeEvent.contentOffset.x / (PHOTO + PHOTO_GAP)));
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -93,7 +105,9 @@ export function ProductCard(props: ProductCardProps) {
         <LineIcon d={CHEVRON} color={theme.textFaint} size={15} strokeWidth={2.4} />
       </Pressable>
       {part.productRef ? (
-        <Text style={[styles.code, { color: theme.textMuted }]}>{part.productRef}</Text>
+        <View style={styles.codeRow}>
+          <CodeCopy code={part.productRef} style={[styles.code, { color: theme.textMuted }]} />
+        </View>
       ) : null}
       <Text
         style={[styles.price, { color: theme.text }]}
@@ -131,6 +145,112 @@ export function ProductCard(props: ProductCardProps) {
   );
 }
 
+/** The computer card shows one photo (owner, 5 Nov 2026: "1 pic not 2"); the rest are on the product's page. */
+const WIDE_PHOTOS = 1;
+const MINUS = "M5 12h14";
+const PLUS = "M12 5v14M5 12h14";
+
+/**
+ * The same card laid sideways on a computer (DeskScan board, 4 Nov 2026): photos · the bill name ›,
+ * its code and price (ราคาช่าง) · what − n + means on this tab.
+ */
+function WideProductCard(props: ProductCardProps) {
+  const { theme } = useTheme();
+  const { t } = useLang();
+  const { part } = props;
+  const desk = deskPriceTag(part);
+  const photos = part.photoKeys.slice(0, WIDE_PHOTOS);
+  const line = {
+    backgroundColor: theme.surface,
+    borderWidth: theme.cardLine,
+    borderColor: theme.border,
+  };
+  return (
+    <View style={[styles.wideCard, line]}>
+      <View style={styles.widePhotos}>
+        {photos.length === 0 ? (
+          <View style={[styles.photo, { backgroundColor: theme.hover }]} />
+        ) : (
+          photos.map((key) => (
+            <Pressable
+              key={key}
+              onPress={props.onOpen}
+              accessibilityRole="imagebutton"
+              accessibilityLabel={t({ th: `เปิดหน้าสินค้า ${part.name}`, en: `Open ${part.name}` })}
+            >
+              <Image
+                source={{ uri: `${API_BASE}/img/${key}` }}
+                style={[styles.photo, { backgroundColor: theme.bg }]}
+              />
+            </Pressable>
+          ))
+        )}
+      </View>
+      <View style={styles.wideMiddle}>
+        <Pressable
+          onPress={props.onOpen}
+          accessibilityRole="link"
+          accessibilityLabel={t({ th: `เปิดหน้าสินค้า ${part.name}`, en: `Open ${part.name}` })}
+          style={styles.wideName}
+        >
+          <Text style={[styles.wideNameText, { color: theme.text }]} numberOfLines={2}>
+            {billLineName(part, "customer")}
+          </Text>
+          <LineIcon d={CHEVRON} color={theme.textFaint} size={15} strokeWidth={2.4} />
+        </Pressable>
+        {part.productRef ? (
+          <View style={[styles.codeRow, styles.flush]}>
+            <CodeCopy code={part.productRef} style={[styles.code, { color: theme.textMuted }]} />
+          </View>
+        ) : null}
+        <Text
+          style={[styles.price, styles.flush, { color: theme.text }]}
+          accessibilityLabel={t({
+            th: `ราคาลูกค้า ${desk.price} ราคาช่าง ${t(desk.mechanic)}`,
+            en: `Walk-in ${desk.price}, mechanic ${t(desk.mechanic)}`,
+          })}
+        >
+          {desk.price}
+          <Text style={{ color: theme.textMuted }}> · {t(desk.mechanic)}</Text>
+        </Text>
+      </View>
+      <View style={[styles.wideStock, { borderLeftColor: theme.border }]}>
+        <View style={styles.stockText}>
+          <Text style={[styles.label, { color: theme.text }]}>{props.label}</Text>
+          <Text style={[styles.sub, { color: theme.textMuted }]}>{props.sub}</Text>
+        </View>
+        <View style={styles.wideStepper} accessibilityLabel={props.label}>
+          <RoundStep d={MINUS} label={t({ th: "ลด", en: "Less" })} onPress={props.onMinus} />
+          <View style={[styles.wideValue, { backgroundColor: theme.hover }]}>
+            <Text style={[styles.wideValueText, { color: theme.text }]}>{props.value}</Text>
+          </View>
+          <RoundStep d={PLUS} label={t({ th: "เพิ่ม", en: "More" })} onPress={props.onPlus} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function RoundStep(props: { d: string; label: string; onPress: () => void }) {
+  const { theme } = useTheme();
+  return (
+    <Pressable
+      onPress={props.onPress}
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      style={(state) => [
+        styles.roundStep,
+        {
+          backgroundColor:
+            (state as { hovered?: boolean }).hovered || state.pressed ? theme.border : theme.hover,
+        },
+      ]}
+    >
+      <LineIcon d={props.d} color={theme.text} size={17} strokeWidth={2.4} />
+    </Pressable>
+  );
+}
+
 function StepButton(props: { sign: string; label: string; onPress: () => void; color: string }) {
   return (
     <Pressable
@@ -159,7 +279,8 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACE.l,
   },
   name: { ...TYPE.headline, flex: 1 },
-  code: { ...TYPE.subhead, marginTop: 2, marginHorizontal: SPACE.l, fontVariant: ["tabular-nums"] },
+  code: { ...TYPE.subhead, fontVariant: ["tabular-nums"] },
+  codeRow: { marginTop: 2, marginHorizontal: SPACE.l },
   price: {
     ...TYPE.body,
     marginTop: SPACE.xs,
@@ -191,4 +312,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.m,
   },
   valueText: { ...TYPE.body, fontVariant: ["tabular-nums"] },
+  wideCard: {
+    marginTop: SPACE.m,
+    borderRadius: 16,
+    padding: SPACE.l,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 22,
+  },
+  widePhotos: { flexShrink: 0, flexDirection: "row", gap: PHOTO_GAP },
+  wideMiddle: { flex: 1, minWidth: 0, gap: 2 },
+  wideName: { flexDirection: "row", alignItems: "center", gap: 6 },
+  wideNameText: { fontSize: 18, lineHeight: 24, flexShrink: 1 },
+  flush: { marginHorizontal: 0 },
+  wideStock: {
+    width: 330,
+    flexShrink: 0,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingLeft: 22,
+    borderLeftWidth: 1,
+  },
+  wideStepper: { flexDirection: "row", alignItems: "center", gap: 10 },
+  roundStep: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wideValue: {
+    minWidth: 52,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: SPACE.s,
+  },
+  wideValueText: { fontSize: 19, lineHeight: 24, fontVariant: ["tabular-nums"] },
 });

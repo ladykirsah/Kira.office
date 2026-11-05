@@ -9,6 +9,7 @@ import {
   pageStatus,
   pageWindow,
   soldLine,
+  type FlashItem,
   type FlashSale,
 } from "@/lib/flashPage";
 import { formatBaht } from "@/lib/money";
@@ -16,14 +17,19 @@ import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { BigButton } from "../BigButton";
 import { Empty } from "../customers/parts";
+import { Columns } from "../desk/Columns";
+import { DeskCard } from "../desk/DeskCard";
+import { Table, type TableColumn } from "../desk/Table";
+import { useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { Group } from "../orders/parts";
 import { Sheet } from "../orders/Sheet";
 import { Heading, Line } from "../products/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
-import { FLASH_BASE, ItemRow, StateDot, useNow } from "./parts";
+import { FLASH_BASE, ItemRow, OffPhoto, StateDot, useNow } from "./parts";
 import { useFlashList } from "./useFlashList";
+import { CodeCopy } from "../CodeCopy";
 
 /**
  * One sale (canvas v259, แฟลชเซล 3): its name, สถานะ (a live one says how long is left), ช่วงเวลา, then
@@ -36,6 +42,7 @@ export function FlashScreen() {
   const list = useFlashList();
   const now = useNow();
   const [deleting, setDeleting] = useState(false);
+  const wide = useWide();
   const sale = list.sales?.find((s) => s.id === id) ?? null;
 
   useScreenChrome(null, [], {
@@ -64,8 +71,8 @@ export function FlashScreen() {
     );
   }
 
-  return (
-    <View>
+  const head = (
+    <>
       <Pressable
         onPress={() => router.push(`${FLASH_BASE}/${encodeURIComponent(sale.id)}/edit` as never)}
         accessibilityRole="button"
@@ -76,35 +83,92 @@ export function FlashScreen() {
       <Text style={[TYPE.title1, styles.name, { color: theme.text }]} accessibilityRole="header">
         {sale.name}
       </Text>
+    </>
+  );
+  const facts = (
+    <Group>
+      <Line
+        label={t({ th: "สถานะ", en: "Status" })}
+        right={
+          <View style={styles.state}>
+            <StateDot state={flashState(sale, now)} />
+            <Text style={[TYPE.body, styles.value, { color: theme.text }]} numberOfLines={1}>
+              {t(pageStatus(sale, now))}
+            </Text>
+          </View>
+        }
+      />
+      <Line
+        label={t({ th: "ช่วงเวลา", en: "When" })}
+        right={
+          <Text style={[TYPE.body, styles.value, { color: theme.text }]} numberOfLines={1}>
+            {t(pageWindow(sale.startsAt, sale.endsAt))}
+          </Text>
+        }
+        last
+      />
+    </Group>
+  );
+  const items = t({ th: `สินค้า · ${sale.prices.length}`, en: `Products · ${sale.prices.length}` });
+  const remove = (
+    <View style={wide ? null : styles.deleteGroup}>
+      <Group>
+        <Pressable
+          onPress={() => setDeleting(true)}
+          accessibilityRole="button"
+          style={styles.deleteRow}
+        >
+          <Text style={[TYPE.body, { color: theme.danger }]}>
+            {t({ th: "ลบแคมเปญ", en: "Delete sale" })}
+          </Text>
+        </Pressable>
+      </Group>
+    </View>
+  );
+  const sheet = deleting && (
+    <DeleteSheet
+      sale={sale}
+      token={list.token}
+      onClose={() => setDeleting(false)}
+      onFailed={(why) =>
+        list.showToast(
+          { th: "ลบไม่สำเร็จ", en: "Not deleted" },
+          { th: why || "ลองอีกครั้ง", en: why || "Try again" },
+        )
+      }
+    />
+  );
 
-      <View style={styles.facts}>
-        <Group>
-          <Line
-            label={t({ th: "สถานะ", en: "Status" })}
-            right={
-              <View style={styles.state}>
-                <StateDot state={flashState(sale, now)} />
-                <Text style={[TYPE.body, styles.value, { color: theme.text }]} numberOfLines={1}>
-                  {t(pageStatus(sale, now))}
-                </Text>
+  if (wide) {
+    // A computer (DeskFlash board 2): every product in a table on the left; สถานะ, ช่วงเวลา and
+    // ลบแคมเปญ on the right.
+    return (
+      <View>
+        {head}
+        <View style={styles.wideBody}>
+          <Columns
+            sideWidth={320}
+            side={
+              <View style={styles.wideSide}>
+                {facts}
+                {remove}
               </View>
             }
-          />
-          <Line
-            label={t({ th: "ช่วงเวลา", en: "When" })}
-            right={
-              <Text style={[TYPE.body, styles.value, { color: theme.text }]} numberOfLines={1}>
-                {t(pageWindow(sale.startsAt, sale.endsAt))}
-              </Text>
-            }
-            last
-          />
-        </Group>
+          >
+            <DeskCard title={items} pad={4}>
+              <ItemsTable prices={sale.prices} />
+            </DeskCard>
+          </Columns>
+        </View>
+        {sheet}
       </View>
-
-      <Heading
-        text={t({ th: `สินค้า · ${sale.prices.length}`, en: `Products · ${sale.prices.length}` })}
-      />
+    );
+  }
+  return (
+    <View>
+      {head}
+      <View style={styles.facts}>{facts}</View>
+      <Heading text={items} />
       <Group>
         {sale.prices.map((p, i) => (
           <ItemRow
@@ -120,35 +184,68 @@ export function FlashScreen() {
           />
         ))}
       </Group>
-
-      <View style={styles.deleteGroup}>
-        <Group>
-          <Pressable
-            onPress={() => setDeleting(true)}
-            accessibilityRole="button"
-            style={styles.deleteRow}
-          >
-            <Text style={[TYPE.body, { color: theme.danger }]}>
-              {t({ th: "ลบแคมเปญ", en: "Delete sale" })}
-            </Text>
-          </Pressable>
-        </Group>
-      </View>
-      {deleting && (
-        <DeleteSheet
-          sale={sale}
-          token={list.token}
-          onClose={() => setDeleting(false)}
-          onFailed={(why) =>
-            list.showToast(
-              { th: "ลบไม่สำเร็จ", en: "Not deleted" },
-              { th: why || "ลองอีกครั้ง", en: why || "Try again" },
-            )
-          }
-        />
-      )}
+      {remove}
+      {sheet}
     </View>
   );
+}
+
+/**
+ * The sale's products on a computer: photo with its -%, the name on two lines and its code, the sale
+ * price with the normal one struck through, and how many sold.
+ */
+function ItemsTable({ prices }: { prices: readonly FlashItem[] }) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const columns: TableColumn<FlashItem>[] = [
+    {
+      key: "product",
+      label: "",
+      cell: (p) => (
+        <View style={styles.product}>
+          <OffPhoto
+            imageKey={p.imageKey}
+            size={52}
+            off={`${offPercent(p.basePriceSatang, p.campaignPriceSatang)}%`}
+          />
+          <View style={styles.grow}>
+            <Text style={[TYPE.subhead, { color: theme.text }]} numberOfLines={2}>
+              {p.productName}
+            </Text>
+            {p.productRef ? (
+              <CodeCopy code={p.productRef} style={[TYPE.footnote, { color: theme.textMuted }]} />
+            ) : null}
+          </View>
+        </View>
+      ),
+    },
+    {
+      key: "price",
+      label: "",
+      width: 170,
+      align: "right",
+      cell: (p) => (
+        <Text style={[TYPE.subhead, styles.nums, { color: theme.text }]} numberOfLines={1}>
+          {formatBaht(p.campaignPriceSatang)}{" "}
+          <Text style={[styles.struck, { color: theme.textMuted }]}>
+            {formatBaht(p.basePriceSatang)}
+          </Text>
+        </Text>
+      ),
+    },
+    {
+      key: "sold",
+      label: "",
+      width: 140,
+      align: "right",
+      cell: (p) => (
+        <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
+          {t(soldLine(p))}
+        </Text>
+      ),
+    },
+  ];
+  return <Table columns={columns} rows={prices} rowKey={(p) => p.id} minRowHeight={76} noHead />;
 }
 
 /** ลบแคมเปญ แฟลชเซลปลายเดือน? — a red ลบ and a grey ยกเลิก, nothing else (as drawn). */
@@ -205,4 +302,10 @@ const styles = StyleSheet.create({
   value: { flexShrink: 1, textAlign: "right", fontVariant: ["tabular-nums"] },
   deleteGroup: { marginTop: SPACE.xl + SPACE.xs },
   deleteRow: { minHeight: 52, justifyContent: "center", paddingHorizontal: SPACE.l },
+  wideBody: { marginTop: SPACE.l },
+  wideSide: { gap: SPACE.xl },
+  product: { flexDirection: "row", alignItems: "center", gap: SPACE.m, minWidth: 0 },
+  grow: { flex: 1, minWidth: 0 },
+  nums: { fontVariant: ["tabular-nums"] },
+  struck: { textDecorationLine: "line-through" },
 });

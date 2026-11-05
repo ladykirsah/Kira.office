@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   accountName,
+  carLine,
   itemsPreview,
   joinPhones,
   lineSub,
@@ -229,5 +230,17 @@ describe("accountName", () => {
   it("given erased or nameless > then the plain reason", () => {
     expect(accountName({ name: "x", anonymizedAt: 1 }).th).toBe("ลบข้อมูลแล้ว");
     expect(accountName({ name: "", anonymizedAt: null }).th).toBe("(ยังไม่มีชื่อ)");
+  });
+});
+
+describe("carLine", () => {
+  it("given the car picked on a bill > then it, before the old vehicle text", () => {
+    expect(carLine({ carModel: "Toyota Vigo 2014", vehicle: "Vigo" })).toBe("Toyota Vigo 2014");
+  });
+  it("given only the old vehicle text > then that", () => {
+    expect(carLine({ carModel: "  ", vehicle: " Isuzu D-Max " })).toBe("Isuzu D-Max");
+  });
+  it("given no car at all > then a dash", () => {
+    expect(carLine({ carModel: null, vehicle: null })).toBe("—");
   });
 });

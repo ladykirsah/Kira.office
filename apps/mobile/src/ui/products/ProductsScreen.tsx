@@ -1,16 +1,18 @@
 import { useRef, useState, type ComponentRef } from "react";
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { listSubtitle, PRODUCT_SORTS, PRODUCT_TABS } from "@/lib/productList";
+import { listSubtitle, PRODUCT_SORTS, PRODUCT_TABS, sortLabel } from "@/lib/productList";
 import { useLang, useTheme } from "../AppProviders";
 import { Empty } from "../customers/parts";
+import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
 import { BrandSheet, CarSheet, ScanSheet, SystemSheet } from "./ListSheets";
-import { Chip, RoundTool, SearchBox, SORT_ICON, UnderlineTabs } from "./parts";
+import { Chip, DOWN, RoundTool, SearchBox, SORT_ICON, UnderlineTabs } from "./parts";
 import { ProductCard } from "./ProductCard";
+import { ProductsTable } from "./ProductsTable";
 import { StockPriceSheet } from "./StockPriceSheet";
 import { useProductList, type ProductList } from "./useProductList";
 
@@ -23,22 +25,25 @@ export function ProductsScreen() {
   const { t } = useLang();
   const { theme } = useTheme();
   const list = useProductList();
+  const wide = useWide();
   const typed = list.q.trim();
   const notFound = typed !== "" && list.shown?.length === 0;
 
+  const addButton = {
+    label: notFound
+      ? t({ th: `เพิ่มสินค้า ${typed}`, en: `Add product ${typed}` })
+      : t({ th: "เพิ่มสินค้า", en: "Add product" }),
+    onPress: () => list.addProduct(notFound ? typed : ""),
+  };
   useScreenChrome(
-    null,
-    list.rights.edits
-      ? [
-          {
-            label: notFound
-              ? t({ th: `เพิ่มสินค้า ${typed}`, en: `Add product ${typed}` })
-              : t({ th: "เพิ่มสินค้า", en: "Add product" }),
-            onPress: () => list.addProduct(notFound ? typed : ""),
-          },
-        ]
-      : [],
-    { toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null },
+    // A computer puts the red เพิ่มสินค้า beside the title (DeskProducts board); a phone pins it.
+    wide && list.rights.edits ? { ...addButton, icon: ICON.plus, main: true } : null,
+    !wide && list.rights.edits ? [addButton] : [],
+    {
+      toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null,
+      // A computer shows the catalogue as one full-width table (DeskProducts board).
+      layout: "full",
+    },
   );
 
   return (
@@ -48,29 +53,62 @@ export function ProductsScreen() {
           {t(listSubtitle(list.rows, list.shown.length, list.q, list.filters))}
         </Text>
       )}
-      <View style={styles.searchRow}>
-        <SearchBox
-          grow
-          value={list.q}
-          onChange={list.setQ}
-          placeholder={t({ th: "รหัสหรือชื่อสินค้า", en: "Code or product name" })}
-        />
-        <RoundTool
-          icon={ICON.scan}
-          label={t({ th: "สแกน", en: "Scan" })}
-          onPress={() => list.setSheet("scan")}
-        />
-        <SortMenu list={list} />
-      </View>
-      {list.counts && (
-        <UnderlineTabs
-          tabs={PRODUCT_TABS.map((tab) => ({ key: tab.key, label: t(tab.label) }))}
-          counts={list.counts}
-          value={list.tab}
-          onPick={list.setTab}
-        />
+      {wide ? (
+        // A computer: search, scan, the three filters and the sort in one row, then the tabs.
+        <>
+          <View style={styles.searchRow}>
+            <View style={styles.wideSearch}>
+              <SearchBox
+                value={list.q}
+                onChange={list.setQ}
+                placeholder={t({ th: "รหัสหรือชื่อสินค้า", en: "Code or product name" })}
+              />
+            </View>
+            <RoundTool
+              icon={ICON.scan}
+              label={t({ th: "สแกน", en: "Scan" })}
+              onPress={() => list.setSheet("scan")}
+            />
+            <Chips list={list} inline />
+            <View style={styles.grow} />
+            <SortMenu list={list} pill />
+          </View>
+          {list.counts && (
+            <UnderlineTabs
+              tabs={PRODUCT_TABS.map((tab) => ({ key: tab.key, label: t(tab.label) }))}
+              counts={list.counts}
+              value={list.tab}
+              onPick={list.setTab}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <View style={styles.searchRow}>
+            <SearchBox
+              grow
+              value={list.q}
+              onChange={list.setQ}
+              placeholder={t({ th: "รหัสหรือชื่อสินค้า", en: "Code or product name" })}
+            />
+            <RoundTool
+              icon={ICON.scan}
+              label={t({ th: "สแกน", en: "Scan" })}
+              onPress={() => list.setSheet("scan")}
+            />
+            <SortMenu list={list} />
+          </View>
+          {list.counts && (
+            <UnderlineTabs
+              tabs={PRODUCT_TABS.map((tab) => ({ key: tab.key, label: t(tab.label) }))}
+              counts={list.counts}
+              value={list.tab}
+              onPick={list.setTab}
+            />
+          )}
+          <Chips list={list} />
+        </>
       )}
-      <Chips list={list} />
       {list.failed && (
         <View style={styles.retry}>
           <Text style={[TYPE.subhead, styles.grow, { color: theme.text }]}>
@@ -82,7 +120,7 @@ export function ProductsScreen() {
           />
         </View>
       )}
-      <Cards list={list} />
+      <Cards list={list} wide={wide} />
       {list.sheet === "brand" && <BrandSheet list={list} />}
       {list.sheet === "system" && <SystemSheet list={list} />}
       {list.sheet === "car" && <CarSheet list={list} />}
@@ -92,7 +130,8 @@ export function ProductsScreen() {
   );
 }
 
-function Chips({ list }: { list: ProductList }) {
+/** The three filters; `inline` = in the computer's tool row, with no gap above. */
+function Chips({ list, inline }: { list: ProductList; inline?: boolean }) {
   const { t } = useLang();
   const f = list.filters;
   const system = f.type
@@ -103,7 +142,7 @@ function Chips({ list }: { list: ProductList }) {
   // The chip names the model only; its years are in the sheet.
   const car = f.car ? (f.car.carModel ?? f.car.carBrand) : null;
   return (
-    <View style={styles.chips}>
+    <View style={[styles.chips, inline && styles.chipsInline]}>
       <Chip
         label={f.brand ? list.label("brands", f.brand) : t({ th: "ยี่ห้อ", en: "Brand" })}
         on={f.brand != null}
@@ -126,7 +165,7 @@ function Chips({ list }: { list: ProductList }) {
 /** A search icon in a grey circle: nothing found (option A until the owner picks one, canvas v194). */
 const NOT_FOUND_ICON = ICON.search;
 
-function Cards({ list }: { list: ProductList }) {
+function Cards({ list, wide }: { list: ProductList; wide: boolean }) {
   const { t } = useLang();
   if (!list.rows || !list.shown) return null;
   if (list.shown.length === 0) {
@@ -152,6 +191,18 @@ function Cards({ list }: { list: ProductList }) {
       />
     );
   }
+  if (wide) {
+    return (
+      <View style={styles.table}>
+        <ProductsTable
+          rows={list.shown}
+          canEdit={list.rights.edits}
+          onCopy={list.copy}
+          onStock={list.setStockFor}
+        />
+      </View>
+    );
+  }
   return (
     <View style={styles.cards}>
       {list.shown.map((row) => (
@@ -169,8 +220,11 @@ function Cards({ list }: { list: ProductList }) {
 
 const MENU_WIDTH = 232;
 
-/** ⇅ opens a short menu under it; one tap picks the order (as drawn). */
-function SortMenu({ list }: { list: ProductList }) {
+/**
+ * ⇅ opens a short menu under it; one tap picks the order (as drawn). A computer names the order on
+ * a pill instead ("เรียงตาม: แก้ไขล่าสุด ⌄", DeskProducts board).
+ */
+function SortMenu({ list, pill }: { list: ProductList; pill?: boolean }) {
   const { theme } = useTheme();
   const { t } = useLang();
   const { width } = useWindowDimensions();
@@ -183,7 +237,20 @@ function SortMenu({ list }: { list: ProductList }) {
   return (
     <>
       <View ref={anchor} collapsable={false}>
-        <RoundTool icon={SORT_ICON} label={t({ th: "เรียงตาม", en: "Sort" })} onPress={open} />
+        {pill ? (
+          <Pressable
+            onPress={open}
+            accessibilityRole="button"
+            style={[styles.sortPill, { backgroundColor: theme.segBg }]}
+          >
+            <Text style={[TYPE.subhead, { color: theme.text }]} numberOfLines={1}>
+              {t(sortLabel(list.sort))}
+            </Text>
+            <LineIcon d={DOWN} color={theme.text} size={13} strokeWidth={2.6} />
+          </Pressable>
+        ) : (
+          <RoundTool icon={SORT_ICON} label={t({ th: "เรียงตาม", en: "Sort" })} onPress={open} />
+        )}
       </View>
       <Modal visible={!!at} transparent animationType="fade" onRequestClose={() => setAt(null)}>
         <Pressable
@@ -237,6 +304,18 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: -SPACE.xs, marginHorizontal: 2 },
   searchRow: { flexDirection: "row", alignItems: "center", gap: SPACE.s, marginTop: SPACE.m },
   chips: { flexDirection: "row", gap: SPACE.s, marginTop: SPACE.m, flexWrap: "wrap" },
+  chipsInline: { marginTop: 0, marginLeft: SPACE.xs },
+  wideSearch: { width: 320 },
+  table: { marginTop: SPACE.l },
+  sortPill: {
+    height: 32,
+    paddingLeft: SPACE.m,
+    paddingRight: 10,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   retry: { flexDirection: "row", alignItems: "center", gap: SPACE.s, marginTop: SPACE.m },
   grow: { flex: 1 },
   cards: { marginTop: SPACE.l, gap: SPACE.m },

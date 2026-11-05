@@ -54,7 +54,10 @@ export function UpdateBar() {
     <Pressable
       onPress={() => window.location.assign("/")}
       accessibilityRole="button"
-      style={[styles.bar, { backgroundColor: theme.surface }]}
+      style={[
+        styles.bar,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
     >
       <View style={[styles.icon, { backgroundColor: theme.graphite }]}>
         <LineIcon d={REFRESH} color="#FFFFFF" size={16} strokeWidth={2.4} />

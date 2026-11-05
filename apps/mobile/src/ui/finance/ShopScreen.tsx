@@ -19,6 +19,7 @@ import {
   type Shop,
 } from "@/lib/financePage";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { Group } from "../orders/parts";
 import { Line, SearchBox } from "../products/parts";
 import { useScreenChrome } from "../ScreenChrome";
@@ -26,9 +27,11 @@ import { useToast } from "../staff/useTeam";
 import { SPACE, TYPE } from "../theme";
 import { BillSheets } from "./BillSheets";
 import { FinanceGraph, graphHasTwoLines } from "./FinanceGraph";
+import { LedgerTable } from "./LedgerTable";
 import {
   BASE,
   DayTitle,
+  DeskSummary,
   HeroCards,
   Loading,
   MoneyRow,
@@ -51,6 +54,7 @@ export function ShopScreen({ shop }: { shop: Shop }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<Bill | null>(null);
   const { toast, showToast } = useToast();
+  const wide = useWide();
 
   useScreenChrome(null, [], {
     back: {
@@ -60,6 +64,8 @@ export function ShopScreen({ shop }: { shop: Shop }) {
     },
     ownTitle: true,
     toast: toast ? { title: t(toast.title), detail: t(toast.detail) } : null,
+    // A computer: the numbers and graph in one card, then the list as a table (DeskFinance 3).
+    layout: "full",
   });
 
   const title = (
@@ -70,8 +76,17 @@ export function ShopScreen({ shop }: { shop: Shop }) {
   if (!books) {
     return (
       <View>
-        {title}
-        <PeriodMenu period={period} />
+        {wide ? (
+          <View style={styles.deskHead}>
+            <View style={styles.grow}>{title}</View>
+            <PeriodMenu period={period} inline />
+          </View>
+        ) : (
+          <>
+            {title}
+            <PeriodMenu period={period} />
+          </>
+        )}
         <Loading failed={failed} onRetry={() => void load()} />
       </View>
     );
@@ -133,6 +148,108 @@ export function ShopScreen({ shop }: { shop: Shop }) {
     );
   };
 
+  const searchBox = (
+    <SearchBox
+      value={query}
+      onChange={setQuery}
+      placeholder={
+        shop === "onsite"
+          ? t({
+              th: "ทะเบียน เลขบิล รายการ หรือยอดเงิน",
+              en: "Plate, bill no., item or amount",
+            })
+          : t({
+              th: "เลขคำสั่งซื้อ ลูกค้า รายการ หรือยอดเงิน",
+              en: "Order no., customer, item or amount",
+            })
+      }
+    />
+  );
+  const nothing = (
+    <Nothing
+      text={
+        query.trim()
+          ? t({ th: `ไม่พบ “${query.trim()}”`, en: `No match for “${query.trim()}”` })
+          : shop === "onsite"
+            ? t({
+                th: "ไม่มีบิลหรือค่าใช้จ่ายช่วงนี้",
+                en: "No bills or expenses in this period",
+              })
+            : t({
+                th: "ไม่มีออเดอร์หรือค่าใช้จ่ายช่วงนี้",
+                en: "No orders or expenses in this period",
+              })
+      }
+    />
+  );
+  const sheets = open && (
+    <BillSheets
+      bill={open}
+      onClose={() => setOpen(null)}
+      onRefunded={() => {
+        setOpen(null);
+        void load();
+      }}
+      onFailed={(reason) => {
+        setOpen(null);
+        showToast(
+          { th: "คืนเงินไม่สำเร็จ", en: "Refund failed" },
+          reason ? { th: reason, en: reason } : { th: "ลองอีกครั้ง", en: "Try again" },
+        );
+      }}
+    />
+  );
+  // What a row opens, the same as the phone's rows: an expense's page, the bill, the order.
+  const openRow = (r: LedgerRow) => {
+    if (r.kind === "expense") {
+      return router.push(`${BASE}/expense/${encodeURIComponent(r.expense.id)}` as never);
+    }
+    if (r.kind === "bill") return setOpen(r.bill);
+    return router.push(`/orders/${encodeURIComponent(r.order.id)}` as never);
+  };
+
+  if (wide) {
+    return (
+      <View>
+        <View style={styles.deskHead}>
+          <View style={styles.grow}>{title}</View>
+          <PeriodMenu period={period} inline />
+        </View>
+        <DeskSummary
+          stats={
+            <HeroCards
+              revenue={mine.revenueSatang}
+              profit={mine.netSatang}
+              previous={mine.previous}
+              dots={graphHasTwoLines(period.preset, period.range)}
+              expense={mine.expenseSatang}
+              stacked
+            />
+          }
+          graph={
+            <FinanceGraph
+              preset={period.preset}
+              range={period.range}
+              now={period.now}
+              points={graph.points}
+              lastMonth={graph.lastMonth}
+              bare
+            />
+          }
+        />
+        <View style={[styles.after, styles.deskSearch]}>{searchBox}</View>
+        {rows.length === 0 ? (
+          nothing
+        ) : (
+          <View style={styles.after}>
+            <LedgerTable days={byDay(rows, (r) => r.at, period.now)} onOpen={openRow} />
+          </View>
+        )}
+        {sheets}
+      </View>
+    );
+  }
+
   return (
     <View>
       {title}
@@ -165,72 +282,27 @@ export function ShopScreen({ shop }: { shop: Shop }) {
         </Group>
       </View>
 
-      <View style={styles.after}>
-        <SearchBox
-          value={query}
-          onChange={setQuery}
-          placeholder={
-            shop === "onsite"
-              ? t({
-                  th: "ทะเบียน เลขบิล รายการ หรือยอดเงิน",
-                  en: "Plate, bill no., item or amount",
-                })
-              : t({
-                  th: "เลขคำสั่งซื้อ ลูกค้า รายการ หรือยอดเงิน",
-                  en: "Order no., customer, item or amount",
-                })
-          }
-        />
-      </View>
+      <View style={styles.after}>{searchBox}</View>
 
-      {rows.length === 0 ? (
-        <Nothing
-          text={
-            query.trim()
-              ? t({ th: `ไม่พบ “${query.trim()}”`, en: `No match for “${query.trim()}”` })
-              : shop === "onsite"
-                ? t({
-                    th: "ไม่มีบิลหรือค่าใช้จ่ายช่วงนี้",
-                    en: "No bills or expenses in this period",
-                  })
-                : t({
-                    th: "ไม่มีออเดอร์หรือค่าใช้จ่ายช่วงนี้",
-                    en: "No orders or expenses in this period",
-                  })
-          }
-        />
-      ) : (
-        byDay(rows, (r) => r.at, period.now).map((day) => (
-          <View key={day.day}>
-            <DayTitle text={t(day.title)} />
-            <Group>{day.rows.map((r, i) => row(r, i === day.rows.length - 1))}</Group>
-          </View>
-        ))
-      )}
+      {rows.length === 0
+        ? nothing
+        : byDay(rows, (r) => r.at, period.now).map((day) => (
+            <View key={day.day}>
+              <DayTitle text={t(day.title)} />
+              <Group>{day.rows.map((r, i) => row(r, i === day.rows.length - 1))}</Group>
+            </View>
+          ))}
 
-      {open && (
-        <BillSheets
-          bill={open}
-          onClose={() => setOpen(null)}
-          onRefunded={() => {
-            setOpen(null);
-            void load();
-          }}
-          onFailed={(reason) => {
-            setOpen(null);
-            showToast(
-              { th: "คืนเงินไม่สำเร็จ", en: "Refund failed" },
-              reason ? { th: reason, en: reason } : { th: "ลองอีกครั้ง", en: "Try again" },
-            );
-          }}
-        />
-      )}
+      {sheets}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   title: { marginTop: SPACE.xs, marginHorizontal: 2 },
+  deskHead: { flexDirection: "row", alignItems: "center", gap: SPACE.m },
+  grow: { flex: 1, minWidth: 0 },
+  deskSearch: { maxWidth: 380 },
   after: { marginTop: SPACE.m },
   amount: { fontVariant: ["tabular-nums"] },
 });

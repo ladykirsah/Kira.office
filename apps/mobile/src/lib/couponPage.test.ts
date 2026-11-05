@@ -3,6 +3,7 @@ import {
   COPIED_TOAST,
   USED_TOAST,
   bigValue,
+  canDelete,
   couponState,
   createBody,
   creatorName,
@@ -220,6 +221,11 @@ describe("the coupon page's words", () => {
   it("creatorName > the person who made it; a coupon from before → —", () => {
     expect(creatorName(coupon())).toBe("คุณเก๋");
     expect(creatorName(coupon({ createdByName: null }))).toBe("—");
+  });
+
+  it("canDelete > only a coupon nobody has used (in use = no delete button, DeskCoupons board)", () => {
+    expect(canDelete(coupon({ redemptions: 0 }))).toBe(true);
+    expect(canDelete(coupon({ redemptions: 8 }))).toBe(false);
   });
 
   it("USED_TOAST / COPIED_TOAST > the drawn words", () => {

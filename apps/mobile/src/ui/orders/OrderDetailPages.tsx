@@ -238,7 +238,12 @@ function Timeline({ detail }: { detail: OrderDetail }) {
     detail.timeline.map((e) => ({ event: e.event, at: e.createdAt })),
   );
   return (
-    <View style={[styles.timeline, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.timeline,
+        { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
+      ]}
+    >
       {stages.map((st, i) => {
         const color =
           st.state === "done"

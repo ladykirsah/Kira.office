@@ -91,6 +91,11 @@ export function changeText(delta: number): string {
 }
 
 /** The grey line under the title: how many show, "ล่าสุด" when the server's list stopped at its limit. */
+/** What is left after a change: "เหลือ 12". */
+export function leftText(n: number): Phrase {
+  return { th: `เหลือ ${n}`, en: `${n} left` };
+}
+
 export function movementSubtitle(c: { shown: number; total: number; limit: number }): Phrase {
   return c.shown === c.total && c.total >= c.limit
     ? { th: `${c.total} รายการล่าสุด`, en: `Latest ${c.total}` }

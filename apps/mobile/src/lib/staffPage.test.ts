@@ -10,12 +10,15 @@ import {
   daysWord,
   halvesWord,
   historyLine,
+  lastSeenDay,
   monthLabel,
   monthSummary,
   payHead,
+  payState,
   paymentLines,
   personLine,
   personPayLine,
+  positionWord,
   randomPassword,
   randomPin,
   recordHead,
@@ -504,5 +507,34 @@ describe("the owner's locked account (พนักงาน 8, 4 Nov 2026)", () 
 
   it("OWNER_LOCK_LINE > says what can't be done, as drawn", () => {
     expect(OWNER_LOCK_LINE.th).toBe("บัญชีเจ้าของร้าน · ลบ ปิดใช้ หรือเปลี่ยนตำแหน่งไม่ได้");
+  });
+});
+
+describe("the computer's columns (DeskStaff, 5 Nov 2026)", () => {
+  it("lastSeenDay > given today or yesterday > then the word alone, no clock time", () => {
+    expect(lastSeenDay(at(2026, 10, 29, 8, 41), NOW)).toEqual({ th: "วันนี้", en: "Today" });
+    expect(lastSeenDay(at(2026, 10, 28, 17, 30), NOW)).toEqual({ th: "เมื่อวาน", en: "Yesterday" });
+  });
+  it("lastSeenDay > given a day further back > then the day, with the Thai year in another year", () => {
+    expect(lastSeenDay(at(2026, 10, 27, 9, 0), NOW).th).toBe("27 ต.ค.");
+    expect(lastSeenDay(at(2025, 12, 30, 9, 0), NOW).th).toBe("30 ธ.ค. 2568");
+  });
+  it("lastSeenDay > given no sign-in > then never", () => {
+    expect(lastSeenDay(null, NOW)).toEqual({ th: "ยังไม่เคย", en: "Never" });
+  });
+  it("positionWord > given someone working > then their position, no dot", () => {
+    expect(positionWord(person())).toEqual({ dot: null, text: { th: "ช่าง", en: "Mechanic" } });
+  });
+  it("positionWord > given someone switched off > then ปิดอยู่ with the dot", () => {
+    expect(positionWord(person({ status: "disabled" }))).toEqual({
+      dot: "off",
+      text: { th: "ปิดอยู่", en: "Off" },
+    });
+  });
+  it("payState > given a month not paid yet > then what is left to do", () => {
+    expect(payState(row())).toEqual({ th: "ที่ต้องจ่าย", en: "To pay" });
+  });
+  it("payState > given a paid month > then the day it was paid", () => {
+    expect(payState(row({ paidAt: at(2026, 11, 2, 18, 0) })).th).toBe("2 พ.ย. · จ่ายแล้ว");
   });
 });

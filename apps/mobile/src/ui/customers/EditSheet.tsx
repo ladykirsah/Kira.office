@@ -54,7 +54,16 @@ export function EditSheet({ page }: { page: CarPage }) {
       <Text style={[TYPE.footnote, styles.label, { color: theme.textMuted }]}>
         {t({ th: "หมายเหตุ", en: "Note" })}
       </Text>
-      <View style={[styles.note, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.note,
+          {
+            backgroundColor: theme.surface,
+            borderWidth: theme.cardLine,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <TextInput
           value={edit.notes}
           onChangeText={(notes) => set({ notes })}

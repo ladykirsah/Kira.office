@@ -3,6 +3,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { accountName, longDate, rowDate, shortOrderStatus } from "@/lib/customerPage";
 import type { AccountOrder } from "@/lib/customersApi";
 import { useLang, useTheme } from "../AppProviders";
+import { Columns } from "../desk/Columns";
+import { useWide } from "../desk/useWide";
 import { Group, Row, SectionTitle, SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
@@ -16,8 +18,11 @@ export function AccountScreen() {
   const { theme } = useTheme();
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const page = useAccountPage(id);
+  const wide = useWide();
 
   useScreenChrome(null, [], {
+    // Two columns on a computer need the full width (DeskCustomers board).
+    layout: "full",
     back: {
       label: t({ th: "ลูกค้า", en: "Customers" }),
       onPress: () => (router.canGoBack() ? router.back() : router.replace("/customers" as never)),
@@ -61,6 +66,38 @@ export function AccountScreen() {
           </Text>
         )}
       </View>
+      {wide ? (
+        // A computer (DeskCustomers board): the orders left; the account, consent and erase right.
+        <Columns
+          side={
+            <>
+              <AccountRows page={page} now={now} />
+              {!erased && <EraseRow page={page} />}
+            </>
+          }
+        >
+          <Orders orders={page.detail!.orders} />
+        </Columns>
+      ) : (
+        <>
+          <AccountRows page={page} now={now} />
+          <Orders orders={page.detail!.orders} />
+          {!erased && <EraseRow page={page} />}
+        </>
+      )}
+      {page.sheet === "consent" && <ConsentSheet page={page} />}
+      {page.sheet === "erase" && <EraseSheet page={page} />}
+    </View>
+  );
+}
+
+/** บัญชี and การยินยอม. */
+function AccountRows({ page, now }: { page: AccountPage; now: number }) {
+  const { t } = useLang();
+  const c = page.detail!.customer!;
+  const erased = c.anonymizedAt !== null;
+  return (
+    <>
       <SectionTitle text={t({ th: "บัญชี", en: "Account" })} />
       <Group>
         <Row
@@ -107,19 +144,21 @@ export function AccountScreen() {
           last
         />
       </Group>
-      <Orders orders={page.detail!.orders} />
-      {!erased && (
-        <Group spaced>
-          <Row
-            label={t({ th: "ลบข้อมูลตาม PDPA", en: "Erase data (PDPA)" })}
-            onPress={() => page.setSheet("erase")}
-            last
-          />
-        </Group>
-      )}
-      {page.sheet === "consent" && <ConsentSheet page={page} />}
-      {page.sheet === "erase" && <EraseSheet page={page} />}
-    </View>
+    </>
+  );
+}
+
+/** ลบข้อมูลตาม PDPA — gone once the data is erased. */
+function EraseRow({ page }: { page: AccountPage }) {
+  const { t } = useLang();
+  return (
+    <Group spaced>
+      <Row
+        label={t({ th: "ลบข้อมูลตาม PDPA", en: "Erase data (PDPA)" })}
+        onPress={() => page.setSheet("erase")}
+        last
+      />
+    </Group>
   );
 }
 

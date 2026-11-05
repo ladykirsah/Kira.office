@@ -1,17 +1,22 @@
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { accountName, plateLine, rowDate, sideLabel } from "@/lib/customerPage";
+import { accountName, carLine, plateLine, rowDate, sideLabel } from "@/lib/customerPage";
 import type { AccountRow, CarRow } from "@/lib/customersApi";
 import { useLang, useTheme } from "../AppProviders";
+import { useWide } from "../desk/useWide";
 import { Group, Row, SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
+import { AccountsTable, CarsTable } from "./CustomersTable";
 import { ImportSheet, IMPORT_ICON, useImport } from "./ImportSheet";
 import { Empty, ListRow, SearchField, SummaryCard } from "./parts";
 import { useCustomerList, type CustomerList } from "./useCustomerList";
 
 /** A person with a question mark: nothing found (owner picked icon D, canvas v146). */
+/** Two arrows round: อัปเดตเครดิตทั้งหมด. */
+const REFRESH_ICON = "M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5";
+
 const NOT_FOUND_ICON =
   "M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3.5 20v-1a5 5 0 0 1 5-5h2.5M15.6 15.2a1.9 1.9 0 1 1 2.8 1.7c-.5.3-.9.7-.9 1.3M17.5 20.6h.01";
 
@@ -23,50 +28,77 @@ export function CustomersScreen() {
   const { t } = useLang();
   const list = useCustomerList();
   const imp = useImport(list);
+  const wide = useWide();
 
   useScreenChrome(
     list.side === "shop"
       ? { label: t({ th: "นำเข้า", en: "Import" }), icon: IMPORT_ICON, onPress: imp.start }
-      : null,
+      : // A computer names อัปเดตเครดิตทั้งหมด at the top (DeskCustomers board); a phone has it under the list.
+        wide
+        ? {
+            label: t({ th: "อัปเดตเครดิตทั้งหมด", en: "Update all credit" }),
+            icon: REFRESH_ICON,
+            onPress: () => void list.recalc(),
+          }
+        : null,
     [],
-    { toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null },
+    {
+      toast: list.toast ? { title: t(list.toast.title), detail: t(list.toast.detail) } : null,
+      // A computer shows the list as one full-width table (DeskCustomers board).
+      layout: "full",
+    },
   );
+
+  const placeholder =
+    list.side === "shop"
+      ? t({ th: "ทะเบียน รถ บิล หรือเบอร์โทร", en: "Plate, car, bill or phone" })
+      : t({ th: "รหัส ชื่อ เบอร์ หรืออีเมล", en: "Code, name, phone or email" });
+  const sides = (
+    <Segmented
+      label={t({ th: "ลูกค้าของ", en: "Customers of" })}
+      options={[
+        { value: "shop", label: t(sideLabel("shop")) },
+        { value: "airplus", label: t(sideLabel("airplus")) },
+      ]}
+      value={list.side}
+      onChange={list.switchSide}
+    />
+  );
+  const retry = list.failed && (
+    <View style={styles.retry}>
+      <Text style={[TYPE.subhead, styles.grow]}>
+        {t({ th: "โหลดรายการไม่ได้", en: "The list did not load" })}
+      </Text>
+      <SmallButton
+        label={t({ th: "ลองอีกครั้ง", en: "Try again" })}
+        onPress={() => void list.reload()}
+      />
+    </View>
+  );
+
+  if (wide) {
+    return (
+      <View>
+        <Subtitle list={list} />
+        <View style={styles.filters}>
+          <View style={styles.sides}>{sides}</View>
+          <SearchField value={list.q} onChange={list.setQ} placeholder={placeholder} inline />
+        </View>
+        {list.q.trim() === "" && list.summary && <Summary list={list} />}
+        {retry}
+        {list.side === "shop" ? <Cars list={list} wide /> : <Accounts list={list} wide />}
+        {imp.plan && <ImportSheet imp={imp} />}
+      </View>
+    );
+  }
 
   return (
     <View>
       <Subtitle list={list} />
-      <View style={styles.seg}>
-        <Segmented
-          label={t({ th: "ลูกค้าของ", en: "Customers of" })}
-          options={[
-            { value: "shop", label: t(sideLabel("shop")) },
-            { value: "airplus", label: t(sideLabel("airplus")) },
-          ]}
-          value={list.side}
-          onChange={list.switchSide}
-        />
-      </View>
+      <View style={styles.seg}>{sides}</View>
       {list.q.trim() === "" && list.summary && <Summary list={list} />}
-      <SearchField
-        value={list.q}
-        onChange={list.setQ}
-        placeholder={
-          list.side === "shop"
-            ? t({ th: "ทะเบียน รถ บิล หรือเบอร์โทร", en: "Plate, car, bill or phone" })
-            : t({ th: "รหัส ชื่อ เบอร์ หรืออีเมล", en: "Code, name, phone or email" })
-        }
-      />
-      {list.failed && (
-        <View style={styles.retry}>
-          <Text style={[TYPE.subhead, styles.grow]}>
-            {t({ th: "โหลดรายการไม่ได้", en: "The list did not load" })}
-          </Text>
-          <SmallButton
-            label={t({ th: "ลองอีกครั้ง", en: "Try again" })}
-            onPress={() => void list.reload()}
-          />
-        </View>
-      )}
+      <SearchField value={list.q} onChange={list.setQ} placeholder={placeholder} />
+      {retry}
       {list.side === "shop" ? <Cars list={list} /> : <Accounts list={list} />}
       {imp.plan && <ImportSheet imp={imp} />}
     </View>
@@ -106,23 +138,22 @@ function Summary({ list }: { list: CustomerList }) {
   );
 }
 
-/** "รถทั้งหมด", or "พบ N คัน" while searching. */
-function ListHead({
-  searching,
-  count,
-  unit,
-  all,
-}: {
+interface HeadWords {
   searching: boolean;
   count: number;
   unit: { th: string; en: string };
   all: { th: string; en: string };
-}) {
+}
+
+/** "รถทั้งหมด", or "พบ N คัน" while searching. */
+function headPhrase({ searching, count, unit, all }: HeadWords): { th: string; en: string } {
+  return searching ? { th: `พบ ${count} ${unit.th}`, en: `${count} ${unit.en} found` } : all;
+}
+
+function ListHead(props: HeadWords) {
   const { t } = useLang();
   const { theme } = useTheme();
-  const text = searching
-    ? t({ th: `พบ ${count} ${unit.th}`, en: `${count} ${unit.en} found` })
-    : t(all);
+  const text = t(headPhrase(props));
   return (
     <Text style={[TYPE.title2, styles.head, { color: theme.text }]} accessibilityRole="header">
       {text}
@@ -130,7 +161,7 @@ function ListHead({
   );
 }
 
-function Cars({ list }: { list: CustomerList }) {
+function Cars({ list, wide = false }: { list: CustomerList; wide?: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
   if (!list.cars) return null;
@@ -159,14 +190,22 @@ function Cars({ list }: { list: CustomerList }) {
     );
   }
   const now = Date.now();
+  const head: HeadWords = {
+    searching: typed !== "",
+    count: list.cars.length,
+    unit: { th: "คัน", en: "cars" },
+    all: { th: "รถทั้งหมด", en: "All cars" },
+  };
+  if (wide) {
+    return (
+      <View style={styles.table}>
+        <CarsTable title={t(headPhrase(head))} cars={list.cars} now={now} />
+      </View>
+    );
+  }
   return (
     <>
-      <ListHead
-        searching={typed !== ""}
-        count={list.cars.length}
-        unit={{ th: "คัน", en: "cars" }}
-        all={{ th: "รถทั้งหมด", en: "All cars" }}
-      />
+      <ListHead {...head} />
       {list.cars.length > 0 && (
         <Group>
           {list.cars.map((c, i) => (
@@ -184,27 +223,36 @@ function CarItem({ car, now, last }: { car: CarRow; now: number; last: boolean }
     <ListRow
       title={plateLine(car.licensePlate, car.plateProvince)}
       right={t(rowDate(car.lastVisitAt, now))}
-      sub={car.carModel?.trim() || car.vehicle?.trim() || "—"}
+      sub={carLine(car)}
       last={last}
       onPress={() => router.push(`/customers/${encodeURIComponent(car.licensePlate)}` as never)}
     />
   );
 }
 
-function Accounts({ list }: { list: CustomerList }) {
+function Accounts({ list, wide = false }: { list: CustomerList; wide?: boolean }) {
   const { t } = useLang();
   const { theme } = useTheme();
   if (!list.accounts) return null;
   const typed = list.q.trim();
   const now = Date.now();
+  const head: HeadWords = {
+    searching: typed !== "",
+    count: list.accounts.length,
+    unit: { th: "บัญชี", en: "accounts" },
+    all: { th: "บัญชีทั้งหมด", en: "All accounts" },
+  };
+  if (wide) {
+    // อัปเดตเครดิตทั้งหมด is the page's named button at the top on a computer.
+    return (
+      <View style={styles.table}>
+        <AccountsTable title={t(headPhrase(head))} accounts={list.accounts} now={now} />
+      </View>
+    );
+  }
   return (
     <>
-      <ListHead
-        searching={typed !== ""}
-        count={list.accounts.length}
-        unit={{ th: "บัญชี", en: "accounts" }}
-        all={{ th: "บัญชีทั้งหมด", en: "All accounts" }}
-      />
+      <ListHead {...head} />
       {list.accounts.length > 0 && (
         <Group>
           {list.accounts.map((a, i) => (
@@ -254,4 +302,7 @@ const styles = StyleSheet.create({
   head: { marginTop: SPACE.xxl, marginBottom: SPACE.m, marginHorizontal: 2 },
   link: { marginTop: SPACE.s },
   note: { marginTop: SPACE.s, marginHorizontal: SPACE.l },
+  filters: { marginTop: SPACE.l, flexDirection: "row", alignItems: "center", gap: SPACE.m },
+  sides: { width: 240 },
+  table: { marginTop: SPACE.l },
 });

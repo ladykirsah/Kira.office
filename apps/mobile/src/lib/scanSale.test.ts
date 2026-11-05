@@ -4,6 +4,7 @@ import {
   buildSale,
   nextSaleNumber,
   overSold,
+  deskPriceTag,
   priceTag,
   saleLines,
   saleRefusal,
@@ -225,5 +226,20 @@ describe("billDate", () => {
       date: "5 ม.ค. 2570",
       time: "09:05",
     });
+  });
+});
+
+describe("deskPriceTag (the computer scan card, owner 5 Nov 2026)", () => {
+  it("given both prices > then the mechanic price says whose it is: ฿3,450 · ช่าง 3,100, no .00", () => {
+    expect(deskPriceTag(part({ unitPriceSatang: 345000, b2bPriceSatang: 310000 }))).toEqual({
+      price: "฿3,450",
+      mechanic: { th: "ช่าง 3,100", en: "Mechanic 3,100" },
+    });
+  });
+
+  it("given no mechanic price > then ช่าง pays the walk-in price, and says so", () => {
+    expect(deskPriceTag(part({ unitPriceSatang: 65000, b2bPriceSatang: 0 })).mechanic.th).toBe(
+      "ช่าง 650",
+    );
   });
 });

@@ -1,12 +1,12 @@
 import { otherLang, readLang, say, type Lang, type Phrase } from "@l-shopee/shared/lang";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, useWindowDimensions } from "react-native";
 import { API_BASE } from "@/lib/config";
 import { signIn, type Credentials, type SignedInStaff, type SignInResult } from "@/lib/signIn";
 import { currentStaff, signOut } from "@/lib/staffApi";
 import { readPref, readToken, writePref, writeToken } from "./prefs";
-import { DARK, LIGHT, type Theme } from "./theme";
+import { DARK, LIGHT, PHONE_MAX_WIDTH, forScreen, type Theme } from "./theme";
 
 /**
  * The three things every screen reads: which language, which colours, and who is signed in.
@@ -71,6 +71,8 @@ function LangProvider({ children }: { children: ReactNode }) {
 
 function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
+  // A computer window gets the computer colours (white page, lined cards); a phone is unchanged.
+  const wide = useWindowDimensions().width > PHONE_MAX_WIDTH;
   const [chosen, setChosen] = useState<"light" | "dark" | null>(null);
   useEffect(() => {
     void readPref("kira_theme").then((raw) => {
@@ -84,8 +86,8 @@ function ThemeProvider({ children }: { children: ReactNode }) {
     void writePref("kira_theme", next);
   }, [isDark]);
   const value = useMemo(
-    () => ({ theme: isDark ? DARK : LIGHT, isDark, toggleTheme }),
-    [isDark, toggleTheme],
+    () => ({ theme: forScreen(isDark ? DARK : LIGHT, wide), isDark, toggleTheme }),
+    [isDark, wide, toggleTheme],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
