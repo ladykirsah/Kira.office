@@ -1037,3 +1037,202 @@
   justify-content: center;
   box-shadow: 0 0 0 2px #fff;
 }
+
+/* ── ตัวเลือกสินค้า (board 3b, owner's picks 11 Nov 2026) ─────────────────────────────
+   card: "3 ขนาด" under พร้อมส่ง + "เริ่ม ฿30"; the Shopee-style size sheet (any width). */
+.hm-from {
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.hm-sizes {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+.sz-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 0 16px 4px;
+}
+.sz-pic {
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--hm-bg);
+  color: var(--hm-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sz-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sz-head-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sz-price {
+  font-size: 24px;
+  line-height: 30px;
+  color: var(--hm-red);
+}
+.sz-sub {
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.sz-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 0;
+}
+.sz-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.sz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sz-chip {
+  min-width: 96px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  cursor: pointer;
+}
+.sz-chip--picked {
+  background: var(--hm-tint);
+  color: var(--hm-red);
+  box-shadow: inset 0 0 0 1.5px var(--hm-red);
+}
+.sz-chip--out {
+  color: #8e8e93;
+  cursor: default;
+}
+.sz-chip-v {
+  font-size: 15px;
+  line-height: 20px;
+}
+.sz-chip-p {
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0.85;
+}
+.sz-qty {
+  margin: 14px 16px 0;
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 var(--hm-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sz-stepper {
+  height: 34px;
+  border-radius: 17px;
+  box-shadow: inset 0 0 0 1px var(--hm-line);
+  display: flex;
+  align-items: center;
+}
+.sz-stepper button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+.sz-stepper button:disabled {
+  color: #c7c7cc;
+  cursor: default;
+}
+.sz-stepper span {
+  min-width: 24px;
+  text-align: center;
+  font-size: 15px;
+}
+.sz-foot {
+  padding: 16px 16px 20px;
+}
+.sz-go {
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-radius: 25px;
+  background: var(--hm-red);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sz-go--off {
+  background: var(--hm-bg);
+  color: #8e8e93;
+  cursor: default;
+}
+/* product page: the ตัวเลือก row (label · เลือกขนาด · N แบบ › · one thumb per size) */
+.sz-row {
+  width: 100%;
+  padding: 14px 0;
+  border: 0;
+  background: transparent;
+  color: var(--hm-ink);
+  font-family: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+}
+.sz-row-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+}
+.sz-row-label {
+  width: 76px;
+  flex-shrink: 0;
+  color: var(--hm-grey);
+}
+.sz-row-words {
+  flex: 1;
+}
+.sz-thumbs {
+  display: flex;
+  gap: 8px;
+  padding-left: 88px;
+}
+.sz-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--hm-bg);
+}
+.sz-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

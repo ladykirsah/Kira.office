@@ -167,6 +167,7 @@ function LineRow({ line, last }: { line: PosLine; last: boolean }) {
         {line.productRef ? (
           <CodeCopy
             code={line.productRef}
+            tag={line.choiceValue}
             after={` · ${each}`}
             style={[TYPE.subhead, { color: theme.textMuted }]}
           />

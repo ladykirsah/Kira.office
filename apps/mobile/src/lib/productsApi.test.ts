@@ -8,6 +8,7 @@ import {
   deleteProduct,
   fetchProductDetail,
   fetchProductRows,
+  findCodeHit,
   findByCode,
   imageProblem,
   saveProduct,
@@ -41,6 +42,32 @@ describe("fetchProductRows", () => {
     expect(calls[0]!.url).toBe("http://api/products");
     expect(header(calls[0]!.init, "X-Staff-Session")).toBe("tok");
     expect(rows.map((r) => r.fitments)).toEqual([[{ carBrand: "Toyota" }], []]);
+  });
+});
+
+describe("fetchProductRows > one row per size", () => {
+  it("given the per-size list is asked for (labels, แฟลชเซล) > then it asks the server for it", async () => {
+    const { calls, fetchFn } = recording([async () => Response.json({ products: [] })]);
+    await fetchProductRows(fetchFn, "http://api", "tok", { bySize: true });
+    expect(calls[0]!.url).toBe("http://api/products?by=variant");
+  });
+});
+
+describe("findCodeHit", () => {
+  it("given a size's code > then both the product and the size it belongs to", async () => {
+    const { calls, fetchFn } = recording([
+      async () => Response.json({ productId: "oring", variantId: "oring-v2", barcode: "TG-002" }),
+    ]);
+    expect(await findCodeHit(fetchFn, "http://api", "tok", " TG-002 ")).toEqual({
+      productId: "oring",
+      variantId: "oring-v2",
+    });
+    expect(calls[0]!.url).toBe("http://api/products/by-barcode/TG-002");
+  });
+
+  it("given a code no product has > then null", async () => {
+    const { fetchFn } = recording([async () => new Response("{}", { status: 404 })]);
+    expect(await findCodeHit(fetchFn, "http://api", "tok", "nope")).toBeNull();
   });
 });
 

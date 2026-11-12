@@ -10,14 +10,20 @@ import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 import { productHref } from "@/lib/seo";
 import { Icon } from "@/components/Icon";
+import { useCardSizePick } from "@/components/CardSizePick";
+import { cardSizeLine } from "@/lib/sizePicker";
 import { FitLine } from "./FitLine";
 
 /**
  * Phone product card (board 1, owner-approved 5 Nov 2026). Order: photo (fills its frame) · name on 2
- * lines · พร้อมส่ง · extra info (fits / doesn't fit the saved car) · price + cart last. No product code.
+ * lines · พร้อมส่ง · extra info (sizes, fits / doesn't fit the saved car) · price + cart last. No product
+ * code. A product with sizes (board 3b, 11 Nov 2026) says "3 ขนาด", prices "เริ่ม ฿30" (its cheapest
+ * size you can buy) and its 🛒 opens the size sheet instead of adding a size unasked.
  */
 export function PhoneCard({ item }: { item: CatalogItem }) {
   const [justAdded, setJustAdded] = useState(false);
+  const sizes = cardSizeLine(item.choiceCount);
+  const pick = useCardSizePick(item);
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
   const pct =
     eff.compareAtSatang && eff.compareAtSatang > eff.priceSatang
@@ -25,6 +31,10 @@ export function PhoneCard({ item }: { item: CatalogItem }) {
       : 0;
 
   function handleAdd() {
+    if (sizes) {
+      void pick.open();
+      return;
+    }
     track("add_to_cart", item.productId);
     addToCart(
       {
@@ -62,28 +72,43 @@ export function PhoneCard({ item }: { item: CatalogItem }) {
             <span className="hm-dot" />
             พร้อมส่ง
           </span>
+          {sizes && <span className="hm-sizes">{sizes}</span>}
           <FitLine variantId={item.variantId} hasFitment={item.fitmentShort !== null} />
         </span>
       </Link>
       <div className="hm-card-price">
         {eff.onSale && eff.compareAtSatang !== null ? (
           <span className="hm-price-sale">
-            <span className="hm-price hm-price--sale">{baht(eff.priceSatang)}</span>
+            <span className="hm-price hm-price--sale">
+              {sizes && <span className="hm-from">เริ่ม </span>}
+              {baht(eff.priceSatang)}
+            </span>
             <span className="hm-was">{baht(eff.compareAtSatang)}</span>
             <span className="hm-pct">-{pct}%</span>
           </span>
         ) : (
-          <span className="hm-price">{baht(eff.priceSatang)}</span>
+          <span className="hm-price">
+            {sizes && <span className="hm-from">เริ่ม </span>}
+            {baht(eff.priceSatang)}
+          </span>
         )}
         <button
           type="button"
           className="hm-cart-btn"
-          aria-label={justAdded ? "ใส่ตะกร้าแล้ว" : `ใส่ตะกร้า ${item.name}`}
+          aria-label={
+            justAdded || pick.added
+              ? "ใส่ตะกร้าแล้ว"
+              : sizes
+                ? `เลือกขนาด ${item.name}`
+                : `ใส่ตะกร้า ${item.name}`
+          }
+          aria-busy={pick.busy || undefined}
           onClick={handleAdd}
         >
-          <Icon name={justAdded ? "check" : "cart"} size={18} />
+          <Icon name={justAdded || pick.added ? "check" : "cart"} size={18} />
         </button>
       </div>
+      {pick.element}
     </div>
   );
 }

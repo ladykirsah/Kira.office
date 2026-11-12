@@ -21,7 +21,7 @@ const TILE = 74;
 /** The computer's small photos, under the big one (DeskProductPage board 10b, A2). */
 const SMALL_TILE = 72;
 const MENU_WIDTH = 250;
-const CAMERA_ICON = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z";
+export const CAMERA_ICON = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z";
 const ALBUM_ICON = "M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5h.01";
 
 /**
@@ -31,8 +31,6 @@ const ALBUM_ICON = "M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5h.01";
  * under it; with no photo yet, that big square is เพิ่มรูป.
  */
 export function PhotoStrip({ edit, lead }: { edit: ProductFormState; lead?: number }) {
-  const { t } = useLang();
-  const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const anchor = useRef<ComponentRef<typeof View>>(null);
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
@@ -82,38 +80,55 @@ export function PhotoStrip({ edit, lead }: { edit: ProductFormState; lead?: numb
           {add(TILE)}
         </ScrollView>
       )}
-      <Modal visible={!!at} transparent animationType="fade" onRequestClose={() => setAt(null)}>
-        <Pressable
-          style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.08)" }]}
-          onPress={() => setAt(null)}
-          accessibilityRole="button"
-          accessibilityLabel={t({ th: "ปิด", en: "Close" })}
-        />
-        {at && (
-          <View
-            accessibilityRole="menu"
-            style={[
-              styles.menu,
-              { top: at.y, left: Math.max(SPACE.l, at.x), backgroundColor: theme.surface },
-            ]}
-          >
-            <MenuItem
-              label={t({ th: "ถ่ายรูป", en: "Take photo" })}
-              icon={CAMERA_ICON}
-              onPress={() => choose("camera")}
-            />
-            <MenuItem
-              label={t({ th: "เลือกจากคลังภาพ", en: "Choose from album" })}
-              icon={ALBUM_ICON}
-              onPress={() => choose("library")}
-              last
-            />
-          </View>
-        )}
-      </Modal>
+      <PhotoMenu at={at} onClose={() => setAt(null)} onPick={choose} />
     </>
   );
 }
+
+/** ถ่ายรูป · เลือกจากคลังภาพ, dropped under the tile that was tapped (`at`, in window points). */
+export function PhotoMenu(props: {
+  at: { x: number; y: number } | null;
+  onClose: () => void;
+  onPick: (source: "camera" | "library") => void;
+}) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+  const { at } = props;
+  return (
+    <Modal visible={!!at} transparent animationType="fade" onRequestClose={props.onClose}>
+      <Pressable
+        style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.08)" }]}
+        onPress={props.onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t({ th: "ปิด", en: "Close" })}
+      />
+      {at && (
+        <View
+          accessibilityRole="menu"
+          style={[
+            styles.menu,
+            { top: at.y, left: Math.max(SPACE.l, at.x), backgroundColor: theme.surface },
+          ]}
+        >
+          <MenuItem
+            label={t({ th: "ถ่ายรูป", en: "Take photo" })}
+            icon={CAMERA_ICON}
+            onPress={() => props.onPick("camera")}
+          />
+          <MenuItem
+            label={t({ th: "เลือกจากคลังภาพ", en: "Choose from album" })}
+            icon={ALBUM_ICON}
+            onPress={() => props.onPick("library")}
+            last
+          />
+        </View>
+      )}
+    </Modal>
+  );
+}
+
+/** Where the photo menu drops for a tile: under it, kept on screen. */
+export const MENU_WIDTH_PX = MENU_WIDTH;
 
 /**
  * One photo with its ✕ (and รูปหลัก on the first). The phone's ✕ sits on the tile's corner; the

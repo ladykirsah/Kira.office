@@ -15,6 +15,7 @@ import { API_BASE } from "@/lib/config";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
+import { FieldError } from "../pos/fields";
 import { RADIUS, SPACE, TYPE } from "../theme";
 
 /** The pieces สินค้า's screens share (canvas v194), each drawn as the approved pages draw it. */
@@ -197,12 +198,13 @@ export function Divider() {
   return <View style={[styles.divider, { backgroundColor: theme.border }]} />;
 }
 
-/** A row of a white group: label on the left, anything on the right. */
+/** A row of a white group: label on the left, anything on the right; `below` sits above the hairline. */
 export function Line(props: {
   label: string;
   right?: ReactNode;
   last?: boolean;
   onPress?: () => void;
+  below?: ReactNode;
 }) {
   const { theme } = useTheme();
   const body = (
@@ -220,6 +222,7 @@ export function Line(props: {
       ) : (
         body
       )}
+      {props.below}
       {!props.last && <Divider />}
     </View>
   );
@@ -296,6 +299,8 @@ export function InputRow(props: {
   editable?: boolean;
   /** A short value's box ("12" %): this wide, so a long name beside it keeps one line. */
   boxWidth?: number;
+  /** What is wrong with this box, in red under it (above the row's hairline). */
+  error?: string;
 }) {
   const { theme } = useTheme();
   const editable = props.editable !== false;
@@ -303,6 +308,7 @@ export function InputRow(props: {
     <Line
       label={props.label}
       last={props.last}
+      below={props.error ? <FieldError text={props.error} /> : undefined}
       right={
         <View style={styles.inputRight}>
           {editable ? (

@@ -28,6 +28,10 @@ export interface ProductRow {
   b2bPriceSatang?: number;
   itemCostSatang: number;
   onHand: number;
+  /** One size of a product with sizes ("1/2 กลาง"); null on a product without sizes. */
+  optionValue?: string | null;
+  /** That size's own code (its barcode). */
+  code?: string | null;
 }
 
 /**
@@ -39,7 +43,9 @@ export function searchParts(list: readonly ProductRow[], query: string): Product
   return list.filter((p) => {
     if (!p.variantId || p.onHand <= 0) return false;
     if (!q) return true;
-    return [p.name, p.productRef, p.brandName].some((f) => (f ?? "").toLowerCase().includes(q));
+    return [p.name, p.productRef, p.brandName, p.optionValue, p.code].some((f) =>
+      (f ?? "").toLowerCase().includes(q),
+    );
   });
 }
 
@@ -51,7 +57,9 @@ export function partLine(p: ProductRow, buyer: Buyer, key: string): PosLine {
     kind: "part",
     variantId: p.variantId,
     productId: p.id,
-    productRef: p.productRef,
+    // A size goes on the bill under its own code (7 Nov 2026).
+    productRef: p.optionValue ? (p.code ?? p.productRef) : p.productRef,
+    ...(p.optionValue ? { choiceValue: p.optionValue } : {}),
     name: p.name,
     photoKey: p.imageKey,
     barcode: null,
@@ -192,7 +200,7 @@ export const fetchProducts = async (fetchFn: FetchFn, base: string, token: strin
   (
     await getJson<{ products: ProductRow[] }>(
       fetchFn,
-      `${base}/products`,
+      `${base}/products?by=variant`,
       token,
       "Products failed to load",
     )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHOP_INFO_ROUTE, addProductRoute, productRoute } from "./appRoutes";
+import { SHOP_INFO_ROUTE, addProductRoute, partRoute, productRoute } from "./appRoutes";
 
 /**
  * Scan and การชำระเงิน used to hand over to the old back office for these pages. Since the new app
@@ -15,6 +15,14 @@ describe("app routes", () => {
     expect(addProductRoute("AP 10/46#2")).toBe("/products/new?code=AP%2010%2F46%232");
   });
 
+  it("partRoute > given a scanned size > that size's own page opens (11 Nov 2026)", () => {
+    expect(partRoute({ productId: "oring", variantId: "v 2", choiceValue: "1/2 กลาง" })).toBe(
+      "/products/oring/choices/v%202",
+    );
+  });
+  it("partRoute > given a part without sizes > the product's page opens", () => {
+    expect(partRoute({ productId: "p-1", variantId: "v1" })).toBe("/products/p-1");
+  });
   it("productRoute > given a product > its own page opens", () => {
     expect(productRoute("p-1")).toBe("/products/p-1");
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  billPaperText,
   billMissing,
   buildBillSale,
   buildBillDraft,
@@ -199,6 +200,23 @@ describe("posBill what is sent", () => {
     expect(send("mechanic")).toEqual(["ตู้แอร์ Cool Gear Revo", "เติมน้ำยาแอร์ R134a"]);
     const draft = buildBillDraft(bill({ lines: [coil] }), { draftId: "d3", saleNumber: null });
     expect(draft.lines[0]!.description).toBe("ตู้แอร์ Cool Gear");
+  });
+
+  it("buildBillSale > one size of a part > the bill names the size after it (11 Nov 2026)", () => {
+    const oring = part({
+      name: "โอริง R134a DENSO",
+      typeName: "โอริง",
+      brandName: "DENSO",
+      choiceValue: "1/2 กลาง",
+    });
+    const sent = buildBillSale(bill({ lines: [oring] }), {
+      clientUuid: "u4",
+      saleNumber: "DAS202611-04002",
+      paymentMethod: "cash",
+      receivedBy: "",
+    });
+    expect(sent.lines[0]!.description).toBe("โอริง DENSO 1/2 กลาง");
+    expect(billPaperText(oring, "customer")).toBe("โอริง DENSO 1/2 กลาง");
   });
 
   it("buildBillDraft > given a quotation > then keeps its number and the raw discount", () => {

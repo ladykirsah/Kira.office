@@ -1,8 +1,11 @@
 import { forwardRef, useMemo, type ComponentRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Rect } from "react-native-svg";
+import { barRuns } from "@/lib/barcodeBars";
 import {
   cutFor,
+  labelLines,
+  labelBars,
   labelQr,
   LABEL_WIDTH_MM,
   PICTURE,
@@ -32,20 +35,18 @@ interface LabelArtProps {
 
 /**
  * One barcode label, drawn exactly as approved: every position is the owner's picture's, scaled to
- * the label's width (S 35 / L 46 mm), and the label is cut shorter for fewer car lines.
+ * the label's width (S 35 / L 46 mm), and the label is cut shorter for fewer car lines. The bars
+ * run the hairline's width with the shop's line centred under them (owner's picture, 7 Nov 2026).
  */
 export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(function LabelArt(
   { text, size, shop, pxPerMm },
   ref,
 ) {
   const k = (pxPerMm * LABEL_WIDTH_MM[size]) / PICTURE.width;
-  const cut = cutFor(text.cars.length);
-  const grid = useMemo(() => labelQr(text.code), [text.code]);
-  const qrPath = useMemo(
-    () =>
-      grid.flatMap((row, r) => row.map((dark, c) => (dark ? `M${c} ${r}h1v1h-1z` : ""))).join(""),
-    [grid],
-  );
+  const cut = cutFor(labelLines(text));
+  // A size takes the first line under the hairline; its cars follow (owner's pick B, 11 Nov 2026).
+  const carStart = text.size ? 1 : 0;
+  const bits = useMemo(() => labelBars(text.code), [text.code]);
   const f = PICTURE.font;
   const line = (size_: number, top: number, left: number) => ({
     position: "absolute" as const,
@@ -60,7 +61,7 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
       ref={ref}
       collapsable={false}
       accessibilityRole="image"
-      accessibilityLabel={`${text.kind} ${text.brand} ${text.code}`}
+      accessibilityLabel={[text.kind, text.brand, text.size, text.code].filter(Boolean).join(" ")}
       style={[styles.paper, { width: PICTURE.width * k, height: (PICTURE.height - cut) * k }]}
     >
       {/* Drawn over the inside, as in the picture, so it never moves the words. */}
@@ -85,8 +86,19 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
           },
         ]}
       />
+      {text.size ? (
+        <Text
+          style={[
+            styles.bold,
+            line(f.size, PICTURE.rowBase[0]! - PICTURE.rowAscent * f.size, PICTURE.x),
+          ]}
+          numberOfLines={1}
+        >
+          {`ขนาด ${text.size}`}
+        </Text>
+      ) : null}
       {text.cars.map((car, i) => {
-        const base = PICTURE.rowBase[i]!;
+        const base = PICTURE.rowBase[i + carStart]!;
         const dot = PICTURE.bullet * k;
         return (
           <View key={i}>
@@ -129,35 +141,72 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
       })}
       <View
         style={[
-          styles.qr,
-          { left: PICTURE.qrX * k, top: (PICTURE.qrY - cut) * k, width: PICTURE.qrSide * k },
+          styles.code,
+          {
+            left: PICTURE.barX * k,
+            top: (PICTURE.barTop - cut) * k,
+            width: (PICTURE.barRight - PICTURE.barX) * k,
+            height: PICTURE.barHeight * k,
+          },
         ]}
       >
-        <Svg
-          width={PICTURE.qrSide * k}
-          height={PICTURE.qrSide * k}
-          viewBox={`0 0 ${grid.length} ${grid.length}`}
-        >
-          <Path d={qrPath} fill={INK} />
-        </Svg>
+        {bits ? (
+          <Bars
+            bits={bits}
+            width={(PICTURE.barRight - PICTURE.barX) * k}
+            height={PICTURE.barHeight * k}
+          />
+        ) : (
+          <Qr code={text.code} side={PICTURE.barHeight * k} />
+        )}
       </View>
       <Text
-        style={[styles.grey, line(f.shop, PICTURE.shopTop - cut, PICTURE.shopX)]}
+        style={[
+          styles.grey,
+          styles.shopLine,
+          {
+            left: PICTURE.x * k,
+            width: (PICTURE.hairRight - PICTURE.x + 1) * k,
+            top: (PICTURE.shopBase - PICTURE.rowAscent * f.phone - cut) * k,
+            fontSize: f.phone * k,
+            lineHeight: f.phone * k,
+          },
+        ]}
         numberOfLines={1}
       >
-        {shop.name}
+        <Text style={{ fontSize: f.shop * k }}>{shop.name.trim()}</Text>
+        {shop.phone.trim() ? ` ${shop.phone.trim()}` : ""}
       </Text>
-      {shop.phone ? (
-        <Text
-          style={[styles.grey, styles.digits, line(f.phone, PICTURE.phoneTop - cut, PICTURE.shopX)]}
-          numberOfLines={1}
-        >
-          {shop.phone}
-        </Text>
-      ) : null}
     </View>
   );
 });
+
+/** Code 128 across the label: touching black modules drawn as one bar, stretched to the width. */
+function Bars({ bits, width, height }: { bits: string; width: number; height: number }) {
+  const runs = useMemo(() => barRuns(bits), [bits]);
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${bits.length} 1`} preserveAspectRatio="none">
+      {runs.map((r) => (
+        <Rect key={r.start} x={r.start} y={0} width={r.length} height={1} fill={INK} />
+      ))}
+    </Svg>
+  );
+}
+
+/** A code Code 128 cannot carry (Thai letters) keeps its QR, so the label still scans. */
+function Qr({ code, side }: { code: string; side: number }) {
+  const grid = useMemo(() => labelQr(code), [code]);
+  const d = useMemo(
+    () =>
+      grid.flatMap((row, r) => row.map((dark, c) => (dark ? `M${c} ${r}h1v1h-1z` : ""))).join(""),
+    [grid],
+  );
+  return (
+    <Svg width={side} height={side} viewBox={`0 0 ${grid.length} ${grid.length}`}>
+      <Path d={d} fill={INK} />
+    </Svg>
+  );
+}
 
 const styles = StyleSheet.create({
   paper: { position: "relative", overflow: "hidden", backgroundColor: "#FFFFFF" },
@@ -168,9 +217,9 @@ const styles = StyleSheet.create({
   bold: { color: INK, fontWeight: "700", overflow: "visible" },
   ink: { color: INK, overflow: "visible" },
   grey: { color: GREY, overflow: "visible" },
-  digits: { fontVariant: ["tabular-nums"] },
   hair: { position: "absolute", backgroundColor: HAIR },
   dot: { position: "absolute", backgroundColor: INK },
   row: { position: "absolute", flexDirection: "row", alignItems: "baseline" },
-  qr: { position: "absolute", aspectRatio: 1 },
+  code: { position: "absolute" },
+  shopLine: { position: "absolute", textAlign: "center", fontVariant: ["tabular-nums"] },
 });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { customerSummary, partLine, searchParts, serviceLine, type ProductRow } from "./posApi";
+import {
+  customerSummary,
+  fetchProducts,
+  partLine,
+  searchParts,
+  serviceLine,
+  type ProductRow,
+} from "./posApi";
 
 const product = (over: Partial<ProductRow> = {}): ProductRow => ({
   id: "p1",
@@ -38,6 +45,68 @@ describe("posApi product search", () => {
     const list = [product(), product({ id: "p2", variantId: "v2", onHand: 0 })];
     expect(searchParts(list, "denso").map((p) => p.id)).toEqual(["p1"]);
     expect(searchParts(list, "").map((p) => p.id)).toEqual(["p1"]);
+  });
+
+  it("searchParts > given a product with sizes > then each size is its own pick, found by its size or its own code", () => {
+    const sizes = [
+      product({
+        id: "or",
+        variantId: "or-1",
+        name: "โอริง R134a DENSO",
+        optionValue: "3/8 เล็ก",
+        code: "TG-001",
+      }),
+      product({
+        id: "or",
+        variantId: "or-2",
+        name: "โอริง R134a DENSO",
+        optionValue: "1/2 กลาง",
+        code: "TG-002",
+      }),
+      product({
+        id: "or",
+        variantId: "or-3",
+        name: "โอริง R134a DENSO",
+        optionValue: "5/8 ใหญ่",
+        code: "TG-003",
+        onHand: 0,
+      }),
+    ];
+    expect(searchParts(sizes, "โอริง").map((p) => p.variantId)).toEqual(["or-1", "or-2"]);
+    expect(searchParts(sizes, "1/2").map((p) => p.variantId)).toEqual(["or-2"]);
+    expect(searchParts(sizes, "tg-001").map((p) => p.variantId)).toEqual(["or-1"]);
+  });
+
+  it("partLine > given one size > then the line keeps that size, its own code and its own price", () => {
+    const half = product({
+      id: "or",
+      variantId: "or-2",
+      productRef: "TG-001",
+      name: "โอริง R134a DENSO",
+      optionValue: "1/2 กลาง",
+      code: "TG-002",
+      offlinePriceSatang: 4_500,
+    });
+    expect(partLine(half, "customer", "k1")).toMatchObject({
+      variantId: "or-2",
+      productRef: "TG-002",
+      choiceValue: "1/2 กลาง",
+      priceSatang: 4_500,
+    });
+  });
+
+  it("fetchProducts > asks for one row per size, so every size can go on a bill", async () => {
+    const urls: string[] = [];
+    const out = await fetchProducts(
+      async (url) => {
+        urls.push(url);
+        return Response.json({ products: [product()] });
+      },
+      "http://api",
+      "tok",
+    );
+    expect(urls).toEqual(["http://api/products?by=variant"]);
+    expect(out).toHaveLength(1);
   });
 
   it("searchParts > given a part with no variant > then it cannot be sold and is left out", () => {

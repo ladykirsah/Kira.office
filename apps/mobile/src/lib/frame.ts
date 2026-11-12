@@ -18,7 +18,8 @@ const HOME = 34;
 /** The last card stops this far above the pinned buttons. */
 const ABOVE_PINNED = 16;
 
-export function bottomBar(chrome: { back: unknown; search: unknown }): BottomBar {
+export function bottomBar(chrome: { back: unknown; search: unknown; bare?: boolean }): BottomBar {
+  if (chrome.bare) return "none";
   if (chrome.search) return "search";
   if (chrome.back) return "none";
   return "tabs";
@@ -58,6 +59,22 @@ export const BAND_FADE = 28;
 export function bandOverhang(hasPinned: boolean): number {
   return hasPinned ? BAND_SOLID_ABOVE + BAND_FADE : 0;
 }
+
+/**
+ * The colour stops of the pinned band, top to bottom. `edgeFade` > 0 melts its bottom away, for the
+ * website, where the page shows on under Safari's bar.
+ */
+export function bandStops(band: number, edgeFade: number): { offset: number; opacity: number }[] {
+  const top = [
+    { offset: 0, opacity: 0 },
+    { offset: BAND_FADE / band, opacity: 1 },
+  ];
+  if (edgeFade <= 0) return [...top, { offset: 1, opacity: 1 }];
+  return [...top, { offset: (band - edgeFade) / band, opacity: 1 }, { offset: 1, opacity: 0 }];
+}
+
+/** How far the band melts away at the bottom on the website: the gap under the tab bar. */
+export const WEB_EDGE_FADE = 22;
 
 /** A phone sheet on a computer: a panel this wide on the right, the page still in sight. */
 export const SIDE_PANEL_WIDTH = 440;

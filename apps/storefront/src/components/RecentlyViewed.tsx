@@ -72,7 +72,7 @@ export function RecordView({ item }: { item: RecentItem }) {
 
 /**
  * A stored RecentItem carries only what a card needs to render; the remaining CatalogItem fields are
- * display-inert defaults (ProductCard reads none of onHand / fitmentShort / warrantyDays). The stored
+ * display-inert defaults (ProductCard reads none of onHand / fitmentShort / warrantyDays / choiceCount). The stored
  * priceSatang is the EFFECTIVE price captured at view time, so campaign stays null — the card shows
  * that price as the plain price, with no stale discount chip.
  */
@@ -90,6 +90,8 @@ function toCatalogItem(item: RecentItem): CatalogItem {
     onHand: 1,
     fitmentShort: null,
     campaign: null,
+    choiceCount: 1,
+    choiceValue: null,
   };
 }
 

@@ -98,6 +98,9 @@ export interface OrderDetail {
     imageKey: string | null;
     variantName: string | null;
     productRef: string | null;
+    /** The size bought ("1/2 กลาง") and its own code; null without sizes. */
+    choiceValue?: string | null;
+    choiceCode?: string | null;
     quantity: number;
     unitPriceSatang: number;
     lineTotalSatang: number;

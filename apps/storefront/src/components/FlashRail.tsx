@@ -5,6 +5,7 @@ import { baht } from "@/lib/format";
 import { flashScarcity } from "@/lib/flashScarcity";
 import { imgUrl } from "@/lib/img";
 import { productHref } from "@/lib/seo";
+import { SizeTag } from "@/components/SizeTag";
 
 /**
  * A single flash-deal card ("Design B" horizontal/landscape: square image + discount badge on the
@@ -45,6 +46,12 @@ function FlashCard({ item }: { item: CatalogItem }) {
             <span className="fl-strike">{baht(eff.compareAtSatang)}</span>
           )}
         </div>
+        {/* the size on sale (board 3b) — the product's other sizes keep their normal price */}
+        {item.choiceCount > 1 && item.choiceValue && (
+          <div>
+            <SizeTag value={item.choiceValue} />
+          </div>
+        )}
         {soldPct !== null && (
           <div className="fl-sold">
             <div className="fl-bar">

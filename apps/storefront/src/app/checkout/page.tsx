@@ -14,6 +14,7 @@ import {
   type CouponCheckResponse,
 } from "@/lib/checkoutApi";
 import { baht } from "@/lib/format";
+import { SizeTag } from "@/components/SizeTag";
 
 /**
  * Checkout v2 — ONE page, all sections visible at once (the anti-inw.me statement: no hidden
@@ -775,15 +776,22 @@ export default function CheckoutPage() {
               marginBottom: 6,
             }}
           >
-            <span
-              style={{
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {l.name} × {l.qty}
+            <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {l.name} × {l.qty}
+              </span>
+              {/* the size bought (board 3b.9) */}
+              {l.choiceLabel && (
+                <span>
+                  <SizeTag value={l.choiceLabel} />
+                </span>
+              )}
             </span>
             <span style={{ flexShrink: 0 }}>{baht(l.priceSatang * l.qty)}</span>
           </div>

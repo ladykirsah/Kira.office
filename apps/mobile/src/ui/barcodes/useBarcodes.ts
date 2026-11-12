@@ -1,7 +1,13 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { labelText, type LabelSize, type LabelText } from "@/lib/barcodeLabel";
+import {
+  labelLines,
+  labelRows,
+  labelText,
+  type LabelSize,
+  type LabelText,
+} from "@/lib/barcodeLabel";
 import { readLabelShop } from "@/lib/barcodesApi";
 import { API_BASE } from "@/lib/config";
 import {
@@ -18,7 +24,7 @@ import {
   fetchAttributes,
   fetchCarBrands,
   fetchProductRows,
-  findByCode,
+  findCodeHit,
   type Attributes,
   type CarBrand,
 } from "@/lib/productsApi";
@@ -69,12 +75,13 @@ export function useBarcodes() {
     if (!token) return;
     try {
       const [list, lists, brands, shopNow] = await Promise.all([
-        fetchProductRows(fetch, API_BASE, token),
+        fetchProductRows(fetch, API_BASE, token, { bySize: true }),
         fetchAttributes(fetch, API_BASE, token),
         fetchCarBrands(fetch, API_BASE, token),
         readLabelShop(fetch, API_BASE, token),
       ]);
-      setRows(list);
+      // Each size is a label of its own, carrying its own code (7 Nov 2026).
+      setRows(labelRows(list));
       setAttrs(lists);
       setCars(brands);
       setShop(shopNow);
@@ -97,7 +104,12 @@ export function useBarcodes() {
   const shown = useMemo(() => items.filter((i) => texts.has(i.productId)), [items, texts]);
   /** One entry per printed label; its `index` on a page points back into this list. */
   const copies = useMemo(
-    () => copiesOf(shown, (id) => texts.get(id)?.cars.length ?? 0),
+    // A size's line counts like a car line, so the A4 page leaves room for it (11 Nov 2026).
+    () =>
+      copiesOf(shown, (id) => {
+        const text = texts.get(id);
+        return text ? labelLines(text) : 0;
+      }),
     [shown, texts],
   );
   const pages = useMemo(() => planLabelPages(copies, paper, way), [copies, paper, way]);
@@ -107,8 +119,11 @@ export function useBarcodes() {
   const scanned = async (code: string) => {
     const typed = code.trim();
     try {
-      const id = await findByCode(fetch, API_BASE, token, typed);
-      if (id && byId.has(id)) setSheet({ kind: "add", productId: id });
+      const hit = await findCodeHit(fetch, API_BASE, token, typed);
+      // A size's code opens that size; a product without sizes is its own row.
+      const row =
+        hit && (rows ?? []).find((r) => r.variantId === hit.variantId || r.id === hit.productId);
+      if (row) setSheet({ kind: "add", productId: row.id });
       else setSheet({ kind: "add", query: typed, notFound: typed });
     } catch {
       setSheet(null);

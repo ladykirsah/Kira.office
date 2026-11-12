@@ -7,6 +7,7 @@ import {
   listSubtitle,
   channelWords,
   matchesSearch,
+  sizesLine,
   sortLabel,
   stockLevel,
   stockLine,
@@ -203,6 +204,32 @@ describe("listSubtitle", () => {
     expect(listSubtitle(ROWS, 2, "", { ...NO_FILTERS, brand: "DENSO" })).toEqual({
       th: "พบ 2 รายการ จาก 4",
       en: "2 of 4",
+    });
+  });
+});
+
+describe("a product with sizes on the list (11 Nov 2026)", () => {
+  const oring = row({
+    id: "oring",
+    choiceCount: 3,
+    onHand: 0,
+    totalOnHand: 300,
+    fromPriceSatang: 3500,
+  } as Partial<ProductRow> & { id: string });
+
+  it("given three sizes > then the card says how many sizes and the cheapest size's price", () => {
+    expect(sizesLine(oring)).toEqual({ th: "3 ขนาด · เริ่ม ฿35", en: "3 sizes · from ฿35" });
+  });
+
+  it("given one size only > then no sizes line (the code shows as before)", () => {
+    expect(sizesLine(row({ id: "plain", choiceCount: 1 }))).toBeNull();
+    expect(sizesLine(row({ id: "old" }))).toBeNull();
+  });
+
+  it("given its first size sold out but others in stock > then the stock of all sizes together, not หมด", () => {
+    expect(stockLine(oring)).toEqual({
+      level: "ok",
+      text: { th: "เหลือ 300 · AirPlus", en: "300 left · AirPlus" },
     });
   });
 });

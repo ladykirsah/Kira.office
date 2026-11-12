@@ -21,7 +21,7 @@ import { CodeCopy } from "../CodeCopy";
 /** The drawn icons (canvas v259): a picture for a product with no photo yet, and the red bin. */
 export const PICTURE_ICON =
   "M5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5v-11A2.5 2.5 0 0 1 5.5 4zM7.2 10a1.8 1.8 0 1 0 3.6 0 1.8 1.8 0 1 0-3.6 0M21 16l-5-5-9 9";
-const TRASH_ICON =
+export const TRASH_ICON =
   "M3 6h18M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6M18.5 6l-.8 13.1A2 2 0 0 1 15.7 21H8.3a2 2 0 0 1-2-1.9L5.5 6M10 10.5v6M14 10.5v6";
 
 export const FLASH_BASE = "/settings/campaigns";
@@ -78,6 +78,8 @@ export function ItemRow(props: {
   name: string;
   /** The product's code, on its own grey line under the name. */
   code: string | null;
+  /** A size on sale: its value, as a grey tag in front of its code (11 Nov 2026). */
+  tag?: string | null;
   imageKey: string | null;
   off: string;
   price: string;
@@ -97,7 +99,11 @@ export function ItemRow(props: {
           {props.name}
         </Text>
         {props.code ? (
-          <CodeCopy code={props.code} style={[TYPE.subhead, { color: theme.textMuted }]} />
+          <CodeCopy
+            code={props.code}
+            tag={props.tag}
+            style={[TYPE.subhead, { color: theme.textMuted }]}
+          />
         ) : null}
         <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
           <Text style={{ color: theme.text }}>{props.price}</Text>{" "}

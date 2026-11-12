@@ -198,6 +198,20 @@ import {
   setReplyHeaders,
 } from "./staffRoutes";
 import { checkShopeeFees, readShopeeFees, SHOPEE_FEES_KEY } from "./shopeeFees";
+import {
+  addChoice,
+  addToGroup,
+  readChoices,
+  readGroup,
+  removeChoice,
+  removeFromGroup,
+  renameOption,
+  setChoiceImage,
+  setUpChoices,
+  updateChoice,
+  type ChoiceInput,
+  type ChoiceRefusal,
+} from "./productChoices";
 export { resolveActor, requireRole, type ActorContext } from "./auth";
 
 interface SyncLine {
@@ -360,6 +374,71 @@ async function refuseSellingPriceChange(
     },
     403,
   );
+}
+
+/**
+ * The same rule for one choice (ตัวเลือกสินค้า): each choice has its own selling prices, so the
+ * comparison is against THAT choice's stored profile. A choice never priced is a first price.
+ */
+async function refuseChoicePriceChange(
+  db: D1Database,
+  variantId: string,
+  incoming: SellingPriceFields,
+  role: StaffRole,
+): Promise<Response | null> {
+  if (canEditPrice(role)) return null;
+  const stored = await db
+    .prepare(
+      `SELECT target_price_satang AS targetPriceSatang, b2b_price_satang AS b2bPriceSatang,
+              online_price_satang AS onlinePriceSatang, shopee_price_satang AS shopeePriceSatang,
+              online_commission_bp AS onlineCommissionBp
+         FROM pricing_profiles WHERE product_variant_id = ? ORDER BY active_from DESC LIMIT 1`,
+    )
+    .bind(variantId)
+    .first<SellingPriceFields>();
+  if (!stored || !sellingPricesChanged(stored, incoming)) return null;
+  return json(
+    {
+      error:
+        "Only the shop owner can change what a product sells for. You can still change the item cost.",
+      reason: "price_is_owners",
+    },
+    403,
+  );
+}
+
+/** A refusal from productChoices as a response: 404 for a missing record, 400 for an empty box,
+ * 409 for everything that clashes with what is stored. */
+function choiceRefusal(reason: ChoiceRefusal): Response {
+  const status =
+    reason === "not_found"
+      ? 404
+      : reason === "name_missing" || reason === "value_missing" || reason === "code_missing"
+        ? 400
+        : 409;
+  return json({ error: reason, reason }, status);
+}
+
+/** A choice's form body, read strictly: a malformed price is a 400, never a zeroed price. */
+function readChoiceInput(body: unknown): ChoiceInput | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as { value?: unknown; code?: unknown; pricing?: Record<string, unknown> };
+  const p = b.pricing;
+  if (typeof b.value !== "string" || typeof b.code !== "string" || !p) return null;
+  const n = (k: string) =>
+    typeof p[k] === "number" && Number.isFinite(p[k]) ? (p[k] as number) : NaN;
+  const pricing = {
+    itemCostSatang: n("itemCostSatang"),
+    targetPriceSatang: n("targetPriceSatang"),
+    onlinePriceSatang: n("onlinePriceSatang"),
+    shopeePriceSatang: n("shopeePriceSatang"),
+    b2bPriceSatang: n("b2bPriceSatang"),
+    onlineCommissionBp: n("onlineCommissionBp"),
+    taxOnCost: p.taxOnCost === true,
+  };
+  const amounts = Object.values(pricing).filter((v) => typeof v === "number") as number[];
+  if (amounts.some((v) => Number.isNaN(v) || v < 0)) return null;
+  return { value: b.value, code: b.code, pricing };
 }
 
 /**
@@ -2365,6 +2444,9 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
 async function listStock(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_ref AS productRef,
+            v.option_1_value AS choiceValue,
+            -- A size's own code (its label's barcode), for the row's code line; null without sizes.
+            CASE WHEN TRIM(COALESCE(v.option_1_value, '')) <> '' THEN v.barcode_primary END AS choiceCode,
             COALESCE(SUM(e.quantity_delta), 0) AS onHand
      FROM product_variants v
      JOIN products p ON p.id = v.product_id
@@ -2467,11 +2549,34 @@ async function getTerms(env: Env): Promise<Response> {
  * The `status <> 'archived'` filter stays as pure defence — it costs nothing and keeps a
  * previously-deleted product out of the POS and Barcodes if 0088 has not run somewhere yet.
  */
-async function listProducts(env: Env, seesProfit = true): Promise<Response> {
+async function listProducts(env: Env, seesProfit = true, byVariant = false): Promise<Response> {
+  // ?by=variant (ทำบิล, ออกบาร์โค้ด, แฟลชเซล): one row per size, with its own code, photo, price and
+  // stock. Otherwise one row per product, its first size standing in for it (owner, 7 Nov 2026).
+  const variantJoin = byVariant
+    ? `JOIN product_variants v ON v.product_id = p.id`
+    : `LEFT JOIN product_variants v
+       ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)`;
   const { results } = await env.DB.prepare(
-    `SELECT p.id, p.product_ref AS productRef, p.name, p.status, p.image_key AS imageKey,
+    `SELECT p.id, p.product_ref AS productRef, p.name, p.status,
+            ${byVariant ? "COALESCE(v.image_key, p.image_key)" : "p.image_key"} AS imageKey,
             p.shopee_listed AS shopeeListed, p.updated_at AS updatedAt,
             v.id AS variantId,
+            v.option_1_name AS optionName, v.option_1_value AS optionValue,
+            v.barcode_primary AS code,
+            (SELECT COUNT(*) FROM product_variants WHERE product_id = p.id) AS choiceCount,
+            -- เริ่ม ฿ on the list card: the cheapest size's เด่นแอร์ price (its own price on one size).
+            COALESCE(
+              (SELECT MIN((SELECT fp.target_price_satang FROM pricing_profiles fp
+                            WHERE fp.product_variant_id = fv.id ORDER BY fp.active_from DESC LIMIT 1))
+                 FROM product_variants fv WHERE fv.product_id = p.id),
+              0
+            ) AS fromPriceSatang,
+            COALESCE(
+              (SELECT SUM(e.quantity_delta) FROM stock_ledger_entries e
+                 JOIN product_variants pv ON pv.id = e.product_variant_id
+                WHERE pv.product_id = p.id),
+              0
+            ) AS totalOnHand,
             b.name AS brandName,
             t.name AS typeName, t.name_th AS typeNameTh,
             u.name AS usageName,
@@ -2501,11 +2606,12 @@ async function listProducts(env: Env, seesProfit = true): Promise<Response> {
      LEFT JOIN brands b ON b.id = p.brand_id
      LEFT JOIN product_types t ON t.id = p.type_id
      LEFT JOIN usage_categories u ON u.id = p.usage_id
-     LEFT JOIN product_variants v
-       ON v.id = (SELECT id FROM product_variants WHERE product_id = p.id ORDER BY created_at LIMIT 1)
+     ${variantJoin}
      LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id
      WHERE p.status <> 'archived'
-     ORDER BY p.created_at DESC LIMIT 200`,
+       AND p.id IN (SELECT id FROM products WHERE status <> 'archived'
+                    ORDER BY created_at DESC LIMIT 200)
+     ORDER BY p.created_at DESC, p.id, v.created_at, v.id`,
   ).all();
   // Margin is price minus cost, so withholding the COST is what actually hides it. Blanking the
   // number in the page while shipping the input would be decoration — anyone reading the response
@@ -3002,6 +3108,10 @@ export interface OrderDetail {
     imageKey: string | null;
     /** The option word (แท้ / 4 ลิตร). Null on a product sold in one form only. */
     variantName: string | null;
+    /** The size bought (ตัวเลือกสินค้า, "1/2 กลาง"). Null on a product without sizes. */
+    choiceValue: string | null;
+    /** That size's own code (its label's barcode). Null on a product without sizes. */
+    choiceCode: string | null;
     /** The Product ID (รหัสสินค้า). Null on a product saved before it became mandatory. */
     productRef: string | null;
     quantity: number;
@@ -3150,6 +3260,8 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
               -- carry the same shape as the order card, plus the ID underneath. The row used to
               -- print sku-or-variantId, so a product with no SKU showed an internal key.
               v.variant_name AS variantName, p.product_ref AS productRef,
+              v.option_1_value AS choiceValue,
+              CASE WHEN TRIM(COALESCE(v.option_1_value, '')) <> '' THEN v.barcode_primary END AS choiceCode,
               l.quantity, l.unit_price_satang AS unitPriceSatang,
               l.unit_cost_satang AS unitCostSatang, l.line_total_satang AS lineTotalSatang
        FROM sales_order_lines l
@@ -4646,7 +4758,8 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
         `SELECT l.onsite_sale_id AS onsiteSaleId, l.description, l.line_type AS lineType,
                 l.quantity, l.unit_price_satang AS unitPriceSatang,
                 l.discount_satang AS discountSatang, p.product_ref AS productRef,
-                b.name AS brandName
+                b.name AS brandName, v.option_1_value AS choiceValue,
+                CASE WHEN TRIM(COALESCE(v.option_1_value, '')) <> '' THEN v.barcode_primary END AS choiceCode
          FROM onsite_sale_lines l
          LEFT JOIN product_variants v ON v.id = l.product_variant_id
          LEFT JOIN products p ON p.id = v.product_id
@@ -6736,6 +6849,10 @@ export interface CampaignPriceAdminRow {
   productName: string;
   productRef: string | null;
   imageKey: string | null;
+  /** The size on sale ("1/2 กลาง"); null for a product without sizes. */
+  choiceValue: string | null;
+  /** That size's own code; null for a product without sizes. */
+  choiceCode: string | null;
   /** Latest pricing_profiles online_price_satang — what the campaign price is discounting from. */
   basePriceSatang: number;
   campaignPriceSatang: number;
@@ -6765,7 +6882,9 @@ export async function listCampaignsAdmin(db: D1Database): Promise<CampaignAdminR
     db
       .prepare(
         `SELECT cp.id, cp.campaign_id AS campaignId, cp.product_variant_id AS productVariantId,
-                p.name AS productName, p.product_ref AS productRef, p.image_key AS imageKey,
+                p.name AS productName, p.product_ref AS productRef,
+                COALESCE(v.image_key, p.image_key) AS imageKey, v.option_1_value AS choiceValue,
+                CASE WHEN TRIM(COALESCE(v.option_1_value, '')) <> '' THEN v.barcode_primary END AS choiceCode,
                 COALESCE(pp.online_price_satang, 0) AS basePriceSatang,
                 cp.campaign_price_satang AS campaignPriceSatang, cp.stock_cap AS stockCap,
                 cp.sold_count AS soldCount
@@ -7794,7 +7913,11 @@ const worker = {
         Date.now(),
       );
       // No session resolves to "no margin" — fail closed, same direction as the slip gate.
-      return listProducts(env, viewer ? canSeeProfit(viewer.role) : false);
+      return listProducts(
+        env,
+        viewer ? canSeeProfit(viewer.role) : false,
+        url.searchParams.get("by") === "variant",
+      );
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {
@@ -8616,7 +8739,10 @@ const worker = {
     const productById = url.pathname.match(/^\/products\/([^/]+)$/);
     if (productById && request.method === "GET") {
       const detail = await getProductDetail(env.DB, productById[1]!);
-      return detail ? json(detail) : json({ error: "not found" }, 404);
+      if (!detail) return json({ error: "not found" }, 404);
+      // The page's ตัวเลือกสินค้า and กลุ่มสินค้า sections (7 Nov 2026).
+      const choices = await readChoices(env.DB, productById[1]!);
+      return json({ ...detail, ...choices, group: await readGroup(env.DB, productById[1]!) });
     }
     if (productById && request.method === "PATCH") {
       const body = await readJson<{
@@ -8744,6 +8870,74 @@ const worker = {
     }
 
     // Gallery: add an image (POST) up to 10, or remove one (DELETE /products/:id/images/:imageId).
+    // ── ตัวเลือกสินค้า and กลุ่มสินค้า (drawn and approved 7 Nov 2026, migration 0101) ──────────────
+    // A mechanic is already refused above (products area); selling prices stay the owner's.
+    const options = url.pathname.match(/^\/products\/([^/]+)\/options$/);
+    if (options && (request.method === "POST" || request.method === "PUT")) {
+      const body = await readJson<{ name?: unknown; values?: unknown }>(request);
+      if (!body || typeof body.name !== "string") return json({ error: "invalid JSON body" }, 400);
+      if (request.method === "PUT") {
+        const out = await renameOption(env.DB, options[1]!, body.name);
+        return out.ok ? json({ ok: true }) : choiceRefusal(out.reason);
+      }
+      if (!Array.isArray(body.values) || body.values.some((v) => typeof v !== "string")) {
+        return json({ error: "invalid JSON body" }, 400);
+      }
+      const out = await setUpChoices(env.DB, options[1]!, body.name, body.values as string[]);
+      return out.ok ? json({ ok: true }, 201) : choiceRefusal(out.reason);
+    }
+    const choiceImage = url.pathname.match(/^\/products\/([^/]+)\/choices\/([^/]+)\/image$/);
+    if (choiceImage && request.method === "POST") {
+      const bytes = await request.arrayBuffer();
+      const type = request.headers.get("content-type");
+      let ext: string;
+      try {
+        ext = validateImage(bytes, type);
+      } catch (err) {
+        return json({ error: (err as Error).message }, 400);
+      }
+      const key = `products/${choiceImage[1]!}/${crypto.randomUUID()}.${ext}`;
+      await env.IMAGES.put(key, bytes, { httpMetadata: { contentType: type! } });
+      const out = await setChoiceImage(env.DB, choiceImage[1]!, choiceImage[2]!, key);
+      return out.ok ? json({ imageKey: key }, 201) : choiceRefusal(out.reason);
+    }
+    const choice = url.pathname.match(/^\/products\/([^/]+)\/choices(?:\/([^/]+))?$/);
+    if (choice && choice[2] && request.method === "DELETE") {
+      const out = await removeChoice(env.DB, choice[1]!, choice[2]);
+      return out.ok ? json({ ok: true }) : choiceRefusal(out.reason);
+    }
+    if (
+      choice &&
+      ((!choice[2] && request.method === "POST") || (choice[2] && request.method === "PUT"))
+    ) {
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
+      const input = readChoiceInput(await readJson(request));
+      if (!input) return json({ error: "invalid JSON body" }, 400);
+      if (choice[2]) {
+        const refusal = await refuseChoicePriceChange(env.DB, choice[2], input.pricing, actor.role);
+        if (refusal) return refusal;
+        const out = await updateChoice(env.DB, choice[1]!, choice[2], input);
+        return out.ok ? json({ ok: true }) : choiceRefusal(out.reason);
+      }
+      const out = await addChoice(env.DB, choice[1]!, input);
+      return out.ok ? json({ variantId: out.variantId }, 201) : choiceRefusal(out.reason);
+    }
+    const group = url.pathname.match(/^\/products\/([^/]+)\/group(?:\/([^/]+))?$/);
+    if (group && !group[2] && request.method === "POST") {
+      const body = await readJson<{ productIds?: unknown }>(request);
+      const ids = body?.productIds;
+      if (!Array.isArray(ids) || ids.some((v) => typeof v !== "string")) {
+        return json({ error: "invalid JSON body" }, 400);
+      }
+      const out = await addToGroup(env.DB, group[1]!, ids as string[]);
+      return out.ok ? json({ ok: true }) : choiceRefusal(out.reason);
+    }
+    if (group && group[2] && request.method === "DELETE") {
+      const out = await removeFromGroup(env.DB, group[1]!, group[2]);
+      return out.ok ? json({ ok: true }) : choiceRefusal(out.reason);
+    }
+
     const galleryItem = url.pathname.match(/^\/products\/([^/]+)\/images\/([^/]+)$/);
     if (galleryItem && request.method === "DELETE") {
       await deleteGalleryImage(env.DB, env.IMAGES, galleryItem[1]!, galleryItem[2]!);

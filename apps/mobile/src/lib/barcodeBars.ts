@@ -41,3 +41,11 @@ export function barcodeBars(value: string): Bars | null {
   if (!v) return null;
   return tryEncode(v, chooseFormat(v)) ?? tryEncode(v, "CODE128");
 }
+
+/** The Code 128 bars of a code, whatever it looks like (a label prints one kind). Null when the code
+ * has letters Code 128 cannot carry, such as Thai. */
+export function code128Bits(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  return tryEncode(v, "CODE128")?.bits ?? null;
+}

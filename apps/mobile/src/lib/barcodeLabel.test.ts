@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   carLines,
+  labelBars,
   labelHeightMm,
   labelQr,
+  labelLines,
+  labelRows,
   labelText,
   LABEL_WIDTH_MM,
   MAX_CAR_LINES,
+  shopLine,
 } from "./barcodeLabel";
 import type { ProductRow } from "./productList";
 import type { Attributes, CarBrand } from "./productsApi";
@@ -157,6 +161,7 @@ describe("labelText", () => {
       kind: "คอมเพรสเซอร์",
       brand: "Denso",
       code: "DN-447220",
+      size: null,
       cars: [{ model: "วีโก้", years: "2005-2014" }],
     });
   });
@@ -183,6 +188,52 @@ describe("labelText", () => {
   });
 });
 
+describe("labels for a product with sizes (7 Nov 2026)", () => {
+  const size = (variantId: string, optionValue: string, code: string) =>
+    ({ ...ROW, id: "oring", variantId, optionValue, code }) as unknown as ProductRow;
+
+  it("given one size > then its label prints that size's own code, not the product's", () => {
+    expect(labelText(size("oring-v2", "1/2 กลาง", "TG-002"), ATTRS, BRANDS).code).toBe("TG-002");
+  });
+
+  it("given a size > then the label prints it on its own line (owner's pick B, 11 Nov 2026)", () => {
+    expect(labelText(size("oring-v2", "1/2 กลาง", "TG-002"), ATTRS, BRANDS).size).toBe("1/2 กลาง");
+  });
+
+  it("given a size and five cars > then the size takes the first line and four cars follow", () => {
+    const five = ["Vigo", "Altis", "Commuter", "Fortuner", "Innova"].map((m) => fit(m, 2005, 2014));
+    const text = labelText(
+      { ...size("oring-v2", "1/2 กลาง", "TG-002"), fitments: five } as unknown as ProductRow,
+      ATTRS,
+      BRANDS,
+    );
+    expect(text.cars).toHaveLength(4);
+    expect(labelLines(text)).toBe(5);
+  });
+
+  it("given a size and no cars > then one line, as tall as a one-car label", () => {
+    const text = labelText(
+      { ...size("oring-v2", "1/2 กลาง", "TG-002"), fitments: [] } as unknown as ProductRow,
+      ATTRS,
+      BRANDS,
+    );
+    expect(labelLines(text)).toBe(1);
+  });
+
+  it("given no size > then the lines are its cars, as before", () => {
+    expect(labelLines(labelText(ROW, ATTRS, BRANDS))).toBe(1);
+  });
+
+  it("given the per-size list > then each size is its own label row; a product without sizes keeps its own id", () => {
+    const rows = labelRows([
+      size("oring-v1", "3/8 เล็ก", "TG-001"),
+      size("oring-v2", "1/2 กลาง", "TG-002"),
+      { ...ROW, id: "plain", variantId: "plain-v1", optionValue: null } as unknown as ProductRow,
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(["oring-v1", "oring-v2", "plain"]);
+  });
+});
+
 describe("labelQr", () => {
   it("given a product code > then a 21-square QR (the smallest), so it stays easy to scan on a small label", () => {
     const grid = labelQr("DN-447220");
@@ -200,5 +251,42 @@ describe("labelQr", () => {
 
   it("given two codes > then two different QRs", () => {
     expect(labelQr("DN-447220")).not.toEqual(labelQr("DN-116340"));
+  });
+});
+
+/** Every Code 128 ends with its stop pattern and the two-module end bar. */
+const CODE128_END = "1100011101011";
+
+describe("labelBars", () => {
+  it("given a product code > then Code 128 bars of exactly that code, which Scan reads", () => {
+    const bars = labelBars("TG447610-72904D");
+    expect(bars).toMatch(/^[01]+$/);
+    expect(bars!.endsWith(CODE128_END)).toBe(true);
+  });
+
+  it("given a 13-digit code > then still Code 128, not EAN-13 (the label prints one kind)", () => {
+    const bars = labelBars("8850999320014");
+    expect(bars!.endsWith(CODE128_END)).toBe(true);
+    expect(bars).not.toHaveLength(95);
+  });
+
+  it("given two codes > then two different barcodes", () => {
+    expect(labelBars("DN-447220")).not.toEqual(labelBars("DN-116340"));
+  });
+
+  it("given a code with Thai letters > then no bars (Code 128 cannot carry them)", () => {
+    expect(labelBars("โอริง-01")).toBeNull();
+  });
+});
+
+describe("shopLine", () => {
+  it("given the shop's name and phone > then one line, the name then the phone", () => {
+    expect(shopLine({ name: "เด่นแอร์ เซอร์วิส", phone: "061 939 6144" })).toBe(
+      "เด่นแอร์ เซอร์วิส 061 939 6144",
+    );
+  });
+
+  it("given no phone saved > then the name alone, with no space after it", () => {
+    expect(shopLine({ name: "เด่นแอร์ เซอร์วิส", phone: "" })).toBe("เด่นแอร์ เซอร์วิส");
   });
 });

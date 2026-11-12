@@ -75,10 +75,15 @@ export interface CatalogItem {
   fitmentShort: string | null;
   /** live flash-sale candidate for this variant (cheapest active-window one), or null */
   campaign: CampaignPriceInfo | null;
+  /** How many choices (sizes, product_variants rows) the product has, sold-out ones included;
+   *  1 = a normal product. The row itself is the cheapest in-stock choice. */
+  choiceCount: number;
+  /** The size this row stands for, e.g. "1/2 กลาง" (its flash card names it); null on a normal product. */
+  choiceValue: string | null;
 }
 
-/** Raw row shape before the campaign columns are folded into a nested object. */
-interface CatalogRow extends Omit<CatalogItem, "campaign"> {
+/** The flat campaign columns a row carries before they are folded into one `campaign` object. */
+interface CampaignColumns {
   cpPriceSatang: number | null;
   cpStartsAt: number | null;
   cpEndsAt: number | null;
@@ -87,7 +92,46 @@ interface CatalogRow extends Omit<CatalogItem, "campaign"> {
   cpSoldCount: number | null;
 }
 
-/** Binds ONE `?` (now, epoch ms) for the campaign-candidate subselect — callers bind now first. */
+/** Selects the CampaignColumns of the `cp` / `cg` rows joined by CAMPAIGN_JOIN. */
+const CAMPAIGN_COLUMNS = `cp.campaign_price_satang AS cpPriceSatang, cg.starts_at AS cpStartsAt,
+         cg.ends_at AS cpEndsAt, cg.status AS cpStatus, cp.stock_cap AS cpStockCap,
+         cp.sold_count AS cpSoldCount`;
+
+/** Joins variant `v`'s live flash-sale candidate (the cheapest active-window one) as `cp` / `cg`.
+ *  Binds TWO `?` (now, now). */
+const CAMPAIGN_JOIN = `LEFT JOIN campaign_prices cp ON cp.id =
+    (SELECT cp2.id FROM campaign_prices cp2
+       JOIN campaigns cg2 ON cg2.id = cp2.campaign_id
+     WHERE cp2.product_variant_id = v.id AND cg2.status = 'active'
+       AND cg2.starts_at <= ? AND cg2.ends_at > ?
+     ORDER BY cp2.campaign_price_satang ASC LIMIT 1)
+  LEFT JOIN campaigns cg ON cg.id = cp.campaign_id`;
+
+function toCampaign(c: CampaignColumns): CampaignPriceInfo | null {
+  return c.cpPriceSatang !== null && c.cpStartsAt !== null && c.cpEndsAt !== null
+    ? {
+        campaignPriceSatang: c.cpPriceSatang,
+        startsAt: c.cpStartsAt,
+        endsAt: c.cpEndsAt,
+        status: c.cpStatus === "active" ? "active" : "disabled",
+        stockCap: c.cpStockCap,
+        soldCount: c.cpSoldCount ?? 0,
+      }
+    : null;
+}
+
+/** Raw row shape before the campaign columns are folded into a nested object. */
+type CatalogRow = Omit<CatalogItem, "campaign"> & CampaignColumns;
+
+/**
+ * ONE row per active product: its representative choice — the in-stock variant (ledger sum > 0)
+ * with the lowest price the shopper pays now (a live flash price, else the latest online price),
+ * ties by created_at then id. A product with no size in stock has no row. This is the single choke
+ * point for listCatalog / bestSellers / getProduct, so an out-of-stock product vanishes from grids
+ * AND its PDP (404), and reappears automatically the moment any size is restocked.
+ *
+ * Binds CATALOG_NOW_BINDS `?` (now, epoch ms) — callers bind them first.
+ */
 const CATALOG_SELECT = `
   SELECT p.id AS productId, v.id AS variantId, p.name AS name, p.product_ref AS productRef,
          b.name AS brandName, t.name AS typeName, t.warranty_days AS warrantyDays, p.image_key AS imageKey,
@@ -96,29 +140,31 @@ const CATALOG_SELECT = `
          (SELECT TRIM(COALESCE(f.car_brand, '') || ' ' || COALESCE(f.car_model, ''))
             FROM product_fitments f WHERE f.product_id = p.id
             ORDER BY f.sort_order LIMIT 1) AS fitmentShort,
-         cp.campaign_price_satang AS cpPriceSatang, cg.starts_at AS cpStartsAt,
-         cg.ends_at AS cpEndsAt, cg.status AS cpStatus, cp.stock_cap AS cpStockCap,
-         cp.sold_count AS cpSoldCount
+         (SELECT COUNT(*) FROM product_variants cv WHERE cv.product_id = p.id) AS choiceCount,
+         v.option_1_value AS choiceValue,
+         ${CAMPAIGN_COLUMNS}
   FROM products p
   JOIN product_variants v ON v.product_id = p.id
   LEFT JOIN pricing_profiles pp ON pp.id =
     (SELECT id FROM pricing_profiles WHERE product_variant_id = v.id ORDER BY active_from DESC LIMIT 1)
-  LEFT JOIN campaign_prices cp ON cp.id =
-    (SELECT cp2.id FROM campaign_prices cp2
-       JOIN campaigns cg2 ON cg2.id = cp2.campaign_id
-     WHERE cp2.product_variant_id = v.id AND cg2.status = 'active'
-       AND cg2.starts_at <= ? AND cg2.ends_at > ?
-     ORDER BY cp2.campaign_price_satang ASC LIMIT 1)
-  LEFT JOIN campaigns cg ON cg.id = cp.campaign_id
+  ${CAMPAIGN_JOIN}
   LEFT JOIN brands b ON b.id = p.brand_id
   LEFT JOIN product_types t ON t.id = p.type_id
   WHERE p.status = 'active'
-    -- Never show out-of-stock: a variant is only listed while its ledger sum is positive. This is
-    -- the single choke point for listCatalog / bestSellers / getProduct, so an out-of-stock product
-    -- vanishes from grids AND its PDP (404), and reappears automatically the moment it is restocked.
-    AND (SELECT COALESCE(SUM(quantity_delta), 0)
-           FROM stock_ledger_entries WHERE product_variant_id = v.id) > 0`;
-const CATALOG_NOW_BINDS = 2;
+    AND v.id = (SELECT rv.id FROM product_variants rv
+                 WHERE rv.product_id = p.id
+                   AND (SELECT COALESCE(SUM(quantity_delta), 0)
+                          FROM stock_ledger_entries WHERE product_variant_id = rv.id) > 0
+                 ORDER BY COALESCE((SELECT MIN(rcp.campaign_price_satang) FROM campaign_prices rcp
+                                      JOIN campaigns rcg ON rcg.id = rcp.campaign_id
+                                     WHERE rcp.product_variant_id = rv.id AND rcg.status = 'active'
+                                       AND rcg.starts_at <= ? AND rcg.ends_at > ?),
+                                   (SELECT online_price_satang FROM pricing_profiles
+                                     WHERE product_variant_id = rv.id
+                                     ORDER BY active_from DESC LIMIT 1), 0),
+                          rv.created_at, rv.id
+                 LIMIT 1)`;
+const CATALOG_NOW_BINDS = 4;
 const BEST_SELLER_DAYS = 90;
 
 /** ORDER BY per sort. Price is what the shopper pays now (an active flash price wins); ties fall back
@@ -132,23 +178,21 @@ const CATALOG_ORDER: Record<SortKey, string> = {
     "COALESCE(cp.campaign_price_satang, pp.online_price_satang, 0) DESC, COALESCE(p.updated_at, p.created_at) DESC",
   best: `(SELECT COALESCE(SUM(l.quantity), 0) FROM sales_order_lines l
             JOIN sales_orders o ON o.id = l.sales_order_id
-           WHERE l.product_variant_id = v.id AND o.channel = 'airplus' AND o.order_created_at >= ?) DESC,
+            JOIN product_variants lv ON lv.id = l.product_variant_id
+           WHERE lv.product_id = p.id AND o.channel = 'airplus' AND o.order_created_at >= ?) DESC,
          COALESCE(p.updated_at, p.created_at) DESC`,
 };
 
 function toCatalogItem(row: CatalogRow): CatalogItem {
   const { cpPriceSatang, cpStartsAt, cpEndsAt, cpStatus, cpStockCap, cpSoldCount, ...item } = row;
-  const campaign: CampaignPriceInfo | null =
-    cpPriceSatang !== null && cpStartsAt !== null && cpEndsAt !== null
-      ? {
-          campaignPriceSatang: cpPriceSatang,
-          startsAt: cpStartsAt,
-          endsAt: cpEndsAt,
-          status: cpStatus === "active" ? "active" : "disabled",
-          stockCap: cpStockCap,
-          soldCount: cpSoldCount ?? 0,
-        }
-      : null;
+  const campaign = toCampaign({
+    cpPriceSatang,
+    cpStartsAt,
+    cpEndsAt,
+    cpStatus,
+    cpStockCap,
+    cpSoldCount,
+  });
   return { ...item, campaign };
 }
 
@@ -254,8 +298,9 @@ export async function sitemapProducts(db: D1Database): Promise<SitemapProduct[]>
  *  (null for gap-fillers with no sales history). */
 export type BestSeller = CatalogItem & { monthlySales: number | null };
 
-/** Best sellers: top variants by units sold on AirPlus orders in the window; newest fill gaps. Each
- *  item carries `monthlySales` (units sold ÷ months in the window) for the ranked list's metric. */
+/** Best sellers: top products by units sold on AirPlus orders in the window (every size of a product
+ *  counts toward it); newest fill gaps. Each item carries `monthlySales` (units sold ÷ months in the
+ *  window) for the ranked list's metric. */
 export async function bestSellers(
   db: D1Database,
   opts: { days?: number; limit?: number } = {},
@@ -267,36 +312,37 @@ export async function bestSellers(
   const months = days / 30;
   const top = await db
     .prepare(
-      `SELECT l.product_variant_id AS variantId, SUM(l.quantity) AS sold
+      `SELECT v.product_id AS productId, SUM(l.quantity) AS sold
        FROM sales_order_lines l JOIN sales_orders o ON o.id = l.sales_order_id
+       JOIN product_variants v ON v.id = l.product_variant_id
        WHERE o.channel = 'airplus' AND o.order_created_at >= ?
-       GROUP BY l.product_variant_id ORDER BY sold DESC LIMIT ${limit}`,
+       GROUP BY v.product_id ORDER BY sold DESC LIMIT ${limit}`,
     )
     .bind(since)
-    .all<{ variantId: string; sold: number }>();
-  const soldBy = new Map((top.results ?? []).map((r) => [r.variantId, r.sold]));
+    .all<{ productId: string; sold: number }>();
+  const soldBy = new Map((top.results ?? []).map((r) => [r.productId, r.sold]));
   const ranked = [...soldBy.keys()];
   // sold > 0 shows at least "1/เดือน" (never a misleading "0"); no history → null (hide the metric).
-  const monthly = (variantId: string): number | null => {
-    const sold = soldBy.get(variantId);
+  const monthly = (productId: string): number | null => {
+    const sold = soldBy.get(productId);
     return sold != null ? Math.max(1, Math.round(sold / months)) : null;
   };
   if (ranked.length === 0) {
     return (await listCatalog(db, { limit })).map((i) => ({ ...i, monthlySales: null }));
   }
   const rows = await db
-    .prepare(`${CATALOG_SELECT} AND v.id IN (${ranked.map(() => "?").join(",")})`)
+    .prepare(`${CATALOG_SELECT} AND p.id IN (${ranked.map(() => "?").join(",")})`)
     .bind(...Array(CATALOG_NOW_BINDS).fill(now), ...ranked)
     .all<CatalogRow>();
-  const byId = new Map((rows.results ?? []).map((r) => [r.variantId, toCatalogItem(r)]));
+  const byId = new Map((rows.results ?? []).map((r) => [r.productId, toCatalogItem(r)]));
   const ordered: BestSeller[] = ranked
     .map((id) => byId.get(id))
     .filter((x): x is CatalogItem => Boolean(x))
-    .map((item) => ({ ...item, monthlySales: monthly(item.variantId) }));
+    .map((item) => ({ ...item, monthlySales: monthly(item.productId) }));
   if (ordered.length < limit) {
-    const have = new Set(ordered.map((i) => i.variantId));
+    const have = new Set(ordered.map((i) => i.productId));
     const fill = (await listCatalog(db, { limit }))
-      .filter((i) => !have.has(i.variantId))
+      .filter((i) => !have.has(i.productId))
       .map((i): BestSeller => ({ ...i, monthlySales: null }));
     ordered.push(...fill.slice(0, limit - ordered.length));
   }
@@ -533,6 +579,67 @@ export interface ProductDetail extends CatalogItem {
   /** true when the displayed price already includes 7% VAT (per-product tax profile). */
   priceIncludesVat: boolean;
   weightGrams: number;
+  /** Every choice (size) of the product in the back office's order, sold-out ones included. A normal
+   *  product has exactly one, with a null optionName and value. */
+  choices: StorefrontChoice[];
+}
+
+/** One choice (size) of a product: a product_variants row with its own code, price and stock. */
+export interface StorefrontChoice {
+  variantId: string;
+  /** the option's name, e.g. "ขนาด" (null on a normal product) */
+  optionName: string | null;
+  /** the choice, e.g. "3/8 เล็ก" (null on a normal product) */
+  value: string | null;
+  /** its barcode / product code */
+  code: string | null;
+  /** its own photo, else the product's first photo */
+  imageKey: string | null;
+  /** BASE online price (latest pricing row), 0 when it has none */
+  priceSatang: number;
+  /** units on hand (ledger sum, never below 0); 0 = sold out */
+  onHand: number;
+  /** live flash-sale candidate for this choice (cheapest active-window one), or null */
+  campaign: CampaignPriceInfo | null;
+}
+
+/** All of a product's choices, ordered the way the back office lists them (created_at, id). */
+async function productChoices(
+  db: D1Database,
+  productId: string,
+  now: number,
+): Promise<StorefrontChoice[]> {
+  const rows = await db
+    .prepare(
+      `SELECT v.id AS variantId, v.option_1_name AS optionName, v.option_1_value AS value,
+              v.barcode_primary AS code, COALESCE(v.image_key, p.image_key) AS imageKey,
+              COALESCE((SELECT online_price_satang FROM pricing_profiles
+                         WHERE product_variant_id = v.id
+                         ORDER BY active_from DESC LIMIT 1), 0) AS priceSatang,
+              MAX(COALESCE((SELECT SUM(quantity_delta) FROM stock_ledger_entries
+                             WHERE product_variant_id = v.id), 0), 0) AS onHand,
+              ${CAMPAIGN_COLUMNS}
+       FROM product_variants v
+       JOIN products p ON p.id = v.product_id
+       ${CAMPAIGN_JOIN}
+       WHERE v.product_id = ?
+       ORDER BY v.created_at, v.id`,
+    )
+    .bind(now, now, productId)
+    .all<Omit<StorefrontChoice, "campaign"> & CampaignColumns>();
+  return (rows.results ?? []).map(
+    ({ cpPriceSatang, cpStartsAt, cpEndsAt, cpStatus, cpStockCap, cpSoldCount, ...choice }) => ({
+      ...choice,
+      campaign: toCampaign({
+        cpPriceSatang,
+        cpStartsAt,
+        cpEndsAt,
+        cpStatus,
+        cpStockCap,
+        cpSoldCount,
+      }),
+    }),
+  );
 }
 
 export async function getProduct(db: D1Database, productId: string): Promise<ProductDetail | null> {
@@ -543,7 +650,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
     .first<CatalogRow>();
   const head = headRow ? toCatalogItem(headRow) : null;
   if (!head) return null;
-  const [meta, images, fitments] = await Promise.all([
+  const [meta, images, fitments, choices] = await Promise.all([
     db
       .prepare(
         `SELECT p.description AS description, pt.description AS categoryDescription, pt.terms AS categoryTerms,
@@ -578,9 +685,11 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
         yearFrom: number | null;
         yearTo: number | null;
       }>(),
+    productChoices(db, productId, now),
   ]);
   return {
     ...head,
+    choices,
     description: joinDescriptions(meta?.description ?? null, meta?.categoryDescription ?? null),
     terms: productTerms(meta?.categoryTerms ?? null, head),
     weightGrams: meta?.weightGrams ?? 0,

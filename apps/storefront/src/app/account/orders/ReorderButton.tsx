@@ -13,6 +13,8 @@ export interface ReorderLine {
   productRef: string;
   priceSatang: number;
   imageKey: string | null;
+  /** the size bought (e.g. "1/2 กลาง"), so the cart row names it; absent for a product without sizes */
+  choiceLabel?: string;
   qty: number;
 }
 

@@ -63,10 +63,12 @@ export async function fetchProductRows(
   fetchFn: FetchFn,
   base: string,
   token: string,
+  /** One row per size (labels, แฟลชเซล) instead of one per product. */
+  options: { bySize?: boolean } = {},
 ): Promise<ProductRow[]> {
   const body = await readJson<{ products: ProductRow[] }>(
     fetchFn,
-    `${base}/products`,
+    `${base}/products${options.bySize ? "?by=variant" : ""}`,
     token,
     "Products failed to load",
   );
@@ -283,4 +285,20 @@ export async function createCarModel(
   const made = (await res.json()) as { id: string; name: string };
   await nameIt(fetchFn, base, token, "car_model", made.id, names);
   return { id: made.id, name: made.name, ...names, yearFrom: model.yearFrom, yearTo: model.yearTo };
+}
+
+/** The product AND the size a scanned code belongs to; null when none has it. */
+export async function findCodeHit(
+  fetchFn: FetchFn,
+  base: string,
+  token: string,
+  code: string,
+): Promise<{ productId: string; variantId: string } | null> {
+  const res = await fetchFn(`${base}/products/by-barcode/${encodeURIComponent(code.trim())}`, {
+    headers: session(token),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw await failure(res, "Lookup failed");
+  const hit = (await res.json()) as { productId: string; variantId: string };
+  return { productId: hit.productId, variantId: hit.variantId };
 }

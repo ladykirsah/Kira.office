@@ -1,5 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { billLineName } from "./billName";
+import { withSize, billLineName } from "./billName";
 import { formatBaht } from "./money";
 import type { ScanCard, ScannedPart } from "./scanTabs";
 
@@ -54,7 +54,7 @@ export function saleLines(cards: readonly ScanCard[], buyer: Buyer): BillLine[] 
   return cards.map((c) => ({
     productVariantId: c.part.variantId,
     lineType: "part",
-    description: billLineName(c.part, buyer),
+    description: withSize(billLineName(c.part, buyer), c.part.choiceValue),
     barcodeValue: c.part.barcode,
     quantity: c.value,
     unitPriceSatang: unitPrice(c.part, buyer),

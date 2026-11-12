@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { formatBaht } from "@/lib/money";
 import { yearRange } from "@/lib/productList";
-import { boxText, priceRows, weightText, type PriceRow } from "@/lib/productPage";
+import { hasChoices } from "@/lib/productChoices";
+import { boxText, priceRows, weightText, type PriceRow, type Pricing } from "@/lib/productPage";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
@@ -24,12 +25,16 @@ export function Value({ text, grey }: { text: string; grey?: boolean }) {
   );
 }
 
-/** ต้นทุน first, then the four prices; Shopee's ⌄ takes off the shop's Shopee fees (ข้อมูลร้าน). */
-export function PriceLines({ page }: { page: ProductPage }) {
+/**
+ * ต้นทุน first, then the four prices; Shopee's ⌄ takes off the shop's Shopee fees (ข้อมูลร้าน).
+ * `pricing`: one choice's own prices (ตัวเลือกสินค้า) instead of the product's.
+ */
+export function PriceLines({ page, pricing }: { page: ProductPage; pricing?: Pricing | null }) {
   const d = page.detail!;
+  const shown = pricing === undefined ? d.pricing : pricing;
   return (
     <>
-      {priceRows(d.pricing, page.rights.seesCost, page.shopeeFeeBp).map((row, i, all) => (
+      {priceRows(shown, page.rights.seesCost, page.shopeeFeeBp).map((row, i, all) => (
         <PriceItem key={row.key} row={row} last={i === all.length - 1} />
       ))}
     </>
@@ -81,16 +86,22 @@ function PriceItem({ row, last }: { row: PriceRow; last: boolean }) {
   );
 }
 
-/** ขายได้ and งานนอก. */
-export function StockLines({ page }: { page: ProductPage }) {
+/** ขายได้ and งานนอก — the product's, or one choice's (`stock`). */
+export function StockLines({
+  page,
+  stock,
+}: {
+  page: ProductPage;
+  stock?: { onHand: number; held: number };
+}) {
   const { t } = useLang();
-  const d = page.detail!;
+  const s = stock ?? page.detail!;
   return (
     <>
-      <Line label={t({ th: "ขายได้", en: "For sale" })} right={<Value text={String(d.onHand)} />} />
+      <Line label={t({ th: "ขายได้", en: "For sale" })} right={<Value text={String(s.onHand)} />} />
       <Line
         label={t({ th: "งานนอก", en: "Out on jobs" })}
-        right={<Value text={String(d.held)} />}
+        right={<Value text={String(s.held)} />}
         last
       />
     </>
@@ -115,11 +126,12 @@ export function CarLines({ page }: { page: ProductPage }) {
   );
 }
 
-/** ยี่ห้ออะไหล่ … ขนาดกล่อง, with the code to copy. */
+/** ยี่ห้ออะไหล่ … ขนาดกล่อง, with the code to copy — on each choice instead once it has choices. */
 export function DetailLines({ page }: { page: ProductPage }) {
   const { t } = useLang();
   const { theme } = useTheme();
   const p = page.detail!.product;
+  const codeHere = !hasChoices(page.detail!);
   return (
     <>
       <Line
@@ -134,22 +146,24 @@ export function DetailLines({ page }: { page: ProductPage }) {
         label={t({ th: "ชื่ออะไหล่", en: "Part name" })}
         right={<Value text={page.label("types", p.typeName)} grey />}
       />
-      <Line
-        label={t({ th: "รหัสสินค้า", en: "Product code" })}
-        right={
-          <View style={styles.priceRight}>
-            <Value text={p.productRef} grey />
-            <Pressable
-              onPress={() => page.copy(p.productRef)}
-              accessibilityRole="button"
-              accessibilityLabel={t({ th: `คัดลอก ${p.productRef}`, en: `Copy ${p.productRef}` })}
-              hitSlop={10}
-            >
-              <LineIcon d={ICON.copy} color={theme.textMuted} size={14} strokeWidth={2} />
-            </Pressable>
-          </View>
-        }
-      />
+      {codeHere && (
+        <Line
+          label={t({ th: "รหัสสินค้า", en: "Product code" })}
+          right={
+            <View style={styles.priceRight}>
+              <Value text={p.productRef} grey />
+              <Pressable
+                onPress={() => page.copy(p.productRef)}
+                accessibilityRole="button"
+                accessibilityLabel={t({ th: `คัดลอก ${p.productRef}`, en: `Copy ${p.productRef}` })}
+                hitSlop={10}
+              >
+                <LineIcon d={ICON.copy} color={theme.textMuted} size={14} strokeWidth={2} />
+              </Pressable>
+            </View>
+          }
+        />
+      )}
       <Line
         label={t({ th: "น้ำหนัก", en: "Weight" })}
         right={<Value text={t(weightText(p.weightGrams))} grey />}

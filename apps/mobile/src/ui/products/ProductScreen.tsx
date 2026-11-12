@@ -11,6 +11,7 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import { API_BASE } from "@/lib/config";
+import { hasChoices } from "@/lib/productChoices";
 import { editedLine, galleryKeys } from "@/lib/productPage";
 import { useLang, useTheme } from "../AppProviders";
 import { Empty } from "../customers/parts";
@@ -19,6 +20,7 @@ import { ICON } from "../orders/icons";
 import { Group, SmallButton } from "../orders/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { ChoicesSection, GroupSection } from "./ChoiceSections";
 import { DeleteSheet } from "./DeleteSheet";
 import { Heading } from "./parts";
 import { ProductDesk } from "./ProductDesk";
@@ -39,6 +41,8 @@ const EDIT_ICON = "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4";
  * หน้าสินค้า (canvas v194): the photos, the name, one ราคา list (ต้นทุน first; ⌄ drops the sum or the
  * profit), stock, the cars it fits, the part's details and where it is sold. แก้ไข edits it all.
  * A computer keeps ‹ สินค้า and แก้ไข on one line above the page's own layout (ProductDesk, A2).
+ * ตัวเลือกสินค้า and กลุ่มสินค้า sit under the stock (board ChoicesGroup, 7 Nov 2026); a product with
+ * choices shows no ราคา or สต็อก of its own — each choice's are on its own page. Photos are 1:1.
  */
 export function ProductScreen() {
   const { t } = useLang();
@@ -121,15 +125,22 @@ export function ProductScreen() {
       </Text>
       {edited && <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(edited)}</Text>}
 
-      <Heading text={t({ th: "ราคา", en: "Prices" })} />
-      <Group>
-        <PriceLines page={page} />
-      </Group>
+      {!hasChoices(d) && (
+        <>
+          <Heading text={t({ th: "ราคา", en: "Prices" })} />
+          <Group>
+            <PriceLines page={page} />
+          </Group>
 
-      <Heading text={t({ th: "สต็อก", en: "Stock" })} />
-      <Group>
-        <StockLines page={page} />
-      </Group>
+          <Heading text={t({ th: "สต็อก", en: "Stock" })} />
+          <Group>
+            <StockLines page={page} />
+          </Group>
+        </>
+      )}
+
+      <ChoicesSection page={page} />
+      <GroupSection page={page} />
 
       <Heading text={t({ th: "ใช้ได้กับรถ", en: "Fits these cars" })} />
       <Group>
@@ -172,14 +183,19 @@ export function ProductScreen() {
   );
 }
 
-/** The product's photos, one at a time, with dots under them. */
-function Gallery({ keys }: { keys: string[] }) {
+/** The product's photos, one at a time, with dots under them — square, as every product photo is. */
+export function Gallery({ keys }: { keys: string[] }) {
   const { theme } = useTheme();
   const [width, setWidth] = useState(0);
   const [page, setPage] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
   if (keys.length === 0) {
-    return <View style={[styles.photo, { backgroundColor: theme.hover }]} onLayout={onLayout} />;
+    return (
+      <View
+        style={[styles.photo, styles.square, { backgroundColor: theme.hover }]}
+        onLayout={onLayout}
+      />
+    );
   }
   return (
     <View onLayout={onLayout}>
@@ -195,7 +211,10 @@ function Gallery({ keys }: { keys: string[] }) {
           <Image
             key={key}
             source={{ uri: `${API_BASE}/img/${key}` }}
-            style={[styles.photo, { width: width || 1, backgroundColor: theme.hover }]}
+            style={[
+              styles.photo,
+              { width: width || 1, height: width || 1, backgroundColor: theme.hover },
+            ]}
           />
         ))}
       </ScrollView>
@@ -229,7 +248,8 @@ const styles = StyleSheet.create({
     boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
   } as never,
   photos: { borderRadius: 16 },
-  photo: { height: 240, borderRadius: 16 },
+  photo: { borderRadius: 16 },
+  square: { aspectRatio: 1 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: SPACE.s },
   dot: { width: 6, height: 6, borderRadius: 3 },
   title: { marginTop: SPACE.l },

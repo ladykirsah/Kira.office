@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billLineName, firstCarModel } from "./billName";
+import { billLineName, firstCarModel, withSize } from "./billName";
 
 const coil = {
   name: "ตู้แอร์ คอยล์เย็น Toyota Revo / Fortuner Gen 2 | Cool Gear DI261416-03704W",
@@ -7,6 +7,16 @@ const coil = {
   brandName: "Cool Gear",
   carModel: "Revo",
 };
+
+describe("withSize > the printed bill names the size in words (11 Nov 2026)", () => {
+  it("given a size > then the bill name, then the size", () => {
+    expect(withSize("โอริง DENSO", "1/2 กลาง")).toBe("โอริง DENSO 1/2 กลาง");
+  });
+  it("given no size or a blank one > then the bill name alone", () => {
+    expect(withSize("ตู้แอร์ Cool Gear", null)).toBe("ตู้แอร์ Cool Gear");
+    expect(withSize("ตู้แอร์ Cool Gear", " ")).toBe("ตู้แอร์ Cool Gear");
+  });
+});
 
 describe("billLineName", () => {
   it("customer bill > a part with type and brand > reads [type] [brand]", () => {

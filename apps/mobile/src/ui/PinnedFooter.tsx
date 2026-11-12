@@ -1,8 +1,14 @@
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { BAND_FADE as FADE, BAND_SOLID_ABOVE as SOLID_ABOVE } from "@/lib/frame";
+import {
+  BAND_FADE as FADE,
+  BAND_SOLID_ABOVE as SOLID_ABOVE,
+  WEB_EDGE_FADE,
+  bandStops,
+} from "@/lib/frame";
 import { useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
+import { PHONE_PAGE_SCROLLS, PINNED_TO_SCREEN } from "./pageScroll";
 import type { Chrome } from "./ScreenChrome";
 import { Segmented } from "./Segmented";
 import { SPACE, TYPE } from "./theme";
@@ -35,19 +41,24 @@ export function PinnedFooter({ chrome, bottom }: PinnedFooterProps) {
   const band = solid + FADE;
   return (
     <>
-      <View style={[styles.band, { height: band }]} pointerEvents="none">
+      <View style={[styles.band, PINNED_TO_SCREEN, { height: band }]} pointerEvents="none">
         <Svg width="100%" height={band}>
           <Defs>
             <LinearGradient id="pinned-band" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={theme.bg} stopOpacity={0} />
-              <Stop offset={FADE / band} stopColor={theme.bg} stopOpacity={1} />
-              <Stop offset="1" stopColor={theme.bg} stopOpacity={1} />
+              {bandStops(band, PHONE_PAGE_SCROLLS ? WEB_EDGE_FADE : 0).map((stop) => (
+                <Stop
+                  key={stop.offset}
+                  offset={stop.offset}
+                  stopColor={theme.bg}
+                  stopOpacity={stop.opacity}
+                />
+              ))}
             </LinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height={band} fill="url(#pinned-band)" />
         </Svg>
       </View>
-      <View style={[styles.stack, { bottom }]} pointerEvents="box-none">
+      <View style={[styles.stack, PINNED_TO_SCREEN, { bottom }]} pointerEvents="box-none">
         {chrome.toast && (
           <View style={styles.toast} accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={styles.toastTitle}>{chrome.toast.title}</Text>

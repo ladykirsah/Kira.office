@@ -18,6 +18,10 @@ export interface ScannedPart {
   carModel?: string | null;
   /** The code that was scanned — what ทำบิล stores on the bill line. */
   barcode: string;
+  /** The size scanned (ตัวเลือกสินค้า, "1/2 กลาง"); absent on a product without sizes. */
+  choiceValue?: string;
+  /** That size's own code (what was scanned). */
+  choiceCode?: string;
   /** The product's photos in gallery order; empty when it has none. */
   photoKeys: string[];
   /** Sellable on hand — the API already leaves stock out on jobs (held) out of it. */

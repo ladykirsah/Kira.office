@@ -79,6 +79,7 @@ export function EditLineSheet({ lineKey, onClose }: { lineKey: string; onClose: 
           (line.productRef ? (
             <CodeCopy
               code={line.productRef}
+              tag={line.choiceValue}
               after={` · ${t({ th: `เหลือ ${line.onHand ?? 0}`, en: `${line.onHand ?? 0} left` })}`}
               style={[TYPE.subhead, { color: theme.textMuted }]}
             />

@@ -7,6 +7,7 @@ import { track } from "@/lib/track";
 import { baht } from "@/lib/format";
 import { LINE_OA_URL } from "@/lib/links";
 import { Icon } from "@/components/Icon";
+import { useProductSizes } from "@/components/ProductSizes";
 
 interface AddToCartBarProps {
   variantId: string;
@@ -27,6 +28,9 @@ interface AddToCartBarProps {
  * Sticky action bar (Lovito/Shopee pattern): two icon actions — "ช่วยหาอะไหล่" (help find parts →
  * LINE OA) and add-to-cart — beside a full-width "ซื้อเลยตอนนี้" (buy now: add then go to checkout).
  * Quantity is fixed at 1 here and adjusted in the cart. Prices are display-only; checkout re-prices.
+ *
+ * A product with sizes (board 3b.5, 11 Nov 2026): both buttons open the size sheet first — ใส่ตะกร้า or
+ * ซื้อเลย is its button — so the shopper always says which size; "ซื้อเลยตอนนี้" then names no price.
  */
 export function AddToCartBar({
   variantId,
@@ -39,6 +43,7 @@ export function AddToCartBar({
   onHand,
 }: AddToCartBarProps) {
   const router = useRouter();
+  const sizes = useProductSizes();
   const [justAdded, setJustAdded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,6 +61,10 @@ export function AddToCartBar({
   };
 
   const handleAdd = () => {
+    if (sizes.sized) {
+      sizes.open("cart");
+      return;
+    }
     add();
     setJustAdded(true);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -63,6 +72,10 @@ export function AddToCartBar({
   };
 
   const buyNow = () => {
+    if (sizes.sized) {
+      sizes.open("buy");
+      return;
+    }
     add();
     router.push("/checkout");
   };
@@ -92,7 +105,8 @@ export function AddToCartBar({
 
   const helpIcon = <Icon name="chat" size={22} />;
 
-  const cartIcon = justAdded ? <Icon name="check" size={22} /> : <Icon name="cart" size={22} />;
+  const cartIcon =
+    justAdded || sizes.added ? <Icon name="check" size={22} /> : <Icon name="cart" size={22} />;
 
   const helpAction = (
     <a
@@ -126,10 +140,10 @@ export function AddToCartBar({
         {helpAction}
         <button type="button" style={iconBtn} onClick={handleAdd} aria-label="หยิบใส่ตะกร้า">
           {cartIcon}
-          <span>{justAdded ? "เพิ่มแล้ว" : "ใส่ตะกร้า"}</span>
+          <span>{justAdded || sizes.added ? "เพิ่มแล้ว" : "ใส่ตะกร้า"}</span>
         </button>
         <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={buyNow}>
-          ซื้อเลยตอนนี้ · {baht(priceSatang)}
+          {sizes.sized ? "ซื้อเลยตอนนี้" : `ซื้อเลยตอนนี้ · ${baht(priceSatang)}`}
         </button>
       </div>
     </div>

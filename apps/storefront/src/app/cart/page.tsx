@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { cartTotalSatang, removeLine, setQty, useCart } from "@/lib/cart";
 import { BrandTag } from "@/components/BrandTag";
+import { SizeTag } from "@/components/SizeTag";
 import { Icon } from "@/components/Icon";
 import { ReadyToShip } from "@/components/ReadyToShip";
 import { baht } from "@/lib/format";
@@ -98,6 +99,8 @@ export default function CartPage() {
               {/* product detail (brand) + status (ready-to-ship) — the shared default info pills:
                   GRAY = detail via BrandTag, GREEN = status via ReadyToShip. */}
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                {/* the size bought (board 3b.8) — the same size is always one row */}
+                {l.choiceLabel && <SizeTag value={l.choiceLabel} />}
                 {l.brandName && <BrandTag name={l.brandName} />}
                 <ReadyToShip />
               </div>

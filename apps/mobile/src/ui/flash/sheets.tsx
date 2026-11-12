@@ -29,6 +29,7 @@ import { DOWN, InputRow, Line, SearchBox, UP } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 import { OffPhoto } from "./parts";
 import { CodeCopy } from "../CodeCopy";
+import { rowSizeCode } from "@/lib/sizeLine";
 
 /**
  * เพิ่มสินค้า (canvas v259, แฟลชเซล 4): search by name or code; each product that can be sold on
@@ -103,7 +104,11 @@ function PickLine(props: { row: ProductRow; picked: boolean; onPress: () => void
         <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
           {props.row.name}
         </Text>
-        <CodeCopy code={props.row.productRef} style={[TYPE.subhead, { color: theme.textMuted }]} />
+        <CodeCopy
+          code={rowSizeCode(props.row).code ?? props.row.productRef}
+          tag={rowSizeCode(props.row).tag}
+          style={[TYPE.subhead, { color: theme.textMuted }]}
+        />
         <View style={styles.dotLine}>
           {line.low && <Dot color={theme.waiting} />}
           <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
@@ -200,6 +205,7 @@ export function PriceSheet(props: {
             {props.line.productRef ? (
               <CodeCopy
                 code={props.line.productRef}
+                tag={props.line.choiceValue}
                 style={[TYPE.subhead, { color: theme.textMuted }]}
               />
             ) : null}

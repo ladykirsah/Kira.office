@@ -15,6 +15,7 @@ import { RADIUS, SPACE, TYPE } from "../theme";
 import { FieldRow, Note } from "./fields";
 import { usePos } from "./PosSessionProvider";
 import { CodeCopy } from "../CodeCopy";
+import { rowSizeCode } from "@/lib/sizeLine";
 
 /** How many matches the list draws at once; the count above it is always the full number. */
 const SHOWN = 60;
@@ -107,7 +108,7 @@ export function PartPicker({ desk = false }: { desk?: boolean }) {
         <Group>
           {found.slice(0, SHOWN).map((p, i) => (
             <View
-              key={p.id}
+              key={p.variantId ?? p.id}
               style={[
                 styles.result,
                 i < Math.min(found.length, SHOWN) - 1 && {
@@ -130,9 +131,10 @@ export function PartPicker({ desk = false }: { desk?: boolean }) {
                 <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
                   {p.name}
                 </Text>
-                {p.productRef ? (
+                {rowSizeCode(p).code ? (
                   <CodeCopy
-                    code={p.productRef}
+                    code={rowSizeCode(p).code!}
+                    tag={rowSizeCode(p).tag}
                     style={[TYPE.subhead, { color: theme.textMuted }]}
                   />
                 ) : null}

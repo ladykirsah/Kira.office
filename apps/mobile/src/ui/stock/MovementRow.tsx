@@ -5,7 +5,7 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Photo } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
-import { CodeCopy } from "../CodeCopy";
+import { SizedCodeCopy } from "../CodeCopy";
 
 /**
  * One change, as picked (canvas v228): the product photo, its name on one line, its code in grey
@@ -39,9 +39,7 @@ export function MovementRow(props: { m: Movement; last: boolean; onPress: () => 
           <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
             {m.productName}
           </Text>
-          {m.productRef ? (
-            <CodeCopy code={m.productRef} style={[TYPE.subhead, { color: theme.textMuted }]} />
-          ) : null}
+          <SizedCodeCopy row={m} style={[TYPE.subhead, { color: theme.textMuted }]} />
           <Text style={[TYPE.subhead, styles.nums, { color: theme.textMuted }]} numberOfLines={1}>
             {type} · {left}
           </Text>

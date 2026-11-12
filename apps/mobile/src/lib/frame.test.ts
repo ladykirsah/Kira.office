@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bandOverhang,
+  bandStops,
   bottomBar,
   pageWidth,
   phoneBottoms,
@@ -15,6 +16,10 @@ describe("bottomBar", () => {
 
   it("given a page with a back link (a sub-page) > then there is no bar at all (owner, 29 Oct)", () => {
     expect(bottomBar({ back: { label: "ออเดอร์" }, search: null })).toBe("none");
+  });
+
+  it("given a page that draws its whole screen itself (a form on the website) > then there is no bar", () => {
+    expect(bottomBar({ back: null, search: null, bare: true })).toBe("none");
   });
 
   it("given a main page that is searching > then the search field takes the bar's place", () => {
@@ -51,6 +56,25 @@ describe("bandOverhang", () => {
 
   it("given no pinned buttons > then no band, no extra room", () => {
     expect(bandOverhang(false)).toBe(0);
+  });
+});
+
+describe("bandStops", () => {
+  it("given the phone app > then the band fades in at the top and stays solid to the bottom edge", () => {
+    expect(bandStops(140, 0)).toEqual([
+      { offset: 0, opacity: 0 },
+      { offset: 28 / 140, opacity: 1 },
+      { offset: 1, opacity: 1 },
+    ]);
+  });
+
+  it("given the website, where the page shows on under Safari's bar > then the band also melts away over its last 22", () => {
+    expect(bandStops(140, 22)).toEqual([
+      { offset: 0, opacity: 0 },
+      { offset: 28 / 140, opacity: 1 },
+      { offset: (140 - 22) / 140, opacity: 1 },
+      { offset: 1, opacity: 0 },
+    ]);
   });
 });
 

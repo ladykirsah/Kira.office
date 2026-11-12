@@ -77,6 +77,11 @@ export interface Chrome {
   ownTitle: boolean;
   /** On a computer: one centred column (settings, forms) or the full width (a list with a table). */
   layout: PageLayout;
+  /**
+   * The page draws its whole screen itself — head, pinned button and all (a form on the phone
+   * website, whose page scrolls whole): the frame adds no title, back link, tab bar or padding.
+   */
+  bare: boolean;
 }
 
 export const NO_CHROME: Chrome = {
@@ -89,6 +94,7 @@ export const NO_CHROME: Chrome = {
   search: null,
   ownTitle: false,
   layout: "column",
+  bare: false,
 };
 
 const SetChromeContext = createContext<((chrome: Chrome) => void) | null>(null);
@@ -104,6 +110,7 @@ interface Above {
   search?: SearchBar | null;
   ownTitle?: boolean;
   layout?: PageLayout;
+  bare?: boolean;
 }
 
 /**
@@ -130,6 +137,7 @@ export function useScreenChrome(
     search: above.search ?? null,
     ownTitle: above.ownTitle ?? false,
     layout: above.layout ?? "column",
+    bare: above.bare ?? false,
   };
   const latest = useRef(now);
   useEffect(() => {
@@ -146,6 +154,7 @@ export function useScreenChrome(
     now.search && [now.search.value, now.search.placeholder],
     now.ownTitle,
     now.layout,
+    now.bare,
   ]);
   useEffect(() => {
     if (!set) return;
@@ -185,6 +194,7 @@ export function useScreenChrome(
       },
       ownTitle: cur.ownTitle,
       layout: cur.layout,
+      bare: cur.bare,
     });
   }, [set, shape]);
   useEffect(() => () => set?.(NO_CHROME), [set]);

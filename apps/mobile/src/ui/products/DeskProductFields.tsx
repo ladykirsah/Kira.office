@@ -47,10 +47,13 @@ export function DeskProductFields({
   edit,
   mode,
   onAutoName,
+  withChoices = false,
 }: {
   edit: ProductFormState;
   mode: Mode;
   onAutoName?: () => void;
+  /** ตัวเลือกสินค้า: prices and stock live on each choice's own page then, not here (7 Nov 2026). */
+  withChoices?: boolean;
 }) {
   const { t } = useLang();
   const [scanning, setScanning] = useState(false);
@@ -89,14 +92,16 @@ export function DeskProductFields({
         <DeskColumns>
           <PartCard edit={edit} mode={mode} />
           <>
-            <DeskCard title={t({ th: "สต็อก", en: "Stock" })} pad={4}>
-              <StockSteppers edit={edit} />
-            </DeskCard>
+            {!withChoices && (
+              <DeskCard title={t({ th: "สต็อก", en: "Stock" })} pad={4}>
+                <StockSteppers edit={edit} />
+              </DeskCard>
+            )}
             <DeskCard title={t({ th: "ขายออนไลน์", en: "Sold online" })} pad={4}>
               <OnlineSwitches edit={edit} />
             </DeskCard>
           </>
-          <PriceCard edit={edit} mode={mode} />
+          {withChoices ? <></> : <PriceCard edit={edit} mode={mode} />}
         </DeskColumns>
       </View>
       <FieldSheets edit={edit} scanning={scanning} onScanned={() => setScanning(false)} />

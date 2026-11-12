@@ -16,6 +16,7 @@ import { LINE_OA_URL } from "@/lib/links";
 import { cancelStepDetail } from "@/lib/cancelReason";
 import { baht, formatDateTime, normalizePhone } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
+import { SizeTag } from "@/components/SizeTag";
 
 /**
  * Order tracking by phone + order number — no account, no Facebook login, no "save this link"
@@ -26,6 +27,8 @@ import { imgUrl } from "@/lib/img";
 interface LookupLine {
   name: string;
   productRef: string;
+  /** the size bought, e.g. "1/2 กลาง" (null for a product without sizes) */
+  choiceValue?: string | null;
   imageKey: string | null;
   quantity: number;
   unitPriceSatang: number;
@@ -856,6 +859,12 @@ function OrdersContent() {
                     >
                       {line.name}
                     </div>
+                    {/* the size bought (board 3b.10) */}
+                    {line.choiceValue && (
+                      <div style={{ margin: "3px 0" }}>
+                        <SizeTag value={line.choiceValue} />
+                      </div>
+                    )}
                     <div className="muted" style={{ fontSize: 13 }}>
                       {line.productRef} · ×{line.quantity}
                     </div>

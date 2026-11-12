@@ -6,6 +6,7 @@ import { flashScarcity } from "@/lib/flashScarcity";
 import { imgUrl } from "@/lib/img";
 import { productHref } from "@/lib/seo";
 import { Countdown } from "@/components/Countdown";
+import { SizeTag } from "@/components/SizeTag";
 
 /**
  * Phone FLASH SALE card (board 1): title + HH:MM:SS boxes + ดูทั้งหมด, then 3 deals — photo filling its
@@ -37,6 +38,12 @@ export function PhoneFlash({ items, endsAt }: { items: CatalogItem[]; endsAt: nu
                 )}
               </span>
               <span className="hm-flash-price">{baht(eff.priceSatang)}</span>
+              {/* the size on sale (board 3b.3) — the other sizes keep their normal price */}
+              {item.choiceCount > 1 && item.choiceValue && (
+                <span>
+                  <SizeTag value={item.choiceValue} />
+                </span>
+              )}
               {left && (
                 <>
                   <span className="hm-bar">

@@ -135,7 +135,7 @@ export function ScanScreen() {
             value={c.value}
             onMinus={() => s.stepOf(c.part.variantId, -1)}
             onPlus={() => s.stepOf(c.part.variantId, 1)}
-            onOpen={() => s.openProduct(c.part.productId)}
+            onOpen={() => s.openProduct(c.part)}
           />
         );
       })}

@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { stockLine, type ProductRow } from "@/lib/productList";
+import { sizesLine, stockLine, type ProductRow } from "@/lib/productList";
 import { useLang, useTheme } from "../AppProviders";
 import { Dot } from "../customers/parts";
 import { LineIcon } from "../LineIcon";
@@ -19,6 +19,7 @@ export function ProductCard(props: {
   const { t } = useLang();
   const { row } = props;
   const line = stockLine(row);
+  const sizes = sizesLine(row);
   const open = (path: string) =>
     router.push(`/products/${encodeURIComponent(row.id)}${path}` as never);
   return (
@@ -34,20 +35,27 @@ export function ProductCard(props: {
           <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
-          <View style={styles.code}>
-            <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{row.productRef}</Text>
-            <Pressable
-              onPress={() => props.onCopy(row.productRef)}
-              accessibilityRole="button"
-              accessibilityLabel={t({
-                th: `คัดลอก ${row.productRef}`,
-                en: `Copy ${row.productRef}`,
-              })}
-              hitSlop={10}
-            >
-              <LineIcon d={ICON.copy} color={theme.textMuted} size={14} strokeWidth={2} />
-            </Pressable>
-          </View>
+          {sizes ? (
+            // A product with sizes: how many and the cheapest's price, in place of one code.
+            <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+              {t(sizes)}
+            </Text>
+          ) : (
+            <View style={styles.code}>
+              <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{row.productRef}</Text>
+              <Pressable
+                onPress={() => props.onCopy(row.productRef)}
+                accessibilityRole="button"
+                accessibilityLabel={t({
+                  th: `คัดลอก ${row.productRef}`,
+                  en: `Copy ${row.productRef}`,
+                })}
+                hitSlop={10}
+              >
+                <LineIcon d={ICON.copy} color={theme.textMuted} size={14} strokeWidth={2} />
+              </Pressable>
+            </View>
+          )}
         </View>
       </Pressable>
       <View style={styles.status}>

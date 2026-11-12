@@ -116,6 +116,8 @@ describe("listStockMovements", () => {
         productName: "คอมเพรสเซอร์ DENSO 10S11C",
         productRef: "DN-447220",
         imageKey: "k1",
+        choiceValue: null,
+        choiceCode: null,
         movementType: "onsite_sale",
         quantityDelta: -1,
         quantityAfter: 4,

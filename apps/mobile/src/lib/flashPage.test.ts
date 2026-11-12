@@ -253,6 +253,22 @@ describe("the form", () => {
     });
   });
 
+  it("formOf > a size already on sale > then its line carries the size and that size's own code (11 Nov 2026)", () => {
+    const form = formOf(
+      sale({
+        prices: [
+          item({
+            choiceValue: "1/2 กลาง",
+            choiceCode: "TG949142-00204D",
+            productRef: "TG949142-00104D",
+          }),
+        ],
+      }),
+    );
+    expect(form.lines[0]).toMatchObject({ choiceValue: "1/2 กลาง", productRef: "TG949142-00204D" });
+    expect(formOf(sale()).lines[0]!.choiceValue).toBeUndefined();
+  });
+
   it("editBody > what was added, changed or binned; an untouched product is not sent", () => {
     const old = sale({
       prices: [
@@ -339,6 +355,36 @@ describe("pickable", () => {
     ];
     expect(pickable(rows, "denso").map((r) => r.variantId)).toEqual(["c", "a"]);
     expect(pickable(rows, "116340").map((r) => r.variantId)).toEqual(["c"]);
+  });
+});
+
+describe("แฟลชเซล with sizes (7 Nov 2026)", () => {
+  const size = (variantId: string, optionValue: string, code: string, onHand: number) =>
+    product({ id: "oring", variantId, name: "โอริง R134a DENSO", optionValue, code, onHand });
+
+  it("pickable > given the per-size list > then each size in stock is its own pick, found by its size or code", () => {
+    const rows = [
+      size("or-1", "3/8 เล็ก", "TG-001", 5),
+      size("or-2", "1/2 กลาง", "TG-002", 2),
+      size("or-3", "5/8 ใหญ่", "TG-003", 0),
+    ];
+    expect(pickable(rows, "โอริง").map((r) => r.variantId)).toEqual(["or-1", "or-2"]);
+    expect(pickable(rows, "1/2").map((r) => r.variantId)).toEqual(["or-2"]);
+    expect(pickable(rows, "tg-002").map((r) => r.variantId)).toEqual(["or-2"]);
+  });
+
+  it("lineOf > given one size > then the sale line is that size, with its own price and code", () => {
+    const line = lineOf(
+      { ...size("or-2", "1/2 กลาง", "TG-002", 2), onlinePriceSatang: 4500 },
+      "399",
+      "",
+    );
+    expect(line).toMatchObject({
+      productVariantId: "or-2",
+      productRef: "TG-002",
+      choiceValue: "1/2 กลาง",
+      basePriceSatang: 4500,
+    });
   });
 });
 

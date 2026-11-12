@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { channelWords, stockWords, type ProductRow } from "@/lib/productList";
+import { channelWords, sizesLine, stockWords, type ProductRow } from "@/lib/productList";
 import { useLang, useTheme } from "../AppProviders";
 import { Dot } from "../customers/parts";
 import { DeskCard } from "../desk/DeskCard";
@@ -134,24 +134,33 @@ function ProductCell({ row, onCopy }: { row: ProductRow; onCopy: (code: string) 
               {row.name}
             </Text>
           </View>
-          <View style={styles.code} pointerEvents="box-none">
-            <View pointerEvents="none" style={styles.shrink}>
+          {sizesLine(row) ? (
+            // A product with sizes: how many and the cheapest's price, in place of one code.
+            <View pointerEvents="none">
               <Text style={[styles.sub, { color: theme.textMuted }]} numberOfLines={1}>
-                {row.productRef}
+                {t(sizesLine(row)!)}
               </Text>
             </View>
-            <Pressable
-              onPress={() => onCopy(row.productRef)}
-              accessibilityRole="button"
-              accessibilityLabel={t({
-                th: `คัดลอก ${row.productRef}`,
-                en: `Copy ${row.productRef}`,
-              })}
-              hitSlop={8}
-            >
-              <LineIcon d={ICON.copy} color={theme.textMuted} size={13} strokeWidth={2} />
-            </Pressable>
-          </View>
+          ) : (
+            <View style={styles.code} pointerEvents="box-none">
+              <View pointerEvents="none" style={styles.shrink}>
+                <Text style={[styles.sub, { color: theme.textMuted }]} numberOfLines={1}>
+                  {row.productRef}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => onCopy(row.productRef)}
+                accessibilityRole="button"
+                accessibilityLabel={t({
+                  th: `คัดลอก ${row.productRef}`,
+                  en: `Copy ${row.productRef}`,
+                })}
+                hitSlop={8}
+              >
+                <LineIcon d={ICON.copy} color={theme.textMuted} size={13} strokeWidth={2} />
+              </Pressable>
+            </View>
+          )}
         </View>
       </View>
     </View>

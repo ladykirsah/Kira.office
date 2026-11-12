@@ -1,3 +1,4 @@
+import { formatBaht } from "./money";
 import type { Phrase } from "@l-shopee/shared/lang";
 
 /**
@@ -41,6 +42,16 @@ export interface ProductRow {
   /** งานนอก — out on outside jobs. */
   held: number;
   fitments: Fitment[];
+  /** How many sizes the product has (1 = none). */
+  choiceCount?: number;
+  /** ขายได้ of all its sizes together (onHand is its first size's). */
+  totalOnHand?: number;
+  /** The cheapest size's เด่นแอร์ price, for "เริ่ม ฿" (its own price on a product without sizes). */
+  fromPriceSatang?: number;
+  /** In the per-size list: this size's value ("1/2 กลาง"), null for a product without sizes. */
+  optionValue?: string | null;
+  /** In the per-size list: this size's own code. */
+  code?: string | null;
 }
 
 export type ProductTab = "all" | "airplus" | "notLive" | "low" | "out";
@@ -83,8 +94,8 @@ const inTab: Record<ProductTab, (r: ProductRow) => boolean> = {
   all: () => true,
   airplus: (r) => r.status === "active",
   notLive: (r) => r.status !== "active",
-  low: (r) => stockLevel(r.onHand) === "low",
-  out: (r) => stockLevel(r.onHand) === "out",
+  low: (r) => stockLevel(forSaleOf(r)) === "low",
+  out: (r) => stockLevel(forSaleOf(r)) === "out",
 };
 
 /** Each tab counts the whole catalogue, whatever is typed or picked (as drawn). */
@@ -103,7 +114,10 @@ export function tabCounts(rows: readonly ProductRow[]): Record<ProductTab, numbe
 export function matchesSearch(row: ProductRow, q: string): boolean {
   const typed = q.trim().toLowerCase();
   if (!typed) return true;
-  return row.name.toLowerCase().includes(typed) || row.productRef.toLowerCase().includes(typed);
+  // A size is found by its value and its own code too (7 Nov 2026).
+  return [row.name, row.productRef, row.optionValue, row.code].some((f) =>
+    (f ?? "").toLowerCase().includes(typed),
+  );
 }
 
 const carKey = (f: Fitment) => [f.carBrand, f.carModel, f.yearFrom, f.yearTo].join("|");
@@ -125,7 +139,7 @@ const ORDER: Record<ProductSort, (a: ProductRow, b: ProductRow) => number> = {
   updated: (a, b) => (b.updatedAt ?? -1) - (a.updatedAt ?? -1),
   name: (a, b) => a.name.localeCompare(b.name, "th"),
   price: (a, b) => a.offlinePriceSatang - b.offlinePriceSatang,
-  low: (a, b) => a.onHand - b.onHand,
+  low: (a, b) => forSaleOf(a) - forSaleOf(b),
 };
 
 export function visibleRows(
@@ -148,7 +162,7 @@ export function listSubtitle(
   if (hasFilters(filters)) {
     return { th: `พบ ${shown} รายการ จาก ${rows.length}`, en: `${shown} of ${rows.length}` };
   }
-  const forSale = rows.filter((r) => r.onHand > 0).length;
+  const forSale = rows.filter((r) => forSaleOf(r) > 0).length;
   return {
     th: `${rows.length} รายการ · ขายได้ ${forSale}`,
     en: `${rows.length} products · ${forSale} for sale`,
@@ -157,13 +171,14 @@ export function listSubtitle(
 
 /** How many are left, in words (the computer's สต็อก column; the dot comes from `level`). */
 export function stockWords(row: ProductRow): { level: StockLevel; text: Phrase } {
-  const level = stockLevel(row.onHand);
+  const n = forSaleOf(row);
+  const level = stockLevel(n);
   const text: Phrase =
     level === "out"
       ? { th: "หมด", en: "Sold out" }
       : level === "low"
-        ? { th: `เหลือน้อย ${row.onHand}`, en: `Low ${row.onHand}` }
-        : { th: `เหลือ ${row.onHand}`, en: `${row.onHand} left` };
+        ? { th: `เหลือน้อย ${n}`, en: `Low ${n}` }
+        : { th: `เหลือ ${n}`, en: `${n} left` };
   return { level, text };
 }
 
@@ -172,6 +187,23 @@ export function channelWords(row: ProductRow): string {
   return [row.status === "active" ? "AirPlus" : null, row.shopeeListed ? "Shopee" : null]
     .filter(Boolean)
     .join(" · ");
+}
+
+const hasSizes = (row: ProductRow): boolean => (row.choiceCount ?? 1) > 1;
+
+/**
+ * ขายได้ as the list counts it: all sizes together for a product with sizes (its row's onHand is its
+ * first size's, which the สต็อกและราคา sheet used to edit), its own onHand otherwise.
+ */
+export const forSaleOf = (row: ProductRow): number =>
+  hasSizes(row) ? (row.totalOnHand ?? row.onHand) : row.onHand;
+
+/** The card's line for a product with sizes, in place of the code: "3 ขนาด · เริ่ม ฿35". */
+export function sizesLine(row: ProductRow): Phrase | null {
+  if (!hasSizes(row)) return null;
+  const n = row.choiceCount ?? 1;
+  const from = formatBaht(row.fromPriceSatang ?? row.offlinePriceSatang);
+  return { th: `${n} ขนาด · เริ่ม ${from}`, en: `${n} sizes · from ${from}` };
 }
 
 /** The card's grey line: how many are left, then where it is sold. The dot comes from `level`. */
