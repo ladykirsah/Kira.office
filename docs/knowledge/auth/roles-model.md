@@ -3,7 +3,7 @@ type: convention
 title: Roles model — viewerRole email lists, not the dormant rbac.ts
 description: super_admin / mechanic / admin via env email lists; per-capability gates; slip images super-admin only
 tags: [roles, rbac, super-admin, mechanic, permissions, slip]
-timestamp: 2026-08-24
+timestamp: 2026-11-12
 status: live
 sources: [kira-defect-claim-flow.md, kira-slip-super-admin-gating.md, kira-staff-mechanic-section-plan.md, packages/core/src/access.ts]
 ---
@@ -143,6 +143,26 @@ As of 2026-07-27: `resolveActor(db, email, …)` (in `apps/api/src/auth.ts`, re-
 `itemCostSatang: 0` to a mechanic. The page computes profit as price minus cost, so shipping the
 cost and hiding the answer would be decoration — anyone reading the response could subtract. Selling
 prices still go through; those are not secret.
+
+### Every read follows the menu (owner, 12 Nov 2026: "follow the old version function")
+
+Until 12 Nov only `GET /products` withheld cost; every other read gave cost, profit and the owner's
+pages to any signed-in staff. Now (`apps/api/src/viewerMoney.ts`, route tests in
+`index.test.ts` "pages outside your menu are closed for reading too"):
+
+| Read | Mechanic | Admin | Super admin |
+| --- | --- | --- | --- |
+| `GET /products/:id` (product + each size) | cost 0 | cost | cost |
+| `GET /onsite/drafts`, `GET /onsite/sales/:id` (ทำบิล) | line cost 0 | cost | cost |
+| `GET /orders`, `GET /orders/:id` | profit null, cost 0 | cost + profit | cost + profit |
+| `GET /sales` (การเงิน's bills) | bill numbers only | bill numbers only | everything |
+| `GET /sales/export.csv`, `GET /insights` (ภาพรวม AirPlus) | 403 | 403 | yes |
+
+`GET /sales` stays open because Scan numbers each new bill from it. A sold bill's cost is safe: `/sync`
+re-reads every part line's cost from the product (`withProductCost`), whatever the device sent;
+drafts can only be `draft` / `quotation`. The order page shows "—" for ต้นทุนสินค้า and กำไร to a
+mechanic (`itemCostText`). Still open: `POST /orders/:id/review-payment` and `/payments` take/verify
+(any staff, by design).
 
 ### Cost is the admin's; the selling price is the owner's
 

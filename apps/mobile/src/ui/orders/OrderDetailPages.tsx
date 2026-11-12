@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { formatBaht } from "@/lib/money";
 import { stamp } from "@/lib/orderList";
-import { addressLine } from "@/lib/orderPage";
+import { addressLine, itemCostText } from "@/lib/orderPage";
 import type { OrderDetail } from "@/lib/ordersApi";
 import { useAuth, useLang, useTheme } from "../AppProviders";
 import { openPage } from "../openPage";
@@ -42,7 +42,7 @@ export function PaymentScreen({ id }: { id: string }) {
   const load = useSubPage(id);
   useFilePage(id, t({ th: "การชำระเงิน", en: "Payment" }), load);
   if (load.status !== "ready") return <LoadState load={load} />;
-  const { order, money } = load.detail;
+  const { order, money, viewerRole: role } = load.detail;
   const shortfall = money.shippingShortfallSatang;
   const shippingTotal =
     shortfall == null
@@ -128,7 +128,7 @@ export function PaymentScreen({ id }: { id: string }) {
         />
         <Row
           label={t({ th: "ต้นทุนสินค้า", en: "Item cost" })}
-          value={formatBaht(money.itemCostSatang)}
+          value={itemCostText(money.itemCostSatang, role)}
         />
         {shippingTotal && (
           <Row

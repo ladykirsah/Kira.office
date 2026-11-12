@@ -10240,6 +10240,177 @@ describe("role enforcement on money, catalog and payment routes", () => {
       expect(res.status).not.toBe(403);
     });
   });
+
+  // The old back office's rules, now on the reads too (owner, 12 Nov 2026: "follow the old version
+  // function"). การเงิน and ภาพรวม AirPlus were the owner's alone (nav HIDDEN_FROM), and a ช่าง never
+  // sees cost or profit (canSeeProfit, 24 Aug) — yet the server still handed all of it to any session.
+  describe("pages outside your menu are closed for reading too (owner, 12 Nov 2026)", () => {
+    function seedCostedProduct(raw: ReturnType<typeof migratedDb>) {
+      raw
+        .prepare(
+          `INSERT INTO product_variants (id, product_id, variant_name, created_at) VALUES ('v1','p1','แท้',?)`,
+        )
+        .run(NOW);
+      raw
+        .prepare(
+          `INSERT INTO pricing_profiles (id, product_variant_id, item_cost_satang, target_price_satang,
+             online_price_satang, shopee_price_satang, b2b_price_satang, online_commission_bp, tax_on_cost, active_from)
+           VALUES ('pp1','v1',320000,450000,450000,460000,400000,0,0,?)`,
+        )
+        .run(NOW);
+    }
+    function seedBill(raw: ReturnType<typeof migratedDb>) {
+      raw
+        .prepare(
+          `INSERT INTO onsite_sales (id, client_uuid, sale_number, stage, grand_total_satang, created_at)
+           VALUES ('s1','c1','B-0001','bill',450000,?)`,
+        )
+        .run(NOW);
+      raw
+        .prepare(
+          `INSERT INTO onsite_sale_lines (id, onsite_sale_id, product_variant_id, line_type, quantity,
+             unit_price_satang, unit_cost_satang, gross_profit_satang)
+           VALUES ('sl1','s1','v1','part',1,450000,320000,130000)`,
+        )
+        .run();
+    }
+    function seedOrder(raw: ReturnType<typeof migratedDb>) {
+      raw
+        .prepare(
+          `INSERT INTO sales_orders (id, channel, external_order_id, order_status, payment_status,
+             subtotal_satang, grand_total_satang, profit_satang, order_created_at, imported_at)
+           VALUES ('o1','airplus','AP-1','new','paid',450000,450000,130000,?,?)`,
+        )
+        .run(NOW, NOW);
+      raw
+        .prepare(
+          `INSERT INTO sales_order_lines (id, sales_order_id, product_variant_id, quantity,
+             unit_price_satang, unit_cost_satang, line_total_satang, created_at)
+           VALUES ('ol1','o1','v1',1,450000,320000,450000,?)`,
+        )
+        .run(NOW);
+    }
+    const getJson = async <T>(env: Env, path: string, token: string) => {
+      const res = await call(env, path, {}, token);
+      return { status: res.status, body: (await res.json()) as T };
+    };
+
+    for (const role of ["admin", "mechanic"]) {
+      it(`given a ${role} > 403 on ภาพรวม AirPlus`, async () => {
+        const { env, token } = await asRole(role);
+        expect((await call(env, "/insights", {}, token)).status).toBe(403);
+      });
+      it(`given a ${role} > 403 on the bills download`, async () => {
+        const { env, token } = await asRole(role);
+        expect((await call(env, "/sales/export.csv", {}, token)).status).toBe(403);
+      });
+      it(`given a ${role} > the bill list keeps only bill numbers, so Scan can still number a bill`, async () => {
+        const { raw, env, token } = await asRole(role);
+        seedCostedProduct(raw);
+        seedBill(raw);
+        const { status, body } = await getJson<{ sales: unknown[] }>(env, "/sales", token);
+        expect(status).toBe(200);
+        expect(body.sales).toEqual([{ saleNumber: "B-0001" }]);
+      });
+    }
+
+    it("given the super admin > ภาพรวม AirPlus, the download and the full bill list come through", async () => {
+      const { raw, env, token } = await asRole("super_admin");
+      seedCostedProduct(raw);
+      seedBill(raw);
+      expect((await call(env, "/insights", {}, token)).status).toBe(200);
+      expect((await call(env, "/sales/export.csv", {}, token)).status).toBe(200);
+      const { body } = await getJson<{ sales: { grossProfitSatang: number }[] }>(
+        env,
+        "/sales",
+        token,
+      );
+      expect(body.sales[0]!.grossProfitSatang).toBe(130000);
+    });
+
+    it("given a mechanic > the product page sends cost 0, prices intact", async () => {
+      const { raw, env, token } = await asRole("mechanic");
+      seedCostedProduct(raw);
+      const { body } = await getJson<{
+        pricing: { itemCostSatang: number; onlinePriceSatang: number };
+      }>(env, "/products/p1", token);
+      expect(body.pricing).toMatchObject({ itemCostSatang: 0, onlinePriceSatang: 450000 });
+    });
+
+    it("given an admin > the product page still sends the cost", async () => {
+      const { raw, env, token } = await asRole("admin");
+      seedCostedProduct(raw);
+      const { body } = await getJson<{ pricing: { itemCostSatang: number } }>(
+        env,
+        "/products/p1",
+        token,
+      );
+      expect(body.pricing.itemCostSatang).toBe(320000);
+    });
+
+    it("given a mechanic > a saved bill comes without line costs", async () => {
+      const { raw, env, token } = await asRole("mechanic");
+      seedCostedProduct(raw);
+      seedBill(raw);
+      const { body } = await getJson<{ sale: { lines: { unitCostSatang: number }[] } }>(
+        env,
+        "/onsite/sales/s1",
+        token,
+      );
+      expect(body.sale.lines.map((l) => l.unitCostSatang)).toEqual([0]);
+    });
+
+    it("given a mechanic > open ทำบิล drafts come without line costs", async () => {
+      const { raw, env, token } = await asRole("mechanic");
+      seedCostedProduct(raw);
+      raw
+        .prepare(
+          `INSERT INTO onsite_sales (id, client_uuid, stage, created_at) VALUES ('d1','cd1','draft',?)`,
+        )
+        .run(NOW);
+      raw
+        .prepare(
+          `INSERT INTO onsite_sale_lines (id, onsite_sale_id, product_variant_id, line_type, quantity,
+             unit_price_satang, unit_cost_satang, gross_profit_satang)
+           VALUES ('dl1','d1','v1','part',1,450000,320000,130000)`,
+        )
+        .run();
+      const { body } = await getJson<{ drafts: { lines: { unitCostSatang: number }[] }[] }>(
+        env,
+        "/onsite/drafts",
+        token,
+      );
+      expect(body.drafts[0]!.lines.map((l) => l.unitCostSatang)).toEqual([0]);
+    });
+
+    it("given a mechanic > the order list and an order page come without cost or profit", async () => {
+      const { raw, env, token } = await asRole("mechanic");
+      seedCostedProduct(raw);
+      seedOrder(raw);
+      const list = await getJson<{ orders: { id: string; profitSatang: number | null }[] }>(
+        env,
+        "/orders",
+        token,
+      );
+      expect(list.body.orders.find((o) => o.id === "o1")!.profitSatang).toBeNull();
+      const page = await getJson<{
+        order: { profitSatang: number | null };
+        money: { itemCostSatang: number; profitSatang: number | null };
+        lines: { unitCostSatang: number }[];
+      }>(env, "/orders/o1", token);
+      expect(page.body.order.profitSatang).toBeNull();
+      expect(page.body.money).toMatchObject({ itemCostSatang: 0, profitSatang: null });
+      expect(page.body.lines.map((l) => l.unitCostSatang)).toEqual([0]);
+    });
+
+    it("given an admin > the order page still shows its cost and profit", async () => {
+      const { raw, env, token } = await asRole("admin");
+      seedCostedProduct(raw);
+      seedOrder(raw);
+      const page = await getJson<{ money: { itemCostSatang: number } }>(env, "/orders/o1", token);
+      expect(page.body.money.itemCostSatang).toBe(320000);
+    });
+  });
 });
 
 // ── Bank slips move onto the staff session (owner, 2026-08-24) ───────────────────────────────────
