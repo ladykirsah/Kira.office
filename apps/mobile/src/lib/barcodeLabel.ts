@@ -1,11 +1,13 @@
 import qrcode from "qrcode-generator";
+import { code128Bits } from "./barcodeBars";
 import type { Fitment, ProductRow } from "./productList";
 import type { Attributes, CarBrand } from "./productsApi";
 
 /**
  * The barcode label the owner drew themselves and approved (31 Oct 2026, canvas boards 1–4):
  * type in Thai over the brand in English, the product code in grey, a hairline, up to five car lines
- * (model bold, years regular), then the QR of the code with the shop's name and phone beside it.
+ * (model bold, years regular), then the code's barcode across the label with one grey line under
+ * it: the shop's name and phone (the QR until 7 Nov 2026 — the owner's second picture).
  *
  * Every position below is in the owner's picture's own pixels (413 × 549, grey edge included) —
  * measured from it, then rebuilt and measured again until each line landed within 1–2 px. S is that
@@ -43,15 +45,16 @@ export const PICTURE = {
   bulletRaise: 13,
   modelX: 63,
   yearGap: 17,
-  qrX: 36,
-  qrY: 405,
-  qrSide: 112,
-  shopX: 174,
-  shopTop: 457,
-  phoneTop: 493,
+  /** The barcode: as wide as the hairline, from the owner's 7 Nov picture. */
+  barX: 32,
+  barRight: 380,
+  barTop: 403,
+  barHeight: 82,
+  /** Baseline of the grey shop line, centred under the bars. */
+  shopBase: 516.3,
   /** Font sizes. The picture's Latin digits are smaller next to its Thai than the system font's, so
    * the years and the Thai shop name have their own sizes. */
-  font: { name: 45.4, code: 29.8, model: 26.2, years: 24.4, shop: 26, phone: 28.4 },
+  font: { name: 45.4, code: 29.8, model: 26.2, years: 24.4, shop: 19.9, phone: 21.7, size: 36.3 },
 } as const;
 
 /** One car line on the label. */
@@ -67,8 +70,14 @@ export interface LabelText {
   /** The brand in English (Denso). */
   brand: string;
   code: string;
+  /** A size's value ("1/2 กลาง"), printed on its own line; null for a product without sizes. */
+  size?: string | null;
   cars: CarLine[];
 }
+
+/** The label's lines under the hairline: the size's (when it has one), then its cars. */
+export const labelLines = (text: LabelText): number =>
+  Math.max(1, text.cars.length + (text.size ? 1 : 0));
 
 /** How far up the label is cut for `lines` car lines (0 for five). */
 export function cutFor(lines: number): number {
@@ -120,8 +129,14 @@ export function labelText(
   return {
     kind: row.typeName ? type?.nameTh || row.typeName : row.name,
     brand: row.brandName ? brand?.nameEn || row.brandName : "",
-    code: row.productRef,
-    cars: carLines(row.fitments, brands),
+    // A size's label carries the size's own code, so Scan finds that size (7 Nov 2026).
+    code: row.optionValue ? (row.code ?? row.productRef) : row.productRef,
+    // A size prints on its own line first; then at most four cars fit (owner's pick B, 11 Nov 2026).
+    size: row.optionValue?.trim() || null,
+    cars: carLines(row.fitments, brands).slice(
+      0,
+      MAX_CAR_LINES - (row.optionValue?.trim() ? 1 : 0),
+    ),
   };
 }
 
@@ -140,3 +155,24 @@ export function labelQr(code: string): boolean[][] {
   const n = qr.getModuleCount();
   return Array.from({ length: n }, (_, r) => Array.from({ length: n }, (_, c) => qr.isDark(r, c)));
 }
+
+/**
+ * The label's barcode (owner, 7 Nov 2026: *"change from QR code to barcode"*): Code 128 of the
+ * product code, which Scan reads, for every code — a 13-digit one too, so all labels print one
+ * kind. Null when the code has letters Code 128 cannot carry (Thai); the label keeps its QR then.
+ */
+export function labelBars(code: string): string | null {
+  return code128Bits(code);
+}
+
+/** The one grey line under the bars: the shop's name, then its phone when there is one. */
+export function shopLine(shop: { name: string; phone: string }): string {
+  return [shop.name.trim(), shop.phone.trim()].filter(Boolean).join(" ");
+}
+
+/**
+ * The label list, from the per-size product list: each size is a row of its own, named by the size
+ * (so two sizes never share a label); a product without sizes keeps its own id (7 Nov 2026).
+ */
+export const labelRows = (rows: readonly ProductRow[]): ProductRow[] =>
+  rows.map((r) => (r.optionValue ? { ...r, id: r.variantId } : r));

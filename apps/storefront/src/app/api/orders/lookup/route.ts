@@ -1,5 +1,6 @@
 import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
+import { trackingOrderLines } from "@/lib/orderLines";
 import { paymentDeadline, shopKey, slipAfterCancel } from "@l-shopee/core";
 
 /**
@@ -27,15 +28,6 @@ interface OrderRow {
   refundedAt: number | null;
   paymentExpiresAt: number | null;
   cancelReason: string | null;
-}
-
-interface LineRow {
-  name: string;
-  productRef: string;
-  imageKey: string | null;
-  quantity: number;
-  unitPriceSatang: number;
-  lineTotalSatang: number;
 }
 
 const NOT_FOUND = {
@@ -75,19 +67,7 @@ export async function GET(request: Request): Promise<Response> {
       return Response.json(NOT_FOUND, { status: 404 });
     }
 
-    const lines = await db
-      .prepare(
-        `SELECT p.name AS name, p.product_ref AS productRef, p.image_key AS imageKey,
-                l.quantity AS quantity, l.unit_price_satang AS unitPriceSatang,
-                l.line_total_satang AS lineTotalSatang
-         FROM sales_order_lines l
-         JOIN product_variants v ON v.id = l.product_variant_id
-         JOIN products p ON p.id = v.product_id
-         WHERE l.sales_order_id = ?
-         ORDER BY l.created_at`,
-      )
-      .bind(order.id)
-      .all<LineRow>();
+    const lines = await trackingOrderLines(db, order.id);
 
     // Per-stage timestamps for the tracking timeline (date/time is each stage's first subtitle line).
     // Read from history like the back office does — the order row alone only carries created + ship.
@@ -174,7 +154,7 @@ export async function GET(request: Request): Promise<Response> {
       // Where the customer ships the defective item back — AirPlus's own shop address (the SAME value
       // shown in admin Shop info; the code treats that one address as the returns address too).
       returnAddress: (await KV.get(shopKey("airplus", "address")))?.trim() || null,
-      lines: lines.results ?? [],
+      lines,
     });
   } catch {
     return Response.json(

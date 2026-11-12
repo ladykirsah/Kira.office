@@ -71,7 +71,8 @@ export function useFlashForm(id: string | null) {
   const loadProducts = useCallback(async () => {
     if (!token) return;
     try {
-      setProducts(await fetchProductRows(fetch, API_BASE, token));
+      // One row per size: each size goes on sale at its own price (7 Nov 2026).
+      setProducts(await fetchProductRows(fetch, API_BASE, token, { bySize: true }));
       setProductsFailed(false);
     } catch {
       setProductsFailed(true);

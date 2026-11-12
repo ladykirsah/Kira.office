@@ -19,6 +19,7 @@ import { Sheet } from "../orders/Sheet";
 import { FieldError } from "../pos/fields";
 import { SPACE, TYPE } from "../theme";
 import { InputRow, Line, Photo, SmallHeading, Stepper } from "./parts";
+import { SizeStockSheet } from "./SizeStockSheet";
 import type { ProductList } from "./useProductList";
 
 const PRICES = [
@@ -97,14 +98,30 @@ export function StockPriceSheet({ list, row }: { list: ProductList; row: Product
     }
   };
 
+  const sized = (row.choiceCount ?? 1) > 1;
+  // Sizes keep their own stock and prices: pick the size first (11 Nov 2026).
+  if (detail && (detail.choices?.length ?? 0) > 0) {
+    return <SizeStockSheet list={list} row={row} detail={detail} />;
+  }
+
   return (
-    <Sheet title={t({ th: "สต็อกและราคา", en: "Stock & prices" })} onClose={close}>
-      <View style={styles.head}>
-        <Photo imageKey={row.imageKey} size={48} radius={10} />
-        <Text style={[TYPE.headline, styles.grow, { color: theme.text }]} numberOfLines={2}>
-          {row.name}
-        </Text>
-      </View>
+    <Sheet
+      title={
+        // A product with sizes asks for the size first, so it says so while it loads.
+        sized
+          ? t({ th: "เลือกขนาด", en: "Pick a size" })
+          : t({ th: "สต็อกและราคา", en: "Stock & prices" })
+      }
+      onClose={close}
+    >
+      {sized ? null : (
+        <View style={styles.head}>
+          <Photo imageKey={row.imageKey} size={48} radius={10} />
+          <Text style={[TYPE.headline, styles.grow, { color: theme.text }]} numberOfLines={2}>
+            {row.name}
+          </Text>
+        </View>
+      )}
       {!form ? (
         failed ? (
           <Text style={[TYPE.subhead, { color: theme.textMuted }]}>

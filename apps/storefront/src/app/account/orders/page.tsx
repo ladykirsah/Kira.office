@@ -8,7 +8,9 @@ import {
 } from "@l-shopee/core";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { accountOrderLines, type AccountOrderLine } from "@/lib/orderLines";
 import { baht, formatDateTime } from "@/lib/format";
+import { sizeLabel } from "@/lib/sizePicker";
 import { OrderLineThumb, ReorderButton, type ReorderLine } from "./ReorderButton";
 
 export const dynamic = "force-dynamic";
@@ -28,17 +30,6 @@ interface OrderRow {
   createdAt: number | null;
   carrier: string | null;
   trackingNo: string | null;
-}
-
-interface OrderLineRow {
-  orderId: string;
-  variantId: string;
-  qty: number;
-  productId: string;
-  name: string;
-  productRef: string;
-  imageKey: string | null;
-  currentPriceSatang: number;
 }
 
 /**
@@ -101,27 +92,12 @@ export default async function AccountOrdersPage() {
         .all<OrderRow>()
     ).results ?? [];
 
-  const linesByOrder = new Map<string, OrderLineRow[]>();
+  const linesByOrder = new Map<string, AccountOrderLine[]>();
   if (orders.length > 0) {
-    const lines =
-      (
-        await db
-          .prepare(
-            `SELECT l.sales_order_id AS orderId, l.product_variant_id AS variantId,
-                  l.quantity AS qty, p.id AS productId, p.name AS name,
-                  p.product_ref AS productRef, p.image_key AS imageKey,
-                  COALESCE(pp.online_price_satang, 0) AS currentPriceSatang
-           FROM sales_order_lines l
-           JOIN product_variants v ON v.id = l.product_variant_id
-           JOIN products p ON p.id = v.product_id
-           LEFT JOIN pricing_profiles pp ON pp.id =
-             (SELECT id FROM pricing_profiles WHERE product_variant_id = v.id
-              ORDER BY active_from DESC LIMIT 1)
-           WHERE l.sales_order_id IN (${orders.map(() => "?").join(",")})`,
-          )
-          .bind(...orders.map((o) => o.id))
-          .all<OrderLineRow>()
-      ).results ?? [];
+    const lines = await accountOrderLines(
+      db,
+      orders.map((o) => o.id),
+    );
     for (const line of lines) {
       const list = linesByOrder.get(line.orderId) ?? [];
       list.push(line);
@@ -159,6 +135,7 @@ export default async function AccountOrdersPage() {
               productRef: l.productRef,
               priceSatang: l.currentPriceSatang,
               imageKey: l.imageKey,
+              ...(l.choiceValue ? { choiceLabel: l.choiceValue } : {}),
               qty: l.qty,
             }));
             return (
@@ -183,7 +160,11 @@ export default async function AccountOrdersPage() {
                 {lines.length > 0 && (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
                     {lines.map((l) => (
-                      <OrderLineThumb key={l.variantId} imageKey={l.imageKey} name={l.name} />
+                      <OrderLineThumb
+                        key={l.variantId}
+                        imageKey={l.imageKey}
+                        name={l.choiceValue ? `${l.name} · ${sizeLabel(l.choiceValue)}` : l.name}
+                      />
                     ))}
                   </div>
                 )}

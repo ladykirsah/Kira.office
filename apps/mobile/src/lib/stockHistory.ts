@@ -24,6 +24,9 @@ export interface Movement {
   productName: string;
   productRef: string | null;
   imageKey: string | null;
+  /** The size that moved ("1/2 กลาง") and its own code; null without sizes. */
+  choiceValue?: string | null;
+  choiceCode?: string | null;
   movementType: string;
   quantityDelta: number;
   quantityAfter: number;

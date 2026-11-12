@@ -6,7 +6,11 @@ export interface StockMovement {
   productName: string;
   /** The product's code (รหัสสินค้า) and photo, for ประวัติซื้อขาย's rows and detail. */
   productRef: string | null;
+  /** A size's own photo when it has one, else the product's. */
   imageKey: string | null;
+  /** The size that moved ("1/2 กลาง") and its own code; null for a product without sizes. */
+  choiceValue: string | null;
+  choiceCode: string | null;
   movementType: string;
   quantityDelta: number;
   quantityAfter: number;
@@ -51,7 +55,9 @@ export async function listStockMovements(
   const { results } = await db
     .prepare(
       `SELECT e.id, e.product_variant_id AS variantId, v.sku, p.name AS productName,
-              p.product_ref AS productRef, p.image_key AS imageKey,
+              p.product_ref AS productRef, COALESCE(v.image_key, p.image_key) AS imageKey,
+              v.option_1_value AS choiceValue,
+              CASE WHEN TRIM(COALESCE(v.option_1_value, '')) <> '' THEN v.barcode_primary END AS choiceCode,
               e.movement_type AS movementType, e.quantity_delta AS quantityDelta,
               e.quantity_after AS quantityAfter,
               CASE

@@ -61,6 +61,8 @@ The canvas is where the owner decides; nothing in the repo changes in this step.
 
 ## Traps seen before
 
+- **Product photos are 1:1, always.** A 358 × 300 hero crops the photo; the owner has said it more than once (5 + 7 Nov). Use 358 × 358.
+
 - **Long labels wrap at 390px** and push the phone down. Keep labels short.
 - **A name at 22px wraps** in a card with a 64px logo. Fine for a hero card; a list row stays at 3 lines or fewer.
 - **Overlapping avatars:** each face sits on top of the one before it (z-index rising), as in Apple's Family row.

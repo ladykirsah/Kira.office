@@ -240,3 +240,37 @@ describe("withUsage", () => {
     expect(withUsage(form, "Engine", "A/C")).toMatchObject({ usage: "Engine", type: null });
   });
 });
+
+/** A product with ตัวเลือกสินค้า: its code, prices and stock live on each choice (7 Nov 2026). */
+const WITH_CHOICES: ProductDetail = {
+  ...DETAIL,
+  optionName: "ขนาด",
+  choices: [
+    {
+      variantId: "v1",
+      value: "3/8 เล็ก",
+      code: "DN-447220",
+      imageKey: null,
+      onHand: 4,
+      held: 1,
+      inUse: true,
+      pricing: DETAIL.pricing,
+    },
+  ],
+};
+
+describe("a product with choices > แก้ไขสินค้า", () => {
+  it("given the form saved > then no code and no prices go, so the first choice keeps its own", () => {
+    const body = saveBody(WITH_CHOICES, { ...formFrom(WITH_CHOICES), den: "1" }, OWNER);
+    expect(body).not.toHaveProperty("barcode");
+    expect(body).not.toHaveProperty("pricing");
+    expect(body.name).toBe("คอมเพรสเซอร์ DENSO 10S11C");
+  });
+
+  it("given the form saved > then no stock moves (each choice keeps its own count)", () => {
+    expect(stockMoves(WITH_CHOICES, { ...formFrom(WITH_CHOICES), sellable: 0, held: 9 })).toEqual({
+      adjust: null,
+      hold: null,
+    });
+  });
+});

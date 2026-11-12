@@ -19,7 +19,7 @@ import { BillCard } from "./BillCard";
 import { QrView } from "./QrView";
 import { NoticeCard } from "./ScanCards";
 import type { PaySheet as Sheet, PayWay } from "./useScanSession";
-import { CodeCopy } from "../CodeCopy";
+import { SizedCodeCopy } from "../CodeCopy";
 
 const CHECK = "M5 12.5l4.5 4.5L19 7.5";
 const BUTTON_BOTTOM = 34;
@@ -177,12 +177,7 @@ function ListStage(props: PaySheetProps) {
                   <Text style={[styles.body, { color: theme.text }]} numberOfLines={1}>
                     {billLineName(c.part, buyer)}
                   </Text>
-                  {c.part.productRef ? (
-                    <CodeCopy
-                      code={c.part.productRef}
-                      style={[styles.sub, { color: theme.textMuted }]}
-                    />
-                  ) : null}
+                  <SizedCodeCopy row={c.part} style={[styles.sub, { color: theme.textMuted }]} />
                   <Text style={[styles.sub, { color: theme.textMuted }]}>
                     {formatBaht(each)} × {c.value}
                   </Text>

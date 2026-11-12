@@ -21,6 +21,7 @@ import { DOWNLOAD_ICON, LabelSheet, PreviewSheet, Printer } from "./LabelSheets"
 import { saveOneLabel, savePages } from "./saveSheet";
 import { useBarcodes, type Barcodes } from "./useBarcodes";
 import { CodeCopy } from "../CodeCopy";
+import { rowSizeCode } from "@/lib/sizeLine";
 
 /** A card's label picture: one scale for all, so L shows wider than S as on paper (style B). */
 const CARD_PX_PER_MM = 2.6;
@@ -212,11 +213,25 @@ function LabelCard({ list, item }: { list: Barcodes; item: SheetItem }) {
           <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
-          <CodeCopy
-            code={row.productRef}
-            after={t(cardLine(row.productRef, item.size)).slice(row.productRef.trim().length)}
-            style={[TYPE.subhead, { color: theme.textMuted }]}
-          />
+          {rowSizeCode(row).tag ? (
+            // A size: its tag and code, then the label size on its own line, so nothing is cut short.
+            <>
+              <CodeCopy
+                code={rowSizeCode(row).code ?? row.productRef}
+                tag={rowSizeCode(row).tag}
+                style={[TYPE.subhead, { color: theme.textMuted }]}
+              />
+              <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+                {t(cardLine("", item.size))}
+              </Text>
+            </>
+          ) : (
+            <CodeCopy
+              code={row.productRef}
+              after={t(cardLine(row.productRef, item.size)).slice(row.productRef.trim().length)}
+              style={[TYPE.subhead, { color: theme.textMuted }]}
+            />
+          )}
         </Pressable>
         <View style={styles.stepper}>
           <Stepper

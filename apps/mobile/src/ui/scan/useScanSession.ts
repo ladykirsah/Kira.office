@@ -11,7 +11,7 @@ import {
   type BillDoc,
 } from "@/lib/mechanicBill";
 import { payQr } from "@/lib/qr";
-import { addProductRoute, productRoute } from "@/lib/appRoutes";
+import { addProductRoute, partRoute } from "@/lib/appRoutes";
 import { posDraftRoute } from "@/lib/posDraft";
 import {
   adjustStock,
@@ -40,6 +40,7 @@ import {
   type SaveOutcome,
   type ScanCard,
   type ScanTab,
+  type ScannedPart,
 } from "@/lib/scanTabs";
 import { useAuth } from "../AppProviders";
 import { readPref, writePref } from "../prefs";
@@ -504,7 +505,8 @@ export function useScanSession() {
     closeSheet: () => {
       if (!sheet?.busy) setSheet(null);
     },
-    openProduct: (productId: string) => router.push(productRoute(productId) as never),
+    openProduct: (part: Pick<ScannedPart, "productId" | "variantId" | "choiceValue">) =>
+      router.push(partRoute(part) as never),
     addProduct: () => {
       if (notFound) router.push(addProductRoute(notFound) as never);
     },

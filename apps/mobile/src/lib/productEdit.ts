@@ -1,5 +1,6 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { formatBaht } from "./money";
+import type { Choice, GroupMember } from "./productChoices";
 import type { HoldLine } from "./scanTabs";
 import type { Fitment } from "./productList";
 import { totalCostSatang, type GalleryImage, type Pricing } from "./productPage";
@@ -37,7 +38,15 @@ export interface ProductDetail {
   fitments: Fitment[];
   pricing: Pricing | null;
   images: GalleryImage[];
+  /** ตัวเลือกสินค้า (7 Nov 2026): the option's name ("ขนาด") and its choices; none for most products. */
+  optionName?: string | null;
+  choices?: Choice[];
+  /** กลุ่มสินค้า: the products that stand in for this one, itself included; [] when in no group. */
+  group?: GroupMember[];
 }
+
+/** A product with choices keeps its code, prices and stock on each choice, not on itself. */
+const withChoices = (d: ProductDetail): boolean => (d.choices?.length ?? 0) > 0;
 
 /** What the form holds while it is being edited. Money and sizes stay as typed until saved. */
 export interface ProductForm {
@@ -74,7 +83,8 @@ export interface EditRights {
 export interface SaveBody {
   id: string;
   productRef: string;
-  barcode: string;
+  /** Left out for a product with choices: each choice has its own code. */
+  barcode?: string;
   name: string;
   description: string | null;
   status: string;
@@ -88,7 +98,8 @@ export interface SaveBody {
   usageName: string | null;
   typeName: string | null;
   fitments: Fitment[];
-  pricing: Omit<Pricing, "taxOnCost"> & { taxOnCost: boolean };
+  /** Left out for a product with choices: each choice has its own prices. */
+  pricing?: Omit<Pricing, "taxOnCost"> & { taxOnCost: boolean };
 }
 
 export type FormErrors = Partial<
@@ -195,11 +206,9 @@ export function saveBody(d: ProductDetail, f: ProductForm, rights: EditRights): 
   const price = (typed: string, kept: number) =>
     rights.prices ? (parseBaht(typed) ?? kept) : kept;
   const code = f.code.trim();
-  return {
+  const fields = {
     id: d.product.id,
     productRef: code,
-    // The barcode is the product code (one identifier), as the web back office saves it.
-    barcode: code,
     name: f.name.trim(),
     description: f.description.trim() || null,
     status: rights.channels ? nextStatus(d.product.status, f.onAirplus) : d.product.status,
@@ -213,6 +222,13 @@ export function saveBody(d: ProductDetail, f: ProductForm, rights: EditRights): 
     usageName: f.usage,
     typeName: f.type,
     fitments: f.fitments,
+  };
+  // A product with choices: the server keeps each choice's code and prices when these are left out.
+  if (withChoices(d)) return fields;
+  return {
+    ...fields,
+    // The barcode is the product code (one identifier), as the web back office saves it.
+    barcode: code,
     pricing: {
       itemCostSatang: parseBaht(f.cost) ?? stored?.itemCostSatang ?? 0,
       taxOnCost: f.vat,
@@ -242,7 +258,7 @@ export function stockMoves(
   d: ProductDetail,
   f: Pick<ProductForm, "sellable" | "held">,
 ): { adjust: StockCount | null; hold: HoldLine | null } {
-  if (!d.variantId) return { adjust: null, hold: null };
+  if (!d.variantId || withChoices(d)) return { adjust: null, hold: null };
   const adjust: StockCount | null =
     f.sellable !== d.onHand
       ? {

@@ -16,6 +16,9 @@ export interface CartLine {
   /** Brand label (e.g. "DENSO"), shown as the cart-line pill. Optional: carts saved before this
    *  field existed, and reorder lines, simply omit it — the pill is hidden when absent. */
   brandName?: string | null;
+  /** The size bought (e.g. "3/8 เล็ก") for a product with choices. Optional: normal products, and
+   *  carts saved before sizes existed, simply omit it. */
+  choiceLabel?: string;
   priceSatang: number;
   imageKey: string | null;
   qty: number;

@@ -50,6 +50,7 @@ import { PrivateImage } from "./PrivateImage";
 import { Sheet } from "./Sheet";
 import { useOrderDetail } from "./useOrderDetail";
 import { CodeCopy } from "../CodeCopy";
+import { sizeCode } from "@/lib/sizeLine";
 
 const TOAST_MS = 2600;
 const PATH: Phrase[] = [
@@ -415,10 +416,11 @@ function Sections(props: {
                 <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
                   {l.name ?? dash}
                 </Text>
-                {l.productRef ? (
+                {sizeCode(l).code ? (
                   <CodeCopy
                     before={`${[`× ${l.quantity}`, l.variantName].filter(Boolean).join(" · ")} · ${t({ th: "รหัสสินค้า", en: "ID" })} `}
-                    code={l.productRef}
+                    code={sizeCode(l).code!}
+                    tag={sizeCode(l).tag}
                     style={[TYPE.subhead, { color: theme.textMuted }]}
                   />
                 ) : (

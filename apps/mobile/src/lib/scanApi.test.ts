@@ -75,6 +75,69 @@ describe("lookupPart", () => {
     expect(calls[0]?.init.headers).toEqual({ "X-Staff-Session": "tok" });
   });
 
+  it("given the code of one size of a product with sizes > then the card shows THAT size's stock, prices, photo and name", async () => {
+    const sized = {
+      ...detail,
+      onHand: 100,
+      held: 0,
+      choices: [
+        {
+          variantId: "v1",
+          value: "3/8 เล็ก",
+          imageKey: null,
+          onHand: 100,
+          held: 0,
+          pricing: { targetPriceSatang: 3500, b2bPriceSatang: 2500, itemCostSatang: 1200 },
+        },
+        {
+          variantId: "v2",
+          value: "1/2 กลาง",
+          code: "TG-002",
+          imageKey: "img/half.jpg",
+          onHand: 7,
+          held: 2,
+          pricing: { targetPriceSatang: 4500, b2bPriceSatang: 3500, itemCostSatang: 1500 },
+        },
+      ],
+    };
+    const { fetchFn } = recording([
+      async () => Response.json({ ...found, variantId: "v2", barcode: "TG-002" }),
+      async () => Response.json(sized),
+    ]);
+
+    const part = await lookupPart(fetchFn, "http://api", "tok", "TG-002");
+
+    expect(part).toMatchObject({
+      variantId: "v2",
+      choiceValue: "1/2 กลาง",
+      choiceCode: "TG-002",
+      photoKeys: ["img/half.jpg"],
+      onHand: 7,
+      held: 2,
+      unitPriceSatang: 4500,
+      b2bPriceSatang: 3500,
+      unitCostSatang: 1500,
+    });
+  });
+
+  it("given a size with no photo of its own > then the product's photos stand in", async () => {
+    const sized = {
+      ...detail,
+      choices: [
+        { variantId: "v1", value: "3/8 เล็ก", imageKey: null, onHand: 3, held: 1, pricing: null },
+      ],
+    };
+    const { fetchFn } = recording([
+      async () => Response.json(found),
+      async () => Response.json(sized),
+    ]);
+
+    const part = await lookupPart(fetchFn, "http://api", "tok", "885");
+
+    expect(part?.photoKeys).toEqual(["img/valve.jpg", "img/valve-side.jpg"]);
+    expect(part?.unitPriceSatang).toBe(0);
+  });
+
   it("given a code no product has > then it is null and nothing else is asked", async () => {
     const { calls, fetchFn } = recording([async () => new Response("", { status: 404 })]);
 

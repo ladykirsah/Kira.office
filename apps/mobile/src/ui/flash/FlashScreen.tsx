@@ -29,7 +29,8 @@ import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
 import { FLASH_BASE, ItemRow, OffPhoto, StateDot, useNow } from "./parts";
 import { useFlashList } from "./useFlashList";
-import { CodeCopy } from "../CodeCopy";
+import { SizedCodeCopy } from "../CodeCopy";
+import { sizeCode } from "@/lib/sizeLine";
 
 /**
  * One sale (canvas v259, แฟลชเซล 3): its name, สถานะ (a live one says how long is left), ช่วงเวลา, then
@@ -174,7 +175,8 @@ export function FlashScreen() {
           <ItemRow
             key={p.id}
             name={p.productName}
-            code={p.productRef}
+            code={sizeCode(p).code}
+            tag={sizeCode(p).tag}
             imageKey={p.imageKey}
             off={`${offPercent(p.basePriceSatang, p.campaignPriceSatang)}%`}
             price={formatBaht(p.campaignPriceSatang)}
@@ -212,9 +214,7 @@ function ItemsTable({ prices }: { prices: readonly FlashItem[] }) {
             <Text style={[TYPE.subhead, { color: theme.text }]} numberOfLines={2}>
               {p.productName}
             </Text>
-            {p.productRef ? (
-              <CodeCopy code={p.productRef} style={[TYPE.footnote, { color: theme.textMuted }]} />
-            ) : null}
+            <SizedCodeCopy row={p} style={[TYPE.footnote, { color: theme.textMuted }]} />
           </View>
         </View>
       ),

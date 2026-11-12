@@ -210,6 +210,7 @@ function ItemsBox({ edit }: { edit: FlashFormState }) {
             key={l.productVariantId}
             name={l.name}
             code={l.productRef}
+            tag={l.choiceValue}
             imageKey={l.imageKey}
             off={`${offPercent(l.basePriceSatang, toSatang(l.sale))}%`}
             price={formatBaht(toSatang(l.sale))}

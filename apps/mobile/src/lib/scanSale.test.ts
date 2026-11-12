@@ -111,6 +111,19 @@ describe("saleLines", () => {
     expect(saleLines([coil], "customer")[0]!.description).toBe("ตู้แอร์ Cool Gear");
     expect(saleLines([coil], "mechanic")[0]!.description).toBe("ตู้แอร์ Cool Gear Revo");
   });
+
+  it("given one size of a part > then the bill names the size after it (11 Nov 2026)", () => {
+    const oring: ScanCard = {
+      part: part({
+        name: "โอริง R134a DENSO",
+        typeName: "โอริง",
+        brandName: "DENSO",
+        choiceValue: "1/2 กลาง",
+      }),
+      value: 2,
+    };
+    expect(saleLines([oring], "customer")[0]!.description).toBe("โอริง DENSO 1/2 กลาง");
+  });
 });
 
 describe("overSold", () => {

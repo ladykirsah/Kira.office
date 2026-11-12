@@ -17,6 +17,9 @@ export interface FlashItem {
   productVariantId: string;
   productName: string;
   productRef: string | null;
+  /** The size on sale and its own code; null (or absent, from an older server) without sizes. */
+  choiceValue?: string | null;
+  choiceCode?: string | null;
   imageKey: string | null;
   /** The AirPlus price the sale cuts from (ราคาปกติ). */
   basePriceSatang: number;
@@ -235,6 +238,8 @@ export interface FlashLine {
   productVariantId: string;
   name: string;
   productRef: string | null;
+  /** The size on sale ("1/2 กลาง"); absent for a product without sizes. */
+  choiceValue?: string;
   imageKey: string | null;
   basePriceSatang: number;
   sale: string;
@@ -279,7 +284,9 @@ export function formOf(s: FlashSale): FlashForm {
       priceId: p.id,
       productVariantId: p.productVariantId,
       name: p.productName,
-      productRef: p.productRef,
+      // A size on sale shows its own code and its value (11 Nov 2026).
+      productRef: p.choiceValue ? (p.choiceCode ?? p.productRef) : p.productRef,
+      ...(p.choiceValue ? { choiceValue: p.choiceValue } : {}),
       imageKey: p.imageKey,
       basePriceSatang: p.basePriceSatang,
       sale: bahtText(p.campaignPriceSatang),
@@ -295,7 +302,9 @@ export function lineOf(r: ProductRow, sale: string, cap: string): FlashLine {
     priceId: null,
     productVariantId: r.variantId,
     name: r.name,
-    productRef: r.productRef,
+    // A size goes on sale under its own code (7 Nov 2026).
+    productRef: r.optionValue ? (r.code ?? r.productRef) : r.productRef,
+    ...(r.optionValue ? { choiceValue: r.optionValue } : {}),
     imageKey: r.imageKey,
     basePriceSatang: r.onlinePriceSatang,
     sale,

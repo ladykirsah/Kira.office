@@ -18,6 +18,7 @@ import { CodeCopy } from "../CodeCopy";
 import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { sizeCode } from "@/lib/sizeLine";
 
 const PHOTO = 96;
 const PHOTO_GAP = 8;
@@ -104,9 +105,13 @@ function PhoneProductCard(props: ProductCardProps) {
         </Text>
         <LineIcon d={CHEVRON} color={theme.textFaint} size={15} strokeWidth={2.4} />
       </Pressable>
-      {part.productRef ? (
+      {sizeCode(part).code ? (
         <View style={styles.codeRow}>
-          <CodeCopy code={part.productRef} style={[styles.code, { color: theme.textMuted }]} />
+          <CodeCopy
+            code={sizeCode(part).code!}
+            tag={sizeCode(part).tag}
+            style={[styles.code, { color: theme.textMuted }]}
+          />
         </View>
       ) : null}
       <Text
@@ -198,9 +203,13 @@ function WideProductCard(props: ProductCardProps) {
           </Text>
           <LineIcon d={CHEVRON} color={theme.textFaint} size={15} strokeWidth={2.4} />
         </Pressable>
-        {part.productRef ? (
+        {sizeCode(part).code ? (
           <View style={[styles.codeRow, styles.flush]}>
-            <CodeCopy code={part.productRef} style={[styles.code, { color: theme.textMuted }]} />
+            <CodeCopy
+              code={sizeCode(part).code!}
+              tag={sizeCode(part).tag}
+              style={[styles.code, { color: theme.textMuted }]}
+            />
           </View>
         ) : null}
         <Text

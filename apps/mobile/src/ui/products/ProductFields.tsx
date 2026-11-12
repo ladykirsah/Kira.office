@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { nameCodeProblem } from "@/lib/productAdd";
-import { bahtText, parseBaht } from "@/lib/productEdit";
+import { bahtText, parseBaht, type ProductForm } from "@/lib/productEdit";
 import { yearRange } from "@/lib/productList";
 import { totalCostSatang } from "@/lib/productPage";
 import { nameLabel } from "@/lib/productPickers";
@@ -21,6 +21,17 @@ import { ScanCodeSheet } from "./ScanCodeSheet";
 import type { ProductFormState } from "./useProductEdit";
 
 export type Mode = "edit" | "add";
+
+type PriceStockKey =
+  "cost" | "vat" | "den" | "mechanic" | "airplus" | "shopee" | "sellable" | "held";
+
+/** What the price list and the stock steppers need: แก้ไขสินค้า and a choice's form both give it. */
+export interface PriceStockState {
+  form: Pick<ProductForm, PriceStockKey> | null;
+  set: (next: Partial<Pick<ProductForm, PriceStockKey>>) => void;
+  rights: { prices: boolean };
+  errors: Partial<Record<"cost" | "den" | "mechanic" | "airplus" | "shopee", Phrase>>;
+}
 
 const DASH: Phrase = { th: "—", en: "—" };
 
@@ -61,10 +72,13 @@ export function ProductFields({
   edit,
   mode,
   onAutoName,
+  withChoices = false,
 }: {
   edit: ProductFormState;
   mode: Mode;
   onAutoName?: () => void;
+  /** ตัวเลือกสินค้า: prices and stock live on each choice's own page then, not here (7 Nov 2026). */
+  withChoices?: boolean;
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
@@ -125,11 +139,15 @@ export function ProductFields({
         ))}
         {edit.codeOwner && <CodeTaken edit={edit} />}
       </View>
-      <Prices edit={edit} blank={hint.money} />
-      <Heading text={t({ th: "สต็อก", en: "Stock" })} />
-      <Group>
-        <StockSteppers edit={edit} />
-      </Group>
+      {!withChoices && (
+        <>
+          <Prices edit={edit} blank={hint.money} />
+          <Heading text={t({ th: "สต็อก", en: "Stock" })} />
+          <Group>
+            <StockSteppers edit={edit} />
+          </Group>
+        </>
+      )}
       <Cars edit={edit} />
       <PartDetails edit={edit} mode={mode} />
       <Heading text={t({ th: "รายละเอียด", en: "Description" })} />
@@ -163,7 +181,7 @@ export function ProductFields({
 }
 
 /** ขายได้ and งานนอก, each with − n +. */
-export function StockSteppers({ edit }: { edit: ProductFormState }) {
+export function StockSteppers({ edit }: { edit: PriceStockState }) {
   const { t } = useLang();
   const f = edit.form!;
   return (
@@ -310,7 +328,7 @@ export const PRICES = [
 ] as const;
 
 /** Cost first (with the VAT switch and the total), then the four prices. */
-function Prices({ edit, blank }: { edit: ProductFormState; blank: string }) {
+export function Prices({ edit, blank }: { edit: PriceStockState; blank: string }) {
   const { t } = useLang();
   const f = edit.form!;
   const baht = t({ th: "บาท", en: "THB" });

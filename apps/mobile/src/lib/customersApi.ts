@@ -31,6 +31,9 @@ export interface CarSaleLine {
   discountSatang: number;
   productRef: string | null;
   brandName: string | null;
+  /** The size bought ("1/2 กลาง") and its own code; null without sizes. */
+  choiceValue?: string | null;
+  choiceCode?: string | null;
 }
 
 /** A bill or open quotation of one car. */

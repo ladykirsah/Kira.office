@@ -20,6 +20,7 @@ import { SHEET_PX_PER_MM, sizeWords } from "./LabelSheets";
 const WIDE_PX_PER_MM = 6.5;
 import type { Barcodes } from "./useBarcodes";
 import { CodeCopy } from "../CodeCopy";
+import { rowSizeCode } from "@/lib/sizeLine";
 
 interface Start {
   productId?: string;
@@ -152,7 +153,8 @@ function PickProduct(props: {
                     {r.name}
                   </Text>
                   <CodeCopy
-                    code={r.productRef}
+                    code={rowSizeCode(r).code ?? r.productRef}
+                    tag={rowSizeCode(r).tag}
                     style={[TYPE.subhead, { color: theme.textMuted }]}
                   />
                 </View>
@@ -211,9 +213,10 @@ function SetLabel(props: {
           <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
             {row.name}
           </Text>
-          {row.productRef ? (
+          {rowSizeCode(row).code ? (
             <CodeCopy
-              code={row.productRef}
+              code={rowSizeCode(row).code!}
+              tag={rowSizeCode(row).tag}
               after={car ? ` · ${car}` : undefined}
               style={[TYPE.subhead, { color: theme.textMuted }]}
             />

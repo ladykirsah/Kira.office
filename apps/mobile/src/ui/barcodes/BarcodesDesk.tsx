@@ -13,6 +13,7 @@ import { PaperChoices } from "./PaperChoices";
 import { LabelArt } from "./LabelArt";
 import type { Barcodes } from "./useBarcodes";
 import { CodeCopy } from "../CodeCopy";
+import { rowSizeCode } from "@/lib/sizeLine";
 
 /** The phone card's label scale: one for all, so L shows wider than S as on paper. */
 const CARD_PX_PER_MM = 2.6;
@@ -67,11 +68,25 @@ export function BarcodesDesk({ list }: { list: Barcodes }) {
             <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>
               {row.name}
             </Text>
-            <CodeCopy
-              code={row.productRef}
-              after={t(cardLine(row.productRef, item.size)).slice(row.productRef.trim().length)}
-              style={[styles.sub, { color: theme.textMuted }]}
-            />
+            {rowSizeCode(row).tag ? (
+              // A size: its tag and code, then the label size on its own line, so nothing is cut short.
+              <>
+                <CodeCopy
+                  code={rowSizeCode(row).code ?? row.productRef}
+                  tag={rowSizeCode(row).tag}
+                  style={[styles.sub, { color: theme.textMuted }]}
+                />
+                <Text style={[styles.sub, { color: theme.textMuted }]} numberOfLines={1}>
+                  {t(cardLine("", item.size))}
+                </Text>
+              </>
+            ) : (
+              <CodeCopy
+                code={row.productRef}
+                after={t(cardLine(row.productRef, item.size)).slice(row.productRef.trim().length)}
+                style={[styles.sub, { color: theme.textMuted }]}
+              />
+            )}
           </Pressable>
         );
       },

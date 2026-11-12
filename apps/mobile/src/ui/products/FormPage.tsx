@@ -1,15 +1,20 @@
 import { useEffect, useRef, type ComponentRef, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WEB_EDGE_FADE } from "@/lib/frame";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useLang, useTheme } from "../AppProviders";
 import { BigButton } from "../BigButton";
 import { useWide } from "../desk/useWide";
+import { PHONE_PAGE_SCROLLS, PINNED_TO_SCREEN } from "../pageScroll";
+import { useScreenChrome } from "../ScreenChrome";
 import { PHONE_MAX_WIDTH, SPACE, TYPE } from "../theme";
 import { DeskFormPage } from "./DeskFormPage";
 
 const HOME = 34;
 const FADE = 28;
+/** The head row: ยกเลิก and the title. */
+const HEAD = 44;
 
 /**
  * A whole-screen form, as แก้ไขสินค้า is drawn (canvas v194): the ยกเลิก pill and the centred title on
@@ -46,8 +51,15 @@ export function FormPage(props: FormPageProps) {
 }
 
 function PhoneFormPage(props: FormPageProps) {
+  const wide = useWide();
+  // The phone website scrolls whole, so its form is a page, not a layer over one (owner, 7 Nov 2026).
+  if (PHONE_PAGE_SCROLLS && !wide) return <PageFormPage {...props} />;
+  return <LayerFormPage {...props} />;
+}
+
+/** The app's form: a whole-screen layer that slides up, the form scrolling inside it. */
+function LayerFormPage(props: FormPageProps) {
   const { theme } = useTheme();
-  const { t } = useLang();
   const insets = useSafeAreaInsets();
   const bottom = Math.max(HOME, insets.bottom);
   const pinned = props.save ? 50 : 0;
@@ -59,43 +71,7 @@ function PhoneFormPage(props: FormPageProps) {
     <Modal visible transparent={false} animationType="slide" onRequestClose={props.onCancel}>
       <View style={[styles.fill, { backgroundColor: theme.bg }]}>
         <View style={[styles.column, styles.top, { paddingTop: insets.top + SPACE.m }]}>
-          <View style={styles.head}>
-            <Pressable
-              onPress={props.onCancel}
-              accessibilityRole="button"
-              style={[
-                styles.pill,
-                { backgroundColor: theme.surface, borderColor: theme.glassLine },
-              ]}
-            >
-              <Text style={[TYPE.body, { color: theme.text }]}>
-                {props.cancelLabel ?? t({ th: "ยกเลิก", en: "Cancel" })}
-              </Text>
-            </Pressable>
-            <View style={styles.titles} pointerEvents="none">
-              <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
-                {props.title}
-              </Text>
-            </View>
-          </View>
-          {props.note ? (
-            <View style={styles.noteRow} pointerEvents="none">
-              <View
-                style={[
-                  styles.note,
-                  {
-                    backgroundColor: theme.surface,
-                    borderWidth: theme.cardLine,
-                    borderColor: theme.border,
-                  },
-                ]}
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-              >
-                <Text style={[TYPE.subhead, { color: theme.text }]}>{props.note}</Text>
-              </View>
-            </View>
-          ) : null}
+          <FormHead {...props} />
         </View>
         <ScrollView
           ref={scroller}
@@ -111,37 +87,157 @@ function PhoneFormPage(props: FormPageProps) {
         </ScrollView>
         {(props.save || props.toast) && (
           <View style={styles.footer} pointerEvents="box-none">
-            {/* A short fade, then the page colour solid to the bottom edge, so cards scroll under. */}
-            <Svg width="100%" height={FADE} pointerEvents="none">
-              <Defs>
-                <LinearGradient id="formFade" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={theme.bg} stopOpacity={0} />
-                  <Stop offset="1" stopColor={theme.bg} stopOpacity={1} />
-                </LinearGradient>
-              </Defs>
-              <Rect x="0" y="0" width="100%" height={FADE} fill="url(#formFade)" />
-            </Svg>
-            <View style={{ backgroundColor: theme.bg, paddingTop: SPACE.s, paddingBottom: bottom }}>
-              <View style={[styles.column, styles.footerInner]}>
-                {props.toast && (
-                  <View
-                    style={styles.toast}
-                    accessibilityRole="alert"
-                    accessibilityLiveRegion="polite"
-                  >
-                    <Text style={styles.toastTitle}>{props.toast.title}</Text>
-                    {props.toast.detail ? (
-                      <Text style={styles.toastDetail}>{props.toast.detail}</Text>
-                    ) : null}
-                  </View>
-                )}
-                {props.save && <BigButton label={props.save.label} onPress={props.save.onPress} />}
-              </View>
-            </View>
+            <FormFooter {...props} bottom={bottom} edgeFade={0} />
           </View>
         )}
       </View>
     </Modal>
+  );
+}
+
+/**
+ * The website's form on a phone: the page itself scrolls, under iPhone Safari's clock and bottom
+ * bar, while ยกเลิก and the title stay pinned on top and บันทึก at the bottom, as drawn.
+ */
+function PageFormPage(props: FormPageProps) {
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottom = Math.max(HOME, insets.bottom);
+  const pinned = props.save ? 50 : 0;
+  const headTop = insets.top + SPACE.m;
+  useScreenChrome(null, [], { bare: true });
+  useEffect(() => {
+    if (props.scrollKey) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [props.scrollKey]);
+  return (
+    <View style={[styles.fill, { backgroundColor: theme.bg }]}>
+      <View
+        style={[
+          styles.column,
+          styles.body,
+          { paddingTop: headTop + HEAD + SPACE.s, paddingBottom: bottom + pinned + SPACE.xxxl },
+        ]}
+      >
+        {props.children}
+      </View>
+      <View style={[styles.pageHead, PINNED_TO_SCREEN]} pointerEvents="box-none">
+        <View style={[styles.column, { paddingTop: headTop, backgroundColor: theme.bg }]}>
+          <FormHead {...props} />
+        </View>
+        {/* The form fades in under the head instead of meeting it in a hard line. */}
+        <Svg width="100%" height={FADE} pointerEvents="none">
+          <Defs>
+            <LinearGradient id="formHeadFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={theme.bg} stopOpacity={1} />
+              <Stop offset="1" stopColor={theme.bg} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height={FADE} fill="url(#formHeadFade)" />
+        </Svg>
+      </View>
+      {(props.save || props.toast) && (
+        <View style={[styles.footer, PINNED_TO_SCREEN]} pointerEvents="box-none">
+          <FormFooter {...props} bottom={bottom} edgeFade={WEB_EDGE_FADE} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** ยกเลิก on the left, the title in the middle, and any short note floating under them. */
+function FormHead(props: FormPageProps) {
+  const { theme } = useTheme();
+  const { t } = useLang();
+  return (
+    <>
+      <View style={styles.head}>
+        <Pressable
+          onPress={props.onCancel}
+          accessibilityRole="button"
+          style={[styles.pill, { backgroundColor: theme.surface, borderColor: theme.glassLine }]}
+        >
+          <Text style={[TYPE.body, { color: theme.text }]}>
+            {props.cancelLabel ?? t({ th: "ยกเลิก", en: "Cancel" })}
+          </Text>
+        </Pressable>
+        <View style={styles.titles} pointerEvents="none">
+          <Text style={[TYPE.headline, { color: theme.text }]} accessibilityRole="header">
+            {props.title}
+          </Text>
+        </View>
+      </View>
+      {props.note ? (
+        <View style={styles.noteRow} pointerEvents="none">
+          <View
+            style={[
+              styles.note,
+              {
+                backgroundColor: theme.surface,
+                borderWidth: theme.cardLine,
+                borderColor: theme.border,
+              },
+            ]}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+          >
+            <Text style={[TYPE.subhead, { color: theme.text }]}>{props.note}</Text>
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The red บันทึก and any message above it, on a band of the page colour that fades in upward. On
+ * the website (`edgeFade`) the band also melts away at the bottom, where the page shows on under
+ * Safari's bar.
+ */
+function FormFooter(props: FormPageProps & { bottom: number; edgeFade: number }) {
+  const { theme } = useTheme();
+  return (
+    <>
+      {/* A short fade, then the page colour solid to the bottom edge, so cards scroll under. */}
+      <Svg width="100%" height={FADE} pointerEvents="none">
+        <Defs>
+          <LinearGradient id="formFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={theme.bg} stopOpacity={0} />
+            <Stop offset="1" stopColor={theme.bg} stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height={FADE} fill="url(#formFade)" />
+      </Svg>
+      <View
+        style={{
+          backgroundColor: theme.bg,
+          paddingTop: SPACE.s,
+          paddingBottom: props.bottom - props.edgeFade,
+        }}
+      >
+        <View style={[styles.column, styles.footerInner]}>
+          {props.toast && (
+            <View style={styles.toast} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Text style={styles.toastTitle}>{props.toast.title}</Text>
+              {props.toast.detail ? (
+                <Text style={styles.toastDetail}>{props.toast.detail}</Text>
+              ) : null}
+            </View>
+          )}
+          {props.save && <BigButton label={props.save.label} onPress={props.save.onPress} />}
+        </View>
+      </View>
+      {props.edgeFade > 0 && (
+        <Svg width="100%" height={props.edgeFade} pointerEvents="none">
+          <Defs>
+            <LinearGradient id="formEdgeFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={theme.bg} stopOpacity={1} />
+              <Stop offset="1" stopColor={theme.bg} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height={props.edgeFade} fill="url(#formEdgeFade)" />
+        </Svg>
+      )}
+    </>
   );
 }
 
@@ -154,7 +250,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.l,
   },
   top: { zIndex: 2 },
-  head: { height: 44, flexDirection: "row", alignItems: "center" },
+  head: { height: HEAD, flexDirection: "row", alignItems: "center" },
   pill: {
     height: 44,
     paddingHorizontal: SPACE.l,
@@ -183,6 +279,7 @@ const styles = StyleSheet.create({
   },
   body: { paddingTop: SPACE.s },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  pageHead: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 2 },
   footerInner: { gap: SPACE.s },
   toast: {
     alignSelf: "center",

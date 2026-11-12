@@ -9,6 +9,8 @@ import { track } from "@/lib/track";
 import { BrandTag } from "@/components/BrandTag";
 import { DiscountTag } from "@/components/DiscountTag";
 import { ReadyToShip } from "@/components/ReadyToShip";
+import { useCardSizePick } from "@/components/CardSizePick";
+import { cardSizeLine } from "@/lib/sizePicker";
 import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 import { productHref } from "@/lib/seo";
@@ -23,12 +25,21 @@ import { productHref } from "@/lib/seo";
  *
  * Out-of-stock products are filtered out upstream (CATALOG_SELECT in lib/db.ts) — they never reach
  * a card, so the status is always "พร้อมส่ง" and the add button is always safe to press.
+ *
+ * A product with sizes (board 3b, 11 Nov 2026) says "3 ขนาด", prices "เริ่ม ฿30" and its button opens
+ * the size sheet (เลือกขนาด) instead of adding the cheapest size unasked.
  */
 export function ProductCard({ item }: { item: CatalogItem }) {
   const [justAdded, setJustAdded] = useState(false);
+  const sizes = cardSizeLine(item.choiceCount);
+  const pick = useCardSizePick(item);
   const eff = resolveEffectivePrice(item.priceSatang, item.campaign, Date.now());
 
   function handleAdd() {
+    if (sizes) {
+      void pick.open();
+      return;
+    }
     track("add_to_cart", item.productId);
     addToCart(
       {
@@ -111,6 +122,7 @@ export function ProductCard({ item }: { item: CatalogItem }) {
             {item.brandName && <BrandTag name={item.brandName} />}
             <ReadyToShip />
           </div>
+          {sizes && <div style={{ fontSize: 12, color: "var(--gray-mid)" }}>{sizes}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span
               style={{
@@ -121,6 +133,11 @@ export function ProductCard({ item }: { item: CatalogItem }) {
                 letterSpacing: "-0.01em",
               }}
             >
+              {sizes && (
+                <span style={{ fontSize: 12, fontWeight: 400, color: "var(--gray-mid)" }}>
+                  เริ่ม{" "}
+                </span>
+              )}
               {baht(eff.priceSatang)}
             </span>
             <DiscountTag priceSatang={eff.priceSatang} compareAtSatang={eff.compareAtSatang} />
@@ -132,7 +149,8 @@ export function ProductCard({ item }: { item: CatalogItem }) {
         <button
           type="button"
           onClick={handleAdd}
-          aria-label={`หยิบใส่ตะกร้า: ${item.name}`}
+          aria-label={sizes ? `เลือกขนาด: ${item.name}` : `หยิบใส่ตะกร้า: ${item.name}`}
+          aria-busy={pick.busy || undefined}
           style={{
             width: "100%",
             border: "none",
@@ -147,9 +165,10 @@ export function ProductCard({ item }: { item: CatalogItem }) {
             whiteSpace: "nowrap",
           }}
         >
-          {justAdded ? "เพิ่มลงตะกร้าแล้ว ✓" : "หยิบใส่ตะกร้า"}
+          {justAdded || pick.added ? "เพิ่มลงตะกร้าแล้ว ✓" : sizes ? "เลือกขนาด" : "หยิบใส่ตะกร้า"}
         </button>
       </div>
+      {pick.element}
     </div>
   );
 }

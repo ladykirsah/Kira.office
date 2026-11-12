@@ -10,6 +10,8 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { barBottom as barBottomFor, bottomBar, pageWidth, phoneBottoms } from "@/lib/frame";
@@ -32,6 +34,7 @@ import {
   type SearchBar,
 } from "./ScreenChrome";
 import { MenuDrawer } from "./MenuDrawer";
+import { PHONE_PAGE_SCROLLS, PINNED_TO_SCREEN, usePhonePageScroll } from "./pageScroll";
 import { Segmented } from "./Segmented";
 import { MENU_ICON, PAGE_ICONS, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
@@ -159,24 +162,31 @@ function PhoneShell({ children }: { children: ReactNode }) {
   const bar = bottomBar(chrome);
   const barBottom = barBottomFor(insets.bottom);
   const bottoms = phoneBottoms({ bar, insetBottom: insets.bottom, pinned: pinnedHeight(chrome) });
+  usePhonePageScroll(path);
   const goAndClose = (href: string) => {
     setOpen(false);
     go(href);
   };
+  // A page that draws its whole screen (a form) gets no head, padding or bar; the slots stay in
+  // place so the page itself is never redrawn from scratch when it says so.
+  const bare = chrome.bare;
   return (
     <View style={[s.fill, { backgroundColor: theme.bg }]}>
-      <ScrollView
-        style={s.fill}
-        contentContainerStyle={[
-          s.phoneContent,
-          {
-            paddingTop: insets.top + SPACE.m,
-            paddingBottom: bottoms.content,
-          },
-        ]}
+      <PhonePage
+        style={
+          bare
+            ? s.fill
+            : [
+                s.phoneContent,
+                {
+                  paddingTop: insets.top + SPACE.m,
+                  paddingBottom: bottoms.content,
+                },
+              ]
+        }
       >
-        <UpdateBar />
-        {chrome.ownTitle && chrome.headers.length > 0 ? (
+        {!bare && <UpdateBar />}
+        {bare ? null : chrome.ownTitle && chrome.headers.length > 0 ? (
           // A page with its own heading keeps its tools beside the way back (ตั้งค่าอะไหล่'s ⓘ ＋).
           <View style={s.backRow}>
             {chrome.back && <BackPill back={chrome.back} />}
@@ -188,7 +198,7 @@ function PhoneShell({ children }: { children: ReactNode }) {
         ) : (
           chrome.back && <BackPill back={chrome.back} />
         )}
-        {!chrome.ownTitle && (
+        {!bare && !chrome.ownTitle && (
           <View style={s.titleRow}>
             <Text style={s.largeTitle} accessibilityRole="header" numberOfLines={1}>
               {chrome.title ?? t(pageTitle(path))}
@@ -207,14 +217,14 @@ function PhoneShell({ children }: { children: ReactNode }) {
           </View>
         )}
         <ChromeProvider value={setChrome}>{children}</ChromeProvider>
-      </ScrollView>
+      </PhonePage>
 
       <PinnedFooter chrome={chrome} bottom={bottoms.footer} />
 
       {chrome.search ? (
         <SearchRow search={chrome.search} bottom={barBottom} />
       ) : bar === "none" ? null : (
-        <View style={[s.barRow, { bottom: barBottom }]} pointerEvents="box-none">
+        <View style={[s.barRow, PINNED_TO_SCREEN, { bottom: barBottom }]} pointerEvents="box-none">
           <View style={s.barPill} accessibilityRole="tablist">
             {PRIMARY_TABS.map((tab) => {
               const on = tab.href === active;
@@ -249,6 +259,19 @@ function PhoneShell({ children }: { children: ReactNode }) {
 
       <MenuDrawer open={open} path={path} onClose={() => setOpen(false)} onGo={goAndClose} />
     </View>
+  );
+}
+
+/**
+ * The phone page's content. On the website the whole page scrolls (so iPhone Safari shows it under
+ * its clock and bottom bar); in the app it scrolls inside the frame.
+ */
+function PhonePage({ style, children }: { style: StyleProp<ViewStyle>; children: ReactNode }) {
+  if (PHONE_PAGE_SCROLLS) return <View style={style}>{children}</View>;
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={style}>
+      {children}
+    </ScrollView>
   );
 }
 
@@ -349,7 +372,7 @@ function SearchRow({ search, bottom }: { search: SearchBar; bottom: number }) {
   const { t } = useLang();
   const s = styles(theme);
   return (
-    <View style={[s.barRow, { bottom }]} pointerEvents="box-none">
+    <View style={[s.barRow, PINNED_TO_SCREEN, { bottom }]} pointerEvents="box-none">
       <View style={[s.barPill, s.searchField]}>
         <LineIcon d={SEARCH_ICON} color={theme.text} size={18} strokeWidth={2.2} />
         <TextInput

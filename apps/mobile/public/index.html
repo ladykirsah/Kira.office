@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!--
+      viewport-fit=cover: the page reaches the screen's edges, under iPhone Safari's clock and its
+      bottom bar (owner, 7 Nov 2026, "B · Full slide-under"). The app keeps its own parts clear of
+      the clock and the home bar from the safe-area insets.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+    />
+    <title>%WEB_TITLE%</title>
+    <style id="expo-reset">
+      /* Expo's reset: a full-height page that does not scroll, the frame scrolling inside it. */
+      html,
+      body {
+        height: 100%;
+        /* The page colour behind Safari's bars until the app sets its own (light / dark). */
+        background-color: #f2f2f7;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background-color: #000000;
+        }
+      }
+      body {
+        overflow: hidden;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+        /* Turned sideways, keep the page clear of the camera's notch, as Safari did before. */
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      /*
+        The phone layout on the website (src/ui/pageScroll.ts adds this class): the whole page
+        scrolls, so Safari shows it under its bars and shrinks its bar as you scroll. No pull-down
+        reload — a reload asks for the PIN again.
+      */
+      html.page-scroll,
+      html.page-scroll body {
+        height: auto;
+        overflow: visible;
+        overscroll-behavior-y: none;
+      }
+      html.page-scroll #root {
+        height: auto;
+        min-height: 100vh;
+        min-height: 100svh;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript> You need to enable JavaScript to run this app. </noscript>
+    <div id="root"></div>
+  </body>
+</html>

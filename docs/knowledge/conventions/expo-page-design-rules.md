@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -115,7 +115,9 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **"Reverse" = restore exactly**, then ask.
 - **Their own picture is the design.** When they send a drawing of their own, keep its layout and
   fit it to the size by scaling or turning it, never by moving things around. I made a two-column
-  version of their tall label: *"nooooo … like this"* (ออกบาร์โค้ด, 31 Oct).
+  version of their tall label: *"nooooo … like this"* (ออกบาร์โค้ด, 31 Oct). The same for a sample
+  they send: the label's QR became bars *"same as what i sent you. change from QR code to barcode"*
+  (ออกบาร์โค้ด, 7 Nov) — Code 128 under the car list, shop name + phone under the bars.
 - **"Remove everything" means the thing we are talking about.** *"let's remove everything and
   re-start"* meant the label designs, not the approved page drawing: *"i meant remove label design
   and re-start"*. If it could reach further, ask before removing (ออกบาร์โค้ด, 31 Oct).
@@ -192,12 +194,28 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **The brand is its name, no picture.** I put the turbo app icon on top of เข้าใช้งาน: *"remove logo"*.
   CrewEngine is the word alone, in Space Grotesk 600, one colour — the owner had already picked
   *"just the plain text with that font"* for it (29 Oct) (เข้าใช้งาน, 3 Nov).
+- **A product photo is always 1:1 — every drawing, phone and computer.** I drew the product page's photo
+  358 × 300 and cut the top and bottom off: *"i have told you so any time that product pic is 1:1 > fix"*
+  (ตัวเลือกสินค้า, 7 Nov; said first for the computer, 5 Nov). Big photo 358 × 358, thumbnails square too.
 - **Real photos for products.** Grey background + product name = a real product photo. White
   background = a category picture (category pages only). The library has no compressor photo
   yet; compressor rows use the คลัชคอม photo until the owner sends one.
+- **A new pattern → look at Mobbin first, then draw.** For product options I drew three designs of my
+  own (a table, a card per choice, tabs), then a 3-tab table: *"go explore on Mobbin > re-draw … it is
+  worse"*. Shopify's and Squarespace's way (an options card with the values as chips + one row per choice,
+  each opening its own page) was approved on the first try (ตัวเลือกสินค้า, 7 Nov). Mobbin opens only in
+  the owner's Chrome.
+- **No tables in a phone form.** A grid of grey boxes *"look messy"*; tabs over a table were *"worse"*.
+  Use the form's own rows; the numbers of one item (price, cost, stock) go on that item's own page.
 
 ## 4 · Page layout
 
+- **The phone website fills the whole screen.** Every page scrolls under iPhone Safari's clock and its
+  bottom bar, and the bar shrinks as you scroll; the nav stays where it was — ‹ back / แก้ไข on top, the
+  tab bar and red buttons just above Safari's bar: *"make the website fill all the way up and down the
+  screen? but nav bar in the position that working fine"* → *"B · Full slide-under"* (7 Nov). Forms
+  too: ยกเลิก + title pinned on top, บันทึก pinned at the bottom, the form scrolling under both. A
+  sheet or the ☰ menu dims only the page area (Safari keeps its own strips).
 - **Computer: use the room, don't copy the phone's sizes.** A preview in a computer panel fills it (the
   label preview: *"there are plenty of spaces > make the the preview bigger"*); one photo on a computer
   scan card, not two (*"1 pic not 2"*); the same icon the phone picked, bigger and with no grey frame
@@ -382,6 +400,25 @@ again before saying a build matches.** The owner's words are quoted where they s
 
 ## 5 · Words, numbers, lists, search
 
+- **ตัวเลือกสินค้า and กลุ่มสินค้า live on one product page, one after the other** (*"ux/ui look
+  separate … draw them in the same page"*). A group only links products that stand in for each other —
+  each keeps its own page (*"all of them have their own product detail pages"*); the page shows only
+  "สินค้าในกลุ่ม · N สินค้า ›" and the members open in a popup (*"keep added group to be on popup, the
+  main only shown as how many of the inside"*) (7 Nov).
+- **ตัวเลือกสินค้า (sub-products), approved 7 Nov:** a choice has **one photo** (*"sub-product can have 1
+  pic"*), and every choice row shows **ราคาลูกค้า** — the walk-in (เด่นแอร์) price, the one the Scan card
+  shows — never another channel's price (*"show B2C price always"*). The row: photo · name · code with its
+  copy mark · ขายได้ · ราคาลูกค้า ›.
+- **A size shows as a grey tag in front of its own code, everywhere** — Scan, ทำบิล, ป้ายบาร์โค้ด,
+  แฟลชเซล, ออเดอร์, ประวัติซื้อขาย: `[1/2 กลาง] TG949142-00204D ⧉`. On a narrow row the code moves under
+  the tag, never cut short. The printed label puts the size on its own bold line under the hairline;
+  with cars, the size comes first, then at most 4 cars. The product list says "3 ขนาด · เริ่ม ฿35" and
+  counts the stock of all sizes; สต็อกและราคา asks เลือกขนาด first, then that size's stock and prices.
+  **AirPlus:** the card says "3 ขนาด" + "เริ่ม ฿30" (cheapest size in stock); 🛒 and ซื้อ open a
+  Shopee-style size sheet — nothing picked for the customer, the button grey until a size is, a sold-out
+  size says หมด; cart, checkout and order lines carry a grey "ขนาด 1/2 กลาง" tag. I picked these when the
+  owner said *"i see no choice here > so pick for me"*; the preview was approved 12 Nov (*"i think it is
+  good"*).
 - **Money shows no .00.** ฿3,450, never ฿3,450.00 or a small raised .00 — on every page and drawing:
   *"remove .00"* (computer สแกน, 5 Nov).
   - **Satang show both digits.** ฿2,814.10, never ฿2,814.1; a whole amount still has no .00. I spotted
@@ -672,6 +709,13 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **No notes inside a customer page mock.** I put two source pills (จาก สินค้า / จาก ตั้งค่าอะไหล่)
   on the drawn AirPlus page: *"correct but do not show these 2 pills"*. Say where text comes from in
   the phone's label; the mock looks exactly as the customer will see it (ตั้งค่าอะไหล่, 3 Nov).
+- **Several designs → one board each, one picture each, explained one by one.** I put a product with
+  choices, a grouping rule and O-ring packs on three crowded boards and sent them together: *"i did not
+  get what you drew. please show me one by one"* (ตัวเลือกสินค้า, 7 Nov).
+- **Say which canvas page to open, and send a picture of every option with it.** I drew the size
+  options on the ตัวเลือกสินค้า board and AirPlus page 3, but the owner's canvas opened elsewhere:
+  *"is it the right page on artifact? i did not see it"* → *"i see no choice here > so pick for me"*
+  (ตัวเลือกสินค้า, 8–11 Nov). Set `launch.page` to it, open the canvas, name the page in the reply.
 - **Clean up after a build.** Delete old versions and options that weren't picked, and say which
   ones went.
 - **Mockups live on the artifact only.** The preview always shows the real app.

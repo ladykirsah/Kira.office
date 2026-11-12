@@ -40,6 +40,17 @@ interface ProductDetail {
   images: { imageKey: string }[];
   /** Its cars in the ใช้ได้กับรถ list order. */
   fitments?: { carModel?: string | null }[];
+  /** Its sizes (ตัวเลือกสินค้า), each with its own photo, stock and prices; none on most products. */
+  choices?: {
+    variantId: string;
+    value: string;
+    /** The size's own code (its label's barcode); null until someone types one. */
+    code?: string | null;
+    imageKey: string | null;
+    onHand: number;
+    held: number;
+    pricing: ProductDetail["pricing"];
+  }[];
 }
 
 /** The PromptPay account a mechanic's QR pays into, as set on the Shop page. */
@@ -91,6 +102,9 @@ export async function lookupPart(
   const detail = (await detailRes.json()) as ProductDetail;
   const gallery = detail.images.map((i) => i.imageKey);
   const cover = detail.product.imageKey;
+  // A size's code → that size's own stock, prices and one photo, not the first size's (7 Nov 2026).
+  const size = detail.choices?.find((c) => c.variantId === hit.variantId);
+  const stock = size ?? detail;
 
   return {
     variantId: hit.variantId,
@@ -101,12 +115,19 @@ export async function lookupPart(
     typeName: detail.product.typeNameTh?.trim() || detail.product.typeName?.trim() || null,
     carModel: firstCarModel(detail.fitments),
     barcode: hit.barcode,
-    photoKeys: gallery.length > 0 ? gallery : cover ? [cover] : [],
-    onHand: detail.onHand,
-    held: detail.held,
-    unitPriceSatang: detail.pricing?.targetPriceSatang ?? 0,
-    b2bPriceSatang: detail.pricing?.b2bPriceSatang ?? 0,
-    unitCostSatang: detail.pricing?.itemCostSatang ?? 0,
+    ...(size ? { choiceValue: size.value, choiceCode: size.code ?? hit.barcode } : {}),
+    photoKeys: size?.imageKey
+      ? [size.imageKey]
+      : gallery.length > 0
+        ? gallery
+        : cover
+          ? [cover]
+          : [],
+    onHand: stock.onHand,
+    held: stock.held,
+    unitPriceSatang: stock.pricing?.targetPriceSatang ?? 0,
+    b2bPriceSatang: stock.pricing?.b2bPriceSatang ?? 0,
+    unitCostSatang: stock.pricing?.itemCostSatang ?? 0,
   };
 }
 

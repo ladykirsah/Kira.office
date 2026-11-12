@@ -1,5 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, Text } from "react-native";
+import { hasChoices } from "@/lib/productChoices";
 import { useLang, useTheme } from "../AppProviders";
 import { Empty } from "../customers/parts";
 import { useWide } from "../desk/useWide";
@@ -67,9 +68,9 @@ export function EditProductScreen() {
       toast={edit.toast ? { title: t(edit.toast.title), detail: t(edit.toast.detail) } : null}
     >
       {wide ? (
-        <DeskProductFields edit={edit} mode="edit" />
+        <DeskProductFields edit={edit} mode="edit" withChoices={hasChoices(edit.detail)} />
       ) : (
-        <ProductFields edit={edit} mode="edit" />
+        <ProductFields edit={edit} mode="edit" withChoices={hasChoices(edit.detail)} />
       )}
     </FormPage>
   );

@@ -1,5 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { billLineName } from "./billName";
+import { billLineName, withSize } from "./billName";
 import { billDate, type Buyer } from "./scanSale";
 
 /**
@@ -17,8 +17,10 @@ export interface PosLine {
   kind: "part" | "service";
   variantId: string | null;
   productId: string | null;
-  /** The product's code (DN-447220), shown under its name. */
+  /** The product's code (DN-447220), shown under its name; a size's own code for a size. */
   productRef: string | null;
+  /** The size on this line ("1/2 กลาง"); absent for a product without sizes and a service. */
+  choiceValue?: string;
   name: string;
   photoKey: string | null;
   barcode: string | null;
@@ -188,11 +190,15 @@ function saleType(b: BillState): "parts" | "repair" {
 export const billLineText = (l: PosLine, buyer: Buyer): string =>
   l.kind === "part" ? billLineName(l, buyer) : l.name;
 
+/** What the bill saves and prints: the bill name, then a size in words ("โอริง DENSO 1/2 กลาง"). */
+export const billPaperText = (l: PosLine, buyer: Buyer): string =>
+  l.kind === "part" ? withSize(billLineText(l, buyer), l.choiceValue) : billLineText(l, buyer);
+
 function payloadLine(l: PosLine, buyer: Buyer): SaleLinePayload {
   return {
     productVariantId: l.kind === "part" ? l.variantId : null,
     lineType: l.kind,
-    description: billLineText(l, buyer),
+    description: billPaperText(l, buyer),
     ...(l.barcode ? { barcodeValue: l.barcode } : {}),
     quantity: l.quantity,
     unitPriceSatang: l.priceSatang,

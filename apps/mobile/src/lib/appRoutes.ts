@@ -11,5 +11,15 @@ export const addProductRoute = (code: string): string =>
 export const productRoute = (productId: string): string =>
   `/products/${encodeURIComponent(productId)}`;
 
+/** A scanned part's page: a size opens its own page (11 Nov 2026), anything else its product's. */
+export const partRoute = (p: {
+  productId: string;
+  variantId: string;
+  choiceValue?: string | null;
+}): string =>
+  p.choiceValue?.trim()
+    ? `${productRoute(p.productId)}/choices/${encodeURIComponent(p.variantId)}`
+    : productRoute(p.productId);
+
 /** ข้อมูลร้าน, where PromptPay accounts and their names are set. */
 export const SHOP_INFO_ROUTE = "/settings/shop";
