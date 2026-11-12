@@ -3,6 +3,13 @@ import { priceFromLink } from "./affiliatePrice";
 import { insightsFor } from "./insights";
 import { listStockMovements, parseMovementRange } from "./stockMovements";
 import {
+  saleNumbersOnly,
+  withoutLineCost,
+  withoutOrderDetailCost,
+  withoutOrderProfit,
+  withoutProductCost,
+} from "./viewerMoney";
+import {
   clientAddress,
   loginThrottleKey,
   recoveryThrottleKey,
@@ -2631,6 +2638,8 @@ async function listProducts(env: Env, seesProfit = true, byVariant = false): Pro
 }
 
 export interface SaleExportRow {
+  /** s.sale_number — the bill's number (SALES_SELECT has always sent it). */
+  saleNumber?: string | null;
   paymentMethod: string | null;
   grandTotalSatang: number;
   taxTotalSatang: number;
@@ -3362,7 +3371,7 @@ export async function getOrderDetail(db: D1Database, id: string): Promise<OrderD
   };
 }
 
-export async function listOrders(env: Env): Promise<Response> {
+export async function listOrders(env: Env, seesProfit = true): Promise<Response> {
   await expireUnpaidOrders(env.DB);
   const { results } = await env.DB.prepare(
     // The two CTEs summarise each order's CONTENTS for the phone card, which shows what was bought
@@ -3407,8 +3416,8 @@ export async function listOrders(env: Env): Promise<Response> {
      LEFT JOIN first_line f ON f.oid = o.id AND f.rn = 1
      LEFT JOIN line_totals t ON t.oid = o.id
      ORDER BY o.imported_at DESC LIMIT 200`,
-  ).all();
-  return json({ orders: results });
+  ).all<{ profitSatang: number | null }>();
+  return json({ orders: seesProfit ? results : withoutOrderProfit(results) });
 }
 
 /** A sales_orders row in the same camelCase shape listOrders returns. */
@@ -4241,12 +4250,17 @@ async function querySales(
   return results ?? [];
 }
 
-async function listSales(env: Env, url: URL): Promise<Response> {
+/** Whether this operator may see cost and profit (core canSeeProfit). No session: no margin. */
+const seesCost = (viewer: StaffIdentity | null): boolean =>
+  viewer ? canSeeProfit(viewer.role) : false;
+
+async function listSales(env: Env, url: URL, full: boolean): Promise<Response> {
   const from = Number(url.searchParams.get("from"));
   const to = Number(url.searchParams.get("to"));
   const ranged =
     url.searchParams.has("from") && Number.isFinite(from) && Number.isFinite(to) && to > from;
-  return json({ sales: await querySales(env.DB, ranged ? { from, to } : undefined) });
+  const sales = await querySales(env.DB, ranged ? { from, to } : undefined);
+  return json({ sales: full ? sales : saleNumbersOnly(sales) });
 }
 
 // ── Finance expenses ─────────────────────────────────────────────────────────────────────────────
@@ -7874,6 +7888,15 @@ const worker = {
       if (gate instanceof Response) return gate;
     }
 
+    // ภาพรวม AirPlus and การเงิน's bills download — the owner's alone, as their menu has always shown
+    // (packages/shared nav HIDDEN_FROM; owner, 12 Nov 2026: "follow the old version function"). GET
+    // /sales itself stays open because Scan numbers each new bill from it; anyone else gets the
+    // numbers only (listSales).
+    if (url.pathname === "/insights" || url.pathname === "/sales/export.csv") {
+      const gate = await requireRole(request, env, canViewFinance, "super_admin_only");
+      if (gate instanceof Response) return gate;
+    }
+
     // Sending money back out. These routes already consulted the Access email list, which fails
     // OPEN wherever Access is unconfigured and names the wrong person besides; the staff role is
     // the operator's real identity, so both must now agree.
@@ -7921,7 +7944,7 @@ const worker = {
     }
 
     if (url.pathname === "/sales" && request.method === "GET") {
-      return listSales(env, url);
+      return listSales(env, url, viewerStaff ? canViewFinance(viewerStaff.role) : false);
     }
 
     if (url.pathname === "/finance/expenses" && request.method === "GET") {
@@ -7953,7 +7976,10 @@ const worker = {
     }
 
     if (url.pathname === "/onsite/drafts" && request.method === "GET") {
-      return json({ drafts: await listOpenDrafts(env.DB) });
+      const drafts = (await listOpenDrafts(env.DB)) as {
+        lines: { unitCostSatang?: number | null }[];
+      }[];
+      return json({ drafts: seesCost(viewerStaff) ? drafts : drafts.map(withoutLineCost) });
     }
     if (url.pathname === "/onsite/drafts" && request.method === "POST") {
       const body = (await request.json().catch(() => ({}))) as Partial<DraftInput>;
@@ -7969,8 +7995,11 @@ const worker = {
     }
     const saleGet = url.pathname.match(/^\/onsite\/sales\/([^/]+)$/);
     if (saleGet && request.method === "GET") {
-      const sale = await getOnsiteSale(env.DB, decodeURIComponent(saleGet[1]!));
-      return sale ? json({ sale }) : json({ error: "not found" }, 404);
+      const sale = (await getOnsiteSale(env.DB, decodeURIComponent(saleGet[1]!))) as {
+        lines: { unitCostSatang?: number | null }[];
+      } | null;
+      if (!sale) return json({ error: "not found" }, 404);
+      return json({ sale: seesCost(viewerStaff) ? sale : withoutLineCost(sale) });
     }
     if (url.pathname === "/customers" && request.method === "GET") {
       return json({ customers: await searchCustomers(env.DB, url.searchParams.get("q") ?? "") });
@@ -8742,7 +8771,8 @@ const worker = {
       if (!detail) return json({ error: "not found" }, 404);
       // The page's ตัวเลือกสินค้า and กลุ่มสินค้า sections (7 Nov 2026).
       const choices = await readChoices(env.DB, productById[1]!);
-      return json({ ...detail, ...choices, group: await readGroup(env.DB, productById[1]!) });
+      const body = { ...detail, ...choices, group: await readGroup(env.DB, productById[1]!) };
+      return json(seesCost(viewerStaff) ? body : withoutProductCost(body));
     }
     if (productById && request.method === "PATCH") {
       const body = await readJson<{
@@ -9031,7 +9061,7 @@ const worker = {
     }
 
     if (url.pathname === "/orders" && request.method === "GET") {
-      return listOrders(env);
+      return listOrders(env, seesCost(viewerStaff));
     }
 
     // AirPlus Insight — the admin's answer to Shopee's Business Insights. One period per call; an
@@ -9079,7 +9109,8 @@ const worker = {
         .split(/[,\s]+/)
         .map((m) => m.trim())
         .filter(Boolean);
-      return json({ ...detail, viewerIsSuperAdmin, viewerRole: role, mechanics });
+      const shown = seesCost(viewer) ? detail : withoutOrderDetailCost(detail);
+      return json({ ...shown, viewerIsSuperAdmin, viewerRole: role, mechanics });
     }
 
     // Confirm or reject a slip awaiting review (verifying). Any admin may decide; 409 if the order is

@@ -1,11 +1,14 @@
 import {
   cancelBlock,
   canCancelOrderRole,
+  canSeeProfit,
   operationalStatus,
   operationalStatusPhrase,
   type CancelReason,
+  type StaffRole,
 } from "@l-shopee/core";
 import type { Phrase } from "@l-shopee/shared/lang";
+import { formatBaht } from "./money";
 import type { OrderAddress, OrderClaim, OrderDetail } from "./ordersApi";
 
 /**
@@ -281,4 +284,12 @@ export function statusWord(orderStatus: string | null, paymentStatus: string | n
   if (orderStatus === "cancelled") return CANCELLED;
   const op = operationalStatus(orderStatus, paymentStatus);
   return op ? operationalStatusPhrase(op) : { th: orderStatus ?? "—", en: orderStatus ?? "—" };
+}
+
+/**
+ * ต้นทุนสินค้า on สรุปการเงิน. A ช่าง never sees cost (core canSeeProfit, owner 24 Aug 2026); the server
+ * sends them 0, so the row says "—" rather than a ฿0 that reads as free stock (12 Nov 2026).
+ */
+export function itemCostText(itemCostSatang: number, role: StaffRole): string {
+  return canSeeProfit(role) ? formatBaht(itemCostSatang) : "—";
 }

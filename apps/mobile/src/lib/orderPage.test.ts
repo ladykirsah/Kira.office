@@ -9,6 +9,7 @@ import {
   claimStep,
   deliveryNow,
   finishedClaims,
+  itemCostText,
   jobFor,
   deskSections,
   pageSections,
@@ -465,5 +466,15 @@ describe("deskSections (the order page on a computer, DeskOrders board 4 Nov 202
   it("given both columns > then together they show every section the phone shows, once", () => {
     const { main, side } = deskSections();
     expect([...main, ...side].sort()).toEqual([...pageSections()].sort());
+  });
+});
+
+describe("itemCostText (ต้นทุนสินค้า on สรุปการเงิน)", () => {
+  it("given the owner or an admin > the cost in baht", () => {
+    expect(itemCostText(320000, "super_admin")).toBe("฿3,200");
+    expect(itemCostText(320000, "admin")).toBe("฿3,200");
+  });
+  it("given a ช่าง > — instead of the ฿0 the server sends them", () => {
+    expect(itemCostText(0, "mechanic")).toBe("—");
   });
 });
