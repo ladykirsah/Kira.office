@@ -1,0 +1,604 @@
+/*
+ * Board 3 on the phone (owner-approved 14 Nov 2026) — the product page. Sizes and colours are the
+ * drawing's (design kit airplus_kit.py, airplus_pages_a.py); colour tokens (--hm-*) come from board 1's
+ * home-phone.css. Phones (<720px) see .pp; computers keep today's page (.pdp-desk).
+ */
+.pp {
+  display: none;
+}
+@media (max-width: 719px) {
+  .pp {
+    display: block;
+    /* full bleed: cancel <main class="wrap">'s 16px padding on every side */
+    margin: -16px;
+    min-height: 100vh;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    background: var(--hm-bg);
+    color: var(--hm-ink);
+  }
+  .pdp-desk {
+    display: none;
+  }
+  /* the photo carries ‹ back · แชร์ · 🛒; the old red header and the footer step aside */
+  body:has(.pp) .inner-head,
+  body:has(.pp) .search-head-bar,
+  body:has(.pp) .site-footer {
+    display: none;
+  }
+  body:has(.pp) {
+    background: var(--hm-bg);
+  }
+  body:has(.pp) .has-sticky-bar {
+    padding-bottom: 0;
+  }
+  /* "เพิ่มลงตะกร้าแล้ว" sits above the bottom bar, as drawn (3.5) */
+  body:has(.pp) .ap-toast {
+    top: auto;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 400;
+  }
+}
+
+/* taps on the page's own buttons don't flash a grey square over the rounded cards */
+.pp button,
+.pp a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── photos ───────────────────────────────────────────────────────────────────────── */
+.pp-gal {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #ededf0;
+}
+.pp-gal-track {
+  display: flex;
+  height: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.pp-gal-track::-webkit-scrollbar {
+  display: none;
+}
+.pp-gal-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  scroll-snap-align: start;
+}
+.pp-gal-slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pp-gal-none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hm-red);
+  font-size: 44px;
+}
+.pp-gal-top {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.pp-gal-tools {
+  display: flex;
+  gap: 8px;
+}
+.pp-ov {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.pp-ov-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--hm-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.pp-gal-count {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+
+/* ── price · name · tags ─────────────────────────────────────────────────────────── */
+/* Apple's text styles, normal iPhone sizes (board 3A, owner 14 Nov 2026: "i want THE SAME as real Apple
+   system"): title1 28 · title2 22 bold · body 17 · footnote 13. The follow block at the end swaps them
+   for the phone's own text size. */
+.pp-top {
+  background: #fff;
+  padding: 16px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pp-top--sale {
+  padding-top: 12px;
+}
+.pp-price {
+  margin: 0;
+  font-size: 28px;
+  line-height: 34px;
+}
+.pp-name {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.pp-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pp-pill {
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: var(--hm-bg);
+  font-size: 13px;
+  line-height: 18px;
+  display: flex;
+  align-items: center;
+}
+.pp-ready {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+.pp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hm-green);
+}
+
+/* flash sale (3.8): red strip · price · old price · -% · FLASH SALE · countdown */
+.pp-flash {
+  background: var(--hm-red);
+  color: #fff;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pp-flash-l {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pp-flash-price {
+  font-size: 28px;
+  line-height: 34px;
+}
+.pp-flash-l s {
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0.85;
+}
+.pp-flash-pct {
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--hm-red);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+.pp-flash-r {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.pp-flash-r b {
+  font-weight: 800;
+  font-style: italic;
+}
+
+/* ── Apple grouped lists: 16 from the edge, corner 26, the heading ABOVE its card ──────── */
+.pp-group {
+  margin-top: 28px;
+}
+.pp-group--plain {
+  margin-top: 35px;
+}
+.pp-head {
+  margin: 0 20px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pp-ct {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.pp-cnt {
+  font-size: 17px;
+  line-height: 22px;
+  color: var(--hm-grey);
+}
+.pp-card {
+  margin: 0 16px;
+  border-radius: 26px;
+  background: #fff;
+  overflow: hidden;
+}
+.pp-text {
+  padding: 14px 16px;
+}
+.pp-flat {
+  margin: 20px 16px 0;
+  border-radius: 26px;
+  background: #fff;
+  overflow: hidden;
+}
+.pp-pre {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  white-space: pre-line;
+}
+.pp-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-deep);
+  font: inherit;
+  font-size: 17px;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* the car card (3.1 yes · 3.6 no · 3.7 none) */
+.pp-car {
+  margin: 20px 16px 0;
+  padding: 12px 16px;
+  border-radius: 26px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pp-car-ic {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 18px;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp-car-ic--yes {
+  background: #e8f0fb;
+  color: var(--hm-blue);
+}
+.pp-car-ic--no {
+  color: var(--hm-grey);
+}
+.pp-car-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pp-car-t b {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.pp-car-t span {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+
+/* ใส่ได้กับรถ — every model, open. Settings rows: the line starts where the text starts */
+.pp-fit-list {
+  padding: 0;
+  list-style: none;
+}
+.pp-fit-row {
+  padding-left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  line-height: 22px;
+}
+.pp-fit-row svg {
+  flex-shrink: 0;
+  color: #c7c7cc;
+}
+.pp-fit-row--mine svg {
+  color: var(--hm-blue);
+}
+.pp-fit-in {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  margin-right: 16px;
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+}
+.pp-fit-row:last-child .pp-fit-in {
+  box-shadow: none;
+}
+.pp-fit-n {
+  flex: 1;
+  min-width: 0;
+}
+.pp-fit-row--mine .pp-fit-n {
+  font-weight: 600;
+}
+.pp-fit-y {
+  color: var(--hm-grey);
+  white-space: nowrap;
+}
+
+/* รายละเอียดสินค้า — black name left, grey value right, the same size */
+.pp-kv {
+  margin: 0 16px;
+  min-height: 52px;
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 17px;
+  line-height: 22px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+}
+.pp-kv:last-child {
+  box-shadow: none;
+}
+.pp-kv > span:first-child {
+  flex-shrink: 0;
+}
+.pp-kv > span:last-child {
+  text-align: right;
+  color: var(--hm-grey);
+}
+
+/* การจัดส่ง · รับประกัน · เงื่อนไข · คืน·เคลม — Settings rows: black name · grey value · › */
+.pp-row {
+  width: 100%;
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  font: inherit;
+  font-size: 17px;
+  line-height: 22px;
+  text-align: left;
+  display: block;
+  cursor: pointer;
+}
+.pp-row-in {
+  min-height: 52px;
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+}
+.pp-row:last-child .pp-row-in {
+  box-shadow: none;
+}
+.pp-row-l {
+  flex-shrink: 0;
+}
+.pp-row-v {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  color: var(--hm-grey);
+}
+.pp-row-in svg {
+  flex-shrink: 0;
+  color: #c4c4c7;
+}
+
+/* the sheets those rows open */
+.pp-sh {
+  padding: 4px 16px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 17px;
+  line-height: 22px;
+}
+.pp-sh p {
+  margin: 0;
+}
+.pp-sh--list {
+  gap: 16px;
+}
+.pp-sh-item {
+  display: flex;
+  gap: 12px;
+}
+.pp-sh-item > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pp-sh-item b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.pp-sh-item span span {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+
+/* ตัวเลือก (sizes) sits in its own white card on the phone page */
+.pp-choices .sz-row {
+  padding: 14px 16px;
+}
+
+/* สินค้าใกล้เคียง */
+.pp-related {
+  margin: 28px 16px 0;
+}
+.pp-related .pp-head {
+  margin: 0 4px 10px;
+}
+
+/* ── bottom bar: ถามช่าง · ใส่ตะกร้า · ซื้อเลย ─────────────────────────────────────────── */
+.pp-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #fff;
+  box-shadow: 0 -1px 0 var(--hm-line);
+  display: flex;
+  align-items: flex-start;
+}
+.pp-bar-btn {
+  width: 84px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.pp-bar-sep {
+  width: 1px;
+  height: 32px;
+  margin-top: 12px;
+  background: var(--hm-line);
+}
+.pp-bar-buy {
+  flex: 1;
+  height: 56px;
+  border: 0;
+  background: var(--hm-red);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pp-bar-buy:disabled {
+  background: #c7c7cc;
+  cursor: default;
+}
+
+/* ── text follows the phone's text size, like Apple's apps ─────────────────────────────────
+ * Owner, 14 Nov 2026: "i want THE SAME as real Apple system" · "All AirPlus pages". Each text above
+ * has a normal iPhone's size; here iPhone Safari swaps it for Apple's own style, which grows or shrinks
+ * with Settings › Display & Brightness › Text Size. iPhone only: on a Mac -apple-system-body is 13px.
+ * Bars, badges and marks stay one size, as in Apple's apps (lib/appleType.ts FIXED_TEXT). */
+@supports (font: -apple-system-body) {
+  @media (max-width: 719px) and (pointer: coarse) {
+    .pp-price,
+    .pp-flash-price {
+      font: -apple-system-title1;
+      line-height: 1.21;
+    }
+    .pp-ct {
+      font: -apple-system-title2;
+      line-height: 1.27;
+      font-weight: 700;
+    }
+    .pp-sh-item b {
+      font: -apple-system-headline;
+      line-height: inherit;
+    }
+    .pp-name,
+    .pp-cnt,
+    .pp-pre,
+    .pp-car-t b,
+    .pp-fit-row,
+    .pp-kv,
+    .pp-row,
+    .pp-sh {
+      font: -apple-system-body;
+      line-height: 1.29;
+    }
+    .pp-link {
+      font: -apple-system-body;
+      line-height: inherit;
+    }
+    .pp-pill,
+    .pp-ready,
+    .pp-flash-l s,
+    .pp-flash-r,
+    .pp-car-t span,
+    .pp-sh-item span span {
+      font: -apple-system-footnote;
+      line-height: 1.38;
+    }
+  }
+}

@@ -15,6 +15,15 @@
   --hm-tint: #fdeaea;
 }
 
+/* Phones use Apple's own text colours (owner, 14 Nov 2026: "i want THE SAME as real Apple system");
+   computers keep today's, since the size sheet is shared with the computer product page. */
+@media (max-width: 719px) {
+  :root {
+    --hm-ink: #000000; /* Apple label */
+    --hm-grey: #8a8a8e; /* Apple secondary label */
+  }
+}
+
 /* ── which home shows ─────────────────────────────────────────────────────────── */
 .home-phone {
   display: none;
@@ -107,7 +116,7 @@
   border-radius: 12px;
   background: #fff;
   color: var(--hm-grey);
-  font-size: 15px;
+  font-size: 17px;
 }
 .hm-head-search span {
   overflow: hidden;
@@ -127,7 +136,7 @@
 }
 .hm-muted-xs {
   font-size: 11px;
-  line-height: 14px;
+  line-height: 13px;
   color: var(--hm-grey);
 }
 .hm-red {
@@ -141,12 +150,12 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 20px;
 }
 .hm-name2--15 {
   font-size: 15px;
-  line-height: 21px;
+  line-height: 20px;
 }
 .hm-name2--13 {
   font-size: 13px;
@@ -183,9 +192,9 @@
 /* ── รถของฉัน card ──────────────────────────────────────────────────────────────── */
 .hm-car {
   position: relative;
-  margin: 12px 12px 0;
+  margin: 12px 16px 0;
   padding: 16px;
-  border-radius: 20px;
+  border-radius: 26px;
   background: #fff;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   display: flex;
@@ -243,9 +252,9 @@
 
 /* ── white section cards ───────────────────────────────────────────────────────── */
 .hm-sec {
-  margin: 12px 12px 0;
+  margin: 12px 16px 0;
   padding: 16px;
-  border-radius: 20px;
+  border-radius: 26px;
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -270,7 +279,7 @@
   color: var(--hm-deep);
 }
 .hm-plain {
-  margin: 12px 12px 0;
+  margin: 12px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -280,7 +289,7 @@
 }
 .hm-hero,
 .hm-promo {
-  margin: 12px 12px 0;
+  margin: 12px 16px 0;
 }
 .hm-grid2 {
   display: grid;
@@ -301,7 +310,7 @@
   gap: 4px;
 }
 .hm-pad {
-  padding: 12px 12px 0;
+  padding: 12px 16px 0;
 }
 
 /* a square picture that fills its frame (✦ when the owner has none) */
@@ -351,7 +360,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  line-height: 15px;
+  line-height: 16px;
   text-align: center;
   color: var(--hm-ink);
 }
@@ -410,7 +419,7 @@
   color: var(--hm-ink);
 }
 .hm-flash-price {
-  font-size: 16px;
+  font-size: 17px;
   color: var(--hm-red);
 }
 .hm-bar {
@@ -549,7 +558,7 @@
 .hm-best-t {
   margin: 0;
   font-size: 20px;
-  line-height: 26px;
+  line-height: 25px;
   font-weight: 700;
 }
 .hm-best-row {
@@ -827,7 +836,7 @@
   background: transparent;
   color: var(--hm-ink);
   font-family: inherit;
-  font-size: 16px; /* 16px keeps iPhone from zooming in on focus */
+  font-size: 17px; /* 16px keeps iPhone from zooming in on focus */
 }
 .hm-list {
   display: flex;
@@ -843,7 +852,7 @@
     calc(100% - 16px) 1px;
   color: var(--hm-ink);
   font-family: inherit;
-  font-size: 16px;
+  font-size: 17px;
   text-align: left;
   display: flex;
   align-items: center;
@@ -869,7 +878,7 @@
   font-size: 13px;
 }
 .hm-row-end {
-  font-size: 14px;
+  font-size: 17px;
   color: var(--hm-grey);
   white-space: nowrap;
 }
@@ -947,9 +956,9 @@
   justify-content: center;
 }
 .hm-strip {
-  margin: 12px 12px 0;
+  margin: 12px 16px 0;
   padding: 10px 16px;
-  border-radius: 20px;
+  border-radius: 26px;
   background: #fff;
   display: flex;
   align-items: center;
@@ -1080,8 +1089,8 @@
   gap: 2px;
 }
 .sz-price {
-  font-size: 24px;
-  line-height: 30px;
+  font-size: 22px;
+  line-height: 28px;
   color: var(--hm-red);
 }
 .sz-sub {
@@ -1106,16 +1115,18 @@
 .sz-chip {
   min-width: 96px;
   min-height: 44px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border: 0;
   border-radius: 10px;
   background: var(--hm-bg);
   color: var(--hm-ink);
   font-family: inherit;
+  font-size: 15px;
+  line-height: 20px;
+  white-space: nowrap;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
+  justify-content: center;
   cursor: pointer;
 }
 .sz-chip--picked {
@@ -1124,17 +1135,8 @@
   box-shadow: inset 0 0 0 1.5px var(--hm-red);
 }
 .sz-chip--out {
-  color: #8e8e93;
+  color: #b0b0b0;
   cursor: default;
-}
-.sz-chip-v {
-  font-size: 15px;
-  line-height: 20px;
-}
-.sz-chip-p {
-  font-size: 12px;
-  line-height: 16px;
-  opacity: 0.85;
 }
 .sz-qty {
   margin: 14px 16px 0;
@@ -1168,7 +1170,7 @@
 .sz-stepper span {
   min-width: 24px;
   text-align: center;
-  font-size: 15px;
+  font-size: 17px;
 }
 .sz-foot {
   padding: 16px 16px 20px;
@@ -1208,15 +1210,16 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 15px;
+  font-size: 17px;
 }
 .sz-row-label {
   width: 76px;
   flex-shrink: 0;
-  color: var(--hm-grey);
 }
+/* Settings row: black name, grey value */
 .sz-row-words {
   flex: 1;
+  color: var(--hm-grey);
 }
 .sz-thumbs {
   display: flex;
@@ -1235,4 +1238,122 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Computers keep today's size sheet and ตัวเลือก row — the Apple look is for phones (owner, 14 Nov 2026). */
+@media (min-width: 720px) {
+  .sz-price {
+    font-size: 24px;
+    line-height: 30px;
+  }
+  .sz-stepper span {
+    font-size: 15px;
+  }
+  .sz-row-top {
+    font-size: 15px;
+  }
+  .sz-row-label {
+    color: var(--hm-grey);
+  }
+  .sz-row-words {
+    color: inherit;
+  }
+}
+
+/* ── text follows the phone's text size, like Apple's apps ─────────────────────────────────
+ * Owner, 14 Nov 2026: "i want THE SAME as real Apple system" · "All AirPlus pages". Each text above
+ * has a normal iPhone's size; here iPhone Safari swaps it for Apple's own style, which grows or shrinks
+ * with Settings › Display & Brightness › Text Size. iPhone only: on a Mac -apple-system-body is 13px.
+ * Bars, badges and marks stay one size, as in Apple's apps (lib/appleType.ts FIXED_TEXT). */
+@supports (font: -apple-system-body) {
+  @media (max-width: 719px) and (pointer: coarse) {
+    .hm-best-price,
+    .sz-price {
+      font: -apple-system-title2;
+      line-height: 1.27;
+    }
+    .hm-car-name {
+      font: -apple-system-title2;
+      line-height: 1.27;
+      font-weight: 700;
+    }
+    .hm-best-t {
+      font: -apple-system-title3;
+      line-height: 1.25;
+      font-weight: 700;
+    }
+    .hm-car-ask,
+    .hm-sec-t {
+      font: -apple-system-headline;
+      line-height: 1.29;
+    }
+    .hm-btn,
+    .sz-go {
+      font: -apple-system-headline;
+      line-height: inherit;
+    }
+    .hm-head-search,
+    .hm-flash-price,
+    .hm-price,
+    .hm-sheet-search input,
+    .hm-row,
+    .hm-row-end,
+    .sz-stepper span,
+    .sz-row-top {
+      font: -apple-system-body;
+      line-height: inherit;
+    }
+    .hm-name2,
+    .hm-name2--15,
+    .hm-car-text .hm-muted,
+    .sz-chip {
+      font: -apple-system-subheadline;
+      line-height: 1.33;
+    }
+    .hm-link,
+    .hm-tool-price,
+    .hm-outl,
+    .hm-pill,
+    .hm-empty {
+      font: -apple-system-subheadline;
+      line-height: inherit;
+    }
+    .hm-trust-text b,
+    .hm-strip-text b,
+    .sz-title {
+      font: -apple-system-subheadline;
+      line-height: inherit;
+      font-weight: 600;
+    }
+    .hm-muted-sm,
+    .hm-name2--13,
+    .hm-fit,
+    .hm-nofit,
+    .hm-sizes {
+      font: -apple-system-footnote;
+      line-height: 1.38;
+    }
+    .hm-more,
+    .hm-was,
+    .hm-foot,
+    .hm-row-two .hm-muted,
+    .hm-note,
+    .hm-from,
+    .sz-sub {
+      font: -apple-system-footnote;
+      line-height: inherit;
+    }
+    .hm-sc {
+      font: -apple-system-caption1;
+      line-height: 1.33;
+    }
+    .hm-ready {
+      font: -apple-system-caption1;
+      line-height: inherit;
+    }
+    .hm-muted-xs {
+      font: -apple-system-caption2;
+      line-height: 1.18;
+    }
+  }
 }

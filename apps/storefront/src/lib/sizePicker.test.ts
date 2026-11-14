@@ -3,6 +3,7 @@ import type { CampaignPriceInfo } from "@l-shopee/core";
 import {
   canConfirm,
   cardSizeLine,
+  chipLabel,
   chipState,
   choicePrice,
   clampQty,
@@ -186,5 +187,16 @@ describe("sheetHead", () => {
       price: "฿35",
       sub: "เหลือ 7 ชิ้น · ขนาด 1/2 กลาง",
     });
+  });
+});
+
+describe("chipLabel", () => {
+  // owner, 14 Nov 2026: "remove the price from the choice frame" — the chip holds the size only
+  it("chipLabel > given an open or picked size > the size alone, no price", () => {
+    expect(chipLabel({ value: "3/8 เล็ก" }, "open")).toBe("3/8 เล็ก");
+    expect(chipLabel({ value: "1/2 กลาง" }, "picked")).toBe("1/2 กลาง");
+  });
+  it("chipLabel > given a sold-out size > the size · หมด", () => {
+    expect(chipLabel({ value: "5/8 ใหญ่" }, "out")).toBe("5/8 ใหญ่ · หมด");
   });
 });

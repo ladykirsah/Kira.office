@@ -20,6 +20,13 @@ export interface PickChoice {
 
 export type ChipState = "picked" | "out" | "open";
 
+/** A size chip's words: the size only, "· หมด" when sold out (owner, 14 Nov 2026: "remove the price from
+ *  the choice frame" — the sheet's top shows the picked size's photo, price and stock). */
+export function chipLabel(c: { value: string | null }, state: ChipState): string {
+  const v = c.value ?? "";
+  return state === "out" ? `${v} · หมด` : v;
+}
+
 /** "ขนาด 1/2 กลาง" — the option's own name when the shop gave one, else ขนาด. */
 export function sizeLabel(value: string, optionName?: string | null): string {
   return `${optionName?.trim() || "ขนาด"} ${value}`;
