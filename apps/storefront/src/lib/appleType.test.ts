@@ -13,6 +13,7 @@ const PHONE_CSS = [
   "../components/home/home-phone.css",
   "../components/browse/browse-phone.css",
   "../components/product/product-phone.css",
+  "../components/cart/cart-phone.css",
 ].map((p) => [p, readFileSync(join(__dirname, p), "utf8")] as const);
 
 const APPLE_SIZES = new Set(Object.values(APPLE_STYLES).map((s) => s.size));

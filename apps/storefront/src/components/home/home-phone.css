@@ -47,6 +47,12 @@
   body:has(.mycar-page) {
     background: var(--hm-bg);
   }
+  /* the strip behind the iPhone clock is red like the top under it (owner, 14 Nov 2026: "make sure to fill up
+     the background"): Safari paints it with the page colour, so that colour is red, under a grey picture that
+     keeps the page grey */
+  body:has(.home-phone) {
+    background: linear-gradient(var(--hm-bg), var(--hm-bg)) var(--hm-red);
+  }
 }
 
 /* ── header: red top that fades into the grey behind the car card (pick A) ─────────── */

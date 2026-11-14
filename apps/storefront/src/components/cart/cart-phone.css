@@ -1,0 +1,717 @@
+/* Phone cart + checkout = board 4 (drawn 5 Nov 2026, Apple text 14 Nov 2026; owner: "Yes, build board 4").
+ * Phones (<720px) only; computers keep today's cart and checkout. Colours come from home-phone.css. */
+
+.cart-phone {
+  display: none;
+}
+@media (max-width: 719px) {
+  .cart-phone {
+    display: block;
+    /* full bleed: cancel <main class="wrap">'s 16px padding on every side */
+    margin: -16px;
+    padding-bottom: 120px;
+    min-height: 100vh;
+    background: var(--hm-bg);
+    color: var(--hm-ink);
+  }
+  .cart-desk,
+  .cart-head {
+    display: none;
+  }
+  body:has(.cart-phone) {
+    background: var(--hm-bg);
+  }
+}
+
+/* ── 4.1 the lines: one white card ─────────────────────────────────────────────── */
+.cp-card {
+  margin: 12px 12px 0;
+  padding: 0;
+  border-radius: 20px;
+  background: #fff;
+  list-style: none;
+  overflow: hidden;
+}
+.cp-row {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px 0;
+}
+.cp-photo {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cp-photo--none {
+  background: var(--hm-bg);
+}
+.cp-row-in {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 14px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+}
+.cp-row:last-child .cp-row-in {
+  box-shadow: none;
+}
+.cp-name {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 21px;
+}
+.cp-size {
+  display: flex;
+}
+.cp-row-foot {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cp-price {
+  font-size: 17px;
+}
+.cp-row-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cp-trash {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cp-step {
+  height: 34px;
+  border-radius: 17px;
+  box-shadow: inset 0 0 0 1px var(--hm-line);
+  display: flex;
+  align-items: center;
+}
+.cp-step button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cp-step button:disabled {
+  color: var(--hm-line);
+  cursor: default;
+}
+.cp-qty {
+  min-width: 24px;
+  text-align: center;
+  font-size: 15px;
+}
+
+/* ── the bar at the bottom: total + ชำระเงิน ─────────────────────────────────── */
+.cp-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: #fff;
+  box-shadow: inset 0 1px 0 var(--hm-line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cp-bar-sum {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.cp-bar-count {
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.cp-bar-total {
+  font-size: 20px;
+  line-height: 26px;
+  color: var(--hm-red);
+}
+.cp-bar-note {
+  font-size: 12px;
+  color: var(--hm-grey);
+}
+.cp-bar .cp-bar-btn {
+  width: 136px;
+  flex-shrink: 0;
+}
+
+/* ── buttons (red = the action, grey = cancel) ─────────────────────────────────── */
+.cp-btn-red,
+.cp-btn-grey {
+  width: 100%;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  border-radius: 25px;
+  font-family: inherit;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+}
+.cp-btn-red {
+  background: var(--hm-red);
+  color: #fff;
+  font-weight: 600;
+}
+.cp-btn-grey {
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+}
+
+/* ── 4.2 ลบออกจากตะกร้า? ─────────────────────────────────────────────────────── */
+.cp-ask {
+  padding: 24px 16px calc(34px + env(safe-area-inset-bottom));
+  gap: 8px;
+}
+.cp-ask-t {
+  margin: 0 0 12px;
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── 4.3 the empty cart ─────────────────────────────────────────────────────────── */
+.cp-empty {
+  padding: 140px 32px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.cp-empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  background: #fff;
+  color: var(--hm-grey);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cp-empty-t {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.cp-empty .cp-empty-btn {
+  width: 220px;
+  margin-top: 8px;
+}
+
+/* ── checkout (4.4–4.11) ───────────────────────────────────────────────────────── */
+@media (max-width: 719px) {
+  body:has(.ck) .inner-head {
+    display: none;
+  }
+}
+.ck-card {
+  margin: 12px 12px 0;
+  padding: 16px;
+  border-radius: 20px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ck-flat {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 12px 12px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: #fff;
+  color: var(--hm-ink);
+  font-family: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+.ck-ct {
+  margin: 0;
+  padding: 14px 16px 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.ck-ct--in {
+  padding: 0;
+}
+/* 4.4 เข้าสู่ระบบ */
+.ck-signin {
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px;
+  text-align: center;
+}
+.ck-signin-t {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.ck-signin-s {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  color: var(--hm-grey);
+}
+.ck-signin .ck-line {
+  gap: 8px;
+  background: #06c755;
+}
+/* 4.5 ที่อยู่ › */
+.ck-addr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+.ck-addr-icon {
+  display: flex;
+  align-self: flex-start;
+}
+.ck-addr-in {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-addr-who {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ck-addr-where {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--hm-grey);
+}
+.ck-addr > svg:last-child,
+.ck-coupon > svg:last-child {
+  color: #c7c7cc;
+  flex-shrink: 0;
+}
+/* รายการสินค้า */
+.ck-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ck-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px 0;
+}
+.ck-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.ck-item-in {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+  box-shadow: inset 0 -1px 0 var(--hm-line);
+}
+.ck-item:last-child .ck-item-in {
+  box-shadow: none;
+}
+.ck-name {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 21px;
+}
+.ck-item-foot {
+  display: flex;
+  justify-content: space-between;
+}
+.ck-qty {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--hm-grey);
+}
+.ck-price {
+  font-size: 15px;
+}
+.ck-err {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-red);
+}
+.ck-stock {
+  padding: 0 16px 14px;
+}
+/* วิธีชำระเงิน · the address list */
+.ck-pay {
+  gap: 8px;
+}
+.ck-opt {
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--hm-line);
+  color: var(--hm-ink);
+  font-family: inherit;
+  text-align: left;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.ck-opt--on {
+  box-shadow: inset 0 0 0 2px var(--hm-ink);
+}
+.ck-radio {
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1.5px #c7c7cc;
+  flex-shrink: 0;
+}
+.ck-radio--on {
+  box-shadow: inset 0 0 0 7px var(--hm-red);
+}
+.ck-opt-in {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-opt-t {
+  font-size: 17px;
+  font-weight: 600;
+}
+.ck-opt-s {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--hm-grey);
+}
+.ck-default {
+  align-self: flex-start;
+  margin-top: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--hm-bg);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+/* คูปอง › */
+.ck-coupon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  cursor: pointer;
+}
+.ck-coupon-l {
+  font-size: 15px;
+}
+.ck-coupon-v {
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--hm-grey);
+}
+/* the summary */
+.ck-sum {
+  gap: 10px;
+}
+.ck-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 21px;
+}
+.ck-kv > span:last-child {
+  text-align: right;
+  color: var(--hm-grey);
+}
+.ck-kv--total {
+  padding-top: 10px;
+  box-shadow: inset 0 1px 0 var(--hm-line);
+}
+.ck-kv--total > span:last-child {
+  color: var(--hm-ink);
+  font-size: 17px;
+}
+.cp-btn-red:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* sheets 4.6–4.9 */
+.ck-sheet-list {
+  padding: 0 16px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ck-addnew {
+  min-height: 52px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.ck-form {
+  padding: 0 16px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ck-fld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ck-fl {
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.ck-box {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--hm-bg);
+  color: var(--hm-ink);
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 22px;
+  box-sizing: border-box;
+}
+.ck-box--tall {
+  min-height: 72px;
+  resize: none;
+}
+.ck-box--pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+}
+.ck-box--pick svg {
+  transform: rotate(90deg);
+  color: var(--hm-grey);
+}
+.ck-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.ck-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.ck-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ck-check-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1.5px #c7c7cc;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ck-check input:checked + .ck-check-box {
+  background: var(--hm-red);
+  box-shadow: none;
+}
+.ck-tambons {
+  margin: 0;
+  padding: 0 0 34px;
+  list-style: none;
+}
+.ck-tambon {
+  width: 100%;
+  min-height: 60px;
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  color: var(--hm-ink);
+  font-family: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow:
+    inset 16px -1px 0 #fff,
+    inset 0 -1px 0 var(--hm-line);
+  cursor: pointer;
+}
+.ck-tambon > svg {
+  color: var(--hm-red);
+}
+.ck-tambon-in {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-tambon-t {
+  font-size: 17px;
+}
+.ck-tambon-s {
+  font-size: 13px;
+  color: var(--hm-grey);
+}
+.ck-coupon-row {
+  display: flex;
+  gap: 8px;
+}
+.ck-grow {
+  flex: 1;
+}
+.ck-coupon-row .ck-use {
+  width: 80px;
+  height: 48px;
+  align-self: flex-end;
+  flex-shrink: 0;
+}
+
+/* ── text follows the phone's text size, like Apple's apps ─────────────────────────────────
+ * Owner, 14 Nov 2026: "i want THE SAME as real Apple system" · "All AirPlus pages". Each text above
+ * has a normal iPhone's size; here iPhone Safari swaps it for Apple's own style, which grows or shrinks
+ * with Settings › Display & Brightness › Text Size. iPhone only: on a Mac -apple-system-body is 13px. */
+@supports (font: -apple-system-body) {
+  @media (max-width: 719px) and (pointer: coarse) {
+    .cp-name,
+    .cp-qty {
+      font: -apple-system-subheadline;
+      line-height: 1.4;
+    }
+    .cp-price,
+    .cp-btn-grey {
+      font: -apple-system-body;
+      line-height: inherit;
+    }
+    .cp-btn-red,
+    .cp-ask-t,
+    .cp-empty-t {
+      font: -apple-system-headline;
+      line-height: inherit;
+    }
+    .cp-bar-count {
+      font: -apple-system-footnote;
+      line-height: inherit;
+    }
+    .cp-bar-total {
+      font: -apple-system-title3;
+      line-height: 1.3;
+    }
+    .cp-bar-note {
+      font: -apple-system-caption1;
+      line-height: inherit;
+    }
+    .ck-name,
+    .ck-price,
+    .ck-addr-who,
+    .ck-addr-where,
+    .ck-signin-s,
+    .ck-coupon-l,
+    .ck-coupon-v,
+    .ck-kv,
+    .ck-check {
+      font: -apple-system-subheadline;
+      line-height: 1.4;
+    }
+    .ck-addr-who {
+      font-weight: 600;
+    }
+    .ck-ct,
+    .ck-opt-t {
+      font: -apple-system-headline;
+      line-height: 1.29;
+    }
+    .ck-signin-t {
+      font: -apple-system-title2;
+      line-height: 1.27;
+      font-weight: 700;
+    }
+    .ck-kv--total > span:last-child,
+    .ck-box,
+    .ck-addnew,
+    .ck-tambon-t {
+      font: -apple-system-body;
+      line-height: 1.29;
+    }
+    .ck-opt-s,
+    .ck-err,
+    .ck-fl,
+    .ck-tambon-s {
+      font: -apple-system-footnote;
+      line-height: 1.38;
+    }
+    .ck-qty,
+    .ck-default {
+      font: -apple-system-caption1;
+      line-height: 1.33;
+    }
+  }
+}
