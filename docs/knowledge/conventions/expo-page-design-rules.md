@@ -5,7 +5,7 @@ description: The one rulebook for drawing and building any back-office (CrewEngi
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-05
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov), AirPlus board 3 + 3b rounds and build, the Apple measurement + board 3A + the Apple-text build (14 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -123,6 +123,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   and re-start"*. If it could reach further, ask before removing (ออกบาร์โค้ด, 31 Oct).
 - **If they ask "what is that button?" or "what does this mean?", the design failed.** Label it
   plainly or remove it.
+- **An "all pages" option names every page it reaches.** I offered "All AirPlus pages" naming home,
+  search and product. Dark mode would have left about 19 old pages white beside them, so I had to ask
+  again. List the routes and shared files first, and say what the left-out pages will look like (14 Nov).
+- **Read the noun they use for the part.** *"product choice in the same frame with price > show me 3"*:
+  I moved the photo and price around, but they meant the price inside each chip (*"remove the price from
+  the choice frame"*, size sheet 3b, 14 Nov).
 - **Say it before building it.** If something can't be done as drawn (the server lacks it, it
   breaks an approved rule), say so first and tag it ระบบยังไม่มี. Never build a smaller stand-in
   and explain it afterwards.
@@ -175,6 +181,26 @@ again before saying a build matches.** The owner's words are quoted where they s
   - Prices, values and the stepper number are regular weight.
   - Thai has no semibold on iPhone, so any 600 looks bold. Keep bold rare.
 - **Font:** the system font (SF Pro + Apple's Thai), *"the same font as on App store"*.
+- **AirPlus = THE SAME as the real Apple system: text follows the phone's text size.** The owner
+  sent their iPhone Settings: *"design is off"* → *"i want THE SAME as real Apple system"* →
+  *"All AirPlus pages"* (AirPlus, 14 Nov).
+  - Their phone's text size is Small, so Settings shows rows 15 and grey lines 12; a normal iPhone shows 17 and 13.
+  - Use Apple's text styles: title0 34 · title1 28 · title2 22 · headline 17 · body 17 · subheadline 15 ·
+    footnote 13 · caption1 12 · caption2 11.
+  - On the web this is `font: -apple-system-<style>`. Put it inside
+    `@supports (font: -apple-system-body) { @media (max-width: 719px) and (pointer: coarse) }`, because on a
+    Mac body is 13px. Guarded by `apps/storefront/src/lib/appleType.ts`.
+  - Bars, badges and countdown boxes stay one size, as in Apple's apps.
+  - **No dark mode for AirPlus:** *"no dark mode for AirPlus"*.
+- **Settings rows: black name left, grey value right, the same size, › when it opens something.** We had
+  grey names with black values ("การจัดส่ง | Flash Express") and the right-side value a size smaller
+  (board 3A, 14 Nov). Hairlines run from where the text starts to 16 before the right edge.
+- **A section heading sits above its card (Apple Store, 22 bold), never inside it.** Grouped cards sit 16
+  from the screen edge, with corner 26 (board 3A, 14 Nov).
+- **Measure Apple before calling a page Apple-like, or one of ours wrong.**
+  - I built the product page with 8 text sizes. Their screenshot had 3.
+  - I also called the 11 bar labels too small, but that is Apple's own bar size.
+  - Measure their screenshot against text of known sizes drawn on the simulator, and Mobbin's originals (AirPlus, 14 Nov).
 - **Colours: Palette A Racing Red.** The owner rejected odd success/warning/problem colours.
 - **Colour lives in icons and dots.** Status = a small coloured dot or icon + plain black or grey
   words. Never colour the words.
@@ -681,6 +707,8 @@ again before saying a build matches.** The owner's words are quoted where they s
   `box-sizing: border-box` in drawings, or the padding is added (a 68 row became 72).
 - **Type:** 34 / 28 / 22 / 17 semibold / 17 / 15 / 13 / 11. Corners 20 for cards, 12 for
   controls, pill for buttons.
+  AirPlus phone pages use Apple's text styles that follow the phone (§3), with 26 corners on grouped
+  cards (14 Nov).
 - **"The gap is wrong": measure what their screenshot points at.** On Orders, "the bigger gap"
   meant row height. It took two rounds.
 
@@ -718,12 +746,20 @@ again before saying a build matches.** The owner's words are quoted where they s
   (ตัวเลือกสินค้า, 8–11 Nov). Set `launch.page` to it, open the canvas, name the page in the reply.
 - **Clean up after a build.** Delete old versions and options that weren't picked, and say which
   ones went.
+- **A drawn page that stands for a real page is drawn whole.** 3b's checkout and order page were short
+  cards: *"too minimum, an order has more details than this"*. Reuse the full board 4/5 page, with the
+  new part in place (14 Nov).
 - **Mockups live on the artifact only.** The preview always shows the real app.
 - Drawing scripts live in `~/.claude/projects/-Users-admin-Developer-Kira-office-main/design-tools/`.
   The session scratchpad is wiped on restart.
 
 ## 8 · Check the build like the owner would
 
+- **A shared part reaches the computer too.** On AirPlus, the size sheet and the ตัวเลือก row are also on
+  the computer product page, which keeps today's look. Before restyling a component, grep who else renders
+  it, and check width 1024 as well as the phone (14 Nov).
+- **Check AirPlus text at two text sizes.** Use `xcrun simctl ui booted content_size small` (the owner's
+  setting), then `large`. Reset to large afterwards (14 Nov).
 - **Restart the preview after every change.** "Kira new version" runs Metro in CI mode, so it
   doesn't reload by itself.
 - **The practice sign-in drops on reload.** Open `/sign-in?practice=1&to=<page>` again.

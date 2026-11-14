@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { addToCart } from "@/lib/cart";
-import { baht } from "@/lib/format";
 import { imgUrl } from "@/lib/img";
 import { track } from "@/lib/track";
 import {
   canConfirm,
+  chipLabel,
   chipState,
   choicePrice,
   clampQty,
@@ -25,8 +25,9 @@ export interface SizeSheetProduct {
 
 /**
  * The Shopee-style size sheet (board 3b, owner's pick A, 11 Nov 2026): the picked size's photo, red
- * price and "เหลือ N ชิ้น · ขนาด X" (the range and "เลือกขนาด" before a pick), one chip per size — picked
- * = light red with a red ring, sold out = grey "หมด" and not tappable — the จำนวน stepper, and the
+ * price and "เหลือ N ชิ้น · ขนาด X" (the range and "เลือกขนาด" before a pick), one chip per size holding
+ * the size only (owner, 14 Nov 2026) — picked = light red with a red ring, sold out = grey "· หมด" and not
+ * tappable — the จำนวน stepper, and the
  * button, grey until a size is picked. It adds THAT size to the cart; ซื้อเลย then goes to checkout.
  */
 export function SizeSheet({
@@ -109,10 +110,7 @@ export function SizeSheet({
                 className={`sz-chip sz-chip--${state}`}
                 onClick={() => pick(c)}
               >
-                <span className="sz-chip-v">{c.value}</span>
-                <span className="sz-chip-p">
-                  {state === "out" ? "หมด" : baht(choicePrice(c, now))}
-                </span>
+                {chipLabel(c, state)}
               </button>
             );
           })}

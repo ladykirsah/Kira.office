@@ -569,6 +569,8 @@ export interface ProductDetail extends CatalogItem {
   description: string | null;
   /** Its category's เงื่อนไข, filled in for this product; null = no เงื่อนไข box. */
   terms: string | null;
+  /** Its category's Thai name (the phone page speaks Thai); null when the owner gave none. */
+  typeNameTh?: string | null;
   images: { imageKey: string; sortOrder: number }[];
   fitments: {
     carBrand: string | null;
@@ -654,6 +656,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
     db
       .prepare(
         `SELECT p.description AS description, pt.description AS categoryDescription, pt.terms AS categoryTerms,
+                pt.name_th AS typeNameTh,
                 p.weight_grams AS weightGrams, COALESCE(tp.price_includes_vat, 1) AS priceIncludesVat
          FROM products p LEFT JOIN tax_profiles tp ON tp.id = p.tax_profile_id
          LEFT JOIN product_types pt ON pt.id = p.type_id WHERE p.id = ?`,
@@ -663,6 +666,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
         description: string | null;
         categoryDescription: string | null;
         categoryTerms: string | null;
+        typeNameTh: string | null;
         weightGrams: number;
         priceIncludesVat: number;
       }>(),
@@ -692,6 +696,7 @@ export async function getProduct(db: D1Database, productId: string): Promise<Pro
     choices,
     description: joinDescriptions(meta?.description ?? null, meta?.categoryDescription ?? null),
     terms: productTerms(meta?.categoryTerms ?? null, head),
+    typeNameTh: meta?.typeNameTh ?? null,
     weightGrams: meta?.weightGrams ?? 0,
     priceIncludesVat: Boolean(meta?.priceIncludesVat ?? true),
     images: images.results ?? [],
