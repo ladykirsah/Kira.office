@@ -31,10 +31,13 @@ const EXPECTED: IconName[] = [
   "line",
   // board 2 (5 Nov 2026): the ⇅ on ราคา in the search sort bar
   "sort",
+  // board 4 (14 Nov 2026): − / + on a cart line
+  "minus",
+  "plus",
 ];
 
 describe("icon registry", () => {
-  it("exposes exactly the 26 chosen interface icons", () => {
+  it("exposes exactly the 28 chosen interface icons", () => {
     expect([...ICON_NAMES].sort()).toEqual([...EXPECTED].sort());
   });
 

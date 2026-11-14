@@ -8,6 +8,7 @@ import { SizeTag } from "@/components/SizeTag";
 import { Icon } from "@/components/Icon";
 import { ReadyToShip } from "@/components/ReadyToShip";
 import { baht } from "@/lib/format";
+import { CartPhone } from "@/components/cart/CartPhone";
 import { imgUrl } from "@/lib/img";
 
 /**
@@ -58,6 +59,18 @@ const stepBtnStyle: React.CSSProperties = {
 };
 
 export default function CartPage() {
+  return (
+    <>
+      <CartPhone />
+      <div className="cart-desk">
+        <CartDesk />
+      </div>
+    </>
+  );
+}
+
+/** Today's cart, kept for computers (phones see board 4 · CartPhone). */
+function CartDesk() {
   const lines = useCart();
 
   if (lines.length === 0) {

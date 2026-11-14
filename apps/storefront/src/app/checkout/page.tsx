@@ -8,6 +8,7 @@ import type { AddressRow } from "@/app/api/account/addresses/route";
 import { cartTotalSatang, clearCart, syncCartPrices, useCart } from "@/lib/cart";
 import { Icon } from "@/components/Icon";
 import {
+  generateRef,
   type CheckoutPaymentMethod,
   type CheckoutRequest,
   type CheckoutResponse,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/checkoutApi";
 import { baht } from "@/lib/format";
 import { SizeTag } from "@/components/SizeTag";
+import { CheckoutPhone } from "@/components/cart/CheckoutPhone";
 
 /**
  * Checkout v2 — ONE page, all sections visible at once (the anti-inw.me statement: no hidden
@@ -123,14 +125,6 @@ const PAYMENT_OPTIONS: { id: CheckoutPaymentMethod; title: string; detail: strin
   },
 ];
 
-/** One idempotency ref per checkout visit — a retried submit can never create a duplicate order. */
-function generateRef(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const buf = new Uint8Array(8);
-  crypto.getRandomValues(buf);
-  return `AP-${Array.from(buf, (b) => chars[b % chars.length]).join("")}`;
-}
-
 function SectionTitle({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "20px 0 10px" }}>
@@ -179,6 +173,18 @@ interface Me {
 }
 
 export default function CheckoutPage() {
+  return (
+    <>
+      <CheckoutPhone />
+      <div className="cart-desk">
+        <CheckoutDesk />
+      </div>
+    </>
+  );
+}
+
+/** Today's checkout, kept for computers (phones see board 4 · CheckoutPhone). */
+function CheckoutDesk() {
   const router = useRouter();
   const lines = useCart();
 

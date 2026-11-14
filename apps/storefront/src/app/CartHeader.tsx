@@ -18,6 +18,7 @@ export function CartHeader() {
 
   return (
     <header
+      className="cart-head"
       style={{
         position: "sticky",
         top: 0,

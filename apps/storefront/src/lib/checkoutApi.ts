@@ -14,6 +14,14 @@ export type CheckoutPaymentMethod = "promptpay" | "transfer" | "cod";
 /** Client-generated once per checkout attempt; retries re-send the same ref → idempotent. */
 export const IDEMPOTENCY_REF_PATTERN = /^AP-[A-Z0-9]{6,12}$/;
 
+/** One idempotency ref per checkout visit — a retried submit can never create a duplicate order. */
+export function generateRef(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const buf = new Uint8Array(8);
+  crypto.getRandomValues(buf);
+  return `AP-${Array.from(buf, (b) => chars[b % chars.length]).join("")}`;
+}
+
 export interface CheckoutAddress {
   recipientName: string;
   phone: string;

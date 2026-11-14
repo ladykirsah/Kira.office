@@ -39,7 +39,10 @@ export type IconName =
   | "store"
   | "line"
   // board 2 (5 Nov 2026): the ⇅ on ราคา in the search sort bar
-  | "sort";
+  | "sort"
+  // board 4 (14 Nov 2026): − / + on a cart line
+  | "minus"
+  | "plus";
 
 export interface Glyph {
   /** inner SVG markup (stroke-only) drawn in a 0 0 24 24 viewBox */
@@ -177,6 +180,12 @@ export const ICONS: Record<IconName, Glyph> = {
   },
   sort: {
     inner: '<path d="M8 9l4-4 4 4M8 15l4 4 4-4"/>',
+  },
+  minus: {
+    inner: '<path d="M5 12h14"/>',
+  },
+  plus: {
+    inner: '<path d="M12 5v14M5 12h14"/>',
   },
 };
 
