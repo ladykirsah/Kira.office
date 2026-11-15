@@ -6,7 +6,6 @@ import {
   keepAfterSave,
   changedCards,
   holdMoves,
-  needsReason,
   readTab,
   step,
   deskStockWords,
@@ -182,24 +181,9 @@ describe("holdMoves", () => {
   });
 });
 
-describe("needsReason", () => {
-  it("given a stock count lowered > then the screen must ask นับใหม่ or ของเสีย", () => {
-    expect(needsReason([{ part: clutch, value: 2 }])).toBe(true);
-  });
-
-  it("given only counts raised or unchanged > then there is nothing to ask", () => {
-    expect(
-      needsReason([
-        { part: clutch, value: 5 },
-        { part: part(), value: 4 },
-      ]),
-    ).toBe(false);
-  });
-});
-
 describe("stockMoves", () => {
   it("given a count raised > then the difference is received into stock", () => {
-    expect(stockMoves([{ part: clutch, value: 5 }], null)).toEqual([
+    expect(stockMoves([{ part: clutch, value: 5 }])).toEqual([
       {
         productVariantId: "v2",
         quantityDelta: 2,
@@ -209,34 +193,19 @@ describe("stockMoves", () => {
     ]);
   });
 
-  it("given a count lowered for นับใหม่ > then the new count is recorded as a stocktake", () => {
-    expect(stockMoves([{ part: clutch, value: 1 }], "recount")).toEqual([
+  it("given a count lowered > then the new count is saved as counted, with no นับใหม่ / ของเสีย question (owner, 31 Oct)", () => {
+    expect(stockMoves([{ part: clutch, value: 1 }])).toEqual([
       {
         productVariantId: "v2",
         countedOnHand: 1,
         movementType: "correction",
-        reason: "recounted via Scan",
-      },
-    ]);
-  });
-
-  it("given a count lowered for ของเสีย > then the difference is written off", () => {
-    expect(stockMoves([{ part: clutch, value: 1 }], "damaged")).toEqual([
-      {
-        productVariantId: "v2",
-        quantityDelta: -2,
-        movementType: "write_off",
-        reason: "damaged or lost via Scan",
+        reason: "counted via Scan",
       },
     ]);
   });
 
   it("given an unchanged card > then nothing is recorded for it", () => {
-    expect(stockMoves([{ part: clutch, value: 3 }], null)).toEqual([]);
-  });
-
-  it("given a count lowered and no reason picked > then it refuses rather than guess", () => {
-    expect(() => stockMoves([{ part: clutch, value: 1 }], null)).toThrow();
+    expect(stockMoves([{ part: clutch, value: 3 }])).toEqual([]);
   });
 });
 

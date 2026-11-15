@@ -1,6 +1,6 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { formatBaht } from "./money";
-import { clockTime, dayTitle, startOfDay } from "./orderList";
+import { dayTitle, startOfDay } from "./orderList";
 
 /** One payment on the การชำระเงิน list, as GET /payments sends it (cleared ones are not sent). */
 export interface PaymentRow {
@@ -46,12 +46,9 @@ export function maskPromptpay(id: string): string {
   return `xxx-${d.slice(-4)}`;
 }
 
-/** The row's grey line: its time, and the bill it paid for when it came from ทำบิล or Scan. */
-export function rowSub(r: PaymentRow): Phrase {
-  const time = clockTime(r.createdAt);
-  return r.saleNumber
-    ? { th: `${time} · บิล ${r.saleNumber}`, en: `${time} · Bill ${r.saleNumber}` }
-    : { th: time, en: time };
+/** The row's grey line: the bill it paid for when it came from ทำบิล or Scan; none otherwise (no clock time). */
+export function rowSub(r: PaymentRow): Phrase | null {
+  return r.saleNumber ? { th: `บิล ${r.saleNumber}`, en: `Bill ${r.saleNumber}` } : null;
 }
 
 export function payState(r: PaymentRow, slipCheckOn: boolean): PayState {

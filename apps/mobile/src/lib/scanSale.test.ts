@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   billDate,
+  cashBillLine,
   buildSale,
   nextSaleNumber,
   overSold,
@@ -226,6 +227,15 @@ describe("saleRefusal", () => {
         validationErrors: [{ clientUuid: "u-1", reason: "quantity must be positive" }],
       }).th,
     ).toBe("ระบบไม่รับบิลนี้: quantity must be positive");
+  });
+});
+
+describe("cashBillLine", () => {
+  it("given a bill made on Scan > then its number alone, no clock time (owner rule: NO TIME)", () => {
+    expect(cashBillLine("DAS202611-15001")).toEqual({
+      th: "บิลเงินสด เลขที่ DAS202611-15001",
+      en: "Cash bill no. DAS202611-15001",
+    });
   });
 });
 

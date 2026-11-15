@@ -29,18 +29,25 @@ export function ProductCard(props: {
         { backgroundColor: theme.surface, borderWidth: theme.cardLine, borderColor: theme.border },
       ]}
     >
-      <Pressable onPress={() => open("")} accessibilityRole="link" style={styles.top}>
-        <Photo imageKey={row.imageKey} size={74} />
+      {/* The tap areas sit side by side, never one inside another: on the website a tap area
+          inside another is a button inside a button (owner rule, rn-web-no-nested-pressable). */}
+      <View style={styles.top}>
+        <Pressable onPress={() => open("")} accessibilityRole="link" accessibilityLabel={row.name}>
+          <Photo imageKey={row.imageKey} size={74} />
+        </Pressable>
         <View style={styles.text}>
-          <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
-            {row.name}
-          </Text>
-          {sizes ? (
-            // A product with sizes: how many and the cheapest's price, in place of one code.
-            <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
-              {t(sizes)}
+          <Pressable onPress={() => open("")} accessibilityRole="link" style={styles.text}>
+            <Text style={[TYPE.body, { color: theme.text }]} numberOfLines={2}>
+              {row.name}
             </Text>
-          ) : (
+            {sizes && (
+              // A product with sizes: how many and the cheapest's price, in place of one code.
+              <Text style={[TYPE.subhead, { color: theme.textMuted }]} numberOfLines={1}>
+                {t(sizes)}
+              </Text>
+            )}
+          </Pressable>
+          {!sizes && (
             <View style={styles.code}>
               <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{row.productRef}</Text>
               <Pressable
@@ -57,7 +64,7 @@ export function ProductCard(props: {
             </View>
           )}
         </View>
-      </Pressable>
+      </View>
       <View style={styles.status}>
         {line.level === "low" && <Dot color={theme.waiting} />}
         {line.level === "out" && <Dot color={theme.textFaint} />}

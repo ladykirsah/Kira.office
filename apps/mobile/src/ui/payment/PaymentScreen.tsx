@@ -183,6 +183,7 @@ function PayRow({ row, page, last }: { row: PaymentRow; page: PaymentPage; last:
   const state = payState(row, page.slipCheckOn);
   const tone =
     state === "awaitingSlip" ? theme.waiting : state === "slipConfirmed" ? theme.success : null;
+  const sub = rowSub(row);
   return (
     <View>
       <View style={styles.row}>
@@ -190,7 +191,7 @@ function PayRow({ row, page, last }: { row: PaymentRow; page: PaymentPage; last:
           <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
             {`${row.methodLabel} · ${maskPromptpay(row.promptpayId)}`}
           </Text>
-          <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{t(rowSub(row))}</Text>
+          {sub && <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{t(sub)}</Text>}
           <View style={styles.state}>
             {tone && <View style={[styles.dot, { backgroundColor: tone }]} />}
             <Text style={[TYPE.subhead, { color: tone ?? theme.textMuted }]}>

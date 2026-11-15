@@ -32,11 +32,9 @@ import {
   changedCards,
   holdMoves,
   keepAfterSave,
-  needsReason,
   readTab,
   step,
   stockMoves,
-  type DownReason,
   type SaveOutcome,
   type ScanCard,
   type ScanTab,
@@ -99,10 +97,6 @@ const NO_CHANGE: Toast = {
   title: { th: "ยังไม่ได้เปลี่ยนจำนวน", en: "Nothing changed yet" },
   detail: { th: "กด − หรือ + ก่อน แล้วค่อยบันทึก", en: "Tap − or + first, then save" },
 };
-const PICK_REASON: Toast = {
-  title: { th: "ลดเพราะอะไร", en: "Why did it go down?" },
-  detail: { th: "เลือก นับใหม่ หรือ ของเสีย ก่อนบันทึก", en: "Pick recount or damaged, then save" },
-};
 
 /** A failed call in plain words: the API's own sentence, or "no connection" for a dropped line. */
 function failed(err: unknown): Notice {
@@ -154,7 +148,6 @@ export function useScanSession() {
   const [refusedBy, setRefusedBy] = useState(NO_REFUSALS);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [reason, setReason] = useState<DownReason | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [saving, setSaving] = useState(false);
   const [sheet, setSheet] = useState<PaySheet | null>(null);
@@ -253,11 +246,11 @@ export function useScanSession() {
     finishSave("away", outcomes, why);
   }
 
-  async function saveStock(sent: ScanCard[], downReason: DownReason | null) {
+  async function saveStock(sent: ScanCard[]) {
     // One movement per part, in order; the stock ledger records each on its own.
     const outcomes: Record<string, SaveOutcome> = {};
     const why: Refusals = {};
-    for (const move of stockMoves(sent, downReason)) {
+    for (const move of stockMoves(sent)) {
       const id = move.productVariantId;
       try {
         const r = await adjustStock(fetch, API_BASE, token, move);
@@ -271,7 +264,6 @@ export function useScanSession() {
         }
       }
     }
-    setReason(null);
     finishSave("stock", outcomes, why);
   }
 
@@ -282,12 +274,8 @@ export function useScanSession() {
       setToast(NO_CHANGE);
       return;
     }
-    if (tab === "stock" && needsReason(cards) && !reason) {
-      setToast(PICK_REASON);
-      return;
-    }
     setSaving(true);
-    void (tab === "away" ? saveAway(cards) : saveStock(cards, reason))
+    void (tab === "away" ? saveAway(cards) : saveStock(cards))
       .catch((err: unknown) => setNotice(failed(err)))
       .finally(() => setSaving(false));
   }
@@ -479,8 +467,6 @@ export function useScanSession() {
     refused: refusedBy[tab],
     notFound,
     notice,
-    reason,
-    setReason,
     toast,
     saving,
     sheet,

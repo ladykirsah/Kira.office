@@ -132,14 +132,11 @@ export interface HoldLine {
   bringBack: number;
 }
 
-/** Why a for-sale count went down (จัดการสต็อก): counted again, or damaged or lost. */
-export type DownReason = "recount" | "damaged";
-
 export interface StockMove {
   productVariantId: string;
   quantityDelta?: number;
   countedOnHand?: number;
-  movementType: "receive" | "correction" | "write_off";
+  movementType: "receive" | "correction";
   reason: string;
 }
 
@@ -160,20 +157,15 @@ export function holdMoves(cards: readonly ScanCard[]): HoldLine[] {
   });
 }
 
-const lowered = (c: ScanCard) => c.value < c.part.onHand;
-
-export function needsReason(cards: readonly ScanCard[]): boolean {
-  return cards.some(lowered);
-}
-
 /**
- * จัดการสต็อก: a raised count is stock received. A lowered one is either a recount — the new count
- * is sent as counted, so the server works the difference out from its own figure — or a write-off.
+ * จัดการสต็อก: a raised count is stock received; a lowered one is simply the new count, sent as
+ * counted so the server works the difference out from its own figure. People just − / + and save
+ * (owner, 31 Oct 2026: "we do not need นับใหม่ and ของเสีย"), so there is no question about why.
  */
-export function stockMoves(cards: readonly ScanCard[], reason: DownReason | null): StockMove[] {
+export function stockMoves(cards: readonly ScanCard[]): StockMove[] {
   return changedCards(cards, "stock").map((c) => {
     const productVariantId = c.part.variantId;
-    if (!lowered(c)) {
+    if (c.value > c.part.onHand) {
       return {
         productVariantId,
         quantityDelta: c.value - c.part.onHand,
@@ -181,23 +173,12 @@ export function stockMoves(cards: readonly ScanCard[], reason: DownReason | null
         reason: "received via Scan",
       };
     }
-    if (reason === "recount") {
-      return {
-        productVariantId,
-        countedOnHand: c.value,
-        movementType: "correction",
-        reason: "recounted via Scan",
-      };
-    }
-    if (reason === "damaged") {
-      return {
-        productVariantId,
-        quantityDelta: c.value - c.part.onHand,
-        movementType: "write_off",
-        reason: "damaged or lost via Scan",
-      };
-    }
-    throw new Error("a lowered count needs a reason: recount or damaged");
+    return {
+      productVariantId,
+      countedOnHand: c.value,
+      movementType: "correction",
+      reason: "counted via Scan",
+    };
   });
 }
 

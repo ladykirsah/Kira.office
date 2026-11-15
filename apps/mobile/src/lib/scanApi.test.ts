@@ -222,18 +222,18 @@ describe("adjustStock", () => {
 
   it("given the move is refused > then the system's reason comes back with it", async () => {
     const { fetchFn } = recording([
-      async () => Response.json({ applied: false, reason: "would go below zero" }),
+      async () => Response.json({ applied: false, reason: "unknown variant" }),
     ]);
     const move = {
       productVariantId: "v1",
-      quantityDelta: -9,
-      movementType: "write_off" as const,
-      reason: "damaged or lost via Scan",
+      countedOnHand: 0,
+      movementType: "correction" as const,
+      reason: "counted via Scan",
     };
 
     expect(await adjustStock(fetchFn, "http://api", "tok", move)).toEqual({
       applied: false,
-      reason: "would go below zero",
+      reason: "unknown variant",
     });
   });
 });

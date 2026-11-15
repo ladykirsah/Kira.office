@@ -66,12 +66,12 @@ describe("paymentPage", () => {
     expect(maskPromptpay("1234567890123")).toBe("xxx-0123");
   });
 
-  it("rowSub > given a bill > then the time and the bill number", () => {
-    expect(rowSub(LIST[0]!)).toEqual({
-      th: "14:32 · บิล DAS202610-29004",
-      en: "14:32 · Bill DAS202610-29004",
-    });
-    expect(rowSub(LIST[1]!)).toEqual({ th: "13:05", en: "13:05" });
+  it("rowSub > given a bill > then the bill number alone, no clock time (owner rule: NO TIME)", () => {
+    expect(rowSub(LIST[0]!)).toEqual({ th: "บิล DAS202610-29004", en: "Bill DAS202610-29004" });
+  });
+
+  it("rowSub > given no bill > then no grey line at all", () => {
+    expect(rowSub(LIST[1]!)).toBeNull();
   });
 
   it("payState > given slip checking off > then every row is approved", () => {

@@ -1,13 +1,7 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import {
-  deskStockWords,
-  stepLabel,
-  stockLine,
-  type DownReason,
-  type ScanTab,
-} from "@/lib/scanTabs";
+import { deskStockWords, stepLabel, stockLine, type ScanTab } from "@/lib/scanTabs";
 import { useLang } from "../AppProviders";
 import { useWide } from "../desk/useWide";
 import { useScreenChrome, type ChromeButton } from "../ScreenChrome";
@@ -31,11 +25,6 @@ const TABS: { value: ScanTab; label: Phrase }[] = [
   { value: "sell", label: { th: "ขาย", en: "Sell" } },
   { value: "away", label: { th: "งานนอก", en: "Outside job" } },
   { value: "stock", label: { th: "จัดการสต็อก", en: "Manage stock" } },
-];
-
-const REASONS: { value: DownReason; label: Phrase }[] = [
-  { value: "recount", label: { th: "นับใหม่", en: "Recount" } },
-  { value: "damaged", label: { th: "ของเสีย", en: "Damaged" } },
 ];
 
 /**
@@ -70,7 +59,6 @@ export function ScanScreen() {
               onPress: s.save,
             },
           ];
-  const lowered = s.tab === "stock" && !s.notFound && s.cards.some((c) => c.value < c.part.onHand);
   useScreenChrome(
     // A computer types into its scan box, so it has no "type a code" button (DeskScan board).
     wide
@@ -82,14 +70,6 @@ export function ScanScreen() {
         },
     footer,
     {
-      choice: lowered
-        ? {
-            label: t({ th: "ลดเพราะ", en: "Lower because" }),
-            options: REASONS.map((r) => ({ value: r.value, label: t(r.label) })),
-            value: s.reason,
-            onChange: (v) => s.setReason(v as DownReason),
-          }
-        : null,
       toast: s.toast ? { title: t(s.toast.title), detail: t(s.toast.detail) } : null,
     },
   );
