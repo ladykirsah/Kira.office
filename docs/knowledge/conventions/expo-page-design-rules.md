@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-11-05
+timestamp: 2026-11-15
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov), AirPlus board 3 + 3b rounds and build, the Apple measurement + board 3A + the Apple-text build (14 Nov), the Apple-look redraw reversed + boards 4–12 text only + board 4 ตะกร้า · ชำระเงิน build + red behind the clock (14 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov), AirPlus board 3 + 3b rounds and build, the Apple measurement + board 3A + the Apple-text build (14 Nov), the Apple-look redraw reversed + boards 4–12 text only + board 4 ตะกร้า · ชำระเงิน build + red behind the clock (14 Nov), THE ONE PLAN + detour rules + LINE test placed last, ไม่พบหน้านี้ (plan 1.2) design + build (15 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -100,6 +100,17 @@ again before saying a build matches.** The owner's words are quoted where they s
   admin; the owner: *"https://admin.airplusauto.com/ what we have done is admin"*, then *"i want to
   swap for the old one … i am going to keep using the new one"* (publishing, 4 Nov). A rebuild takes
   the address people already open; the old one is parked with no address, then deleted.
+- **There is one plan page, and the work follows it** (owner, 15 Nov: *"since the day we start working
+  on this project, we plan, and i keep losing in the plan"*): https://claude.ai/artifact/QyXzRDH2TSnY39NFbzoBpo.
+  Find the step before starting; update the page after every ship. Detours follow its rules A–E
+  (*"what if we are working then something happen to go off track?"* → *"Yes, add them"*): a live break
+  is fixed first, then back to the same step; a non-urgent find goes on "Found on the way", never fixed
+  on the side; a new ask gets "which stage, what it pushes back, now or later"; a stuck step is marked
+  Waiting; a wrong step is crossed out, numbers never change.
+- **"A > B" from the owner is an order: A first, then B.** I read *"done whole thing > me and my team
+  start using"* as "start the LINE test now" and pulled it forward; the owner: *"i feel lost again. Line
+  test = done all · start using on Line mini app = test · file things to fix and add on real using"*.
+  Never move a later stage forward unless they name the move; if it could mean now or later, ask y/n.
 
 ## 2 · Change only what they asked
 
@@ -494,6 +505,9 @@ again before saying a build matches.** The owner's words are quoted where they s
   - **One button, one word on phone and computer.** I first chose ล้างรายการ for the phone while the
     approved computer dialog already said ล้าง. Before choosing a button's words, read the same button
     in the other layout and match it (การชำระเงิน, 5 Nov).
+  - **Words that point at a control match the layout they show in.** The drawn "เลือกหน้าจากเมนู ☰"
+    is right on the phone, but the computer has the menu on the left and no ☰; there it reads
+    "เลือกหน้าจากเมนูด้านซ้าย" (ไม่พบหน้านี้, 15 Nov, found on the preview).
   - A red text row in แก้ไข names its thing: ลบคูปอง, ลบแบนเนอร์, ลบค่าใช้จ่าย.
 - **A bill names a product by type and brand, never by its full name or code.** Services keep their
   own name.
@@ -773,6 +787,11 @@ again before saying a build matches.** The owner's words are quoted where they s
   setting), then `large`. Reset to large afterwards (14 Nov).
 - **Restart the preview after every change.** "Kira new version" runs Metro in CI mode, so it
   doesn't reload by itself.
+- **No simulator? Check the phone size in a phone-width frame.** This Mac has no iOS runtime since
+  15 Nov (`xcrun simctl list runtimes` is empty) and store apps are dropped. In the Claude Browser
+  tab, swap the page for a same-origin `<iframe>` 390 wide at `/sign-in?practice=1&to=<path>` and
+  zoom-screenshot it. It is Chrome, not iPhone Safari: say so whenever a Safari-only thing matters
+  (Apple text sizes, the clock strip) (ไม่พบหน้านี้, 15 Nov).
 - **The practice sign-in drops on reload.** Open `/sign-in?practice=1&to=<page>` again.
 - **Use the iPhone simulator for how it looks, the Claude browser pane for clicks.** Never a test
   tool that opens its own Chrome window — it pops up over the owner's work. *"stop pushing preview

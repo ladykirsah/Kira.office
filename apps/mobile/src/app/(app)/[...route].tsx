@@ -1,6 +1,6 @@
-import { NotMovedYet } from "@/ui/NotMovedYet";
+import { PageNotFound } from "@/ui/PageNotFound";
 
-/** Every menu path the web back office has, until each one is rebuilt here as its own screen. */
-export default function MenuPage() {
-  return <NotMovedYet />;
+/** Any address with no page of its own: every menu page is rebuilt here, so this is an old or mistyped link. */
+export default function MissingPage() {
+  return <PageNotFound />;
 }
