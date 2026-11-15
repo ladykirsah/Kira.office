@@ -1,7 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { formatBaht } from "@/lib/money";
-import { clockTime } from "@/lib/orderList";
 import { amountText, clearSummary, maskPromptpay, type PaymentRow } from "@/lib/paymentPage";
 import type { ReceiveAccount } from "@/lib/posApi";
 import { payQr } from "@/lib/qr";
@@ -247,7 +246,6 @@ function DoneSheet({ page, onClose }: { page: PaymentPage; onClose: () => void }
   const a = page.account;
   const row = page.taken;
   if (!a || !row) return null;
-  const time = clockTime(row.createdAt);
   return (
     <Sheet title={t({ th: "รับเงินแล้ว", en: "Payment received" })} onClose={onClose} noPill>
       <Amount satang={row.amountSatang} label={row.methodLabel} />
@@ -255,8 +253,8 @@ function DoneSheet({ page, onClose }: { page: PaymentPage; onClose: () => void }
       <AccountName account={a} />
       <Note>
         {t({
-          th: `บันทึกแล้ว ${time} · ขึ้นบนสุดของรายการวันนี้ ให้เจ้าของตรวจกับบัญชีธนาคาร`,
-          en: `Saved ${time} · at the top of today's list for the owner to check with the bank`,
+          th: "บันทึกแล้ว · ขึ้นบนสุดของรายการวันนี้ ให้เจ้าของตรวจกับบัญชีธนาคาร",
+          en: "Saved · at the top of today's list for the owner to check with the bank",
         })}
       </Note>
       <BigButton label={t({ th: "เสร็จ", en: "Done" })} onPress={onClose} />
@@ -364,7 +362,7 @@ function SlipSheet({
       <Group>
         <Row
           label={t({ th: "รายการนี้", en: "This payment" })}
-          value={`${formatBaht(row.amountSatang)} · ${clockTime(row.createdAt)}`}
+          value={formatBaht(row.amountSatang)}
           last
         />
       </Group>

@@ -151,6 +151,11 @@ const THAI_MONTHS = [
   "ธ.ค.",
 ];
 
+/** The grey line under the date on Scan's bill: its number alone, no clock time (owner rule: NO TIME). */
+export function cashBillLine(saleNumber: string): Phrase {
+  return { th: `บิลเงินสด เลขที่ ${saleNumber}`, en: `Cash bill no. ${saleNumber}` };
+}
+
 /** The bill's date the Thai way — 26 ต.ค. 2569, Buddhist year — and its time, 14:32. */
 export function billDate(at: number): { date: string; time: string } {
   const d = new Date(at);

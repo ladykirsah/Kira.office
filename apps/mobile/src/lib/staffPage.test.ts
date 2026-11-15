@@ -93,9 +93,12 @@ describe("shownName", () => {
 });
 
 describe("seenLine", () => {
-  it("says today and yesterday with the time", () => {
-    expect(seenLine(at(2026, 10, 29, 8, 41), NOW).th).toBe("เข้าใช้ วันนี้ 08:41");
-    expect(seenLine(at(2026, 10, 28, 17, 30), NOW).th).toBe("เข้าใช้ เมื่อวาน 17:30");
+  it("says today and yesterday as the word alone, no clock time (owner rule: NO TIME)", () => {
+    expect(seenLine(at(2026, 10, 29, 8, 41), NOW)).toEqual({
+      th: "เข้าใช้ วันนี้",
+      en: "Signed in today",
+    });
+    expect(seenLine(at(2026, 10, 28, 17, 30), NOW).th).toBe("เข้าใช้ เมื่อวาน");
   });
   it("says only the day further back, with the Thai year when it is another year", () => {
     expect(seenLine(at(2026, 10, 27, 9, 0), NOW).th).toBe("เข้าใช้ 27 ต.ค.");
@@ -110,7 +113,7 @@ describe("personLine", () => {
   it("is the position and the last sign-in", () => {
     expect(personLine(person(), NOW)).toEqual({
       dot: null,
-      text: { th: "ช่าง · เข้าใช้ เมื่อวาน 17:30", en: "Mechanic · Signed in yesterday 17:30" },
+      text: { th: "ช่าง · เข้าใช้ เมื่อวาน", en: "Mechanic · Signed in yesterday" },
     });
   });
   it("puts a dot and ปิดอยู่ first for someone switched off", () => {
@@ -325,7 +328,7 @@ describe("paymentLines", () => {
       },
       {
         key: "payday",
-        when: { th: "31 ส.ค. 2569 · 18:20", en: "31 Aug 2026 · 18:20" },
+        when: { th: "31 ส.ค. 2569", en: "31 Aug 2026" },
         how: { th: "เงินเดือน · เงินสด", en: "Salary · Cash" },
         amount: "฿11,950",
         slip: null,

@@ -106,13 +106,12 @@ const join = (a: Phrase, b: Phrase, sep = " · "): Phrase => ({
   en: `${a.en}${sep}${b.en}`,
 });
 
-/** "วันนี้ 08:41", "เมื่อวาน 17:30", "27 ต.ค.", or with the Thai year for another year. */
+/** "วันนี้", "เมื่อวาน", "27 ต.ค.", or with the Thai year for another year — never a clock time. */
 export function seenWhen(ms: number, now: number): Phrase {
   const day = startOfDay(ms);
   const today = startOfDay(now);
-  const time = clockTime(ms);
-  if (day === today) return { th: `วันนี้ ${time}`, en: `today ${time}` };
-  if (day === startOfDay(today - 1)) return { th: `เมื่อวาน ${time}`, en: `yesterday ${time}` };
+  if (day === today) return { th: "วันนี้", en: "today" };
+  if (day === startOfDay(today - 1)) return { th: "เมื่อวาน", en: "yesterday" };
   if (new Date(ms).getFullYear() === new Date(now).getFullYear()) return shortDate(ms);
   return dayPill(ms);
 }
@@ -328,7 +327,7 @@ export function paymentLines(m: PaymentMonth): PaymentLine[] {
     ...advances,
     {
       key: "payday",
-      when: join(dayPill(m.paidAt), { th: clockTime(m.paidAt), en: clockTime(m.paidAt) }),
+      when: dayPill(m.paidAt),
       how: join({ th: "เงินเดือน", en: "Salary" }, methodWord(m.method)),
       amount: formatBaht(m.dueSatang),
       slip: m.hasSlip ? { kind: "salary", period: m.period } : null,

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { BillDoc } from "@/lib/mechanicBill";
 import { formatBaht } from "@/lib/money";
-import { billDate } from "@/lib/scanSale";
+import { billDate, cashBillLine } from "@/lib/scanSale";
 import { useLang, useTheme } from "../AppProviders";
 import { RADIUS, SPACE, TYPE } from "../theme";
 
@@ -12,7 +12,7 @@ const PAID_BY = {
 
 /**
  * The bill a mechanic gets (owner's pick, option C, 2026-10-26): the shop's name on top, the date,
- * the time with the bill number, the items, then the total and how it was paid on one line.
+ * the bill number (no clock time, owner rule since 2 Nov), the items, then the total and how it was paid on one line.
  */
 export function BillCard({ bill }: { bill: BillDoc }) {
   const { theme } = useTheme();
@@ -31,10 +31,7 @@ export function BillCard({ bill }: { bill: BillDoc }) {
         {t({ th: `วันที่ ${when.date}`, en: `Date ${when.date}` })}
       </Text>
       <Text style={[styles.small, { color: theme.textMuted }]}>
-        {t({
-          th: `${when.time} · บิลเงินสด เลขที่ ${bill.saleNumber}`,
-          en: `${when.time} · Cash bill no. ${bill.saleNumber}`,
-        })}
+        {t(cashBillLine(bill.saleNumber))}
       </Text>
       <View style={rule} />
       {bill.lines.map((l, i) => (

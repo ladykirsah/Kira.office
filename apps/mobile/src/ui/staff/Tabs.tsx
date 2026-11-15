@@ -15,7 +15,7 @@ import {
   type PayRow,
 } from "@/lib/staffPage";
 import { photoPath, type DayOff } from "@/lib/teamApi";
-import { clockTime, startOfDay } from "@/lib/orderList";
+import { startOfDay } from "@/lib/orderList";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { useWide } from "../desk/useWide";
@@ -298,7 +298,6 @@ export function HistoryTab(props: {
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
-  const wide = useWide();
   const history = useActivity(props.person, props.month, props.stamp);
   const rows = history.rows;
   const now = Date.now();
@@ -352,8 +351,8 @@ export function HistoryTab(props: {
                       </Text>
                     </View>
                     <Text style={[TYPE.footnote, { color: theme.textMuted }]}>
-                      {/* A computer leaves the clock time out (DeskStaff 6, owner rule). */}
-                      {wide ? r.name : `${r.name} · ${clockTime(r.createdAt)}`}
+                      {/* No clock time on a record, phone or computer (owner rule: NO TIME). */}
+                      {r.name}
                     </Text>
                   </View>
                   {i < g.rows.length - 1 && <Divider />}

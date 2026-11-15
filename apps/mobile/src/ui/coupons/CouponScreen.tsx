@@ -81,11 +81,8 @@ export function CouponScreen() {
     if (await copyText(coupon.code)) list.showToast(COPIED_TOAST(coupon.code));
     else list.showToast({ th: "คัดลอกไม่ได้", en: "Could not copy" });
   };
-  // A used coupon is part of the shop's sales: say so straight away instead of asking.
-  const askDelete = () =>
-    coupon.redemptions > 0
-      ? list.showToast(USED_TOAST.title, USED_TOAST.detail)
-      : setDeleting(true);
+  // A used coupon has no ลบคูปอง at all (in use = no delete button, phone and computer).
+  const askDelete = () => setDeleting(true);
 
   const head = (
     <>
@@ -168,7 +165,7 @@ export function CouponScreen() {
       {head}
       {ticket}
       <Facts coupon={coupon} />
-      {remove}
+      {canDelete(coupon) && remove}
       {sheet}
     </View>
   );
