@@ -137,4 +137,15 @@ describe("checkout > the sales_orders INSERT", () => {
     // nothing and would show a fictional shipping gain on every new order.
     expect(orderInsert().columns).not.toContain("shipping_real_satang");
   });
+
+  // Owner, 16 Nov 2026: a flash sale is a discount for its period — cancel and you lose it, and (as on
+  // Shopee and Lazada) the unit goes back to the sale for the next buyer. That needs each line to
+  // remember which flash-sale price it was bought at.
+  it("each line remembers the flash-sale price it was bought at", () => {
+    const start = routeSrc.indexOf("INSERT INTO sales_order_lines");
+    const block = routeSrc.slice(start, routeSrc.indexOf("),\n      ),", start));
+    const columns = splitTopLevel(block.slice(block.indexOf("(") + 1, block.indexOf(")")));
+    expect(columns).toContain("campaign_price_id");
+    expect(block).toContain("p.campaignPriceId");
+  });
 });

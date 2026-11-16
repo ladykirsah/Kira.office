@@ -26,16 +26,21 @@ export function queueAdd(q: readonly QueuedBill[], bill: QueuedBill): QueuedBill
   return [...q.filter((b) => b.sale.clientUuid !== bill.sale.clientUuid), bill];
 }
 
+/**
+ * The queue after one send. When nothing changed it is the SAME array, not a copy: the page saves
+ * and resends whenever the queue changes, so a fresh copy of an unchanged queue resent the bills
+ * nonstop instead of once a minute (bug hunt 15 Nov 2026).
+ */
 export function queueAfterSend(
   q: readonly QueuedBill[],
   clientUuid: string,
   outcome: SendOutcome,
-): QueuedBill[] {
-  if (outcome.kind === "offline") return [...q];
+): readonly QueuedBill[] {
+  if (outcome.kind === "offline") return q;
   if (outcome.kind === "saved") return q.filter((b) => b.sale.clientUuid !== clientUuid);
-  return q.map((b) =>
-    b.sale.clientUuid === clientUuid ? { ...b, status: "refused", reason: outcome.reason } : b,
-  );
+  const bill = q.find((b) => b.sale.clientUuid === clientUuid);
+  if (!bill || (bill.status === "refused" && bill.reason === outcome.reason)) return q;
+  return q.map((b) => (b === bill ? { ...b, status: "refused", reason: outcome.reason } : b));
 }
 
 function isQueuedBill(x: unknown): x is QueuedBill {

@@ -6011,6 +6011,27 @@ describe("recordRefund (failed-delivery refund)", () => {
     expect(restock.quantityDelta).toBe(2);
   });
 
+  // Bug hunt 15 Nov 2026: two taps at once both passed the "not refunded yet" check and the goods
+  // came back twice. Only the refund whose write lands does anything.
+  it("given two refunds at the same moment > then the goods come back once and one is refused", async () => {
+    const db = bounced();
+    const outs = await Promise.all([
+      recordRefund(asD1(db), "o1", "refund-slip/o1/a.jpg", "boss@x.com", NOW),
+      recordRefund(asD1(db), "o1", "refund-slip/o1/b.jpg", "boss@x.com", NOW + 1),
+    ]);
+    expect(outs.filter((o) => o.ok).length).toBe(1);
+    const back = db
+      .prepare(
+        `SELECT SUM(quantity_delta) AS n FROM stock_ledger_entries WHERE product_variant_id='v1'`,
+      )
+      .get() as { n: number };
+    expect(Number(back.n)).toBe(2);
+    const steps = db
+      .prepare(`SELECT COUNT(*) AS n FROM order_status_history WHERE event='refunded'`)
+      .get() as { n: number };
+    expect(Number(steps.n)).toBe(1);
+  });
+
   it("appends a 'refunded' timeline step", async () => {
     const db = bounced();
     await recordRefund(asD1(db), "o1", "refund-slip/o1/x.jpg", "boss@x.com", NOW);
@@ -11983,6 +12004,70 @@ describe("cancelOrderInDb > the shop cancels an order that has not been sent", (
     });
   });
 
+  /**
+   * Owner, 16 Nov 2026: "Flash-sale is discount on specific period. buy during the period > get
+   * discount, cancel > lose … learn from global practice." As on Shopee and Lazada, the unit the
+   * order took goes back to the flash sale for the next buyer; the customer who cancelled loses it.
+   */
+  describe("a flash-sale slot goes back to the sale", () => {
+    const LATE = NOW + 49 * 60 * 60 * 1000;
+    function onFlash() {
+      const raw = placed({ coupon: false });
+      raw
+        .prepare(
+          `INSERT INTO campaigns (id, name, starts_at, ends_at, created_at)
+           VALUES ('cmp1','แฟลชเซล',?,?,?)`,
+        )
+        .run(NOW - 10_000, LATE + 10_000, NOW);
+      raw
+        .prepare(
+          `INSERT INTO campaign_prices
+             (id, campaign_id, product_variant_id, campaign_price_satang, stock_cap, sold_count, created_at)
+           VALUES ('cp-v1','cmp1','v1',90000,5,2,?)`,
+        )
+        .run(NOW);
+      raw.prepare(`UPDATE sales_order_lines SET campaign_price_id='cp-v1' WHERE id='l1'`).run();
+      return raw;
+    }
+    const sold = (raw: DatabaseSync) =>
+      Number(
+        (
+          raw.prepare(`SELECT sold_count AS n FROM campaign_prices WHERE id='cp-v1'`).get() as {
+            n: number;
+          }
+        ).n,
+      );
+
+    it("when the shop cancels the order", async () => {
+      const raw = onFlash();
+      await cancel(raw);
+      expect(sold(raw)).toBe(0);
+    });
+
+    it("when the unpaid order expires", async () => {
+      const raw = onFlash();
+      await expireUnpaidOrders(asD1(raw), LATE);
+      expect(sold(raw)).toBe(0);
+    });
+
+    it("once, even when two expiry sweeps run at the same moment", async () => {
+      const raw = onFlash();
+      await Promise.all([expireUnpaidOrders(asD1(raw), LATE), expireUnpaidOrders(asD1(raw), LATE)]);
+      expect(sold(raw)).toBe(0);
+      const steps = raw
+        .prepare(`SELECT COUNT(*) AS n FROM order_status_history WHERE event='expired'`)
+        .get() as { n: number };
+      expect(Number(steps.n)).toBe(1);
+    });
+
+    it("a line bought at the normal price gives nothing back", async () => {
+      const raw = onFlash();
+      raw.prepare(`UPDATE sales_order_lines SET campaign_price_id=NULL WHERE id='l1'`).run();
+      await cancel(raw);
+      expect(sold(raw)).toBe(2);
+    });
+  });
+
   describe("an unpaid order that expires gives its stock back too", () => {
     const LATE = NOW + 49 * 60 * 60 * 1000;
 
@@ -12001,6 +12086,28 @@ describe("cancelOrderInDb > the shop cancels an order that has not been sent", (
       await expireUnpaidOrders(asD1(raw), LATE);
       expect(await expireUnpaidOrders(asD1(raw), LATE + 1)).toBe(0);
       expect(onHand(raw)).toBe(5);
+    });
+
+    // Bug hunt 15 Nov 2026: the sweep runs on every order list and on the timer, and two at the same
+    // moment both worked out the give-back before either wrote it — the stock came back twice.
+    it("two sweeps at the same moment give the stock back once", async () => {
+      const raw = placed({ coupon: false });
+      await Promise.all([expireUnpaidOrders(asD1(raw), LATE), expireUnpaidOrders(asD1(raw), LATE)]);
+      expect(onHand(raw)).toBe(5);
+    });
+
+    // Owner, 16 Nov 2026: "yes, if it happen after the coupon expire > it never comes back".
+    it("gives the coupon back while the coupon still runs", async () => {
+      const raw = placed();
+      await expireUnpaidOrders(asD1(raw), LATE);
+      expect(redemptions(raw)).toBe(0);
+    });
+
+    it("a coupon that has ended by then stays used", async () => {
+      const raw = placed();
+      raw.prepare(`UPDATE coupons SET ends_at = ? WHERE id = 'cp1'`).run(LATE - 1);
+      await expireUnpaidOrders(asD1(raw), LATE);
+      expect(redemptions(raw)).toBe(1);
     });
   });
 });

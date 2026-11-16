@@ -53,6 +53,19 @@ describe("posQueue", () => {
     expect(queueAfterSend([queued("1")], "1", { kind: "offline" })).toEqual([queued("1")]);
   });
 
+  /**
+   * Bug hunt 15 Nov 2026: a new copy of an unchanged queue looked like a change, so the page saved it
+   * and its "queue changed → send again" timer fired at once — nonstop, instead of once a minute.
+   */
+  it("queueAfterSend > given nothing changed (offline, or refused again for the same reason) > then the very same queue", () => {
+    const waiting = [queued("1")];
+    expect(queueAfterSend(waiting, "1", { kind: "offline" })).toBe(waiting);
+    const refused = [queued("1", { status: "refused", reason: "ในระบบเหลือ 0" })];
+    expect(queueAfterSend(refused, "1", { kind: "refused", reason: "ในระบบเหลือ 0" })).toBe(
+      refused,
+    );
+  });
+
   it("parseQueue > given saved text > then reads it back, and broken text reads as empty", () => {
     expect(parseQueue(JSON.stringify([queued("1")]))).toEqual([queued("1")]);
     expect(parseQueue("{not json")).toEqual([]);

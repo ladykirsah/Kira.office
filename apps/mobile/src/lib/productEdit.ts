@@ -251,33 +251,48 @@ export interface StockCount {
 }
 
 /**
- * The two stock numbers as ledger movements. People just − / + and save (owner, 31 Oct 2026), so
- * a lower ขายได้ is a recount, never a question about why.
+ * The two stock numbers as ledger movements, so that afterwards the shop reads exactly what was typed.
+ * People just − / + and save (owner, 31 Oct 2026), so a lower ขายได้ is a recount, never a question
+ * about why.
+ *
+ * Every sheet sends the ขายได้ count FIRST and the งานนอก move after it, and that move takes out of
+ * (or puts back into) ขายได้. So the count allows for the move: 5 / 0 typed as 3 / 2 is a move of two
+ * with no recount, where it used to recount to 3 and then take two more (bug hunt 15 Nov 2026: 1 / 2).
  */
-export function stockMoves(
-  d: ProductDetail,
-  f: Pick<ProductForm, "sellable" | "held">,
+export function twoNumberMoves(
+  variantId: string,
+  before: { onHand: number; held: number },
+  typed: { sellable: number; held: number },
+  reason: string,
 ): { adjust: StockCount | null; hold: HoldLine | null } {
-  if (!d.variantId || withChoices(d)) return { adjust: null, hold: null };
+  const delta = typed.held - before.held;
+  const countBeforeHold = typed.sellable + delta;
   const adjust: StockCount | null =
-    f.sellable !== d.onHand
+    countBeforeHold !== before.onHand
       ? {
-          productVariantId: d.variantId,
-          countedOnHand: f.sellable,
+          productVariantId: variantId,
+          countedOnHand: countBeforeHold,
           movementType: "manual_adjustment",
-          reason: "edited on the phone's product page",
+          reason,
         }
       : null;
-  const delta = f.held - d.held;
   const hold: HoldLine | null =
     delta !== 0
       ? {
-          productVariantId: d.variantId,
+          productVariantId: variantId,
           takeAway: Math.max(delta, 0),
           bringBack: Math.max(-delta, 0),
         }
       : null;
   return { adjust, hold };
+}
+
+export function stockMoves(
+  d: ProductDetail,
+  f: Pick<ProductForm, "sellable" | "held">,
+): { adjust: StockCount | null; hold: HoldLine | null } {
+  if (!d.variantId || withChoices(d)) return { adjust: null, hold: null };
+  return twoNumberMoves(d.variantId, d, f, "edited on the phone's product page");
 }
 
 const sameCar = (a: Fitment, b: Fitment) =>

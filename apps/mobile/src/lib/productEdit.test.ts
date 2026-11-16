@@ -221,6 +221,52 @@ describe("stockMoves", () => {
   });
 });
 
+/**
+ * What the shop's stock reads after the moves land, in the order the sheets send them: the ขายได้
+ * count first (absolute), then the งานนอก move (out of / back into ขายได้).
+ */
+function landed(
+  start: { onHand: number; held: number },
+  moves: {
+    adjust: { countedOnHand: number } | null;
+    hold: { takeAway: number; bringBack: number } | null;
+  },
+) {
+  let onHand = moves.adjust ? moves.adjust.countedOnHand : start.onHand;
+  let held = start.held;
+  if (moves.hold) {
+    onHand += moves.hold.bringBack - moves.hold.takeAway;
+    held += moves.hold.takeAway - moves.hold.bringBack;
+  }
+  return { onHand, held };
+}
+
+/**
+ * Bug hunt 15 Nov 2026: changing both numbers in one save counted the งานนอก part twice — 5/0 set
+ * to 3/2 ended 1/2. The two numbers are what people type (owner, 31 Oct 2026), so after the save the
+ * shop reads exactly what the sheet showed.
+ */
+describe("stockMoves > the shop reads what the sheet showed", () => {
+  const start = { onHand: DETAIL.onHand, held: DETAIL.held }; // 4 / 1
+  const typed = (sellable: number, held: number) =>
+    landed(start, stockMoves(DETAIL, { ...formFrom(DETAIL), sellable, held }));
+
+  it("given both numbers changed > then both land as typed", () => {
+    expect(typed(2, 3)).toEqual({ onHand: 2, held: 3 });
+  });
+  it("given only งานนอก raised > then ขายได้ stays as shown", () => {
+    expect(typed(4, 3)).toEqual({ onHand: 4, held: 3 });
+  });
+  it("given งานนอก brought back and ขายได้ raised > then both land as typed", () => {
+    expect(typed(6, 0)).toEqual({ onHand: 6, held: 0 });
+  });
+  it("given parts moved out on a job (ขายได้ −1, งานนอก +1) > then only a hold move, no recount", () => {
+    const moves = stockMoves(DETAIL, { ...formFrom(DETAIL), sellable: 3, held: 2 });
+    expect(moves.adjust).toBeNull();
+    expect(landed(start, moves)).toEqual({ onHand: 3, held: 2 });
+  });
+});
+
 describe("addFitment", () => {
   const vios = { carBrand: "Toyota", carModel: "Vios", yearFrom: 2013, yearTo: 2022 };
   it("given a new car > then it joins the end", () => {

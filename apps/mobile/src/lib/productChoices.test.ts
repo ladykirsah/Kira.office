@@ -295,10 +295,17 @@ describe("the choice form > แก้ไขตัวเลือก / a new size
     expect(body.pricing.itemCostSatang).toBe(1500);
   });
 
-  it("given the stock changed > then a recount of ขายได้ and a hold move for งานนอก on that choice", () => {
+  it("given both numbers changed > then the shop reads 90 / 3, as typed (bug hunt 15 Nov: it read 87 / 3)", () => {
     const moves = choiceMoves(choice(), "v1", { sellable: 90, held: 3 });
-    expect(moves.adjust).toMatchObject({ productVariantId: "v1", countedOnHand: 90 });
+    // The count is sent first, then the hold takes 3 out of ขายได้ — so the count allows for it.
+    expect(moves.adjust).toMatchObject({ productVariantId: "v1", countedOnHand: 93 });
     expect(moves.hold).toEqual({ productVariantId: "v1", takeAway: 3, bringBack: 0 });
+  });
+
+  it("given a new size with both numbers typed > then it starts at 10 / 2", () => {
+    const moves = choiceMoves(null, "new-v", { sellable: 10, held: 2 });
+    expect(moves.adjust).toMatchObject({ countedOnHand: 12 });
+    expect(moves.hold).toEqual({ productVariantId: "new-v", takeAway: 2, bringBack: 0 });
   });
 
   it("given a new size with stock typed > then the count starts from 0", () => {
