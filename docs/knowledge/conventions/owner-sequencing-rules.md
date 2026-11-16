@@ -3,7 +3,7 @@ type: convention
 title: Owner sequencing rules and current phase
 description: The fixed build order (workflow → mock test → channels), the launch-plan lockstep agreement, paid-steps-last, and the current admin-UX phase
 tags: [workflow, owner, sequencing, planning, roadmap]
-timestamp: 2026-08-09
+timestamp: 2026-11-16
 status: convention
 sources: [kira-restructure-brief-2026-07.md, airplus-launch-plan-lockstep.md, defer-paid-steps-to-last.md, kira-office-ux-next-phase.md]
 ---
@@ -37,6 +37,14 @@ Owner: "i want all paid stage to be last." Small business, real cash — paying 
 - Actively hunt the free verification path — e.g. ThaiBulkSMS trial accounts send to your OWN registered number for free (the 403 / `108 ERROR_USER_TRIAL` only fires for OTHER numbers), so a whole OTP integration is verifiable end-to-end at zero cost.
 - **Deciding ≠ buying.**
 - The one honest exception to raise once: domains are a land grab, not a consumable — airplus.com/.net/.io/.shop/airplusshop.com were ALL gone by the time we looked. Flag the risk once, respect the answer.
+
+## Current order (set 2026-11-16): 1 fix bugs → 2 VAT registration info → 3 new friendly design → 4 new features
+
+Owner, 16 Nov 2026: *"every time we go through a step > we start plan main steps and sub-task"* —
+each step is planned (main steps + sub-tasks) and OKed before work starts. While fixing bugs, **the
+server side only**: *"no need to concern about the design, since we are re-designing after, just
+backend"* — no screen or layout changes in the bug steps (plan 8.5–8.8); anything that needs a new
+screen waits for step 3.
 
 ## Current phase (as of 2026-08-09): admin back-office UX/UI, step by step
 

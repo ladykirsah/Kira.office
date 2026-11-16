@@ -118,6 +118,13 @@ import worker, {
   draftHeaderTotals,
   searchCustomers,
   getCustomerDetail,
+  listStock,
+  listProducts,
+  querySales,
+  listBarcodes,
+  listOpenDrafts,
+  upsertCustomerByPlate,
+  saveDraftToDb,
   customerSummary,
   storefrontCustomerSummary,
   anonymizeStorefrontCustomerInDb,
@@ -3774,10 +3781,91 @@ describe("createProduct", () => {
 });
 
 describe("normalizePlate", () => {
-  it("trims and collapses internal whitespace to a single space", () => {
+  // Plan 8.5 (bug hunt 15 Nov 2026): "1กก1234" used to stay apart from "1กก 1234", so one car
+  // became two. Every plate now saves one way: letters, one space, numbers.
+  it("saves every plate one way, however it was typed", () => {
     expect(normalizePlate("  1กก  1234 ")).toBe("1กก 1234");
-    expect(normalizePlate("1กก1234")).toBe("1กก1234");
+    expect(normalizePlate("1กก1234")).toBe("1กก 1234");
+    expect(normalizePlate("กข-1234")).toBe("กข 1234");
     expect(normalizePlate("")).toBe("");
+  });
+});
+
+describe("plates saved one way (plan 8.5)", () => {
+  it("applySyncToDb > a bill typed 'กข1234' is saved as 'กข 1234'", async () => {
+    const { db, batched } = makeDb({
+      existing: [],
+      available: [{ variantId: "v1", available: 10 }],
+    });
+    await applySyncToDb(db, [
+      {
+        clientUuid: "u-plate",
+        licensePlate: "กข1234",
+        lines: [{ productVariantId: "v1", quantity: 1, unitPriceSatang: 10000 }],
+      },
+    ]);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INSERT OR IGNORE INTO onsite_sales"),
+    );
+    expect(insert?.boundArgs).toContain("กข 1234");
+    expect(insert?.boundArgs).not.toContain("กข1234");
+  });
+
+  it("saveDraftToDb > a draft typed 'กข-1234' is saved as 'กข 1234'", async () => {
+    const { db, batched } = makeDb({});
+    await saveDraftToDb(db, {
+      draftId: "d-plate",
+      stage: "draft",
+      licensePlate: "กข-1234",
+      lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+    });
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INTO onsite_sales"),
+    );
+    expect(insert?.boundArgs).toContain("กข 1234");
+  });
+
+  function car() {
+    const db = migratedDb();
+    db.prepare(
+      `INSERT INTO customers (id, license_plate, plate_province, customer_name, created_at, updated_at)
+       VALUES ('c1', 'กข 1234', 'สุรินทร์', 'สมชาย', 1, 1)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, stage, created_at)
+       VALUES ('s1', 'u1', 'DAS-1', 'กข 1234', 'bill', 1)`,
+    ).run();
+    return db;
+  }
+
+  it("getCustomerDetail > the car is found however the plate is typed", async () => {
+    for (const typed of ["กข1234", "กข - 1234", " กข 1234 "]) {
+      const detail = (await getCustomerDetail(asD1(car()), typed)) as {
+        customer: { customerName: string } | null;
+        history: { id: string }[];
+      };
+      expect(detail.customer?.customerName).toBe("สมชาย");
+      expect(detail.history.map((h) => h.id)).toEqual(["s1"]);
+    }
+  });
+
+  it("searchCustomers > a plate typed with no space still finds the car", async () => {
+    for (const typed of ["กข1234", "กข-12", "1234"]) {
+      const rows = (await searchCustomers(asD1(car()), typed)) as { licensePlate: string }[];
+      expect(rows.map((r) => r.licensePlate)).toEqual(["กข 1234"]);
+    }
+  });
+
+  it("upsertCustomerByPlate > 'กข1234' updates the car saved as 'กข 1234', not a second car", async () => {
+    const db = car();
+    const out = await upsertCustomerByPlate(asD1(db), {
+      licensePlate: "กข1234",
+      phone: "0811111111",
+    });
+    expect(out).toEqual({ ok: true, licensePlate: "กข 1234" });
+    expect(db.prepare(`SELECT license_plate, phone FROM customers`).all()).toEqual([
+      { license_plate: "กข 1234", phone: "0811111111" },
+    ]);
   });
 });
 
@@ -13133,5 +13221,103 @@ describe("/img/ > only reading a picture is public", () => {
     expect(res.status).toBe(401);
     const rows = raw.prepare(`SELECT COUNT(*) AS n FROM audit_logs`).get() as { n: number };
     expect(Number(rows.n)).toBe(0);
+  });
+});
+
+/**
+ * Plan 8.5 (bug hunt 15 Nov 2026), the owner's pick A: lists send everything (up to a high safety
+ * limit) instead of stopping at 100–500 rows, so today's screens show every row. Each case seeds one
+ * more row than its old cap.
+ */
+describe("lists send everything (plan 8.5)", () => {
+  const json = async (res: Response) => (await res.json()) as Record<string, unknown[]>;
+
+  function many() {
+    const db = migratedDb();
+    const tx = (sql: string, n: number, args: (i: number) => unknown[]) => {
+      const st = db.prepare(sql);
+      for (let i = 0; i < n; i++) st.run(...(args(i) as never[]));
+    };
+    tx(`INSERT INTO products (id, name, created_at) VALUES (?, ?, ?)`, 501, (i) => [
+      `p${i}`,
+      `สินค้า ${i}`,
+      i,
+    ]);
+    tx(`INSERT INTO product_variants (id, product_id, created_at) VALUES (?, ?, ?)`, 501, (i) => [
+      `v${i}`,
+      `p${i}`,
+      i,
+    ]);
+    tx(
+      `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, created_at) VALUES (?, 'ร้าน', '0812345678', 100, ?)`,
+      101,
+      (i) => [`pay${i}`, i],
+    );
+    tx(
+      `INSERT INTO onsite_sales (id, client_uuid, license_plate, stage, created_at) VALUES (?, ?, 'กข 1234', 'bill', ?)`,
+      201,
+      (i) => [`b${i}`, `ub${i}`, i],
+    );
+    tx(
+      `INSERT INTO onsite_sales (id, client_uuid, stage, created_at) VALUES (?, ?, 'draft', ?)`,
+      101,
+      (i) => [`d${i}`, `ud${i}`, i],
+    );
+    tx(
+      `INSERT INTO customer_history_entries (id, license_plate, happened_at, description, created_at) VALUES (?, 'กข 1234', ?, 'ล้างแอร์', 1)`,
+      501,
+      (i) => [`h${i}`, i],
+    );
+    tx(
+      `INSERT INTO customers (id, license_plate, created_at, updated_at) VALUES (?, ?, 1, 1)`,
+      101,
+      (i) => [`c${i}`, `ขค ${1000 + i}`],
+    );
+    tx(
+      `INSERT INTO storefront_customers (id, phone, name, created_at, updated_at) VALUES (?, ?, 'ลูกค้า', 1, 1)`,
+      101,
+      (i) => [`sc${i}`, `08${String(i).padStart(8, "0")}`],
+    );
+    tx(
+      `INSERT INTO sales_orders (id, channel, external_order_id, imported_at, order_created_at, storefront_customer_id) VALUES (?, 'airplus', ?, ?, ?, 'sc0')`,
+      201,
+      (i) => [`o${i}`, `AP-${i}`, i, i],
+    );
+    return { db, d1: asD1(db), env: { DB: asD1(db) } as unknown as Env };
+  }
+
+  it("products, both ways (สินค้า and ทำบิล) > all 501, not the newest 200", async () => {
+    const { env } = many();
+    expect((await json(await listProducts(env))).products).toHaveLength(501);
+    expect((await json(await listProducts(env, true, true))).products).toHaveLength(501);
+  });
+
+  it("stock and barcodes > all 501", async () => {
+    const { env } = many();
+    expect((await json(await listStock(env))).stock).toHaveLength(501);
+    expect((await json(await listBarcodes(env))).barcodes).toHaveLength(501);
+  });
+
+  it("payments, bills, drafts > all of them", async () => {
+    const { d1 } = many();
+    expect(await listPayments(d1)).toHaveLength(101);
+    expect(await querySales(d1)).toHaveLength(201);
+    expect(await listOpenDrafts(d1)).toHaveLength(101);
+  });
+
+  it("one car's page > all 201 bills and all 501 old visits", async () => {
+    const { d1 } = many();
+    const car = (await getCustomerDetail(d1, "กข 1234")) as Record<string, unknown[]>;
+    expect(car.history).toHaveLength(201);
+    expect(car.legacy).toHaveLength(501);
+  });
+
+  it("customer lists and AirPlus orders > all of them", async () => {
+    const { d1, env } = many();
+    expect(await searchCustomers(d1, "")).toHaveLength(102); // 101 cars + the billed one
+    expect(await searchStorefrontCustomers(d1, "")).toHaveLength(101);
+    const shopper = (await getStorefrontCustomerDetail(d1, "sc0")) as Record<string, unknown[]>;
+    expect(shopper.orders).toHaveLength(201);
+    expect((await json(await listOrders(env))).orders).toHaveLength(201);
   });
 });

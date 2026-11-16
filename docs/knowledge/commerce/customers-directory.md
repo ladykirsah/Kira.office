@@ -3,7 +3,7 @@ type: feature
 title: Customers directory — plate-keyed model, legacy history, Excel import
 description: One record per car plate (phone = grouping key); legacy service history is memory-not-money; Excel importer does atomic NULL-safe upserts
 tags: [customers, pos, import, plate, history, excel]
-timestamp: 2026-08-09
+timestamp: 2026-11-16
 status: live
 sources: [onsite-pos-customer-roadmap.md]
 ---
@@ -14,7 +14,9 @@ sources: [onsite-pos-customer-roadmap.md]
 
 Owner decision 2026-07-03: store plate (+ province), owner name, phone; **phone is a first-class search field**. A family sharing a phone with different plates = separate plate records (accepted). Reason: "dad brings car A, son brings car B — plate and phone are what matter." Search plate → that one car; search phone → all that person's/family's cars.
 
-- The `customers` table is keyed by **normalized plate** (`normalizePlate` in `packages/core`); name/phone are OPTIONAL at POS and editable on the customer page (plate rows auto-created from sales).
+- The `customers` table is keyed by **normalized plate** (`normalizePlate` in `apps/api`, which calls `canonicalPlate` in `packages/core/src/plate.ts`); name/phone are OPTIONAL at POS and editable on the customer page (plate rows auto-created from sales).
+- **One way to save a plate** (plan 8.5, 16 Nov 2026): a car plate is saved as optional number + Thai letters + one space + numbers (`1กก 1234`, `กข 1234`); a truck/bus plate as `70-1234`; anything else is kept as typed with spaces tidied. Before this, "กข1234", "กข 1234" and "กข-1234" were three cars and one car's bills split. Bills (sync + drafts) and the car page both go through it. **Search ignores spaces and dashes** (`plateKey`), so a plate typed any way finds the car.
+- Known limit, owner's call later: the plate alone is the key, so the same plate from two provinces is one record.
 - Multiple phones share the existing `customers.phone` column comma-separated via `apps/admin/src/lib/phones` (no migration).
 - Finding a past bill happens THROUGH the customer/car (Sell > Customers), not a flat list; the Sales page stays the cross-channel FINANCE dashboard (numbers only) — see [money-model-and-finance](money-model-and-finance.md).
 
