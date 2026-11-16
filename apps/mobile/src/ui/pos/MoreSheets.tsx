@@ -109,7 +109,7 @@ function SwipeRow({ draft, last }: { draft: OpenDraft; last: boolean }) {
           <View style={styles.grow}>
             <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(text.top)}</Text>
             <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
-              {text.main ?? t({ th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" })}
+              {text.main ?? t(text.empty)}
             </Text>
             <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{t(text.when)}</Text>
           </View>
@@ -154,7 +154,7 @@ function BinRow({ draft, last }: { draft: OpenDraft; last: boolean }) {
         <View style={styles.grow}>
           <Text style={[TYPE.footnote, { color: theme.textMuted }]}>{t(text.top)}</Text>
           <Text style={[TYPE.headline, { color: theme.text }]} numberOfLines={1}>
-            {text.main ?? t({ th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" })}
+            {text.main ?? t(text.empty)}
           </Text>
           <Text style={[TYPE.subhead, { color: theme.textMuted }]}>{t(text.when)}</Text>
         </View>

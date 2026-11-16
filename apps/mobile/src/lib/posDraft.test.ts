@@ -103,6 +103,22 @@ describe("posDraft", () => {
     });
   });
 
+  // Bug hunt 15 Nov 2026 + owner's pick A (16 Nov 2026): a ช่าง draft saved with the name left
+  // blank reopened as a ลูกค้า bill, because only the name said it was for a ช่าง.
+  it("billFromDraft > given a ช่าง draft saved with no name > then it still reopens as a ช่าง bill", () => {
+    const { bill } = billFromDraft(
+      draft({ stage: "draft", saleNumber: null, buyerKind: "mechanic", buyerName: null }),
+      products,
+      key,
+    );
+    expect(bill).toMatchObject({ buyer: "mechanic", mechanicName: "" });
+  });
+
+  it("billFromDraft > given a draft saved as ลูกค้า > then it reopens as ลูกค้า", () => {
+    const { bill } = billFromDraft(draft({ buyerKind: "customer" }), products, key);
+    expect(bill.buyer).toBe("customer");
+  });
+
   it("billFromDraft > given a part no longer listed > then it stays on the bill with no stock", () => {
     const { bill } = billFromDraft(draft(), [], key);
     expect(bill.lines[0]).toMatchObject({

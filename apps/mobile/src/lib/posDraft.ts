@@ -38,7 +38,8 @@ export function billFromDraft(
       useMechanic: base.mechanicSatang > 0 && l.unitPriceSatang === base.mechanicSatang,
     };
   });
-  const mechanic = Boolean(d.buyerName?.trim());
+  // Saved kind first; an older draft has none, and only a ช่าง bill carried a name.
+  const mechanic = d.buyerKind ? d.buyerKind === "mechanic" : Boolean(d.buyerName?.trim());
   return {
     quoteNumber: d.stage === "quotation" ? d.saleNumber : null,
     bill: {

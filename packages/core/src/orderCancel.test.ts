@@ -93,6 +93,18 @@ describe("cancel reasons", () => {
 describe("slipAfterCancel > a customer pays after the shop cancelled", () => {
   const DEADLINE = 1_785_000_000_000;
 
+  // Bug hunt 15 Nov 2026: a slip on an EXPIRED order was stored but never reached the review list
+  // (the order stays expired), so the money went unseen. Expiry is the payment deadline passing, so
+  // it is the same as a cancel after the deadline: the customer is sent to LINE OA.
+  it("given an order that expired unpaid > then LINE OA, never a slip nobody reviews", () => {
+    expect(
+      slipAfterCancel(
+        { orderStatus: "expired", paymentStatus: "expired", payBy: DEADLINE },
+        DEADLINE + 1,
+      ),
+    ).toBe("contact_line");
+  });
+
   it("given a live order > then the cancel rule does not apply", () => {
     expect(
       slipAfterCancel(

@@ -64,9 +64,37 @@ export function discountRow(code: string, satang: number): { label: string; valu
   return { label: `คูปอง ${code}`, value: `−${baht(satang)}` };
 }
 
-/** Not enough stock (4.11): the shop's words, then what to do — a red line under the items. */
+const UNAVAILABLE = "สินค้าไม่พร้อมจำหน่ายแล้ว";
+
+/**
+ * Checkout's words for a cart item that is paused or removed: which one, by name, so the customer
+ * knows what to take out (bug hunt 15 Nov 2026). The general words when no name can be found.
+ */
+export function unavailableError(name: string | null): string {
+  return name
+    ? `${UNAVAILABLE}: ${name}`
+    : "มีสินค้าในตะกร้าที่ไม่พร้อมจำหน่ายแล้ว กรุณาลบออกแล้วลองใหม่";
+}
+
+const FLASH_SHORT = "ราคาแฟลชเซลเหลือ";
+
+/**
+ * More pieces asked than the flash sale has left at its price: how many are left, so the customer
+ * can lower the amount (bug hunt 15 Nov 2026: "try again" could never work).
+ */
+export function flashShortError(name: string, left: number): string {
+  return `${FLASH_SHORT} ${left} ชิ้น: ${name}`;
+}
+
+/**
+ * Not enough stock (4.11), an item no longer for sale, or too few flash slots: the shop's words,
+ * then what to do — a red line under the items.
+ */
 export function stockLine(error: string | null): string | null {
-  return error?.startsWith("สินค้าไม่พอ") ? `${error} · ลบออกจากตะกร้าแล้วสั่งใหม่` : null;
+  if (error?.startsWith(FLASH_SHORT)) return `${error} · ลดจำนวนแล้วสั่งใหม่`;
+  return error?.startsWith("สินค้าไม่พอ") || error?.startsWith(`${UNAVAILABLE}:`)
+    ? `${error} · ลบออกจากตะกร้าแล้วสั่งใหม่`
+    : null;
 }
 
 /** The order the phone checkout sends to POST /api/checkout. */

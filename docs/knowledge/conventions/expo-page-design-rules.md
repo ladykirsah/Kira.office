@@ -3,9 +3,9 @@ type: convention
 title: Designing for the owner — every rule they have set
 description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
-timestamp: 2026-11-15
+timestamp: 2026-11-16
 status: convention
-sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov), AirPlus board 3 + 3b rounds and build, the Apple measurement + board 3A + the Apple-text build (14 Nov), the Apple-look redraw reversed + boards 4–12 text only + board 4 ตะกร้า · ชำระเงิน build + red behind the clock (14 Nov), THE ONE PLAN + detour rules + LINE test placed last, ไม่พบหน้านี้ (plan 1.2) design + build, the four rule-breakers (plan 1.3), shipped pages off the canvas, the 15 Nov bug hunt (15 Nov), 8.1 security fixes + the shop-wide PIN brake (16 Nov), 8.2 stock and money fixes + the flash-sale rule (16 Nov)]
+sources: [owner chat + canvas messages 25–31 Oct 2026, สินค้า build (PR #183), เพิ่มสินค้า build (PR #184), ออกบาร์โค้ด build (PR #185), ประวัติซื้อขาย build (1 Nov), ภาพรวม AirPlus build (1 Nov), สินค้านายหน้า build (1 Nov), แบนเนอร์ build (1 Nov), คูปอง rules + card C and แฟลชเซล builds (1 Nov), ข้อมูลร้าน design + build (2 Nov), พนักงาน design + build (2 Nov), การเงิน design v295–v300 + build (2–3 Nov), ตั้งค่าบริการ ฿0 fix + build (3 Nov), ตั้งค่าอะไหล่ design v303–v311 + build (3 Nov), รุ่นรถที่ใช้ได้ design v313–v320 + build (3 Nov), เงื่อนไข → เกี่ยวกับสินค้าประเภทนี้ design (to v325) + build (3 Nov), เข้าใช้งาน design v327–v328 + build (3 Nov), publishing the app at admin.airplusauto.com (4 Nov), ☰ menu C + โปรไฟล์ของฉัน design v333–v335 + build (4 Nov), owner account lock design v337 + build (4 Nov), หน้าหลัก design v331 + build (4 Nov), real product names on every board v344 + bill line rules v345–v352 + order item row C v349 + ออกบาร์โค้ด names v353 + ประวัติซื้อขาย code line v354 + every leftover page v355 + their build, หน้าหลัก rows B with photo + the มีเวอร์ชันใหม่ bar (4 Nov), computer version build + review of the computer drawings (5 Nov), หน้าสินค้า A–C → A1–A3 → A2 + its form v363–v366 + build (5 Nov), money with satang (5 Nov), ค่าคอม Shopee design v368–v369 + build (5 Nov), Shopee fees from real orders + แฟลชเซล profit fix (5 Nov), Orders design rounds v106–v124, memory feedback notes (apple-ui-lessons, red-reserved-for-active-only, dont-add-colour-to-repeat-words, owner-selected-elements-scope, owner-picked-design-keeps-all-functions, search-match-equals-result, product-photo-vs-category-picture, tab-bar-main-pages-only, artifact-cleanup-after-build), apps/mobile/src/lib/frame.ts, apps/mobile/src/lib/orderPage.ts, ‹ back / ยกเลิก strip fix on พนักงาน + ข้อมูลร้าน + รุ่นรถ (5 Nov), button labels on ออเดอร์ + พนักงาน pay + การชำระเงิน (5 Nov), AirPlus board 1 design rounds (logo, fade A, pictures, ขายดี A, no codes, card order, bar C, sub-page bar B) + its phone build (5 Nov), AirPlus board 2 ค้นหา · หมวดหมู่ build (5 Nov), ตัวเลือกสินค้า + กลุ่มสินค้า + barcode label design and preview (7 Nov), phone website fills the screen (7 Nov), sizes everywhere picks + build (8–12 Nov), AirPlus board 3 + 3b rounds and build, the Apple measurement + board 3A + the Apple-text build (14 Nov), the Apple-look redraw reversed + boards 4–12 text only + board 4 ตะกร้า · ชำระเงิน build + red behind the clock (14 Nov), THE ONE PLAN + detour rules + LINE test placed last, ไม่พบหน้านี้ (plan 1.2) design + build, the four rule-breakers (plan 1.3), shipped pages off the canvas, the 15 Nov bug hunt (15 Nov), 8.1 security fixes + the shop-wide PIN brake (16 Nov), 8.2 stock and money fixes + the flash-sale rule (16 Nov), the 4 priorities + plan-each-step rule, order times kept, 8.4 choice A (16 Nov)]
 ---
 
 # Designing for the owner — every rule they have set
@@ -31,6 +31,15 @@ again before saying a build matches.** The owner's words are quoted where they s
   tell you it is approved"* → *"go ahead through the flow i want to finish it ASAP"* (หน้าหลัก,
   4 Nov). Before calling anything "waiting for you", read their words since it was shown; an OK'd
   drawing goes straight on to the build, and "go through the flow" means build → check → ship.
+- **Plan each big step before starting it: main steps + sub-tasks, then their OK.** After the
+  Crew Engine picture *"keep getting bigger and blur"*, the owner set 4 priorities (fix bugs → VAT
+  registration info → new friendly design → new features) and *"every time we go through a step >
+  we start plan main steps and sub-task"* (16 Nov). Mark the items that need their pick; build
+  nothing before the OK.
+- **"Then" is a later step, like ">".** *"we are drawing the biggest picture of Crew engine. then,
+  dividing all featured down as subscription plan S M L"* meant draw the picture only; I also split
+  it into plans with prices. *"i didn't tell you to plan my subscription yet"* (16 Nov). When they
+  describe a whole road, do the first part and stop.
 - **One page at a time, in menu order** (`packages/shared` nav.ts). Each page: learn what the old
   back office does → look at Mobbin → draw → their OK → build.
 - **Learn the old functions before drawing.** Orders v1 *"look good, but not functionable"*.
@@ -705,6 +714,9 @@ again before saying a build matches.** The owner's words are quoted where they s
     only keep plate > remove model"* (2 Nov). Before showing any list or record sheet, search the drawing and the code
     for a clock time (`:`, clockTime) and for a car model next to a plate. A plate row reads
     "1กก 1234 กรุงเทพมหานคร", nothing more; the sheet's row is วันที่ with the day only.
+  - **Exception: ออเดอร์ keeps its times** — the list rows, the order page and its sent / cancel /
+    pay-back / claim stamps — and so do the printed bill and the quote list. *"keep time it is useful
+    for analyzation"* (16 Nov). A locked staff account's "until 14:30" stays too (a countdown).
 - **A money list holds money in and money out.** A shop's page lists its bills (or orders) and its
   expenses together, by day; an expense row reads its name, "ค่าใช้จ่าย" under it and −฿3,850.
   *"make sure the list included both of income and expenses"* (การเงิน, 2 Nov). Search finds both.
@@ -792,10 +804,18 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Save, then reopen: the numbers read what the sheet showed.** ขายได้ 4 / งานนอก 0 moved to 3 / 1
   used to save as 2 / 1, because the งานนอก move came out of ขายได้ a second time. Every sheet with
   two stock numbers saves exactly what it shows (8.2, 16 Nov).
+- **"In use" means every table that points at the row.** 8.4's first fix checked only orders before
+  deleting an address; a claim's replacement address also points at it, and removing that one
+  still said "system error". Before a delete-or-keep check, grep `REFERENCES <table>` in
+  `packages/db/migrations` and test each link (8.4, 16 Nov).
 - **Try every refusal on the real screen, not only in tests.** A server answer the browser cannot
   read shows as "ติดต่อเซิร์ฟเวอร์ไม่ได้". The PIN "wait" answer had no cross-site header, so after the
   7th wrong PIN the sign-in said can't reach the server instead of ลองมาหลายครั้งแล้ว. Tests passed;
   only the local screen showed it (PIN brake, 16 Nov).
+- **Phone size in the pane works now: `resize_window` preset `mobile` (375 × 812).** AirPlus's phone
+  design showed in it with no frame (16 Nov). It is still Chrome, not iPhone Safari: say so when a
+  Safari-only thing matters. Reset to `desktop` when done. A tap-twice confirm (ลบ → แตะอีกครั้ง)
+  lasts 4 s, so send both taps in one batch.
 - **Restart the preview after every change.** "Kira new version" runs Metro in CI mode, so it
   doesn't reload by itself.
 - **No simulator? Check the phone size in a phone-width frame.** This Mac has no iOS runtime since

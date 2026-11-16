@@ -87,7 +87,12 @@ export async function POST(req: Request): Promise<Response> {
       ) === "contact_line"
     )
       return Response.json(
-        { error: "คำสั่งซื้อนี้ถูกยกเลิกแล้ว หากโอนเงินแล้ว กรุณาติดต่อเราทาง LINE OA" },
+        {
+          error:
+            order.orderStatus === "expired"
+              ? "คำสั่งซื้อนี้หมดเวลาชำระเงินแล้ว หากโอนเงินแล้ว กรุณาติดต่อเราทาง LINE OA"
+              : "คำสั่งซื้อนี้ถูกยกเลิกแล้ว หากโอนเงินแล้ว กรุณาติดต่อเราทาง LINE OA",
+        },
         { status: 409 },
       );
 

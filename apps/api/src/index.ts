@@ -4614,6 +4614,7 @@ export interface DraftInput {
   notes?: string | null;
   mileageKm?: number | null; // the car's mileage (km); null/absent = not recorded
   buyerName?: string | null; // the mechanic buyer's name on a ช่าง/B2B bill
+  buyerKind?: "customer" | "mechanic" | null; // who it is for; a ช่าง draft may have no name
   lines: SyncLine[];
   // Bill-level discount (drafts/quotations store it here so the total is right and a reopened quote
   // restores the exact input). `discountSatang` is the computed amount; kind/value are the raw input.
@@ -4637,6 +4638,10 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
   const checked = readBillExtras(draft);
   if (!checked.ok) return { ok: false, error: checked.error };
   const { extras } = checked;
+  const buyerKind = draft.buyerKind ?? null;
+  if (buyerKind !== null && buyerKind !== "customer" && buyerKind !== "mechanic") {
+    return { ok: false, error: "buyerKind must be 'customer' or 'mechanic'" };
+  }
   // A finalized bill must never be reopened as an editable draft. Reusing a bill's id here would
   // flip its stage/totals via the upsert and strip its lines via the unconditional delete below —
   // silently corrupting a real financial record. New drafts mint fresh ids, so this only trips when
@@ -4665,9 +4670,10 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
       .prepare(
         `INSERT INTO onsite_sales
            (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, mileage_km,
-            buyer_name, sync_status, subtotal_satang, discount_total_satang, tax_total_satang,
-            grand_total_satang, discount_kind, discount_value, sale_status, stage, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+            buyer_name, buyer_kind, sync_status, subtotal_satang, discount_total_satang,
+            tax_total_satang, grand_total_satang, discount_kind, discount_value, sale_status, stage,
+            created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            sale_number = excluded.sale_number,
            sale_type = excluded.sale_type,
@@ -4676,6 +4682,7 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
            notes = excluded.notes,
            mileage_km = excluded.mileage_km,
            buyer_name = excluded.buyer_name,
+           buyer_kind = excluded.buyer_kind,
            subtotal_satang = excluded.subtotal_satang,
            discount_total_satang = excluded.discount_total_satang,
            tax_total_satang = excluded.tax_total_satang,
@@ -4694,6 +4701,7 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
         draft.notes?.trim() || null,
         extras.mileageKm,
         extras.buyerName,
+        buyerKind,
         totals.subtotalSatang,
         billDiscount,
         totals.taxTotalSatang,
@@ -4746,7 +4754,7 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
     .prepare(
       `SELECT id, client_uuid AS clientUuid, sale_number AS saleNumber, sale_type AS saleType,
               license_plate AS licensePlate, vehicle, notes, stage,
-              mileage_km AS mileageKm, buyer_name AS buyerName,
+              mileage_km AS mileageKm, buyer_name AS buyerName, buyer_kind AS buyerKind,
               grand_total_satang AS grandTotalSatang, discount_total_satang AS discountTotalSatang,
               discount_kind AS discountKind, discount_value AS discountValue, created_at AS createdAt
        FROM onsite_sales WHERE stage IN ('draft', 'quotation')
@@ -8048,7 +8056,10 @@ const worker = {
      * the shared Access session — the same correction the slip gate made on 2026-08-24 — so the
      * audit log below names the operator.
      */
-    const isPublic = url.pathname.startsWith("/img/");
+    // Only READING a picture is public: any other method there used to skip sign-in and still
+    // write an audit row for a stranger (bug hunt 15 Nov 2026).
+    const isPublic =
+      url.pathname.startsWith("/img/") && (request.method === "GET" || request.method === "HEAD");
     let userEmail: string | null = null;
     /** The operator, kept for the role decisions below — never re-derived from an email list. */
     let viewerStaff: StaffIdentity | null = null;

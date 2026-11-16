@@ -172,6 +172,8 @@ export interface BillDraft {
   notes: string | null;
   mileageKm: number | null;
   buyerName: string | null;
+  /** Who it is for, saved on its own: a ช่าง bill with no name still reopens as ช่าง. */
+  buyerKind: Buyer;
   lines: SaleLinePayload[];
   discountSatang: number;
   discountKind: string;
@@ -253,6 +255,7 @@ export function buildBillDraft(
     notes: orNull(b.note),
     mileageKm: customer ? parseMileage(b.mileage) : null,
     buyerName: customer ? null : orNull(b.mechanicName),
+    buyerKind: b.buyer,
     lines: b.lines.map((l) => payloadLine(l, b.buyer)),
     discountSatang: discountOf(subtotal(b.lines), b.discount),
     discountKind: b.discount.kind,
@@ -308,23 +311,37 @@ export function nextDocNumber(
   return `${prefix}${y}${pad(m, 2)}-${pad(day, 2)}${pad(highest + 1, 3)}`;
 }
 
+/**
+ * The next QT number: after the open drafts' AND this phone's last quote — a quote that became a
+ * bill is no longer a draft, and its number must not come round again (bug hunt 15 Nov 2026).
+ */
+export function nextQuoteNumber(
+  drafts: readonly (string | null)[],
+  lastQuote: string | null,
+  now: number,
+): string {
+  return nextDocNumber("QT", [...drafts, lastQuote], now);
+}
+
 export interface DraftRowSource {
   stage: "draft" | "quotation";
   saleNumber: string | null;
   licensePlate: string | null;
   vehicle: string | null;
   buyerName: string | null;
+  buyerKind?: Buyer | null;
   createdAt: number;
 }
 
 /**
  * A row of the drafts list (owner, canvas: line 2 = plate · car, line 3 = date · time). `main` is
- * null when the bill has no plate and no name yet; the screen says so in words.
+ * null when the bill has no plate and no name yet; then the screen shows `empty`: a ช่าง draft says
+ * it is for a ช่าง (it never has a plate), any other says no plate yet.
  */
 export function draftRowText(
   d: DraftRowSource,
   now: number,
-): { top: Phrase; main: string | null; when: Phrase } {
+): { top: Phrase; main: string | null; empty: Phrase; when: Phrase } {
   const top: Phrase =
     d.stage === "quotation"
       ? { th: `ใบเสนอราคา · ${d.saleNumber ?? ""}`, en: `Quotation · ${d.saleNumber ?? ""}` }
@@ -337,5 +354,9 @@ export function draftRowText(
   const when: Phrase = sameDay
     ? { th: `วันนี้ · ${at.time}`, en: `Today · ${at.time}` }
     : { th: `${day} · ${at.time}`, en: `${day} · ${at.time}` };
-  return { top, main, when };
+  const empty: Phrase =
+    d.buyerKind === "mechanic"
+      ? { th: "ช่าง · ยังไม่ใส่ชื่อ", en: "Mechanic · no name yet" }
+      : { th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" };
+  return { top, main, empty, when };
 }

@@ -10,6 +10,7 @@ import {
   forBuyer,
   lineTotal,
   nextDocNumber,
+  nextQuoteNumber,
   parseMileage,
   shortLines,
   subtotal,
@@ -237,6 +238,15 @@ describe("posBill what is sent", () => {
     expect(buildBillDraft(bill(), { draftId: "d2", saleNumber: null }).stage).toBe("draft");
   });
 
+  it("buildBillDraft > saves who the bill is for, so a ช่าง bill with no name reopens as ช่าง", () => {
+    const ids = { draftId: "d4", saleNumber: null };
+    expect(buildBillDraft(bill({ buyer: "mechanic", mechanicName: "" }), ids)).toMatchObject({
+      buyerKind: "mechanic",
+      buyerName: null,
+    });
+    expect(buildBillDraft(bill(), ids).buyerKind).toBe("customer");
+  });
+
   it("customerUpsert > given a new plate > then sends only what was filled in", () => {
     expect(customerUpsert(bill({ customerName: "", phones: ["081", " "] }))).toEqual({
       licensePlate: "1กก 1234",
@@ -257,6 +267,36 @@ describe("posBill numbers and lists", () => {
     expect(nextDocNumber("DAS", [], now)).toBe("DAS202610-30001");
   });
 
+  // Bug hunt 15 Nov 2026: QT numbers followed the open drafts only, so once QT…005 became a bill
+  // (its draft gone) the next quote that day was QT…005 again. The phone remembers its last one.
+  it("nextQuoteNumber > given today's last quote is no longer a draft > then the number after it", () => {
+    const now = new Date(2026, 10, 16, 10, 0).getTime();
+    expect(nextQuoteNumber(["QT202611-16002"], "QT202611-16005", now)).toBe("QT202611-16006");
+    expect(nextQuoteNumber([], null, now)).toBe("QT202611-16001");
+  });
+
+  it("draftRowText > given a ช่าง draft with no name > then the tray says ช่าง, not 'no plate yet'", () => {
+    const row = (buyerKind: "customer" | "mechanic" | null) =>
+      draftRowText(
+        {
+          stage: "draft",
+          saleNumber: null,
+          licensePlate: null,
+          vehicle: null,
+          buyerName: null,
+          buyerKind,
+          createdAt: 1,
+        },
+        2,
+      );
+    expect(row("mechanic")).toMatchObject({
+      main: null,
+      empty: { th: "ช่าง · ยังไม่ใส่ชื่อ", en: "Mechanic · no name yet" },
+    });
+    expect(row("customer").empty).toEqual({ th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" });
+    expect(row(null).empty).toEqual({ th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" });
+  });
+
   it("draftRowText > given a quotation and a draft > then line 2 is plate · car, line 3 date · time", () => {
     const now = new Date(2026, 9, 30, 15, 0).getTime();
     expect(
@@ -274,6 +314,7 @@ describe("posBill numbers and lists", () => {
     ).toEqual({
       top: { th: "ใบเสนอราคา · QT202610-27001", en: "Quotation · QT202610-27001" },
       main: "3กก 9012 · Isuzu D-Max 2018",
+      empty: { th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" },
       when: { th: "27 ต.ค. · 16:10", en: "27 ต.ค. · 16:10" },
     });
     expect(
@@ -291,6 +332,7 @@ describe("posBill numbers and lists", () => {
     ).toEqual({
       top: { th: "ฉบับร่าง", en: "Draft" },
       main: null,
+      empty: { th: "ยังไม่ใส่ทะเบียน", en: "No plate yet" },
       when: { th: "วันนี้ · 11:42", en: "Today · 11:42" },
     });
   });
