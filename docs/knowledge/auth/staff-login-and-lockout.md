@@ -5,7 +5,7 @@ description: How staff credentials work, the 100k iteration ceiling, why EVERY r
 tags: [staff, login, pbkdf2, lockout, throttle, brute-force, pin, password, d1]
 timestamp: 2026-08-25
 status: live
-sources: [kira-owner-lockout-and-access-signin.md, packages/core/src/staffAuth.ts, apps/api/src/staffSession.ts, apps/api/src/lockout.test.ts, apps/api/src/loginThrottle.ts, session 2026-08-25]
+sources: [kira-owner-lockout-and-access-signin.md, packages/core/src/staffAuth.ts, apps/api/src/staffSession.ts, apps/api/src/lockout.test.ts, apps/api/src/loginThrottle.ts, session 2026-08-25, bug hunt 2026-11-15]
 ---
 
 # Staff login and lockout
@@ -46,7 +46,9 @@ The account lock is keyed to an **account**, and PIN sign-in has no account unti
 `apps/api/src/loginThrottle.ts` counts failures against the CALLER instead — 20 per 15-minute window, then 429 with `Retry-After`. Notes that matter:
 
 - Storage is **`auth_throttle`**, the same table and the same single-statement fixed-window upsert the storefront's OTP limits use (`takeThrottle` in `apps/storefront/src/lib/auth.ts`). Keys are namespaced `staff-login:ip:` so neither flow can spend the other's budget. The two implementations are still separate code in separate apps.
-- **Only failures count.** Counting every attempt would charge a busy counter machine for its normal day, since a shop shares one address.
+- **Count first, then decide** (bug hunt 15 Nov 2026). PIN sign-in calls `takeLoginAttempt`: one statement adds the attempt and reads back the new tally, so each request sees its own number and a burst of 30 sent at once gets exactly 20 answers and 10 refusals. The old order — check "too many?", count only after a miss — let a whole burst through the check before any of it was counted.
+- **In effect only misses count.** A correct PIN clears the tally (`clearLoginFailures`), so a busy counter machine sharing one address is never charged for its normal day.
+- **Shop-wide brake on PINs** (owner, 16 Nov 2026: *"6 wrong is max"*). The per-address limit cannot see a guesser who changes address every try (cheap with IPv6), so PIN sign-in also counts in one bucket shared by everyone, `staff-login:pin:shop` (`PIN_SHOP_MAX_MISSES` = 6). After six wrong PINs anywhere, PIN sign-in answers 429 for everybody until the 15-minute window ends — even a right PIN. A right PIN before that clears it, so it is six wrong in a row. Email and password and the emergency key have their own buckets and stay open: that is how the team still gets in. The trade-off the owner accepted: a stranger can pause PIN sign-in with six wrong tries.
 - **`cf-connecting-ip` first, always** — the edge stamps it and a caller cannot forge it, so somebody hitting the API directly can never choose their bucket. `x-kira-client-ip`, forwarded by the admin's `/api/staff/login` route, is consulted **only** when the edge header is absent, which happens for that server-to-server proxy and never for a request off the internet. Without that fallback the API would be counting the admin *Worker* and every member of staff would share one bucket.
 - Verified live: attempts 1–20 answer 401, the 21st answers 429 with `Retry-After`, and a different address is unaffected.
 

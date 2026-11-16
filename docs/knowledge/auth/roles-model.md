@@ -3,7 +3,7 @@ type: convention
 title: Roles model — viewerRole email lists, not the dormant rbac.ts
 description: super_admin / mechanic / admin via env email lists; per-capability gates; slip images super-admin only
 tags: [roles, rbac, super-admin, mechanic, permissions, slip]
-timestamp: 2026-11-12
+timestamp: 2026-11-15
 status: live
 sources: [kira-defect-claim-flow.md, kira-slip-super-admin-gating.md, kira-staff-mechanic-section-plan.md, packages/core/src/access.ts]
 ---
@@ -56,10 +56,10 @@ API". **That claim is false.** A repo-wide search on 2026-08-24 found exactly tw
 | `canRefund` | YES — `/(orders\|claims\|sales)/:id/refund` (added 2026-08-24) |
 | `canClearPayments` | YES — `POST /payments/clear` (added 2026-10-30) |
 | `canWrite` | YES — every non-GET on `/products*` and `/customers*` (added 2026-08-24) |
-| `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24) |
+| `canReviewPaymentRole` | YES — `PATCH /orders/:id` when the body carries `paymentStatus` (added 2026-08-24), and `POST /orders/:id/review-payment` (added 2026-11-15: before that a ช่าง could confirm a slip there) |
 | `canViewSlips` | YES — `GET /file/:key` for `slip/` keys, and `viewerIsSuperAdmin` on `GET /orders/:id` (added 2026-08-24) |
 | `canEditPrice` | YES — `PUT /products/:id/pricing` (added 2026-08-24) |
-| `canSeeProfit` | YES — `GET /products` withholds `itemCostSatang` (added 2026-08-24) |
+| `canSeeProfit` | YES — `GET /products` withholds `itemCostSatang` (added 2026-08-24); `PATCH /orders/:id` strips profit from the order it returns (added 2026-11-15) |
 | `canReviewClaimRole`, `scanModesFor` | **NO — defined, unit-tested, never called outside tests** |
 
 Slip-image gating is real but runs on the *older* `isSuperAdmin` email-list path above, not on

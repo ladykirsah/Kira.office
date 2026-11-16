@@ -3,9 +3,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { hashPassword, pinLookup } from "@l-shopee/core";
 import {
   STAFF_LOGIN_MAX_FAILURES,
   STAFF_LOGIN_WINDOW_MS,
+  PIN_SHOP_MAX_MISSES,
   loginThrottleKey,
   recoveryThrottleKey,
   isRecoveryThrottled,
@@ -167,7 +169,8 @@ describe("POST /staff/login-pin > the throttle in front of the route", () => {
   it("given a run of wrong PINs from one caller > then the door shuts with 429", async () => {
     const env = { DB: asD1(migratedDb()), STAFF_PIN_PEPPER: "pepper" } as unknown as Env;
 
-    for (let i = 0; i < STAFF_LOGIN_MAX_FAILURES; i++) {
+    // The shop-wide brake (6) is tighter than the per-address one (20), so it shuts first.
+    for (let i = 0; i < PIN_SHOP_MAX_MISSES; i++) {
       const res = await worker.fetch!(guess("000000"), env, ctx);
       expect(res.status, `attempt ${i + 1} should still be a plain refusal`).toBe(401);
     }
@@ -176,6 +179,20 @@ describe("POST /staff/login-pin > the throttle in front of the route", () => {
     expect(shut.status).toBe(429);
     // Told how long to wait, rather than left guessing whether they are broken or banned.
     expect(Number(shut.headers.get("retry-after"))).toBeGreaterThan(0);
+  });
+
+  /**
+   * Bug hunt 15 Nov 2026: the door checked "too many?" first and counted a miss only afterwards, so
+   * a burst sent all at once got every guess checked before any was counted.
+   */
+  it("given 30 wrong PINs sent at once > then no more than 6 are checked; the rest get 429", async () => {
+    const env = { DB: asD1(migratedDb()), STAFF_PIN_PEPPER: "pepper" } as unknown as Env;
+    const answers = await Promise.all(
+      Array.from({ length: 30 }, () => worker.fetch!(guess("000000"), env, ctx)),
+    );
+    const statuses = answers.map((r) => r.status);
+    expect(statuses.filter((s) => s === 401).length).toBe(PIN_SHOP_MAX_MISSES);
+    expect(statuses.filter((s) => s === 429).length).toBe(30 - PIN_SHOP_MAX_MISSES);
   });
 
   it("given the throttle has shut > then even the RIGHT credential is refused", async () => {
@@ -195,6 +212,89 @@ describe("POST /staff/login-pin > the throttle in front of the route", () => {
       ctx,
     );
     expect(res.status).toBe(429);
+  });
+});
+
+/** A PIN from a given address, so a test can play a guesser who keeps changing address. */
+function pinFrom(pin: string, address: string) {
+  return new Request("https://x/staff/login-pin", {
+    method: "POST",
+    headers: { "content-type": "application/json", "cf-connecting-ip": address },
+    body: JSON.stringify({ pin }),
+  });
+}
+
+/** A migrated database with one member of staff whose PIN is 481920. */
+async function shopWithOnePin() {
+  const raw = migratedDb();
+  const hashed = await hashPassword("481920", { iterations: 1000 });
+  raw
+    .prepare(
+      `INSERT INTO users (id, name, email, role, status, created_at,
+                          pin_hash, pin_salt, pin_iterations, pin_lookup)
+       VALUES ('somchai', 'somchai', 'somchai@shop.test', 'mechanic', 'active', ?, ?, ?, ?, ?)`,
+    )
+    .run(NOW, hashed.hash, hashed.salt, hashed.iterations, await pinLookup("481920", "pepper"));
+  return { DB: asD1(raw), STAFF_PIN_PEPPER: "pepper" } as unknown as Env;
+}
+
+/**
+ * Owner, 16 Nov 2026: "6 wrong is max". The per-address limit cannot see a guesser who changes
+ * address for every try, so wrong PINs are also counted across the whole shop.
+ */
+describe("POST /staff/login-pin > the shop-wide brake", () => {
+  it("given 6 wrong PINs from 6 different addresses > then the next PIN is refused with 429, even the right one", async () => {
+    const env = await shopWithOnePin();
+    for (let i = 0; i < PIN_SHOP_MAX_MISSES; i++) {
+      const res = await worker.fetch!(pinFrom("000000", `198.51.100.${i + 1}`), env, ctx);
+      expect(res.status, `wrong PIN ${i + 1} is a plain refusal`).toBe(401);
+    }
+    const paused = await worker.fetch!(pinFrom("481920", "198.51.100.200"), env, ctx);
+    expect(paused.status).toBe(429);
+    expect(Number(paused.headers.get("retry-after"))).toBeGreaterThan(0);
+  });
+
+  it("given the pause > then a browser on another address can read the answer", async () => {
+    // Found 16 Nov 2026 on the local app: the "wait" answer had no cross-site header, so the browser
+    // hid it and the sign-in screen said "Can't reach the server" instead of "Too many tries".
+    const env = await shopWithOnePin();
+    for (let i = 0; i < PIN_SHOP_MAX_MISSES; i++)
+      await worker.fetch!(pinFrom("000000", `198.51.100.${i + 1}`), env, ctx);
+    const paused = await worker.fetch!(pinFrom("481920", "198.51.100.200"), env, ctx);
+    expect(paused.status).toBe(429);
+    expect(paused.headers.get("access-control-allow-origin")).not.toBeNull();
+  });
+
+  it("given the pause > then email and password, and the emergency key, are not paused", async () => {
+    const env = await shopWithOnePin();
+    for (let i = 0; i < PIN_SHOP_MAX_MISSES + 1; i++)
+      await worker.fetch!(pinFrom("000000", `198.51.100.${i + 1}`), env, ctx);
+    const post = (path: string, body: unknown) =>
+      worker.fetch!(
+        new Request(`https://x${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.10" },
+          body: JSON.stringify(body),
+        }),
+        env,
+        ctx,
+      );
+    // No such account / no such key: refused as wrong, never as "wait".
+    expect((await post("/staff/login", { email: "a@shop.test", password: "x" })).status).not.toBe(
+      429,
+    );
+    expect((await post("/staff/login-recovery", { key: "nope" })).status).not.toBe(429);
+  });
+
+  it("given 5 wrong PINs then a right one > then the shop's tally starts over", async () => {
+    const env = await shopWithOnePin();
+    for (let i = 0; i < PIN_SHOP_MAX_MISSES - 1; i++)
+      await worker.fetch!(pinFrom("000000", `198.51.100.${i + 1}`), env, ctx);
+    expect((await worker.fetch!(pinFrom("481920", "198.51.100.50"), env, ctx)).status).toBe(200);
+    for (let i = 0; i < PIN_SHOP_MAX_MISSES; i++) {
+      const res = await worker.fetch!(pinFrom("000000", `198.51.100.${i + 60}`), env, ctx);
+      expect(res.status, `wrong PIN ${i + 1} after the right one`).toBe(401);
+    }
   });
 });
 

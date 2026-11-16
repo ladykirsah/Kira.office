@@ -7,6 +7,7 @@ import {
   lineRedirectUri,
   randomUrlToken,
 } from "@/lib/lineAuth";
+import { safeNext } from "@/lib/safeNext";
 
 /**
  * GET /api/auth/line/start — begin LINE Login. Mints a CSRF `state` + PKCE verifier,
@@ -14,11 +15,6 @@ import {
  * and redirects the browser to LINE's consent screen. The matching /callback route
  * completes the exchange.
  */
-
-/** Only same-site absolute paths may be a post-login redirect target. */
-function safeNext(raw: string | null): string {
-  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/account";
-}
 
 export async function GET(request: Request): Promise<Response> {
   const env = await getEnv();

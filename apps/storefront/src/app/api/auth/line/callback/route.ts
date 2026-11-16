@@ -11,6 +11,7 @@ import {
   LINE_OAUTH_COOKIE,
   LINE_PENDING_COOKIE,
 } from "@/lib/lineAuth";
+import { safeNext } from "@/lib/safeNext";
 
 /**
  * GET /api/auth/line/callback — LINE redirects here with `code` + `state`. We verify
@@ -73,8 +74,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const db = env.DB;
   const now = Date.now();
-  const safeNext =
-    saved.next.startsWith("/") && !saved.next.startsWith("//") ? saved.next : "/account";
+  const next = safeNext(saved.next);
 
   const existing = await db
     .prepare(`SELECT id FROM storefront_customers WHERE line_user_id = ?`)
@@ -87,7 +87,7 @@ export async function GET(request: Request): Promise<Response> {
       .bind(now, now, existing.id)
       .run();
     const session = await createSession(db, existing.id);
-    const res = redirectClearingOauth(request, safeNext);
+    const res = redirectClearingOauth(request, next);
     res.cookies.set(SESSION_COOKIE, session.token, sessionCookieOptions());
     return res;
   }
@@ -95,7 +95,7 @@ export async function GET(request: Request): Promise<Response> {
   // First-time LINE user — no account yet. Stash the verified identity and collect
   // a phone + PDPA consent before creating the row.
   const pendingToken = await stashLinePending(env, identity);
-  const res = redirectClearingOauth(request, `/register/line?next=${encodeURIComponent(safeNext)}`);
+  const res = redirectClearingOauth(request, `/register/line?next=${encodeURIComponent(next)}`);
   res.cookies.set(LINE_PENDING_COOKIE, pendingToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

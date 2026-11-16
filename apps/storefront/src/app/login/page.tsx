@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { OtpLogin } from "@/components/OtpLogin";
+import { safeNext } from "@/lib/safeNext";
 
 /** Centered login card. ?next= deep-links back to the page that demanded auth (checkout). */
 
@@ -25,9 +26,8 @@ function lineErrorMessage(code: string | null): string | null {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/account";
-  // Same-site relative paths only — never an open redirect.
-  const target = next.startsWith("/") && !next.startsWith("//") ? next : "/account";
+  // Same-site paths only, read the way a browser reads them — never an open redirect.
+  const target = safeNext(searchParams.get("next"));
   const lineError = lineErrorMessage(searchParams.get("e"));
   return (
     <div style={{ maxWidth: 420, margin: "24px auto 0" }}>

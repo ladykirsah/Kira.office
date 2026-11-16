@@ -17,6 +17,9 @@ import {
   recordLoginFailure,
   clearLoginFailures,
   refuseIfThrottled,
+  takeLoginAttempt,
+  PIN_SHOP_KEY,
+  PIN_SHOP_MAX_MISSES,
 } from "./loginThrottle";
 import {
   type ClaimResolution,
@@ -322,6 +325,17 @@ let responseHeaders: Record<string, string> = {
 
 const json = (data: unknown, status = 200): Response =>
   Response.json(data, { status, headers: responseHeaders });
+
+/**
+ * The sign-in throttle's "wait" answer, given this request's headers too. Built in loginThrottle.ts,
+ * which cannot see them; without the cross-site header a browser hides the 429 and the app says
+ * "Can't reach the server" instead of "Too many tries" (found 16 Nov 2026).
+ */
+const withResponseHeaders = (res: Response): Response => {
+  const headers = new Headers(res.headers);
+  for (const [name, value] of Object.entries(responseHeaders)) headers.set(name, value);
+  return new Response(res.body, { status: res.status, headers });
+};
 
 /**
  * The staff behind this request, refused unless `allow` accepts their role.
@@ -7354,7 +7368,7 @@ const worker = {
       const now = Date.now();
       const throttleKey = loginThrottleKey(clientAddress(request));
       const shut = await refuseIfThrottled(env.DB, throttleKey, now);
-      if (shut) return shut;
+      if (shut) return withResponseHeaders(shut);
       const body = await readJson<{ email?: string; password?: string }>(request);
       const out = await loginStaff(env.DB, body?.email ?? "", body?.password ?? "", now);
       if (!out.ok) {
@@ -7415,16 +7429,18 @@ const worker = {
        */
       const now = Date.now();
       const throttleKey = loginThrottleKey(clientAddress(request));
-      const shut = await refuseIfThrottled(env.DB, throttleKey, now);
-      if (shut) return shut;
+      // Counted before the PIN is even read, so a burst can't be checked in full first.
+      const shut = await takeLoginAttempt(env.DB, throttleKey, now);
+      if (shut) return withResponseHeaders(shut);
+      // And across the whole shop, for a guesser who changes address every try ("6 wrong is max").
+      const shopShut = await takeLoginAttempt(env.DB, PIN_SHOP_KEY, now, PIN_SHOP_MAX_MISSES);
+      if (shopShut) return withResponseHeaders(shopShut);
       if (!env.STAFF_PIN_PEPPER) return json({ error: "pin_login_unavailable" }, 503);
       const body = await readJson<{ pin?: string }>(request);
       const out = await loginWithPin(env.DB, body?.pin ?? "", now, env.STAFF_PIN_PEPPER);
-      if (!out.ok) {
-        await recordLoginFailure(env.DB, throttleKey, now);
-        return json({ error: "invalid", reason: out.reason }, 401);
-      }
+      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
       await clearLoginFailures(env.DB, throttleKey);
+      await clearLoginFailures(env.DB, PIN_SHOP_KEY);
       return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
     }
 
@@ -7442,7 +7458,7 @@ const worker = {
       const now = Date.now();
       const throttleKey = recoveryThrottleKey(clientAddress(request));
       const shut = await refuseIfThrottled(env.DB, throttleKey, now, RECOVERY_MAX_FAILURES);
-      if (shut) return shut;
+      if (shut) return withResponseHeaders(shut);
       if (!env.STAFF_PIN_PEPPER) return json({ error: "recovery_unavailable" }, 503);
       const body = await readJson<{ key?: string }>(request);
       const out = await loginWithRecoveryKey(env.DB, body?.key ?? "", now, env.STAFF_PIN_PEPPER);
@@ -8775,6 +8791,8 @@ const worker = {
       return json(seesCost(viewerStaff) ? body : withoutProductCost(body));
     }
     if (productById && request.method === "PATCH") {
+      const actor = await requireStaff(request, env);
+      if (actor instanceof Response) return actor;
       const body = await readJson<{
         name?: string;
         description?: string;
@@ -8795,6 +8813,23 @@ const worker = {
       if (!body?.name || !body?.status) {
         return json({ error: "name and status are required" }, 400);
       }
+      // The old whole-product save. It set status (archived = gone) and the Shopee listing with none
+      // of the owner-only checks the other doors make, and a missing shopeeListed quietly unlisted
+      // the product (bug hunt 15 Nov 2026). Same rule as /products/full now; an omitted listing keeps
+      // what is stored.
+      const refused = await refuseChannelChange(
+        env.DB,
+        productById[1]!,
+        { status: body.status, shopeeListed: body.shopeeListed },
+        actor.role,
+      );
+      if (refused) return refused;
+      const storedListing = await env.DB.prepare(
+        `SELECT shopee_listed AS l FROM products WHERE id = ?`,
+      )
+        .bind(productById[1]!)
+        .first<{ l: number }>();
+      const shopeeListed = body.shopeeListed ?? Boolean(storedListing?.l);
       // Creatable dropdowns: resolve typed/selected names to option ids (creating new ones), and
       // compose a human-readable category (brand · system · part) for the list/search view. A new
       // category inherits the selected car system (migration 0064); existing ones keep theirs.
@@ -8810,7 +8845,7 @@ const worker = {
         name: body.name,
         description: body.description,
         status: body.status,
-        shopeeListed: body.shopeeListed,
+        shopeeListed,
         shopeeItemId: body.shopeeItemId,
         productRef: body.productRef,
         category,
@@ -9117,6 +9152,10 @@ const worker = {
     // not awaiting review, 400 if a reject omits its required reason.
     const orderReview = url.pathname.match(/^\/orders\/([^/]+)\/review-payment$/);
     if (orderReview && request.method === "POST") {
+      // Same rule as the PATCH door below: clearing a customer's transfer is never a mechanic's call
+      // (bug hunt 15 Nov 2026 — this door had no check).
+      const gate = await requireRole(request, env, canReviewPaymentRole, "not_for_mechanics");
+      if (gate instanceof Response) return gate;
       const body = await readJson<{ decision?: string; reason?: string }>(request);
       const decision = body?.decision;
       if (decision !== "confirm" && decision !== "reject")
@@ -9292,7 +9331,11 @@ const worker = {
       }
       // userEmail comes from the Access gate above, and becomes the timeline entry's actor.
       const out = await updateOrder(env.DB, orderById[1]!, body, userEmail);
-      return out.ok ? json({ order: out.order }) : json({ error: out.reason }, out.code);
+      if (!out.ok) return json({ error: out.reason }, out.code);
+      // The saved row carries profit; a mechanic never gets it back (bug hunt 15 Nov 2026).
+      return json({
+        order: seesCost(viewerStaff) ? out.order : withoutOrderProfit([out.order])[0],
+      });
     }
 
     // ── AirPlus merchandising admin: banners / coupons / campaigns / affiliate cards ────────────

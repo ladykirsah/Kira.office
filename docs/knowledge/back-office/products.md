@@ -3,7 +3,7 @@ type: invariant
 title: Products — soft delete and atomic save
 description: Delete = archived (every list must filter it); Add/Edit product saves atomically via one D1 batch with recover-on-existing-ref
 tags: [products, soft-delete, atomic-save, d1, admin]
-timestamp: 2026-08-24
+timestamp: 2026-11-15
 status: live
 sources: [kira-soft-delete-invariant.md, kira-product-save-atomic.md, apps/api/src/index.ts, apps/admin/src/lib/newProduct.ts]
 ---
@@ -152,6 +152,11 @@ way. It compares `status` and `shopeeListed` against what is **stored**, so an a
 not blocked for channels they never touched, and returns 403 `channel_is_owners` when one moved. A
 save with no stored row is a create, which an admin may do. The edit page also **withholds both
 switches** from anyone but the super admin, so the refusal is a backstop, not the message.
+
+The **old `PATCH /products/:id`** was a third door (bug hunt 15 Nov 2026): no channel check, any
+status accepted (even archived), and a missing `shopeeListed` reset the Shopee flag. It now runs the
+same `refuseChannelChange()` and keeps the stored Shopee flag when the body leaves it out. The app
+does not call this route; it is closed because anyone signed in could.
 
 A **draft gets the AirPlus item too**, reading **Live on AirPlus** — that is publishing. "View" was
 dropped from the menu for anyone who can edit; the product name in the row is already the link.
