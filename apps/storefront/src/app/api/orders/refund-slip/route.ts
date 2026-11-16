@@ -7,7 +7,8 @@ import { normalizePhone } from "@/lib/format";
  * the phone never lands in a URL/query string. Returns the image bytes, or 404 for anything the pair
  * does not own (identical to a missing order — never reveals someone else's).
  */
-const NOT_FOUND = new Response("Not found", { status: 404 });
+/** A new reply each time: a Response can be sent only once (bug hunt 15 Nov 2026). */
+const notFound = () => new Response("Not found", { status: 404 });
 
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -19,7 +20,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     const ref = typeof b.ref === "string" ? b.ref.trim().toUpperCase() : "";
     const phone = normalizePhone(typeof b.phone === "string" ? b.phone : "");
-    if (!ref || !phone) return NOT_FOUND;
+    if (!ref || !phone) return notFound();
 
     const env = await getEnv();
     const order = await env.DB.prepare(
@@ -30,10 +31,10 @@ export async function POST(req: Request): Promise<Response> {
     )
       .bind(ref)
       .first<{ slipKey: string | null; phone: string }>();
-    if (!order || normalizePhone(order.phone) !== phone || !order.slipKey) return NOT_FOUND;
+    if (!order || normalizePhone(order.phone) !== phone || !order.slipKey) return notFound();
 
     const obj = env.IMAGES ? await env.IMAGES.get(order.slipKey) : null;
-    if (!obj) return NOT_FOUND;
+    if (!obj) return notFound();
     // arrayBuffer(), not obj.body: R2's ReadableStream and the DOM Response's BodyInit disagree under
     // the storefront's mixed workers-types + DOM lib, and a buffered read sidesteps the type clash.
     return new Response(await obj.arrayBuffer(), {

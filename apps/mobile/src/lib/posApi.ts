@@ -165,6 +165,8 @@ export interface OpenDraft {
   createdAt: number;
   mileageKm?: number | null;
   buyerName?: string | null;
+  /** Who it is for; null on drafts saved before 16 Nov 2026, where the name decides. */
+  buyerKind?: "customer" | "mechanic" | null;
   lines: {
     productVariantId: string | null;
     lineType: "part" | "service";

@@ -26,7 +26,8 @@ import { parseTrackBody, visitorHash } from "@/lib/trackEvent";
  */
 
 /** 204, no body — the only response this endpoint ever gives, success or failure alike. */
-const NO_CONTENT = new Response(null, { status: 204 });
+/** A new reply each time: a Response can be sent only once (bug hunt 15 Nov 2026). */
+const noContent = () => new Response(null, { status: 204 });
 
 /**
  * A salt so the stored hash cannot be brute-forced back to an IP by anyone who obtains the table.
@@ -43,7 +44,7 @@ function saltFor(env: Record<string, unknown>): string {
 export async function POST(req: Request): Promise<Response> {
   try {
     const event = parseTrackBody(await req.json().catch(() => null));
-    if (!event) return NO_CONTENT;
+    if (!event) return noContent();
 
     const now = Date.now();
     // Cloudflare's CF-Connecting-IP is the real client address; the header is set by the edge and
@@ -80,10 +81,10 @@ export async function POST(req: Request): Promise<Response> {
       )
       .run();
 
-    return NO_CONTENT;
+    return noContent();
   } catch (err) {
     // Logged, never surfaced. A dropped metric is a rounding error; a failed page is a lost sale.
     console.error("POST /api/track failed", err);
-    return NO_CONTENT;
+    return noContent();
   }
 }

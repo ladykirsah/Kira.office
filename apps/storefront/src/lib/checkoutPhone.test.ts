@@ -7,6 +7,8 @@ import {
   couponValue,
   discountRow,
   stockLine,
+  unavailableError,
+  flashShortError,
   buildCheckoutRequest,
   postcodeFill,
 } from "./checkoutPhone";
@@ -94,6 +96,32 @@ describe("stockLine (4.11)", () => {
   it("stockLine > the shop says not enough stock > its words + what to do, under the items", () => {
     expect(stockLine("สินค้าไม่พอ: ตู้แอร์ คอยล์เย็น Toyota Vigo (เหลือ 0 ชิ้น)")).toBe(
       "สินค้าไม่พอ: ตู้แอร์ คอยล์เย็น Toyota Vigo (เหลือ 0 ชิ้น) · ลบออกจากตะกร้าแล้วสั่งใหม่",
+    );
+  });
+  // Bug hunt 15 Nov 2026: a paused or removed item stopped checkout with "an item is not for sale"
+  // and no name, so the customer could not tell which line to take out.
+  it("unavailableError > given the item's name > then it says which one", () => {
+    expect(unavailableError("ตู้แอร์ คอยล์เย็น Toyota Vigo")).toBe(
+      "สินค้าไม่พร้อมจำหน่ายแล้ว: ตู้แอร์ คอยล์เย็น Toyota Vigo",
+    );
+  });
+  it("stockLine > given an item no longer for sale > the same red line under the items", () => {
+    expect(stockLine(unavailableError("ตู้แอร์ คอยล์เย็น Toyota Vigo"))).toBe(
+      "สินค้าไม่พร้อมจำหน่ายแล้ว: ตู้แอร์ คอยล์เย็น Toyota Vigo · ลบออกจากตะกร้าแล้วสั่งใหม่",
+    );
+  });
+  // Bug hunt 15 Nov 2026: asking for 5 when the flash sale had 3 left said "try again" forever.
+  it("flashShortError > given fewer flash slots than asked > then how many are left, and what to do", () => {
+    expect(flashShortError("ตู้แอร์ คอยล์เย็น Toyota Vigo", 3)).toBe(
+      "ราคาแฟลชเซลเหลือ 3 ชิ้น: ตู้แอร์ คอยล์เย็น Toyota Vigo",
+    );
+    expect(stockLine(flashShortError("ตู้แอร์ คอยล์เย็น Toyota Vigo", 3))).toBe(
+      "ราคาแฟลชเซลเหลือ 3 ชิ้น: ตู้แอร์ คอยล์เย็น Toyota Vigo · ลดจำนวนแล้วสั่งใหม่",
+    );
+  });
+  it("unavailableError > given no name to be found > then the general words", () => {
+    expect(unavailableError(null)).toBe(
+      "มีสินค้าในตะกร้าที่ไม่พร้อมจำหน่ายแล้ว กรุณาลบออกแล้วลองใหม่",
     );
   });
   it("stockLine > any other error > not a stock line", () => {

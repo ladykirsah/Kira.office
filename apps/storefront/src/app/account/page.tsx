@@ -73,7 +73,8 @@ export default async function AccountPage() {
         c.customer_code AS customerCode,
         (SELECT COUNT(*) FROM sales_orders o
          WHERE o.storefront_customer_id = c.id AND o.channel = 'airplus') AS orders,
-        (SELECT COUNT(*) FROM addresses a WHERE a.storefront_customer_id = c.id) AS addresses
+        (SELECT COUNT(*) FROM addresses a
+         WHERE a.storefront_customer_id = c.id AND a.hidden_at IS NULL) AS addresses
        FROM storefront_customers c WHERE c.id = ?`,
     )
     .bind(customer.id)

@@ -1,38 +1,18 @@
 import { getSession, guardMutation } from "@/lib/auth";
+import { hasOwnAddress, listOwnAddresses, type OwnAddress } from "@/lib/addressBook";
 import { getDb } from "@/lib/db";
 
-export interface AddressRow {
-  id: string;
-  recipientName: string;
-  phone: string;
-  addressLine1: string;
-  subdistrict: string;
-  district: string;
-  province: string;
-  postalCode: string;
-  isDefault: boolean;
-}
+export type AddressRow = OwnAddress;
 
-const UNAUTH = Response.json({ error: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
+/** A new reply each time: one Response can be sent only once. */
+const unauth = () => Response.json({ error: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
 /** GET /api/account/addresses — the logged-in customer's address book (default first). */
 export async function GET(): Promise<Response> {
   try {
     const customer = await getSession();
-    if (!customer) return UNAUTH;
-    const db = await getDb();
-    const rows = await db
-      .prepare(
-        `SELECT id, recipient_name AS recipientName, phone, address_line1 AS addressLine1,
-                subdistrict, district, province, postal_code AS postalCode, is_default AS isDefault
-         FROM addresses WHERE storefront_customer_id = ?
-         ORDER BY is_default DESC, created_at DESC LIMIT 20`,
-      )
-      .bind(customer.id)
-      .all<Omit<AddressRow, "isDefault"> & { isDefault: number }>();
-    return Response.json({
-      addresses: (rows.results ?? []).map((a) => ({ ...a, isDefault: Boolean(a.isDefault) })),
-    });
+    if (!customer) return unauth();
+    return Response.json({ addresses: await listOwnAddresses(await getDb(), customer.id) });
   } catch (err) {
     console.error("GET /api/account/addresses failed", err);
     return Response.json({ error: "เกิดข้อผิดพลาดในระบบ" }, { status: 500 });
@@ -45,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     const guarded = guardMutation(req);
     if (guarded) return guarded;
     const customer = await getSession();
-    if (!customer) return UNAUTH;
+    if (!customer) return unauth();
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const field = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
     const recipientName = field("recipientName");
@@ -63,11 +43,8 @@ export async function POST(req: Request): Promise<Response> {
     const db = await getDb();
     const now = Date.now();
     const id = crypto.randomUUID();
-    const hasAny = await db
-      .prepare(`SELECT id FROM addresses WHERE storefront_customer_id = ? LIMIT 1`)
-      .bind(customer.id)
-      .first<{ id: string }>();
-    const makeDefault = b.isDefault === true || !hasAny;
+    // A first address the customer can see becomes the default (removed ones don't count).
+    const makeDefault = b.isDefault === true || !(await hasOwnAddress(db, customer.id));
     const statements = [
       db
         .prepare(

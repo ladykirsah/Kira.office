@@ -2093,6 +2093,60 @@ describe("api worker routes", () => {
     expect(binds).toContain("33.33"); // raw value preserved
   });
 
+  // Bug hunt 15 Nov 2026 + owner's pick A (16 Nov 2026): who a draft is for is saved on its own,
+  // so a ช่าง draft with no name still reopens as ช่าง.
+  it("POST /onsite/drafts > saves who the draft is for (ลูกค้า or ช่าง)", async () => {
+    const { env, batched } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "d9",
+          stage: "draft",
+          buyerKind: "mechanic",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const insert = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
+      s.sql.includes("INTO onsite_sales"),
+    );
+    expect(insert?.sql).toContain("buyer_kind");
+    expect(insert?.boundArgs).toContain("mechanic");
+  });
+
+  it("POST /onsite/drafts > refuses a buyer kind that is neither ลูกค้า nor ช่าง", async () => {
+    const { env, batched } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/onsite/drafts", {
+        method: "POST",
+        body: JSON.stringify({
+          draftId: "d9",
+          stage: "draft",
+          buyerKind: "boss",
+          lines: [{ quantity: 1, unitPriceSatang: 15000, description: "compressor" }],
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(batched.some((s) => s.sql.includes("INTO onsite_sales"))).toBe(false);
+  });
+
+  it("GET /onsite/drafts > sends back who each draft is for", async () => {
+    const { db, env } = makeDb({ sales: [] });
+    const prepare = vi.spyOn(db, "prepare");
+    await fetchAuthed(new Request("https://x/onsite/drafts"), env, ctx);
+    const sql = prepare.mock.calls
+      .map((c) => c[0] as string)
+      .find((s) => s.includes("FROM onsite_sales") && s.includes("stage IN"));
+    expect(sql).toContain("buyer_kind AS buyerKind");
+  });
+
   it("POST /onsite/drafts > refuses to overwrite a finalized bill (no header/line corruption)", async () => {
     // A bill id fed back into the draft-save path must not reopen the bill as an editable draft:
     // its header (stage/totals) must not be flipped and its lines must not be stripped/replaced.
@@ -13061,5 +13115,23 @@ describe("listFinanceOrders > every AirPlus order, with the order page's money",
     const { orders } = await listFinanceOrders(seed());
     const back = orders.find((o) => (o as { id: string }).id === "back");
     expect(back).toMatchObject({ salesSatang: 190000, refunded: true, profitSatang: -6000 });
+  });
+});
+
+/**
+ * Bug hunt 15 Nov 2026: /img/ skipped sign-in for every method, so a stranger's POST there wrote a
+ * row to the audit log (and could fill it). Only reading a picture is public.
+ */
+describe("/img/ > only reading a picture is public", () => {
+  it("given a POST with no sign-in > then 401, and nothing written to the audit log", async () => {
+    const raw = migratedDb();
+    const res = await worker.fetch!(
+      new Request("https://x/img/products/p1/a.png", { method: "POST", body: "x" }),
+      { DB: asD1(raw) } as unknown as Env,
+      ctx,
+    );
+    expect(res.status).toBe(401);
+    const rows = raw.prepare(`SELECT COUNT(*) AS n FROM audit_logs`).get() as { n: number };
+    expect(Number(rows.n)).toBe(0);
   });
 });

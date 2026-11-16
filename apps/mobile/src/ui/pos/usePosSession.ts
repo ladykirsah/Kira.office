@@ -26,6 +26,7 @@ import {
   discountOf,
   forBuyer,
   nextDocNumber,
+  nextQuoteNumber,
   subtotal,
   type BillState,
   type Discount,
@@ -96,6 +97,8 @@ export interface Lookup {
 const QUEUE_KEY = "kira_pos_queue";
 const RECEIVER_KEY = "kira_pos_receiver";
 const LAST_BILL_KEY = "kira_pos_last_bill";
+/** This phone's last QT number, so a quote that became a bill is not numbered again. */
+const LAST_QUOTE_KEY = "kira_pos_last_quote";
 /** Scan's last bill number on this phone (useScanSession) — both pages number DAS bills. */
 const SCAN_LAST_BILL_KEY = "kira_last_sale_number";
 /** How often bills waiting on this phone try the server again. */
@@ -250,13 +253,21 @@ export function usePosSession() {
     setTried(false);
   };
 
-  const quoteNumbers = () => data.drafts.map((d) => d.saleNumber);
+  /** A new quote's number: the drafts as the server has them now, and this phone's last quote. */
+  async function newQuoteNumber(): Promise<string> {
+    const drafts = await fetchDrafts(fetch, API_BASE, token).catch(() => data.drafts);
+    const last = await readPref(LAST_QUOTE_KEY);
+    return nextQuoteNumber(
+      drafts.map((d) => d.saleNumber),
+      last,
+      Date.now(),
+    );
+  }
 
   async function storeDraft(asDoc: DocKind): Promise<{ id: string; number: string | null } | null> {
     const id = draftId ?? newId();
-    const number =
-      asDoc === "quote" ? (quoteNumber ?? nextDocNumber("QT", quoteNumbers(), Date.now())) : null;
     try {
+      const number = asDoc === "quote" ? (quoteNumber ?? (await newQuoteNumber())) : null;
       await saveDraft(
         fetch,
         API_BASE,
@@ -265,6 +276,7 @@ export function usePosSession() {
       );
       setDraftId(id);
       setQuoteNumber(number);
+      if (number) void writePref(LAST_QUOTE_KEY, number);
       void data.reloadDrafts();
       return { id, number };
     } catch (e) {

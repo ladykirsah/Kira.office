@@ -19,7 +19,9 @@ import {
   type CheckoutPaymentMethod,
   type CheckoutSuccess,
 } from "@/lib/checkoutApi";
+import { findOwnAddress, hasOwnAddress } from "@/lib/addressBook";
 import { couponLinesOf } from "@/lib/couponCart";
+import { flashShortError, unavailableError } from "@/lib/checkoutPhone";
 import { getCheckoutPricing, getCouponWithUsage, getDb, getEnv } from "@/lib/db";
 
 /**
@@ -293,13 +295,8 @@ export async function POST(req: Request): Promise<Response> {
     let shippingPostcode: string;
     let addressInsert: ReturnType<D1Database["prepare"]> | null = null;
     if (body.addressId) {
-      const owned = await db
-        .prepare(
-          `SELECT id, postal_code AS postalCode FROM addresses
-           WHERE id = ? AND storefront_customer_id = ?`,
-        )
-        .bind(body.addressId, customer.id)
-        .first<{ id: string; postalCode: string }>();
+      // Own, visible addresses only: a removed one can't be picked again.
+      const owned = await findOwnAddress(db, customer.id, body.addressId);
       if (!owned)
         return Response.json(
           { error: "ไม่พบที่อยู่ที่เลือก กรุณาเลือกที่อยู่ใหม่" },
@@ -311,10 +308,7 @@ export async function POST(req: Request): Promise<Response> {
       const a = body.address;
       if (!a)
         return Response.json({ error: "กรุณากรอกที่อยู่จัดส่งให้ครบทุกช่อง" }, { status: 400 });
-      const hasAny = await db
-        .prepare(`SELECT id FROM addresses WHERE storefront_customer_id = ? LIMIT 1`)
-        .bind(customer.id)
-        .first<{ id: string }>();
+      const hasAny = await hasOwnAddress(db, customer.id);
       shippingAddressId = crypto.randomUUID();
       shippingPostcode = a.postalCode;
       addressInsert = db
@@ -364,11 +358,17 @@ export async function POST(req: Request): Promise<Response> {
     let priceChanged = false;
     for (const line of body.lines) {
       const row = pricing.get(line.variantId);
-      if (!row)
-        return Response.json(
-          { error: "มีสินค้าในตะกร้าที่ไม่พร้อมจำหน่ายแล้ว กรุณาลบออกแล้วลองใหม่" },
-          { status: 400 },
-        );
+      if (!row) {
+        // Paused or removed: say which one (bug hunt 15 Nov 2026), even though it is not for sale.
+        const gone = await db
+          .prepare(
+            `SELECT p.name AS name FROM product_variants v
+             JOIN products p ON p.id = v.product_id WHERE v.id = ?`,
+          )
+          .bind(line.variantId)
+          .first<{ name: string }>();
+        return Response.json({ error: unavailableError(gone?.name ?? null) }, { status: 400 });
+      }
       if (row.priceSatang <= 0)
         return Response.json({ error: `สินค้ายังไม่เปิดขายออนไลน์: ${row.name}` }, { status: 400 });
       // Fail closed like the POS — never oversell.
@@ -378,6 +378,14 @@ export async function POST(req: Request): Promise<Response> {
           { status: 400 },
         );
       const eff = resolveEffectivePrice(row.priceSatang, row.campaign, now);
+      // More than the flash sale has left at its price: say how many, so the amount can be lowered
+      // (bug hunt 15 Nov 2026: the cap guard below answered "try again", which never could work).
+      const flashLeft =
+        eff.onSale && row.campaign?.stockCap != null
+          ? row.campaign.stockCap - row.campaign.soldCount
+          : null;
+      if (flashLeft != null && line.qty > flashLeft)
+        return Response.json({ error: flashShortError(row.name, flashLeft) }, { status: 409 });
       // The customer must never be charged more than the price they saw without re-confirming: if a
       // shown price no longer matches (e.g. a flash price lapsed in-cart), flag it and bail below.
       if (line.expectedPriceSatang != null && line.expectedPriceSatang !== eff.priceSatang)

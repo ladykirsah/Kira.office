@@ -65,6 +65,9 @@ export function slipAfterCancel(
   o: { orderStatus: string; paymentStatus: string; payBy: number | null },
   now: number,
 ): SlipAfterCancel {
+  // Expiry IS the payment deadline passing: a slip then would be stored but never reviewed (bug
+  // hunt 15 Nov 2026), so it goes the way of a cancel after the deadline.
+  if (o.orderStatus === "expired") return "contact_line";
   if (o.orderStatus !== "cancelled") return "not_cancelled";
   if (o.paymentStatus !== "pending") return "contact_line";
   if (o.payBy == null || now >= o.payBy) return "contact_line";
