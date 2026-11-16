@@ -3825,6 +3825,7 @@ export async function cancelOrderInDb(
       )
       .bind(input.reason, now, id, ...CANCELLABLE_ORDER_STATUSES),
     ...restock.statements,
+    returnFlashSlots(db, id, thisCancel),
     // The coupon goes back: usage is COUNT(*) over coupon_redemptions, so the customer may use it
     // again. The order keeps its own discount figures — the money record of what was offered.
     db
@@ -3866,6 +3867,31 @@ const CANCEL_BLOCK_REASONS: Record<CancelBlock, string> = {
   already_closed: "this order is already cancelled or expired",
   check_slip_first: "check the payment slip before cancelling",
 };
+
+/**
+ * Give an order's flash-sale slots back to the sale (owner, 16 Nov 2026: "Flash-sale is discount on
+ * specific period. buy during the period > get discount, cancel > lose"). As on Shopee and Lazada,
+ * the unit goes back for the next buyer while the sale runs; the customer who cancelled loses the
+ * price. Only lines that remember their flash-sale price (0102) give anything back. `guard` makes it
+ * conditional on THIS cancel / expiry, so it can never run twice.
+ */
+function returnFlashSlots(
+  db: D1Database,
+  orderId: string,
+  guard: { sql: string; binds: unknown[] },
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE campaign_prices
+       SET sold_count = MAX(0, sold_count - (
+         SELECT COALESCE(SUM(l.quantity), 0) FROM sales_order_lines l
+         WHERE l.sales_order_id = ? AND l.campaign_price_id = campaign_prices.id))
+       WHERE id IN (SELECT campaign_price_id FROM sales_order_lines
+                    WHERE sales_order_id = ? AND campaign_price_id IS NOT NULL)
+         AND ${guard.sql}`,
+    )
+    .bind(orderId, orderId, ...guard.binds);
+}
 
 /**
  * The ledger rows that give back what an online order took — what its own `sales_order` rows still
@@ -3915,7 +3941,12 @@ async function restockOrderStatements(
              (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type,
               source_id, reason, created_at)
            SELECT ?, ?, 'refund_return', ?, ?, 'sales_order', ?, ?, ?
-           ${guard ? `WHERE ${guard.sql}` : ""}`,
+           -- Still out when this row is WRITTEN, not only when it was worked out: two give-backs
+           -- at once (two expiry sweeps, a sweep and a cancel) both counted it out, and the stock
+           -- came back twice (bug hunt 15 Nov 2026). The second one now writes nothing.
+           WHERE (SELECT -COALESCE(SUM(quantity_delta), 0) FROM stock_ledger_entries
+                  WHERE source_type = 'sales_order' AND source_id = ? AND product_variant_id = ?) >= ?
+           ${guard ? `AND ${guard.sql}` : ""}`,
         )
         .bind(
           crypto.randomUUID(),
@@ -3925,6 +3956,9 @@ async function restockOrderStatements(
           orderId,
           reason,
           now,
+          orderId,
+          line.variantId,
+          quantity,
           ...(guard?.binds ?? []),
         ),
     );
@@ -4002,7 +4036,21 @@ export async function recordRefund(
     .bind(id)
     .all<{ variantId: string | null; quantity: number }>();
 
-  const statements: D1PreparedStatement[] = [];
+  // Two taps at once both passed the refunded_at check above, and the goods came back twice (bug
+  // hunt 15 Nov 2026). So the order is marked FIRST, only if nobody marked it yet, and everything
+  // after is guarded on that mark being THIS refund's (its time and its slip).
+  const thisRefund = {
+    sql: `EXISTS (SELECT 1 FROM sales_orders WHERE id = ? AND refunded_at = ? AND refund_slip_image_key = ?)`,
+    binds: [id, now, slipImageKey],
+  };
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE sales_orders SET payment_status = 'refunded', refund_satang = ?, refunded_at = ?,
+               refund_actor_email = ?, refund_slip_image_key = ? WHERE id = ? AND refunded_at IS NULL`,
+      )
+      .bind(order.grandTotalSatang, now, actorEmail, slipImageKey, id),
+  ];
   const onHand: Record<string, number> = {};
   for (const line of cancelled ? [] : (lines ?? [])) {
     if (!line.variantId) continue;
@@ -4021,7 +4069,9 @@ export async function recordRefund(
     statements.push(
       db
         .prepare(
-          "INSERT INTO stock_ledger_entries (id, product_variant_id, movement_type, quantity_delta, quantity_after, source_type, source_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          `INSERT INTO stock_ledger_entries (id, product_variant_id, movement_type, quantity_delta,
+             quantity_after, source_type, source_id, created_at)
+           SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${thisRefund.sql}`,
         )
         .bind(
           crypto.randomUUID(),
@@ -4032,18 +4082,16 @@ export async function recordRefund(
           "sales_order",
           id,
           now,
+          ...thisRefund.binds,
         ),
     );
   }
-  statements.push(
-    db
-      .prepare(
-        `UPDATE sales_orders SET payment_status = 'refunded', refund_satang = ?, refunded_at = ?,
-               refund_actor_email = ?, refund_slip_image_key = ? WHERE id = ?`,
-      )
-      .bind(order.grandTotalSatang, now, actorEmail, slipImageKey, id),
-  );
   await db.batch(statements);
+  const after = await db
+    .prepare(`SELECT ${thisRefund.sql} AS mine`)
+    .bind(...thisRefund.binds)
+    .first<{ mine: number }>();
+  if (!after?.mine) return { ok: false, code: 409, reason: "this order has already been refunded" };
   await appendOrderStatusHistory(db, {
     orderId: id,
     orderStatus: order.orderStatus,
@@ -4222,26 +4270,43 @@ export async function expireUnpaidOrders(
     .bind(EXPIRY_MS, now)
     .run();
 
-  // An unpaid order took its stock at checkout; expiring it gives that back (owner, 30 Oct 2026 —
-  // before this, every expired order quietly lost its units). Only the orders THIS sweep moved:
-  // the stale list was read under the same predicate, and a twice-run restock nets to nothing.
+  // Each order is then CLAIMED by its one "expired" timeline step, written only if it is not there
+  // yet. The sweep runs on every order list and on the timer, and two at the same moment both gave
+  // the stock back (bug hunt 15 Nov 2026); now everything below is guarded on THIS sweep's step.
+  // No human triggers this, and it runs inside a GET which the audit wrapper ignores — so the step
+  // is the only trace an expiry leaves anywhere. Null actor: the system did it.
   for (const o of stale) {
-    const { statements } = await restockOrderStatements(db, o.id, "order_expired", now);
-    if (statements.length) await db.batch(statements);
-  }
-
-  // No human triggers this, and it runs inside a GET which the audit wrapper ignores — so these
-  // rows are the only trace an expiry leaves anywhere. Null actor: the system did it.
-  for (const o of stale) {
-    await appendOrderStatusHistory(db, {
-      orderId: o.id,
-      orderStatus: "expired",
-      paymentStatus: "expired",
-      event: "expired",
-      actorEmail: null,
-      note: "auto-expired after 48h unpaid",
-      at: now,
-    });
+    const stepId = crypto.randomUUID();
+    const thisExpiry = {
+      sql: `EXISTS (SELECT 1 FROM order_status_history WHERE id = ?)`,
+      binds: [stepId],
+    };
+    // An unpaid order took its stock at checkout; expiring it gives that back (owner, 30 Oct 2026 —
+    // before this, every expired order quietly lost its units).
+    const restock = await restockOrderStatements(db, o.id, "order_expired", now, thisExpiry);
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO order_status_history
+             (id, order_id, order_status, payment_status, event, actor_email, note, created_at)
+           SELECT ?, ?, 'expired', 'expired', 'expired', NULL, 'auto-expired after 48h unpaid', ?
+           WHERE EXISTS (SELECT 1 FROM sales_orders WHERE id = ? AND order_status = 'expired')
+             AND NOT EXISTS (SELECT 1 FROM order_status_history
+                             WHERE order_id = ? AND event = 'expired')`,
+        )
+        .bind(stepId, o.id, now, o.id, o.id),
+      ...restock.statements,
+      returnFlashSlots(db, o.id, thisExpiry),
+      // The coupon comes back too, unless it has ended by now (owner, 16 Nov 2026: "yes, if it
+      // happen after the coupon expire > it never comes back"). Usage is COUNT(*) of redemptions.
+      db
+        .prepare(
+          `DELETE FROM coupon_redemptions WHERE sales_order_id = ?
+             AND coupon_id IN (SELECT id FROM coupons WHERE ends_at IS NULL OR ends_at > ?)
+             AND ${thisExpiry.sql}`,
+        )
+        .bind(o.id, now, ...thisExpiry.binds),
+    ]);
   }
 
   const customerIds = new Set(stale.map((o) => o.customerId).filter(Boolean) as string[]);

@@ -579,8 +579,8 @@ export async function POST(req: Request): Promise<Response> {
         db
           .prepare(
             `INSERT INTO sales_order_lines (id, sales_order_id, product_variant_id, quantity,
-               unit_price_satang, unit_cost_satang, line_total_satang, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+               unit_price_satang, unit_cost_satang, line_total_satang, created_at, campaign_price_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
             crypto.randomUUID(),
@@ -591,6 +591,8 @@ export async function POST(req: Request): Promise<Response> {
             p.costSatang,
             p.priceSatang * p.qty,
             now,
+            // The flash-sale slot it took, so a cancel or an expiry can give it back (0102).
+            p.campaignPriceId,
           ),
       ),
       // Opening entry for the order timeline that admin /orders/:id renders. It goes in this batch

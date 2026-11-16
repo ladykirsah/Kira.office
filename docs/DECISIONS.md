@@ -47,6 +47,8 @@ _Last confirmed: 2026-07-13._
 | Two-axis order lifecycle | Orders track **two independent axes**. Fulfilment `order_status`: `new` → `preparing` (เตรียมจัดส่ง) → `shipping` → `done`, plus **cancel** / **refund** branches. Money `payment_status`: `awaiting` → `paid`, plus **COD**. The admin status dropdown exposes **fulfilment states only**. |
 | Schema impact | **No schema change** — reuses the existing free-text status columns. |
 | Scope | Applies to **AirPlus-channel** orders only. |
+| Flash sale on a cancelled or expired order | **The buyer loses the flash price; the unit goes back to the sale** (owner, 2026-11-16: *"Flash-sale is discount on specific period. buy during the period > get discount, cancel > lose … learn from global practice"*). As on Shopee and Lazada, a cancelled or expired order gives its flash-sale slot back (`campaign_prices.sold_count` down) so the next buyer can still get it while the sale runs. Each order line records its flash-sale price (`sales_order_lines.campaign_price_id`, migration 0102); lines from before 0102 give nothing back. |
+| Coupon on an expired unpaid order | **Given back, unless the coupon has ended by then** (owner, 2026-11-16: *"yes, if it happen after the coupon expire > it never comes back"*). A shop cancel always gives it back. |
 
 ## Shopee integration
 

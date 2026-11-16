@@ -515,7 +515,7 @@ export function usePosSession() {
   const resend = useCallback(async () => {
     if (sending.current || !token) return;
     sending.current = true;
-    let next = queue;
+    let next: readonly QueuedBill[] = queue;
     for (const q of queue) {
       try {
         const result = await sendBill(fetch, API_BASE, token, q.sale);
@@ -538,7 +538,8 @@ export function usePosSession() {
       }
     }
     sending.current = false;
-    if (next !== queue) saveQueue(next);
+    // Saved only when something changed: saving starts another round (bug hunt 15 Nov 2026).
+    if (next !== queue) saveQueue([...next]);
   }, [queue, token, saveQueue]);
 
   /** A waiting bill now in the system: the car's record and its draft, as a bill sent at once gets. */

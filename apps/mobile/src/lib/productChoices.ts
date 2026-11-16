@@ -1,7 +1,7 @@
 import type { Phrase } from "@l-shopee/shared/lang";
 import { billLineName } from "./billName";
 import { formatBaht } from "./money";
-import { bahtText, parseBaht, type StockCount } from "./productEdit";
+import { bahtText, parseBaht, twoNumberMoves, type StockCount } from "./productEdit";
 import type { Fitment, ProductRow } from "./productList";
 import type { Pricing } from "./productPage";
 import type { HoldLine } from "./scanTabs";
@@ -239,27 +239,8 @@ export function choiceMoves(
   variantId: string,
   f: Pick<ChoiceForm, "sellable" | "held">,
 ): { adjust: StockCount | null; hold: HoldLine | null } {
-  const onHand = c?.onHand ?? 0;
-  const held = c?.held ?? 0;
-  const adjust: StockCount | null =
-    f.sellable !== onHand
-      ? {
-          productVariantId: variantId,
-          countedOnHand: f.sellable,
-          movementType: "manual_adjustment",
-          reason: "edited on the phone's choice page",
-        }
-      : null;
-  const delta = f.held - held;
-  const hold: HoldLine | null =
-    delta !== 0
-      ? {
-          productVariantId: variantId,
-          takeAway: Math.max(delta, 0),
-          bringBack: Math.max(-delta, 0),
-        }
-      : null;
-  return { adjust, hold };
+  const before = { onHand: c?.onHand ?? 0, held: c?.held ?? 0 };
+  return twoNumberMoves(variantId, before, f, "edited on the phone's choice page");
 }
 
 const REFUSALS: Record<string, Phrase> = {
