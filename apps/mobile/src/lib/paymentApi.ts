@@ -27,12 +27,18 @@ export async function takePayment(
 }
 
 /** ล้าง (the owner's alone): every payment on the list is marked checked; the records stay. */
+/** ล้าง: only the rows on screen — a payment taken after the page opened stays (bug hunt 15 Nov). */
 export async function clearPayments(
   fetchFn: FetchFn,
   base: string,
   token: string,
+  ids: readonly string[],
 ): Promise<number> {
-  const res = await fetchFn(`${base}/payments/clear`, { method: "POST", headers: session(token) });
+  const res = await fetchFn(`${base}/payments/clear`, {
+    method: "POST",
+    headers: { ...session(token), "content-type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
   if (!res.ok) throw await failure(res, "The list was not cleared");
   return ((await res.json()) as { cleared: number }).cleared;
 }

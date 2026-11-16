@@ -38,11 +38,12 @@ import {
   parseQueue,
   queueAdd,
   queueAfterSend,
+  billPayment,
   queueRefusal,
   type QueuedBill,
 } from "@/lib/posQueue";
-import { recordPayment } from "@/lib/scanApi";
-import { saleRefusal, saleSaved, type Buyer } from "@/lib/scanSale";
+import { recordPayment, todaysSaleNumbers } from "@/lib/scanApi";
+import { numberTaken, saleRefusal, saleSaved, type Buyer } from "@/lib/scanSale";
 import { useAuth } from "../AppProviders";
 import { readPref, writePref } from "../prefs";
 import { usePosData, type PosData } from "./usePosData";
@@ -95,6 +96,8 @@ export interface Lookup {
 const QUEUE_KEY = "kira_pos_queue";
 const RECEIVER_KEY = "kira_pos_receiver";
 const LAST_BILL_KEY = "kira_pos_last_bill";
+/** Scan's last bill number on this phone (useScanSession) — both pages number DAS bills. */
+const SCAN_LAST_BILL_KEY = "kira_last_sale_number";
 /** How often bills waiting on this phone try the server again. */
 const RETRY_MS = 60_000;
 
@@ -137,7 +140,9 @@ export function usePosSession() {
   const [lastBill, setLastBill] = useState<string | null>(null);
   // One try of one bill keeps its id and number, so a retry is never a second sale (the server
   // keys on clientUuid). Any change to the bill starts a new try.
-  const attempt = useRef<{ uuid: string; number: string } | null>(null);
+  /** One bill being issued: its id stays across taps; its number is dropped after a clash. */
+  const attempt = useRef<{ uuid: string; number: string | null } | null>(null);
+  const issuing = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((title: Phrase, detail: Phrase) => {
@@ -416,22 +421,49 @@ export function usePosSession() {
     null;
 
   async function issue() {
-    if (busy) return;
+    // A ref, not only the busy state: the number is looked up on the server before the bill goes,
+    // and a second tap in that moment must not issue it twice.
+    if (busy || issuing.current) return;
+    issuing.current = true;
+    try {
+      await issueOnce();
+    } finally {
+      issuing.current = false;
+    }
+  }
+
+  async function issueOnce() {
+    setBusy(true);
     const now = Date.now();
-    const known = [...data.issuedNumbers, ...queue.map((q) => q.sale.saleNumber), lastBill];
-    attempt.current ??= { uuid: newId(), number: nextDocNumber("DAS", known, now) };
-    const { uuid, number } = attempt.current;
+    attempt.current ??= { uuid: newId(), number: null };
+    if (attempt.current.number === null) {
+      // Today's numbers from the server right now, and Scan's last one on this phone — not only the
+      // list this page loaded (bug hunt 15 Nov 2026: two bills got one number). Offline: that list.
+      const fresh = await todaysSaleNumbers(fetch, API_BASE, token).catch(() => []);
+      const scanLast = await readPref(SCAN_LAST_BILL_KEY);
+      const known = [
+        ...data.issuedNumbers,
+        ...fresh,
+        ...queue.map((q) => q.sale.saleNumber),
+        lastBill,
+        scanLast,
+      ];
+      attempt.current = { ...attempt.current, number: nextDocNumber("DAS", known, now) };
+    }
+    const { uuid } = attempt.current;
+    const number = attempt.current.number as string;
     const sale = buildBillSale(bill, {
       clientUuid: uuid,
       saleNumber: number,
       paymentMethod: payMethod,
       receivedBy: receiver,
     });
-    setBusy(true);
     let offline = false;
     try {
       const result = await sendBill(fetch, API_BASE, token, sale);
       if (!saleSaved(result)) {
+        // Nothing was saved, so the next tap takes a new number (the id stays the same).
+        if (numberTaken(result)) attempt.current = { uuid, number: null };
         setBusy(false);
         setSheet(null);
         setShort(
@@ -457,12 +489,18 @@ export function usePosSession() {
           label: bill.buyer === "customer" ? bill.plate.trim() : bill.mechanicName.trim(),
           status: "waiting",
           reason: null,
-          after: { customer: customerUpsert(bill), draftId },
+          after: {
+            customer: customerUpsert(bill),
+            draftId,
+            payment: billPayment(payMethod, account, total, sale.saleNumber),
+          },
         }),
       );
     }
     setLastBill(number);
     void writePref(LAST_BILL_KEY, number);
+    // Scan reads this one, so it follows a bill made here.
+    void writePref(SCAN_LAST_BILL_KEY, number);
     if (!offline) void afterIssue(sale.saleNumber);
     setIssued({
       kind: "bill",
@@ -484,16 +522,8 @@ export function usePosSession() {
   /** The rest of a saved bill: the money record, the customer's car, the parked draft. Never silent. */
   async function afterIssue(saleNumber: string) {
     const tasks: Promise<unknown>[] = [];
-    if (payMethod === "promptpay" && account) {
-      tasks.push(
-        recordPayment(fetch, API_BASE, token, {
-          methodLabel: account.label,
-          promptpayId: account.promptpayId,
-          amountSatang: total,
-          saleNumber,
-        }),
-      );
-    }
+    const payment = billPayment(payMethod, account, total, saleNumber);
+    if (payment) tasks.push(recordPayment(fetch, API_BASE, token, payment));
     const car = customerUpsert(bill);
     if (car) tasks.push(saveCustomer(fetch, API_BASE, token, car));
     if (draftId) tasks.push(deleteDraft(fetch, API_BASE, token, draftId));
@@ -545,6 +575,7 @@ export function usePosSession() {
   /** A waiting bill now in the system: the car's record and its draft, as a bill sent at once gets. */
   async function finishSent(q: QueuedBill) {
     const tasks: Promise<unknown>[] = [];
+    if (q.after?.payment) tasks.push(recordPayment(fetch, API_BASE, token, q.after.payment));
     if (q.after?.customer) tasks.push(saveCustomer(fetch, API_BASE, token, q.after.customer));
     if (q.after?.draftId) tasks.push(deleteDraft(fetch, API_BASE, token, q.after.draftId));
     const results = await Promise.allSettled(tasks);
@@ -552,8 +583,8 @@ export function usePosSession() {
       showToast(
         { th: `ส่ง ${q.sale.saleNumber} เข้าระบบแล้ว`, en: `${q.sale.saleNumber} sent` },
         {
-          th: "แต่บันทึกข้อมูลลูกค้าไม่ครบ ลองแก้ในหน้าลูกค้า",
-          en: "But the customer record did not save",
+          th: "แต่บันทึกข้อมูลลูกค้าหรือการโอนไม่ครบ ลองแก้ในหน้าลูกค้า",
+          en: "But the customer or payment record did not save",
         },
       );
     }

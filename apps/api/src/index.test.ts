@@ -99,6 +99,7 @@ import worker, {
   importProducts,
   importShopeeOrders,
   listOrders,
+  listFinanceOrders,
   shopeeSyncWorklist,
   markShopeeSynced,
   listPayments,
@@ -10226,6 +10227,37 @@ describe("role enforcement on money, catalog and payment routes", () => {
     });
   });
 
+  it("GET /finance/orders > the owner gets the AirPlus money; an admin is refused", async () => {
+    const owner = await asRole("super_admin");
+    const ok = await call(owner.env, "/finance/orders", {}, owner.token);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ orders: [] });
+    const admin = await asRole("admin");
+    expect((await call(admin.env, "/finance/orders", {}, admin.token)).status).toBe(403);
+  });
+
+  // Bug hunt 15 Nov 2026: ล้าง cleared every row still open — also a payment taken on another
+  // phone after the page was opened, which the owner never saw or checked against the bank.
+  it("POST /payments/clear > given the rows the page showed > then only those are cleared", async () => {
+    const { raw, env, token } = await asRole("super_admin");
+    for (const id of ["p1", "p2", "p3"])
+      raw
+        .prepare(
+          `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, created_at)
+           VALUES (?, 'ร้าน', '0812344421', 10000, ?)`,
+        )
+        .run(id, NOW);
+    const res = await call(
+      env,
+      "/payments/clear",
+      { method: "POST", body: JSON.stringify({ ids: ["p1", "p2"] }) },
+      token,
+    );
+    expect(res.status).toBe(200);
+    const open = raw.prepare(`SELECT id FROM payments WHERE cleared_at IS NULL`).all();
+    expect(open).toEqual([{ id: "p3" }]);
+  });
+
   describe("a mechanic never signs off an online order's payment", () => {
     it("given a mechanic marking an order paid > 403", async () => {
       const { env, token } = await asRole("mechanic");
@@ -11153,6 +11185,32 @@ describe("applySyncToDb > the part cost stored on a sale is the product's, not t
            FROM onsite_sale_lines WHERE line_type = 'part'`,
       )
       .get() as { unitCostSatang: number; grossProfitSatang: number };
+
+  /**
+   * Bug hunt 15 Nov 2026: two phones (or Scan and ทำบิล on one) picked the same DAS number. The
+   * header insert was silently skipped and its lines then failed, so the whole save crashed (500).
+   * Now the clash is a plain refusal the app can act on, and nothing is written.
+   */
+  it("given a bill number another bill already has > refused as number_taken, nothing written", async () => {
+    const { raw, db } = seed();
+    const line = { productVariantId: "v1", quantity: 1, unitPriceSatang: 107000 };
+    await applySyncToDb(db, [{ clientUuid: "a", saleNumber: "DAS202611-16001", lines: [line] }]);
+    const out = await applySyncToDb(db, [
+      { clientUuid: "b", saleNumber: "DAS202611-16001", lines: [line] },
+    ]);
+    expect(out).toMatchObject({
+      applied: 0,
+      validationErrors: [{ clientUuid: "b", reason: "number_taken" }],
+    });
+    const bills = raw.prepare(`SELECT COUNT(*) AS n FROM onsite_sales`).get() as { n: number };
+    expect(Number(bills.n)).toBe(1);
+    const stock = raw
+      .prepare(
+        `SELECT SUM(quantity_delta) AS n FROM stock_ledger_entries WHERE product_variant_id='v1'`,
+      )
+      .get() as { n: number };
+    expect(Number(stock.n)).toBe(4);
+  });
 
   it("given a mechanic's sale (the till sends cost 0) > stores the real cost and the true profit", async () => {
     const { raw, db } = seed();
@@ -12932,5 +12990,76 @@ describe('ค่าคอม Shopee (owner, 5 Nov 2026: "on the main page is tot
   it("given no session > 401, never an open door", async () => {
     const { env } = await signedIn("super_admin");
     expect((await call(env)).status).toBe(401);
+  });
+});
+
+/**
+ * การเงิน's AirPlus money (bug hunt 15 Nov 2026). The page added up GET /orders: the newest 200
+ * orders of every channel, sales before the coupon came off, and a refunded order still counted as a
+ * sale. /finance/orders sends every AirPlus order with the money the order page itself shows.
+ */
+describe("listFinanceOrders > every AirPlus order, with the order page's money", () => {
+  const NOW = 1_800_000_000_000;
+  function seed() {
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO products (id,name,status,created_at,shopee_listed,weight_grams)
+         VALUES ('p1','คอยล์เย็น','active',?,0,0)`,
+      )
+      .run(NOW);
+    raw
+      .prepare(`INSERT INTO product_variants (id, product_id, created_at) VALUES ('v1','p1',?)`)
+      .run(NOW);
+    const order = (
+      id: string,
+      channel: string,
+      status: string,
+      pay: string,
+      refund: number | null,
+    ) =>
+      raw
+        .prepare(
+          `INSERT INTO sales_orders
+             (id, channel, external_order_id, order_status, payment_status, subtotal_satang,
+              discount_total_satang, shipping_fee_satang, shipping_real_satang, grand_total_satang,
+              sales_satang, profit_satang, refund_satang, order_created_at, imported_at)
+           VALUES (?,?,?,?,?,200000,10000,5000,6000,195000,200000,60000,?,?,?)`,
+        )
+        .run(id, channel, `AP-${id}`, status, pay, refund, NOW, NOW);
+    const line = (orderId: string) =>
+      raw
+        .prepare(
+          `INSERT INTO sales_order_lines
+             (id, sales_order_id, product_variant_id, quantity, unit_price_satang, unit_cost_satang,
+              line_total_satang, created_at)
+           VALUES (?, ?, 'v1', 2, 100000, 70000, 200000, ?)`,
+        )
+        .run(`l-${orderId}`, orderId, NOW);
+    order("done", "airplus", "complete", "paid", null);
+    line("done");
+    order("back", "airplus", "delivery_failed", "refunded", 195000);
+    line("back");
+    // Many Shopee orders: they must not push AirPlus out of the list.
+    for (let i = 0; i < 205; i++) order(`s${i}`, "shopee", "complete", "paid", null);
+    return asD1(raw);
+  }
+
+  it("given 205 newer Shopee orders > then the AirPlus ones are still all there, and only those", async () => {
+    const { orders } = await listFinanceOrders(seed());
+    expect(orders.map((o) => (o as { id: string }).id).sort()).toEqual(["back", "done"]);
+  });
+
+  it("given a coupon > then sales are what the customer paid for the goods, after the coupon", async () => {
+    const { orders } = await listFinanceOrders(seed());
+    const done = orders.find((o) => (o as { id: string }).id === "done");
+    // ฿2,000 goods − ฿100 coupon = ฿1,900; less ฿1,400 cost and ฿10 the carrier charged over the fee.
+    expect(done).toMatchObject({ salesSatang: 190000, profitSatang: 49000 });
+  });
+
+  it("given a refunded order > then marked refunded, and the profit is the shipping we lost", async () => {
+    const { orders } = await listFinanceOrders(seed());
+    const back = orders.find((o) => (o as { id: string }).id === "back");
+    expect(back).toMatchObject({ salesSatang: 190000, refunded: true, profitSatang: -6000 });
   });
 });

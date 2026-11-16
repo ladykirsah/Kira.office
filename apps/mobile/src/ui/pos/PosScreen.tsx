@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { formatBaht } from "@/lib/money";
 import { discountOf, subtotal } from "@/lib/posBill";
@@ -45,6 +45,15 @@ export function PosScreen() {
   }>();
   const opened = useRef<string | null>(null);
   const wide = useWide();
+
+  // Prices, stock and the PromptPay account change while the app stays open: read them again each
+  // time ทำบิล is opened (bug hunt 15 Nov 2026: they were read once, when the app started).
+  const reload = pos.data.reload;
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
   const { height } = useWindowDimensions();
   // The computer's left pane: เพิ่มสินค้า or เพิ่มบริการ, always open (DeskPos board).
   const [pick, setPick] = useState<"part" | "service">("part");

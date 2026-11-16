@@ -12,11 +12,17 @@ export function baht(satang: number): string {
   return `฿${grouped}${frac ? `.${frac}` : ""}`;
 }
 
-/** A stored timestamp (ms) as "DD/MM/YYYY · HH:MM" (24-hour, viewer-local). */
+/** Bangkok is UTC+7 all year (no daylight saving). */
+const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+/**
+ * A stored timestamp (ms) as "DD/MM/YYYY · HH:MM", 24-hour, in Bangkok time — the same on the
+ * server (which runs on UTC) as in the customer's phone (bug hunt 15 Nov 2026: 7 hours early).
+ */
 export function formatDateTime(ms: number): string {
-  const d = new Date(ms);
+  const d = new Date(ms + BANGKOK_OFFSET_MS);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} · ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
 /** Normalize a Thai phone for comparison/storage: digits only ("081-234 5678" → "0812345678"). */

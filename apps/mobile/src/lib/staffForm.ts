@@ -68,6 +68,15 @@ const fromServerDay = (utc: number) => {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).getTime();
 };
 
+/**
+ * The day rate as typed, the way people write baht in Thailand: "500", "500.-", "฿500", "500 บาท".
+ * Null when it still is not an amount. Bug hunt 15 Nov 2026: "450.-" read as nothing and the save
+ * cleared the rate, which took the person off payroll.
+ */
+function readDayRate(text: string): number | null {
+  return parseBaht(text.replace(/฿|บาท|\.-\s*$/g, "").trim());
+}
+
 /** POST /staff: what was filled, trimmed; blank boxes left out. */
 export function newStaffBody(d: PersonDraft): NewStaff {
   const body: NewStaff = {};
@@ -76,7 +85,7 @@ export function newStaffBody(d: PersonDraft): NewStaff {
     if (v) body[k] = v;
   }
   body.role = d.role;
-  const rate = parseBaht(d.dayRate);
+  const rate = readDayRate(d.dayRate);
   if (rate) body.dayRateSatang = rate;
   if (d.startedOn != null) body.startedOn = toServerDay(d.startedOn);
   if (d.password.trim()) body.password = d.password.trim();
@@ -107,8 +116,13 @@ export function profileChanges(
     const v = d[k].trim();
     if (v !== (p[k] ?? "")) out[k] = v || null;
   }
-  const rate = d.dayRate.trim() ? parseBaht(d.dayRate) : null;
-  if (rate !== p.dayRateSatang) out.dayRateSatang = rate;
+  // An emptied box clears the rate; one that still is not an amount leaves the saved rate alone.
+  if (!d.dayRate.trim()) {
+    if (p.dayRateSatang != null) out.dayRateSatang = null;
+  } else {
+    const rate = readDayRate(d.dayRate);
+    if (rate !== null && rate !== p.dayRateSatang) out.dayRateSatang = rate;
+  }
   const day = d.startedOn == null ? null : toServerDay(d.startedOn);
   if (day !== p.startedOn) out.startedOn = day;
   return out;

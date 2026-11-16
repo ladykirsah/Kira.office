@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mmss } from "./format";
+import { formatDateTime, mmss } from "./format";
 
 describe("mmss > countdown label m:ss", () => {
   it("pads seconds to two digits", () => {
@@ -20,5 +20,20 @@ describe("mmss > countdown label m:ss", () => {
 
   it("clamps negatives to zero", () => {
     expect(mmss(-3)).toBe("0:00");
+  });
+});
+
+/**
+ * Bug hunt 15 Nov 2026: the account orders page is drawn on the server, which runs on UTC, so a
+ * Thai customer saw their order 7 hours early — and a late-night order on the day before. AirPlus
+ * sells in Thailand: times are Bangkok time wherever the page is drawn.
+ */
+describe("formatDateTime > always Bangkok time", () => {
+  it("given an order at 00:30 in Bangkok > then that day and time, not the UTC one", () => {
+    expect(formatDateTime(Date.UTC(2026, 10, 15, 17, 30))).toBe("16/11/2026 · 00:30");
+  });
+
+  it("given an afternoon order > then the Bangkok hour", () => {
+    expect(formatDateTime(Date.UTC(2026, 0, 31, 8, 5))).toBe("31/01/2026 · 15:05");
   });
 });

@@ -126,7 +126,12 @@ export function usePaymentPage() {
     if (busy) return;
     setBusy(true);
     try {
-      const n = await clearPayments(fetch, API_BASE, token);
+      const n = await clearPayments(
+        fetch,
+        API_BASE,
+        token,
+        rows.map((r) => r.id),
+      );
       setRows([]);
       setSheet(null);
       showToast(

@@ -39,6 +39,17 @@ Den Air Service (POS) makes money two ways with DIFFERENT profit formulas:
 
 Finance summaries, the dashboard money view, and any on-site refund/reversal must keep the two formulas separate. **AirPlus (shipped products) uses the product model ONLY** — a failed-delivery refund reverses goods (restock) and eats shipping; no labour term. Staff salary belongs to the future payroll work (staff/mechanic plan, see [back-office](../back-office/index.md)).
 
+## การเงิน reads its own AirPlus list (plan 8.3, 16 Nov 2026)
+
+The Expo การเงิน page, the home วันนี้ card and their graph read `GET /finance/orders`
+(`listFinanceOrders`, owner-only under the /finance gate), **not** `GET /orders`. The order list is
+the newest 200 orders of every channel with `sales_satang` = goods before the coupon, so a long
+period lost AirPlus orders, coupons counted as income and refunded orders as sales. The finance list
+is every AirPlus order with `orderMoney`'s numbers: `salesSatang` = goods after the coupon,
+`profitSatang` = the order page's profit (the shipping lost, once refunded), and `refunded` when a
+refund was recorded. The page shows a refunded order's row with its amount and "คืนเงินแล้ว" (as a
+refunded bill) but leaves it out of the sales total; its profit still counts.
+
 ## Finance page semantics + TEMP mock seed (open cleanup)
 
 Domain fact: **Finance shows only money-settled orders** — the `isFinanceOrder` filter in `apps/admin/src/app/sales/page.tsx` passes complete / refunded / claimed / claim_rejected; `in_transit` is EXCLUDED.
