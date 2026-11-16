@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PROVINCES } from "@/lib/provinces";
 import { loadPostcodes, resolvePostcode, type PostcodeEntry } from "@/lib/thaiGeo";
+import { safeNext } from "@/lib/safeNext";
 
 /**
  * Reached only after a first-time LINE sign-in (the /callback route sets the pending cookie and
@@ -13,10 +14,6 @@ import { loadPostcodes, resolvePostcode, type PostcodeEntry } from "@/lib/thaiGe
  * account phone — a customer row can't exist without one). Address entry is a bottom-sheet popup
  * with zip-first autofill: the postcode fills จังหวัด/อำเภอ and offers that area's ตำบล.
  */
-
-function safeNext(raw: string | null): string {
-  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/account";
-}
 
 function LineRegisterContent() {
   const searchParams = useSearchParams();

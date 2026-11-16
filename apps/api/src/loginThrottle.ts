@@ -36,6 +36,20 @@
  */
 export const STAFF_LOGIN_MAX_FAILURES = 20;
 
+/**
+ * Wrong PINs tolerated across the WHOLE SHOP per window (owner, 16 Nov 2026: "6 wrong is max").
+ *
+ * The per-caller limit above counts by internet address, and a guesser who keeps changing address
+ * (cheap with IPv6) never fills any one bucket. This one bucket is shared by every caller, so after
+ * six wrong PINs PIN sign-in pauses for everybody until the window ends. Email and password, and the
+ * emergency key, keep their own buckets and stay open — that is how the team still gets in.
+ * A right PIN starts the tally over, so it is six wrong in a row, as on a phone.
+ */
+export const PIN_SHOP_MAX_MISSES = 6;
+
+/** The one bucket every PIN sign-in shares. Namespaced like the rest (`staff-login:`). */
+export const PIN_SHOP_KEY = "staff-login:pin:shop";
+
 /** How long failures are remembered. Fall quiet for a window and the tally starts over. */
 export const STAFF_LOGIN_WINDOW_MS = 15 * 60_000;
 
@@ -164,6 +178,37 @@ export async function refuseIfThrottled(
   max: number = STAFF_LOGIN_MAX_FAILURES,
 ): Promise<Response | null> {
   if (!(await isLoginThrottled(db, key, now, max))) return null;
+  return tooManyAttempts(now);
+}
+
+/**
+ * Count this attempt, THEN decide (bug hunt 15 Nov 2026). Checking "too many?" first and counting a
+ * miss only afterwards let a burst sent all at once be checked in full before any of it was counted.
+ * One statement adds the attempt and reads the new tally, so each request sees its own number; a
+ * correct sign-in then clears the tally (`clearLoginFailures`), so the count is misses in effect.
+ */
+export async function takeLoginAttempt(
+  db: D1Database,
+  key: string,
+  now: number,
+  max: number = STAFF_LOGIN_MAX_FAILURES,
+): Promise<Response | null> {
+  const row = await db
+    .prepare(
+      `INSERT INTO auth_throttle (key, count, window_started_at) VALUES (?, 1, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         count = CASE WHEN auth_throttle.window_started_at = excluded.window_started_at
+                      THEN auth_throttle.count + 1 ELSE 1 END,
+         window_started_at = excluded.window_started_at
+       RETURNING count`,
+    )
+    .bind(key, windowStart(now))
+    .first<{ count: number }>();
+  return (row?.count ?? 0) > max ? tooManyAttempts(now) : null;
+}
+
+/** The 429 both doors send: how long to wait, rather than leaving the caller guessing. */
+function tooManyAttempts(now: number): Response {
   const retryAfter = Math.ceil((windowStart(now) + STAFF_LOGIN_WINDOW_MS - now) / 1000);
   return new Response(JSON.stringify({ error: "too_many_attempts", retryAfter }), {
     status: 429,

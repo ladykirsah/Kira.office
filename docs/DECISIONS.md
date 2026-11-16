@@ -74,6 +74,7 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 | Secrets | **Secrets Store / Worker secrets**; local dev via `.dev.vars` (never committed) |
 | Auth | **Admin/back-office:** Cloudflare Access (Zero Trust) in front + app-level RBAC (4 roles). **Storefront customers:** phone-OTP login/register with a PDPA-consent gate on new-member signup. |
 | Edge security | WAF, Rate Limiting, Turnstile, managed TLS, DNS |
+| Staff PIN guessing | **6 wrong PINs is the most, across the whole shop** (owner, 2026-11-16: *"6 wrong is max"*). After six wrong PINs in a row, from any address, PIN sign-in pauses for everyone until the 15-minute window ends. Email + password and the emergency key stay open. Accepted trade-off: a stranger can pause PIN sign-in. Details: [staff-login-and-lockout](knowledge/auth/staff-login-and-lockout.md). |
 | Monorepo | **npm workspaces**; **Node 22** (Wrangler requires ≥22; pinned via `.nvmrc` + CI), no pnpm |
 | Core logic package | `packages/core` — pure TypeScript, framework-free, **TDD-first** |
 | Tests | **Vitest**; browser tests for critical flows later |

@@ -3,7 +3,7 @@ type: feature
 title: LINE Login & storefront customer auth
 description: LINE Login end-to-end, the phone-NOT-NULL D1 invariant, ap_session architecture, PDPA consent gate, dormant OTP, and the parked age gate
 tags: [storefront, auth, line, oauth, pkce, pdpa, otp, sessions, d1]
-timestamp: 2026-08-09
+timestamp: 2026-11-15
 status: live
 sources: [airplus-line-login-build.md, airplus-staging-preview.md, airplus-registration-age-gate.md]
 ---
@@ -21,6 +21,7 @@ LINE Login (web) replaced SMS-OTP as the primary login, chosen for cost (see [bu
   - `GET /api/auth/line/start` — state + PKCE S256 → LINE, scope `openid profile`
   - `GET /api/auth/line/callback` — state-cookie CSRF (its OWN CSRF mechanism, because `guardMutation` forbids state-changing GETs and an OAuth callback is inherently a GET redirect); exchanges code; find-or-create by `line_user_id`; new user → `/register/line`
   - `POST /api/auth/line/register`, `GET /api/auth/line/pending` (`peekLinePending` reads KV without consuming)
+- **Where sign-in sends you back** (`next`): always through `safeNext` in `apps/storefront/src/lib/safeNext.ts`, used by the start route, the callback, `/login` and `/register/line`. It reads the path the way a browser does (`new URL(raw, …)`) and falls back to `/account` when the result is another site. Checking only for a leading `//` was an open redirect (bug hunt 15 Nov 2026): `/\evil.example` and `/<tab>/evil.example` both pass that check, and a browser turns both into `//evil.example`. It also checks the path it hands back, because cleaning up dots can make one: `/.//evil.example` and `/a/..//evil.example` come out as `//evil.example`.
 - Core helpers: `packages/core/src/lineLogin.ts` (`pkceChallengeS256` verified against the RFC 7636 test vector, `buildLineAuthorizeUrl`, `decodeJwtClaims` — the id_token is decoded, not re-verified, because it arrives over TLS directly from LINE's token endpoint) + `apps/storefront/src/lib/lineAuth.ts` (`exchangeCodeForIdToken` holds the secret; KV pending-state stash/take).
 - Key commits: 5cf4813, 50a2238, e766b8d, 52c755b, 93d34fe, 1144350; staging worker version 6c287c32, prod d52b7cf9.
 

@@ -10239,6 +10239,43 @@ describe("role enforcement on money, catalog and payment routes", () => {
       );
       expect(res.status).not.toBe(403);
     });
+
+    // Bug hunt 15 Nov 2026: the slip-review door had no role check, so a mechanic could confirm a
+    // customer's transfer there while the PATCH door above refused the same thing.
+    it("given a mechanic confirming a slip through review-payment > 403", async () => {
+      const { env, token } = await asRole("mechanic");
+      const res = await call(
+        env,
+        "/orders/o1/review-payment",
+        { method: "POST", body: JSON.stringify({ decision: "confirm" }) },
+        token,
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("given an admin confirming a slip through review-payment > allowed", async () => {
+      const { env, token } = await asRole("admin");
+      const res = await call(
+        env,
+        "/orders/o1/review-payment",
+        { method: "POST", body: JSON.stringify({ decision: "confirm" }) },
+        token,
+      );
+      expect(res.status).not.toBe(403);
+    });
+
+    // Bug hunt 15 Nov 2026: the old whole-product PATCH set a product's status (archived = gone) with
+    // none of the owner-only checks the other doors make.
+    it("given an admin archiving a product through the old whole-product PATCH > 403", async () => {
+      const { env, token } = await asRole("admin"); // asRole's database already holds p1
+      const res = await call(
+        env,
+        "/products/p1",
+        { method: "PATCH", body: JSON.stringify({ name: "คลัชคอม", status: "archived" }) },
+        token,
+      );
+      expect(res.status).toBe(403);
+    });
   });
 
   // The old back office's rules, now on the reads too (owner, 12 Nov 2026: "follow the old version
@@ -10401,6 +10438,23 @@ describe("role enforcement on money, catalog and payment routes", () => {
       expect(page.body.order.profitSatang).toBeNull();
       expect(page.body.money).toMatchObject({ itemCostSatang: 0, profitSatang: null });
       expect(page.body.lines.map((l) => l.unitCostSatang)).toEqual([0]);
+    });
+
+    // Bug hunt 15 Nov 2026: a mechanic's allowed save (a tracking number) answered with the whole
+    // saved order row, profit included.
+    it("given a mechanic saving a tracking number > the saved order comes back without profit", async () => {
+      const { raw, env, token } = await asRole("mechanic");
+      seedCostedProduct(raw);
+      seedOrder(raw);
+      const res = await call(
+        env,
+        "/orders/o1",
+        { method: "PATCH", body: JSON.stringify({ trackingNo: "TH123" }) },
+        token,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { order: { profitSatang: number | null } };
+      expect(body.order.profitSatang).toBeNull();
     });
 
     it("given an admin > the order page still shows its cost and profit", async () => {
