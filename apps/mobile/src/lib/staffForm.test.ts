@@ -82,4 +82,24 @@ describe("draftOf and profileChanges", () => {
       email: "boy@denair.co",
     });
   });
+
+  // Bug hunt 15 Nov 2026: "450.-" — how a price is often written in Thailand — read as no amount,
+  // so the save cleared the day rate and the person dropped off payroll.
+  it("given a day rate written the Thai way > then it is read as that amount", () => {
+    for (const typed of ["500.-", "฿500", "500 บาท", "500฿", "500.00"]) {
+      expect(profileChanges(profile, { ...draftOf(profile), dayRate: typed }), typed).toEqual({
+        dayRateSatang: 50000,
+      });
+    }
+  });
+
+  it("given a day rate that still is not an amount > then the saved rate is left alone", () => {
+    expect(profileChanges(profile, { ...draftOf(profile), dayRate: "ห้าร้อย" })).toEqual({});
+  });
+
+  it("given the day rate box emptied > then it is cleared, as asked", () => {
+    expect(profileChanges(profile, { ...draftOf(profile), dayRate: "" })).toEqual({
+      dayRateSatang: null,
+    });
+  });
 });

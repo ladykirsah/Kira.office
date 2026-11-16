@@ -47,10 +47,15 @@ export interface Bill {
   partLineCount: number;
 }
 
-/** An AirPlus order as GET /orders sends it, with the money the server derives. */
+/**
+ * An AirPlus order as GET /finance/orders sends it: sales = goods after the coupon (0 once refunded),
+ * profit = the order page's (the shipping lost, once refunded).
+ */
 export interface MoneyOrder extends OrderListRow {
   salesSatang?: number | null;
   profitSatang?: number | null;
+  /** The money went back (a bounced parcel, a claim refunded). */
+  refunded?: boolean;
 }
 
 export interface Expense {
@@ -100,7 +105,9 @@ export function previousRange(r: Range, preset: DatePreset): Range | null {
   if (r.from <= 0) return null;
   const start = new Date(r.from);
   const monthBefore = new Date(start.getFullYear(), start.getMonth() - 1, 1).getTime();
-  if (preset === "month") return { from: monthBefore, to: monthBefore + (r.to - r.from) };
+  // Never past last month's end: on 31 Oct, last month "up to the same day" is all of September.
+  if (preset === "month")
+    return { from: monthBefore, to: Math.min(monthBefore + (r.to - r.from), r.from) };
   if (preset === "lastmonth") return { from: monthBefore, to: r.from };
   return { from: r.from - (r.to - r.from), to: r.from };
 }
@@ -177,10 +184,11 @@ export function financeOrders(orders: readonly MoneyOrder[], r: Range): MoneyOrd
   });
 }
 
+/** A refunded order is no sale (as a refunded bill is no income); its profit is the shipping lost. */
 export function orderTotals(orders: readonly MoneyOrder[]) {
   return {
     count: orders.length,
-    revenueSatang: orders.reduce((n, o) => n + (o.salesSatang ?? 0), 0),
+    revenueSatang: orders.reduce((n, o) => n + (o.refunded ? 0 : (o.salesSatang ?? 0)), 0),
     profitSatang: orders.reduce((n, o) => n + (o.profitSatang ?? 0), 0),
   };
 }

@@ -118,12 +118,23 @@ export function saleSaved(result: SyncResult): boolean {
   return result.applied > 0 || result.duplicates > 0;
 }
 
+/** The server refused the bill because its number is already used (bug hunt 15 Nov 2026). */
+export const numberTaken = (result: SyncResult): boolean =>
+  result.validationErrors.some((e) => e.reason === "number_taken");
+
 export function saleRefusal(result: SyncResult): Phrase {
   const conflict = result.conflicts[0];
   if (conflict) {
     return {
       th: `สต็อกไม่พอ: มี ${conflict.available} ขอ ${conflict.requested} แก้จำนวนแล้วลองอีกครั้ง`,
       en: `Not enough stock: ${conflict.available} there, ${conflict.requested} asked. Fix the amount and try again.`,
+    };
+  }
+  // Another phone (or the other page) used this number first; the next tap takes a new one.
+  if (numberTaken(result)) {
+    return {
+      th: "เลขบิลนี้ถูกใช้ไปแล้ว กดออกบิลอีกครั้งเพื่อใช้เลขใหม่",
+      en: "This bill number is already used. Tap Issue bill again for a new number.",
     };
   }
   const refused = result.validationErrors.map((e) => e.reason).join("; ");

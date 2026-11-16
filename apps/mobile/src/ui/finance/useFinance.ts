@@ -102,6 +102,7 @@ export function graphPoints(books: Books, range: Range, shop: Shop | null) {
       at: placedAt(o),
       salesSatang: o.salesSatang,
       profitSatang: o.profitSatang,
+      refunded: o.refunded,
     }));
   const bills = shop === "airplus" ? [] : books.bills;
   const orders = shop === "onsite" ? [] : financeOrders(books.orders, range);

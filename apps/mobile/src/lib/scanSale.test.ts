@@ -228,6 +228,21 @@ describe("saleRefusal", () => {
       }).th,
     ).toBe("ระบบไม่รับบิลนี้: quantity must be positive");
   });
+
+  // Bug hunt 15 Nov 2026: another phone (or Scan and ทำบิล) used this number first.
+  it("given the bill number is already used > then plain words, and a new number on the next tap", () => {
+    expect(
+      saleRefusal({
+        applied: 0,
+        duplicates: 0,
+        conflicts: [],
+        validationErrors: [{ clientUuid: "u-1", reason: "number_taken" }],
+      }),
+    ).toEqual({
+      th: "เลขบิลนี้ถูกใช้ไปแล้ว กดออกบิลอีกครั้งเพื่อใช้เลขใหม่",
+      en: "This bill number is already used. Tap Issue bill again for a new number.",
+    });
+  });
 });
 
 describe("cashBillLine", () => {

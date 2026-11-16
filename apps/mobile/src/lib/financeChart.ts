@@ -187,14 +187,24 @@ export function moneyOf(
     grandTotalSatang: number;
     grossProfitSatang: number;
   }[],
-  orders: readonly { at: number; salesSatang?: number | null; profitSatang?: number | null }[],
+  orders: readonly {
+    at: number;
+    salesSatang?: number | null;
+    profitSatang?: number | null;
+    refunded?: boolean;
+  }[],
   expenses: readonly { occurredAt: number; amountSatang: number }[],
 ): Money[] {
   return [
     ...bills
       .filter((b) => b.saleStatus === "completed")
       .map((b) => ({ at: b.createdAt, revenue: b.grandTotalSatang, profit: b.grossProfitSatang })),
-    ...orders.map((o) => ({ at: o.at, revenue: o.salesSatang ?? 0, profit: o.profitSatang ?? 0 })),
+    // A refunded order is no sale, as on รายได้; its profit is the shipping lost.
+    ...orders.map((o) => ({
+      at: o.at,
+      revenue: o.refunded ? 0 : (o.salesSatang ?? 0),
+      profit: o.profitSatang ?? 0,
+    })),
     ...expenses.map((e) => ({ at: e.occurredAt, revenue: 0, profit: -e.amountSatang })),
   ];
 }

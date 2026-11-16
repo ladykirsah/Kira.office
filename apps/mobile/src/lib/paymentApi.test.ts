@@ -34,18 +34,20 @@ describe("paymentApi", () => {
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual(take);
   });
 
-  it("clearPayments > answers how many came off the list", async () => {
-    const { calls, fetchFn } = recording(async () => Response.json({ cleared: 7 }));
-    expect(await clearPayments(fetchFn, "http://api", "tok")).toBe(7);
+  it("clearPayments > clears only the rows the page shows, and answers how many", async () => {
+    const { calls, fetchFn } = recording(async () => Response.json({ cleared: 2 }));
+    expect(await clearPayments(fetchFn, "http://api", "tok", ["p1", "p2"])).toBe(2);
     expect(calls[0]?.url).toBe("http://api/payments/clear");
     expect(calls[0]?.init?.method).toBe("POST");
+    // Bug hunt 15 Nov 2026: a payment taken after the page opened must not be cleared unseen.
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ ids: ["p1", "p2"] });
   });
 
   it("clearPayments > given someone who is not the owner > then it says so", async () => {
     const { fetchFn } = recording(async () =>
       Response.json({ error: "forbidden", reason: "super_admin_only" }, { status: 403 }),
     );
-    await expect(clearPayments(fetchFn, "http://api", "tok")).rejects.toThrow("forbidden");
+    await expect(clearPayments(fetchFn, "http://api", "tok", ["p1"])).rejects.toThrow("forbidden");
   });
 
   it("verifySlip > sends the slip's QR for that payment", async () => {

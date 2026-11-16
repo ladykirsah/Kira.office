@@ -3,6 +3,7 @@ import {
   deleteExpense,
   expenseSlipPath,
   fetchBills,
+  fetchMoneyOrders,
   putExpenseSlip,
   refundBill,
   saveExpense,
@@ -25,6 +26,14 @@ function replying(reply: () => Promise<Response>) {
 const ok = (body: unknown) => async () => new Response(JSON.stringify(body), { status: 200 });
 
 describe("financeApi", () => {
+  // Bug hunt 15 Nov 2026: the order list is the newest 200 of every channel, with sales before the
+  // coupon; การเงิน reads its own list of every AirPlus order with the order page's money.
+  it("fetchMoneyOrders > reads การเงิน's own list, not the order list", async () => {
+    const { calls, fetchFn } = replying(ok({ orders: [{ id: "o1" }] }));
+    expect(await fetchMoneyOrders(fetchFn, "http://api", "tok")).toEqual([{ id: "o1" }]);
+    expect(calls[0]?.url).toBe("http://api/finance/orders");
+  });
+
   it("putExpenseSlip > given a picture > then PUT it as the body with its type, behind the session", async () => {
     const seen: { url: string; method: string; type: string | null; body: unknown }[] = [];
     const fetchFn: FetchFn = async (url, init) => {

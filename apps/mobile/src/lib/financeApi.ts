@@ -19,13 +19,17 @@ export async function fetchBills(
   return ((await res.json()) as { sales: Bill[] }).sales;
 }
 
-/** Every order with the money the server derives; the page keeps the AirPlus ones that moved money. */
+/**
+ * Every AirPlus order with the order page's money (sales after the coupon, nothing once refunded);
+ * the page keeps the ones that moved money. Not GET /orders: that is the newest 200 of every
+ * channel, with sales before the coupon (bug hunt 15 Nov 2026).
+ */
 export async function fetchMoneyOrders(
   fetchFn: FetchFn,
   base: string,
   token: string,
 ): Promise<MoneyOrder[]> {
-  const res = await fetchFn(`${base}/orders`, { headers: session(token) });
+  const res = await fetchFn(`${base}/finance/orders`, { headers: session(token) });
   if (!res.ok) throw await failure(res, "Orders failed to load");
   return ((await res.json()) as { orders: MoneyOrder[] }).orders;
 }

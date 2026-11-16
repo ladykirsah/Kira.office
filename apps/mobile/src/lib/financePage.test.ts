@@ -103,6 +103,20 @@ describe("periods", () => {
       to: at(2026, 9, 29, 15, 0) + 1,
     });
   });
+  // Bug hunt 15 Nov 2026: late in a long month, "last month up to the same day" ran past last
+  // month's end into this month (31 Oct compared with 1 Sep–1 Oct 15:00). It stops at month end.
+  it("previousRange > given เดือนนี้ on a day last month did not have > then all of last month, no further", () => {
+    const oct31 = at(2026, 10, 31, 15, 0);
+    expect(previousRange(periodRange("month", null, oct31), "month")).toEqual({
+      from: at(2026, 9, 1, 0),
+      to: at(2026, 10, 1, 0),
+    });
+    const mar30 = at(2026, 3, 30, 9, 0);
+    expect(previousRange(periodRange("month", null, mar30), "month")).toEqual({
+      from: at(2026, 2, 1, 0),
+      to: at(2026, 3, 1, 0),
+    });
+  });
   it("previousRange > given เดือนก่อน > then the whole month before it", () => {
     expect(previousRange(periodRange("lastmonth", null, NOW), "lastmonth")).toEqual({
       from: at(2026, 8, 1, 0),
@@ -205,6 +219,17 @@ describe("AirPlus orders", () => {
       count: 2,
       revenueSatang: 550000,
       profitSatang: 158000,
+    });
+  });
+  // Bug hunt 15 Nov 2026: a refunded order (a bounced parcel, a claim paid back) still counted as a
+  // sale. Its row keeps its amount with คืนเงินแล้ว, as a refunded bill does; the total leaves it out,
+  // and its profit is the shipping lost.
+  it("orderTotals > given a refunded order > then no sale in the total, its loss in the profit", () => {
+    const refunded = order({ refunded: true, salesSatang: 190000, profitSatang: -6000 });
+    expect(orderTotals([order({}), refunded])).toEqual({
+      count: 2,
+      revenueSatang: order({}).salesSatang,
+      profitSatang: (order({}).profitSatang ?? 0) - 6000,
     });
   });
   it("orderState > given a refund or a claim > then its words once; a done order says nothing", () => {

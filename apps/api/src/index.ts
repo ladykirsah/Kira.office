@@ -882,6 +882,21 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
     }
   }
 
+  // Bill numbers already used by another bill (bug hunt 15 Nov 2026: a clash used to skip the
+  // header insert silently, then fail on its lines — the whole save crashed with a 500).
+  const wanted = fresh.map((s) => s.saleNumber?.trim()).filter((n): n is string => !!n);
+  const takenNumbers = new Set<string>();
+  if (wanted.length > 0) {
+    const takenRows = await db
+      .prepare(
+        `SELECT sale_number AS saleNumber FROM onsite_sales
+         WHERE sale_number IN (${wanted.map(() => "?").join(",")})`,
+      )
+      .bind(...wanted)
+      .all<{ saleNumber: string }>();
+    for (const row of takenRows.results ?? []) takenNumbers.add(row.saleNumber);
+  }
+
   const now = Date.now();
   const statements: D1PreparedStatement[] = [];
   const conflicts: SyncConflict[] = [];
@@ -889,6 +904,11 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
   let applied = 0;
 
   for (const sale of fresh) {
+    const number = sale.saleNumber?.trim();
+    if (number && takenNumbers.has(number)) {
+      validationErrors.push({ clientUuid: sale.clientUuid, reason: "number_taken" });
+      continue;
+    }
     let invalidReason: string | null = null;
     for (const line of sale.lines) {
       invalidReason = validateSyncLine(line);
@@ -1012,6 +1032,8 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
 
     if (lineStatements.length === 0) continue;
 
+    // Two bills in this same send with one number: the second is refused like any other clash.
+    if (number) takenNumbers.add(number);
     statements.push(
       db
         .prepare(
@@ -2000,11 +2022,27 @@ export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
 
 /** Owner reconciliation: mark every uncleared payment as cleared (never deletes — the record is the
  *  anti-cheat trail). Returns how many were cleared. */
-export async function clearPayments(db: D1Database): Promise<{ cleared: number }> {
-  const res = await db
-    .prepare(`UPDATE payments SET cleared_at = ? WHERE cleared_at IS NULL`)
-    .bind(Date.now())
-    .run();
+/**
+ * ล้าง. With `ids`, only those rows — the ones the owner had on screen and checked against the bank
+ * (bug hunt 15 Nov 2026: a payment taken on another phone after the page opened was cleared unseen).
+ * Without, every open row, as before.
+ */
+export async function clearPayments(
+  db: D1Database,
+  ids?: readonly string[],
+): Promise<{ cleared: number }> {
+  const res = ids
+    ? await db
+        .prepare(
+          `UPDATE payments SET cleared_at = ?
+           WHERE cleared_at IS NULL AND id IN (SELECT value FROM json_each(?))`,
+        )
+        .bind(Date.now(), JSON.stringify(ids))
+        .run()
+    : await db
+        .prepare(`UPDATE payments SET cleared_at = ? WHERE cleared_at IS NULL`)
+        .bind(Date.now())
+        .run();
   return { cleared: res.meta?.changes ?? 0 };
 }
 
@@ -3432,6 +3470,79 @@ export async function listOrders(env: Env, seesProfit = true): Promise<Response>
      ORDER BY o.imported_at DESC LIMIT 200`,
   ).all<{ profitSatang: number | null }>();
   return json({ orders: seesProfit ? results : withoutOrderProfit(results) });
+}
+
+/**
+ * การเงิน's AirPlus orders (bug hunt 15 Nov 2026). GET /orders is the order list — the newest 200
+ * of every channel, with sales before the coupon — so a long period lost orders, a coupon was
+ * counted as income and a refunded order as a sale. This sends EVERY AirPlus order with the money
+ * the order page shows (orderMoney): sales = goods after the coupon, marked `refunded` once the
+ * money went back; profit = what the order page says, the shipping we lost when refunded. The page keeps the ones whose
+ * money moved and in the chosen period, as before.
+ */
+export async function listFinanceOrders(db: D1Database): Promise<{ orders: unknown[] }> {
+  const { results } = await db
+    .prepare(
+      `SELECT o.id, o.channel, o.external_order_id AS externalOrderId,
+              o.order_status AS orderStatus, o.payment_status AS paymentStatus,
+              o.grand_total_satang AS grandTotalSatang, o.subtotal_satang AS subtotalSatang,
+              o.discount_total_satang AS discountTotalSatang,
+              o.shipping_fee_satang AS shippingFeeSatang,
+              o.shipping_real_satang AS shippingRealSatang, o.refund_satang AS refundSatang,
+              o.profit_satang AS storedProfitSatang,
+              o.order_created_at AS orderCreatedAt, o.imported_at AS importedAt,
+              o.buyer_username AS buyerUsername,
+              (SELECT COALESCE(SUM(l.unit_cost_satang * l.quantity), 0) FROM sales_order_lines l
+                WHERE l.sales_order_id = o.id) AS itemCostSatang,
+              (SELECT COALESCE(SUM(c.shipping_fee_satang), 0) FROM order_claims c
+                WHERE c.sales_order_id = o.id) AS claimShippingSatang
+       FROM sales_orders o WHERE o.channel = 'airplus'
+       ORDER BY o.imported_at DESC`,
+    )
+    .all<{
+      id: string;
+      subtotalSatang: number;
+      discountTotalSatang: number;
+      grandTotalSatang: number;
+      shippingFeeSatang: number;
+      shippingRealSatang: number | null;
+      refundSatang: number | null;
+      storedProfitSatang: number | null;
+      itemCostSatang: number;
+      claimShippingSatang: number;
+    }>();
+  const orders = (results ?? []).map((o) => {
+    const {
+      subtotalSatang,
+      discountTotalSatang,
+      shippingRealSatang,
+      refundSatang,
+      storedProfitSatang,
+      itemCostSatang,
+      claimShippingSatang,
+      ...row
+    } = o;
+    const money = orderMoney({
+      subtotalSatang,
+      discountTotalSatang,
+      grandTotalSatang: o.grandTotalSatang,
+      shippingChargedSatang: o.shippingFeeSatang,
+      shippingRealSatang,
+      // The cost of the goods, as one line: orderMoney only ever sums cost × quantity.
+      lines: [{ unitCostSatang: Number(itemCostSatang), quantity: 1 }],
+      storedProfitSatang,
+      refundedSatang: refundSatang ?? 0,
+      claimShippingSatang: Number(claimShippingSatang),
+    });
+    return {
+      ...row,
+      salesSatang: money.goodsAfterDiscountSatang,
+      profitSatang: money.profitSatang,
+      // The page leaves a refunded order out of its sales total, as it does a refunded bill.
+      refunded: (refundSatang ?? 0) > 0,
+    };
+  });
+  return { orders };
 }
 
 /** A sales_orders row in the same camelCase shape listOrders returns. */
@@ -8028,6 +8139,9 @@ const worker = {
       return listSales(env, url, viewerStaff ? canViewFinance(viewerStaff.role) : false);
     }
 
+    if (url.pathname === "/finance/orders" && request.method === "GET") {
+      return json(await listFinanceOrders(env.DB));
+    }
     if (url.pathname === "/finance/expenses" && request.method === "GET") {
       return json({ expenses: await queryExpenses(env.DB) });
     }
@@ -8188,7 +8302,11 @@ const worker = {
     if (url.pathname === "/payments/clear" && request.method === "POST") {
       const gate = await requireRole(request, env, canClearPayments, "super_admin_only");
       if (gate instanceof Response) return gate;
-      return json(await clearPayments(env.DB));
+      const body = await readJson<{ ids?: unknown }>(request);
+      const ids = Array.isArray(body?.ids)
+        ? body.ids.filter((id): id is string => typeof id === "string")
+        : undefined;
+      return json(await clearPayments(env.DB, ids));
     }
     if (url.pathname === "/payments" && request.method === "POST") {
       const body = await readJson<{

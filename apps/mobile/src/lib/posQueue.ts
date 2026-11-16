@@ -15,8 +15,40 @@ export interface QueuedBill {
   label: string;
   status: "waiting" | "refused";
   reason: string | null;
-  /** What a sent bill still has to do once it is in: the car's record, the draft it came from. */
-  after?: { customer: CustomerUpsert | null; draftId: string | null };
+  /** What a sent bill still has to do once it is in: the car's record, the draft, the payment. */
+  after?: {
+    customer: CustomerUpsert | null;
+    draftId: string | null;
+    /** Missing on bills queued before 16 Nov 2026. */
+    payment?: BillPayment | null;
+  };
+}
+
+/** What goes on การชำระเงิน for a PromptPay bill. */
+export interface BillPayment {
+  methodLabel: string;
+  promptpayId: string;
+  amountSatang: number;
+  saleNumber: string;
+}
+
+/**
+ * The การชำระเงิน record a PromptPay bill makes, whether it is sent at once or waits on the phone
+ * (bug hunt 15 Nov 2026: a bill issued offline never reached การชำระเงิน). None for cash.
+ */
+export function billPayment(
+  payMethod: string,
+  account: { label: string; promptpayId: string } | null,
+  totalSatang: number,
+  saleNumber: string,
+): BillPayment | null {
+  if (payMethod !== "promptpay" || !account) return null;
+  return {
+    methodLabel: account.label,
+    promptpayId: account.promptpayId,
+    amountSatang: totalSatang,
+    saleNumber,
+  };
 }
 
 export type SendOutcome =

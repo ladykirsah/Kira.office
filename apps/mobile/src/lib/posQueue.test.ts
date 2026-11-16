@@ -6,6 +6,7 @@ import {
   parseQueue,
   queueAdd,
   queueAfterSend,
+  billPayment,
   queueSummary,
   type QueuedBill,
 } from "./posQueue";
@@ -64,6 +65,28 @@ describe("posQueue", () => {
     expect(queueAfterSend(refused, "1", { kind: "refused", reason: "ในระบบเหลือ 0" })).toBe(
       refused,
     );
+  });
+
+  /**
+   * Bug hunt 15 Nov 2026: a PromptPay bill issued with no internet never reached การชำระเงิน — the
+   * waiting bill kept the car and the draft, but not the money. The same record now goes with it.
+   */
+  it("billPayment > given a PromptPay bill > then the money record การชำระเงิน needs", () => {
+    expect(
+      billPayment("promptpay", { label: "ร้าน", promptpayId: "0812344421" }, 125_000, "DAS-0042"),
+    ).toEqual({
+      methodLabel: "ร้าน",
+      promptpayId: "0812344421",
+      amountSatang: 125_000,
+      saleNumber: "DAS-0042",
+    });
+  });
+
+  it("billPayment > given cash, or no account to pay into > then none", () => {
+    expect(
+      billPayment("cash", { label: "ร้าน", promptpayId: "0812344421" }, 1, "DAS-1"),
+    ).toBeNull();
+    expect(billPayment("promptpay", null, 1, "DAS-1")).toBeNull();
   });
 
   it("parseQueue > given saved text > then reads it back, and broken text reads as empty", () => {

@@ -65,11 +65,14 @@ mechanic price with the walk-in fallback, lines named `name · brand` with the s
 `/payments` for PromptPay — in that order, so a refused sale never leaves a payment listed. A walk-in
 customer is still parked as a draft and finished in ทำบิล.
 
-**Open risk, web side (owner's decision, not fixed):** both apps mint DAS numbers by following the
-highest one issued today, but ทำบิล reads the server's latest only when the page loads. If the app
-issues DAS…-N while a ทำบิล tab is open, that tab mints N again; `INSERT OR IGNORE` skips the sale row,
-the line insert then fails its foreign key, and `/sync` answers 500 until the page is reloaded. The
-app re-reads `/sales` before every number, so it does not cause the clash on its own side.
+**Bill numbers (fixed 16 Nov 2026, plan 8.3).** Both apps mint DAS numbers by following the highest
+one issued today. Expo ทำบิล used to read the server's list only when the app started, so after Scan
+issued DAS…-N it minted N again; `INSERT OR IGNORE` skipped the sale row, the line insert failed its
+foreign key and `/sync` answered 500. Now: `applySyncToDb` checks taken numbers first and refuses a
+clash as `validationErrors: [{ reason: "number_taken" }]` (nothing written); ทำบิล re-reads `/sales`
+and Scan's `kira_last_sale_number` at every bill, writes that key too, and after `number_taken`
+keeps the same clientUuid but takes a new number on the next tap (`saleRefusal` words it plainly).
+An offline bill whose number was taken meanwhile still waits, refused, in the queue.
 
 ## References
 

@@ -200,4 +200,14 @@ describe("what goes on the graph", () => {
       { at: 4, revenue: 0, profit: -385000 },
     ]);
   });
+
+  // Bug hunt 15 Nov 2026: the graph counted a refunded order as a sale while รายได้ did not.
+  it("moneyOf > given a refunded order > then no revenue on the graph, its loss as profit", () => {
+    const points = moneyOf(
+      [],
+      [{ at: 5, salesSatang: 190000, profitSatang: -6000, refunded: true }],
+      [],
+    );
+    expect(points).toEqual([{ at: 5, revenue: 0, profit: -6000 }]);
+  });
 });
