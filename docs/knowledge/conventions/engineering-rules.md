@@ -3,9 +3,9 @@ type: convention
 title: Engineering rules — TDD, gates, and verification honesty
 description: TDD-first per AGENTS.md, the real CI gates (lint = prettier + eslint), verify-before-assert lessons, schema-change endpoint testing, and backup-list discipline
 tags: [engineering, tdd, ci, lint, testing, verification]
-timestamp: 2026-08-09
+timestamp: 2026-11-16
 status: convention
-sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md]
+sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026)]
 ---
 
 # Engineering rules — TDD, gates, and verification honesty
@@ -49,6 +49,24 @@ Migration 0060 lesson: the first draft added `name_th`/`name_en` to only SOME ta
 ## Backup-list discipline
 
 `BACKUP_TABLES` (the daily R2 dump's table list) was once missing `customers`/`payments`/`audit_logs` — the anti-cheat payment trail was silently omitted from backups. Fixed by adding those + `customer_history_entries`. **When adding a table, check the backup list.** Platform detail: [platform](../platform/index.md).
+
+## The Worker's main file exports only functions, classes and objects
+
+Plan 8.5 (16 Nov 2026): `export const LIST_LIMIT = 5000` in `apps/api/src/index.ts` stopped the local
+Worker — *"Incorrect type for map entry 'LIST_LIMIT': the provided value is not of type 'function or
+ExportedHandler'"*. The Cloudflare runtime reads **every named export of the main file as a handler**,
+so a plain number, word or true/false there kills the Worker (a deploy would fail the same way). All
+unit tests stayed green; only the running local server showed it. Lists and objects are accepted.
+`apps/api/src/workerExports.test.ts` now fails on any plain-value export. **Keep such constants
+unexported**; export functions freely for tests.
+
+## Lists send everything (up to `LIST_LIMIT`)
+
+Owner's pick A (16 Nov 2026, plan 8.5): every back-office list (products, stock, barcodes, payments,
+sales without a date range, open drafts, cars, a car's bills and old history, AirPlus customers and
+their orders, the orders list) sends all rows up to one shared safety limit, `LIST_LIMIT` (5,000) in
+`apps/api/src/index.ts`. The old caps (100–500) silently hid rows once the shop grew past them.
+Page-by-page loading comes with the redesign. A new list uses `LIST_LIMIT`, never its own small cap.
 
 ## Related
 

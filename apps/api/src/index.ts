@@ -101,6 +101,8 @@ import {
   type CouponAppliesTo,
   type CouponScope,
   unknownTermsFields,
+  canonicalPlate,
+  plateKey,
 } from "@l-shopee/core";
 
 export interface Env {
@@ -1047,7 +1049,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
           sale.saleNumber?.trim() || null,
           sale.paymentMethod ?? null,
           sale.saleType ?? "parts",
-          sale.licensePlate?.trim() || null,
+          normalizePlate(sale.licensePlate ?? "") || null,
           sale.vehicle?.trim() || null,
           sale.notes?.trim() || null,
           extras.mileageKm,
@@ -2005,6 +2007,13 @@ export interface PaymentRow {
   confirmedAt: number | null;
 }
 
+/**
+ * How many rows a list sends at most. The owner's pick A (plan 8.5, 16 Nov 2026): send everything,
+ * so today's screens show every row; this only stops a runaway list. Page-by-page loading comes
+ * with the redesign. Not exported: this file may only export functions and objects (workerExports.test).
+ */
+const LIST_LIMIT = 5000;
+
 /** Latest UNCLEARED payment approvals — the Payment page's working list of items awaiting the
  *  owner's reconciliation. Cleared (reconciled) rows stay in the table but drop out of this view. */
 export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
@@ -2014,7 +2023,7 @@ export async function listPayments(db: D1Database): Promise<PaymentRow[]> {
               amount_satang AS amountSatang, sale_number AS saleNumber, status,
               created_at AS createdAt, approved_at AS approvedAt, slip_ref AS slipRef,
               confirmed_at AS confirmedAt
-       FROM payments WHERE cleared_at IS NULL ORDER BY created_at DESC LIMIT 100`,
+       FROM payments WHERE cleared_at IS NULL ORDER BY created_at DESC LIMIT ${LIST_LIMIT}`,
     )
     .all<PaymentRow>();
   return rows.results ?? [];
@@ -2500,7 +2509,7 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
 }
 
 /** On-hand stock per variant (ledger sum) with product info, for the stock screen. */
-async function listStock(env: Env): Promise<Response> {
+export async function listStock(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT v.id AS variantId, v.sku, p.name AS productName, p.product_ref AS productRef,
             v.option_1_value AS choiceValue,
@@ -2513,7 +2522,7 @@ async function listStock(env: Env): Promise<Response> {
      WHERE p.status <> 'archived'
      GROUP BY v.id
      ORDER BY p.name
-     LIMIT 200`,
+     LIMIT ${LIST_LIMIT}`,
   ).all();
   return json({ stock: results });
 }
@@ -2608,7 +2617,11 @@ async function getTerms(env: Env): Promise<Response> {
  * The `status <> 'archived'` filter stays as pure defence — it costs nothing and keeps a
  * previously-deleted product out of the POS and Barcodes if 0088 has not run somewhere yet.
  */
-async function listProducts(env: Env, seesProfit = true, byVariant = false): Promise<Response> {
+export async function listProducts(
+  env: Env,
+  seesProfit = true,
+  byVariant = false,
+): Promise<Response> {
   // ?by=variant (ทำบิล, ออกบาร์โค้ด, แฟลชเซล): one row per size, with its own code, photo, price and
   // stock. Otherwise one row per product, its first size standing in for it (owner, 7 Nov 2026).
   const variantJoin = byVariant
@@ -2669,7 +2682,7 @@ async function listProducts(env: Env, seesProfit = true, byVariant = false): Pro
      LEFT JOIN pricing_profiles pp ON pp.product_variant_id = v.id
      WHERE p.status <> 'archived'
        AND p.id IN (SELECT id FROM products WHERE status <> 'archived'
-                    ORDER BY created_at DESC LIMIT 200)
+                    ORDER BY created_at DESC LIMIT ${LIST_LIMIT})
      ORDER BY p.created_at DESC, p.id, v.created_at, v.id`,
   ).all();
   // Margin is price minus cost, so withholding the COST is what actually hides it. Blanking the
@@ -2725,10 +2738,10 @@ const SALES_SELECT = `SELECT s.id,
  FROM onsite_sales s
  WHERE s.stage = 'bill'`;
 
-/** The latest 100 bills — the old finance page and the CSV export. */
+/** The latest bills (up to LIST_LIMIT) — the old finance page and the CSV export. */
 const SALES_RECENT = `${SALES_SELECT}
  ORDER BY s.created_at DESC
- LIMIT 100`;
+ LIMIT ${LIST_LIMIT}`;
 
 /**
  * Every bill in [from, to) — the Expo การเงิน page totals a whole period, so it cannot work from
@@ -3467,7 +3480,7 @@ export async function listOrders(env: Env, seesProfit = true): Promise<Response>
      LEFT JOIN storefront_customers c ON c.id = o.storefront_customer_id
      LEFT JOIN first_line f ON f.oid = o.id AND f.rn = 1
      LEFT JOIN line_totals t ON t.oid = o.id
-     ORDER BY o.imported_at DESC LIMIT 200`,
+     ORDER BY o.imported_at DESC LIMIT ${LIST_LIMIT}`,
   ).all<{ profitSatang: number | null }>();
   return json({ orders: seesProfit ? results : withoutOrderProfit(results) });
 }
@@ -4429,7 +4442,7 @@ export async function expireUnpaidOrders(
 }
 
 /** Recent on-site sales with their aggregated gross profit (for the sales/finance views). */
-async function querySales(
+export async function querySales(
   db: D1Database,
   range?: { from: number; to: number },
 ): Promise<SaleExportRow[]> {
@@ -4696,7 +4709,7 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
         draft.clientUuid ?? id,
         draft.saleNumber?.trim() || null,
         draft.saleType ?? "parts",
-        draft.licensePlate?.trim() || null,
+        normalizePlate(draft.licensePlate ?? "") || null,
         draft.vehicle?.trim() || null,
         draft.notes?.trim() || null,
         extras.mileageKm,
@@ -4758,7 +4771,7 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
               grand_total_satang AS grandTotalSatang, discount_total_satang AS discountTotalSatang,
               discount_kind AS discountKind, discount_value AS discountValue, created_at AS createdAt
        FROM onsite_sales WHERE stage IN ('draft', 'quotation')
-       ORDER BY created_at DESC LIMIT 100`,
+       ORDER BY created_at DESC LIMIT ${LIST_LIMIT}`,
     )
     .all<{ id: string }>();
   const rows = heads.results ?? [];
@@ -4835,9 +4848,12 @@ export async function getOnsiteSale(db: D1Database, id: string): Promise<unknown
 }
 
 // ── Customers (directory keyed by car plate) ────────────────────────────────────────────────────
-/** Canonical plate key: trimmed, internal whitespace collapsed to a single space. */
+/**
+ * Every plate is saved one way: letters, one space, numbers ("กข 1234"); a truck's keeps its dash
+ * ("70-1234"). Before plan 8.5, "กข1234" and "กข 1234" were two cars (packages/core plate.ts).
+ */
 export function normalizePlate(plate: string): string {
-  return plate.trim().replace(/\s+/g, " ");
+  return canonicalPlate(plate);
 }
 
 export interface CustomerUpsert {
@@ -4922,15 +4938,18 @@ export async function searchCustomers(db: D1Database, q: string): Promise<unknow
        LEFT JOIN (SELECT license_plate, COUNT(*) AS legacyCount, MAX(happened_at) AS lastLegacyAt
                   FROM customer_history_entries
                   GROUP BY license_plate) h ON h.license_plate = x.license_plate
-       WHERE (? = '' OR x.license_plate LIKE ? OR c.phone LIKE ? OR c.customer_name LIKE ?
+       WHERE (? = '' OR x.license_plate LIKE ?
+              OR REPLACE(REPLACE(x.license_plate, ' ', ''), '-', '') LIKE ?
+              OR c.phone LIKE ? OR c.customer_name LIKE ?
               OR b.vehicle LIKE ? OR c.car_model LIKE ?
               OR EXISTS (SELECT 1 FROM onsite_sales os
                          WHERE os.license_plate = x.license_plate AND os.stage = 'bill'
                                AND os.sale_number LIKE ?))
        ORDER BY MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)) DESC, x.license_plate
-       LIMIT 100`,
+       LIMIT ${LIST_LIMIT}`,
     )
-    .bind(q.trim(), term, term, term, term, term, term)
+    // A plate typed with no space or a dash still finds it (plan 8.5).
+    .bind(q.trim(), term, `%${plateKey(q.trim())}%`, term, term, term, term, term)
     .all();
   return rows.results ?? [];
 }
@@ -4954,9 +4973,9 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
               payment_method AS paymentMethod
        FROM onsite_sales
        WHERE license_plate = ? AND stage IN ('bill', 'quotation')
-       ORDER BY created_at DESC LIMIT 200`,
+       ORDER BY created_at DESC LIMIT ${LIST_LIMIT}`,
     )
-    .bind(plate)
+    .bind(normalizePlate(plate))
     .all<{ id: string; stage: string; vehicle: string | null }>();
   const sales = salesRows.results ?? [];
   const ids = sales.map((s) => s.id);
@@ -4996,7 +5015,7 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
        WHERE license_plate = ? AND stage = 'bill' AND mileage_km IS NOT NULL
        ORDER BY created_at DESC LIMIT 1`,
     )
-    .bind(plate)
+    .bind(normalizePlate(plate))
     .first<{ km: number; at: number }>();
   // Transcribed legacy service history (paper/Excel era) — shown on the same timeline, but these
   // are memory-only rows: no totals, no reprint, never in Sales.
@@ -5004,7 +5023,7 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
     .prepare(
       `SELECT id, happened_at AS happenedAt, description, note, lines_json AS linesJson
        FROM customer_history_entries WHERE license_plate = ?
-       ORDER BY happened_at DESC LIMIT 500`,
+       ORDER BY happened_at DESC LIMIT ${LIST_LIMIT}`,
     )
     .bind(normalizePlate(plate))
     .all<{
@@ -5067,7 +5086,7 @@ export async function searchStorefrontCustomers(db: D1Database, q: string): Prom
        WHERE (? = '' OR c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?
               OR c.customer_code LIKE ?)
        ORDER BY COALESCE(o.lastOrderAt, c.created_at) DESC
-       LIMIT 100`,
+       LIMIT ${LIST_LIMIT}`,
     )
     // Uppercased so a customer quoting "ap-3f7a2c91" still finds their own record.
     .bind(q.trim(), term, term, term, term.toUpperCase())
@@ -5106,7 +5125,7 @@ export async function getStorefrontCustomerDetail(db: D1Database, id: string): P
        FROM sales_orders
        WHERE storefront_customer_id = ? AND channel = 'airplus'
        ORDER BY order_created_at DESC
-       LIMIT 200`,
+       LIMIT ${LIST_LIMIT}`,
     )
     .bind(id)
     .all<{ id: string }>();
@@ -5504,12 +5523,12 @@ export async function addBarcodeToProduct(
 }
 
 /** Variants with their primary barcode + product info, for the barcode-management screen. */
-async function listBarcodes(env: Env): Promise<Response> {
+export async function listBarcodes(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT v.id AS variantId, p.id AS productId, p.product_ref AS productRef,
             p.name AS productName, v.barcode_primary AS barcode
      FROM product_variants v JOIN products p ON p.id = v.product_id
-     ORDER BY p.name LIMIT 500`,
+     ORDER BY p.name LIMIT ${LIST_LIMIT}`,
   ).all();
   return json({ barcodes: results });
 }

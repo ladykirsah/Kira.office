@@ -3,6 +3,7 @@ export * from "./tax";
 export * from "./cost";
 export * from "./terms";
 export * from "./categoryTerms";
+export * from "./plate";
 export * from "./pricing";
 export * from "./sync";
 export * from "./channels";
