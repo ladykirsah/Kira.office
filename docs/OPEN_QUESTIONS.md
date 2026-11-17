@@ -17,7 +17,7 @@ Status as of 2026-06-22. Authoritative answers live in [DECISIONS.md](DECISIONS.
 | 10 | First MVP priority | **All four pillars** (catalog · barcode/POS · Shopee sync · finance) |
 | — | Cost method | Support **all four** (moving avg / latest / manual / FIFO), selectable |
 | — | Profit rules | On-site = price−discount−tax−cost; **online adds Shopee fees** |
-| — | Repo | `Kira.office`, **private** (published at `ladykirsah/Kira.office`) |
+| — | Repo | `TeamPit`, **private** (published at `ladykirsah/Kira.office`) |
 
 ## ✅ Resolved — GitHub
 

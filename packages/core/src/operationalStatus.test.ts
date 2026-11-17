@@ -16,7 +16,7 @@ import {
  * new+pending waits on the customer, new+cod waits on the OWNER to approve COD, and new+verifying
  * means they already paid and are waiting on us. All three have order_status 'new'.
  *
- * Labels are English because Kira.office is English today; the Thai is kept alongside so the
+ * Labels are English because TeamPit is English today; the Thai is kept alongside so the
  * bilingual switch the owner plans is a toggle, not a rewrite.
  */
 describe("operationalStatus > payment stage", () => {

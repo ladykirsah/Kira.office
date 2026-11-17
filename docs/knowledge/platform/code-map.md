@@ -31,7 +31,7 @@ Root scripts: `test` (vitest run), `typecheck` (tsc per app), `lint` (**prettier
 
 ## The channel model is first-class (code + DB CHECKs)
 
-Kira.office is the back office for a car air-conditioning parts + service business with 4 channels:
+TeamPit is the back office for a car air-conditioning parts + service business with 4 channels:
 
 1. **onsite** = Den Air Service (B2C + B2B pricing).
 2. **shopee** = shop "AC on Sales" (~30% commission; full conversion detail stays external in Shopee Seller Centre — Kira holds only the order summary, so Shopee profit stays "—" until SKU-linked).

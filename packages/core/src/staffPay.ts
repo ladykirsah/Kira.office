@@ -164,7 +164,7 @@ export function isLocked(state: LockState, now: number): boolean {
  *     A lock is no longer a wall the owner cannot climb.
  *  2. **"Cloudflare Access already stands in front of the admin"** — so reaching the login form at
  *     all meant passing a one-time code, and the lock was a second fence behind a locked gate. The
- *     owner has now made the Kira.office form the everyday door. The gate is coming off. The fence
+ *     owner has now made the TeamPit form the everyday door. The gate is coming off. The fence
  *     is the whole defence, and an account that can NEVER be locked, behind a six-digit PIN, is a
  *     million guesses that nothing counts.
  *

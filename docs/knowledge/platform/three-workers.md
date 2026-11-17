@@ -26,7 +26,7 @@ All three live on the Cloudflare account **GoGoCash** (`account_id 187ab61ed9dbc
 ## 2. Admin — script `kiraoffice-admin`
 
 - Config: `apps/admin/wrangler.jsonc`. Built with OpenNext: `opennextjs-cloudflare build && opennextjs-cloudflare deploy`, `main: .open-next/worker.js`.
-- Domains: `admin.airplusauto.com` + `admin.homeseeker.me`. **Both must stay as destinations on the "admin" Cloudflare Access app (aud `dfcb79fc…`) at all times** — the Worker itself enforces nothing; Access at the edge is the only defence. Gate a hostname with Access BEFORE attaching it here, never after (the 2026-07-21 destination-REPLACE incident left `admin.homeseeker.me` unprotected for ~6 minutes). Details in [auth](../auth/index.md) and `docs/KIRA_OFFICE_ACCESS_SETUP.md`.
+- Domains: `admin.airplusauto.com` + `admin.homeseeker.me`. **Both must stay as destinations on the "admin" Cloudflare Access app (aud `dfcb79fc…`) at all times** — the Worker itself enforces nothing; Access at the edge is the only defence. Gate a hostname with Access BEFORE attaching it here, never after (the 2026-07-21 destination-REPLACE incident left `admin.homeseeker.me` unprotected for ~6 minutes). Details in [auth](../auth/index.md) and `docs/TEAMPIT_ACCESS_SETUP.md`.
 - `NEXT_PUBLIC_API_BASE` is inlined at **build** time (a runtime var does nothing) — export it before `opennextjs-cloudflare build`. See [operations](../operations/index.md) for the NEXT_PUBLIC baking incident.
 - Staging env `kiraoffice-admin-staging` has an **explicit** routes array (`staging-admin.airplusauto.com` + `staging-admin.homeseeker.me`). See the routes-inheritance trap below for why that array — and the production entry's counterpart — is load-bearing.
 

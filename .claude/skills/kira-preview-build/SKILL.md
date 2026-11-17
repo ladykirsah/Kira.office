@@ -1,6 +1,6 @@
 ---
 name: kira-preview-build
-description: Build an approved Kira.office canvas drawing into the Expo back office (apps/mobile), tests first, and show it on the local preview for the owner's approval. Use when the owner says "apply to preview", "build it", or approves a drawing for building. Covers TDD in apps/mobile/src/lib and apps/api, reusing built UI parts, restarting the "Kira new version" preview, the practice sign-in, checking every state in the iOS simulator and the Claude browser pane, local-only seed data, and the gates to run. Stops before any commit.
+description: Build an approved TeamPit canvas drawing into the Expo back office (apps/mobile), tests first, and show it on the local preview for the owner's approval. Use when the owner says "apply to preview", "build it", or approves a drawing for building. Covers TDD in apps/mobile/src/lib and apps/api, reusing built UI parts, restarting the "TeamPit app" preview, the practice sign-in, checking every state in the iOS simulator and the Claude browser pane, local-only seed data, and the gates to run. Stops before any commit.
 ---
 
 # Building a drawing onto the preview
@@ -36,7 +36,7 @@ description: Build an approved Kira.office canvas drawing into the Expo back off
 
 - **Servers** (in `.claude/launch.json`):
   - "api" on port 8788 must be running.
-  - "Kira new version" (port 8081) runs in CI mode with **no hot reload**. After every change, `preview_stop` it and `preview_start` it again.
+  - "TeamPit app" (port 8081) runs in CI mode with **no hot reload**. After every change, `preview_stop` it and `preview_start` it again.
 - **Sign-in:** open `http://localhost:8081/sign-in?practice=1&to=<path>`. A reload drops the sign-in, so open the same URL again.
 - **Look on the iOS simulator** (iPhone 17 Pro):
   - Use `control open_url`, then `screenshot`. Screenshots lag one step, so take two.

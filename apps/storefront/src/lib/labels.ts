@@ -9,7 +9,7 @@
  * Migration 0060 moved those names into the database (`name_th` / `name_en` on car_brands,
  * car_models, usage_categories and product_types), seeded with the very translations that lived
  * here, and every tile now resolves them through displayNames() in @l-shopee/core. Both maps are
- * deleted rather than left to drift. Add a translation in Kira.office, not here.
+ * deleted rather than left to drift. Add a translation in TeamPit, not here.
  */
 
 /** car_brand → make logo, bundled in /public/brands. Leading-slash path is served by the app itself

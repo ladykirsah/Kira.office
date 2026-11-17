@@ -9,7 +9,7 @@
  * millionth works.
  *
  * Harmless while Cloudflare Access stood in front of the login form: nobody could reach it without a
- * code emailed to an approved mailbox. The owner's decision of 2026-08-25 makes the Kira.office form
+ * code emailed to an approved mailbox. The owner's decision of 2026-08-25 makes the TeamPit form
  * the everyday door, so the form goes on the open internet and the guesses have to be counted
  * against the only thing that exists before the account does — whoever is asking.
  *

@@ -40,7 +40,7 @@ Also note the coupon usage-cap race (read-then-insert) tracked on the parked ret
 
 Server side only; the website's coupon pages stay the mock above until the AirPlus redesign (board 11).
 
-- **แสดงบนเว็บ** (`coupons.show_on_web`, migration 0104, owner's pick A): a switch on CrewEngine's
+- **แสดงบนเว็บ** (`coupons.show_on_web`, migration 0104, owner's pick A): a switch on TeamPit's
   coupon form (โค้ดและสิทธิ์), off for every coupon until the owner turns it on; off = code only, so a
   code handed to one person stays private (like Shopee's shop-page vouchers vs code-only ones). A
   ลูกค้าใหม่ coupon has no switch: it lands on My coupons, never on the list. The coupon's page shows
@@ -51,7 +51,7 @@ Server side only; the website's coupon pages stay the mock above until the AirPl
 - **`GET /api/account/coupons`** (My coupons) now also sends each coupon's `name`, its `targets`
   (brand / category / car model / product names) and `forLine`.
 - **`forLine`** — "สำหรับทุกออเดอร์ · สำหรับสินค้า DENSO · สำหรับลูกค้าใหม่" — is `couponForLine` in
-  `@l-shopee/core`, the same words CrewEngine's coupon card says.
+  `@l-shopee/core`, the same words TeamPit's coupon card says.
 - Customers still use a coupon by typing its code at checkout; `/api/checkout` checks it all again.
 
 ## References

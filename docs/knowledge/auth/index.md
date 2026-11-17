@@ -1,7 +1,7 @@
 ---
 type: guide
 title: Auth — index
-description: Cloudflare Access, staff login, owner sign-in, API auth, and the roles model for Kira.office
+description: Cloudflare Access, staff login, owner sign-in, API auth, and the roles model for TeamPit
 tags: [auth, index]
 timestamp: 2026-08-24
 status: live
@@ -10,7 +10,7 @@ sources: [docs/knowledge/auth/]
 
 # Auth
 
-Identity for Kira.office is layered: Cloudflare Access (email OTP) at the edge of the **admin** host → the API verifies the forwarded JWT itself → email-list roles → a staff password/PIN login on top. Read in this order:
+Identity for TeamPit is layered: Cloudflare Access (email OTP) at the edge of the **admin** host → the API verifies the forwarded JWT itself → email-list roles → a staff password/PIN login on top. Read in this order:
 
 - [access-model](access-model.md) — ONE Access app on the admin host; the API's gate is the STAFF SESSION since 25 Aug 2026, not the forwarded JWT; NEVER edge-gate the API host; team domain + AUD values; how to (not) find the AUD.
 - [require-access-fail-open](require-access-fail-open.md) — RETIRED as the gate (25 Aug 2026): `requireAccess()` still fails OPEN, so never put it in front of a route again; what replaced each fail-open helper; the old `secret delete` rollback no longer works; public routes; secret-propagation flap.

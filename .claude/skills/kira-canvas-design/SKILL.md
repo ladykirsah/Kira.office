@@ -1,6 +1,6 @@
 ---
 name: kira-canvas-design
-description: Draw or change a Kira.office back-office page on the owner's design canvas (the "Design" artifact with one board per page, e.g. ShopPhone.dc.html), in the owner's style, and publish it. Use when the owner says "show me…", "draw…", "how about make it like this" (with a screenshot), "show me N designs", "go for C with some changes", "remove them", or selects something on the canvas. Covers reading the live board, checking the system has the data, editing boards by script, measuring and rendering the phones, publishing, and cleaning up options.
+description: Draw or change a TeamPit back-office page on the owner's design canvas (the "Design" artifact with one board per page, e.g. ShopPhone.dc.html), in the owner's style, and publish it. Use when the owner says "show me…", "draw…", "how about make it like this" (with a screenshot), "show me N designs", "go for C with some changes", "remove them", or selects something on the canvas. Covers reading the live board, checking the system has the data, editing boards by script, measuring and rendering the phones, publishing, and cleaning up options.
 ---
 
 # Drawing on the Kira design canvas
@@ -61,6 +61,10 @@ The canvas is where the owner decides; nothing in the repo changes in this step.
 
 ## Traps seen before
 
+- **Empty boxes vanish.** An empty `<span>` with a width drew nothing on the board (the six PIN
+  boxes, 9.2). Use a block element with `&nbsp;` inside. Look at the shot before publishing.
+- **Draw the app's name in its real letters.** The board can't load web fonts; embed the font file
+  as a data URL (`design-tools/teampit_name_board.py` embeds Space Grotesk from node_modules).
 - **Product photos are 1:1, always.** A 358 × 300 hero crops the photo; the owner has said it more than once (5 + 7 Nov). Use 358 × 358.
 
 - **Long labels wrap at 390px** and push the phone down. Keep labels short.

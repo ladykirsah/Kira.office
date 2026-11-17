@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { entryScriptOf, hasNewVersion, runningEntry } from "./appUpdate";
 
 const page = (hash: string) =>
-  `<!DOCTYPE html><html><head><title>CrewEngine</title></head><body><div id="root"></div>` +
+  `<!DOCTYPE html><html><head><title>TeamPit</title></head><body><div id="root"></div>` +
   `<script src="/_expo/static/js/web/entry-${hash}.js" defer></script></body></html>`;
 
 describe("entryScriptOf", () => {

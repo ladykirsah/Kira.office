@@ -52,7 +52,7 @@ export function shopEntry({ id, name, origin, ownerEmail }) {
 }
 
 /** The shop's own D1 database. */
-export const databaseName = (id) => `kira-shop-${id}`;
+export const databaseName = (id) => `teampit-shop-${id}`;
 
 const quote = (value) => `'${String(value).replace(/'/g, "''")}'`;
 

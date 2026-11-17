@@ -10,7 +10,7 @@ sources: [session-memory corpus]
 
 # Commerce
 
-Money-touching and order-touching knowledge for Kira.office (admin/API) and the AirPlus storefront. Start here, open only what you need.
+Money-touching and order-touching knowledge for TeamPit (admin/API) and the AirPlus storefront. Start here, open only what you need.
 
 - [order-lifecycle](order-lifecycle.md) — two-axis status (order_status × payment_status), the derived `operationalStatus`/`to_ship` layer, summary cards, cancel/restock asymmetry, failed-delivery semantics, punch list.
 - [payments-promptpay](payments-promptpay.md) — ONE shared KV+core PromptPay QR system for storefront + POS; **BLOCKER: `shop:airplus:paymentMethods` unset in prod (owner-only fix)**; Den Air money-stream separation; POS payments anti-cheat trail.

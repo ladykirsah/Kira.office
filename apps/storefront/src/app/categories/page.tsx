@@ -71,7 +71,7 @@ export default async function CategoriesPage(props: { searchParams: Promise<{ ta
                         aria-label={`ดูสินค้าในหมวด ${t.name} (${t.productCount} รายการ)`}
                       >
                         <div className="catlist-thumb">
-                          {/* Owner-uploaded cover (Kira.office → Part attributes); ✦ until one is set. */}
+                          {/* Owner-uploaded cover (TeamPit → Part attributes); ✦ until one is set. */}
                           {t.imageKey ? (
                             <img
                               src={imgUrl(t.imageKey)}

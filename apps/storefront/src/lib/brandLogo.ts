@@ -4,7 +4,7 @@ import { imgUrl } from "./img";
 /**
  * The one place that decides which image represents a car brand.
  *
- * Precedence: the owner's uploaded cover (Kira.office → Car fitment) ALWAYS wins over the bundled
+ * Precedence: the owner's uploaded cover (TeamPit → Car fitment) ALWAYS wins over the bundled
  * `/public/brands/*.png` fallback, which only ever covered three makes. `null` means neither
  * exists, and the caller renders its ✦ placeholder.
  *

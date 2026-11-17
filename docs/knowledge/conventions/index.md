@@ -10,7 +10,7 @@ sources: [docs/knowledge/conventions/]
 
 # Conventions
 
-How work gets done in Kira.office: the owner-locked design system, the working agreements (each one set after a real incident — treat as binding), the engineering rules, and a staleness-annotated map of `docs/`. Read [owner-session-workflow](owner-session-workflow.md) before your first change and [docs-map](docs-map.md) before trusting any repo doc.
+How work gets done in TeamPit: the owner-locked design system, the working agreements (each one set after a real incident — treat as binding), the engineering rules, and a staleness-annotated map of `docs/`. Read [owner-session-workflow](owner-session-workflow.md) before your first change and [docs-map](docs-map.md) before trusting any repo doc.
 
 ## Design system (admin + storefront)
 

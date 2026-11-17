@@ -1,6 +1,6 @@
 # Production Launch Plan
 
-Best-practice plan to take L Shopee Back Office (Kira.office) from its current live API to a
+Best-practice plan to take L Shopee Back Office (TeamPit) from its current live API to a
 production launch. Decisions are made here (not left open); owner action items are called out with
 **[OWNER]**. Authoritative tech facts: [CLOUDFLARE_ARCHITECTURE.md](CLOUDFLARE_ARCHITECTURE.md),
 [DECISIONS.md](DECISIONS.md).
@@ -28,7 +28,7 @@ production launch. Decisions are made here (not left open); owner action items a
   - ⚠️ **Post-launch blockers still open:** prod catalog is **demo data** (a "ครีมบำรุงผิว (Demo)"
     skincare cream shows as top best-seller — load the real catalog); confirm Flash rate-card numbers;
     set PromptPay/bank in admin; legal sign-off; re-export the red-CI banner PNGs.
-- **Kira.office back office is now deployed** (2026-07-19): API worker `kira-office` at `api.homeseeker.me`
+- **TeamPit back office is now deployed** (2026-07-19): API worker `kira-office` at `api.homeseeker.me`
   (warranty endpoints + `widthMm` + shipping fee live) and admin `kiraoffice-admin` at
   `admin.homeseeker.me` (behind Cloudflare Access, Super Admin Only). The Add-page Description+Fitment
   and box-size-on-detail-view changes are **live** in the admin. Both deployed manually from the

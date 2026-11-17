@@ -365,7 +365,7 @@ export async function carBrandTiles(
 > {
   const rows = await db
     .prepare(
-      // The tile list is the OWNER'S car-brand taxonomy (Kira.office -> Car fitment), not just the
+      // The tile list is the OWNER'S car-brand taxonomy (TeamPit -> Car fitment), not just the
       // makes that happen to have stock — the owner wants their full coverage visible while the
       // catalogue is still being listed, "0 รายการ" included.
       //
@@ -418,7 +418,7 @@ export interface CarModelOption {
   productCount: number;
 }
 
-/** Every model in the owner's car taxonomy (Kira.office → Car fitment), grouped later by brand on
+/** Every model in the owner's car taxonomy (TeamPit → Car fitment), grouped later by brand on
  *  the client. Models with no products still show ("0 รายการ" is the owner's full coverage). */
 export async function carModelOptions(db: D1Database): Promise<CarModelOption[]> {
   const rows = await db
@@ -1076,7 +1076,7 @@ export async function listWebCouponRows(
 
 /**
  * What each switched-on coupon is for, by coupon id: the brands, categories (Thai name first), car
- * models ("Toyota Vios") or products it names — the same names CrewEngine's coupon list shows.
+ * models ("Toyota Vios") or products it names — the same names TeamPit's coupon list shows.
  */
 async function couponTargetNames(db: D1Database): Promise<Map<string, string[]>> {
   const { results } = await db

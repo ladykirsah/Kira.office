@@ -191,7 +191,7 @@ jobs:
           exit 1
       # The token may lack zone edit, and then the warning above passes green while the address
       # still points at the old admin (docs/knowledge/operations/ci-pipeline.md (b)). The old admin is
-      # also titled CrewEngine, so only the Expo export's own code path proves THIS app answers.
+      # also titled TeamPit, so only the Expo export's own code path proves THIS app answers.
       # Ten minutes: room for a dashboard move of the address during the first swap.
       - name: Check admin.airplusauto.com answers with the app
         run: |

@@ -45,7 +45,7 @@ describe("shopEntry > the line that adds a shop to the SHOPS setting", () => {
 
 describe("databaseName", () => {
   it("given a shop id > then its own database name", () => {
-    expect(databaseName("coolair")).toBe("kira-shop-coolair");
+    expect(databaseName("coolair")).toBe("teampit-shop-coolair");
   });
 });
 
@@ -89,10 +89,10 @@ describe("setupSteps > what the setup runs", () => {
     const cmds = steps.map((s) => s.args.join(" "));
     expect(steps.every((s) => s.file === "npx")).toBe(true);
     expect(cmds[0]).toBe(
-      "wrangler d1 migrations apply kira-shop-practice2 --local -c wrangler.practice.jsonc",
+      "wrangler d1 migrations apply teampit-shop-practice2 --local -c wrangler.practice.jsonc",
     );
     expect(cmds[1]).toMatch(
-      /^wrangler d1 execute kira-shop-practice2 --local -c wrangler\.practice\.jsonc --file /,
+      /^wrangler d1 execute teampit-shop-practice2 --local -c wrangler\.practice\.jsonc --file /,
     );
     expect(cmds[2]).toBe(
       "wrangler kv key put --binding KV shops/practice2/shop:denair:name ร้านทดลอง 2 --local -c wrangler.practice.jsonc",
@@ -103,7 +103,7 @@ describe("setupSteps > what the setup runs", () => {
     const cmds = setupSteps({ id: "coolair", name: "ร้านคูลแอร์", practice: false }).map((s) =>
       s.args.join(" "),
     );
-    expect(cmds[0]).toBe("wrangler d1 migrations apply kira-shop-coolair --remote");
+    expect(cmds[0]).toBe("wrangler d1 migrations apply teampit-shop-coolair --remote");
     expect(cmds[2]).toBe(
       "wrangler kv key put --binding KV shops/coolair/shop:denair:name ร้านคูลแอร์ --remote",
     );

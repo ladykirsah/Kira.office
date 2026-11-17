@@ -295,7 +295,7 @@ describe("heldUntil > what a customer's My coupons page shows for a ลูกค
   });
 });
 
-describe("couponForLine > what a coupon is for, said the same on CrewEngine and the website (plan 8.7)", () => {
+describe("couponForLine > what a coupon is for, said the same on TeamPit and the website (plan 8.7)", () => {
   const forTh = (
     scope: Parameters<typeof couponForLine>[0]["scope"],
     names: string[],

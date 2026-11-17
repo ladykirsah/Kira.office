@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readSignInReply, signIn, signInRequest, type FetchFn } from "./signIn";
+import { fetchSignInLine, readSignInReply, signIn, signInRequest, type FetchFn } from "./signIn";
 
 describe("signInRequest", () => {
   it("given each way in > goes to that door with only what the door needs", () => {
@@ -110,5 +110,30 @@ describe("signIn", () => {
     const result = await signIn(fetchFn, "http://x", { kind: "key", key: "k" });
 
     expect(result).toEqual({ ok: false, failure: "too_many_attempts" });
+  });
+});
+
+// Plan 9.2, design A: under TeamPit, the shop the page is open for — before anyone signs in.
+describe("fetchSignInLine", () => {
+  it("given the server > then the shop's line, read without signing in", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchFn: FetchFn = async (url, init) => {
+      calls.push({ url: String(url), init });
+      return Response.json({ line: "Den Air Service + AirPlus" });
+    };
+    expect(await fetchSignInLine(fetchFn, "http://api")).toBe("Den Air Service + AirPlus");
+    expect(calls[0]!.url).toBe("http://api/sign-in-shop");
+  });
+
+  it("given no answer, a failure or an odd reply > then nothing — never another shop's name", async () => {
+    expect(
+      await fetchSignInLine(async () => Response.json({}, { status: 500 }), "http://api"),
+    ).toBe("");
+    expect(await fetchSignInLine(async () => Response.json({ line: 3 }), "http://api")).toBe("");
+    expect(
+      await fetchSignInLine(async () => {
+        throw new Error("offline");
+      }, "http://api"),
+    ).toBe("");
   });
 });

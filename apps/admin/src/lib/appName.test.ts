@@ -57,6 +57,7 @@ describe("app name", () => {
   });
 
   it("given the places that carry the name > each shows CrewEngine", () => {
+    // The old web back office keeps its name until it is deleted (plan step 1.5).
     const carriers = [
       "apps/admin/src/app/Sidebar.tsx",
       "apps/admin/src/app/MobileNav.tsx",
@@ -64,11 +65,20 @@ describe("app name", () => {
       "apps/admin/src/app/login/page.tsx",
       "apps/admin/src/app/recover/page.tsx",
       "apps/admin/src/app/icon.svg",
+    ];
+    expect(carriers.filter((f) => linesNaming(NEW_NAME, f).length === 0)).toEqual([]);
+  });
+
+  // Plan 9.2 (owner, 17 Nov 2026): the Expo back office is TeamPit — "no more Kira.office and
+  // Crew engine, just TeamPit everywhere" (scripts/teampit-name.test.mjs guards the rest).
+  it("given the Expo app's places that carry the name > each shows TeamPit, none CrewEngine", () => {
+    const expo = [
       "apps/mobile/app.json",
       "apps/mobile/src/app/sign-in.tsx",
       "apps/mobile/src/ui/Shell.tsx",
     ];
-    expect(carriers.filter((f) => linesNaming(NEW_NAME, f).length === 0)).toEqual([]);
+    expect(expo.filter((f) => linesNaming("TeamPit", f).length === 0)).toEqual([]);
+    expect(expo.flatMap((f) => linesNaming(NEW_NAME, f))).toEqual([]);
   });
 
   /**

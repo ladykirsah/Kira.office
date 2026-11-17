@@ -12,7 +12,7 @@ sources: [kira-restructure-brief-2026-07.md, airplus-launch-plan-lockstep.md, de
 
 ## The fixed build order: (1) on-site workflow → (2) mock test → (3) connect Shopee + AirPlus
 
-The owner's own words (16 Jul 2026, after being handed 1.36M-token audits, an 18k-line PR review, git-surgery decisions, and step-3 problems like oversell races, coupon TOCTOU, OTP lockout, CI infra): "all i want is only work on Kira.office work flow and features... then test with mock info. then, connect system with Shopee and AirPlus."
+The owner's own words (16 Jul 2026, after being handed 1.36M-token audits, an 18k-line PR review, git-surgery decisions, and step-3 problems like oversell races, coupon TOCTOU, OTP lockout, CI infra): "all i want is only work on TeamPit work flow and features... then test with mock info. then, connect system with Shopee and AirPlus."
 
 - Build the on-site workflow first, test with mock data, THEN connect channels.
 - Every storefront/channel defect is a **STEP-3 problem** — do not put it in front of the owner at step 1.
@@ -48,7 +48,7 @@ screen waits for step 3.
 
 ## Current phase (as of 2026-08-09): admin back-office UX/UI, step by step
 
-Since Jul 19 2026 the AirPlus publication push is "done enough to list real products"; the agreed focus is Kira.office admin UX/UI, one piece at a time (honouring the don't-overwhelm and letters-for-options rules).
+Since Jul 19 2026 the AirPlus publication push is "done enough to list real products"; the agreed focus is TeamPit admin UX/UI, one piece at a time (honouring the don't-overwhelm and letters-for-options rules).
 
 - The owner will **MANUALLY enter ~500 products** — no importer wanted. "Save & add next" batch mode shipped on Add product (PR #27); rules in `apps/admin/src/lib/batchAdd.ts`: carries brand/system/type + fitments, clears per-product fields, shows a "Carried from last" pill + Clear + a "+N added" counter.
 - Prod per-category warranty values were set Jul 20: Blower motor / Radiator fan = 30 วัน (days); Evaporator / Condenser / Compressor / Expansion valve / Receiver drier = 90 วัน; Cabin filter / Air filter = NULL = transit-damage only (matches the FAQ warranty rules). Domain detail: [commerce](../commerce/index.md).

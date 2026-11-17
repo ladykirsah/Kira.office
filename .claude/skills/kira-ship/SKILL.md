@@ -1,6 +1,6 @@
 ---
 name: kira-ship
-description: Ship approved Kira.office work all the way to live in one turn. The steps are lessons filed (memory + rulebook), simplify, a signed commit on a fresh branch, push, PR, any prod database change, merge, deploys green, health check, page ✅ on the canvas, then the next page. Use when the owner says "approved, ship it", "ship it", "Yes, finish it", or "approve > file lesson > commit > PR > CI pass > merge". Never use it before the owner has approved the preview.
+description: Ship approved TeamPit work all the way to live in one turn. The steps are lessons filed (memory + rulebook), simplify, a signed commit on a fresh branch, push, PR, any prod database change, merge, deploys green, health check, page ✅ on the canvas, then the next page. Use when the owner says "approved, ship it", "ship it", "Yes, finish it", or "approve > file lesson > commit > PR > CI pass > merge". Never use it before the owner has approved the preview.
 ---
 
 # Shipping approved work

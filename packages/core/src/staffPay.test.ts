@@ -199,7 +199,7 @@ describe("lockable roles", () => {
     // back — the recovery is 'ask a super admin', which is nobody when the super admin is the locked
     // one": there is now `/recover`, where Cloudflare Access proves the owner by a code to their
     // mailbox and signs them back in unaided. (2) "Access already stands in front of the admin, so
-    // reaching this form requires an email code first": the owner is making the Kira.office form the
+    // reaching this form requires an email code first": the owner is making the TeamPit form the
     // everyday door, so the form goes on the open internet and this lock becomes the whole defence.
     // An account that can never lock, behind a six-digit PIN, is a million guesses nothing counts.
     expect(roleCanBeLocked("admin")).toBe(true);

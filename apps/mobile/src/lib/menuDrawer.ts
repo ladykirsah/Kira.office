@@ -3,7 +3,7 @@ import type { StaffRole } from "./signIn";
 
 /**
  * What the phone's ☰ menu lists (owner picked design C, 4 Nov 2026): หน้าหลัก on a row of its own —
- * before, the only way back was a tap on the word CrewEngine — then the role's pages in their four
+ * before, the only way back was a tap on the word TeamPit — then the role's pages in their four
  * sections, with the page you are on lit.
  */
 export interface DrawerLink {

@@ -66,7 +66,7 @@ rate; treat the courier cost as an expense, not a quote.** Building that setting
 
 ---
 
-## 3. Kira.office UX/UI
+## 3. TeamPit UX/UI
 
 Ongoing. Done so far: Product categories card (title + photo + warranty in one form), add-forms that
 respond instead of silently doing nothing, 1:1 cover crops.
@@ -105,7 +105,7 @@ admin-managed fixes the drift as well as the editing.
 already gives a natural relation (same car brand/model), as does `type_id` — related-by-fitment is
 likely more useful to a mechanic than related-by-category.
 
-## Kira.office (admin)
+## TeamPit (admin)
 
 **Marketing center.** Consolidation: banners, coupons, campaigns/flash sales and affiliate tools are
 four separate settings screens today.
@@ -131,4 +131,4 @@ products, six car models are six fitments on each. See also the sibling Terms-pa
 
 ---
 
-Still parked from earlier the same day, above: payment verify, shipping fee, Kira.office UX/UI.
+Still parked from earlier the same day, above: payment verify, shipping fee, TeamPit UX/UI.

@@ -1,4 +1,4 @@
-# Kira.office (admin) — go-live via Cloudflare Access
+# TeamPit (admin) — go-live via Cloudflare Access
 
 Goal: host the **admin back office** at **`admin.homeseeker.me`**, reachable only by the owner,
 logging in with an **email one-time code**. Independent of the AirPlus storefront launch.
