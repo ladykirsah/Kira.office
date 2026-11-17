@@ -20,6 +20,7 @@ import {
   type CheckoutSuccess,
 } from "@/lib/checkoutApi";
 import { findOwnAddress, hasOwnAddress } from "@/lib/addressBook";
+import { airplusBankAccount, readBankAccount, type BankAccount } from "@/lib/bankAccount";
 import { couponLinesOf } from "@/lib/couponCart";
 import { flashShortError, unavailableError } from "@/lib/checkoutPhone";
 import { getCheckoutPricing, getCouponWithUsage, getDb, getEnv } from "@/lib/db";
@@ -133,9 +134,12 @@ async function replayPayload(
 ): Promise<CheckoutSuccess> {
   const [payment, count, redemption] = await Promise.all([
     db
-      .prepare(`SELECT promptpay_id AS promptpayId FROM payments WHERE sales_order_id = ? LIMIT 1`)
+      .prepare(
+        `SELECT promptpay_id AS promptpayId, bank_account AS bankAccount
+         FROM payments WHERE sales_order_id = ? LIMIT 1`,
+      )
       .bind(order.id)
-      .first<{ promptpayId: string }>(),
+      .first<{ promptpayId: string; bankAccount: string | null }>(),
     db
       .prepare(
         `SELECT COALESCE(SUM(quantity), 0) AS n FROM sales_order_lines WHERE sales_order_id = ?`,
@@ -158,6 +162,7 @@ async function replayPayload(
     amountSatang: order.grand,
     shippingSatang: order.shipping ?? 0,
     promptpayId: payment?.promptpayId ? payment.promptpayId : null,
+    bankAccount: readBankAccount(payment?.bankAccount ?? null),
     itemCount: count?.n ?? 0,
     createdAt: order.createdAt ?? Date.now(),
     discountSatang: order.discount ?? 0,
@@ -479,12 +484,15 @@ export async function POST(req: Request): Promise<Response> {
 
     // 7) Default PromptPay target from shop settings (same KV the POS/admin uses).
     let promptpayId: string | null = null;
+    // Plan 8.7: a โอนเข้าบัญชีร้าน order is told which account to pay into, and keeps it.
+    let bankAccount: BankAccount | null = null;
     if (body.paymentMethod !== "cod") {
       const { KV } = await getEnv();
       // AirPlus's OWN account — Den Air Service takes money into a different one, so this must
       // never fall back to the workshop's profile.
       const methods = parsePaymentMethods(await KV.get(shopKey("airplus", "paymentMethods")));
       promptpayId = defaultPaymentMethod(methods)?.promptpayId ?? null;
+      if (body.paymentMethod === "transfer") bankAccount = await airplusBankAccount(KV);
     }
 
     // 8) Flash-sale caps BEFORE the main batch: guarded increments that can never exceed
@@ -627,10 +635,18 @@ export async function POST(req: Request): Promise<Response> {
         db
           .prepare(
             `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status,
-               created_at, sales_order_id)
-             VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+               created_at, sales_order_id, bank_account)
+             VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`,
           )
-          .bind(crypto.randomUUID(), `AirPlus ${ref}`, promptpayId ?? "", grand, now, orderId),
+          .bind(
+            crypto.randomUUID(),
+            `AirPlus ${ref}`,
+            promptpayId ?? "",
+            grand,
+            now,
+            orderId,
+            bankAccount ? JSON.stringify(bankAccount) : null,
+          ),
       );
     }
     try {
@@ -661,6 +677,7 @@ export async function POST(req: Request): Promise<Response> {
       amountSatang: grand,
       shippingSatang: shipping,
       promptpayId,
+      bankAccount,
       itemCount,
       createdAt: now,
       discountSatang: discount,

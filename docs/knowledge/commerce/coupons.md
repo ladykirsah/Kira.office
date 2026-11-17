@@ -3,9 +3,9 @@ type: feature
 title: Coupons — real system, mock wallet, latent redemption bug
 description: Admin coupons (typed code at checkout) vs the hardcoded storefront wallet mock; max_uses_per_customer >1 silently pinned to 1 by migration 0052's unique index
 tags: [coupons, storefront, admin, mock, bug]
-timestamp: 2026-08-09
+timestamp: 2026-11-17
 status: live
-sources: [kira-coupon-overhaul-and-date-field.md, kira-coupon-wallet-is-a-mock.md, kira-onsite-branch-holds-bugs.md]
+sources: [kira-coupon-overhaul-and-date-field.md, kira-coupon-wallet-is-a-mock.md, kira-onsite-branch-holds-bugs.md, plan 8.7 (17 Nov 2026)]
 ---
 
 # Coupons
@@ -35,6 +35,24 @@ Related trap: `isDuplicateRedemptionError` (`apps/storefront/src/lib/db.ts`) is 
 (The same bug-hunt branch flagged non-coupon items — `staff_name_uq` UNIQUE-on-name, PATCH /staff treating omitted fields as values, `fetchStaff().catch(() => {})` silently unattributing holds — those belong to the staff/holds work; see [back-office](../back-office/index.md) and [auth](../auth/index.md).)
 
 Also note the coupon usage-cap race (read-then-insert) tracked on the parked returns branch — [refunds-and-returns](refunds-and-returns.md).
+
+## The real coupon list for the website + แสดงบนเว็บ (plan 8.7, 17 Nov 2026)
+
+Server side only; the website's coupon pages stay the mock above until the AirPlus redesign (board 11).
+
+- **แสดงบนเว็บ** (`coupons.show_on_web`, migration 0104, owner's pick A): a switch on CrewEngine's
+  coupon form (โค้ดและสิทธิ์), off for every coupon until the owner turns it on; off = code only, so a
+  code handed to one person stays private (like Shopee's shop-page vouchers vs code-only ones). A
+  ลูกค้าใหม่ coupon has no switch: it lands on My coupons, never on the list. The coupon's page shows
+  แสดง / ไม่แสดง.
+- **`GET /api/coupons`** (storefront, open to everyone): switched-on, แสดงบนเว็บ coupons that can be
+  used right now — started, not ended, not used up, with a use left for the signed-in customer
+  (`listWebCouponRows` → `webCoupons` in `lib/couponCart.ts`). Ending soonest first.
+- **`GET /api/account/coupons`** (My coupons) now also sends each coupon's `name`, its `targets`
+  (brand / category / car model / product names) and `forLine`.
+- **`forLine`** — "สำหรับทุกออเดอร์ · สำหรับสินค้า DENSO · สำหรับลูกค้าใหม่" — is `couponForLine` in
+  `@l-shopee/core`, the same words CrewEngine's coupon card says.
+- Customers still use a coupon by typing its code at checkout; `/api/checkout` checks it all again.
 
 ## References
 

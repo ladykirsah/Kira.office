@@ -26,6 +26,7 @@ import {
   kindLine,
   stateLine,
   type Coupon,
+  webLine,
 } from "./couponPage";
 
 const at = (y: number, m: number, d: number, h = 0, min = 0) =>
@@ -269,6 +270,8 @@ describe("the form", () => {
       signupFrom: null,
       signupTo: null,
       validDays: null,
+      // Plan 8.7: a new coupon is code only until แสดงบนเว็บ is turned on.
+      showOnWeb: false,
     });
   });
 
@@ -309,8 +312,28 @@ describe("the form", () => {
       signupFrom: null,
       signupTo: null,
       validDays: null,
+      showOnWeb: false,
       status: "disabled",
     });
+  });
+
+  it("แสดงบนเว็บ > a new coupon is code only; on is sent; a ลูกค้าใหม่ coupon never goes on the web (plan 8.7)", () => {
+    expect(emptyForm().onWeb).toBe(false);
+    expect(createBody({ ...filled, onWeb: true }).showOnWeb).toBe(true);
+    expect(createBody({ ...filled, onWeb: true, newCustomers: true }).showOnWeb).toBe(false);
+  });
+
+  it("formOf → patchBody > แสดงบนเว็บ opens as it was saved, and an edit sends the change", () => {
+    expect(formOf(coupon()).onWeb).toBe(false);
+    const shown = formOf(coupon({ showOnWeb: true }));
+    expect(shown.onWeb).toBe(true);
+    expect(patchBody({ ...shown, onWeb: false }).showOnWeb).toBe(false);
+  });
+
+  it("webLine > แสดง or ไม่แสดง on the coupon's page; nothing for a ลูกค้าใหม่ coupon", () => {
+    expect(webLine(coupon({ showOnWeb: true }))?.th).toBe("แสดง");
+    expect(webLine(coupon())?.th).toBe("ไม่แสดง");
+    expect(webLine(coupon({ showOnWeb: true, signupFrom: 1, signupTo: 2 }))).toBeNull();
   });
 
   it("formOf > no minimum, no cap and no limit open as empty boxes", () => {

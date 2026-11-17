@@ -1,5 +1,6 @@
 import { EXPIRY_MS } from "@l-shopee/core";
-import { getDb } from "@/lib/db";
+import { airplusBankAccount } from "@/lib/bankAccount";
+import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 
 /**
@@ -8,6 +9,7 @@ import { normalizePhone } from "@/lib/format";
  *
  * Moves the order back to `pending` with a FRESH 48h window and creates the `payments` row a COD
  * order never had, so the normal slip-upload flow (SlipUpload → verifying → admin review) works.
+ * That row keeps AirPlus's bank account, which the reply sends back (plan 8.7).
  */
 const NOT_FOUND = "ไม่พบคำสั่งซื้อ กรุณาตรวจสอบเบอร์โทรและเลขที่คำสั่งซื้อ";
 
@@ -23,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     const phone = normalizePhone(typeof b.phone === "string" ? b.phone : "");
     if (!ref || !phone) return Response.json({ error: NOT_FOUND }, { status: 404 });
 
-    const db = await getDb();
+    const { DB: db, KV } = await getEnv();
     const order = await db
       .prepare(
         `SELECT o.id AS id, o.grand_total_satang AS grand, o.order_status AS orderStatus,
@@ -47,6 +49,7 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: "คำสั่งซื้อนี้เปลี่ยนวิธีชำระเงินไม่ได้" }, { status: 409 });
 
     const now = Date.now();
+    const bankAccount = await airplusBankAccount(KV);
     await db.batch([
       db
         .prepare(
@@ -55,10 +58,18 @@ export async function POST(req: Request): Promise<Response> {
         .bind(now + EXPIRY_MS, order.id),
       db
         .prepare(
-          `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status, created_at, sales_order_id)
-           VALUES (?, ?, '', ?, 'pending', ?, ?)`,
+          `INSERT INTO payments (id, method_label, promptpay_id, amount_satang, status, created_at,
+                                 sales_order_id, bank_account)
+           VALUES (?, ?, '', ?, 'pending', ?, ?, ?)`,
         )
-        .bind(crypto.randomUUID(), `AirPlus ${ref}`, order.grand, now, order.id),
+        .bind(
+          crypto.randomUUID(),
+          `AirPlus ${ref}`,
+          order.grand,
+          now,
+          order.id,
+          bankAccount ? JSON.stringify(bankAccount) : null,
+        ),
       db
         .prepare(
           `INSERT INTO order_status_history
@@ -67,7 +78,7 @@ export async function POST(req: Request): Promise<Response> {
         )
         .bind(crypto.randomUUID(), order.id, order.orderStatus, "ลูกค้าเปลี่ยนเป็นโอนเงิน", now),
     ]);
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, bankAccount });
   } catch (err) {
     console.error("POST /api/orders/change-payment failed", err);
     return Response.json({ error: "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง" }, { status: 500 });

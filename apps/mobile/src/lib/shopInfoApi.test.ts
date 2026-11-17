@@ -32,6 +32,24 @@ describe("fetchShopInfo", () => {
     expect(info.qrKey).toBeNull();
   });
 
+  it("given a bank account (plan 8.7) > then bank, name and number are read; none yet > empty", async () => {
+    const { fetchFn } = replying(() =>
+      Response.json({
+        bankName: "กสิกรไทย",
+        bankAccountName: "AirPlus",
+        bankAccountNumber: "1234567890",
+      }),
+    );
+    const info = await fetchShopInfo(fetchFn, "http://api", "tok", "airplus");
+    expect([info.bankName, info.bankAccountName, info.bankAccountNumber]).toEqual([
+      "กสิกรไทย",
+      "AirPlus",
+      "1234567890",
+    ]);
+    const none = replying(() => Response.json({ name: "AirPlus" }));
+    expect((await fetchShopInfo(none.fetchFn, "http://api", "tok", "airplus")).bankName).toBe("");
+  });
+
   it("given the server fails > then it throws, so the page offers ลองอีกครั้ง", async () => {
     const { fetchFn } = replying(() => Response.json({ error: "down" }, { status: 500 }));
     await expect(fetchShopInfo(fetchFn, "http://api", "tok", "denair")).rejects.toThrow();

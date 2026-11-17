@@ -6,7 +6,7 @@ import type {
   R2Bucket,
 } from "@cloudflare/workers-types";
 import type { SortKey } from "./browse";
-import type { HeldCouponRow } from "./couponCart";
+import type { HeldCouponRow, WebCouponRow } from "./couponCart";
 import type { CategoryRow } from "./groupBySystem";
 import { joinDescriptions, productTerms } from "./productDescription";
 
@@ -1020,9 +1020,11 @@ export async function listHeldCoupons(
     .bind(customerId)
     .first<{ joinedAt: number }>();
   if (!customer) return null;
-  const { results } = await db
-    .prepare(
-      `SELECT c.code, c.type, c.value, c.min_subtotal_satang AS minSubtotalSatang,
+  const [{ results }, names] = await Promise.all([
+    db
+      .prepare(
+        `SELECT c.id, c.code, COALESCE(NULLIF(TRIM(c.name), ''), c.code) AS name, c.type, c.value,
+              c.min_subtotal_satang AS minSubtotalSatang,
               c.max_discount_satang AS maxDiscountSatang, c.applies_to AS appliesTo, c.scope,
               c.signup_from AS signupFrom, c.signup_to AS signupTo, c.valid_days AS validDays,
               c.max_uses AS maxUses, c.max_uses_per_customer AS maxUsesPerCustomer,
@@ -1032,8 +1034,69 @@ export async function listHeldCoupons(
        FROM coupons c
        WHERE c.status = 'active' AND c.signup_from IS NOT NULL
          AND ? BETWEEN c.signup_from AND c.signup_to`,
+      )
+      .bind(customerId, customer.joinedAt)
+      .all<Omit<HeldCouponRow, "targets"> & { id: string }>(),
+    couponTargetNames(db),
+  ]);
+  return {
+    joinedAt: customer.joinedAt,
+    rows: (results ?? []).map(({ id, ...row }) => ({ ...row, targets: names.get(id) ?? [] })),
+  };
+}
+
+/**
+ * The website's coupon list (plan 8.7, owner's pick A): switched-on coupons with แสดงบนเว็บ on, not
+ * ลูกค้าใหม่ ones (those land on My coupons), with their use counts — by everyone, and by this
+ * customer (0 when nobody is signed in). webCoupons() then keeps the ones usable right now.
+ */
+export async function listWebCouponRows(
+  db: D1Database,
+  customerId: string | null,
+): Promise<WebCouponRow[]> {
+  const [{ results }, names] = await Promise.all([
+    db
+      .prepare(
+        `SELECT c.id, c.code, COALESCE(NULLIF(TRIM(c.name), ''), c.code) AS name, c.type, c.value,
+                c.min_subtotal_satang AS minSubtotalSatang, c.max_discount_satang AS maxDiscountSatang,
+                c.applies_to AS appliesTo, c.scope, c.starts_at AS startsAt, c.ends_at AS endsAt,
+                c.max_uses AS maxUses, c.max_uses_per_customer AS maxUsesPerCustomer,
+                (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS total,
+                (SELECT COUNT(*) FROM coupon_redemptions r
+                  WHERE r.coupon_id = c.id AND r.customer_id = ?) AS byCustomer
+         FROM coupons c
+         WHERE c.status = 'active' AND c.show_on_web = 1 AND c.signup_from IS NULL`,
+      )
+      .bind(customerId ?? "")
+      .all<Omit<WebCouponRow, "targets"> & { id: string }>(),
+    couponTargetNames(db),
+  ]);
+  return (results ?? []).map(({ id, ...row }) => ({ ...row, targets: names.get(id) ?? [] }));
+}
+
+/**
+ * What each switched-on coupon is for, by coupon id: the brands, categories (Thai name first), car
+ * models ("Toyota Vios") or products it names — the same names CrewEngine's coupon list shows.
+ */
+async function couponTargetNames(db: D1Database): Promise<Map<string, string[]>> {
+  const { results } = await db
+    .prepare(
+      `SELECT t.coupon_id AS couponId,
+              COALESCE(NULLIF(TRIM(b.name_th), ''), b.name, NULLIF(TRIM(pt.name_th), ''), pt.name,
+                       TRIM(COALESCE(cb.name, '') || ' ' || cm.name), p.name, t.target_id) AS name
+       FROM coupon_targets t
+       JOIN coupons c ON c.id = t.coupon_id
+       LEFT JOIN brands b ON c.scope = 'brand' AND b.id = t.target_id
+       LEFT JOIN product_types pt ON c.scope = 'category' AND pt.id = t.target_id
+       LEFT JOIN car_models cm ON c.scope = 'car_model' AND cm.id = t.target_id
+       LEFT JOIN car_brands cb ON cb.id = cm.car_brand_id
+       LEFT JOIN products p ON c.scope = 'products' AND p.id = t.target_id
+       WHERE c.status = 'active'
+       ORDER BY name`,
     )
-    .bind(customerId, customer.joinedAt)
-    .all<HeldCouponRow>();
-  return { joinedAt: customer.joinedAt, rows: results ?? [] };
+    .all<{ couponId: string; name: string }>();
+  const byCoupon = new Map<string, string[]>();
+  for (const t of results ?? [])
+    byCoupon.set(t.couponId, [...(byCoupon.get(t.couponId) ?? []), t.name]);
+  return byCoupon;
 }

@@ -99,17 +99,28 @@ export async function peekLinePending(env: Env, token: string): Promise<LineIden
   }
 }
 
-/** Read + delete a pending LINE identity by its token. Null if missing/expired. */
-export async function takeLinePending(env: Env, token: string): Promise<LineIdentity | null> {
-  const key = `line_pending:${token}`;
-  const raw = await env.KV.get(key);
-  if (!raw) return null;
-  await env.KV.delete(key);
-  try {
-    const parsed = JSON.parse(raw) as LineIdentity;
-    if (typeof parsed.lineUserId === "string" && typeof parsed.name === "string") return parsed;
-    return null;
-  } catch {
-    return null;
-  }
+/**
+ * Use up a pending LINE identity — only once its account is made. A refused try (a phone number
+ * another account has) keeps it, so the customer can type another number (plan 8.7).
+ */
+export async function dropLinePending(env: Env, token: string): Promise<void> {
+  await env.KV.delete(`line_pending:${token}`);
+}
+
+/**
+ * The reply when the phone number is already on another account (plan 8.7, 17 Nov 2026). Phone
+ * sign-in is off on the live site, so it never says "sign in with your phone": the ways forward are
+ * another number, or the shop on LINE (its link from ข้อมูลร้าน, for the redesigned page to show).
+ * An account is never joined to someone else's number without proof.
+ */
+export function takenPhoneReply(lineUrl: string | null): {
+  error: string;
+  phoneTaken: true;
+  lineUrl: string | null;
+} {
+  return {
+    error: "เบอร์นี้ใช้กับบัญชีอื่นแล้ว ใส่เบอร์อื่น หรือทักร้านทาง LINE ให้ช่วย",
+    phoneTaken: true,
+    lineUrl,
+  };
 }

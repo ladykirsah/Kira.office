@@ -1,4 +1,5 @@
 import { baht } from "./format";
+import type { BankAccount } from "./bankAccount";
 
 /**
  * Shared request/response contract for POST /api/checkout and POST /api/coupons/check —
@@ -60,6 +61,11 @@ export interface CheckoutSuccess {
   shippingSatang: number;
   /** Default PromptPay target from shop settings; null when the shop hasn't configured one. */
   promptpayId: string | null;
+  /**
+   * โอนเข้าบัญชีร้าน (plan 8.7): the account to pay into, kept with the order; null for PromptPay,
+   * COD, or before the owner has set AirPlus's bank account on ข้อมูลร้าน.
+   */
+  bankAccount: BankAccount | null;
   itemCount: number;
   createdAt: number;
   /** Coupon discount applied to this order (0 = no coupon). */

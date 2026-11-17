@@ -1,3 +1,4 @@
+import { couponForLine } from "@l-shopee/core";
 import type { Phrase } from "@l-shopee/shared/lang";
 import { formatBaht } from "./money";
 import { dayPill, rangeLabel, shortDate } from "./orderList";
@@ -46,6 +47,8 @@ export interface Coupon {
   signupFrom: number | null;
   signupTo: number | null;
   validDays: number | null;
+  /** แสดงบนเว็บ (plan 8.7): on the AirPlus website's coupon list; false = code only. */
+  showOnWeb?: boolean;
 }
 
 const onShipping = (c: Pick<Coupon, "appliesTo">) => c.appliesTo === "shipping";
@@ -138,36 +141,16 @@ export function capLine(c: Coupon): Phrase | null {
   return { th: `สูงสุด ${cap}`, en: `Up to ${cap}` };
 }
 
-/** What a ใช้กับ rule covers, said after สำหรับ: "สินค้า DENSO, Sanden"; null for every product. */
-function coverage(c: Coupon): Phrase | null {
-  const names = c.targets.map((t) => t.name).join(", ");
-  if (c.scope === "products" && c.targets.length > 0) {
-    const n = c.targets.length;
-    return { th: `สินค้าที่เลือก ${n} ชิ้น`, en: `${n} picked products` };
-  }
-  if (!names) return null;
-  if (c.scope === "brand") return { th: `สินค้า ${names}`, en: `${names} products` };
-  if (c.scope === "category") return { th: `สินค้าหมวด ${names}`, en: `${names} products` };
-  if (c.scope === "car_model") {
-    return { th: `สินค้า ${names} เท่านั้น`, en: `${names} products only` };
-  }
-  return null;
-}
-
 /**
  * The card's short rule: สำหรับทุกออเดอร์ · สำหรับสินค้า Cool Gear · สำหรับลูกค้าใหม่ (owner's words,
- * 1 Nov 2026). Not drawn: a ลูกค้าใหม่ coupon on some products says both, who first.
+ * 1 Nov 2026). The wording lives in @l-shopee/core so the AirPlus website says the same (plan 8.7).
  */
 export function forLine(c: Coupon): Phrase {
-  const what = coverage(c);
-  if (c.signupFrom != null) {
-    return what
-      ? { th: `สำหรับลูกค้าใหม่ · ${what.th}`, en: `For new customers · ${what.en}` }
-      : { th: "สำหรับลูกค้าใหม่", en: "For new customers" };
-  }
-  return what
-    ? { th: `สำหรับ${what.th}`, en: `For ${what.en}` }
-    : { th: "สำหรับทุกออเดอร์", en: "For every order" };
+  return couponForLine({
+    scope: c.scope as CouponScope,
+    names: c.targets.map((t) => t.name),
+    signupFrom: c.signupFrom,
+  });
 }
 
 /** A day on the card: "30 พ.ย.", with the Thai year when it is not this year's. */
@@ -287,6 +270,8 @@ export interface CouponForm {
   newCustomers: boolean;
   signupFrom: number | null;
   signupTo: number | null;
+  /** แสดงบนเว็บ (plan 8.7); a new coupon is code only. */
+  onWeb: boolean;
 }
 
 export function emptyForm(): CouponForm {
@@ -308,6 +293,7 @@ export function emptyForm(): CouponForm {
     newCustomers: false,
     signupFrom: null,
     signupTo: null,
+    onWeb: false,
   };
 }
 
@@ -335,6 +321,7 @@ export function formOf(c: Coupon): CouponForm {
     newCustomers: c.signupFrom != null,
     signupFrom: c.signupFrom,
     signupTo: c.signupTo,
+    onWeb: c.showOnWeb === true,
   };
 }
 
@@ -373,6 +360,8 @@ function sharedBody(form: CouponForm) {
     signupFrom: fresh ? form.signupFrom : null,
     signupTo: fresh ? form.signupTo : null,
     validDays: fresh ? NEW_CUSTOMER_DAYS : null,
+    // A ลูกค้าใหม่ coupon lands on My coupons, never on the website's list.
+    showOnWeb: !fresh && form.onWeb,
   };
 }
 
@@ -433,4 +422,13 @@ export function cleanCount(text: string): string {
 /** Codes are capitals with no spaces (the server keeps them so). */
 export function cleanCode(text: string): string {
   return text.replace(/\s/g, "").toUpperCase();
+}
+
+/**
+ * แสดงบนเว็บ on the coupon's page (plan 8.7): on the AirPlus website's coupon list, or code only. A
+ * ลูกค้าใหม่ coupon is never on that list (it lands on each new customer's My coupons), so no line.
+ */
+export function webLine(c: Coupon): Phrase | null {
+  if (c.signupFrom != null) return null;
+  return c.showOnWeb ? { th: "แสดง", en: "Shown" } : { th: "ไม่แสดง", en: "Not shown" };
 }

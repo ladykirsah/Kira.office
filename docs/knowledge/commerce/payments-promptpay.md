@@ -47,6 +47,20 @@ Why it is this way: the owner works OFF-SITE with staff at the counter; one offi
 - **Expo การชำระเงิน (`apps/mobile`, route `/payment`, 2026-10-30):** today card (total + per account), list by day, keypad amount sheet → account choice → QR with the account's name → รับเงินแล้ว (banknote-with-tick icon) → เสร็จ; ล้าง sheet (count, total, per account); ตรวจสลิป per row only while slip checking is switched on. Logic in `apps/mobile/src/lib/paymentPage.ts`, calls in `paymentApi.ts`.
 - Guardrail: the OWNER enters any merchant/gateway credentials themselves, never the assistant.
 
+## Bank account for โอนเข้าบัญชีร้าน (plan 8.7, 17 Nov 2026)
+
+- Set on ข้อมูลร้าน → บัญชีธนาคาร (ธนาคาร, ชื่อบัญชี, เลขที่บัญชี): shop-info fields `bankName`,
+  `bankAccountName`, `bankAccountNumber` (`SHOP_TEXT_FIELDS`), one account per shop. They are kept
+  **apart from `paymentMethods`** (PromptPay only), so ทำบิล, Scan, การชำระเงิน and checkout never make a
+  QR from a bank account.
+- AirPlus's account (never Den Air's) goes with each transfer order: checkout (`paymentMethod:
+  "transfer"`) and the COD→transfer switch (`/api/orders/change-payment`) copy it onto the order's
+  `payments.bank_account` (JSON, migration 0104) and send it back as `bankAccount`; order tracking
+  (`/api/orders/lookup`) sends the kept copy. Changing banks later never changes an old order.
+  Helpers: `apps/storefront/src/lib/bankAccount.ts`.
+- `bankAccount` is null until the owner sets a number. The order-done page still says the shop will
+  send the details until the payment pages are redrawn (board 6).
+
 ## Current state (2026-08-09)
 
 - Shared QR system live on both apps; POS payment trail live.

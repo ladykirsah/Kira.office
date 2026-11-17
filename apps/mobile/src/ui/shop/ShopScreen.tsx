@@ -384,6 +384,20 @@ function ViewBody(props: {
       />
     </Block>
   );
+  // Plan 8.7: the account customers transfer into; AirPlus's goes with each โอนเข้าบัญชีร้าน order.
+  const bank = (
+    <Block title={t({ th: "บัญชีธนาคาร", en: "Bank account" })}>
+      <ValueLine label={t({ th: "ธนาคาร", en: "Bank" })} value={info.bankName} />
+      <ValueLine label={t({ th: "ชื่อบัญชี", en: "Account name" })} value={info.bankAccountName} />
+      <CopyLine
+        label={t({ th: "เลขที่บัญชี", en: "Account number" })}
+        what={{ th: "เลขที่บัญชี", en: "account number" }}
+        value={info.bankAccountNumber}
+        onCopied={props.onCopied}
+        last
+      />
+    </Block>
+  );
   const billSetup = (
     <Block title={t({ th: "ตั้งค่าบิล", en: "Bill setup" })}>
       <ValueLine label={t({ th: "หัวข้อใต้ QR", en: "Under the QR" })} value={bill("qrHeadline")} />
@@ -421,6 +435,7 @@ function ViewBody(props: {
         <>
           {contact}
           {pay}
+          {bank}
         </>,
         <>
           {billSetup}
@@ -516,6 +531,13 @@ function EditBody(props: {
       {box({ th: "Linktree", en: "Linktree" }, "linktreeUrl", true)}
     </Block>
   );
+  const bank = (
+    <Block title={t({ th: "บัญชีธนาคาร", en: "Bank account" })}>
+      {box({ th: "ธนาคาร", en: "Bank" }, "bankName")}
+      {box({ th: "ชื่อบัญชี", en: "Account name" }, "bankAccountName")}
+      {box({ th: "เลขที่บัญชี", en: "Account number" }, "bankAccountNumber", true, "number-pad")}
+    </Block>
+  );
   const billSetup = (
     <Block title={t({ th: "ตั้งค่าบิล", en: "Bill setup" })}>
       {both({ th: "หัวข้อใต้ QR", en: "Under the QR" }, "qrHeadline")}
@@ -543,6 +565,7 @@ function EditBody(props: {
         <>
           {names}
           {contact}
+          {bank}
         </>,
         <>
           {logo}
