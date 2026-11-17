@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { percentText, totalBp } from "@/lib/shopeeFees";
-import { titleIn, type ShopProfile } from "@/lib/shopInfoPage";
+import { cardTitle, shopCards, titleIn, type ShopProfile } from "@/lib/shopInfoPage";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { useWide } from "../desk/useWide";
@@ -14,7 +14,7 @@ import { SPACE, TYPE } from "../theme";
 import { Block, ShopLogo } from "./parts";
 import { ShopeeFeesSheet } from "./ShopeeFeesSheet";
 import { useShopeeFees, type ShopeeFeesState } from "./useShopeeFees";
-import { SHOP_ORDER, useShopInfo } from "./useShopInfo";
+import { useShopInfo } from "./useShopInfo";
 
 /**
  * ข้อมูลร้าน (canvas v275): no tabs on top — one card per shop, its logo, name and address in the
@@ -24,13 +24,14 @@ import { SHOP_ORDER, useShopInfo } from "./useShopInfo";
 export function ShopListScreen() {
   const { t, lang } = useLang();
   const { theme } = useTheme();
-  const shops = useShopInfo(SHOP_ORDER);
+  // Plan 10.3: the cards this shop has — Den Air its counter + AirPlus, any other shop its counter.
+  const shops = useShopInfo(["denair", "airplus"]);
   // On a computer the two shops sit side by side, one card each (DeskShop 1).
   const wide = useWide();
   const shopee = useShopeeFees();
   useScreenChrome(null, []);
 
-  if (!shops.shops) {
+  if (!shops.shops || !shops.shop) {
     // One ลองอีกครั้ง brings back the whole page: the shops and ค่าคอม Shopee under them.
     const retryAll = () => {
       void shops.load();
@@ -42,14 +43,14 @@ export function ShopListScreen() {
       <ActivityIndicator color={theme.textMuted} style={{ marginTop: SPACE.xxxl }} />
     );
   }
+  const shop = shops.shop;
   return (
     <View>
       <View style={wide ? styles.listWide : styles.list}>
-        {SHOP_ORDER.map((profile: ShopProfile) => {
+        {shopCards(shop).map((profile: ShopProfile) => {
           const info = shops.shops?.[profile];
           if (!info) return null;
-          const name =
-            titleIn(info, "name", lang) || (profile === "denair" ? "Den Air Service" : "AirPlus");
+          const name = cardTitle(info, profile, lang, shop);
           const address = titleIn(info, "address", lang);
           return (
             <Pressable

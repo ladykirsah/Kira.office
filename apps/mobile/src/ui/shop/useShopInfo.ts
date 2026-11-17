@@ -2,19 +2,20 @@ import type { Phrase } from "@l-shopee/shared/lang";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/config";
-import { fetchShopInfo } from "@/lib/shopInfoApi";
-import type { ShopInfo, ShopProfile } from "@/lib/shopInfoPage";
+import { fetchShop, fetchShopInfo } from "@/lib/shopInfoApi";
+import type { ShopIdentity, ShopInfo, ShopProfile } from "@/lib/shopInfoPage";
 import { useAuth } from "../AppProviders";
 
 const TOAST_MS = 3000;
 
-/** The shops ข้อมูลร้าน shows, in card order. */
-export const SHOP_ORDER: readonly ShopProfile[] = ["denair", "airplus"];
-
-/** Each shop's saved details, fresh every time the page comes back into view, and the page's toast. */
+/**
+ * Each card's saved details, fresh every time the page comes back into view, and the page's toast.
+ * Plan 10.3: only the cards this shop has — Den Air its counter + AirPlus, any other shop its counter.
+ */
 export function useShopInfo(profiles: readonly ShopProfile[]) {
   const auth = useAuth();
   const token = auth.status === "signed-in" ? auth.token : "";
+  const [shop, setShop] = useState<ShopIdentity | null>(null);
   const [shops, setShops] = useState<Partial<Record<ShopProfile, ShopInfo>> | null>(null);
   const [failed, setFailed] = useState(false);
   const [toast, setToastState] = useState<{ title: Phrase; detail: Phrase } | null>(null);
@@ -30,8 +31,10 @@ export function useShopInfo(profiles: readonly ShopProfile[]) {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const wanted = key.split(",") as ShopProfile[];
+      const own = await fetchShop(fetch, API_BASE, token);
+      const wanted = (key.split(",") as ShopProfile[]).filter((p) => own.profiles.includes(p));
       const read = await Promise.all(wanted.map((p) => fetchShopInfo(fetch, API_BASE, token, p)));
+      setShop(own);
       setShops(Object.fromEntries(wanted.map((p, i) => [p, read[i]])));
       setFailed(false);
     } catch {
@@ -54,5 +57,5 @@ export function useShopInfo(profiles: readonly ShopProfile[]) {
     );
   }, []);
 
-  return { token, shops, failed, load, update, toast, showToast };
+  return { token, shop, shops, failed, load, update, toast, showToast };
 }

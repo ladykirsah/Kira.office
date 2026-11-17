@@ -1,0 +1,39 @@
+{
+  // PRACTICE COPY ONLY — never deployed. Den Air plus a second practice shop ("practice2") on one
+  // local API, to prove each shop's own space (plan 10.3). Run it with:
+  //   npx wrangler dev -c wrangler.practice.jsonc --port 8788
+  // Den Air's binding uses the same database as wrangler.jsonc, so the local practice data is the
+  // same; practice2 has its own local database, made by
+  //   node scripts/new-shop.mjs --practice --id practice2 --name "ร้านทดลอง 2" \
+  //     --origin http://localhost:8082 --owner-email owner2@practice.local
+  // The second shop's app runs on http://localhost:8082 (launch config "Kira shop 2").
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kiraoffice-practice",
+  "main": "apps/api/src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "routes": [],
+  "durable_objects": { "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
+  "vars": {
+    "PRACTICE_COPY": "0",
+    "SHOPS": "[{\"id\":\"practice2\",\"name\":\"ร้านทดลอง 2\",\"db\":\"DB_PRACTICE2\",\"origins\":[\"http://localhost:8082\"],\"ownerEmails\":\"owner2@practice.local\"}]",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kira-office",
+      "database_id": "2e88a362-ffd7-4255-b178-e511d475f687",
+      "migrations_dir": "packages/db/migrations",
+    },
+    {
+      "binding": "DB_PRACTICE2",
+      "database_name": "kira-shop-practice2",
+      "database_id": "local-kira-shop-practice2",
+      "migrations_dir": "packages/db/migrations",
+    },
+  ],
+  "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
+}

@@ -1,5 +1,5 @@
 import { failure, sendJson, session } from "./scanApi";
-import type { ShopInfo, ShopProfile, TextDraft } from "./shopInfoPage";
+import type { ShopIdentity, ShopInfo, ShopProfile, TextDraft } from "./shopInfoPage";
 import type { FetchFn } from "./signIn";
 
 /** ข้อมูลร้าน's calls — the same shop-info endpoints the web back office's Shop page uses. */
@@ -83,4 +83,31 @@ export async function uploadShopImage(
   if (res.status === 400) return "wrong-picture";
   if (!res.ok) throw await failure(res, "Picture was not saved");
   return ((await res.json()) as { key: string }).key;
+}
+
+/** Den Air with both its cards — what a server from before plan 10.3 means. */
+const DEN_AIR: ShopIdentity = {
+  id: "denair",
+  name: "Den Air Service",
+  profiles: ["denair", "airplus"],
+};
+
+/** Which shop the app is open on and its ข้อมูลร้าน cards (plan 10.3). */
+export async function fetchShop(
+  fetchFn: FetchFn,
+  base: string,
+  token: string,
+): Promise<ShopIdentity> {
+  const res = await fetchFn(`${base}/shop`, { headers: session(token) });
+  // Only for the minutes a new app could meet the server before it learned about shops.
+  if (res.status === 404) return DEN_AIR;
+  if (!res.ok) throw await failure(res, "Shop failed to load");
+  const body = (await res.json()) as { id?: string; name?: string; profiles?: string[] };
+  return {
+    id: body.id ?? "",
+    name: body.name ?? "",
+    profiles: (body.profiles ?? []).filter(
+      (p): p is ShopProfile => p === "denair" || p === "airplus",
+    ),
+  };
 }

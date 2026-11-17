@@ -5,7 +5,7 @@ description: TDD-first per AGENTS.md, the real CI gates (lint = prettier + eslin
 tags: [engineering, tdd, ci, lint, testing, verification]
 timestamp: 2026-11-17
 status: convention
-sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026), plan 10.1 (17 Nov 2026), plan 10.2 (17 Nov 2026)]
+sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026), plan 10.1 (17 Nov 2026), plan 10.2 (17 Nov 2026), plan 10.3 (17 Nov 2026)]
 ---
 
 # Engineering rules — TDD, gates, and verification honesty
@@ -21,7 +21,7 @@ Repo-specific critical paths from `AGENTS.md`:
 - Money is critical-path; store both inputs AND outputs of financial calculations so historical records never change when fee/tax rules change later.
 - Offline-first POS sales must be idempotent on sync — never lose or double-count a sale or stock movement.
 - Test runner is **Vitest** (`npm test` = `vitest run`).
-- **Tests written in the same pass as the code prove nothing until they have failed.** Run the red first. If the code already exists, break each rule on purpose (one at a time, then restore) and watch a test fail for each — plan 10.1's `repairJobs.ts` was written before its tests ran, and five deliberate breaks were what showed the tests were real (17 Nov 2026).
+- **Tests written in the same pass as the code prove nothing until they have failed.** Run the red first. If the code already exists, break each rule on purpose (one at a time, then restore) and watch a test fail for each — plan 10.1's `repairJobs.ts` was written before its tests ran, and five deliberate breaks were what showed the tests were real (17 Nov 2026). **The break must be the exact thing the test forbids:** plan 10.3's first break of the shop guard changed a line the guard doesn't watch, so it proved nothing; the guard was tightened to list the only allowed uses, and a real forbidden use was what turned it red (17 Nov 2026).
 - API tests that import `apps/api/src/index.ts` need `vi.mock("cloudflare:workers", …)` (copy it from `onsiteBill.test.ts`), or the file fails to load.
 
 ## The real CI gates — run lint before push
@@ -57,6 +57,15 @@ Migration 0060 lesson: the first draft added `name_th`/`name_en` to only SOME ta
 The accountant's CSV (plan 10.2) opens in Excel only with a byte-order mark first, or Thai turns to
 junk. Quote text that can hold a comma or a quote (a company's name always); leave short fixed words
 alone — the first try quoted the branch label too. Test with a name that has a comma in it (17 Nov 2026).
+
+## Every request works in its own shop (plan 10.3)
+
+`worker.fetch` swaps `env` for the request's shop at the very top (`shopEnv`); after that, only
+`env` — never `workerEnv` — and the stock writer only through `this.shop` / `ledgerOf(env)`. A new
+route needs nothing special; a new nightly job goes inside `nightlyJobs`. `shopGuard.test.ts` fails
+the build otherwise. Before adding a local name inside the 2,000-line `fetch`, grep it: plan 10.3's
+`ownProfile` clashed with an existing function of the same name (17 Nov 2026). Details:
+[shop-space](../platform/shop-space.md).
 
 ## The Worker's main file exports only functions, classes and objects
 

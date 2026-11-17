@@ -3,11 +3,13 @@ import {
   accountLine,
   accountProblems,
   blankDraft,
+  cardTitle,
   changedFields,
   copiedToast,
   draftOf,
   removeAccount,
   saveAccount,
+  shopCards,
   shownIn,
   taxIdShown,
   taxProblems,
@@ -221,5 +223,32 @@ describe("taxProblems (lines under the ภาษี boxes before บันทึ
       th: "รหัสสาขา 5 หลัก เช่น 00001 · ว่างไว้ = สำนักงานใหญ่",
       en: "Branch is 5 digits, e.g. 00001 · empty = head office",
     });
+  });
+});
+
+// Plan 10.3: each shop's own space. Den Air has its counter + the AirPlus website; any other shop
+// only its counter — ข้อมูลร้าน shows the cards the shop has, named by the shop when no name is saved.
+describe("shopCards / cardTitle (ข้อมูลร้าน for each shop)", () => {
+  const denAir = {
+    id: "denair",
+    name: "Den Air Service",
+    profiles: ["denair", "airplus"] as const,
+  };
+  const other = { id: "coolair", name: "ร้านคูลแอร์", profiles: ["denair"] as const };
+
+  it("given Den Air > then both cards in their order; another shop > then its counter only", () => {
+    expect(shopCards(denAir)).toEqual(["denair", "airplus"]);
+    expect(shopCards(other)).toEqual(["denair"]);
+  });
+
+  it("given a saved name > then the saved name", () => {
+    expect(cardTitle(info(), "denair", "th", other)).toBe("Den Air Service (Surin)");
+  });
+
+  it("given no saved name > then the counter is named by its shop, the website AirPlus", () => {
+    const blank = info({ name: "", nameEn: "" });
+    expect(cardTitle(blank, "denair", "th", other)).toBe("ร้านคูลแอร์");
+    expect(cardTitle(blank, "denair", "th", denAir)).toBe("Den Air Service");
+    expect(cardTitle(blank, "airplus", "th", denAir)).toBe("AirPlus");
   });
 });

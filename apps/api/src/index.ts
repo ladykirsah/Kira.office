@@ -111,6 +111,13 @@ import {
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
+  /**
+   * Plan 10.3: every shop but Den Air, as a JSON list of {id, name, db, origins, ownerEmails} — see
+   * shops.ts. Each one's `db` names its own D1 binding. Unset = Den Air alone, as before.
+   */
+  SHOPS?: string;
+  /** The shop this request (or this stock writer) works for; set by `shopEnv`, never by config. */
+  SHOP?: Shop;
   STOCK_LEDGER: DurableObjectNamespace<StockLedger>;
   IMAGES: R2Bucket;
   /** Optional private bucket for daily DB backups (Phase 6). Falls back to IMAGES when unset. */
@@ -221,6 +228,7 @@ import {
   type JobResult,
   type RepairJobAction,
 } from "./repairJobs";
+import { DEN_AIR, readShops, shopEnv, shopForLedger, shopForOrigin, type Shop } from "./shops";
 import {
   creditNoteStatements,
   getTaxDocument,
@@ -338,6 +346,11 @@ export function buildCorsHeaders(
     };
   }
   return { ...shared, "access-control-allow-origin": "*" };
+}
+
+/** This request's shop's stock writer (plan 10.3). Den Air's keeps its old name, "default". */
+function ledgerOf(env: Env) {
+  return env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName((env.SHOP ?? DEN_AIR).ledger));
 }
 
 /** Per-request response headers (set at the top of fetch()). */
@@ -1226,6 +1239,24 @@ export async function applyOnlineSaleToDb(
  * one at a time, so oversell races can't occur. See docs/CLOUDFLARE_ARCHITECTURE.md.
  */
 export class StockLedger extends DurableObject<Env> {
+  private shopCache: Env | null = null;
+
+  /**
+   * The shop this stock writer works for (plan 10.3), from the name it was opened with: Den Air's
+   * is "default" (the AirPlus website calls it by that name), any other shop's "shop:<id>". Its
+   * database and settings are that shop's, whatever else the Worker is connected to.
+   */
+  private get shop(): Env {
+    if (!this.shopCache) {
+      const name = this.ctx.id?.name;
+      const shop = shopForLedger(readShops(this.env.SHOPS), name);
+      const env = shop && shopEnv(this.env, shop);
+      if (!env) throw new Error(`stock writer "${name}" belongs to no connected shop`);
+      this.shopCache = env;
+    }
+    return this.shopCache;
+  }
+
   // Every stock mutation is a read-then-write over D1 (SUM the ledger, then INSERT). The runtime's
   // automatic input gate only serializes DO *storage*, NOT env.DB (D1), so two concurrent RPCs could
   // otherwise interleave their reads and each write against the same stale sum — an oversell race.
@@ -1234,7 +1265,7 @@ export class StockLedger extends DurableObject<Env> {
   // so an availability read can't slip between a mutation's own read and write.
   async applySync(sales: SyncSale[]): Promise<SyncResult> {
     const vatOn = await this.counterVatOn();
-    return this.ctx.blockConcurrencyWhile(() => applySyncToDb(this.env.DB, sales, { vatOn }));
+    return this.ctx.blockConcurrencyWhile(() => applySyncToDb(this.shop.DB, sales, { vatOn }));
   }
 
   /**
@@ -1243,7 +1274,7 @@ export class StockLedger extends DurableObject<Env> {
    */
   private async counterVatOn(): Promise<boolean> {
     try {
-      return vatBillingOn(await this.env.KV.get(shopKey("denair", "vatBilling")));
+      return vatBillingOn(await this.shop.KV.get(shopKey("denair", "vatBilling")));
     } catch {
       return true;
     }
@@ -1251,21 +1282,21 @@ export class StockLedger extends DurableObject<Env> {
 
   /** AirPlus storefront checkout calls this via a cross-Worker DO binding (script_name). */
   async applyOnlineSale(orderId: string, lines: OnlineSaleLine[]): Promise<OnlineSaleApplyResult> {
-    return this.ctx.blockConcurrencyWhile(() => applyOnlineSaleToDb(this.env.DB, orderId, lines));
+    return this.ctx.blockConcurrencyWhile(() => applyOnlineSaleToDb(this.shop.DB, orderId, lines));
   }
 
   async applyAdjustment(adj: StockAdjustment): Promise<AdjustmentResult> {
-    return this.ctx.blockConcurrencyWhile(() => applyAdjustmentToDb(this.env.DB, adj));
+    return this.ctx.blockConcurrencyWhile(() => applyAdjustmentToDb(this.shop.DB, adj));
   }
 
   /** Scan here › On hold — move stock between sellable and the hold bucket. */
   async applyHold(lines: HoldLine[]): Promise<HoldLineResult[]> {
-    return this.ctx.blockConcurrencyWhile(() => applyHoldToDb(this.env.DB, lines));
+    return this.ctx.blockConcurrencyWhile(() => applyHoldToDb(this.shop.DB, lines));
   }
 
   /** งานซ่อม — every job write, one at a time with every other stock change (plan 10.1). */
   async repairJob(action: RepairJobAction, userId: string | null): Promise<JobResult> {
-    const db = this.env.DB;
+    const db = this.shop.DB;
     const vatOn = await this.counterVatOn();
     return this.ctx.blockConcurrencyWhile(() =>
       runRepairJobAction(db, action, { userId, now: Date.now() }, (lines) =>
@@ -1278,7 +1309,7 @@ export class StockLedger extends DurableObject<Env> {
     saleId: string,
     who: { userId?: string | null; reason?: string | null } = {},
   ): Promise<RefundResult> {
-    return this.ctx.blockConcurrencyWhile(() => refundSaleToDb(this.env.DB, saleId, who));
+    return this.ctx.blockConcurrencyWhile(() => refundSaleToDb(this.shop.DB, saleId, who));
   }
 
   /** VAT billing — tax invoices, cancels and the company book, one number at a time (plan 10.2). */
@@ -1286,9 +1317,9 @@ export class StockLedger extends DurableObject<Env> {
     action: TaxAction,
     userId: string | null,
   ): Promise<Awaited<ReturnType<typeof runTaxAction>>> {
-    const shop = await readShopTax(this.env.KV);
+    const shop = await readShopTax(this.shop.KV);
     return this.ctx.blockConcurrencyWhile(() =>
-      runTaxAction(this.env.DB, action, shop, { userId, now: Date.now() }),
+      runTaxAction(this.shop.DB, action, shop, { userId, now: Date.now() }),
     );
   }
 
@@ -1299,7 +1330,7 @@ export class StockLedger extends DurableObject<Env> {
     actorEmail: string | null,
   ): Promise<CancelOrderResult> {
     return this.ctx.blockConcurrencyWhile(() =>
-      cancelOrderInDb(this.env.DB, orderId, input, actorEmail),
+      cancelOrderInDb(this.shop.DB, orderId, input, actorEmail),
     );
   }
 }
@@ -3017,7 +3048,8 @@ export async function runDailyBackup(env: Env, atMs: number): Promise<string> {
     const { results } = await env.DB.prepare(`SELECT * FROM ${table}`).all();
     dump[table] = results ?? [];
   }
-  const key = `backups/${new Date(atMs).toISOString().slice(0, 10)}.json`;
+  // Plan 10.3: each shop's backup sits under its own prefix; Den Air's where it always was.
+  const key = `${(env.SHOP ?? DEN_AIR).prefix}backups/${new Date(atMs).toISOString().slice(0, 10)}.json`;
   await backupR2Bucket(env).put(key, JSON.stringify({ exportedAt: atMs, tables: dump }));
   return key;
 }
@@ -7695,8 +7727,8 @@ export async function deleteAffiliateItem(
  * and Queues/Cron. See docs/CLOUDFLARE_ARCHITECTURE.md.
  */
 const worker = {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-    responseHeaders = buildCorsHeaders(request, env.ALLOWED_CORS_ORIGINS);
+  async fetch(request: Request, workerEnv: Env, _ctx: ExecutionContext): Promise<Response> {
+    responseHeaders = buildCorsHeaders(request, workerEnv.ALLOWED_CORS_ORIGINS);
     setReplyHeaders(responseHeaders);
     const url = new URL(request.url);
 
@@ -7704,6 +7736,14 @@ const worker = {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: responseHeaders });
     }
+
+    // Plan 10.3: the app's address says which shop this is, and from here on `env` is that shop's
+    // — its database, its settings, its owner. Den Air for any address no other shop claims.
+    const env = shopEnv(
+      workerEnv,
+      shopForOrigin(readShops(workerEnv.SHOPS), request.headers.get("Origin")),
+    );
+    if (!env) return json({ error: "shop_not_available" }, 503);
 
     // Health + image serving stay public; everything else passes the Access gate (a no-op until
     // ACCESS_TEAM_DOMAIN + ACCESS_AUD are set). Mutations are audit-logged with the Access user.
@@ -8402,7 +8442,7 @@ const worker = {
       }
       const action = repairJobActionFor(request.method, url.pathname, body);
       if (!action) return json({ ok: false, error: "not_found" }, 404);
-      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const stub = ledgerOf(env);
       const result = await stub.repairJob(action, viewerStaff?.userId ?? null);
       return json(result, result.ok ? 200 : result.status);
     }
@@ -8633,9 +8673,19 @@ const worker = {
     // are fully separate — own name, address, logo, LINE and bank account — so every route below is
     // scoped to a validated profile. An unknown profile 404s rather than defaulting, because
     // guessing would write one shop's settings into the other's namespace.
+    // Plan 10.3: which shop this is and its ข้อมูลร้าน cards — Den Air its counter + AirPlus, any
+    // other shop its counter only. A card the shop doesn't have 404s like an unknown one.
+    const thisShop = env.SHOP ?? DEN_AIR;
+    if (url.pathname === "/shop" && request.method === "GET") {
+      return json({ id: thisShop.id, name: thisShop.name, profiles: thisShop.profiles });
+    }
+    const shopCard = (raw: string | undefined) => {
+      const profile = parseShopProfile(raw);
+      return profile && thisShop.profiles.includes(profile) ? profile : null;
+    };
     const shopImg = url.pathname.match(/^\/shop-info\/([^/]+)\/(logo|qr)$/);
     if (shopImg && request.method === "POST") {
-      const profile = parseShopProfile(shopImg[1]);
+      const profile = shopCard(shopImg[1]);
       if (!profile) return json({ error: "unknown shop profile" }, 404);
       const slot = shopImg[2] as "logo" | "qr";
       const bytes = await request.arrayBuffer();
@@ -8655,7 +8705,7 @@ const worker = {
     }
     const shopInfo = url.pathname.match(/^\/shop-info\/([^/]+)$/);
     if (shopInfo && (request.method === "GET" || request.method === "PUT")) {
-      const profile = parseShopProfile(shopInfo[1]);
+      const profile = shopCard(shopInfo[1]);
       if (!profile) return json({ error: "unknown shop profile" }, 404);
       if (request.method === "GET") {
         // Every read is wrapped: this fans out to SHOP_TEXT_FIELDS.length + 2 concurrent KV gets
@@ -8725,7 +8775,7 @@ const worker = {
           400,
         );
       }
-      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const stub = ledgerOf(env);
       return json(
         await stub.applyAdjustment({
           productVariantId: body.productVariantId,
@@ -8754,7 +8804,7 @@ const worker = {
           400,
         );
       }
-      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const stub = ledgerOf(env);
       return json({ results: await stub.applyHold(lines) });
     }
 
@@ -8764,7 +8814,7 @@ const worker = {
       const body = await readJson<{ reason?: unknown }>(request);
       const reason =
         typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
-      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const stub = ledgerOf(env);
       return json(
         await stub.refundSale(refundMatch[1]!, { userId: viewerStaff?.userId ?? null, reason }),
       );
@@ -8807,7 +8857,7 @@ const worker = {
         : url.pathname === "/tax-buyers"
           ? { kind: "saveBuyer", input: body }
           : { kind: "issue", input: body };
-      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const stub = ledgerOf(env);
       const result = await stub.taxDocument(action, viewerStaff?.userId ?? null);
       return json(result, result.ok ? 200 : result.status);
     }
@@ -9653,7 +9703,7 @@ const worker = {
       if (!viewerStaff || !canCancelOrderRole(viewerStaff.role))
         return json({ error: "owner or admin only" }, 403);
       const body = await readJson<{ reason?: string; note?: string }>(request);
-      const ledger = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const ledger = ledgerOf(env);
       const out = await ledger.cancelOrder(
         orderCancel[1]!,
         { reason: body?.reason ?? "", note: body?.note ?? null },
@@ -10156,7 +10206,7 @@ const worker = {
     if (url.pathname === "/sync" && request.method === "POST") {
       const body = await readJson<{ sales?: SyncSale[] }>(request);
       if (!body) return json({ error: "invalid JSON body" }, 400);
-      const ledger = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const ledger = ledgerOf(env);
       return json(await ledger.applySync(body.sales ?? []));
     }
 
@@ -10167,21 +10217,46 @@ const worker = {
   // hooks in here once SHOPEE_* creds are configured (gated on managed-seller API eligibility).
   async scheduled(
     controller: ScheduledController,
-    env: Env,
+    workerEnv: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    const key = await runDailyBackup(env, controller.scheduledTime);
-    console.log(`backup: wrote ${key}`);
-
-    const expired = await expireUnpaidOrders(env.DB, controller.scheduledTime);
-    if (expired > 0) console.log(`expired ${expired} unpaid orders`);
-
-    // Wage slips are kept three months and no longer (owner, 2026-08-04). The payslip records
-    // themselves are never touched — only the images hanging off them.
-    const slips = await purgeExpiredSalarySlips(env.DB, env.IMAGES, controller.scheduledTime);
-    if (slips > 0) console.log(`purged ${slips} wage slips past their three months`);
+    // Plan 10.3: every shop's nightly jobs, each in its own space. One shop failing doesn't stop
+    // the others; the run still ends failed so it shows in the logs.
+    const failed: string[] = [];
+    for (const shop of readShops(workerEnv.SHOPS)) {
+      const env = shopEnv(workerEnv, shop);
+      if (!env) {
+        console.error(`[cron] ${shop.id}: its database is not connected; skipped`);
+        failed.push(shop.id);
+        continue;
+      }
+      try {
+        await nightlyJobs(env, shop, controller.scheduledTime);
+      } catch (err) {
+        console.error(`[cron] ${shop.id} failed:`, err);
+        failed.push(shop.id);
+      }
+    }
+    if (failed.length > 0) throw new Error(`nightly jobs failed for: ${failed.join(", ")}`);
   },
 } satisfies ExportedHandler<Env>;
+
+/** One shop's nightly jobs (plan 10.3: run for every shop). */
+async function nightlyJobs(env: Env, shop: Shop, at: number): Promise<void> {
+  const key = await runDailyBackup(env, at);
+  console.log(`[${shop.id}] backup: wrote ${key}`);
+
+  // Unpaid AirPlus orders expire — only a shop with the AirPlus website has them.
+  if (shop.profiles.includes("airplus")) {
+    const expired = await expireUnpaidOrders(env.DB, at);
+    if (expired > 0) console.log(`[${shop.id}] expired ${expired} unpaid orders`);
+  }
+
+  // Wage slips are kept three months and no longer (owner, 2026-08-04). The payslip records
+  // themselves are never touched — only the images hanging off them.
+  const slips = await purgeExpiredSalarySlips(env.DB, env.IMAGES, at);
+  if (slips > 0) console.log(`[${shop.id}] purged ${slips} wage slips past their three months`);
+}
 
 /**
  * Top-level error boundary. Any error that escapes a route (a malformed body, a D1 batch failure, a

@@ -15,6 +15,7 @@ import { saveShopFields, uploadShopImage } from "@/lib/shopInfoApi";
 import {
   accountLine,
   blankDraft,
+  cardTitle,
   changedFields,
   draftOf,
   langField,
@@ -143,7 +144,8 @@ export function ShopScreen() {
     },
   );
 
-  if (!profile) {
+  // Plan 10.3: a card this shop doesn't have (another shop has no AirPlus card) is no shop here.
+  if (!profile || (shops.shop && !shops.shop.profiles.includes(profile))) {
     return (
       <Empty icon={ICON.search} title={t({ th: "ไม่มีร้านนี้", en: "No such shop" })} detail="" />
     );
@@ -185,8 +187,9 @@ export function ShopScreen() {
     }
   };
 
-  const shopName =
-    titleIn(info, "name", lang) || (profile === "denair" ? "Den Air Service" : "AirPlus");
+  const shopName = shops.shop
+    ? cardTitle(info, profile, lang, shops.shop)
+    : titleIn(info, "name", lang);
   const editLogo = (
     <PhotoChoice onChoose={(source) => void changePicture("logo", source)}>
       {(open) => (
