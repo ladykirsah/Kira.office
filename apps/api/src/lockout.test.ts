@@ -70,7 +70,7 @@ describe("account lockout by role", () => {
    * Admins and super admins were exempted because the recovery for a lock is "ask a super admin",
    * which is no recovery when the person locked out IS the super admin. That was safe only while
    * Cloudflare Access stood in front of the whole back office: nobody could reach the login form to
-   * guess at it. The owner is now making the Kira.office form the everyday door, which puts it on
+   * guess at it. The owner is now making the TeamPit form the everyday door, which puts it on
    * the open internet — and an account that can never be locked, behind a SIX-DIGIT PIN, is a
    * million guesses with nothing counting them.
    *

@@ -45,7 +45,7 @@ The rule: **what a person reads translates; what a machine matches does not.**
 | The POS bill and quotation | they have their own switch, `billLang`, chosen per document — that language belongs to the customer holding the bill, not to whoever is at the till |
 | `DELETE` in the delete confirmation | the code compares that exact word; only the instruction around it translates |
 | Readiness filter values | they identify a row's state; if they moved with the language a set filter would stop matching |
-| AirPlus · Shopee · Kira.office · Den Air Service | names, not words. Only the verb in front changes: วางขายบน AirPlus |
+| AirPlus · Shopee · TeamPit · Den Air Service | names, not words. Only the verb in front changes: วางขายบน AirPlus |
 | The language button's own labels | a button offering Thai says so in Thai, as the English side says "Switch to English" in English |
 
 ## The finder was lying, and here is how it was caught

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Recovery: set a staff member's Kira.office password directly in D1.
+ * Recovery: set a staff member's TeamPit password directly in D1.
  *
  * For the case a super admin cannot use the normal "set a new password" screen because they are
  * the one locked out. Two situations reach here:
@@ -129,9 +129,13 @@ if (printOnly) {
   );
   console.log("\n  no rows           -> the account was never created in production");
   console.log("  iterations 210000 -> exists, but can never be verified on Workers");
-  console.log("\n===== 2. THE FIX — paste into Cloudflare dashboard → D1 → kira-office → Console =====\n");
+  console.log(
+    "\n===== 2. THE FIX — paste into Cloudflare dashboard → D1 → kira-office → Console =====\n",
+  );
   console.log(sql);
-  console.log("\n===== then sign in at admin.airplusauto.com with the password you just typed =====\n");
+  console.log(
+    "\n===== then sign in at admin.airplusauto.com with the password you just typed =====\n",
+  );
   process.exit(0);
 }
 

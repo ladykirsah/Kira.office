@@ -53,7 +53,7 @@ logo reads "DEN"; hiding / renaming them comes with the design stage.
 
 `node scripts/new-shop.mjs --id … --name … --origin … --owner-email …` — `--practice` runs every
 step on the local copy (`wrangler.practice.jsonc`); without it the steps are only printed, because
-each touches Cloudflare and runs only with the owner's yes: `wrangler d1 create kira-shop-<id>`, add
+each touches Cloudflare and runs only with the owner's yes: `wrangler d1 create teampit-shop-<id>`, add
 the binding + `SHOPS` entry to `wrangler.jsonc`, apply migrations (standard lists come with them),
 the owner account (email + a temporary password, shown once; they add their PIN), the shop's name
 on ข้อมูลร้าน, the app's web address (DNS — ask the owner first), deploy.
@@ -61,7 +61,7 @@ on ข้อมูลร้าน, the app's web address (DNS — ask the owner 
 ## Practice copy
 
 `wrangler.practice.jsonc` = Den Air (same local data) + `practice2` (`DB_PRACTICE2`, app on
-http://localhost:8082). Launch configs "api (2 shops)" and "Kira shop 2".
+http://localhost:8082). Launch configs "api (2 shops)" and "TeamPit shop 2".
 
 ## Not in 10.3
 

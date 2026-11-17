@@ -1,6 +1,6 @@
 ---
 name: kira-prod-migration
-description: Apply a Kira.office D1 migration (packages/db/migrations/NNNN_*.sql) to the live database safely, before the PR merges. Use when shipping work whose PR adds a migration, or when the owner says "Yes, apply it" about the live database. Covers asking the owner by name first, the wrangler path, the Cloudflare D1 console path through the owner's Chrome when wrangler's login has expired, restore points, one statement at a time, recording the migration, verifying, and what to say if interrupted.
+description: Apply a TeamPit D1 migration (packages/db/migrations/NNNN_*.sql) to the live database safely, before the PR merges. Use when shipping work whose PR adds a migration, or when the owner says "Yes, apply it" about the live database. Covers asking the owner by name first, the wrangler path, the Cloudflare D1 console path through the owner's Chrome when wrangler's login has expired, restore points, one statement at a time, recording the migration, verifying, and what to say if interrupted.
 ---
 
 # Applying a database change to live

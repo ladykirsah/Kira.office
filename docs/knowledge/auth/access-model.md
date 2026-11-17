@@ -5,7 +5,7 @@ description: How admin auth works end to end since the staff session replaced th
 tags: [cloudflare-access, jwt, admin, api, zero-trust]
 timestamp: 2026-08-25
 status: live
-sources: [kira-office-access-login-setup.md, kira-office-api-is-unauthenticated.md, docs/KIRA_OFFICE_ACCESS_SETUP.md, apps/api/src/index.ts, session 2026-08-25]
+sources: [kira-office-access-login-setup.md, kira-office-api-is-unauthenticated.md, docs/TEAMPIT_ACCESS_SETUP.md, apps/api/src/index.ts, session 2026-08-25]
 ---
 
 # Cloudflare Access model
@@ -15,12 +15,12 @@ sources: [kira-office-access-login-setup.md, kira-office-api-is-unauthenticated.
 There is exactly **ONE Cloudflare Access application**, and it sits on the **admin hostname**.
 
 **Since 25 Aug 2026 it is no longer what the API checks.** The gate on every non-public API route is
-`requireStaff` — a live Kira.office staff session (PIN or password), which fails CLOSED. Access
+`requireStaff` — a live TeamPit staff session (PIN or password), which fails CLOSED. Access
 still stands at the admin's edge as an outer door, but nothing in the API depends on it being
 configured, which is the precondition for taking that door off at all
 ([require-access-fail-open](require-access-fail-open.md) for what changed and why).
 
-Identity now flows: visitor → (Access email OTP, while the door is still up) → Kira.office PIN or
+Identity now flows: visitor → (Access email OTP, while the door is still up) → TeamPit PIN or
 password → `staff_sessions` row → `X-Staff-Session` header on every admin→API call → `requireStaff`.
 The admin's `apiFetch` and `/api/worker` proxy already forwarded that header on both the browser and
 server-rendered paths, so no plumbing changed.
@@ -61,7 +61,7 @@ Correct verification (~30 seconds): have the owner perform a write in the admin,
 
 - Same Access app = same AUD; a **new** app issues a different AUD and breaks every API call after login. Prefer adding hostnames to the existing app — see [access-destination-replace-trap](access-destination-replace-trap.md).
 - Gate a hostname **before** attaching it to a Worker route, never after.
-- Runbook: `docs/KIRA_OFFICE_ACCESS_SETUP.md` (verify freshness against [conventions](../conventions/index.md) docs-map before trusting).
+- Runbook: `docs/TEAMPIT_ACCESS_SETUP.md` (verify freshness against [conventions](../conventions/index.md) docs-map before trusting).
 
 ## References
 

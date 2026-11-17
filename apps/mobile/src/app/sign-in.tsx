@@ -15,7 +15,7 @@ import { API_BASE, isLocalApi } from "@/lib/config";
 import { phoneBottoms } from "@/lib/frame";
 import { returnPath } from "@/lib/oldAddresses";
 import { shortcutTarget } from "@/lib/shortcut";
-import type { Credentials } from "@/lib/signIn";
+import { fetchSignInLine, type Credentials } from "@/lib/signIn";
 import { signInMessage } from "@/lib/signInMessage";
 import {
   forgotLabel,
@@ -67,6 +67,15 @@ export default function SignIn() {
   const [tried, setTried] = useState(false);
   const [forgot, setForgot] = useState(false);
   const [error, setError] = useState<{ door: Door; text: string } | null>(null);
+  // Under TeamPit, the shop this address is for (plan 9.2, design A); nothing until it is read.
+  const [shopLine, setShopLine] = useState("");
+  useEffect(() => {
+    let live = true;
+    void fetchSignInLine(fetch, API_BASE).then((line) => live && setShopLine(line));
+    return () => {
+      live = false;
+    };
+  }, []);
   const busy = useRef(false);
   // The owner's shortcut (this computer only): /sign-in?practice=1 goes straight in, to Scan.
   const params = useLocalSearchParams();
@@ -144,10 +153,10 @@ export default function SignIn() {
           wide && styles.brandWide,
         ]}
       >
-        CrewEngine
+        TeamPit
       </Text>
       <Text style={[TYPE.subhead, styles.center, styles.sub, { color: theme.textMuted }]}>
-        Den Air Service + AirPlus
+        {shopLine}
       </Text>
     </>
   );

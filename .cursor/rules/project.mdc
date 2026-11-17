@@ -1,9 +1,9 @@
 ---
-description: Kira.office (L Shopee back office) — project rules, conventions, and handoff pointers. Always loaded.
+description: TeamPit (L Shopee back office) — project rules, conventions, and handoff pointers. Always loaded.
 alwaysApply: true
 ---
 
-# Kira.office — working rules for AI agents (Cursor & others)
+# TeamPit — working rules for AI agents (Cursor & others)
 
 Admin back-office for a **Shopee Thailand** car-A/C-parts shop (Den Air Service, Surin). Non-developer
 owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudflare** platform.

@@ -10,7 +10,7 @@ sources: [session-memory corpus, repo]
 
 # Back-office
 
-Admin-side domain knowledge for Kira.office: the product catalog, stock tracking, on-site selling, and the analytics/dashboard surfaces on top. Read the invariant files before touching their areas — most of them encode bugs that already happened once.
+Admin-side domain knowledge for TeamPit: the product catalog, stock tracking, on-site selling, and the analytics/dashboard surfaces on top. Read the invariant files before touching their areas — most of them encode bugs that already happened once.
 
 | Concept | One line |
 | --- | --- |

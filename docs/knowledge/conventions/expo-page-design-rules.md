@@ -1,7 +1,7 @@
 ---
 type: convention
 title: Designing for the owner — every rule they have set
-description: The one rulebook for drawing and building any back-office (CrewEngine) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
+description: The one rulebook for drawing and building any back-office (TeamPit) page. Every line is a correction or a choice the owner made, from the admin days (Jul–Aug 2026) through the Expo redesign and Orders (Oct 2026). Read it before the first drawing of a page and again before calling a build ready.
 tags: [conventions, expo, design-canvas, owner, mobile, layout, design-system]
 timestamp: 2026-11-17
 status: convention
@@ -32,7 +32,7 @@ again before saying a build matches.** The owner's words are quoted where they s
   4 Nov). Before calling anything "waiting for you", read their words since it was shown; an OK'd
   drawing goes straight on to the build, and "go through the flow" means build → check → ship.
 - **Plan each big step before starting it: main steps + sub-tasks, then their OK.** After the
-  Crew Engine picture *"keep getting bigger and blur"*, the owner set 4 priorities (fix bugs → VAT
+  TeamPit picture *"keep getting bigger and blur"*, the owner set 4 priorities (fix bugs → VAT
   registration info → new friendly design → new features) and *"every time we go through a step >
   we start plan main steps and sub-task"* (16 Nov). Mark the items that need their pick; build
   nothing before the OK.
@@ -244,7 +244,7 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **No greyed-out main buttons.** The red button stays tappable. If the tap can't work yet, a
   toast or an inline error says why ("ยังไม่ได้เปลี่ยนจำนวน", a red line under the empty field).
 - **The brand is its name, no picture.** I put the turbo app icon on top of เข้าใช้งาน: *"remove logo"*.
-  CrewEngine is the word alone, in Space Grotesk 600, one colour — the owner had already picked
+  TeamPit is the word alone, in Space Grotesk 600, one colour — the owner had already picked
   *"just the plain text with that font"* for it (29 Oct) (เข้าใช้งาน, 3 Nov).
 - **A product photo is always 1:1 — every drawing, phone and computer.** I drew the product page's photo
   358 × 300 and cut the top and bottom off: *"i have told you so any time that product pic is 1:1 > fix"*
@@ -335,7 +335,7 @@ again before saying a build matches.** The owner's words are quoted where they s
     when there is something to confirm. Every approved page uses the ยกเลิก pill, not an ✕.
   - A value that can't be edited is plain black text, not greyed (design guide · Forms).
 - **Neighbouring frames line up.** *"i want scan frame the same height as the below frame."*
-- **A picture is its frame — every picture, every app (CrewEngine and AirPlus).** A logo, product
+- **A picture is its frame — every picture, every app (TeamPit and AirPlus).** A logo, product
   photo, category picture, banner or slip fills its frame edge to edge: no grey frame, no gap, no small
   picture floating in a bigger box. Where the system has a real picture (car-brand logos, category
   pictures, tool photos, banners, the owner's slip), draw that one — a grey box with an icon is the
@@ -350,7 +350,7 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **A product card reads default info → extra info → price last.** Photo, name (2 lines), พร้อมส่ง, then
   extras such as ✓ ใส่ได้กับ Vigo 2012, then the price + cart. *"if the left hand is default info > extra
   info add on the bottom, not include the price"*. No product code on AirPlus customer cards: *"remove ID"*
-  → *"Remove everywhere"* (CrewEngine keeps its codes) (AirPlus, 5 Nov).
+  → *"Remove everywhere"* (TeamPit keeps its codes) (AirPlus, 5 Nov).
 - **A photo row balances its photo with its words.** The photo is as tall as the words beside it, with a
   gap between the name and the price. *"make the image height and info section balance * smaller image *
   create gap between product name and price"* (AirPlus ขายดี, 5 Nov).
@@ -460,6 +460,12 @@ again before saying a build matches.** The owner's words are quoted where they s
   the category's: *"can we have 2 places > shown as one paragraph on AirPlus"* (ตั้งค่าอะไหล่, 3 Nov).
 
 ## 5 · Words, numbers, lists, search
+
+- **The app is TeamPit, everywhere.** *"no more Kira.office and Crew engine, just TeamPit
+  everywhere"* (17 Nov). One name in both languages, lettered in Space Grotesk (design A); on the
+  sign-in page the shop's own name sits under it — Den Air "Den Air Service + AirPlus", any other
+  shop its own name, never AirPlus. `scripts/teampit-name.test.mjs` fails the build if an old name
+  comes back.
 
 - **ตัวเลือกสินค้า and กลุ่มสินค้า live on one product page, one after the other** (*"ux/ui look
   separate … draw them in the same page"*). A group only links products that stand in for each other —
@@ -760,7 +766,7 @@ again before saying a build matches.** The owner's words are quoted where they s
 - **Pages are in menu order with a status:** ✏️ designing · 👍 drawing approved (next to build) · 🛠️ on preview · ✅ done. The design
   guide comes first.
 - **A shipped page leaves the canvas.** *"remove those shipped pages on artifact"* → *"Yes, remove them"*
-  (15 Nov): the CrewEngine canvas keeps only the design guide, Colours and Artwork, plus pages still
+  (15 Nov): the TeamPit canvas keeps only the design guide, Colours and Artwork, plus pages still
   being decided. The canvas history (v392) holds every old drawing. AirPlus boards wait for their Expo
   rebuild (plan 2.5) first, because that rebuild copies them.
 - **One flow per board.** Different flows are never mixed (customer transfer, cash on delivery
@@ -820,7 +826,7 @@ again before saying a build matches.** The owner's words are quoted where they s
   design showed in it with no frame (16 Nov). It is still Chrome, not iPhone Safari: say so when a
   Safari-only thing matters. Reset to `desktop` when done. A tap-twice confirm (ลบ → แตะอีกครั้ง)
   lasts 4 s, so send both taps in one batch.
-- **Restart the preview after every change.** "Kira new version" runs Metro in CI mode, so it
+- **Restart the preview after every change.** "TeamPit app" runs Metro in CI mode, so it
   doesn't reload by itself.
 - **No simulator? Check the phone size in a phone-width frame.** This Mac has no iOS runtime since
   15 Nov (`xcrun simctl list runtimes` is empty) and store apps are dropped. In the Claude Browser

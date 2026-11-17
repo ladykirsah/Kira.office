@@ -1,4 +1,4 @@
--- AirPlus customers become visible and manageable from Kira.office. Two additions, both nullable
+-- AirPlus customers become visible and manageable from TeamPit. Two additions, both nullable
 -- and purely ADDITIVE (0041 explains why this table can never be rebuilt: incoming FKs from
 -- `addresses`, `sales_orders` and `coupon_redemptions` make D1 roll a rebuild back).
 --

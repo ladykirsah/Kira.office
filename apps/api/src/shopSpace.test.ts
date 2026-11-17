@@ -288,6 +288,21 @@ describe("two shops > settings stay in their own shop", () => {
   });
 });
 
+describe("two shops > the sign-in page names the shop (plan 9.2, design A)", () => {
+  it("given Den Air's address > then Den Air Service + AirPlus, before anyone signs in", async () => {
+    const { env } = twoShops();
+    const res = await call(env, DEN_AIR_APP, "/sign-in-shop");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ line: "Den Air Service + AirPlus" });
+  });
+
+  it("given another shop's address > then its own name, never AirPlus", async () => {
+    const { env } = twoShops();
+    const res = await call(env, SHOP2_APP, "/sign-in-shop");
+    expect(await res.json()).toEqual({ line: "ร้านทดลอง 2" });
+  });
+});
+
 describe("two shops > a shop whose database isn't connected", () => {
   it("given its address > then a plain refusal, nothing read or written", async () => {
     const { env } = twoShops();

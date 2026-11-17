@@ -1,9 +1,9 @@
 ---
 name: kira-owner-loop
-description: How the Kira.office owner works and decides. Read it first on every request in this repo. It maps the owner's short words to the ONE step they asked for (draw on the canvas, apply to preview, ship it, pause), and covers how they pick between designs, what to check before building, and how to reply. Use it when the owner sends a short instruction ("show me…", "go for C with some changes", "apply to preview", "ship it", "Yes, finish it", "drop it", "stop"), a screenshot, or a canvas selection, or whenever you are unsure what is approved.
+description: How the TeamPit owner works and decides. Read it first on every request in this repo. It maps the owner's short words to the ONE step they asked for (draw on the canvas, apply to preview, ship it, pause), and covers how they pick between designs, what to check before building, and how to reply. Use it when the owner sends a short instruction ("show me…", "go for C with some changes", "apply to preview", "ship it", "Yes, finish it", "drop it", "stop"), a screenshot, or a canvas selection, or whenever you are unsure what is approved.
 ---
 
-# Working with the Kira.office owner
+# Working with the TeamPit owner
 
 The owner is non-technical and judges by the screen: the design canvas and the preview. Every bad round so far came from a step done out of order, or from building something they didn't ask for.
 

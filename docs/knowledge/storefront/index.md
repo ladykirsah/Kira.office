@@ -10,7 +10,7 @@ sources: [docs/knowledge/storefront/]
 
 # Storefront knowledge index
 
-The AirPlus storefront (airplusauto.com) — the customer-facing shop of the Kira.office system. One line per concept; open the file before touching its area.
+The AirPlus storefront (airplusauto.com) — the customer-facing shop of the TeamPit system. One line per concept; open the file before touching its area.
 
 - [architecture](architecture.md) — own Worker on the GoGoCash account, shared D1/KV, StockLedger DO cross-bind via `script_name`, force-dynamic rendering, bundled (not R2) banner/brand images.
 - [checkout-and-addresses](checkout-and-addresses.md) — the anti-dead-end checkout thesis (guest checkout, payment-before-commit, COD equal) and the zip→ตำบล/อำเภอ/จังหวัด autofill; the checkout form still lacks the autofill.

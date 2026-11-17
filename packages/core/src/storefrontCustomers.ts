@@ -9,7 +9,7 @@
 export const CUSTOMER_CODE_PREFIX = "AP-";
 
 /**
- * The customer's public User ID — shown in Kira.office and on their own AirPlus account page, so
+ * The customer's public User ID — shown in TeamPit and on their own AirPlus account page, so
  * the two sides can refer to the same person out loud (over LINE, on the phone, on an invoice).
  *
  * Random, not sequential: a running number would tell customer #3 that they are the third customer

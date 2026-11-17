@@ -30,7 +30,7 @@ Base rule: 3 failed attempts **inside the window** → 24-hour lock (`users.fail
 **History, because the reversal is the interesting part.** PR #129 (9 Aug 2026) exempted admins and super_admins, on two supports that have both since gone:
 
 1. *"The only recovery for a lock is 'ask a super admin'"* — nobody, when the locked-out person IS the super admin. There is now **`/recover`** ([owner-access-sign-in](owner-access-sign-in.md)), which proves the owner by an emailed code and signs them back in unaided.
-2. *"Cloudflare Access already stands in front of the admin"* — so the lock was a second fence behind a locked gate. The owner has made the Kira.office form the everyday door ([access-model](access-model.md)), which puts it on the open internet and makes this lock the whole defence.
+2. *"Cloudflare Access already stands in front of the admin"* — so the lock was a second fence behind a locked gate. The owner has made the TeamPit form the everyday door ([access-model](access-model.md)), which puts it on the open internet and makes this lock the whole defence.
 
 Current behaviour, per `apps/api/src/lockout.test.ts`:
 

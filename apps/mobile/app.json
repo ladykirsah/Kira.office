@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "CrewEngine",
-    "slug": "kira-office",
-    "scheme": "kiraoffice",
+    "name": "TeamPit",
+    "slug": "teampit",
+    "scheme": "teampit",
     "version": "0.1.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "CrewEngine uses the camera to scan part barcodes.",
+          "cameraPermission": "TeamPit uses the camera to scan part barcodes.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

@@ -26,7 +26,7 @@ Owner model: each product category (`product_types`) belongs to one car system (
 
 1. **`name` is identity, not decoration.** `product_fitments.car_brand` references `car_brands.name` as free TEXT (not id), and every table has a UNIQUE index on `name` — rewriting `name` silently orphans fitments. The admin edits ONLY `name_th`/`name_en` via `PATCH /attributes/:kind/:id`.
 2. `displayNames()` in packages/core returns `en: null` when it would repeat the headline — a row named in one language shows that name ONCE (Hino renders one line; โตโยต้า/Toyota renders two).
-3. The two hardcoded label maps in apps/storefront/src/lib/labels.ts were **deleted** — add translations in Kira.office, never in code. `CAR_BRAND_LOGO` survives (asset path, not owner-editable copy).
+3. The two hardcoded label maps in apps/storefront/src/lib/labels.ts were **deleted** — add translations in TeamPit, never in code. `CAR_BRAND_LOGO` survives (asset path, not owner-editable copy).
 4. Backfill is by script, not guessing: Thai is U+0E00–U+0E7F, SQLite `GLOB '*[฀-๿]*'` decides which column an existing name belongs to, mirroring `splitLegacyName()` — keep the two in step.
 
 Origin insight worth keeping: the owner's "make the two cards the same design" request was a **DATA** gap (names outside the hardcoded maps), never a design gap — check the data before redesigning a component.

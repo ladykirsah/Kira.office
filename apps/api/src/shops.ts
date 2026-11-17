@@ -97,6 +97,15 @@ export function readShops(raw: string | undefined): Shop[] {
   return shops;
 }
 
+/**
+ * The line under TeamPit on the sign-in page (plan 9.2, design A): the shop the page is open for,
+ * by its ข้อมูลร้าน cards — Den Air "Den Air Service + AirPlus", any other shop its own name, so no
+ * other shop ever sees AirPlus.
+ */
+export function signInLine(shop: Shop): string {
+  return shop.profiles.map((p) => (p === "airplus" ? "AirPlus" : shop.name)).join(" + ");
+}
+
 /** The shop whose address the app is on; any other address, or none, is Den Air, as before. */
 export function shopForOrigin(shops: readonly Shop[], origin: string | null): Shop {
   return (origin && shops.find((s) => s.origins.includes(origin))) || DEN_AIR;

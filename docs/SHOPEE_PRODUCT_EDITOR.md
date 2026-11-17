@@ -1,6 +1,6 @@
 # Shopee Seller Centre — product editor (learning notes)
 
-Reference for redesigning the Kira.office product editor to match the Shopee
+Reference for redesigning the TeamPit product editor to match the Shopee
 `รายละเอียดสินค้า` (product details) page. Captured from the owner's screenshots.
 
 ## Shape
@@ -49,9 +49,9 @@ Reference for redesigning the Kira.office product editor to match the Shopee
 
 ### 6. อื่น ๆ — Others (not yet captured)
 
-## Gap analysis vs Kira.office today
+## Gap analysis vs TeamPit today
 
-| Shopee editor | Kira.office now | Gap |
+| Shopee editor | TeamPit now | Gap |
 |---|---|---|
 | Multiple images + cover (≤9) | single `image_key` | **need** `product_images` (ordered, cover flag) |
 | Product video | — | future / low priority |

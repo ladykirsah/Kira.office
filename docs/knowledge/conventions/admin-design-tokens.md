@@ -12,7 +12,7 @@ sources: [ui-consistency-design-system.md, kira-admin-design-consistency.md, red
 
 ## What it is
 
-The design system for the Kira.office admin UI. It is a **hard requirement** — the owner has repeatedly re-corrected ad-hoc style/size/position choices. Before adding any UI element, find the existing pattern for that role and match it exactly; when unsure, **ask** rather than guess.
+The design system for the TeamPit admin UI. It is a **hard requirement** — the owner has repeatedly re-corrected ad-hoc style/size/position choices. Before adding any UI element, find the existing pattern for that role and match it exactly; when unsure, **ask** rather than guess.
 
 The system lives in exactly two places in code, plus one doc:
 

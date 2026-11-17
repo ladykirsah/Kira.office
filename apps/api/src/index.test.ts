@@ -445,7 +445,7 @@ const AUTHED = { "X-Staff-Session": "test-token" };
  * Call the Worker as a signed-in staff member.
  *
  * Since 2026-08-25 EVERY route but `/img/*` and the login endpoints demands a live staff session —
- * the Kira.office PIN/password screen is the real lock now, not Cloudflare Access. Tests written
+ * the TeamPit PIN/password screen is the real lock now, not Cloudflare Access. Tests written
  * before that change exercise route behaviour, not authentication, so they go through here and
  * arrive as a signed-in super admin (the canned `staff_sessions` row above). A request that already
  * carries its own session header is passed through untouched, so role-specific tests keep their
@@ -1820,7 +1820,7 @@ describe("api worker routes", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
-    expect(await res.json()).toEqual({ ok: true, service: "kiraoffice-api" });
+    expect(await res.json()).toEqual({ ok: true, service: "teampit-api" });
   });
 
   it("GET /staff > given the Expo app reads it from its own origin > then the reply carries CORS", async () => {

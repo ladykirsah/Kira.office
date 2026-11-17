@@ -19,7 +19,7 @@ sources:
 ## What changed, and when
 
 Until **25 August 2026** the sentence below was the single most load-bearing fact about this API.
-It no longer is. The owner asked for the Kira.office PIN/password screen to be the everyday way in
+It no longer is. The owner asked for the TeamPit PIN/password screen to be the everyday way in
 rather than Cloudflare Access's email code, and that is only safe once the staff session can carry
 the whole weight — so the gate on every non-public route is now `requireStaff`, which fails CLOSED.
 

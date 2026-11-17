@@ -207,7 +207,7 @@ function couponCoverage(scope: CouponScope, names: readonly string[]): CouponWor
 
 /**
  * A coupon's short rule: สำหรับทุกออเดอร์ · สำหรับสินค้า Cool Gear · สำหรับลูกค้าใหม่ (owner's words,
- * 1 Nov 2026). Shared by CrewEngine's coupon card and the AirPlus website's coupon list (plan 8.7).
+ * 1 Nov 2026). Shared by TeamPit's coupon card and the AirPlus website's coupon list (plan 8.7).
  * A ลูกค้าใหม่ coupon on some products says both, who first.
  */
 export function couponForLine(c: {

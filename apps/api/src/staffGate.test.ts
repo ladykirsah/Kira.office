@@ -22,7 +22,7 @@ type Env = import("./index").Env;
  * Until now the back office was guarded at the edge by Cloudflare Access, and `requireAccess`
  * deliberately fails OPEN when `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD` are unset — so that a
  * deployment which had lost its Access configuration kept working. That is the wrong direction for
- * the owner's decision of 2026-08-25: the everyday door is to be the Kira.office PIN/password
+ * the owner's decision of 2026-08-25: the everyday door is to be the TeamPit PIN/password
  * screen, which means the staff session has to be load-bearing on its own, and a missing
  * configuration must read as "refuse", never as "let everyone in".
  *

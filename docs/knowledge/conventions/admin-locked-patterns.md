@@ -109,7 +109,7 @@ Why: the operator opens an order to DO the next thing; it must be the first, big
 
 ## Phone navigation — MobileNav (PR #80, live)
 
-Built + deployed 2026-07-28 (admin version `a24c3fcc`). Below **741px** the sidebar is replaced by `apps/admin/src/app/MobileNav.tsx`: a fixed bottom bar with the owner's four daily pages — **Scan here · Customers · Point of Sale · Payment** (that order, NO "More" tab) — plus a ☰ drawer with the full grouped menu. Off-tab pages light nothing; the bar hides on scroll down, returns on scroll up. Top bar = menu button left, centred coral "Kira.office", 🌙 right; the menu button is drawn IDENTICALLY to the theme toggle (same surface/border/radius — owner explicit) with a list glyph (dot + line ×3) on the 24-grid.
+Built + deployed 2026-07-28 (admin version `a24c3fcc`). Below **741px** the sidebar is replaced by `apps/admin/src/app/MobileNav.tsx`: a fixed bottom bar with the owner's four daily pages — **Scan here · Customers · Point of Sale · Payment** (that order, NO "More" tab) — plus a ☰ drawer with the full grouped menu. Off-tab pages light nothing; the bar hides on scroll down, returns on scroll up. Top bar = menu button left, centred coral "TeamPit", 🌙 right; the menu button is drawn IDENTICALLY to the theme toggle (same surface/border/radius — owner explicit) with a list glyph (dot + line ×3) on the 24-grid.
 
 Breakpoint math: sidebar 232px + content floor 510px = 742, so the media query is `max-width: 741px` inclusive.
 

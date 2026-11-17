@@ -228,7 +228,15 @@ import {
   type JobResult,
   type RepairJobAction,
 } from "./repairJobs";
-import { DEN_AIR, readShops, shopEnv, shopForLedger, shopForOrigin, type Shop } from "./shops";
+import {
+  DEN_AIR,
+  readShops,
+  shopEnv,
+  shopForLedger,
+  shopForOrigin,
+  signInLine,
+  type Shop,
+} from "./shops";
 import {
   creditNoteStatements,
   getTaxDocument,
@@ -7748,7 +7756,7 @@ const worker = {
     // Health + image serving stay public; everything else passes the Access gate (a no-op until
     // ACCESS_TEAM_DOMAIN + ACCESS_AUD are set). Mutations are audit-logged with the Access user.
     if (url.pathname === "/health") {
-      return json({ ok: true, service: "kiraoffice-api" });
+      return json({ ok: true, service: "teampit-api" });
     }
 
     // Friendly root, so hitting the API host directly isn't a bare 404. The admin UI is a separate
@@ -7757,9 +7765,9 @@ const worker = {
       // Derived from the request, never hardcoded: this used to point at app.homeseeker.me, a
       // hostname with no DNS record that had been a dead link for as long as it existed.
       const adminUrl = adminUrlForApiHost(url.hostname);
-      const body = `<!doctype html><meta charset="utf-8"><title>kiraoffice API</title>
+      const body = `<!doctype html><meta charset="utf-8"><title>TeamPit API</title>
 <body style="font-family:system-ui;max-width:34rem;margin:4rem auto;padding:0 1rem;color:#1f2430;line-height:1.6">
-<h1 style="color:#bf3c1d;margin-bottom:.25rem">kiraoffice API</h1>
+<h1 style="color:#bf3c1d;margin-bottom:.25rem">TeamPit API</h1>
 <p>This is the back-office <strong>API</strong> (health, products, sync…) — not the admin interface.</p>
 <p>Open the admin UI at <a href="${adminUrl}" style="color:#bf3c1d">${adminUrl}</a>.</p>
 <p style="color:#566071">API health: <a href="/health" style="color:#566071">/health</a></p>`;
@@ -7767,6 +7775,12 @@ const worker = {
         status: 200,
         headers: { ...responseHeaders, "content-type": "text/html; charset=utf-8" },
       });
+    }
+
+    // The line under TeamPit on the sign-in page (plan 9.2, design A): which shop this address is,
+    // before anyone signs in. Only the shop's own name — nothing else about it.
+    if (url.pathname === "/sign-in-shop" && request.method === "GET") {
+      return json({ line: signInLine(env.SHOP ?? DEN_AIR) });
     }
 
     // ── Staff logins ────────────────────────────────────────────────────────────────────────────
@@ -8269,7 +8283,7 @@ const worker = {
      * This used to be `requireAccess`, which reads "ACCESS_TEAM_DOMAIN / ACCESS_AUD are unset" as
      * permission to proceed — fail-OPEN, so that a deployment which lost its Access configuration
      * kept serving. That was defensible only while Cloudflare Access stood at the edge as the real
-     * lock. The owner's decision of 2026-08-25 makes the Kira.office PIN/password screen the
+     * lock. The owner's decision of 2026-08-25 makes the TeamPit PIN/password screen the
      * everyday door, so the staff session has to carry the whole weight on its own and a missing
      * configuration must read as refusal.
      *

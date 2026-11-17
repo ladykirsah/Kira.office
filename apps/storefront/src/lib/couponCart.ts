@@ -50,7 +50,7 @@ export function parseCartLines(input: unknown): { variantId: string; qty: number
 /** What every coupon shown to a customer carries, on My coupons and on the coupon list alike. */
 interface CouponShown {
   code: string;
-  /** The coupon's name as set in CrewEngine. */
+  /** The coupon's name as set in TeamPit. */
   name: string;
   type: "fixed" | "percent";
   value: number;
@@ -60,7 +60,7 @@ interface CouponShown {
   scope: CouponScope;
   /** The names of what it is for (brands, categories, car models or products); empty for all. */
   targets: string[];
-  /** สำหรับทุกออเดอร์ · สำหรับสินค้า DENSO — the same words CrewEngine's coupon card says. */
+  /** สำหรับทุกออเดอร์ · สำหรับสินค้า DENSO — the same words TeamPit's coupon card says. */
   forLine: CouponWords;
   usesLeft: number;
 }

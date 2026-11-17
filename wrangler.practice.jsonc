@@ -6,9 +6,9 @@
   // same; practice2 has its own local database, made by
   //   node scripts/new-shop.mjs --practice --id practice2 --name "ร้านทดลอง 2" \
   //     --origin http://localhost:8082 --owner-email owner2@practice.local
-  // The second shop's app runs on http://localhost:8082 (launch config "Kira shop 2").
+  // The second shop's app runs on http://localhost:8082 (launch config "TeamPit shop 2").
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "kiraoffice-practice",
+  "name": "teampit-practice",
   "main": "apps/api/src/index.ts",
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -29,8 +29,8 @@
     },
     {
       "binding": "DB_PRACTICE2",
-      "database_name": "kira-shop-practice2",
-      "database_id": "local-kira-shop-practice2",
+      "database_name": "teampit-shop-practice2",
+      "database_id": "local-teampit-shop-practice2",
       "migrations_dir": "packages/db/migrations",
     },
   ],

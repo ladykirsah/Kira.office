@@ -78,7 +78,7 @@ describe(`${HOST} hosting`, () => {
   it(`ci > after the upload, fails unless ${HOST} answers with THIS app, not the old admin`, () => {
     // The deploy token may lack zone edit (docs/knowledge/operations/ci-pipeline.md (b)): the known
     // "could not re-assert the custom domain" warning would then pass green while the address still
-    // served the old admin — which is also called CrewEngine. Only the Expo page proves the swap.
+    // served the old admin — which is also called TeamPit. Only the Expo page proves the swap.
     const all = steps(ciJob("deploy-app") ?? "");
     const upload = all.findIndex((s) => s.includes("wrangler deploy"));
     const check = all.findIndex((s) => s.includes(`https://${HOST}`) && s.includes(EXPO_MARK));

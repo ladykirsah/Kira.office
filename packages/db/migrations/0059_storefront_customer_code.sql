@@ -1,4 +1,4 @@
--- The customer's public User ID, shown both in Kira.office and on their own AirPlus account page so
+-- The customer's public User ID, shown both in TeamPit and on their own AirPlus account page so
 -- the shop and the customer can name the same person out loud (LINE, phone, invoice).
 --
 -- Nullable + partial UNIQUE index rather than NOT NULL: SQLite cannot ADD COLUMN ... NOT NULL

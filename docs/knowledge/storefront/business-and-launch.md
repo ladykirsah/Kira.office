@@ -14,7 +14,7 @@ sources: [airplus-policy-docs-2026-07.md, den-air-service-public-facts.md, thai-
 
 - Address: 88 หมู่ 7 ต.กังแอน ถ.สุรินทร์-ช่องจอม อ.ปราสาท จ.สุรินทร์ 32140
 - Contact: air.plus.seller@gmail.com · 044-551-991 / 061-939-6144 · LINE OA @811gvdun
-- **AirPlus is B2C-only, products-only (no services)** — separate from the on-site Den Air Service workshop, though both are the same legal entity (บริษัท เด่นแอร์ เซอร์วิส จำกัด / Den Air Service Co., Ltd.) and share the Kira.office back office. Website = AirPlus (brand); Den Air Service = legal entity/on-site; cross-linked in the footer for trust.
+- **AirPlus is B2C-only, products-only (no services)** — separate from the on-site Den Air Service workshop, though both are the same legal entity (บริษัท เด่นแอร์ เซอร์วิส จำกัด / Den Air Service Co., Ltd.) and share the TeamPit back office. Website = AirPlus (brand); Den Air Service = legal entity/on-site; cross-linked in the footer for trust.
 - The docs' placeholder domain `www.airplusshop.xxx` was later replaced by airplusauto.com.
 
 ## Den Air Service public facts (for storefront copy)
@@ -40,7 +40,7 @@ Every candidate brand/website name's letter-sum must total one of: 04 05 06 09 �
 - English values = standard Chaldean numerology (A/I/J/Q/Y=1, B/K/R=2, C/G/L/S=3, D/M/T=4, E/H/N/X=5, U/V/W=6, O/Z=7, F/P=8, 9 unassigned).
 - Thai values confirmed by the owner: า=1, แ=2, ◌ู=2, ◌ี=7(avoid), ่=1, ้=2, ์=9, ค=4, ร=4, น=5, ล=6, ก=1, อ=6. The rest of the chart needs transcription before a full generator can be built.
 - **CHOSEN: AirPlus / แอร์พลัส (EN total 24, TH total 42, both auspicious)** — the owner knowingly accepted that พลัส contains ส=7, choosing good totals + a readable name over the strict letter rule.
-- Brand assets: TikTok "ลูกสาวร้านแอร์" / handle car.ac.lady; Shopee "Car AC on Sales"; Kira.office = the internal admin back office.
+- Brand assets: TikTok "ลูกสาวร้านแอร์" / handle car.ac.lady; Shopee "Car AC on Sales"; TeamPit = the internal admin back office.
 - Business context: moving car-AC parts off Shopee (30% commission made SKUs like the DENSO Vigo evaporator lose money) to a direct site aimed at mechanics, funneled via TikTok + the FB group "กลุ่มช่างแอร์รถยนต์แห่งประเทศไทย" (41.7K members). The quantified vs-Shopee case lives in [commerce](../commerce/index.md).
 
 ## Lowest-cost launch verdicts (2026-07-18)

@@ -58,6 +58,12 @@ The accountant's CSV (plan 10.2) opens in Excel only with a byte-order mark firs
 junk. Quote text that can hold a comma or a quote (a company's name always); leave short fixed words
 alone — the first try quoted the branch label too. Test with a name that has a comma in it (17 Nov 2026).
 
+## A rename: grep every app's tests, the parked ones too
+
+The 9.2 rename passed its own tests, then failed the full suite: the parked old admin's
+`appName.test.ts` also checked the Expo app for the old name. Before calling a rename done, grep
+every test in every app for the old value (17 Nov 2026).
+
 ## Every request works in its own shop (plan 10.3)
 
 `worker.fetch` swaps `env` for the request's shop at the very top (`shopEnv`); after that, only

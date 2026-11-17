@@ -14,7 +14,7 @@ The owner is a small-business operator (car A/C shop), not an engineer. Every ru
 
 ## Don't overwhelm the owner (incident 2026-07-16)
 
-The owner asked what to build; the response was a 1.36M-token audit, an 18k-line PR review, ~11 open questions, and git-surgery choices for THEM to arbitrate. Owner: "i think i am kinda lost right now… all i want is only work on Kira.office work flow and features… then test with mock info. then, connect system with Shopee and AirPlus."
+The owner asked what to build; the response was a 1.36M-token audit, an 18k-line PR review, ~11 open questions, and git-surgery choices for THEM to arbitrate. Owner: "i think i am kinda lost right now… all i want is only work on TeamPit work flow and features… then test with mock info. then, connect system with Shopee and AirPlus."
 
 Rules that came out of it:
 
@@ -22,6 +22,14 @@ Rules that came out of it:
 2. **Decide-then-report on engineering process** (branching, scoping, sequencing) — ask the owner only about the BUSINESS.
 3. One feature at a time, shown working the same day.
 4. A finding they can't act on today is noise — put it in memory/knowledge, not chat.
+
+## The owner's name for the product means every place it lives (2026-11-17)
+
+Asked how far the TeamPit rename should go, I recommended renaming only what people see and keeping
+the old names behind the scenes. The owner: *"no more Kira.office and Crew engine, just TeamPit
+everywhere"*. For the owner's own names, plan the whole rename — screens, code, docs, GitHub,
+Cloudflare, folders — and raise only the real risks (here: Cloudflare can't rename picture storage
+or a database, so they move, with a way back), never "keep the old name" as the recommendation.
 
 ## Check global practice before asking a business question (said twice, 2026-11-17)
 

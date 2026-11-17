@@ -1,7 +1,7 @@
 ---
 type: guide
-title: Kira.office knowledge bundle
-description: OKF bundle — everything a new AI agent (or human) needs to continue developing Kira.office and AirPlus seamlessly. Start here.
+title: TeamPit knowledge bundle
+description: OKF bundle — everything a new AI agent (or human) needs to continue developing TeamPit and AirPlus seamlessly. Start here.
 tags: [okf, handoff, knowledge, index]
 timestamp: 2026-08-09
 status: live
@@ -9,7 +9,7 @@ resource: https://github.com/ladykirsah/Kira.office
 sources: [110 session-memory files, docs/, live repo state, production D1 — compiled 2026-08-09]
 ---
 
-# Kira.office knowledge bundle
+# TeamPit knowledge bundle
 
 This is an [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
 bundle: a directory of markdown **concepts** with YAML frontmatter, cross-linked into a
@@ -21,7 +21,7 @@ agent with no access to those memories**.
 
 ## What this project is
 
-**Kira.office** — the back office for a Thai car air-conditioning parts & service business
+**TeamPit** — the back office for a Thai car air-conditioning parts & service business
 — plus **AirPlus** (airplusauto.com), its customer storefront. One Cloudflare monorepo:
 three Workers (API / admin / storefront), one D1 database, shared KV/R2, a stock-ledger
 Durable Object. Money is integer satang; the working language of the domain is Thai.

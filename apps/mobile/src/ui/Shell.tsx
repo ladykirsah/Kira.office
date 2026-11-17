@@ -79,7 +79,7 @@ function WideShell({ children }: { children: ReactNode }) {
       <View style={s.sidebar}>
         <ScrollView contentContainerStyle={s.sidebarInner}>
           <Pressable onPress={() => go("/")} accessibilityRole="link">
-            <Text style={[s.brand, brandFont]}>CrewEngine</Text>
+            <Text style={[s.brand, brandFont]}>TeamPit</Text>
           </Pressable>
           <DeskMenu path={path} onGo={go} />
         </ScrollView>

@@ -98,3 +98,18 @@ export async function signIn(
   const reply: unknown = await res.json().catch(() => null);
   return readSignInReply(res.status, reply);
 }
+
+/**
+ * The line under TeamPit on the sign-in page (plan 9.2, design A): the shop this address is for,
+ * read before anyone signs in. Nothing when it can't be read — never a guessed shop's name.
+ */
+export async function fetchSignInLine(fetchFn: FetchFn, base: string): Promise<string> {
+  try {
+    const res = await fetchFn(`${base}/sign-in-shop`, {});
+    if (!res.ok) return "";
+    const body = (await res.json()) as { line?: unknown };
+    return typeof body.line === "string" ? body.line : "";
+  } catch {
+    return "";
+  }
+}

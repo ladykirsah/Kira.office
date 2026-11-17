@@ -4,7 +4,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * The owner's rule (2 Aug 2026): a customer's `credit_score` and `tier` are INTERNAL to Kira.office
+ * The owner's rule (2 Aug 2026): a customer's `credit_score` and `tier` are INTERNAL to TeamPit
  * (the admin, behind Cloudflare Access). The AirPlus STOREFRONT must never expose them — a customer
  * must not be able to learn their own credit or tier.
  *

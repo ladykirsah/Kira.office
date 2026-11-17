@@ -28,7 +28,7 @@ Rebuilt 2 Aug 2026 (PR #99, squash 4900ebe, LIVE). The old model scored +1 per c
 
 ## INVARIANT: credit/tier are admin-INTERNAL — customer must NEVER see them
 
-Owner rule (2 Aug 2026): credit + tier are internal to Kira.office (behind Cloudflare Access); the customer must NEVER see their own credit/tier on AirPlus. Verified true in code: `getSession`/`/api/auth/me` returns only id/phone/name/email/phoneVerifiedAt/pdpaConsentAt; `/api/orders/lookup` returns none; COD gating runs server-side only.
+Owner rule (2 Aug 2026): credit + tier are internal to TeamPit (behind Cloudflare Access); the customer must NEVER see their own credit/tier on AirPlus. Verified true in code: `getSession`/`/api/auth/me` returns only id/phone/name/email/phoneVerifiedAt/pdpaConsentAt; `/api/orders/lookup` returns none; COD gating runs server-side only.
 
 A **CI guard enforces it** (PR #100): `apps/storefront/src/lib/creditPrivacy.test.ts` source-scans the entire storefront and FAILS if `credit_score`/`creditScore` or `\btier\b` appears anywhere. Adjust the guard's PATTERNS only if a genuinely unrelated "tier" is ever introduced.
 

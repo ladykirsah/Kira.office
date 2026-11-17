@@ -2,7 +2,7 @@
 
 *Owner's decision, 2026-08-26. Built the same day; migration `0090_owner_recovery_key.sql`.*
 
-A **second** way back into Kira.office, standing beside the emailed Cloudflare Access code rather
+A **second** way back into TeamPit, standing beside the emailed Cloudflare Access code rather
 than replacing it. The owner asked for both, and the reason they are both worth having is that they
 fail differently: an emailed code proves you hold the mailbox, and is no use at all when Cloudflare
 or that mailbox is itself the thing that is broken — which is the situation this guards against.
