@@ -318,8 +318,18 @@ function CodeBox({ edit }: { edit: CouponFormState }) {
           unit={times(f.perCustomer)}
           keyboardType="number-pad"
           onChange={(v) => edit.set({ perCustomer: cleanCount(v) })}
-          last
+          last={f.newCustomers}
         />
+        {/* Plan 8.7: on the AirPlus website's coupon list, or code only. A ลูกค้าใหม่ coupon lands
+            on My coupons instead, so it has no such switch. */}
+        {!f.newCustomers && (
+          <SwitchRow
+            label={t({ th: "แสดงบนเว็บ", en: "Show on website" })}
+            value={f.onWeb}
+            onChange={(onWeb) => edit.set({ onWeb })}
+            last
+          />
+        )}
       </Group>
       {e.code && <FieldError text={t(e.code)} />}
       {edit.taken && <FieldError text={t(edit.taken)} />}

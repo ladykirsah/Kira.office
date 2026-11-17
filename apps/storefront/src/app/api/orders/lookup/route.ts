@@ -1,3 +1,4 @@
+import { readBankAccount } from "@/lib/bankAccount";
 import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
 import { trackingOrderLines } from "@/lib/orderLines";
@@ -67,7 +68,15 @@ export async function GET(request: Request): Promise<Response> {
       return Response.json(NOT_FOUND, { status: 404 });
     }
 
-    const lines = await trackingOrderLines(db, order.id);
+    const [lines, payment] = await Promise.all([
+      trackingOrderLines(db, order.id),
+      db
+        .prepare(
+          `SELECT bank_account AS bankAccount FROM payments WHERE sales_order_id = ? LIMIT 1`,
+        )
+        .bind(order.id)
+        .first<{ bankAccount: string | null }>(),
+    ]);
 
     // Per-stage timestamps for the tracking timeline (date/time is each stage's first subtitle line).
     // Read from history like the back office does — the order row alone only carries created + ship.
@@ -154,6 +163,8 @@ export async function GET(request: Request): Promise<Response> {
       // Where the customer ships the defective item back — AirPlus's own shop address (the SAME value
       // shown in admin Shop info; the code treats that one address as the returns address too).
       returnAddress: (await KV.get(shopKey("airplus", "address")))?.trim() || null,
+      // โอนเข้าบัญชีร้าน (plan 8.7): the account this order was told to pay into; null otherwise.
+      bankAccount: readBankAccount(payment?.bankAccount ?? null),
       lines,
     });
   } catch {

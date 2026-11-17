@@ -49,6 +49,8 @@ _Last confirmed: 2026-07-13._
 | Scope | Applies to **AirPlus-channel** orders only. |
 | Flash sale on a cancelled or expired order | **The buyer loses the flash price; the unit goes back to the sale** (owner, 2026-11-16: *"Flash-sale is discount on specific period. buy during the period > get discount, cancel > lose … learn from global practice"*). As on Shopee and Lazada, a cancelled or expired order gives its flash-sale slot back (`campaign_prices.sold_count` down) so the next buyer can still get it while the sale runs. Each order line records its flash-sale price (`sales_order_lines.campaign_price_id`, migration 0102); lines from before 0102 give nothing back. |
 | Coupon on an expired unpaid order | **Given back, unless the coupon has ended by then** (owner, 2026-11-16: *"yes, if it happen after the coupon expire > it never comes back"*). A shop cancel always gives it back. |
+| Which coupons the website lists | **Only coupons with แสดงบนเว็บ on** (owner's pick A, 2026-11-17: *"Yes, go with A"*). The switch is on CrewEngine's coupon form and off for every coupon until the owner turns it on; off = code only, so a code handed to one person stays private (like Shopee's shop-page vouchers vs code-only ones). ลูกค้าใหม่ coupons land on My coupons instead. Migration 0104. |
+| Bank transfer orders | **Each โอนเข้าบัญชีร้าน order keeps the bank account it was told to pay into** (plan 8.7, agreed 2026-11-16). One account per shop on ข้อมูลร้าน → บัญชีธนาคาร, kept apart from the PromptPay list so no QR is ever made from it. The website shows it with the payment pages' redesign (board 6). |
 
 ## Shopee integration
 

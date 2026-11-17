@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applyCoupon,
   couponDiscountSatang,
+  couponForLine,
   heldUntil,
   validateCoupon,
   type Coupon,
@@ -291,5 +292,42 @@ describe("heldUntil > what a customer's My coupons page shows for a ลูกค
 
   it("given a coupon for everyone > then it is not a held coupon", () => {
     expect(heldUntil(BASE, { createdAt: NOW })).toBeNull();
+  });
+});
+
+describe("couponForLine > what a coupon is for, said the same on CrewEngine and the website (plan 8.7)", () => {
+  const forTh = (
+    scope: Parameters<typeof couponForLine>[0]["scope"],
+    names: string[],
+    signupFrom: number | null = null,
+  ) => couponForLine({ scope, names, signupFrom }).th;
+
+  it("given each ใช้กับ > then สำหรับทุกออเดอร์, the brands, category, car or picked products", () => {
+    expect([
+      forTh("all", []),
+      forTh("brand", ["Cool Gear"]),
+      forTh("brand", ["DENSO", "Sanden"]),
+      forTh("category", ["คอมเพรสเซอร์"]),
+      forTh("car_model", ["Toyota Vigo"]),
+      forTh("products", ["a", "b"]),
+    ]).toEqual([
+      "สำหรับทุกออเดอร์",
+      "สำหรับสินค้า Cool Gear",
+      "สำหรับสินค้า DENSO, Sanden",
+      "สำหรับสินค้าหมวด คอมเพรสเซอร์",
+      "สำหรับสินค้า Toyota Vigo เท่านั้น",
+      "สำหรับสินค้าที่เลือก 2 ชิ้น",
+    ]);
+  });
+
+  it("given ลูกค้าใหม่ > then สำหรับลูกค้าใหม่, then what it is for when not everything", () => {
+    expect(forTh("all", [], 1)).toBe("สำหรับลูกค้าใหม่");
+    expect(forTh("brand", ["DENSO"], 1)).toBe("สำหรับลูกค้าใหม่ · สินค้า DENSO");
+  });
+
+  it("given English > then the same rule in English", () => {
+    expect(couponForLine({ scope: "brand", names: ["DENSO"], signupFrom: null }).en).toBe(
+      "For DENSO products",
+    );
   });
 });

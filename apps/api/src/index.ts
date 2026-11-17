@@ -1973,6 +1973,12 @@ export const SHOP_TEXT_FIELDS = [
   "phone",
   // The shop's Linktree link, under ติดต่อ on ข้อมูลร้าน (owner, 2 Nov 2026).
   "linktreeUrl",
+  // The bank account customers transfer into, under รับเงิน on ข้อมูลร้าน (plan 8.7, 17 Nov 2026).
+  // Kept apart from paymentMethods (PromptPay only), so no QR is ever made from a bank account.
+  // AirPlus's is sent with each โอนเข้าบัญชีร้าน order and kept on its payments row.
+  "bankName",
+  "bankAccountName",
+  "bankAccountNumber",
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
@@ -6615,6 +6621,9 @@ const NEW_CUSTOMER_DAYS = 365;
  * ใช้กับ with at least one pick, and a ลูกค้าใหม่ window whose end is after its start.
  */
 function couponRulesProblem(b: CouponPatch): string | null {
+  if (b.showOnWeb !== undefined && typeof b.showOnWeb !== "boolean") {
+    return "showOnWeb must be true or false";
+  }
   if (b.appliesTo !== undefined && b.appliesTo !== "order" && b.appliesTo !== "shipping") {
     return "appliesTo must be order or shipping";
   }
@@ -6874,6 +6883,8 @@ export interface CouponAdminRow {
   signupFrom: number | null;
   signupTo: number | null;
   validDays: number | null;
+  /** แสดงบนเว็บ (migration 0104): listed on the AirPlus website; false = code only. */
+  showOnWeb: boolean;
 }
 
 export interface CouponTarget {
@@ -6893,11 +6904,12 @@ export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]
                 c.max_discount_satang AS maxDiscountSatang, c.status, c.created_at AS createdAt,
                 (SELECT COUNT(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id) AS redemptions,
                 u.name AS createdByName, c.applies_to AS appliesTo, c.scope,
-                c.signup_from AS signupFrom, c.signup_to AS signupTo, c.valid_days AS validDays
+                c.signup_from AS signupFrom, c.signup_to AS signupTo, c.valid_days AS validDays,
+                c.show_on_web AS showOnWeb
          FROM coupons c LEFT JOIN users u ON u.id = c.created_by_user_id
          ORDER BY c.created_at DESC`,
       )
-      .all<Omit<CouponAdminRow, "targets">>(),
+      .all<Omit<CouponAdminRow, "targets" | "showOnWeb"> & { showOnWeb: number }>(),
     db
       .prepare(
         `SELECT t.coupon_id AS couponId, t.target_id AS id,
@@ -6919,7 +6931,11 @@ export async function listCouponsAdmin(db: D1Database): Promise<CouponAdminRow[]
   for (const { couponId, ...t } of targets.results ?? []) {
     byCoupon.set(couponId, [...(byCoupon.get(couponId) ?? []), t]);
   }
-  return (coupons.results ?? []).map((c) => ({ ...c, targets: byCoupon.get(c.id) ?? [] }));
+  return (coupons.results ?? []).map((c) => ({
+    ...c,
+    showOnWeb: c.showOnWeb === 1,
+    targets: byCoupon.get(c.id) ?? [],
+  }));
 }
 
 export interface CouponCreate {
@@ -6942,6 +6958,7 @@ export interface CouponCreate {
   signupFrom?: number | null;
   signupTo?: number | null;
   validDays?: number | null;
+  showOnWeb?: boolean;
 }
 
 /** Insert a coupon; refuses a duplicate code (codes are the customer-facing identity). */
@@ -6961,8 +6978,9 @@ export async function createCoupon(
       .prepare(
         `INSERT INTO coupons (id, code, name, type, value, min_subtotal_satang, starts_at, ends_at,
                               max_uses, max_uses_per_customer, max_discount_satang, status, created_at,
-                              created_by_user_id, applies_to, scope, signup_from, signup_to, valid_days)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`,
+                              created_by_user_id, applies_to, scope, signup_from, signup_to, valid_days,
+                              show_on_web)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -6983,6 +7001,7 @@ export async function createCoupon(
         numOrNull(input.signupFrom),
         numOrNull(input.signupTo),
         numOrNull(input.validDays),
+        input.showOnWeb === true ? 1 : 0,
       ),
     ...couponTargetInserts(db, id, input.targets ?? []),
   ]);
@@ -7014,6 +7033,7 @@ export interface CouponPatch {
   signupFrom?: number | null;
   signupTo?: number | null;
   validDays?: number | null;
+  showOnWeb?: boolean;
 }
 
 /** Update only the provided coupon fields — an absent key leaves that column untouched. */
@@ -7043,6 +7063,7 @@ export async function updateCoupon(db: D1Database, id: string, patch: CouponPatc
   if (patch.signupFrom !== undefined) set("signup_from", numOrNull(patch.signupFrom));
   if (patch.signupTo !== undefined) set("signup_to", numOrNull(patch.signupTo));
   if (patch.validDays !== undefined) set("valid_days", numOrNull(patch.validDays));
+  if (patch.showOnWeb !== undefined) set("show_on_web", patch.showOnWeb ? 1 : 0);
   const writes: D1PreparedStatement[] = [];
   if (sets.length > 0) {
     writes.push(

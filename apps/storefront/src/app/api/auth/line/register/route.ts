@@ -3,8 +3,13 @@ import { createSession, guardMutation, sessionCookieOptions } from "@/lib/auth";
 import { SESSION_COOKIE } from "@/lib/authCore";
 import { getEnv } from "@/lib/db";
 import { normalizePhone } from "@/lib/format";
-import { LINE_PENDING_COOKIE, takeLinePending } from "@/lib/lineAuth";
-import { generateCustomerCode } from "@l-shopee/core";
+import {
+  LINE_PENDING_COOKIE,
+  dropLinePending,
+  peekLinePending,
+  takenPhoneReply,
+} from "@/lib/lineAuth";
+import { generateCustomerCode, shopKey } from "@l-shopee/core";
 
 /**
  * POST /api/auth/line/register — finish a first-time LINE signup. LINE is the only credential and
@@ -81,7 +86,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!token) return Response.json({ error: EXPIRED }, { status: 400 });
 
     const env = await getEnv();
-    const pending = await takeLinePending(env, token);
+    // Read, not used up: a refused number below keeps the sign-up open for another try (plan 8.7).
+    const pending = await peekLinePending(env, token);
     if (!pending) return Response.json({ error: EXPIRED }, { status: 400 });
 
     // Username: the (editable) value the user confirmed, falling back to the LINE display name.
@@ -105,16 +111,16 @@ export async function POST(request: Request): Promise<Response> {
       customerId = existingByLine.id;
     } else {
       // phone is UNIQUE. Linking a LINE id onto an existing phone-account would need phone
-      // verification we don't do here → reject rather than risk an account takeover.
+      // verification we don't do here → reject rather than risk an account takeover. The reply
+      // offers another number or the shop on LINE (plan 8.7), and the sign-up stays open.
       const phoneTaken = await db
         .prepare(`SELECT id FROM storefront_customers WHERE phone = ?`)
         .bind(phone)
         .first<{ id: string }>();
-      if (phoneTaken)
-        return Response.json(
-          { error: "เบอร์นี้มีบัญชีอยู่แล้ว กรุณาเข้าสู่ระบบด้วยเบอร์โทร" },
-          { status: 409 },
-        );
+      if (phoneTaken) {
+        const lineUrl = (await env.KV.get(shopKey("airplus", "lineUrl")))?.trim() || null;
+        return Response.json(takenPhoneReply(lineUrl), { status: 409 });
+      }
 
       customerId = crypto.randomUUID();
       await db
@@ -160,6 +166,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const session = await createSession(db, customerId);
+    await dropLinePending(env, token);
     cookieStore.set(SESSION_COOKIE, session.token, sessionCookieOptions());
     cookieStore.delete(LINE_PENDING_COOKIE);
     return Response.json({ customer: { id: customerId, phone, name: displayName } });

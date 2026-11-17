@@ -1252,7 +1252,8 @@ describe("AirPlus merchandising admin routes (banners / coupons / campaigns / af
       // The admin list must carry the coupon `name` (migration 0065) back to the table.
       const body = (await res.json()) as { coupons: { name?: string }[] };
       // Migration 0096 adds what each coupon is for; an old coupon is for every product.
-      expect(body).toEqual({ coupons: [{ ...coupon, targets: [] }] });
+      // Migration 0104: a coupon is code only (not on the website) until แสดงบนเว็บ is turned on.
+      expect(body).toEqual({ coupons: [{ ...coupon, showOnWeb: false, targets: [] }] });
       expect(body.coupons[0]!.name).toBe("Save 10");
     });
 
@@ -2650,6 +2651,30 @@ describe("api worker routes", () => {
     const res = await fetchAuthed(new Request("https://x/shop-info/denair"), env, ctx);
     const body = (await res.json()) as Record<string, string | null>;
     expect(body.linktreeUrl).toBe("linktr.ee/denairservice");
+  });
+
+  it("shop-info > given a bank account > then bank, name and number are kept and read back (plan 8.7)", async () => {
+    const { store, env } = kvEnv();
+    await fetchAuthed(
+      new Request("https://x/shop-info/airplus", {
+        method: "PUT",
+        body: JSON.stringify({
+          bankName: " กสิกรไทย ",
+          bankAccountName: "บจก. เด่นแอร์ เซอร์วิส",
+          bankAccountNumber: " 123-4-56789-0 ",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(store.get("shop:airplus:bankAccountNumber")).toBe("123-4-56789-0");
+    const res = await fetchAuthed(new Request("https://x/shop-info/airplus"), env, ctx);
+    const body = (await res.json()) as Record<string, string | null>;
+    expect([body.bankName, body.bankAccountName, body.bankAccountNumber]).toEqual([
+      "กสิกรไทย",
+      "บจก. เด่นแอร์ เซอร์วิส",
+      "123-4-56789-0",
+    ]);
   });
 
   it("shop-info > given a save that sends some fields > then the fields it left out keep their values", async () => {
@@ -5222,6 +5247,34 @@ describe("coupons > the new rules saved and listed (real schema)", () => {
     await updateCoupon(db, id, { scope: "all", targets: [] });
     const [c] = await listCouponsAdmin(db);
     expect([c!.scope, c!.targets]).toEqual(["all", []]);
+  });
+});
+
+describe("coupons > แสดงบนเว็บ (plan 8.7, owner's pick A, 17 Nov 2026)", () => {
+  const BASE = { name: "x", type: "fixed" as const, value: 3000 };
+
+  it("given a new coupon > then it is code only until the owner turns แสดงบนเว็บ on", async () => {
+    const db = asD1(migratedDb());
+    const made = await createCoupon(db, { ...BASE, code: "WEB1" });
+    const id = (made as { id: string }).id;
+    expect((await listCouponsAdmin(db))[0]!.showOnWeb).toBe(false);
+    await updateCoupon(db, id, { showOnWeb: true });
+    expect((await listCouponsAdmin(db))[0]!.showOnWeb).toBe(true);
+    await updateCoupon(db, id, { showOnWeb: false });
+    expect((await listCouponsAdmin(db))[0]!.showOnWeb).toBe(false);
+  });
+
+  it("given a coupon made with แสดงบนเว็บ on > then the list says so", async () => {
+    const db = asD1(migratedDb());
+    await createCoupon(db, { ...BASE, code: "WEB2", showOnWeb: true });
+    expect((await listCouponsAdmin(db))[0]!.showOnWeb).toBe(true);
+  });
+
+  it("given an edit that leaves แสดงบนเว็บ out > then it stays as it was", async () => {
+    const db = asD1(migratedDb());
+    const made = await createCoupon(db, { ...BASE, code: "WEB3", showOnWeb: true });
+    await updateCoupon(db, (made as { id: string }).id, { name: "ลด 30" });
+    expect((await listCouponsAdmin(db))[0]!.showOnWeb).toBe(true);
   });
 });
 
@@ -10240,6 +10293,28 @@ describe("role enforcement on money, catalog and payment routes", () => {
       const { env, token } = await asRole("admin");
       const res = await call(env, "/coupons", { method: "POST", body: "{}" }, token);
       expect(res.status).not.toBe(403);
+    });
+
+    it("given แสดงบนเว็บ that is not on/off > POST and PATCH /coupons answer 400", async () => {
+      const { env, token } = await asRole("admin");
+      const coupon = { code: "WEBX", name: "x", type: "fixed", value: 3000, showOnWeb: "yes" };
+      const made = await call(
+        env,
+        "/coupons",
+        { method: "POST", body: JSON.stringify(coupon) },
+        token,
+      );
+      expect(made.status).toBe(400);
+      expect(((await made.json()) as { error: string }).error).toBe(
+        "showOnWeb must be true or false",
+      );
+      const patched = await call(
+        env,
+        "/coupons/any",
+        { method: "PATCH", body: JSON.stringify({ showOnWeb: 1 }) },
+        token,
+      );
+      expect(patched.status).toBe(400);
     });
 
     it("given a mechanic > their own 6-digit code still saves", async () => {

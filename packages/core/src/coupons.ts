@@ -185,3 +185,44 @@ export function heldUntil(coupon: Coupon, holder: { createdAt: number }): number
   if (!madeInWindow(coupon, holder.createdAt)) return null;
   return holder.createdAt + (coupon.validDays ?? NEW_CUSTOMER_DAYS) * DAY_MS;
 }
+
+/** Words in Thai and English (the same shape as @l-shopee/shared's Phrase). */
+export interface CouponWords {
+  th: string;
+  en: string;
+}
+
+/** What a ใช้กับ rule covers, said after สำหรับ: "สินค้า DENSO, Sanden"; null for every product. */
+function couponCoverage(scope: CouponScope, names: readonly string[]): CouponWords | null {
+  if (scope === "products" && names.length > 0) {
+    return { th: `สินค้าที่เลือก ${names.length} ชิ้น`, en: `${names.length} picked products` };
+  }
+  const list = names.join(", ");
+  if (!list) return null;
+  if (scope === "brand") return { th: `สินค้า ${list}`, en: `${list} products` };
+  if (scope === "category") return { th: `สินค้าหมวด ${list}`, en: `${list} products` };
+  if (scope === "car_model") return { th: `สินค้า ${list} เท่านั้น`, en: `${list} products only` };
+  return null;
+}
+
+/**
+ * A coupon's short rule: สำหรับทุกออเดอร์ · สำหรับสินค้า Cool Gear · สำหรับลูกค้าใหม่ (owner's words,
+ * 1 Nov 2026). Shared by CrewEngine's coupon card and the AirPlus website's coupon list (plan 8.7).
+ * A ลูกค้าใหม่ coupon on some products says both, who first.
+ */
+export function couponForLine(c: {
+  scope: CouponScope;
+  /** The names of what the scope picks (brands, categories, car models or products). */
+  names: readonly string[];
+  signupFrom: number | null;
+}): CouponWords {
+  const what = couponCoverage(c.scope, c.names);
+  if (c.signupFrom != null) {
+    return what
+      ? { th: `สำหรับลูกค้าใหม่ · ${what.th}`, en: `For new customers · ${what.en}` }
+      : { th: "สำหรับลูกค้าใหม่", en: "For new customers" };
+  }
+  return what
+    ? { th: `สำหรับ${what.th}`, en: `For ${what.en}` }
+    : { th: "สำหรับทุกออเดอร์", en: "For every order" };
+}

@@ -11,6 +11,7 @@ import {
   creatorName,
   pageWindow,
   stateLine,
+  webLine,
   usedShare,
   usedValue,
   type Coupon,
@@ -182,6 +183,7 @@ function Facts({ coupon, flush }: { coupon: Coupon; flush?: boolean }) {
       {text}
     </Text>
   );
+  const web = webLine(coupon);
   return (
     <View style={flush ? null : styles.facts}>
       <Group>
@@ -219,6 +221,7 @@ function Facts({ coupon, flush }: { coupon: Coupon; flush?: boolean }) {
             }),
           )}
         />
+        {web && <Line label={t({ th: "แสดงบนเว็บ", en: "On website" })} right={value(t(web))} />}
         <Line
           label={t({ th: "ซื้อขั้นต่ำ", en: "Minimum" })}
           right={value(coupon.minSubtotalSatang > 0 ? formatBaht(coupon.minSubtotalSatang) : "—")}

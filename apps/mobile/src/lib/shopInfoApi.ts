@@ -22,6 +22,9 @@ const TEXT_KEYS: (keyof TextDraft)[] = [
   "shipFromPostcode",
   "phone",
   "linktreeUrl",
+  "bankName",
+  "bankAccountName",
+  "bankAccountNumber",
 ];
 
 /** One shop's details; a field the server does not send yet reads empty. */

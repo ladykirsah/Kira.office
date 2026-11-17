@@ -28,6 +28,10 @@ export interface ShopInfo {
   shipFromPostcode: string;
   phone: string;
   linktreeUrl: string;
+  /** บัญชีธนาคาร (plan 8.7): the account customers transfer into; never made into a QR. */
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
   logoKey: string | null;
   qrKey: string | null;
 }
