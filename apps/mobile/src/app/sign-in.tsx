@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE, isLocalApi } from "@/lib/config";
 import { phoneBottoms } from "@/lib/frame";
+import { returnPath } from "@/lib/oldAddresses";
 import { shortcutTarget } from "@/lib/shortcut";
 import type { Credentials } from "@/lib/signIn";
 import { signInMessage } from "@/lib/signInMessage";
@@ -68,7 +69,10 @@ export default function SignIn() {
   const [error, setError] = useState<{ door: Door; text: string } | null>(null);
   const busy = useRef(false);
   // The owner's shortcut (this computer only): /sign-in?practice=1 goes straight in, to Scan.
-  const shortcut = shortcutTarget(API_BASE, useLocalSearchParams());
+  const params = useLocalSearchParams();
+  const shortcut = shortcutTarget(API_BASE, params);
+  // The page opened while signed out (plan 8.6): the PIN is asked on every open, so a bookmark lands here.
+  const back = returnPath(params.to);
   const shortcutTried = useRef(false);
   useEffect(() => {
     if (!shortcut || shortcutTried.current || auth.status !== "signed-out") return;
@@ -76,7 +80,7 @@ export default function SignIn() {
     void attempt("form", { kind: "practice" });
   });
 
-  if (auth.status === "signed-in") return <Redirect href={(shortcut ?? "/") as never} />;
+  if (auth.status === "signed-in") return <Redirect href={(shortcut ?? back ?? "/") as never} />;
 
   async function attempt(door: Door, c: Credentials) {
     if (busy.current) return; // two quick taps sign in once

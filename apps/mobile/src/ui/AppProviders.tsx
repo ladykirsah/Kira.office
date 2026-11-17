@@ -28,7 +28,8 @@ interface ThemeValue {
 
 type AuthValue =
   | { status: "loading"; staff: null }
-  | { status: "signed-out"; staff: null }
+  /** `byChoice`: signed out with ออกจากระบบ, so the next sign-in starts at หน้าหลัก (plan 8.6). */
+  | { status: "signed-out"; staff: null; byChoice?: boolean }
   /** `token` is what each screen sends with its own API calls; the API checks it every time. */
   | { status: "signed-in"; staff: SignedInStaff; token: string };
 
@@ -125,7 +126,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
     if (token) await signOut(fetch, API_BASE, token);
     await writeToken(null);
     setToken(null);
-    setAuth({ status: "signed-out", staff: null });
+    setAuth({ status: "signed-out", staff: null, byChoice: true });
   }, [token]);
 
   const value = useMemo(

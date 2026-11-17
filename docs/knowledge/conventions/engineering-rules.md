@@ -3,9 +3,9 @@ type: convention
 title: Engineering rules — TDD, gates, and verification honesty
 description: TDD-first per AGENTS.md, the real CI gates (lint = prettier + eslint), verify-before-assert lessons, schema-change endpoint testing, and backup-list discipline
 tags: [engineering, tdd, ci, lint, testing, verification]
-timestamp: 2026-11-16
+timestamp: 2026-11-17
 status: convention
-sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026)]
+sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026)]
 ---
 
 # Engineering rules — TDD, gates, and verification honesty
@@ -67,6 +67,22 @@ sales without a date range, open drafts, cars, a car's bills and old history, Ai
 their orders, the orders list) sends all rows up to one shared safety limit, `LIST_LIMIT` (5,000) in
 `apps/api/src/index.ts`. The old caps (100–500) silently hid rows once the shop grew past them.
 Page-by-page loading comes with the redesign. A new list uses `LIST_LIMIT`, never its own small cap.
+
+## Old addresses and the page sign-in returns to
+
+Plan 8.6 (16 Nov 2026): bookmarks, home-screen icons and LINE links to old back-office pages (`/me`,
+`/settings/staff/salary`, `/import`, `/terms`, `/customers?plate=…` and the rest) jump to the page that
+replaced them. The one map is `apps/mobile/src/lib/oldAddresses.ts`, read by `app/(app)/_layout.tsx`
+before the sign-in check. Any other unknown address still shows ไม่มีหน้านี้ในแอป.
+
+- **Sign-in remembers the page.** On the website the PIN is asked on every open, so a page opened
+  signed out goes to `/sign-in?to=<that page>` and back there after the PIN. Only a path inside this
+  app is taken (`returnPath`: no `//`, no `\`, no line breaks, never `/sign-in` itself); anything else
+  goes to หน้าหลัก.
+- **Signing out on purpose starts the next person at หน้าหลัก.** That fact lives in the auth state
+  (`signed-out` with `byChoice`, set by `signOutNow`), not in a ref read during render.
+- `<Redirect>` replaces the history entry, so ‹ back never bounces to the old address. Check that
+  in a fresh browser tab: a tab with older history gives a false answer.
 
 ## Related
 
