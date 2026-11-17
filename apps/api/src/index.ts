@@ -211,6 +211,14 @@ import {
 } from "./staffRoutes";
 import { checkShopeeFees, readShopeeFees, SHOPEE_FEES_KEY } from "./shopeeFees";
 import {
+  getRepairJob,
+  listRepairJobs,
+  repairJobActionFor,
+  runRepairJobAction,
+  type JobResult,
+  type RepairJobAction,
+} from "./repairJobs";
+import {
   addChoice,
   addToGroup,
   readChoices,
@@ -226,7 +234,7 @@ import {
 } from "./productChoices";
 export { resolveActor, requireRole, type ActorContext } from "./auth";
 
-interface SyncLine {
+export interface SyncLine {
   productVariantId?: string | null; // null/absent for service (labour) lines
   lineType?: "part" | "service";
   description?: string; // item name to store on the line / print on the bill
@@ -797,45 +805,14 @@ function enrichLineTax(line: SyncLine, taxByVariant: Record<string, VariantTaxPr
   return { ...line, taxSatang };
 }
 
-/**
- * Idempotent offline-sale persistence against D1. Dedupes by client_uuid (server-applied + in-batch),
- * applies stock as ledger deltas (blocking oversell, surfaced as conflicts), and writes sale + lines
- * + ledger in one D1 batch. Always invoked through the StockLedger Durable Object so concurrent syncs
- * serialize (single writer); D1's unique index on client_uuid is the backstop against double-counting.
- */
-export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<SyncResult> {
-  if (sales.length === 0) return { applied: 0, duplicates: 0, conflicts: [], validationErrors: [] };
-
-  const uuids = sales.map((s) => s.clientUuid);
-  const existingRows = await db
-    .prepare(
-      `SELECT client_uuid AS clientUuid FROM onsite_sales WHERE client_uuid IN (${uuids.map(() => "?").join(",")})`,
-    )
-    .bind(...uuids)
-    .all<{ clientUuid: string }>();
-  const existing = (existingRows.results ?? []).map((r) => r.clientUuid);
-  const { fresh, duplicates } = partitionByClientUuid(existing, sales);
-  if (fresh.length === 0) {
-    return { applied: 0, duplicates: duplicates.length, conflicts: [], validationErrors: [] };
-  }
-
-  const variantIds = [
-    ...new Set(fresh.flatMap((s) => s.lines.filter(isPartLine).map((l) => l.productVariantId!))),
-  ];
-  const available: Record<string, number> = {};
-  for (const id of variantIds) available[id] = 0;
-  if (variantIds.length > 0) {
-    const availRows = await db
-      .prepare(
-        `SELECT product_variant_id AS variantId, COALESCE(SUM(quantity_delta), 0) AS available
-         FROM stock_ledger_entries WHERE product_variant_id IN (${variantIds.map(() => "?").join(",")})
-         GROUP BY product_variant_id`,
-      )
-      .bind(...variantIds)
-      .all<{ variantId: string; available: number }>();
-    for (const row of availRows.results ?? []) available[row.variantId] = Number(row.available);
-  }
-
+/** The VAT profile and the cost on file for each product on a bill — read on the server, never sent. */
+async function loadLinePricing(
+  db: D1Database,
+  variantIds: readonly string[],
+): Promise<{
+  taxByVariant: Record<string, VariantTaxProfile>;
+  costByVariant: Record<string, number>;
+}> {
   const taxByVariant: Record<string, VariantTaxProfile> = {};
   if (variantIds.length > 0) {
     const taxRows = await db
@@ -883,6 +860,65 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
       costByVariant[row.variantId] = Number(row.productCostSatang);
     }
   }
+  return { taxByVariant, costByVariant };
+}
+
+/**
+ * A bill's lines with the server's cost, VAT and profit filled in — the same sums the counter's
+ * bills use (applySyncToDb). The repair job's bill is priced through this at payment.
+ */
+export async function priceBillLines(
+  db: D1Database,
+  lines: readonly SyncLine[],
+): Promise<(SyncLine & { grossProfitSatang: number })[]> {
+  const variantIds = [...new Set(lines.filter(isPartLine).map((l) => l.productVariantId!))];
+  const { taxByVariant, costByVariant } = await loadLinePricing(db, variantIds);
+  return lines.map((l) => {
+    const priced = enrichLineTax(withProductCost(l, costByVariant), taxByVariant);
+    return { ...priced, grossProfitSatang: lineGrossProfitSatang(priced) };
+  });
+}
+
+/**
+ * Idempotent offline-sale persistence against D1. Dedupes by client_uuid (server-applied + in-batch),
+ * applies stock as ledger deltas (blocking oversell, surfaced as conflicts), and writes sale + lines
+ * + ledger in one D1 batch. Always invoked through the StockLedger Durable Object so concurrent syncs
+ * serialize (single writer); D1's unique index on client_uuid is the backstop against double-counting.
+ */
+export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<SyncResult> {
+  if (sales.length === 0) return { applied: 0, duplicates: 0, conflicts: [], validationErrors: [] };
+
+  const uuids = sales.map((s) => s.clientUuid);
+  const existingRows = await db
+    .prepare(
+      `SELECT client_uuid AS clientUuid FROM onsite_sales WHERE client_uuid IN (${uuids.map(() => "?").join(",")})`,
+    )
+    .bind(...uuids)
+    .all<{ clientUuid: string }>();
+  const existing = (existingRows.results ?? []).map((r) => r.clientUuid);
+  const { fresh, duplicates } = partitionByClientUuid(existing, sales);
+  if (fresh.length === 0) {
+    return { applied: 0, duplicates: duplicates.length, conflicts: [], validationErrors: [] };
+  }
+
+  const variantIds = [
+    ...new Set(fresh.flatMap((s) => s.lines.filter(isPartLine).map((l) => l.productVariantId!))),
+  ];
+  const available: Record<string, number> = {};
+  for (const id of variantIds) available[id] = 0;
+  if (variantIds.length > 0) {
+    const availRows = await db
+      .prepare(
+        `SELECT product_variant_id AS variantId, COALESCE(SUM(quantity_delta), 0) AS available
+         FROM stock_ledger_entries WHERE product_variant_id IN (${variantIds.map(() => "?").join(",")})
+         GROUP BY product_variant_id`,
+      )
+      .bind(...variantIds)
+      .all<{ variantId: string; available: number }>();
+    for (const row of availRows.results ?? []) available[row.variantId] = Number(row.available);
+  }
+
+  const { taxByVariant, costByVariant } = await loadLinePricing(db, variantIds);
 
   // Bill numbers already used by another bill (bug hunt 15 Nov 2026: a clash used to skip the
   // header insert silently, then fail on its lines — the whole save crashed with a 500).
@@ -1176,6 +1212,16 @@ export class StockLedger extends DurableObject<Env> {
   /** Scan here › On hold — move stock between sellable and the hold bucket. */
   async applyHold(lines: HoldLine[]): Promise<HoldLineResult[]> {
     return this.ctx.blockConcurrencyWhile(() => applyHoldToDb(this.env.DB, lines));
+  }
+
+  /** งานซ่อม — every job write, one at a time with every other stock change (plan 10.1). */
+  async repairJob(action: RepairJobAction, userId: string | null): Promise<JobResult> {
+    const db = this.env.DB;
+    return this.ctx.blockConcurrencyWhile(() =>
+      runRepairJobAction(db, action, { userId, now: Date.now() }, (lines) =>
+        priceBillLines(db, lines),
+      ),
+    );
   }
 
   async refundSale(saleId: string): Promise<RefundResult> {
@@ -2858,6 +2904,12 @@ export const BACKUP_TABLES = [
   // wage was partly paid early, and without it a payslip reads as if the full amount went out.
   "staff_advances",
   "staff_activity",
+  // งานซ่อม (0105). The job, its estimate and bill lines, its mechanics, and the history of who
+  // moved it when — the only record of what a customer agreed to and which parts sit in งานนอก.
+  "repair_jobs",
+  "repair_job_lines",
+  "repair_job_mechanics",
+  "repair_job_events",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
@@ -8219,6 +8271,37 @@ const worker = {
     if (expenseId && request.method === "DELETE") {
       const result = await archiveExpenseInDb(env.DB, decodeURIComponent(expenseId[1]!));
       return json(result, result.ok ? 200 : 404);
+    }
+
+    // งานซ่อม (plan 10.1). Reads straight from D1; every write through the StockLedger object.
+    if (url.pathname === "/repair-jobs" && request.method === "GET") {
+      const q = url.searchParams;
+      return json(
+        await listRepairJobs(env.DB, {
+          status: q.get("status") ?? undefined,
+          plate: q.get("plate") ?? undefined,
+          mechanicId: q.get("mechanic") ?? undefined,
+          open: q.get("open") === "1",
+        }),
+      );
+    }
+    const jobGet = url.pathname.match(/^\/repair-jobs\/([^/]+)$/);
+    if (jobGet && request.method === "GET") {
+      const job = await getRepairJob(env.DB, decodeURIComponent(jobGet[1]!));
+      return job ? json({ ok: true, job }) : json({ ok: false, error: "not_found" }, 404);
+    }
+    const isJobPath = url.pathname === "/repair-jobs" || url.pathname.startsWith("/repair-jobs/");
+    if (isJobPath && request.method !== "GET") {
+      const body =
+        request.method === "DELETE" ? {} : await readJson<Record<string, unknown>>(request);
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        return json({ ok: false, error: "invalid JSON body" }, 400);
+      }
+      const action = repairJobActionFor(request.method, url.pathname, body);
+      if (!action) return json({ ok: false, error: "not_found" }, 404);
+      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const result = await stub.repairJob(action, viewerStaff?.userId ?? null);
+      return json(result, result.ok ? 200 : result.status);
     }
 
     if (url.pathname === "/onsite/drafts" && request.method === "GET") {
