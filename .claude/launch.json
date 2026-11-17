@@ -15,6 +15,12 @@
       "port": 8788
     },
     {
+      "name": "api (2 shops)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "-c", "wrangler.practice.jsonc", "--port", "8788"],
+      "port": 8788
+    },
+    {
       "name": "storefront",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "-w", "@l-shopee/storefront"],
@@ -35,6 +41,16 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["wrangler", "dev", "-c", "apps/mobile/wrangler.jsonc", "--port", "8790"],
       "port": 8790
+    },
+    {
+      "name": "Kira shop 2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "-w", "@l-shopee/mobile", "--", "--port", "8082"],
+      "port": 8082,
+      "env": {
+        "EXPO_NO_TELEMETRY": "1",
+        "CI": "1"
+      }
     }
   ]
 }

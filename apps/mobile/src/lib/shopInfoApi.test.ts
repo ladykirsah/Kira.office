@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fetchShopInfo, saveShopFields, uploadShopImage } from "./shopInfoApi";
+import { fetchShop, fetchShopInfo, saveShopFields, uploadShopImage } from "./shopInfoApi";
 import type { FetchFn } from "./signIn";
 
 function replying(reply: (url: string, init?: RequestInit) => Response) {
@@ -94,5 +94,39 @@ describe("uploadShopImage", () => {
     await expect(
       uploadShopImage(fetchFn, "http://api", "tok", "denair", "qr", photo),
     ).resolves.toBe("wrong-picture");
+  });
+});
+
+// Plan 10.3: which shop the app is open on, and the ข้อมูลร้าน cards it has.
+describe("fetchShop", () => {
+  it("given a signed-in app > then it reads the shop and its cards", async () => {
+    const { calls, fetchFn } = replying(() =>
+      Response.json({ id: "coolair", name: "ร้านคูลแอร์", profiles: ["denair"] }),
+    );
+    const shop = await fetchShop(fetchFn, "http://api", "tok");
+    expect(calls[0]!.url).toBe("http://api/shop");
+    expect(signed(calls[0]!.init)).toBe(true);
+    expect(shop).toEqual({ id: "coolair", name: "ร้านคูลแอร์", profiles: ["denair"] });
+  });
+
+  it("given a server from before shops (no /shop) > then Den Air with both cards, as before", async () => {
+    const { fetchFn } = replying(() => new Response("Not Found", { status: 404 }));
+    expect(await fetchShop(fetchFn, "http://api", "tok")).toEqual({
+      id: "denair",
+      name: "Den Air Service",
+      profiles: ["denair", "airplus"],
+    });
+  });
+
+  it("given a card the app doesn't know > then it is left out", async () => {
+    const { fetchFn } = replying(() =>
+      Response.json({ id: "x", name: "X", profiles: ["denair", "somethingnew"] }),
+    );
+    expect((await fetchShop(fetchFn, "http://api", "tok")).profiles).toEqual(["denair"]);
+  });
+
+  it("given the server failing > then it says so", async () => {
+    const { fetchFn } = replying(() => Response.json({ error: "boom" }, { status: 500 }));
+    await expect(fetchShop(fetchFn, "http://api", "tok")).rejects.toThrow();
   });
 });

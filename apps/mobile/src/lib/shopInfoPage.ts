@@ -225,3 +225,30 @@ export function taxProblems(draft: TextDraft): TaxProblems {
   }
   return out;
 }
+
+/**
+ * Which shop the app is open on (plan 10.3) and its ข้อมูลร้าน cards: Den Air its counter + the
+ * AirPlus website; any other shop its counter only ("denair" means the counter).
+ */
+export interface ShopIdentity {
+  id: string;
+  name: string;
+  profiles: readonly ShopProfile[];
+}
+
+const CARD_ORDER: readonly ShopProfile[] = ["denair", "airplus"];
+
+/** The cards ข้อมูลร้าน shows, in order: only the ones this shop has. */
+export function shopCards(shop: ShopIdentity): ShopProfile[] {
+  return CARD_ORDER.filter((p) => shop.profiles.includes(p));
+}
+
+/** A card's name: the saved one, else the counter is named by its shop and the website AirPlus. */
+export function cardTitle(
+  info: ShopInfo,
+  profile: ShopProfile,
+  lang: ShopLang,
+  shop: ShopIdentity,
+): string {
+  return titleIn(info, "name", lang) || (profile === "denair" ? shop.name : "AirPlus");
+}
