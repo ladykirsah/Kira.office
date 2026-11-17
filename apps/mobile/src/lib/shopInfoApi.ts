@@ -25,6 +25,11 @@ const TEXT_KEYS: (keyof TextDraft)[] = [
   "bankName",
   "bankAccountName",
   "bankAccountNumber",
+  "vatBilling",
+  "taxId",
+  "taxBranch",
+  "taxName",
+  "taxAddress",
 ];
 
 /** One shop's details; a field the server does not send yet reads empty. */

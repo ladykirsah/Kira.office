@@ -61,3 +61,4 @@ export * from "./sellingPrice";
 export * from "./practiceCopyGate";
 export * from "./staffPayout";
 export * from "./repairJob";
+export * from "./taxDocs";

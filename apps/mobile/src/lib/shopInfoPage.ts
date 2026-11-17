@@ -1,5 +1,12 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { defaultPaymentMethod, formatPromptPayTarget, type PaymentMethod } from "@l-shopee/core";
+import {
+  defaultPaymentMethod,
+  formatPromptPayTarget,
+  normalizeTaxId,
+  taxIdProblem,
+  vatBillingOn,
+  type PaymentMethod,
+} from "@l-shopee/core";
 
 /**
  * ข้อมูลร้าน (canvas v275): two shop cards, then one page per shop with everything on it — ติดต่อ,
@@ -32,6 +39,12 @@ export interface ShopInfo {
   bankName: string;
   bankAccountName: string;
   bankAccountNumber: string;
+  /** ภาษี (plan 10.2): VAT billing "on"/"off" (never set = on) and what a tax invoice prints. */
+  vatBilling: string;
+  taxId: string;
+  taxBranch: string;
+  taxName: string;
+  taxAddress: string;
   logoKey: string | null;
   qrKey: string | null;
 }
@@ -175,4 +188,40 @@ export function copiedToast(what: Phrase): Phrase {
   // Thai runs on without spaces, but an English word ("LINE OA") needs one before แล้ว.
   const gap = /[A-Za-z0-9]$/.test(what.th) ? " " : "";
   return { th: `คัดลอก${what.th}${gap}แล้ว`, en: `Copied the ${what.en}` };
+}
+
+/** ภาษี › VAT billing: เปิด unless switched off (never set = on; Den Air is VAT-registered). */
+export function vatShown(info: ShopInfo): Phrase {
+  return vatBillingOn(info.vatBilling) ? { th: "เปิด", en: "On" } : { th: "ปิด", en: "Off" };
+}
+
+/** A tax ID the way Thai papers print it: 0-1055-36000-31-3. */
+export function taxIdShown(id: string): string {
+  const d = normalizeTaxId(id);
+  return /^\d{13}$/.test(d)
+    ? `${d[0]}-${d.slice(1, 5)}-${d.slice(5, 10)}-${d.slice(10, 12)}-${d[12]}`
+    : id;
+}
+
+/**
+ * Lines under the ภาษี boxes, checked before บันทึก so a typo never reaches the server. Empty boxes
+ * are fine: the shop fills them in when it is ready to issue tax invoices.
+ */
+export type TaxProblems = Partial<Record<"taxId" | "taxBranch", Phrase>>;
+
+export function taxProblems(draft: TextDraft): TaxProblems {
+  const out: TaxProblems = {};
+  if (draft.taxId.trim() && taxIdProblem(draft.taxId)) {
+    out.taxId = {
+      th: "เลขผู้เสียภาษีไม่ถูกต้อง ตรวจ 13 หลักอีกครั้ง",
+      en: "Tax ID is not right, check the 13 digits",
+    };
+  }
+  if (draft.taxBranch.trim() && !/^\d{5}$/.test(draft.taxBranch.trim())) {
+    out.taxBranch = {
+      th: "รหัสสาขา 5 หลัก เช่น 00001 · ว่างไว้ = สำนักงานใหญ่",
+      en: "Branch is 5 digits, e.g. 00001 · empty = head office",
+    };
+  }
+  return out;
 }

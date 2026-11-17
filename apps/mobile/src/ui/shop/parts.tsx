@@ -129,6 +129,25 @@ export function ValueLine(props: { label: string; value: string; last?: boolean 
   );
 }
 
+/**
+ * A long value read on the page — a registered name or address — with its label above and the
+ * words on as many lines as they need (beside the label, a long one squeezed it to one letter wide).
+ */
+export function ColumnValue(props: { label: string; value: string; last?: boolean }) {
+  const { theme } = useTheme();
+  return (
+    <View>
+      <View style={styles.column}>
+        <Text style={[TYPE.body, { color: theme.text }]}>{props.label}</Text>
+        <Text style={[TYPE.subhead, { color: props.value ? theme.text : theme.textMuted }]}>
+          {props.value || "—"}
+        </Text>
+      </View>
+      {!props.last && <Divider />}
+    </View>
+  );
+}
+
 /** A long box — the address — with its label above and the words on as many lines as they need. */
 export function ColumnInput(props: {
   label: string;

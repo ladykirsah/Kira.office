@@ -5,7 +5,7 @@ description: Don't overwhelm the owner; selected elements ARE the scope; letters
 tags: [workflow, owner, communication, scope, artifacts, screenshots]
 timestamp: 2026-08-09
 status: convention
-sources: [dont-overwhelm-the-owner.md, owner-selected-elements-scope.md, ask-options-use-letters-not-numbers.md, low-credit-working-mode.md, airplus-preview-workflow.md, nlp-knowledge-location.md]
+sources: [business-rule-check-global-practice.md, plan 10.2 (17 Nov 2026), dont-overwhelm-the-owner.md, owner-selected-elements-scope.md, ask-options-use-letters-not-numbers.md, low-credit-working-mode.md, airplus-preview-workflow.md, nlp-knowledge-location.md]
 ---
 
 # Owner communication, scope discipline, and working channels
@@ -22,6 +22,16 @@ Rules that came out of it:
 2. **Decide-then-report on engineering process** (branching, scoping, sequencing) — ask the owner only about the BUSINESS.
 3. One feature at a time, shown working the same day.
 4. A finding they can't act on today is noise — put it in memory/knowledge, not chat.
+
+## Check global practice before asking a business question (said twice, 2026-11-17)
+
+Before asking the owner how their business works, or planning a feature that touches money, tax,
+selling or stock, look up how the big players do it first — Shopee / Lazada for selling, FlowAccount /
+PEAK for bills and tax. Then ask with that in hand: *"i did tell you to learn from global practice
+before, did you do it? [y/n] this question is so simple logic"* (plan 10.2 VAT billing). I had asked how
+Den Air gives tax invoices today without checking; the plan was rebuilt on the owner's model (B2C cash
+bill, B2B cash bill or tax invoice picked per sale, company details kept for next time) after reading
+how PEAK and FlowAccount do it.
 
 ## Selected elements = the whole scope (incident 2026-07-27)
 
