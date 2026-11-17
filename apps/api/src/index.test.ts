@@ -13396,3 +13396,109 @@ describe("lists send everything (plan 8.5)", () => {
     expect((await json(await listOrders(env))).orders).toHaveLength(201);
   });
 });
+
+// งานซ่อม (plan 10.1): every job write goes through the StockLedger object — one writer at a time,
+// like every stock change — as the signed-in staff member, so history names who did it.
+describe("repair job routes > through the StockLedger object, as the signed-in staff", () => {
+  type Call = [action: Record<string, unknown>, userId: string | null];
+  function ledger(answer: (a: Record<string, unknown>) => unknown) {
+    const calls: Call[] = [];
+    const env = {
+      STOCK_LEDGER: {
+        idFromName: () => ({}),
+        get: () => ({
+          repairJob: async (action: Record<string, unknown>, userId: string | null) => {
+            calls.push([action, userId]);
+            return answer(action);
+          },
+        }),
+      },
+    } as unknown as Env;
+    return { env, calls };
+  }
+  const send = (env: Env, method: string, path: string, body?: unknown) =>
+    fetchAuthed(
+      new Request(`https://x${path}`, {
+        method,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+      env,
+      ctx,
+    );
+
+  it.each([
+    [
+      "POST",
+      "/repair-jobs",
+      { licensePlate: "กข1234" },
+      { kind: "open", input: { licensePlate: "กข1234" } },
+    ],
+    ["POST", "/repair-jobs/j1/status", { to: "check" }, { kind: "move", jobId: "j1", to: "check" }],
+    [
+      "POST",
+      "/repair-jobs/j1/lines",
+      { lineType: "service", description: "ล้างแอร์" },
+      { kind: "addLine", jobId: "j1", input: { lineType: "service", description: "ล้างแอร์" } },
+    ],
+    [
+      "PATCH",
+      "/repair-jobs/j1/lines/l1",
+      { expectedAt: 5 },
+      { kind: "changeLine", jobId: "j1", lineId: "l1", patch: { expectedAt: 5 } },
+    ],
+    [
+      "DELETE",
+      "/repair-jobs/j1/lines/l1",
+      undefined,
+      { kind: "removeLine", jobId: "j1", lineId: "l1" },
+    ],
+    [
+      "PUT",
+      "/repair-jobs/j1/mechanics",
+      { userIds: ["u-art"] },
+      { kind: "mechanics", jobId: "j1", userIds: ["u-art"] },
+    ],
+    [
+      "POST",
+      "/repair-jobs/j1/cancel",
+      { reason: "ลูกค้าไม่มา" },
+      { kind: "cancel", jobId: "j1", reason: "ลูกค้าไม่มา" },
+    ],
+    [
+      "POST",
+      "/repair-jobs/j1/pay",
+      { paymentMethod: "cash" },
+      { kind: "pay", jobId: "j1", input: { paymentMethod: "cash" } },
+    ],
+  ])("%s %s > the job action, as u-test", async (method, path, body, action) => {
+    const { env, calls } = ledger(() => ({ ok: true, job: { id: "j1" } }));
+    const res = await send(env, method, path, body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, job: { id: "j1" } });
+    expect(calls).toEqual([[action, "u-test"]]);
+  });
+
+  it("given a refusal > then its own status, with the parts it names", async () => {
+    const refusal = {
+      ok: false,
+      status: 409,
+      error: "parts_missing",
+      parts: [{ lineId: "l2", description: "วาล์วแอร์ Sanden", reason: "not_in_stock" }],
+    };
+    const { env } = ledger(() => refusal);
+    const res = await send(env, "POST", "/repair-jobs/j1/status", { to: "working" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual(refusal);
+  });
+
+  it("given a body that isn't JSON > then 400 and the job isn't touched", async () => {
+    const { env, calls } = ledger(() => ({ ok: true, job: {} }));
+    const res = await fetchAuthed(
+      new Request("https://x/repair-jobs/j1/status", { method: "POST", body: "{nope" }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+});

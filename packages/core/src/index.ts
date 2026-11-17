@@ -60,3 +60,4 @@ export * from "./ownerSignIn";
 export * from "./sellingPrice";
 export * from "./practiceCopyGate";
 export * from "./staffPayout";
+export * from "./repairJob";

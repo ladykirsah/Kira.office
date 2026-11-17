@@ -5,7 +5,7 @@ description: TDD-first per AGENTS.md, the real CI gates (lint = prettier + eslin
 tags: [engineering, tdd, ci, lint, testing, verification]
 timestamp: 2026-11-17
 status: convention
-sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026)]
+sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026), plan 10.1 (17 Nov 2026)]
 ---
 
 # Engineering rules — TDD, gates, and verification honesty
@@ -21,6 +21,8 @@ Repo-specific critical paths from `AGENTS.md`:
 - Money is critical-path; store both inputs AND outputs of financial calculations so historical records never change when fee/tax rules change later.
 - Offline-first POS sales must be idempotent on sync — never lose or double-count a sale or stock movement.
 - Test runner is **Vitest** (`npm test` = `vitest run`).
+- **Tests written in the same pass as the code prove nothing until they have failed.** Run the red first. If the code already exists, break each rule on purpose (one at a time, then restore) and watch a test fail for each — plan 10.1's `repairJobs.ts` was written before its tests ran, and five deliberate breaks were what showed the tests were real (17 Nov 2026).
+- API tests that import `apps/api/src/index.ts` need `vi.mock("cloudflare:workers", …)` (copy it from `onsiteBill.test.ts`), or the file fails to load.
 
 ## The real CI gates — run lint before push
 
@@ -48,7 +50,7 @@ Migration 0060 lesson: the first draft added `name_th`/`name_en` to only SOME ta
 
 ## Backup-list discipline
 
-`BACKUP_TABLES` (the daily R2 dump's table list) was once missing `customers`/`payments`/`audit_logs` — the anti-cheat payment trail was silently omitted from backups. Fixed by adding those + `customer_history_entries`. **When adding a table, check the backup list.** Platform detail: [platform](../platform/index.md).
+`BACKUP_TABLES` (the daily R2 dump's table list) was once missing `customers`/`payments`/`audit_logs` — the anti-cheat payment trail was silently omitted from backups. Fixed by adding those + `customer_history_entries`. **When adding a table, check the backup list.** A new table that points at `users` also goes on the 0097 foreign-key list in `apps/api/src/staffDetails.test.ts` — plan 10.1's job tables tripped both guards (17 Nov 2026). Platform detail: [platform](../platform/index.md).
 
 ## The Worker's main file exports only functions, classes and objects
 

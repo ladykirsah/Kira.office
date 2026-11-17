@@ -162,9 +162,16 @@ describe("migration 0097 > users.email becomes optional, nothing else moves", ()
     const before = foreignKeysToUsers(db);
     applyFrom(db, "0097");
     expect(foreignKeysToUsers(db)).toEqual(
-      [...before, "staff_advances.paid_by", "staff_payslips.paid_by"].sort((a, b) =>
-        a.localeCompare(b),
-      ),
+      [
+        ...before,
+        "staff_advances.paid_by",
+        "staff_payslips.paid_by",
+        // Added by later migrations, which applyFrom runs too: งานซ่อม (0105) names who opened a
+        // job, who works on it, and who did each step.
+        "repair_job_events.user_id",
+        "repair_job_mechanics.user_id",
+        "repair_jobs.opened_by_user_id",
+      ].sort((a, b) => a.localeCompare(b)),
     );
   });
 
