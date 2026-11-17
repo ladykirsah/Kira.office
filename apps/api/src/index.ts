@@ -29,6 +29,9 @@ import {
   isClaimState,
   computeSaleProfit,
   lineTaxSatang,
+  normalizeTaxId,
+  shopTaxEditProblem,
+  vatBillingOn,
   partitionByClientUuid,
   parseCsv,
   parseThaiDateMs,
@@ -218,6 +221,16 @@ import {
   type JobResult,
   type RepairJobAction,
 } from "./repairJobs";
+import {
+  creditNoteStatements,
+  getTaxDocument,
+  listTaxBuyers,
+  listTaxDocuments,
+  readShopTax,
+  runTaxAction,
+  taxDocumentsCsv,
+  type TaxAction,
+} from "./taxDocs";
 import {
   addChoice,
   addToGroup,
@@ -790,10 +803,24 @@ function withProductCost(line: SyncLine, costByVariant: Record<string, number>):
   return { ...line, unitCostSatang: costByVariant[line.productVariantId!] ?? 0 };
 }
 
-/** Fill missing taxSatang on part lines from the product tax profile (defaults: 7% inclusive). */
-function enrichLineTax(line: SyncLine, taxByVariant: Record<string, VariantTaxProfile>): SyncLine {
-  if (line.taxSatang != null || !isPartLine(line)) return line;
-  const profile = taxByVariant[line.productVariantId!];
+/** Whether the shop charges VAT (ข้อมูลร้าน › VAT billing). Never set = on — see vatBillingOn. */
+export interface BillVat {
+  vatOn?: boolean;
+}
+
+/**
+ * The VAT inside each line, always worked out here — a figure sent by a phone is never used (plan
+ * 10.2). VAT billing on: a part by its product's tax profile (default 7% inside the price), labour
+ * at 7% inside the price too — a VAT-registered shop's prices include VAT on everything it sells.
+ * Off: no VAT on any line.
+ */
+function enrichLineTax(
+  line: SyncLine,
+  taxByVariant: Record<string, VariantTaxProfile>,
+  vatOn: boolean,
+): SyncLine {
+  if (!vatOn) return { ...line, taxSatang: 0 };
+  const profile = isPartLine(line) ? taxByVariant[line.productVariantId!] : undefined;
   const taxSatang = lineTaxSatang({
     unitPriceSatang: line.unitPriceSatang,
     quantity: line.quantity,
@@ -870,11 +897,16 @@ async function loadLinePricing(
 export async function priceBillLines(
   db: D1Database,
   lines: readonly SyncLine[],
+  vat: BillVat = {},
 ): Promise<(SyncLine & { grossProfitSatang: number })[]> {
   const variantIds = [...new Set(lines.filter(isPartLine).map((l) => l.productVariantId!))];
   const { taxByVariant, costByVariant } = await loadLinePricing(db, variantIds);
   return lines.map((l) => {
-    const priced = enrichLineTax(withProductCost(l, costByVariant), taxByVariant);
+    const priced = enrichLineTax(
+      withProductCost(l, costByVariant),
+      taxByVariant,
+      vat.vatOn ?? true,
+    );
     return { ...priced, grossProfitSatang: lineGrossProfitSatang(priced) };
   });
 }
@@ -885,7 +917,11 @@ export async function priceBillLines(
  * + ledger in one D1 batch. Always invoked through the StockLedger Durable Object so concurrent syncs
  * serialize (single writer); D1's unique index on client_uuid is the backstop against double-counting.
  */
-export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<SyncResult> {
+export async function applySyncToDb(
+  db: D1Database,
+  sales: SyncSale[],
+  vat: BillVat = {},
+): Promise<SyncResult> {
   if (sales.length === 0) return { applied: 0, duplicates: 0, conflicts: [], validationErrors: [] };
 
   const uuids = sales.map((s) => s.clientUuid);
@@ -964,7 +1000,7 @@ export async function applySyncToDb(db: D1Database, sales: SyncSale[]): Promise<
     const { extras } = checked;
 
     const enrichedLines = sale.lines.map((l) =>
-      enrichLineTax(withProductCost(l, costByVariant), taxByVariant),
+      enrichLineTax(withProductCost(l, costByVariant), taxByVariant, vat.vatOn ?? true),
     );
 
     const saleConflicts: SyncConflict[] = [];
@@ -1197,7 +1233,20 @@ export class StockLedger extends DurableObject<Env> {
   // this DO the genuine single serialized writer its contract promises. Reads route through it too,
   // so an availability read can't slip between a mutation's own read and write.
   async applySync(sales: SyncSale[]): Promise<SyncResult> {
-    return this.ctx.blockConcurrencyWhile(() => applySyncToDb(this.env.DB, sales));
+    const vatOn = await this.counterVatOn();
+    return this.ctx.blockConcurrencyWhile(() => applySyncToDb(this.env.DB, sales, { vatOn }));
+  }
+
+  /**
+   * Den Air's VAT billing switch (ข้อมูลร้าน). A KV hiccup must not drop VAT off a bill, so a failed
+   * read counts as on — the switch's own default.
+   */
+  private async counterVatOn(): Promise<boolean> {
+    try {
+      return vatBillingOn(await this.env.KV.get(shopKey("denair", "vatBilling")));
+    } catch {
+      return true;
+    }
   }
 
   /** AirPlus storefront checkout calls this via a cross-Worker DO binding (script_name). */
@@ -1217,15 +1266,30 @@ export class StockLedger extends DurableObject<Env> {
   /** งานซ่อม — every job write, one at a time with every other stock change (plan 10.1). */
   async repairJob(action: RepairJobAction, userId: string | null): Promise<JobResult> {
     const db = this.env.DB;
+    const vatOn = await this.counterVatOn();
     return this.ctx.blockConcurrencyWhile(() =>
       runRepairJobAction(db, action, { userId, now: Date.now() }, (lines) =>
-        priceBillLines(db, lines),
+        priceBillLines(db, lines, { vatOn }),
       ),
     );
   }
 
-  async refundSale(saleId: string): Promise<RefundResult> {
-    return this.ctx.blockConcurrencyWhile(() => refundSaleToDb(this.env.DB, saleId));
+  async refundSale(
+    saleId: string,
+    who: { userId?: string | null; reason?: string | null } = {},
+  ): Promise<RefundResult> {
+    return this.ctx.blockConcurrencyWhile(() => refundSaleToDb(this.env.DB, saleId, who));
+  }
+
+  /** VAT billing — tax invoices, cancels and the company book, one number at a time (plan 10.2). */
+  async taxDocument(
+    action: TaxAction,
+    userId: string | null,
+  ): Promise<Awaited<ReturnType<typeof runTaxAction>>> {
+    const shop = await readShopTax(this.env.KV);
+    return this.ctx.blockConcurrencyWhile(() =>
+      runTaxAction(this.env.DB, action, shop, { userId, now: Date.now() }),
+    );
   }
 
   /** The shop cancels an unsent AirPlus order — the stock it gives back is a stock write too. */
@@ -2025,6 +2089,14 @@ export const SHOP_TEXT_FIELDS = [
   "bankName",
   "bankAccountName",
   "bankAccountNumber",
+  // VAT billing (plan 10.2, 17 Nov 2026): the switch ("on"/"off"; never set = on, Den Air is
+  // VAT-registered) and the details every tax invoice prints — tax ID (13 digits, kept as digits),
+  // branch (5 digits; blank = สำนักงานใหญ่), the registered name and address.
+  "vatBilling",
+  "taxId",
+  "taxBranch",
+  "taxName",
+  "taxAddress",
 ] as const;
 
 /** Store the shop logo or contact-QR image in R2 and record its key in KV (one current image per
@@ -2466,6 +2538,8 @@ export interface RefundResult {
   applied: boolean;
   restockedLines: number;
   reason?: string;
+  /** The ใบลดหนี้ made with it, when the bill had a live tax invoice (plan 10.2). */
+  creditNoteNumber?: string;
 }
 
 /**
@@ -2473,7 +2547,11 @@ export interface RefundResult {
  * reversing financial record (negative amount). Idempotent guard against double-refund. Runs through
  * the StockLedger Durable Object so restock serializes with sales.
  */
-export async function refundSaleToDb(db: D1Database, saleId: string): Promise<RefundResult> {
+export async function refundSaleToDb(
+  db: D1Database,
+  saleId: string,
+  who: { userId?: string | null; reason?: string | null } = {},
+): Promise<RefundResult> {
   const sale = await db
     .prepare(
       "SELECT id, grand_total_satang AS grandTotalSatang, sale_status AS saleStatus, stage FROM onsite_sales WHERE id = ?",
@@ -2556,8 +2634,19 @@ export async function refundSaleToDb(db: D1Database, saleId: string): Promise<Re
         now,
       ),
   );
+  // A bill with a live tax invoice gets its ใบลดหนี้ in the same write (plan 10.2).
+  const credit = await creditNoteStatements(db, saleId, who.reason ?? null, {
+    userId: who.userId ?? null,
+    now,
+  });
+  statements.push(...credit.statements);
   await db.batch(statements);
-  return { saleId, applied: true, restockedLines: lines.length };
+  return {
+    saleId,
+    applied: true,
+    restockedLines: lines.length,
+    ...(credit.number ? { creditNoteNumber: credit.number } : {}),
+  };
 }
 
 /** On-hand stock per variant (ledger sum) with product info, for the stock screen. */
@@ -2910,6 +2999,10 @@ export const BACKUP_TABLES = [
   "repair_job_lines",
   "repair_job_mechanics",
   "repair_job_events",
+  // VAT billing (0106). The company book and every tax invoice and credit note issued — legal papers
+  // the shop must keep; the numbers can never be made again.
+  "tax_buyers",
+  "tax_documents",
 ];
 
 /** R2 bucket for logical backups. Uses private BACKUPS binding when provisioned. */
@@ -8199,6 +8292,16 @@ const worker = {
       const gate = await requireRole(request, env, canRefund, "super_admin_only");
       if (gate instanceof Response) return gate;
     }
+    // Plan 10.2: cancelling a tax invoice or credit note corrects a money paper, like a refund; the
+    // month's list is the books, like การเงิน. Issuing one is anyone's who takes payment.
+    if (/^\/tax-documents\/[^/]+\/cancel$/.test(url.pathname)) {
+      const gate = await requireRole(request, env, canRefund, "super_admin_only");
+      if (gate instanceof Response) return gate;
+    }
+    if (url.pathname === "/tax-documents" && request.method === "GET") {
+      const gate = await requireRole(request, env, canViewFinance, "super_admin_only");
+      if (gate instanceof Response) return gate;
+    }
 
     // A mechanic reads the catalog and the customer directory, and changes nothing behind a page
     // their menu doesn't show — settings, marketing, imports (owner, 4 Nov 2026). core writeAreaOf.
@@ -8573,12 +8676,16 @@ const worker = {
         return json(out);
       }
       const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      // Checked before anything is written, so a bad tax ID saves none of the form.
+      const taxProblem = shopTaxEditProblem(body);
+      if (taxProblem) return json({ error: taxProblem }, 400);
       // Only the fields sent change: the app's account sheet saves paymentMethods alone, and the old
       // web page knows nothing of fields added after it (linktreeUrl) — neither may blank the rest.
       await Promise.all(
-        SHOP_TEXT_FIELDS.filter((f) => f in body).map((f) =>
-          env.KV.put(shopKey(profile, f), String(body[f] ?? "").trim()),
-        ),
+        SHOP_TEXT_FIELDS.filter((f) => f in body).map((f) => {
+          const value = String(body[f] ?? "").trim();
+          return env.KV.put(shopKey(profile, f), f === "taxId" ? normalizeTaxId(value) : value);
+        }),
       );
       return json({ ok: true });
     }
@@ -8653,8 +8760,56 @@ const worker = {
 
     const refundMatch = url.pathname.match(/^\/sales\/([^/]+)\/refund$/);
     if (refundMatch && request.method === "POST") {
+      // An optional {reason}: printed on the ใบลดหนี้ when the bill had a tax invoice (plan 10.2).
+      const body = await readJson<{ reason?: unknown }>(request);
+      const reason =
+        typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
       const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
-      return json(await stub.refundSale(refundMatch[1]!));
+      return json(
+        await stub.refundSale(refundMatch[1]!, { userId: viewerStaff?.userId ?? null, reason }),
+      );
+    }
+
+    // VAT billing (plan 10.2). Reads straight from D1; every write through the StockLedger object.
+    if (url.pathname === "/tax-buyers" && request.method === "GET") {
+      return json({ buyers: await listTaxBuyers(env.DB, url.searchParams.get("q") ?? "") });
+    }
+    if (url.pathname === "/tax-documents" && request.method === "GET") {
+      const month = url.searchParams.get("month") ?? "";
+      const list = await listTaxDocuments(env.DB, month);
+      if (url.searchParams.get("format") !== "csv") return json(list);
+      return new Response(taxDocumentsCsv(list.documents), {
+        headers: {
+          ...responseHeaders,
+          "content-type": "text/csv; charset=utf-8",
+          "content-disposition": `attachment; filename="tax-documents-${month}.csv"`,
+        },
+      });
+    }
+    const taxPaper = url.pathname.match(/^\/tax-documents\/([^/]+)$/);
+    if (taxPaper && request.method === "GET") {
+      const paper = await getTaxDocument(env.DB, decodeURIComponent(taxPaper[1]!));
+      return paper
+        ? json({ ok: true, document: paper })
+        : json({ ok: false, error: "not_found" }, 404);
+    }
+    const taxCancel = url.pathname.match(/^\/tax-documents\/([^/]+)\/cancel$/);
+    if (
+      request.method === "POST" &&
+      (taxCancel || url.pathname === "/tax-buyers" || url.pathname === "/tax-invoices")
+    ) {
+      const body = await readJson<Record<string, unknown>>(request);
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        return json({ ok: false, error: "invalid JSON body" }, 400);
+      }
+      const action: TaxAction = taxCancel
+        ? { kind: "cancel", id: decodeURIComponent(taxCancel[1]!), reason: body.reason }
+        : url.pathname === "/tax-buyers"
+          ? { kind: "saveBuyer", input: body }
+          : { kind: "issue", input: body };
+      const stub = env.STOCK_LEDGER.get(env.STOCK_LEDGER.idFromName("default"));
+      const result = await stub.taxDocument(action, viewerStaff?.userId ?? null);
+      return json(result, result.ok ? 200 : result.status);
     }
 
     if (url.pathname === "/sales/export.csv" && request.method === "GET") {

@@ -3,6 +3,8 @@ import {
   defaultPaymentMethod,
   parsePaymentMethods,
   serializePaymentMethods,
+  vatBillingOn,
+  branchLabel,
   type PaymentMethod,
 } from "@l-shopee/core";
 import { router, useLocalSearchParams } from "expo-router";
@@ -19,11 +21,15 @@ import {
   removeAccount,
   saveAccount,
   shownIn,
+  taxIdShown,
+  taxProblems,
   textDraft,
   titleIn,
+  vatShown,
   type AccountDraft,
   type Bilingual,
   type ShopInfo,
+  type TaxProblems,
   type ShopLang,
   type ShopProfile,
   type TextDraft,
@@ -38,13 +44,14 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { Group } from "../orders/parts";
 import { pickPhoto } from "../products/pickPhoto";
-import { AddRow, Divider, InputRow, Line } from "../products/parts";
+import { AddRow, Divider, InputRow, Line, SwitchRow } from "../products/parts";
 import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
 import { AccountSheet, DeleteAccountSheet } from "./AccountSheets";
 import {
   Block,
   ColumnInput,
+  ColumnValue,
   CopyLine,
   DeskColumns,
   LangSwitch,
@@ -81,6 +88,8 @@ export function ShopScreen() {
   const [lang, setLang] = useState<ShopLang>(appLang);
   const [draft, setDraft] = useState<TextDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  // ภาษี: a tax ID or branch typo, said under its box before บันทึก sends anything.
+  const [taxErrors, setTaxErrors] = useState<TaxProblems>({});
   const [account, setAccount] = useState<AccountDraft | null>(null);
   const [deleting, setDeleting] = useState<AccountDraft | null>(null);
   const info = profile ? shops.shops?.[profile] : undefined;
@@ -89,6 +98,9 @@ export function ShopScreen() {
 
   const save = async () => {
     if (!profile || !info || !draft || saving) return;
+    const problems = taxProblems(draft);
+    setTaxErrors(problems);
+    if (Object.keys(problems).length > 0) return;
     const patch = changedFields(info, draft);
     if (Object.keys(patch).length === 0) return setDraft(null);
     setSaving(true);
@@ -104,20 +116,24 @@ export function ShopScreen() {
   };
 
   const saveButton = { label: t({ th: "บันทึก", en: "Save" }), onPress: () => void save() };
+  const cancelEdit = () => {
+    setDraft(null);
+    setTaxErrors({});
+  };
   const cancelLabel = t({ th: "ยกเลิก", en: "Cancel" });
   useScreenChrome(
     null,
     // A computer's form ends in the pinned bar: ยกเลิก beside the red บันทึก (DeskShop 3).
     draft
       ? wide
-        ? [saveButton, { label: cancelLabel, kind: "grey", onPress: () => setDraft(null) }]
+        ? [saveButton, { label: cancelLabel, kind: "grey", onPress: cancelEdit }]
         : [saveButton]
       : [],
     {
       back: draft
         ? wide
           ? null
-          : { label: cancelLabel, plain: true, onPress: () => setDraft(null) }
+          : { label: cancelLabel, plain: true, onPress: cancelEdit }
         : {
             label: wide ? t({ th: "ข้อมูลร้าน", en: "Shop info" }) : "",
             onPress: () => (router.canGoBack() ? router.back() : router.replace(LIST as never)),
@@ -196,6 +212,7 @@ export function ShopScreen() {
       draft={draft}
       lang={lang}
       logo={editLogo}
+      taxErrors={taxErrors}
       onChange={(patch) => setDraft((now) => (now ? { ...now, ...patch } : now))}
       onPicture={(source) => void changePicture("qr", source)}
     />
@@ -398,6 +415,28 @@ function ViewBody(props: {
       />
     </Block>
   );
+  // Plan 10.2: VAT billing and what every tax invoice prints — Den Air's page (AirPlus later).
+  const tax = props.profile === "denair" && (
+    <Block title={t({ th: "ภาษี", en: "Tax" })}>
+      <ValueLine
+        label={t({ th: "ออกใบกำกับภาษี (VAT)", en: "VAT billing" })}
+        value={t(vatShown(info))}
+      />
+      <CopyLine
+        label={t({ th: "เลขผู้เสียภาษี", en: "Tax ID" })}
+        what={{ th: "เลขผู้เสียภาษี", en: "tax ID" }}
+        value={taxIdShown(info.taxId)}
+        onCopied={props.onCopied}
+      />
+      <ValueLine label={t({ th: "สาขา", en: "Branch" })} value={t(branchLabel(info.taxBranch))} />
+      <ColumnValue label={t({ th: "ชื่อจดทะเบียน", en: "Registered name" })} value={info.taxName} />
+      <ColumnValue
+        label={t({ th: "ที่อยู่จดทะเบียน", en: "Registered address" })}
+        value={info.taxAddress}
+        last
+      />
+    </Block>
+  );
   const billSetup = (
     <Block title={t({ th: "ตั้งค่าบิล", en: "Bill setup" })}>
       <ValueLine label={t({ th: "หัวข้อใต้ QR", en: "Under the QR" })} value={bill("qrHeadline")} />
@@ -436,6 +475,7 @@ function ViewBody(props: {
           {contact}
           {pay}
           {bank}
+          {tax}
         </>,
         <>
           {billSetup}
@@ -454,6 +494,7 @@ function EditBody(props: {
   lang: ShopLang;
   /** The logo with its เปลี่ยน band: a computer shows it in its own card (DeskShop 3). */
   logo: ReactNode;
+  taxErrors: TaxProblems;
   onChange: (patch: Partial<TextDraft>) => void;
   onPicture: (source: "camera" | "library") => void;
 }) {
@@ -538,6 +579,43 @@ function EditBody(props: {
       {box({ th: "เลขที่บัญชี", en: "Account number" }, "bankAccountNumber", true, "number-pad")}
     </Block>
   );
+  const taxError = (key: "taxId" | "taxBranch") => {
+    const said = props.taxErrors[key];
+    return said ? t(said) : undefined;
+  };
+  const tax = props.profile === "denair" && (
+    <Block title={t({ th: "ภาษี", en: "Tax" })}>
+      <SwitchRow
+        label={t({ th: "ออกใบกำกับภาษี (VAT)", en: "VAT billing" })}
+        value={vatBillingOn(draft.vatBilling)}
+        onChange={(on) => props.onChange({ vatBilling: on ? "on" : "off" })}
+      />
+      <InputRow
+        label={t({ th: "เลขผู้เสียภาษี", en: "Tax ID" })}
+        value={draft.taxId}
+        placeholder={empty}
+        keyboardType="number-pad"
+        onChange={(v) => props.onChange({ taxId: v })}
+        error={taxError("taxId")}
+      />
+      <InputRow
+        label={t({ th: "สาขา", en: "Branch" })}
+        value={draft.taxBranch}
+        placeholder={t({ th: "ว่าง = สำนักงานใหญ่", en: "Empty = head office" })}
+        keyboardType="number-pad"
+        onChange={(v) => props.onChange({ taxBranch: v })}
+        error={taxError("taxBranch")}
+      />
+      {box({ th: "ชื่อจดทะเบียน", en: "Registered name" }, "taxName")}
+      <ColumnInput
+        label={t({ th: "ที่อยู่จดทะเบียน", en: "Registered address" })}
+        value={draft.taxAddress}
+        placeholder={empty}
+        onChange={(v) => props.onChange({ taxAddress: v })}
+        last
+      />
+    </Block>
+  );
   const billSetup = (
     <Block title={t({ th: "ตั้งค่าบิล", en: "Bill setup" })}>
       {both({ th: "หัวข้อใต้ QR", en: "Under the QR" }, "qrHeadline")}
@@ -566,6 +644,7 @@ function EditBody(props: {
           {names}
           {contact}
           {bank}
+          {tax}
         </>,
         <>
           {logo}

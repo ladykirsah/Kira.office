@@ -5,7 +5,7 @@ description: TDD-first per AGENTS.md, the real CI gates (lint = prettier + eslin
 tags: [engineering, tdd, ci, lint, testing, verification]
 timestamp: 2026-11-17
 status: convention
-sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026), plan 10.1 (17 Nov 2026)]
+sources: [AGENTS.md, run-lint-before-push.md, dont-overwhelm-the-owner.md, taxonomy-bilingual-names.md, onsite-pos-customer-roadmap.md, docs/GITHUB_CHECKLIST.md, plan 8.5 (16 Nov 2026), plan 8.6 (16–17 Nov 2026), plan 10.1 (17 Nov 2026), plan 10.2 (17 Nov 2026)]
 ---
 
 # Engineering rules — TDD, gates, and verification honesty
@@ -51,6 +51,12 @@ Migration 0060 lesson: the first draft added `name_th`/`name_en` to only SOME ta
 ## Backup-list discipline
 
 `BACKUP_TABLES` (the daily R2 dump's table list) was once missing `customers`/`payments`/`audit_logs` — the anti-cheat payment trail was silently omitted from backups. Fixed by adding those + `customer_history_entries`. **When adding a table, check the backup list.** A new table that points at `users` also goes on the 0097 foreign-key list in `apps/api/src/staffDetails.test.ts` — plan 10.1's job tables tripped both guards (17 Nov 2026). Platform detail: [platform](../platform/index.md).
+
+## A file for Excel: byte-order mark, quote only what needs it
+
+The accountant's CSV (plan 10.2) opens in Excel only with a byte-order mark first, or Thai turns to
+junk. Quote text that can hold a comma or a quote (a company's name always); leave short fixed words
+alone — the first try quoted the branch label too. Test with a name that has a comma in it (17 Nov 2026).
 
 ## The Worker's main file exports only functions, classes and objects
 

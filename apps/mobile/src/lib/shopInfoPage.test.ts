@@ -9,8 +9,11 @@ import {
   removeAccount,
   saveAccount,
   shownIn,
+  taxIdShown,
+  taxProblems,
   textDraft,
   titleIn,
+  vatShown,
   type ShopInfo,
 } from "./shopInfoPage";
 
@@ -34,6 +37,11 @@ const info = (over: Partial<ShopInfo> = {}): ShopInfo => ({
   bankName: "",
   bankAccountName: "",
   bankAccountNumber: "",
+  vatBilling: "",
+  taxId: "",
+  taxBranch: "",
+  taxName: "",
+  taxAddress: "",
   logoKey: null,
   qrKey: null,
   ...over,
@@ -176,5 +184,42 @@ describe("copiedToast", () => {
     expect(copiedToast({ th: "ลิงก์ LINE OA", en: "LINE OA link" }).th).toBe(
       "คัดลอกลิงก์ LINE OA แล้ว",
     );
+  });
+});
+
+// ภาษี on Den Air's page (plan 10.2): the VAT billing switch and the details a tax invoice prints.
+describe("vatShown / taxIdShown (ภาษี on the page)", () => {
+  it("given the switch never set or on > then เปิด; off > then ปิด", () => {
+    expect(vatShown(info())).toEqual({ th: "เปิด", en: "On" });
+    expect(vatShown(info({ vatBilling: "on" }))).toEqual({ th: "เปิด", en: "On" });
+    expect(vatShown(info({ vatBilling: "off" }))).toEqual({ th: "ปิด", en: "Off" });
+  });
+
+  it("given 13 digits > then the usual 1-4-5-2-1 groups; none > then nothing", () => {
+    expect(taxIdShown("0105536000313")).toBe("0-1055-36000-31-3");
+    expect(taxIdShown("")).toBe("");
+  });
+});
+
+describe("taxProblems (lines under the ภาษี boxes before บันทึก)", () => {
+  const draft = (over: Partial<ShopInfo> = {}) => textDraft(info(over));
+
+  it("given the boxes left empty > then nothing to say (they are filled in when ready)", () => {
+    expect(taxProblems(draft())).toEqual({});
+  });
+
+  it("given a tax ID with a typo > then the box says to check the 13 digits", () => {
+    expect(taxProblems(draft({ taxId: "1234567890122" })).taxId).toEqual({
+      th: "เลขผู้เสียภาษีไม่ถูกต้อง ตรวจ 13 หลักอีกครั้ง",
+      en: "Tax ID is not right, check the 13 digits",
+    });
+    expect(taxProblems(draft({ taxId: "0-1055-36000-31-3" }))).toEqual({});
+  });
+
+  it("given a branch that isn't 5 digits > then the box says what one looks like", () => {
+    expect(taxProblems(draft({ taxBranch: "1" })).taxBranch).toEqual({
+      th: "รหัสสาขา 5 หลัก เช่น 00001 · ว่างไว้ = สำนักงานใหญ่",
+      en: "Branch is 5 digits, e.g. 00001 · empty = head office",
+    });
   });
 });

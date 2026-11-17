@@ -2677,6 +2677,56 @@ describe("api worker routes", () => {
     ]);
   });
 
+  // VAT billing (plan 10.2): the shop's tax details, printed on every tax invoice it issues.
+  it("shop-info > given the shop's tax details > then they are kept (tax ID as digits) and read back", async () => {
+    const { store, env } = kvEnv();
+    const res = await fetchAuthed(
+      new Request("https://x/shop-info/denair", {
+        method: "PUT",
+        body: JSON.stringify({
+          vatBilling: "on",
+          taxId: "0-1055-36000-31-3",
+          taxBranch: "",
+          taxName: " บริษัท เด่นแอร์ เซอร์วิส จำกัด ",
+          taxAddress: "1 ถนนตัวอย่าง กรุงเทพฯ 10110",
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(store.get("shop:denair:taxId")).toBe("0105536000313");
+    const body = (await (
+      await fetchAuthed(new Request("https://x/shop-info/denair"), env, ctx)
+    ).json()) as Record<string, string | null>;
+    expect([body.vatBilling, body.taxId, body.taxBranch, body.taxName, body.taxAddress]).toEqual([
+      "on",
+      "0105536000313",
+      "",
+      "บริษัท เด่นแอร์ เซอร์วิส จำกัด",
+      "1 ถนนตัวอย่าง กรุงเทพฯ 10110",
+    ]);
+  });
+
+  it.each([
+    [{ taxId: "1234567890122" }, "tax ID check digit is wrong"],
+    [{ taxBranch: "12" }, "branch must be 5 digits"],
+    [{ vatBilling: "yes" }, "vatBilling must be on or off"],
+  ])("shop-info > given %j > then 400 and nothing is saved", async (bad, error) => {
+    const { store, env } = kvEnv();
+    const res = await fetchAuthed(
+      new Request("https://x/shop-info/denair", {
+        method: "PUT",
+        body: JSON.stringify({ name: "เด่นแอร์", ...bad }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error });
+    expect(store.size).toBe(0);
+  });
+
   it("shop-info > given a save that sends some fields > then the fields it left out keep their values", async () => {
     // The account sheet saves only paymentMethods; the old web page knows nothing of linktreeUrl.
     const { store, env } = kvEnv();
@@ -10406,6 +10456,14 @@ describe("role enforcement on money, catalog and payment routes", () => {
         const { env, token } = await asRole(role);
         expect((await call(env, "/claims/c1/refund", { method: "POST" }, token)).status).toBe(403);
       });
+      // Plan 10.2: cancelling a tax invoice or credit note corrects money papers, like a refund;
+      // the month's list is the books, like การเงิน.
+      it(`given a ${role} > 403 on cancelling a tax paper and on the month's list`, async () => {
+        const { env, token } = await asRole(role);
+        const cancel = await call(env, "/tax-documents/d1/cancel", { method: "POST" }, token);
+        expect(cancel.status).toBe(403);
+        expect((await call(env, "/tax-documents?month=2026-11", {}, token)).status).toBe(403);
+      });
     }
   });
 
@@ -13500,5 +13558,84 @@ describe("repair job routes > through the StockLedger object, as the signed-in s
     );
     expect(res.status).toBe(400);
     expect(calls).toEqual([]);
+  });
+});
+
+// VAT billing (plan 10.2): every tax-paper write goes through the StockLedger object — one at a time,
+// so two papers never take the same number — as the signed-in staff member.
+describe("tax paper routes > through the StockLedger object, as the signed-in staff", () => {
+  type Call = [action: Record<string, unknown>, userId: string | null];
+  function ledger(answer: (a: Record<string, unknown>) => unknown) {
+    const calls: Call[] = [];
+    const refunds: unknown[][] = [];
+    const env = {
+      STOCK_LEDGER: {
+        idFromName: () => ({}),
+        get: () => ({
+          taxDocument: async (action: Record<string, unknown>, userId: string | null) => {
+            calls.push([action, userId]);
+            return answer(action);
+          },
+          refundSale: async (...args: unknown[]) => {
+            refunds.push(args);
+            return {
+              saleId: "s1",
+              applied: true,
+              restockedLines: 1,
+              creditNoteNumber: "CN202611-0001",
+            };
+          },
+        }),
+      },
+    } as unknown as Env;
+    return { env, calls, refunds };
+  }
+  const post = (env: Env, path: string, body: unknown) =>
+    fetchAuthed(
+      new Request(`https://x${path}`, { method: "POST", body: JSON.stringify(body) }),
+      env,
+      ctx,
+    );
+
+  it.each([
+    ["/tax-buyers", { name: "บจก. ขนส่ง" }, { kind: "saveBuyer", input: { name: "บจก. ขนส่ง" } }],
+    [
+      "/tax-invoices",
+      { saleId: "s1", buyerId: "b1" },
+      { kind: "issue", input: { saleId: "s1", buyerId: "b1" } },
+    ],
+    ["/tax-documents/d1/cancel", { reason: "ผิด" }, { kind: "cancel", id: "d1", reason: "ผิด" }],
+  ])("POST %s > the tax action, as u-test", async (path, body, action) => {
+    const { env, calls } = ledger(() => ({ ok: true, document: { id: "d1" } }));
+    const res = await post(env, path, body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, document: { id: "d1" } });
+    expect(calls).toEqual([[action, "u-test"]]);
+  });
+
+  it("given a refusal > then its own status, with what is missing", async () => {
+    const refusal = {
+      ok: false,
+      status: 409,
+      error: "shop_tax_details_missing",
+      missing: ["taxId"],
+    };
+    const { env } = ledger(() => refusal);
+    const res = await post(env, "/tax-invoices", { saleId: "s1", buyerId: "b1" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual(refusal);
+  });
+
+  it("given a refund with a reason > then the stock object gets who and why, and the credit note comes back", async () => {
+    const { env, refunds } = ledger(() => ({}));
+    const res = await post(env, "/sales/s1/refund", { reason: "ลูกค้าคืนของ" });
+    expect(await res.json()).toMatchObject({ creditNoteNumber: "CN202611-0001" });
+    expect(refunds).toEqual([["s1", { userId: "u-test", reason: "ลูกค้าคืนของ" }]]);
+  });
+
+  it("given a refund with no body > then still refunded, with no reason", async () => {
+    const { env, refunds } = ledger(() => ({}));
+    await fetchAuthed(new Request("https://x/sales/s1/refund", { method: "POST" }), env, ctx);
+    expect(refunds).toEqual([["s1", { userId: "u-test", reason: null }]]);
   });
 });

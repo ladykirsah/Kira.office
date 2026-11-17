@@ -171,6 +171,10 @@ describe("migration 0097 > users.email becomes optional, nothing else moves", ()
         "repair_job_events.user_id",
         "repair_job_mechanics.user_id",
         "repair_jobs.opened_by_user_id",
+        // VAT billing (0106): who added a company, who issued and who cancelled a tax paper.
+        "tax_buyers.created_by_user_id",
+        "tax_documents.cancelled_by_user_id",
+        "tax_documents.issued_by_user_id",
       ].sort((a, b) => a.localeCompare(b)),
     );
   });

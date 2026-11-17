@@ -19,6 +19,7 @@ Money-touching and order-touching knowledge for Kira.office (admin/API) and the 
 - [defect-claims](defect-claims.md) — customer-only claim flow (refund/exchange chosen at submit), mechanic verdict + super-admin money, claimState machine + migration-0071 CHECK trap, return-address KV vs SEO-address trap.
 - [customer-credit](customer-credit.md) — demerit counter (complete=0, incomplete=−1, forward recovery), pure tier function, admin-internal privacy invariant with CI guard, pending backfill click.
 - [customers-directory](customers-directory.md) — plate-keyed customer model, legacy history = memory-not-money, Excel importer with NULL-safe atomic upserts.
+- [vat-billing](vat-billing.md) — plan 10.2: VAT on every line while the shop's switch is on, the company book, server-numbered tax invoices + credit notes (never deleted, cancelled with a reason), the month's list + CSV for the accountant.
 - [repair-jobs](repair-jobs.md) — งานซ่อม (plan 10.1): steps with back moves + who/when, estimate → job bill → paid bill, parts held in งานนอก until paid (pick A), waiting parts with date+time, new parts linked later.
 - [coupons](coupons.md) — real typed-code coupons vs the hardcoded storefront wallet MOCK; latent max_uses_per_customer bug (migration 0052 unique index).
 - [shipping-fees](shipping-fees.md) — Flash local rate-card engine + server-side checkout fee; **rate numbers PLACEHOLDER and volumetricDivisor:5000 likely wrong — quotes not trustworthy yet**.
