@@ -35,5 +35,5 @@
     },
   ],
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
-  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "teampit-images" }],
 }

@@ -80,4 +80,16 @@ describe("TeamPit everywhere > Cloudflare names", () => {
     expect(ci).toContain('grep -q "Deployed teampit-api"');
     expect(ci).not.toContain('"Deployed kiraoffice"');
   });
+
+  // Picture storage (owner, 18 Nov 2026: "Go"). R2 can't be renamed: every file was copied to
+  // teampit-images under the same key, then both live servers switched. Staging keeps its own copy.
+  it("given the live picture storage > then the api and AirPlus both use teampit-images", () => {
+    const live = (file) => {
+      const text = readFileSync(join(root, file), "utf8");
+      const top = text.split(/^\s*"env":/m)[0];
+      return [...top.matchAll(/"binding":\s*"IMAGES",\s*"bucket_name":\s*"([^"]+)"/g)].map((m) => m[1]);
+    };
+    expect(live("wrangler.jsonc")).toEqual(["teampit-images"]);
+    expect(live("apps/storefront/wrangler.jsonc")).toEqual(["teampit-images"]);
+  });
 });

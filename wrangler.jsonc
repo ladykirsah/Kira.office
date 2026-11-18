@@ -44,7 +44,10 @@
     },
   ],
   "kv_namespaces": [{ "binding": "KV", "id": "a64f57510fcf491695b1170bf5057a6d" }],
-  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images" }],
+  // teampit-images since 2026-11-18: R2 can't rename, so every object was copied to it under the same
+  // key (D1 stores only keys). The old kiraoffice-images is kept two weeks, then deleted with the
+  // owner's yes. Staging keeps its own bucket below.
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "teampit-images" }],
   // Phase 6: provision a private bucket and add (uncomment after bucket exists in dashboard):
   // { "binding": "BACKUPS", "bucket_name": "kiraoffice-backups" },
   // Daily backup at 19:00 UTC (= 02:00 Asia/Bangkok). Shopee periodic sync hooks into the same
