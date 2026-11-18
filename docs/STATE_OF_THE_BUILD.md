@@ -47,7 +47,7 @@ Full navigable index: [docs/README.md](README.md). Intended platform design:
 
 **Backend (apps/api — deployed, auto-deploys from `main`):**
 - Worker at `https://api.homeseeker.me`, bound to D1 `kira-office` (prod) + `kira-office-staging`,
-  R2 `kiraoffice-images`, KV, and the `StockLedger` Durable Object. Daily backup cron `0 19 * * *` (UTC).
+  R2 `teampit-images` (`kiraoffice-images` until 18 Nov 2026), KV, and the `StockLedger` Durable Object. Daily backup cron `0 19 * * *` (UTC).
 - Full REST surface — products CRUD, image gallery, pricing, stock adjust, barcodes, attributes,
   car-fitment tree, sales/refunds, finance summary, CSV imports, idempotent `/sync`, image serving.
   Every endpoint and its request/response shape: **[API_REFERENCE.md](API_REFERENCE.md)**.
