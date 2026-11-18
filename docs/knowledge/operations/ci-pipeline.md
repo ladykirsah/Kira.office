@@ -3,7 +3,7 @@ type: infrastructure
 title: CI pipeline — jobs and failure contracts
 description: The GitHub Actions jobs, what each guarantees, what a green check does NOT prove, and the loud-failure contract that exists because silent skips once shipped nothing for weeks.
 tags: [ci, github-actions, deploy, failure-contract]
-timestamp: 2026-11-04
+timestamp: 2026-11-18
 status: live
 sources: [.github/workflows/ci.yml, kira-office-deploy-paths.md, kira-storefront-had-no-deploy-job.md, kira-office-architecture.md, run-lint-before-push.md, package.json]
 ---
@@ -39,7 +39,8 @@ The owner picked the stopgap over moving to Next 16 straight away: both apps are
 
 ## What a green check does NOT prove
 
-- **The `build` check does not run `next build`.** It is only lint + typecheck + vitest. A green PR does NOT prove admin/storefront compile — the OpenNext build happens only inside the deploy jobs, *after* merge. Pre-build locally before risky merges: `npm run build -w @l-shopee/storefront` (or `-w @l-shopee/admin`; each app also has `build:check` = `NEXT_DIST_DIR=.next-verify next build`).
+- **The `build` check does not run `next build` or `expo export`.** It is only lint + typecheck + vitest. A green PR does NOT prove the storefront or the app website compile — both builds happen only inside the deploy jobs, *after* merge. Before merging anything that changes the lock file (add-on updates especially — Expo's CLI and OpenNext move with them), build all three locally: `npx wrangler deploy --dry-run --outdir <tmp>` (API), `npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion` in `apps/storefront`, and `EXPO_NO_DOTENV=1 npx expo export --platform web` in `apps/mobile` (then `rm -rf apps/mobile/dist`). Done this way for the 18 Nov 2026 security-warning clean-up.
+- **Add-on updates: name the packages.** A bare `npm update` (18 Nov 2026 dry run) would have moved wrangler 4.114 → 4.164 (a miniflare 5 *beta*, esbuild 0.28 against the root `esbuild: ^0.25` override) and react 19.3 under Expo; `npm update <name> …` moves only the named ones inside the ranges their parents accept. `scripts/security-floors.test.mjs` fails if any copy in the lock file slides back into a range GitHub flagged.
 - **A check that doesn't exist can't fail.** Until PR #125, there was no storefront deploy job at all: merging AirPlus Insight (#124) shipped the admin page + API but left the storefront tracking beacon undeployed — traffic analytics would have read zero forever with every check green and no error anywhere. Standing check before assuming "merged = live": **grep the workflow for a job per deployable app.** Three apps are live (`apps/api` → `teampit-api`, `apps/storefront` → `airplus-storefront`, `apps/mobile` → `teampit-app` at admin.airplusauto.com); `apps/admin` is parked with no job. A new app needs its own job.
 - **After any deploy, verify the live worker** (curl a route, check the Current Version ID) rather than trusting CI green — see [deploy-runbook](deploy-runbook.md).
 - **The "Workers Builds: kira-office" check failing at 0s is a known bogus signature** — an unrelated Cloudflare account/integration issue. Ignore that specific failure shape; do not debug it as if it were your code.
