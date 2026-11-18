@@ -204,7 +204,7 @@ deploys the `kira-office` API Worker on every `main` push (wrangler deployments 
 and 17:21 match the PR #24/#25 merge pushes). The job fails loudly if the token goes missing; the
 known custom-domain re-assert wart is downgraded to a warning (see `ci.yml`). **Since then the
 storefront (`deploy-storefront`) and the back office (`deploy-app`) deploy on every `main` push too.**
-On 4 Nov 2026 the Expo app (`apps/mobile`, Worker `kiraoffice-app`) took **admin.airplusauto.com**
+On 4 Nov 2026 the Expo app (`apps/mobile`, Worker `teampit-app` since 18 Nov — `kiraoffice-app` before) took **admin.airplusauto.com**
 over and the old Next.js admin was **parked**: the `deploy-admin` job is gone and
 `apps/admin/wrangler.jsonc` has no routes. Details:
 [knowledge/operations/ci-pipeline.md](knowledge/operations/ci-pipeline.md). The Cloudflare **Workers

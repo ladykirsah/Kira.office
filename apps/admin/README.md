@@ -32,7 +32,7 @@ npm run deploy -w @l-shopee/admin   # opennextjs-cloudflare build && deploy
 
 - There is **no Workers Builds project** for the admin (no `Workers Builds: kiraoffice-admin`
   check on commits; every deployment shows `Source: Upload`).
-- **PARKED since 4 Nov 2026.** The Expo app (`apps/mobile`, Worker `kiraoffice-app`) took
+- **PARKED since 4 Nov 2026.** The Expo app (`apps/mobile`, Worker `teampit-app`) took
   admin.airplusauto.com over; CI no longer deploys this app (the `deploy-admin` job is gone), and
   `wrangler.jsonc` has `routes: []` + `workers_dev: false`, so a manual deploy reaches no one. The
   `kiraoffice-admin` Worker is deleted two weeks after the swap.

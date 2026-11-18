@@ -10,7 +10,10 @@
   // The sign-in lives in memory only (src/ui/prefs.web.ts), so every open asks for the PIN — the
   // owner's choice A. The PIN is the lock; a LINE MINI App (next) could not pass an Access login.
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "kiraoffice-app",
+  // Named teampit-app since 18 Nov 2026 (plan 9.2 part 4: TeamPit everywhere). The first deploy
+  // under this name made a new Worker and moved admin.airplusauto.com onto it; the old
+  // kiraoffice-app Worker was left with no address, to delete after two weeks with the owner's yes.
+  "name": "teampit-app",
   // GoGoCash — the same account as the api, admin and storefront, and the airplusauto.com zone.
   "account_id": "187ab61ed9dbc6e616cb23e6b95aa8f1",
   "compatibility_date": "2026-01-01",
@@ -18,7 +21,7 @@
   "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
   // Only the shop's own address: no second, unlisted *.workers.dev copy of the back office.
   "workers_dev": false,
-  // custom_domain: in CI (no terminal) wrangler moves the address off kiraoffice-admin onto this
+  // custom_domain: in CI (no terminal) wrangler moves the address off the Worker that had it onto this
   // Worker when the token is allowed to; otherwise move it in the dashboard (ci-pipeline.md).
   "routes": [{ "pattern": "admin.airplusauto.com", "custom_domain": true }],
 }

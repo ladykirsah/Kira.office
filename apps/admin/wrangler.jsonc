@@ -14,7 +14,7 @@
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true },
   // PARKED (owner, 4 Nov 2026: "i want to swap for the old one … i am going to keep using the new
-  // one"). The Expo app (apps/mobile, kiraoffice-app) now serves admin.airplusauto.com; CI no longer
+  // one"). The Expo app (apps/mobile, teampit-app) now serves admin.airplusauto.com; CI no longer
   // deploys this Worker, and admin.homeseeker.me was taken off with it. The Worker stays on the
   // account, with no address, for two weeks in case something was missed — then it is deleted.
   //
