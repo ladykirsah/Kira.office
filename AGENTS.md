@@ -109,7 +109,8 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
 ## GitHub Rules
 
 - Do not force-push. Do not rewrite user-owned history.
-- Private repository only unless the owner explicitly approves public visibility.
+- The repository is **public** by the owner's choice (18 Nov 2026). Anyone can read it: never commit
+  secrets, tokens, cookies, customer data or exported records. Changing visibility is the owner's call only.
 - Confirm the exact repository owner before pushing. The authenticated CLI account may differ
   from the owner's account (see [docs/GITHUB_CHECKLIST.md](docs/GITHUB_CHECKLIST.md)).
 

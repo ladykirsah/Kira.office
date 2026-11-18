@@ -22,7 +22,7 @@ through **0090** (2026-08-26) — the live migration record is
 ## Deployed
 
 `main` head is `7fe11e9`. All three apps deploy automatically on merge (since
-[PR #125](https://github.com/ladykirsah/Kira.office/pull/125), 2026-08-04 — before that the
+[PR #125](https://github.com/ladykirsah/TeamPit/pull/125), 2026-08-04 — before that the
 storefront had **no** deploy job and merges silently left airplusauto.com stale):
 
 | App | Worker script | Host |
@@ -39,15 +39,15 @@ eslint) and `npm run typecheck` both green.
 
 ## Recently merged (newest first)
 
-- [#129](https://github.com/ladykirsah/Kira.office/pull/129) — admins are never locked out for 24 h; mechanics still are
-- [#128](https://github.com/ladykirsah/Kira.office/pull/128) — unverifiable credentials say "needs resetting", plus owner sign-in via Cloudflare Access identity
-- [#126](https://github.com/ladykirsah/Kira.office/pull/126) — day-off submission (ลาแบบ: เต็มวัน / ครึ่งวัน / เข้าสาย), inline edit, delete reserved to the owner
-- [#125](https://github.com/ladykirsah/Kira.office/pull/125) — storefront CI deploy job; "merged" now means live for all three apps
-- [#124](https://github.com/ladykirsah/Kira.office/pull/124) — AirPlus Insight: Shopee-parity analytics with the profit Shopee can't show
-- [#123](https://github.com/ladykirsah/Kira.office/pull/123) — PBKDF2 at 100k rounds (Workers refuses more; every prod login had 500'd)
-- [#121](https://github.com/ladykirsah/Kira.office/pull/121) — per-staff logins, HR, wage slips; slip required before an order is paid
-- [#120](https://github.com/ladykirsah/Kira.office/pull/120) — admin menu grouped by real function
-- [#119](https://github.com/ladykirsah/Kira.office/pull/119) / [#118](https://github.com/ladykirsah/Kira.office/pull/118) — Finance rework and order-detail finance editing
+- [#129](https://github.com/ladykirsah/TeamPit/pull/129) — admins are never locked out for 24 h; mechanics still are
+- [#128](https://github.com/ladykirsah/TeamPit/pull/128) — unverifiable credentials say "needs resetting", plus owner sign-in via Cloudflare Access identity
+- [#126](https://github.com/ladykirsah/TeamPit/pull/126) — day-off submission (ลาแบบ: เต็มวัน / ครึ่งวัน / เข้าสาย), inline edit, delete reserved to the owner
+- [#125](https://github.com/ladykirsah/TeamPit/pull/125) — storefront CI deploy job; "merged" now means live for all three apps
+- [#124](https://github.com/ladykirsah/TeamPit/pull/124) — AirPlus Insight: Shopee-parity analytics with the profit Shopee can't show
+- [#123](https://github.com/ladykirsah/TeamPit/pull/123) — PBKDF2 at 100k rounds (Workers refuses more; every prod login had 500'd)
+- [#121](https://github.com/ladykirsah/TeamPit/pull/121) — per-staff logins, HR, wage slips; slip required before an order is paid
+- [#120](https://github.com/ladykirsah/TeamPit/pull/120) — admin menu grouped by real function
+- [#119](https://github.com/ladykirsah/TeamPit/pull/119) / [#118](https://github.com/ladykirsah/TeamPit/pull/118) — Finance rework and order-detail finance editing
 
 ## Production events, 2026-08-09 (this snapshot's day)
 

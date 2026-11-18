@@ -17,11 +17,11 @@ Status as of 2026-06-22. Authoritative answers live in [DECISIONS.md](DECISIONS.
 | 10 | First MVP priority | **All four pillars** (catalog · barcode/POS · Shopee sync · finance) |
 | — | Cost method | Support **all four** (moving avg / latest / manual / FIFO), selectable |
 | — | Profit rules | On-site = price−discount−tax−cost; **online adds Shopee fees** |
-| — | Repo | `TeamPit`, **private** (published at `ladykirsah/Kira.office`) |
+| — | Repo | `TeamPit`, **public** (owner's choice, 18 Nov 2026) at `ladykirsah/TeamPit` |
 
 ## ✅ Resolved — GitHub
 
-- **Published** to [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private),
+- **Published** to [`ladykirsah/TeamPit`](https://github.com/ladykirsah/TeamPit) (public since 18 Nov 2026),
   default branch `main`, CI green. (The earlier `janPhat`-vs-`ladykirsah` account mismatch was
   resolved by signing in as `ladykirsah`.)
 

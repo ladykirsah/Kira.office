@@ -58,4 +58,4 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
 - Live prod keeps intentional demo rows (`prod-demo`, 5 × `DEMO-AC-*`) — don't delete them as junk.
 
 ## GitHub
-- Private repo `ladykirsah/Kira.office`. Don't force-push or rewrite history. Work on a branch and open a PR.
+- Public repo `ladykirsah/TeamPit` (owner's choice, 18 Nov 2026) — never commit secrets or customer data. Don't force-push or rewrite history. Work on a branch and open a PR.

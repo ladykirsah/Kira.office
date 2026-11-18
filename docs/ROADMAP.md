@@ -13,7 +13,7 @@ finance) before any live Shopee writes, then connect Shopee as a gated phase. Se
 ## Phase 0 — Requirement Lock ✅ (done)
 
 - Open questions answered; stack confirmed (Next.js/TS).
-- TH region, THB, VAT 7%, cost methods, offline-first, Thai T&Cs, private repo confirmed.
+- TH region, THB, VAT 7%, cost methods, offline-first, Thai T&Cs, repo confirmed (public since 18 Nov 2026).
 - Shopee approach set (local-first + CSV bridge; API gated on managed-seller eligibility).
 - _Remaining:_ resolve GitHub push target (account mismatch — see GITHUB_CHECKLIST.md).
 

@@ -13,7 +13,7 @@ sources: [kira-audit-findings-2026-07.md, session 2026-08-09 adversarial re-veri
 Originally from the 2026-07-16 six-reader audit; **re-verified against the code on
 2026-08-09** by an adversarial review pass. That pass matters: three of the audit's five
 "live bugs" had in fact been fixed the same day (PR
-[#21](https://github.com/ladykirsah/Kira.office/pull/21), `0a103ea`) — the lesson stands:
+[#21](https://github.com/ladykirsah/TeamPit/pull/21), `0a103ea`) — the lesson stands:
 **re-verify before fixing; file:line references drift and so do the bugs themselves.**
 
 ## Live bugs (re-verified still present, 2026-08-09)
@@ -37,7 +37,7 @@ Originally from the 2026-07-16 six-reader audit; **re-verified against the code 
 - **Storefront coupon wallet is a mock** — six hardcoded coupons + localStorage. Real
   coupons only work by typed code ([storefront](../storefront/index.md)).
 - **Migration 0068's comment describes the credit model wrongly** — the model was rebuilt
-  in [#99](https://github.com/ladykirsah/Kira.office/pull/99); trust
+  in [#99](https://github.com/ladykirsah/TeamPit/pull/99); trust
   [commerce](../commerce/index.md), not that comment.
 - **`docs/HARDENING.md` and `docs/MODULE_POS_AND_SYNC.md` still claim the StockLedger DO
   does not serialize** — false since `d08c921` (2026-07-26) wrapped every DO method in
@@ -53,7 +53,7 @@ Originally from the 2026-07-16 six-reader audit; **re-verified against the code 
 
 ## Fixed history (do not re-fix)
 
-Fixed in [PR #21](https://github.com/ladykirsah/Kira.office/pull/21) (`0a103ea`,
+Fixed in [PR #21](https://github.com/ladykirsah/TeamPit/pull/21) (`0a103ea`,
 2026-07-16 — the same day the audit recorded them):
 
 - Lost-update on stock correction — `planAdjustment('correction')` now sends the counted
@@ -67,8 +67,8 @@ Fixed in [PR #21](https://github.com/ladykirsah/Kira.office/pull/21) (`0a103ea`,
   **deleted** in the same PR; the trap no longer exists.
 
 The 2026-07-26 adversarial hunt's six findings are also all fixed and deployed
-([#74](https://github.com/ladykirsah/Kira.office/pull/74),
-[#75](https://github.com/ladykirsah/Kira.office/pull/75), migration 0063) — details and the
+([#74](https://github.com/ladykirsah/TeamPit/pull/74),
+[#75](https://github.com/ladykirsah/TeamPit/pull/75), migration 0063) — details and the
 **rejected** findings (do not re-chase: RBAC "not enforced", `requireAccess` fail-open,
 plate normalization on `onsite_sales`, `updateProduct` full-row null) live under
 [operations](../operations/index.md).
