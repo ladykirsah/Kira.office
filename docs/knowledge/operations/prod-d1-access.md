@@ -45,7 +45,6 @@ CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
 | database | id |
 |---|---|
 | prod `teampit-denair` (Den Air; was `kira-office` until 2026-11-18) | `e609101c-78d3-4a80-94a6-0cc5d4625d17` |
-| staging `kira-office-staging` | `85f22f44-063d-424e-91ef-39e1fa1fef24` |
 
 ## Safety tiering
 

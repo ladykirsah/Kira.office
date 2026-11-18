@@ -29,9 +29,9 @@ Post-purchase checklist (recorded at decision time; the routes/deploy items are 
 | `airplusauto.com` | airplus-storefront | public |
 | `api.airplusauto.com` | teampit-api | `requireAccess` in code (`/health` public, `/products` 401, `/img/*` 404-not-401) |
 | `admin.airplusauto.com` | kiraoffice-admin | Cloudflare Access (302, aud `dfcb79fc…`) |
-| `staging-shop.airplusauto.com` | airplus-storefront-staging | public + noindex, 6/6 security headers |
-| `staging-api.airplusauto.com` | kira-office-staging | gated (401), `/health` public |
-| `staging-admin.airplusauto.com` | kiraoffice-admin-staging | 302 → Access (same "admin" app), 0 markup pre-login |
+| `staging-shop.airplusauto.com` | (retired 2026-11-18 — Worker deleted) | — |
+| `staging-api.airplusauto.com` | (retired 2026-11-18 — Worker deleted) | — |
+| `staging-admin.airplusauto.com` | (retired 2026-11-18 — Worker deleted) | — |
 
 ## homeseeker.me CAN lapse
 

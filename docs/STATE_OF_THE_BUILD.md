@@ -211,8 +211,8 @@ over and the old Next.js admin was **parked**: the `deploy-admin` job is gone an
 Builds** integration still fails on every push and has never deployed anything (see §7).
 
 **Migrations workflow (important):** write a new numbered SQL file in `packages/db/migrations/`,
-apply it to **BOTH** prod (`2e88a362-…`) and staging (`85f22f44-…`) D1 (via the Cloudflare D1 MCP
-`d1_database_query` or `wrangler d1 migrations apply`), and **update
+apply it to the live D1 `teampit-denair` (`e609101c-…`) before the merge with the `kira-prod-migration` skill
+(the staging database was retired on 2026-11-18), and **update
 [SCHEMA_AS_BUILT.md](SCHEMA_AS_BUILT.md)** so the as-built table listing stays honest.
 Keep changes additive/nullable when an older Worker may still be live during rollout (see the
 `oring_size` vs `oring_usage` note in migration 0010).

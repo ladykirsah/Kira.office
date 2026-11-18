@@ -4,11 +4,13 @@ title: Staging stack
 description: The three staging Workers, why workers.dev is permanently off, the storefront staging redeploy recipe with its six gotchas, and the staging D1's Frankenstein state
 tags: [staging, workers, otp, access, d1, seed-data]
 timestamp: 2026-08-09
-status: live
+status: retired
 sources: ["airplus-staging-preview.md", "kira-staging-blocked-on-access.md", apps/storefront/wrangler.jsonc, apps/admin/wrangler.jsonc, wrangler.jsonc]
 ---
 
 # Staging stack
+
+> **RETIRED 18 Nov 2026** (owner: "Go" on plan 9.2 leftovers). The staging servers, database, picture storage and settings store were deleted and their `env.staging` blocks removed from every wrangler config. Kept as history only — to test, use the practice copy on the Mac (`docs/knowledge/platform/local-dev.md`); a new test copy would be built fresh under TeamPit names.
 
 Three staging Workers, all named envs (`--env staging`) of the production configs, all on GoGoCash, all with `workers_dev: false`:
 

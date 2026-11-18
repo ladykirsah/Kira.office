@@ -4,11 +4,13 @@ title: Staging stack operations
 description: The three staging hosts, why staging login is impossible by design, the noindex mechanics, and the drift checks that keep staging useful.
 tags: [staging, cloudflare-access, noindex, robots, d1]
 timestamp: 2026-08-09
-status: live
+status: retired
 sources: [kira-staging-blocked-on-access.md]
 ---
 
 # Staging stack operations
+
+> **RETIRED 18 Nov 2026** (owner: "Go" on plan 9.2 leftovers). The staging servers, database, picture storage and settings store were deleted and their `env.staging` blocks removed from every wrangler config. Kept as history only — to test, use the practice copy on the Mac (`docs/knowledge/platform/local-dev.md`); a new test copy would be built fresh under TeamPit names.
 
 ## Current shape (live since 2026-07-22, PRs #52/#54/#55)
 

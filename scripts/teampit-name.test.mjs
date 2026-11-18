@@ -101,6 +101,16 @@ describe("TeamPit everywhere > Cloudflare names", () => {
     expect(live("apps/storefront/wrangler.jsonc")).toEqual(["teampit-images"]);
   });
 
+  // The old test copy (staging) was retired on 18 Nov 2026 (owner: "Go"): its servers, database,
+  // pictures and settings store are deleted, so no settings file may point at them any more.
+  it("given the retired test copy > then no settings file or script still points at it", () => {
+    const files = ["wrangler.jsonc", "apps/storefront/wrangler.jsonc", "apps/admin/wrangler.jsonc", "package.json"];
+    for (const file of files) {
+      const text = readFileSync(join(root, file), "utf8");
+      expect(text, file).not.toMatch(/"staging"\s*:|85f22f44|c876509f|images-staging|deploy:staging/);
+    }
+  });
+
   // Den Air's database (owner, 18 Nov 2026: "Go"). D1 can't be renamed: it was copied whole to
   // teampit-denair while the shop was closed, then every config that binds `DB` switched together.
   it("given Den Air's live database > then the api, AirPlus and the practice copy all bind teampit-denair", () => {
