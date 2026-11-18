@@ -28,7 +28,7 @@ Backend runs on the **Cloudflare developer platform** — full design in
 - `packages/core` — pure-TypeScript pricing, inventory, tax, cost, and terms logic (no I/O, no Cloudflare deps).
 - `apps/mobile` — the **Expo** rebuild of the back office (owner, 2026-10-26: all new building is in Expo),
   phone-size web first. **It is the back office now:** published as a website at
-  `admin.airplusauto.com` (`kiraoffice-app`, a static export; the PIN is asked on every open).
+  `admin.airplusauto.com` (`teampit-app`, a static export; the PIN is asked on every open).
 - `apps/admin` — the old Next.js back office. **Parked** (owner, 4 Nov 2026: "i want to swap for the
   old one"): not deployed, no address (`routes: []`); the Worker is deleted after two weeks.
 - `packages/shared` — the menu and the Thai/English wording, shared by `apps/admin` and `apps/mobile`.

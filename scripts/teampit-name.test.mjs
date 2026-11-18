@@ -53,3 +53,15 @@ describe("TeamPit everywhere > no old name left", () => {
     expect(camera.cameraPermission).toMatch(/^TeamPit /);
   });
 });
+
+// Plan 9.2 part 4 (owner, 18 Nov 2026: "Go"): Cloudflare's names, one at a time, each with the
+// owner's yes. First the back-office website's server — it stores nothing and nothing points at it.
+describe("TeamPit everywhere > Cloudflare names", () => {
+  it("given the back-office website's server > then it is teampit-app, and CI's deploy check reads that name", () => {
+    const config = readFileSync(join(root, "apps/mobile/wrangler.jsonc"), "utf8");
+    expect(config).toMatch(/^\s*"name":\s*"teampit-app",/m);
+    const ci = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
+    expect(ci).toContain('grep -q "Deployed teampit-app"');
+    expect(ci).not.toContain("kiraoffice-app");
+  });
+});

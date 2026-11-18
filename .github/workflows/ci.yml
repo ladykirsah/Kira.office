@@ -138,7 +138,7 @@ jobs:
           echo "::error::Storefront deploy failed (beyond the custom-domain step)."
           exit 1
 
-  # Auto-deploy the Expo back office as a website (kiraoffice-app → admin.airplusauto.com).
+  # Auto-deploy the Expo back office as a website (teampit-app → admin.airplusauto.com).
   # Owner, 4 Nov 2026: "Publish first", "A: PIN every open", then "i want to swap for the old one".
   # A static export only — no server code — on the same GoGoCash account and token as the api and
   # storefront, with the same contract: the build runs project code WITHOUT the key, a missing token
@@ -183,7 +183,7 @@ jobs:
           code=$?
           echo "$out"
           if [ $code -eq 0 ]; then exit 0; fi
-          if echo "$out" | grep -q "Deployed kiraoffice-app"; then
+          if echo "$out" | grep -q "Deployed teampit-app"; then
             echo "::warning::App website deployed, but wrangler could not attach the admin.airplusauto.com custom domain (known — the token has no zone edit). The check below decides."
             exit 0
           fi
@@ -202,5 +202,5 @@ jobs:
             fi
             sleep 15
           done
-          echo "::error::admin.airplusauto.com does not answer with the app. If wrangler warned about the custom domain, move admin.airplusauto.com in the Cloudflare dashboard: Workers & Pages → kiraoffice-admin → Settings → Domains & Routes → remove it, then kiraoffice-app → Domains & Routes → add it. Then re-run this job."
+          echo "::error::admin.airplusauto.com does not answer with the app. If wrangler warned about the custom domain, move admin.airplusauto.com in the Cloudflare dashboard: Workers & Pages → the old Worker that still has it → Settings → Domains & Routes → remove it, then teampit-app → Domains & Routes → add it. Then re-run this job."
           exit 1
