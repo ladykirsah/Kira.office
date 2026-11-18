@@ -80,37 +80,4 @@
     { "pattern": "api.airplusauto.com", "custom_domain": true },
   ],
   // Queues + Cron are the next phase (Shopee sync) — see docs/CLOUDFLARE_ARCHITECTURE.md.
-
-  // Staging env: isolated D1/KV/R2 and its OWN hostname on this zone, behind Cloudflare Access.
-  // Deploy with `npx wrangler deploy --env staging`.
-  "env": {
-    "staging": {
-      "name": "kira-office-staging",
-      // Staging lives on OUR zone, not *.workers.dev — Cloudflare Access can only protect domains
-      // in your own zone, so a workers.dev URL CANNOT be put behind a login. It was previously
-      // reachable by anyone on the internet, serving real customer rows from the staging database.
-      // `workers_dev: false` closes that side door: this Worker is reachable ONLY via the hostname
-      // below, which sits behind the staging Access application.
-      "workers_dev": false,
-      "routes": [{ "pattern": "staging-api.airplusauto.com", "custom_domain": true }],
-      "observability": { "enabled": true },
-      "durable_objects": {
-        "bindings": [{ "name": "STOCK_LEDGER", "class_name": "StockLedger" }],
-      },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["StockLedger"] }],
-      // Staging refuses it too — see the note on the top-level "vars".
-      "vars": { "PRACTICE_COPY": "0" },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "kira-office-staging",
-          "database_id": "85f22f44-063d-424e-91ef-39e1fa1fef24",
-          "migrations_dir": "packages/db/migrations",
-        },
-      ],
-      "kv_namespaces": [{ "binding": "KV", "id": "c876509fba5c40608e1c0f1abf5d4502" }],
-      "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "kiraoffice-images-staging" }],
-      // "r2_buckets": [..., { "binding": "BACKUPS", "bucket_name": "kiraoffice-backups-staging" }]
-    },
-  },
 }

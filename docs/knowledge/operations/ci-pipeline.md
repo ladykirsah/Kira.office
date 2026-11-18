@@ -55,7 +55,6 @@ Root `package.json` (name `teampit`, npm workspaces `packages/*` + `apps/*`, Nod
 | `lint` | `prettier --check "{packages,apps}/**/src/**/*.{ts,tsx}"` && `lint:es` (ESLint in apps/storefront + apps/admin) |
 | `format` | `prettier --write` |
 | `deploy` | `wrangler deploy` (API, from root) |
-| `deploy:staging` | `wrangler deploy --env staging` |
 | `deploy:dry` | `wrangler deploy --dry-run --outdir .wrangler/dry` |
 
 Workspace packages are scoped `@l-shopee/*` (admin, storefront): each has `deploy` = `opennextjs-cloudflare build && opennextjs-cloudflare deploy` (storefront appends `--env=""`). Storefront dev runs on port 3002. Root devDeps: wrangler ^4, vitest ^3.2.6, typescript ^5.6.3, prettier ^3.3.3.

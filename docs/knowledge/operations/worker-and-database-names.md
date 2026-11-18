@@ -18,7 +18,7 @@ sources: [kira-office-deploy-paths.md]
 | prod D1 database | **`teampit-denair`** (id `e609101c-78d3-4a80-94a6-0cc5d4625d17`, copied from `kira-office` 2026-11-18; GoGoCash account `187ab61ed9dbc6e616cb23e6b95aa8f1`) — also the npm workspace name |
 | admin worker | `kiraoffice-admin` (parked; to delete) · back-office website `teampit-app` |
 | storefront worker | `airplus-storefront` |
-| staging D1 database | `kira-office-staging` (staging DOES have the hyphen; id `85f22f44-063d-424e-91ef-39e1fa1fef24`) |
+| staging D1 database (RETIRED, deleted 2026-11-18) | `kira-office-staging` (staging DOES have the hyphen; id `85f22f44-063d-424e-91ef-39e1fa1fef24`) |
 | Durable Object namespace | **named** `kira-office_StockLedger` but **owned by Worker `teampit-api`** (the namespace keeps its old display name through renames) |
 
 Verify anytime: `GET /accounts/187ab61e…/workers/scripts` (see [deploy-runbook](deploy-runbook.md) for the REST-listing technique).

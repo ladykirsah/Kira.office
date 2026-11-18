@@ -13,7 +13,7 @@ sources: [wrangler.jsonc, packages/db/migrations, "airplus-returns-branch-parked
 ## The databases
 
 - **Production (Den Air):** `teampit-denair`, database_id `e609101c-78d3-4a80-94a6-0cc5d4625d17` (copied from `kira-office` on 2026-11-18 — see worker-and-database-names). Bound as `DB` by BOTH the API Worker and the storefront Worker (a D1 db can be bound by multiple Workers) — one database, two writers.
-- **Staging:** `kira-office-staging`, id `85f22f44-063d-424e-91ef-39e1fa1fef24`.
+- **Staging:** retired — `kira-office-staging` was deleted on 2026-11-18 with the rest of the test copy.
 - `migrations_dir` is `packages/db/migrations`. Latest files as of 2026-08-09: `0084_lockout_window.sql`, `0085_pin_reveal.sql`, `0086_payslip_slip.sql`, **`0087_storefront_events.sql`** (highest), plus a `meta/` directory. **Any new migration must be numbered 0088+.**
 - GHA never runs migrations — apply to prod with wrangler **BEFORE** merging. Deploy sequencing and the two doors to prod D1 (MCP connector vs wrangler CLI) live in [operations](../operations/index.md).
 

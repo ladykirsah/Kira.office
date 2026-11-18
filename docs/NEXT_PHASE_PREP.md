@@ -24,7 +24,6 @@ Apply prod + staging (owner):
 
 ```bash
 npx wrangler d1 migrations apply teampit-denair --remote
-npx wrangler d1 migrations apply teampit-denair --remote --env staging
 ```
 
 ## Phase 5 — Shopee live API (gated)

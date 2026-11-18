@@ -18,7 +18,6 @@
     "lint": "prettier --check \"{packages,apps}/**/src/**/*.{ts,tsx}\" && npm run lint:es",
     "format": "prettier --write \"{packages,apps}/**/src/**/*.{ts,tsx}\"",
     "deploy": "wrangler deploy",
-    "deploy:staging": "wrangler deploy --env staging",
     "deploy:dry": "wrangler deploy --dry-run --outdir .wrangler/dry",
     "lint:es": "npm run lint:es -w apps/storefront && npm run lint:es -w apps/admin"
   },
