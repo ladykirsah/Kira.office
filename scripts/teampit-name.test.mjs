@@ -46,6 +46,14 @@ describe("TeamPit everywhere > no old name left", () => {
     expect(left).toEqual([]);
   });
 
+  it("given the project's package > then it is named teampit, in package.json and the lock file", () => {
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
+    expect(pkg.name).toBe("teampit");
+    expect(lock.name).toBe("teampit");
+    expect(lock.packages[""].name).toBe("teampit");
+  });
+
   it("given the app > then its name, home-screen name and camera message say TeamPit", () => {
     const app = JSON.parse(readFileSync(join(root, "apps/mobile/app.json"), "utf8")).expo;
     expect(app.name).toBe("TeamPit");

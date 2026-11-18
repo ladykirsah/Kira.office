@@ -42,10 +42,11 @@ import {
 } from "@/lib/scanTabs";
 import { useAuth } from "../AppProviders";
 import { readPref, writePref } from "../prefs";
+import { PREF } from "@/lib/prefNames";
 import type { Notice } from "./ScanCards";
 
-const TAB_KEY = "kira_scan_tab";
-const LAST_BILL_KEY = "kira_last_sale_number";
+const TAB_KEY = PREF.scanTab;
+const LAST_BILL_KEY = PREF.lastSaleNumber;
 const TOAST_MS = 2600;
 const NO_CARDS: Record<ScanTab, ScanCard[]> = { sell: [], away: [], stock: [] };
 /** Why the shop's system refused a card, by part; each tab keeps its own. */

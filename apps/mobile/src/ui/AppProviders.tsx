@@ -5,7 +5,8 @@ import { useColorScheme, useWindowDimensions } from "react-native";
 import { API_BASE } from "@/lib/config";
 import { signIn, type Credentials, type SignedInStaff, type SignInResult } from "@/lib/signIn";
 import { currentStaff, signOut } from "@/lib/staffApi";
-import { readPref, readToken, writePref, writeToken } from "./prefs";
+import { migratePrefs, readPref, readToken, writePref, writeToken } from "./prefs";
+import { PREF } from "@/lib/prefNames";
 import { DARK, LIGHT, PHONE_MAX_WIDTH, forScreen, type Theme } from "./theme";
 
 /**
@@ -54,12 +55,12 @@ export const useAuth = () => must(useContext(AuthContext), "useAuth");
 function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>("th");
   useEffect(() => {
-    void readPref("kira_lang").then((raw) => setLang(readLang(raw)));
+    void readPref(PREF.lang).then((raw) => setLang(readLang(raw)));
   }, []);
   const toggleLang = useCallback(() => {
     setLang((current) => {
       const next = otherLang(current);
-      void writePref("kira_lang", next);
+      void writePref(PREF.lang, next);
       return next;
     });
   }, []);
@@ -76,7 +77,7 @@ function ThemeProvider({ children }: { children: ReactNode }) {
   const wide = useWindowDimensions().width > PHONE_MAX_WIDTH;
   const [chosen, setChosen] = useState<"light" | "dark" | null>(null);
   useEffect(() => {
-    void readPref("kira_theme").then((raw) => {
+    void readPref(PREF.theme).then((raw) => {
       if (raw === "light" || raw === "dark") setChosen(raw);
     });
   }, []);
@@ -84,7 +85,7 @@ function ThemeProvider({ children }: { children: ReactNode }) {
   const toggleTheme = useCallback(() => {
     const next = isDark ? "light" : "dark";
     setChosen(next);
-    void writePref("kira_theme", next);
+    void writePref(PREF.theme, next);
   }, [isDark]);
   const value = useMemo(
     () => ({ theme: forScreen(isDark ? DARK : LIGHT, wide), isDark, toggleTheme }),
@@ -136,7 +137,16 @@ function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/** Saved values move from their old kira_ names first (lib/prefNames), so no screen reads too early. */
+let prefsMoved: Promise<unknown> | null = null;
+
 export function AppProviders({ children }: { children: ReactNode }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    prefsMoved ??= migratePrefs();
+    void prefsMoved.finally(() => setReady(true));
+  }, []);
+  if (!ready) return null;
   return (
     <LangProvider>
       <ThemeProvider>

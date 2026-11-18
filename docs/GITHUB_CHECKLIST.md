@@ -4,8 +4,8 @@
 
 - Repo: **[`ladykirsah/TeamPit`](https://github.com/ladykirsah/TeamPit)** — **public** (owner's choice, 18 Nov 2026),
   default branch **`main`**, CI green.
-- The npm workspace root is named `kira-office` (npm names can't contain uppercase or match
-  `TeamPit`); only the GitHub repo uses `TeamPit`.
+- The npm workspace root is named `teampit` (npm names can't contain uppercase); the GitHub repo
+  is `TeamPit`.
 
 ## Public on purpose
 

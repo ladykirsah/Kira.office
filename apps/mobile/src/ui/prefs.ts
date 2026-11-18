@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { PREF, movePrefs } from "@/lib/prefNames";
 
 /** Small preferences (language, theme) and, on a phone, the session token — in the Keychain/Keystore. */
 export async function readPref(key: string): Promise<string | null> {
@@ -18,5 +19,13 @@ export async function writePref(key: string, value: string | null): Promise<void
   }
 }
 
-export const readToken = () => readPref("kira_staff");
-export const writeToken = (token: string | null) => writePref("kira_staff", token);
+export const readToken = () => readPref(PREF.staff);
+export const writeToken = (token: string | null) => writePref(PREF.staff, token);
+
+/** Moves values saved under the old kira_ names to their teampit_ names; run once, before any read. */
+export const migratePrefs = () =>
+  movePrefs({
+    get: (k) => SecureStore.getItemAsync(k),
+    set: (k, v) => SecureStore.setItemAsync(k, v),
+    remove: (k) => SecureStore.deleteItemAsync(k),
+  });

@@ -46,7 +46,7 @@ The owner picked the stopgap over moving to Next 16 straight away: both apps are
 
 ## npm scripts CI (and you) run
 
-Root `package.json` (name `kira-office`, npm workspaces `packages/*` + `apps/*`, Node >= 22):
+Root `package.json` (name `teampit`, npm workspaces `packages/*` + `apps/*`, Node >= 22):
 
 | script | what it does |
 |---|---|
