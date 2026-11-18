@@ -1,7 +1,7 @@
 ---
 type: app
 title: The three deployable Workers
-description: kiraoffice (API), kiraoffice-admin, airplus-storefront — exact script ids, bindings, build tools, and the deploy traps that have already bitten
+description: teampit-api (API, kiraoffice until 18 Nov 2026), kiraoffice-admin, airplus-storefront — exact script ids, bindings, build tools, and the deploy traps that have already bitten
 tags: [cloudflare, workers, wrangler, deploy, bindings, durable-objects]
 timestamp: 2026-08-09
 status: live
@@ -12,10 +12,10 @@ sources: [wrangler.jsonc, apps/admin/wrangler.jsonc, apps/storefront/wrangler.js
 
 All three live on the Cloudflare account **GoGoCash** (`account_id 187ab61ed9dbc6e616cb23e6b95aa8f1` — stated non-secret in the config comments). They MUST share one account: Cloudflare bindings (D1, KV, R2, Durable Objects) do not cross accounts. The admin once lived on a different account and the cross-account proxy failed with error 1003 — that is why everything was consolidated. See [cloudflare-accounts](cloudflare-accounts.md).
 
-## 1. API — script id `kiraoffice` (NO HYPHEN)
+## 1. API — Worker `teampit-api` (was `kiraoffice`)
 
 - Config: root `wrangler.jsonc`. Entry `apps/api/src/index.ts`. Deployed from repo root via `npx wrangler deploy` (`npm run deploy`).
-- **The name has no hyphen on purpose — never "fix" it.** The Durable Object namespace `kira-office_StockLedger` is owned by the script `kiraoffice` (created 2026-06-23, namespace named before a rename). Deploying as `kira-office` tries to CREATE a second Worker whose DO migration collides with the existing namespace. Documented 2026-07-20 deploy deadlock: api fails with `DO namespace name 'kira-office_StockLedger' already in use` [10065]; storefront fails with `Cannot create binding for class in script 'kira-office' that does not exist` [10061]. The namespace's *display name* still reads `kira-office_StockLedger`; that is cosmetic — bindings resolve by (script_name, class_name).
+- **The config name must equal the live Worker's name.** Created 2026-06-23 as `kiraoffice`; renamed IN PLACE in the dashboard on 2026-11-18 (plan 9.2 part 4) to `teampit-api`, which kept its secrets, domains, cron and the DO namespace `kira-office_StockLedger` (display name from an even earlier rename; cosmetic). Proven first on two throwaway Workers: after a dashboard rename, another Worker's existing `script_name` binding keeps working until it redeploys, stored DO data and secrets carry over, and redeploying under the new name updates the same Worker. A config name the account doesn't have makes wrangler CREATE a second Worker whose DO migration collides with the existing namespace — the 2026-07-20 deadlock: api `DO namespace name 'kira-office_StockLedger' already in use` [10065]; storefront `Cannot create binding for class in script '<name>' that does not exist` [10061]. **To rename: dashboard first, then ship the config + AirPlus `script_name` to match** (`scripts/teampit-name.test.mjs` checks they agree).
 - Domains: `api.airplusauto.com` (destination) + `api.homeseeker.me` (legacy fallback) — see [domains](domains.md).
 - Bindings: D1 `DB` (kira-office), KV `KV` (`a64f57510fcf491695b1170bf5057a6d`), R2 `IMAGES` (`kiraoffice-images`), DO `STOCK_LEDGER` (class `StockLedger`, migrations tag v1). Cron `0 19 * * *` = 02:00 Asia/Bangkok (daily backup; Shopee sync hooks into the same `scheduled()` later).
 - A private `BACKUPS` R2 bucket (`kiraoffice-backups`) is planned but commented out until provisioned.
@@ -34,7 +34,7 @@ All three live on the Cloudflare account **GoGoCash** (`account_id 187ab61ed9dbc
 
 - Config: `apps/storefront/wrangler.jsonc`. OpenNext; deploy script is `opennextjs-cloudflare deploy --env=""`.
 - Domain: `airplusauto.com` (apex).
-- Binds the **same** production D1/KV/R2 as the API (a D1 db can be bound by multiple Workers), plus a **cross-Worker DO binding** with `script_name: "kiraoffice"` — no hyphen; a wrong name fails the entire storefront deploy with 10061. In local `next dev` this external binding is not resolvable, so stock-deduction code must treat it as optional locally.
+- Binds the **same** production D1/KV/R2 as the API (a D1 db can be bound by multiple Workers), plus a **cross-Worker DO binding** with `script_name: "teampit-api"` — the api Worker's live name; a wrong name fails the entire storefront deploy with 10061. In local `next dev` this external binding is not resolvable, so stock-deduction code must treat it as optional locally.
 - `vars`: `LINE_CHANNEL_ID` `2010753164` (public — it appears in the OAuth authorize URL). The matching `LINE_CHANNEL_SECRET` is a per-env secret. Named envs do NOT inherit vars, so the id is repeated under `env.staging`.
 - Staging env `airplus-storefront-staging` on `staging-shop.airplusauto.com`, **public** (no Access app), `OTP_DEV_ECHO` deliberately removed — never re-add it (see [staging-stack](staging-stack.md)).
 - Full storefront design in [storefront-architecture](storefront-architecture.md).
@@ -60,7 +60,7 @@ The admin's browser calls the same-origin `/api/worker` proxy; only the admin **
 
 ### DO class migrations are owned by the API config only
 
-The storefront has no `migrations` block — DO class migrations live exclusively in the root (API) `wrangler.jsonc`. The cross-Worker binding only works after `kiraoffice` has deployed the class.
+The storefront has no `migrations` block — DO class migrations live exclusively in the root (API) `wrangler.jsonc`. The cross-Worker binding only works after `teampit-api` has deployed the class.
 
 ## References
 

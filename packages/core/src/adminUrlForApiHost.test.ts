@@ -32,7 +32,7 @@ describe("adminUrlForApiHost", () => {
 
   it("given an unrecognised host > falls back to the real admin rather than guessing", () => {
     // A workers.dev URL or a future hostname: a working link beats a clever wrong one.
-    expect(adminUrlForApiHost("kiraoffice.myinternal.workers.dev")).toBe(
+    expect(adminUrlForApiHost("teampit-api.myinternal.workers.dev")).toBe(
       "https://admin.airplusauto.com",
     );
   });

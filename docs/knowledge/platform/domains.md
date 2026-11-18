@@ -27,7 +27,7 @@ Post-purchase checklist (recorded at decision time; the routes/deploy items are 
 | Hostname | Worker | Gate |
 |---|---|---|
 | `airplusauto.com` | airplus-storefront | public |
-| `api.airplusauto.com` | kiraoffice | `requireAccess` in code (`/health` public, `/products` 401, `/img/*` 404-not-401) |
+| `api.airplusauto.com` | teampit-api | `requireAccess` in code (`/health` public, `/products` 401, `/img/*` 404-not-401) |
 | `admin.airplusauto.com` | kiraoffice-admin | Cloudflare Access (302, aud `dfcb79fc…`) |
 | `staging-shop.airplusauto.com` | airplus-storefront-staging | public + noindex, 6/6 security headers |
 | `staging-api.airplusauto.com` | kira-office-staging | gated (401), `/health` public |

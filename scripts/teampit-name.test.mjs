@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 // own steps of the approved rename plan, and nothing else:
 //  · apps/admin — the old back office, deleted in plan step 1.5;
 //  · the folder path …/Kira.office-main — renamed last, on the Mac (part 5).
-// The behind-the-scenes Cloudflare names (kiraoffice…) change with part 4, one at a time.
+// The behind-the-scenes Cloudflare names change with part 4, one at a time (checked below).
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OLD = /CrewEngine|Crew Engine|Kira\.office/;
@@ -63,5 +63,21 @@ describe("TeamPit everywhere > Cloudflare names", () => {
     const ci = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
     expect(ci).toContain('grep -q "Deployed teampit-app"');
     expect(ci).not.toContain("kiraoffice-app");
+  });
+
+  // The main server (owner, 18 Nov 2026: "Go" on the plan). Renamed IN PLACE in the dashboard first,
+  // so its secrets, addresses, nightly job and stock-writer namespace stay; then this config ships
+  // with the same name. A config name that doesn't match the live server makes wrangler create a
+  // second Worker (the 2026-07-20 deadlock) — so the API config, AirPlus's binding and CI's check
+  // must all say the same name.
+  it("given the main server > then the api config, AirPlus's stock-writer link and CI's check all say teampit-api", () => {
+    const api = readFileSync(join(root, "wrangler.jsonc"), "utf8");
+    expect(api).toMatch(/^\s*"name":\s*"teampit-api",/m);
+    const shop = readFileSync(join(root, "apps/storefront/wrangler.jsonc"), "utf8");
+    const links = [...shop.matchAll(/"class_name":\s*"StockLedger",\s*"script_name":\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(links[0]).toBe("teampit-api");
+    const ci = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
+    expect(ci).toContain('grep -q "Deployed teampit-api"');
+    expect(ci).not.toContain('"Deployed kiraoffice"');
   });
 });

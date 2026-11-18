@@ -12,7 +12,7 @@ sources: [docs/knowledge/platform/]
 
 Everything about where and how this system runs: three Cloudflare Workers on one account, one D1 database shared by two of them, a domain consolidation with deliberate fallbacks, and the local/staging recipes that make it workable. Start with [three-workers](three-workers.md) if you're deploying anything.
 
-- [three-workers](three-workers.md) — The three deployables (`kiraoffice` API — NO hyphen, `kiraoffice-admin`, `airplus-storefront`): script ids, bindings, cron, the DO-namespace naming deadlock, the env-inherits-routes hostname-theft incident, and the admin's same-origin proxy invariant.
+- [three-workers](three-workers.md) — The three deployables (`teampit-api` API — renamed from `kiraoffice` 18 Nov 2026, `kiraoffice-admin`, `airplus-storefront`): script ids, bindings, cron, the DO-namespace naming deadlock, the env-inherits-routes hostname-theft incident, and the admin's same-origin proxy invariant.
 - [cloudflare-accounts](cloudflare-accounts.md) — The GoGoCash account (`187ab61e…`), the owner's three CF accounts, lady.kirsah as the operational identity, the wrangler OAuth token's permission split (no DNS, no Access), and the custom-domain-attach API recipe.
 - [domains](domains.md) — Why airplusauto.com and why it must live on GoGoCash; the six-host map; homeseeker.me's retiring fallbacks (the domain CAN lapse); the `isIndexableHost` exact-match invariant; derive-URLs-from-request (`adminUrlForApiHost`).
 - [staging-stack](staging-stack.md) — Three staging Workers behind their own hostnames; why workers.dev is permanently off (the fixed-OTP hole); the storefront staging redeploy recipe with six gotchas; the staging D1's Frankenstein schema and seed rows (stale — re-verify).
