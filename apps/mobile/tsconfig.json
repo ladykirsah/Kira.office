@@ -2,6 +2,9 @@
   "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
+    // "node": two tests read source files. Vitest 3 brought these types in for the whole project
+    // without saying so; Vitest 4 (18 Nov 2026) no longer does, and TypeScript 7 loads only named ones.
+    "types": ["node"],
     "paths": {
       "@/*": [
         "./src/*"
