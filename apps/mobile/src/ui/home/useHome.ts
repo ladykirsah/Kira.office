@@ -6,9 +6,10 @@ import { homeCounts, readTicked, stillTicked } from "@/lib/homePage";
 import type { OrderTab } from "@/lib/orderList";
 import { fetchOrders } from "@/lib/ordersApi";
 import { readPref, writePref } from "../prefs";
+import { PREF } from "@/lib/prefNames";
 
 /** This phone's ticks, kept until ล้างที่ทำแล้ว — leaving หน้าหลัก doesn't lose them (drawing's end card). */
-const TICKS_KEY = "kira_shopee_ticked";
+const TICKS_KEY = PREF.shopeeTicked;
 
 export interface Home {
   /** Null while loading or when the orders didn't load (the tiles then say —). */

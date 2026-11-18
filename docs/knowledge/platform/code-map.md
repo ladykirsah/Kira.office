@@ -12,7 +12,7 @@ sources: [package.json, "kira-office-architecture.md", "kira-audit-findings-2026
 
 ## Workspace map
 
-npm workspaces monorepo, root package `kira-office` (Node >= 22). Workspace package prefix is `@l-shopee/*` (historical name — the project began as a Shopee-seller back office).
+npm workspaces monorepo, root package `teampit` (Node >= 22). Workspace package prefix is `@l-shopee/*` (historical name — the project began as a Shopee-seller back office).
 
 ```
 apps/

@@ -47,6 +47,7 @@ import { recordPayment, todaysSaleNumbers } from "@/lib/scanApi";
 import { numberTaken, saleRefusal, saleSaved, type Buyer } from "@/lib/scanSale";
 import { useAuth } from "../AppProviders";
 import { readPref, writePref } from "../prefs";
+import { PREF } from "@/lib/prefNames";
 import { usePosData, type PosData } from "./usePosData";
 
 export type PosSheet =
@@ -94,13 +95,13 @@ export interface Lookup {
   summary: CustomerSummary | null;
 }
 
-const QUEUE_KEY = "kira_pos_queue";
-const RECEIVER_KEY = "kira_pos_receiver";
-const LAST_BILL_KEY = "kira_pos_last_bill";
+const QUEUE_KEY = PREF.posQueue;
+const RECEIVER_KEY = PREF.posReceiver;
+const LAST_BILL_KEY = PREF.posLastBill;
 /** This phone's last QT number, so a quote that became a bill is not numbered again. */
-const LAST_QUOTE_KEY = "kira_pos_last_quote";
+const LAST_QUOTE_KEY = PREF.posLastQuote;
 /** Scan's last bill number on this phone (useScanSession) — both pages number DAS bills. */
-const SCAN_LAST_BILL_KEY = "kira_last_sale_number";
+const SCAN_LAST_BILL_KEY = PREF.lastSaleNumber;
 /** How often bills waiting on this phone try the server again. */
 const RETRY_MS = 60_000;
 

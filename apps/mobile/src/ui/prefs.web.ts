@@ -1,3 +1,5 @@
+import { movePrefs } from "@/lib/prefNames";
+
 /**
  * The web build of prefs.ts. Language and theme go in localStorage, like the web back office's theme.
  *
@@ -22,6 +24,14 @@ export async function writePref(key: string, value: string | null): Promise<void
     // Private mode or blocked storage: the choice is simply not remembered.
   }
 }
+
+/** Moves values saved under the old kira_ names to their teampit_ names; run once, before any read. */
+export const migratePrefs = () =>
+  movePrefs({
+    get: async (k) => window.localStorage.getItem(k),
+    set: async (k, v) => window.localStorage.setItem(k, v),
+    remove: async (k) => window.localStorage.removeItem(k),
+  });
 
 let memoryToken: string | null = null;
 export const readToken = async () => memoryToken;
