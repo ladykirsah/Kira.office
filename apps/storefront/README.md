@@ -58,7 +58,7 @@ npm run dev -w @l-shopee/storefront   # port 3002
 
 `next.config.mjs` calls `initOpenNextCloudflareForDev` with `persist.path` pointed at the REPO
 ROOT `.wrangler/state`, so local dev shares the same local D1 that
-`npx wrangler d1 migrations apply kira-office --local` (run at the root) migrates. Seed dev
+`npx wrangler d1 migrations apply teampit-denair --local` (run at the root) migrates. Seed dev
 products before first use (see the session scratchpad seed, or insert via SQL).
 
 Local limits (by design, verified):

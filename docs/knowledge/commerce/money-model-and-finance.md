@@ -59,7 +59,7 @@ Domain fact: **Finance shows only money-settled orders** — the `isFinanceOrder
 Cleanup command:
 
 ```sh
-npx wrangler d1 execute kira-office --local --command \
+npx wrangler d1 execute teampit-denair --local --command \
   "DELETE FROM onsite_sale_lines WHERE id LIKE 'mk-l%'; \
    DELETE FROM onsite_sales WHERE id LIKE 'mk-os-%'; \
    DELETE FROM sales_orders WHERE id LIKE 'mk-ap-%'; \

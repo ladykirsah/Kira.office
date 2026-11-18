@@ -21,11 +21,11 @@ Why this order: additive columns are invisible to already-deployed code, but new
 ```
 # read-only dry run first — what has prod actually applied?
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
-  npx wrangler d1 migrations list kira-office --remote
+  npx wrangler d1 migrations list teampit-denair --remote
 
 # apply (R1+, owner-gated)
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
-  npx wrangler d1 migrations apply kira-office --remote
+  npx wrangler d1 migrations apply teampit-denair --remote
 ```
 
 The account pin is mandatory (three accounts visible to the login — [prod-d1-access](prod-d1-access.md)). One old memory line cited account `8724aa41…` for this — **WRONG**; the correct account is `187ab61e…` (verified when applying 0064). Reads are safe (R2 tier); writes and `migrations apply --remote` are R1+ and owner-gated. Rollback safety net: **D1 Time Travel (30 days)**.

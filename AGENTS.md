@@ -125,7 +125,7 @@ two services **fully locally** (no Cloudflare account / no live prod API needed)
   (root `wrangler.jsonc` points `main` at `apps/api/src/index.ts`). `--local` uses Miniflare with
   **local** D1/KV/R2/Durable Object state under `.wrangler/` — no real Cloudflare resources are touched.
 - **Local D1 must be migrated before the API will work.** Run
-  `npx wrangler d1 migrations apply kira-office --local` once (re-runnable; idempotent). Without this,
+  `npx wrangler d1 migrations apply teampit-denair --local` once (re-runnable; idempotent). Without this,
   endpoints error because the tables don't exist. The migrations also seed reference data (brands,
   part types, usages, car brands/models visible at `GET /attributes`). The local DB starts with **zero
   products** — that empty state is expected.

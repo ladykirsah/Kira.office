@@ -23,16 +23,16 @@ sources: ["kira-office-local-preview-recipe.md", "kira-dashboard-notifications-p
    [practice-copy-sign-in](../auth/practice-copy-sign-in.md) and
    [require-access-fail-open](../auth/require-access-fail-open.md).
 3. `apps/admin/.env.local` → `NEXT_PUBLIC_API_BASE=http://localhost:8788` (Next auto-loads it).
-4. `npx wrangler d1 migrations apply kira-office --local` (migrations in `packages/db/migrations`).
+4. `npx wrangler d1 migrations apply teampit-denair --local` (migrations in `packages/db/migrations`).
 5. Start via `.claude/launch.json`: `api` (wrangler dev, :8788), `admin` (:3010, autoPort), `storefront` (:3002).
 
 All of `.dev.vars`, `.env.local` are gitignored. Why the `.env.local` override matters: the admin's browser calls proxy through the same-origin `/api/worker` route to `NEXT_PUBLIC_API_BASE`, whose default is prod behind Access → 401.
 
-**There is NO seed script.** Local D1 comes up schema-only; lists render empty states. Hand-seed via the API or `wrangler d1 execute kira-office --local` when a screen needs content.
+**There is NO seed script.** Local D1 comes up schema-only; lists render empty states. Hand-seed via the API or `wrangler d1 execute teampit-denair --local` when a screen needs content.
 
 ## Per-worktree local D1 — the /orders-500 diagnosis
 
-Each git worktree has its **own** local D1 state (miniflare, at `<worktree-root>/.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite` — worktree ROOT, not `apps/storefront/.wrangler`). A local-preview `/orders` HTTP 500 ("internal error" → dashboard shows "counts unavailable") is usually the worktree's local D1 **missing migrations**, not a code bug — `listOrders` selects columns from migrations 0074–0079. Fix: `npx wrangler d1 migrations apply kira-office --local`. Re-apply migrations in every fresh worktree before diagnosing 500s as bugs.
+Each git worktree has its **own** local D1 state (miniflare, at `<worktree-root>/.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite` — worktree ROOT, not `apps/storefront/.wrangler`). A local-preview `/orders` HTTP 500 ("internal error" → dashboard shows "counts unavailable") is usually the worktree's local D1 **missing migrations**, not a code bug — `listOrders` selects columns from migrations 0074–0079. Fix: `npx wrangler d1 migrations apply teampit-denair --local`. Re-apply migrations in every fresh worktree before diagnosing 500s as bugs.
 
 Also: stop the dev server before writing to the sqlite file directly (uncommitted WAL).
 
@@ -40,7 +40,7 @@ Also: stop the dev server before writing to the sqlite file directly (uncommitte
 
 The storefront's `next dev` reads the local miniflare D1 (per `apps/storefront/next.config.ts`), empty by default. To load real data:
 
-1. `wrangler d1 export kira-office --remote --output=dump.sql`
+1. `wrangler d1 export teampit-denair --remote --output=dump.sql`
 2. Python `sqlite3` `executescript` with `PRAGMA foreign_keys=OFF` **directly** into `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/<hash>.sqlite`.
 
 **`wrangler d1 execute --file` FAILS on the dump** — it runs statements individually and keeps re-enabling FKs, so the interleaved CREATE/INSERT dump hits `no such table`. The Python path is the only one that works.

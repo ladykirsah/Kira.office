@@ -130,7 +130,7 @@ if (printOnly) {
   console.log("\n  no rows           -> the account was never created in production");
   console.log("  iterations 210000 -> exists, but can never be verified on Workers");
   console.log(
-    "\n===== 2. THE FIX — paste into Cloudflare dashboard → D1 → kira-office → Console =====\n",
+    "\n===== 2. THE FIX — paste into Cloudflare dashboard → D1 → teampit-denair → Console =====\n",
   );
   console.log(sql);
   console.log(
@@ -143,7 +143,7 @@ const args = [
   "wrangler",
   "d1",
   "execute",
-  "kira-office",
+  "teampit-denair",
   local ? "--local" : "--remote",
   "--command",
   sql,

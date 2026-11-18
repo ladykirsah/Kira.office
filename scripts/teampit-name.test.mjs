@@ -92,4 +92,18 @@ describe("TeamPit everywhere > Cloudflare names", () => {
     expect(live("wrangler.jsonc")).toEqual(["teampit-images"]);
     expect(live("apps/storefront/wrangler.jsonc")).toEqual(["teampit-images"]);
   });
+
+  // Den Air's database (owner, 18 Nov 2026: "Go"). D1 can't be renamed: it was copied whole to
+  // teampit-denair while the shop was closed, then every config that binds `DB` switched together.
+  it("given Den Air's live database > then the api, AirPlus and the practice copy all bind teampit-denair", () => {
+    const db = (file) => {
+      const top = readFileSync(join(root, file), "utf8").split(/^\s*"env":/m)[0];
+      const m = top.match(/"binding":\s*"DB",(?:\s*\/\/[^\n]*)*\s*"database_name":\s*"([^"]+)",\s*"database_id":\s*"([^"]+)"/);
+      return m && { name: m[1], id: m[2] };
+    };
+    const want = { name: "teampit-denair", id: "e609101c-78d3-4a80-94a6-0cc5d4625d17" };
+    expect(db("wrangler.jsonc")).toEqual(want);
+    expect(db("apps/storefront/wrangler.jsonc")).toEqual(want);
+    expect(db("wrangler.practice.jsonc")).toEqual(want);
+  });
 });

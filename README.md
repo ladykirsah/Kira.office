@@ -10,8 +10,8 @@ from one workspace.
 > as-built snapshot (what's done, in progress, and next). The summary below is the short version.
 
 - **Live API on Cloudflare:** the `teampit-api` Worker (`kiraoffice` until 18 Nov 2026; the D1
-  database is still `kira-office`, a different name) runs at **`https://api.homeseeker.me`**,
-  backed by **D1** (`kira-office`) + **R2** (`teampit-images`) + **KV** + the **`StockLedger`
+  database is `teampit-denair`, a different name) runs at **`https://api.homeseeker.me`**,
+  backed by **D1** (`teampit-denair`) + **R2** (`teampit-images`) + **KV** + the **`StockLedger`
   Durable Object**, with a daily backup cron. **Pushing to `main` auto-deploys the API Worker,
   the AirPlus storefront and the back office** (GitHub Actions `deploy`, `deploy-storefront`,
   `deploy-app`; one `CLOUDFLARE_API_TOKEN` secret). The back office is the Expo app (`apps/mobile`) at

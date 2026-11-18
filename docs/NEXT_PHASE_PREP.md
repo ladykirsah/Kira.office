@@ -17,14 +17,14 @@ See also [ROADMAP.md](ROADMAP.md) and [STATE_OF_THE_BUILD.md](STATE_OF_THE_BUILD
 Apply locally:
 
 ```bash
-npx wrangler d1 migrations apply kira-office --local
+npx wrangler d1 migrations apply teampit-denair --local
 ```
 
 Apply prod + staging (owner):
 
 ```bash
-npx wrangler d1 migrations apply kira-office --remote
-npx wrangler d1 migrations apply kira-office --remote --env staging
+npx wrangler d1 migrations apply teampit-denair --remote
+npx wrangler d1 migrations apply teampit-denair --remote --env staging
 ```
 
 ## Phase 5 — Shopee live API (gated)
