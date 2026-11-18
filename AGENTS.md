@@ -21,17 +21,17 @@ Backend runs on the **Cloudflare developer platform** — full design in
 [docs/CLOUDFLARE_ARCHITECTURE.md](docs/CLOUDFLARE_ARCHITECTURE.md).
 
 - Monorepo via **npm workspaces**; **Node 22** (Wrangler requires ≥22; `.nvmrc` + CI pin it). No pnpm.
-- `apps/admin` — Next.js + TypeScript admin UI and offline-first POS, deployed to **Workers** via the **OpenNext** adapter (PWA).
 - `apps/api` — **Cloudflare Worker** for the API, offline-sync endpoint, Shopee adapter, and queue consumers.
-- `apps/storefront` — **AirPlus** customer-facing car-parts storefront (Next.js + TypeScript via **OpenNext**); its own **Cloudflare Worker**, separate from admin/api but on the **same account** (GoGoCash), binding the same D1 + KV and the cross-Worker `StockLedger` Durable Object.
+- `apps/storefront` — **AirPlus** customer-facing car-parts storefront (Next.js + TypeScript via **OpenNext**); its own **Cloudflare Worker**, separate from the api but on the **same account** (GoGoCash), binding the same D1 + KV and the cross-Worker `StockLedger` Durable Object.
 - `packages/db` — **D1** schema as hand-written SQL migrations (`wrangler d1 migrations apply`). No TypeScript: nothing imports `@l-shopee/db`.
 - `packages/core` — pure-TypeScript pricing, inventory, tax, cost, and terms logic (no I/O, no Cloudflare deps).
 - `apps/mobile` — the **Expo** rebuild of the back office (owner, 2026-10-26: all new building is in Expo),
   phone-size web first. **It is the back office now:** published as a website at
   `admin.airplusauto.com` (`teampit-app`, a static export; the PIN is asked on every open).
-- `apps/admin` — the old Next.js back office. **Parked** (owner, 4 Nov 2026: "i want to swap for the
-  old one"): not deployed, no address (`routes: []`); the Worker is deleted after two weeks.
-- `packages/shared` — the menu and the Thai/English wording, shared by `apps/admin` and `apps/mobile`.
+- The old Next.js back office (`apps/admin`) was **removed** on 18 Nov 2026 (plan 1.5–1.6): its Worker
+  is deleted and its code is kept only in the signed git tag `old-back-office-final` (Stage 5 copies its
+  claim-review and failed-delivery refund screens from there).
+- `packages/shared` — the menu and the Thai/English wording, used by `apps/mobile`.
 - `docs` — requirements and implementation notes.
 - Tests: **Vitest**. App UIs are initialized with `create-cloudflare` (`--framework=next`); see each app README.
 
@@ -89,9 +89,7 @@ Before reporting implementation work as done:
 Run the gate before claiming work done (see also `.cursor/rules/project.mdc` for the same, for Cursor):
 
 ```bash
-npm run format && npm run lint && npm run typecheck && npm test   # 632 vitest tests
-rm -rf apps/admin/.next-verify apps/admin/.next/types && \
-  NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
+npm run format && npm run lint && npm run typecheck && npm test
 ```
 
 - **Merging to `main` deploys all three live apps.** After the `build` check passes, GitHub Actions runs
@@ -100,9 +98,8 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
   when the owner says so. CI does **not** run D1 migrations: apply them to prod before the merge. The
   Cloudflare **Workers Builds** check fails on every push and is not a code bug — ignore it. Details:
   [docs/knowledge/operations/ci-pipeline.md](docs/knowledge/operations/ci-pipeline.md).
-- **The admin defaults to the PROD API.** To verify admin UI against unreleased API changes, point it at
-  the local Worker via a gitignored `apps/admin/.env.local` (`NEXT_PUBLIC_API_BASE=http://localhost:8788`)
-  + restart the dev server; never write mock data to prod.
+- **The back office app defaults to the PROD API.** Previews run it against the local Worker (launch
+  configs "api" + "TeamPit app"); never write mock data to prod.
 - The current as-built status, gotchas, and migration workflow live in
   [docs/STATE_OF_THE_BUILD.md](docs/STATE_OF_THE_BUILD.md) — keep it updated.
 
@@ -117,7 +114,7 @@ rm -rf apps/admin/.next-verify apps/admin/.next/types && \
 ## Cursor Cloud specific instructions
 
 Standard commands live in [README.md](README.md) and `package.json` / app `package.json`s — use those
-(`npm run lint`, `npm run typecheck`, `npm test`, `npm run build:check -w @l-shopee/admin`). The VM
+(`npm run lint`, `npm run typecheck`, `npm test`). The VM
 startup update script runs `npm install`. Notes below cover only the non-obvious bits for running the
 two services **fully locally** (no Cloudflare account / no live prod API needed):
 
@@ -129,11 +126,8 @@ two services **fully locally** (no Cloudflare account / no live prod API needed)
   endpoints error because the tables don't exist. The migrations also seed reference data (brands,
   part types, usages, car brands/models visible at `GET /attributes`). The local DB starts with **zero
   products** — that empty state is expected.
-- **Admin app (`apps/admin`)** runs with `npm run dev -w @l-shopee/admin` (Next dev on port 3000).
-  It calls the API from the **browser**, and `NEXT_PUBLIC_API_BASE` defaults to the **live prod API**
-  `https://api.homeseeker.me`. For local end-to-end work, start it as
-  `NEXT_PUBLIC_API_BASE=http://localhost:8787 npm run dev -w @l-shopee/admin` so the UI hits the local
-  Worker instead of prod. (It's a build/runtime browser env var, so set it on the dev/build command.)
+- **Back office app (`apps/mobile`)** runs with `npm run web -w @l-shopee/mobile -- --port 8081` and
+  in development talks to the local Worker on :8788 — the practice copy (launch configs "api" + "TeamPit app").
 - The API sends `access-control-allow-origin: *` and uses no cookies, so the cross-origin
   localhost:3000 → localhost:8787 calls work without extra CORS setup.
 - Deploy commands (`wrangler deploy`, OpenNext deploy) and applying migrations with `--remote` require

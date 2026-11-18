@@ -24,8 +24,6 @@ export interface Phrase {
   en: string;
 }
 
-export const LANG_COOKIE = "kira-lang";
-
 /**
  * THAI IS THE DEFAULT (owner, 2026-08-25): a Thai mechanic signing in for the first time should not
  * have to find a button before the screen speaks to them.

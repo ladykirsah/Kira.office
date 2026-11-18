@@ -61,10 +61,8 @@ description: Build an approved TeamPit canvas drawing into the Expo back office 
 
 1. `node scripts/check-hidden-code.mjs`. Also grep the eslint configs for malware before linting (see the memory note on eslint config malware).
 2. `npm run format && npm run lint && npm run typecheck && npm test`. Run it in the background and wait for the notification.
-3. Only when `apps/admin` changed: `rm -rf apps/admin/.next-verify apps/admin/.next/types && NEXT_DIST_DIR=.next-verify NEXT_PUBLIC_API_BASE=https://api.airplusauto.com npm run build:check -w @l-shopee/admin`.
 
 ## 5 · Hand back
 
 - Say, in plain bullets, what is on the preview, which states you checked, and any choice you made where the drawing was silent (for example "ลูกค้าใหม่ + some products → สำหรับลูกค้าใหม่ · สินค้า DENSO").
 - Ask for their approval in the next-step box. **No commit and no lessons yet.** Lessons come after they approve (`kira-ship`).
-- Never touch `apps/admin/src/app/globals.css`: it has an unrelated change the owner keeps out of commits.

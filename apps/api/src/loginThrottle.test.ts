@@ -314,11 +314,11 @@ describe("clientAddress", () => {
     ).toBe("203.0.113.5");
   });
 
-  it("given only a forwarded address > then that", () => {
-    // The admin app proxies sign-ins server-to-server, and a subrequest need not carry the edge's
-    // header. Without this every member of staff would share ONE bucket, and twenty fumbles between
-    // them would shut the whole shop out of its own tills.
-    expect(clientAddress(req({ "x-kira-client-ip": "198.51.100.9" }))).toBe("198.51.100.9");
+  it("given only the old back office's forwarded header > then it is not trusted", () => {
+    // That header existed for the old Next.js back office's server-to-server sign-in relay. The old
+    // app was removed (plan 1.6, 18 Nov 2026); every sign-in now comes straight from a browser with
+    // the edge's header, so a caller-supplied address must never choose the bucket.
+    expect(clientAddress(req({ "x-kira-client-ip": "198.51.100.9" }))).toBe("unknown");
   });
 
   it("given neither > then one shared bucket, which is a refusal to guess", () => {

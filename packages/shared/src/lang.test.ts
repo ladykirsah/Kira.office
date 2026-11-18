@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LANG_COOKIE, readLang, otherLang, say, type Phrase } from "./lang";
+import { readLang, otherLang, say, type Phrase } from "./lang";
 
 /**
  * Thai or English, chosen with a button and remembered (owner, 2026-08-25).
@@ -56,11 +56,5 @@ describe("say", () => {
    */
   it("given a phrase that is the same in both > then it still reads it, not a fallback", () => {
     expect(say("th", { th: "AirPlus", en: "AirPlus" })).toBe("AirPlus");
-  });
-});
-
-describe("LANG_COOKIE", () => {
-  it("is a plain name a server and a browser can both use", () => {
-    expect(LANG_COOKIE).toBe("kira-lang");
   });
 });
