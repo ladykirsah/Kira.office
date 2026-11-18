@@ -94,9 +94,9 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 | Topic | Decision |
 | --- | --- |
 | Name | `TeamPit` (npm workspace root id: `kira-office`) |
-| App name on screen | **TeamPit** (owner, 2026-10-29). Logo: an orange line drawing of a turbo housing on navy (concept C). The name is plain one-colour text lettered in **Space Grotesk 600**; only the name uses that font. Replaces "TeamPit" everywhere a person reads it. Hidden ids keep the old spelling on purpose: the repo, the `kiraoffice` Worker, the `kira-office` D1, the `kira_staff` cookie (renaming signs everyone out) and the `kira-pos` offline store (renaming can strand unsynced sales). Guarded by `apps/admin/src/lib/appName.test.ts`. |
-| Visibility | **Private** |
-| Owner / status | **Published** at [`ladykirsah/Kira.office`](https://github.com/ladykirsah/Kira.office) (private). See [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md). |
+| App name on screen | **TeamPit** (owner, 2026-11-17; logo 2026-10-29). Logo: an orange line drawing of a turbo housing on navy (concept C). The name is plain one-colour text lettered in **Space Grotesk 600**; only the name uses that font. Replaces the earlier names everywhere. The GitHub repo is `TeamPit` since 2026-11-18. Hidden ids still carry the old spelling until each is renamed with the owner's yes (plan 9.2 part 4): the `kiraoffice` Worker, the `kira-office` D1, the `kira_staff` cookie (renaming signs everyone out) and the `kira-pos` offline store (renaming can strand unsynced sales). Guarded by `scripts/teampit-name.test.mjs` and `apps/admin/src/lib/appName.test.ts`. |
+| Visibility | **Public** — the owner's choice when renaming (2026-11-18, pick *B*). Anyone can read the code and docs, so secrets, tokens and customer data never go in. Changing it is the owner's call only. |
+| Owner / status | **Published** at [`ladykirsah/TeamPit`](https://github.com/ladykirsah/TeamPit) (public). See [GITHUB_CHECKLIST.md](GITHUB_CHECKLIST.md). |
 
 ## Items marked _Assumption_
 

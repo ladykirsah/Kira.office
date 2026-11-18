@@ -5,7 +5,7 @@ description: OKF bundle — everything a new AI agent (or human) needs to contin
 tags: [okf, handoff, knowledge, index]
 timestamp: 2026-08-09
 status: live
-resource: https://github.com/ladykirsah/Kira.office
+resource: https://github.com/ladykirsah/TeamPit
 sources: [110 session-memory files, docs/, live repo state, production D1 — compiled 2026-08-09]
 ---
 

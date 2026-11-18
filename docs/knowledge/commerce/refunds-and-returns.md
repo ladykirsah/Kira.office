@@ -58,6 +58,6 @@ The parked branch's migrations 0048/0049 COLLIDE with another branch's 0048 (=st
 
 - PR #93 (ed2dd6d), PR #94 (defbdee), migration 0076
 - `packages/core/src/orderMoney.ts`
-- https://github.com/ladykirsah/Kira.office/pull/23 (`claude/airplus-returns`)
+- https://github.com/ladykirsah/TeamPit/pull/23 (`claude/airplus-returns`)
 - `0049_order_returns.sql`
 - Related: [defect-claims](defect-claims.md), [order-lifecycle](order-lifecycle.md)

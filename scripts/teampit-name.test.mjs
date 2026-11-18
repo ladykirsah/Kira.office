@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 // This guard fails the build if either old name comes back in the project's files. Left for their
 // own steps of the approved rename plan, and nothing else:
 //  · apps/admin — the old back office, deleted in plan step 1.5;
-//  · the GitHub address ladykirsah/Kira.office — renamed with the GitHub project (part 3);
 //  · the folder path …/Kira.office-main — renamed last, on the Mac (part 5).
 // The behind-the-scenes Cloudflare names (kiraoffice…) change with part 4, one at a time.
 
@@ -16,7 +15,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OLD = /CrewEngine|Crew Engine|Kira\.office/;
 // …and the owner's own words that made the decision, quoted where it is recorded.
 const LATER = [
-  /ladykirsah\/Kira\.office/g,
   /Kira\.office-main/g,
   /"no more Kira\.office and Crew engine,/g,
 ];

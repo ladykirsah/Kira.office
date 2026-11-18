@@ -37,7 +37,7 @@ lessons → simplify → commit → push → PR → prod migration (if any) → 
 5. **Push:** `git push -u origin claude/<topic>`.
    - The push guard (`~/.claude/hooks/gate-git-writes.py`) needs the owner's approval of a plain-prose `Plan:` line. Put that line in your **final message, before the owner's "go"**. Lines written mid-turn have been lost from the transcript.
    - If the guard wrongly blocks an approved flow, the owner's standing rule is to fix the guard test-first (`gate-git-writes.test.py`, keep a `.bak-<date>` copy). Never send them back for another approval word.
-6. **Open the PR:** `gh pr create --repo ladykirsah/Kira.office --base main …`. The body has the sections *What ships · Database · Tests · Rollback*. Then bind the PR with `mcp__ccd_pr__get_status`.
+6. **Open the PR:** `gh pr create --repo ladykirsah/TeamPit --base main …`. The body has the sections *What ships · Database · Tests · Rollback*. Then bind the PR with `mcp__ccd_pr__get_status`.
 
 ## 3 · Database change before the merge
 
@@ -46,9 +46,9 @@ If the PR adds a migration, apply it to prod **before** merging. Use the `kira-p
 ## 4 · Merge, then watch the deploys
 
 - **Checks still running:** `mcp__ccd_pr__set_auto_merge` (squash, with the PR `url`). Signed commits merge by themselves.
-- **Checks already green** (auto-merge refuses a "clean" PR): `gh api -X PUT repos/ladykirsah/Kira.office/pulls/<n>/merge -f merge_method=squash`. Never `--admin`, never a force push.
-- **Find the run:** `gh run list --repo ladykirsah/Kira.office --branch main --limit 3`. Pick the **CI** run (event `push`) for the merge sha.
-- **Wait once:** `gh run watch <id> --repo ladykirsah/Kira.office --exit-status`. Run it in the foreground with timeout 600000, or in the background, but not both. Don't poll.
+- **Checks already green** (auto-merge refuses a "clean" PR): `gh api -X PUT repos/ladykirsah/TeamPit/pulls/<n>/merge -f merge_method=squash`. Never `--admin`, never a force push.
+- **Find the run:** `gh run list --repo ladykirsah/TeamPit --branch main --limit 3`. Pick the **CI** run (event `push`) for the merge sha.
+- **Wait once:** `gh run watch <id> --repo ladykirsah/TeamPit --exit-status`. Run it in the foreground with timeout 600000, or in the background, but not both. Don't poll.
 - **Expect** `build`, `deploy` (API), `deploy-storefront` and `deploy-app` (the back office) all to succeed. Merging to main deploys all three live apps; the old admin is parked and has no job. The "Workers Builds" check always fails and can be ignored.
 - **Health check:**
   - `curl https://api.airplusauto.com/health` returns 200.
