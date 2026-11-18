@@ -32,9 +32,9 @@ Usage:
 
 ```
 CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
-  npx wrangler d1 migrations list kira-office --remote
+  npx wrangler d1 migrations list teampit-denair --remote
 # or:
-  npx wrangler d1 execute kira-office --remote --json --command "SELECT …"
+  npx wrangler d1 execute teampit-denair --remote --json --command "SELECT …"
 ```
 
 - **OAuth recovery:** `npx wrangler login` (interactive only) or a `CLOUDFLARE_API_TOKEN` env var. **CI is unaffected** by a local OAuth expiry — it uses the repo secret of that name.
@@ -44,7 +44,7 @@ CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
 
 | database | id |
 |---|---|
-| prod `kira-office` | `2e88a362-ffd7-4255-b178-e511d475f687` |
+| prod `teampit-denair` (Den Air; was `kira-office` until 2026-11-18) | `e609101c-78d3-4a80-94a6-0cc5d4625d17` |
 | staging `kira-office-staging` | `85f22f44-063d-424e-91ef-39e1fa1fef24` |
 
 ## Safety tiering

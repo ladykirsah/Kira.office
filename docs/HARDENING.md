@@ -32,7 +32,7 @@ Cloudflare dashboard/config on the **GoGoCash** account.
 ## Backups & recovery
 
 - **D1 Time Travel** — automatic point-in-time restore (30-day window on the Workers Paid plan).
-  Restore with `wrangler d1 time-travel restore kira-office --timestamp=<ISO>`.
+  Restore with `wrangler d1 time-travel restore teampit-denair --timestamp=<ISO>`.
 - **Scheduled export** — a daily logical backup is wired via the Cron trigger (task #14): the
   scheduled handler exports key tables to the R2 `teampit-images` bucket (or a dedicated backups
   bucket). Verify the first export lands, then set a retention lifecycle on the bucket.

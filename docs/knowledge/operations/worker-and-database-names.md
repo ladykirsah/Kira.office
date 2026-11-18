@@ -1,7 +1,7 @@
 ---
 type: invariant
 title: Worker vs database names — the config name must equal the live Worker
-description: The api Worker is teampit-api (renamed in place from kiraoffice on 18 Nov 2026); the D1 database is still kira-office. A config name that doesn't match the live Worker once produced a full-session deploy deadlock.
+description: The api Worker is teampit-api (renamed in place from kiraoffice on 18 Nov 2026); Den Air's D1 database is teampit-denair (copied from kira-office on 18 Nov 2026). A config name that doesn't match the live Worker once produced a full-session deploy deadlock.
 tags: [naming, wrangler, workers, d1, durable-objects]
 timestamp: 2026-08-09
 status: live
@@ -15,7 +15,7 @@ sources: [kira-office-deploy-paths.md]
 | thing | exact name |
 |---|---|
 | API worker | **`teampit-api`** — renamed in place in the dashboard on 2026-11-18 (was `kiraoffice`) |
-| prod D1 database | **`kira-office`** (id `2e88a362-ffd7-4255-b178-e511d475f687`, GoGoCash account `187ab61ed9dbc6e616cb23e6b95aa8f1`) — also the npm workspace name |
+| prod D1 database | **`teampit-denair`** (id `e609101c-78d3-4a80-94a6-0cc5d4625d17`, copied from `kira-office` 2026-11-18; GoGoCash account `187ab61ed9dbc6e616cb23e6b95aa8f1`) — also the npm workspace name |
 | admin worker | `kiraoffice-admin` (parked; to delete) · back-office website `teampit-app` |
 | storefront worker | `airplus-storefront` |
 | staging D1 database | `kira-office-staging` (staging DOES have the hyphen; id `85f22f44-063d-424e-91ef-39e1fa1fef24`) |

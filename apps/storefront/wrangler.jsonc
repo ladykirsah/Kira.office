@@ -24,8 +24,10 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "kira-office",
-      "database_id": "2e88a362-ffd7-4255-b178-e511d475f687",
+      // Den Air's database: teampit-denair since 2026-11-18 (D1 can't rename — copied whole while the
+      // shop was closed; kira-office kept two weeks, then deleted with the owner's yes).
+      "database_name": "teampit-denair",
+      "database_id": "e609101c-78d3-4a80-94a6-0cc5d4625d17",
     },
   ],
   // Same KV as apps/api — read-only use here (shop:paymentMethods → PromptPay target for checkout).

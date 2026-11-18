@@ -7,7 +7,7 @@ description: Apply a TeamPit D1 migration (packages/db/migrations/NNNN_*.sql) to
 
 **When:** the CI never runs migrations, and new code that reads new columns gives a 500 until they exist. So always apply them **before** the merge.
 
-**Background:** `docs/knowledge/operations/d1-migration-discipline.md` and `prod-d1-access.md`. The live database is `kira-office` on the GoGoCash account; its id is in `wrangler.jsonc` and in those docs.
+**Background:** `docs/knowledge/operations/d1-migration-discipline.md` and `prod-d1-access.md`. The live database is `teampit-denair` (Den Air's; `kira-office` until 18 Nov 2026) on the GoGoCash account; its id is in `wrangler.jsonc` and in those docs.
 
 ## 0 · Ask by name first
 
@@ -18,8 +18,8 @@ description: Apply a TeamPit D1 migration (packages/db/migrations/NNNN_*.sql) to
 ## 1 · Way A: wrangler (when its login works)
 
 ```
-CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 migrations list kira-office --remote   # read-only
-CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 migrations apply kira-office --remote
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 migrations list teampit-denair --remote   # read-only
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 migrations apply teampit-denair --remote
 ```
 
 If it says to set `CLOUDFLARE_API_TOKEN`, the login has expired. Never try to sign in for the owner; use way B.

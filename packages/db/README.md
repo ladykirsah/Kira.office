@@ -25,8 +25,8 @@ Write the next numbered `NNNN_name.sql` by hand in [`migrations/`](./migrations/
 nullable when adding a column to a live table), then apply it:
 
 ```bash
-wrangler d1 migrations apply kira-office --local   # local dev
-wrangler d1 migrations apply kira-office           # remote (per environment with --env)
+wrangler d1 migrations apply teampit-denair --local   # local dev
+wrangler d1 migrations apply teampit-denair           # remote (per environment with --env)
 ```
 
 The database is bound in each Worker's `wrangler.jsonc` as `DB` (see

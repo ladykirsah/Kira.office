@@ -177,7 +177,7 @@ adds `payments.sale_number` (nullable TEXT — the counter bill a PromptPay paym
 
 1. Add the next numbered `NNNN_name.sql` to `packages/db/migrations/` (additive + nullable when a
    live Worker may still run the old code).
-2. Apply to **both** D1 databases — prod `2e88a362-ffd7-4255-b178-e511d475f687` and staging
+2. Apply to **both** D1 databases — prod `teampit-denair` (`e609101c-78d3-4a80-94a6-0cc5d4625d17`) and staging
    `85f22f44-063d-424e-91ef-39e1fa1fef24` (`kira-office-staging`) — via the Cloudflare D1 MCP
    `d1_database_query` or `wrangler d1 migrations apply`.
 3. Update the table listings above so this doc stays as-built (there is no `schema.ts` to mirror any

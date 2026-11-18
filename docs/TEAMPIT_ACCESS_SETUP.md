@@ -93,7 +93,7 @@ The `users` table is still empty. Harmless today — role enforcement is unwired
 section), so the single allow-listed Access email IS the owner. Do this when a second admin is
 invited, or now if you want the row to exist.
 ```
-CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 execute kira-office --remote --command \
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 npx wrangler d1 execute teampit-denair --remote --command \
   "INSERT INTO users (id,name,email,role,status,created_at) VALUES ('<uuid>','Lady Kirsah','lady.kirsah@gmail.com','owner','active',strftime('%s','now')*1000);"
 ```
 `<uuid>`: `uuidgen | tr A-Z a-z`. No password — email + role only.
