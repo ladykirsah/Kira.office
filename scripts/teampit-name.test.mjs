@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 // Plan 9.2 (owner, 17 Nov 2026): "no more Kira.office and Crew engine, just TeamPit everywhere".
 // This guard fails the build if either old name comes back in the project's files. Left for their
 // own steps of the approved rename plan, and nothing else:
-//  · apps/admin — the old back office, deleted in plan step 1.5;
 //  · the folder path …/Kira.office-main — renamed last, on the Mac (part 5).
 // The behind-the-scenes Cloudflare names change with part 4, one at a time (checked below).
 
@@ -23,13 +22,12 @@ function trackedFiles() {
   return execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
     .split("\0")
     .filter(Boolean)
-    .filter((f) => !f.startsWith("apps/admin/"))
     .filter((f) => f !== "scripts/teampit-name.test.mjs")
     .filter((f) => !/\.(png|jpe?g|gif|webp|ico|ttf|otf|woff2?|pdf|zip)$/i.test(f));
 }
 
 describe("TeamPit everywhere > no old name left", () => {
-  it("given every project file (but the old back office) > then no CrewEngine or Kira.office in it", () => {
+  it("given every project file > then no CrewEngine or Kira.office in it", () => {
     const left = [];
     for (const file of trackedFiles()) {
       let text;
@@ -44,6 +42,13 @@ describe("TeamPit everywhere > no old name left", () => {
       });
     }
     expect(left).toEqual([]);
+  });
+
+  it("given the old back office (removed in plan step 1.6) > then its folder and every script that ran it are gone", () => {
+    expect(trackedFiles().filter((f) => f.startsWith("apps/admin/"))).toEqual([]);
+    for (const file of ["package.json", ".claude/launch.json"]) {
+      expect(readFileSync(join(root, file), "utf8"), file).not.toMatch(/apps\/admin|@l-shopee\/admin/);
+    }
   });
 
   it("given the project's package > then it is named teampit, in package.json and the lock file", () => {
@@ -104,7 +109,7 @@ describe("TeamPit everywhere > Cloudflare names", () => {
   // The old test copy (staging) was retired on 18 Nov 2026 (owner: "Go"): its servers, database,
   // pictures and settings store are deleted, so no settings file may point at them any more.
   it("given the retired test copy > then no settings file or script still points at it", () => {
-    const files = ["wrangler.jsonc", "apps/storefront/wrangler.jsonc", "apps/admin/wrangler.jsonc", "package.json"];
+    const files = ["wrangler.jsonc", "apps/storefront/wrangler.jsonc", "package.json"];
     for (const file of files) {
       const text = readFileSync(join(root, file), "utf8");
       expect(text, file).not.toMatch(/"staging"\s*:|85f22f44|c876509f|images-staging|deploy:staging/);

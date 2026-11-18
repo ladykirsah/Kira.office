@@ -69,8 +69,8 @@ npm run typecheck
 npm run lint
 ```
 
-App initialization steps live in [apps/admin/README.md](apps/admin/README.md),
-[apps/api/README.md](apps/api/README.md), and [apps/storefront/README.md](apps/storefront/README.md).
+App notes live in [apps/api/README.md](apps/api/README.md) and [apps/storefront/README.md](apps/storefront/README.md).
+The old Next.js back office (`apps/admin`) was removed on 18 Nov 2026; see the git tag `old-back-office-final`.
 
 ## Documentation Map
 

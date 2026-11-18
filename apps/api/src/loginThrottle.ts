@@ -53,31 +53,19 @@ export const PIN_SHOP_KEY = "staff-login:pin:shop";
 /** How long failures are remembered. Fall quiet for a window and the tally starts over. */
 export const STAFF_LOGIN_WINDOW_MS = 15 * 60_000;
 
-/** Header the admin app forwards the browser's address in, for sign-ins it proxies. */
-export const FORWARDED_CLIENT_IP_HEADER = "x-kira-client-ip";
-
 /**
- * Who is asking, for throttling purposes.
+ * Who is asking, for throttling purposes: `cf-connecting-ip`, which the edge stamps and a caller
+ * cannot forge, so somebody hitting this Worker directly can never choose which bucket to spend.
  *
- * `cf-connecting-ip` first, ALWAYS: the edge stamps it and a caller cannot forge it, so somebody
- * hitting this Worker directly — the attack this exists for — can never choose which bucket to
- * spend. The forwarded header is only consulted when the edge's is absent, which happens for the
- * admin app's server-to-server sign-in proxy, and never for a request off the internet. That
- * ordering is the whole safety argument; do not swap it for "most specific wins".
+ * There used to be a fallback header for the old Next.js back office's server-to-server sign-in
+ * relay; that app was removed (plan 1.6, 18 Nov 2026) and every sign-in now comes straight from a
+ * browser, so no caller-supplied header is trusted.
  *
- * Without the fallback every member of staff shares ONE bucket, because the API would be looking at
- * the admin Worker rather than the person — and twenty fumbles between them would shut the whole
- * shop out of its own tills while an attacker sat elsewhere.
- *
- * Neither header means local development. One shared bucket then, deliberately: the alternative is
- * a unique key per request, which is a throttle that never throttles.
+ * No header means local development. One shared bucket then, deliberately: the alternative is a
+ * unique key per request, which is a throttle that never throttles.
  */
 export function clientAddress(request: Request): string {
-  return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get(FORWARDED_CLIENT_IP_HEADER) ??
-    "unknown"
-  );
+  return request.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
 /** Namespaced so a staff sign-in can never spend the storefront's OTP budget, or vice versa. */

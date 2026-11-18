@@ -96,11 +96,8 @@ describe(`${HOST} hosting`, () => {
     expect(ciBuild).toContain("EXPO_NO_DOTENV=1 npx expo export --platform web");
   });
 
-  it("old admin > parked: CI no longer publishes it, and a manual deploy cannot take an address back", () => {
-    const admin = readJsonc("apps/admin/wrangler.jsonc");
-
+  it("old admin > removed (plan 1.5–1.6, 18 Nov 2026): no CI job and no config left to deploy it", () => {
     expect(ciJob("deploy-admin")).toBeNull();
-    expect(admin.routes).toEqual([]);
-    expect(admin.workers_dev).toBe(false);
+    expect(existsSync(path("apps/admin/wrangler.jsonc"))).toBe(false);
   });
 });

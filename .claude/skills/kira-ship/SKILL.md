@@ -26,7 +26,7 @@ lessons → simplify → commit → push → PR → prod migration (if any) → 
 2. **Branch.** This repo squash-merges, so after a merge the old branch can't be reused.
    - If `git diff --quiet HEAD origin/main` passes, run `git switch -c claude/<topic> origin/main`; your uncommitted work comes along.
    - Otherwise rebuild the branch (memory: squash-merge-branch-recovery).
-3. **Stage everything except `apps/admin/src/app/globals.css`:** `git add -A -- . ':!apps/admin/src/app/globals.css'`. Scan the staged diff for secrets.
+3. **Stage everything:** `git add -A`. Scan the staged diff for secrets.
 4. **Make a signed commit** with the noreply address (no attribution lines):
    ```
    git -c user.name=ladykirsah -c user.email=283359991+ladykirsah@users.noreply.github.com \

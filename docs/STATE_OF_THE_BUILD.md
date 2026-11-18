@@ -28,7 +28,7 @@ scannable. Money is stored as **integer satang** everywhere (1 THB = 100 satang)
 ```
 apps/api      Cloudflare Worker (api.homeseeker.me). RAW SQL over D1. StockLedger Durable Object.
               R2 (images) + KV. Daily backup cron. Optional Cloudflare Access JWT gate.
-apps/admin    Next.js 15 (App Router) + React 19 on OpenNext. Calls the Worker from the browser.
+apps/admin    REMOVED 18 Nov 2026 (old Next.js back office; see git tag old-back-office-final).
 apps/storefront  AirPlus customer store (Next.js 15 on OpenNext, its own Worker). Shares api's D1 + KV;
               cross-binds StockLedger DO. Guest checkout + phone-OTP member accounts.
 packages/core Pure-TS domain logic (pricing, cost, tax, stock, sync, orders, imports, finance). No I/O.
@@ -57,7 +57,7 @@ Full navigable index: [docs/README.md](README.md). Intended platform design:
 - Cloudflare Access JWT verification is **implemented but inactive**: it only enforces when
   `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` are set. Today they are unset → **the API is open**. (See §5.)
 
-**Admin (apps/admin — built; runs against the live API):** route pages exist for
+**Admin (apps/admin — REMOVED 18 Nov 2026; history below, code in the tag `old-back-office-final`):** route pages exist for
 `/` (dashboard), `/products`, `/products/new`, `/products/[id]/edit`, `/pos`, `/stock`, `/sales`,
 `/orders`, `/finance`, `/pricing`, `/barcodes`, `/import`, `/terms`, `/settings/attributes`,
 `/settings/car-fitment`. The **product editor** (view + edit modes, image gallery, pricing, part
@@ -195,7 +195,6 @@ npm run format        # prettier --write
 npm run lint          # prettier --check
 npm run typecheck     # tsc: packages/core + apps/api
 npm test              # vitest (632 tests) — node env
-NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck+build
 ```
 
 **Deploy — pushing to `main` DOES auto-deploy the API (verified 2026-07-20).** The
@@ -205,8 +204,8 @@ and 17:21 match the PR #24/#25 merge pushes). The job fails loudly if the token 
 known custom-domain re-assert wart is downgraded to a warning (see `ci.yml`). **Since then the
 storefront (`deploy-storefront`) and the back office (`deploy-app`) deploy on every `main` push too.**
 On 4 Nov 2026 the Expo app (`apps/mobile`, Worker `teampit-app` since 18 Nov — `kiraoffice-app` before) took **admin.airplusauto.com**
-over and the old Next.js admin was **parked**: the `deploy-admin` job is gone and
-`apps/admin/wrangler.jsonc` has no routes. Details:
+over and the old Next.js admin was **parked**; on 18 Nov 2026 its Worker was deleted and its code removed
+(kept in the git tag `old-back-office-final`). Details:
 [knowledge/operations/ci-pipeline.md](knowledge/operations/ci-pipeline.md). The Cloudflare **Workers
 Builds** integration still fails on every push and has never deployed anything (see §7).
 

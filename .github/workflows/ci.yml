@@ -68,9 +68,9 @@ jobs:
           echo "::error::API Worker deploy failed (beyond the custom-domain step)."
           exit 1
 
-  # The old Next.js admin (kiraoffice-admin) is PARKED and no longer deployed (owner, 4 Nov 2026:
-  # "i want to swap for the old one"): the Expo app below took admin.airplusauto.com over.
-  # apps/admin/wrangler.jsonc has no routes and no workers.dev, so a stray manual deploy reaches no one.
+  # The old Next.js admin (kiraoffice-admin) was parked on 4 Nov 2026 (the Expo app below took
+  # admin.airplusauto.com over) and removed on 18 Nov 2026: Worker deleted, code kept only in the git
+  # tag old-back-office-final.
 
   # Auto-deploy the AirPlus storefront (airplus-storefront → airplusauto.com) via OpenNext.
   #

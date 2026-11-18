@@ -19,7 +19,7 @@ sources: [.github/workflows/ci.yml, kira-office-deploy-paths.md, kira-storefront
 3. **`deploy-storefront`** — `airplus-storefront`, `npm run deploy -w @l-shopee/storefront`. Push-to-main only, `needs: build`. **Added only in PR #125 (squash 559b506, 4 Aug 2026)** — see below.
 4. **`deploy-app`** — `teampit-app` (named `kiraoffice-app` until 18 Nov 2026) → **`admin.airplusauto.com`**, the Expo back office as a static website (`apps/mobile/wrangler.jsonc`): `EXPO_NO_DOTENV=1 npx expo export --platform web`, then `npx wrangler deploy`, then a check that the live address answers with THIS app. Push-to-main only, `needs: build`. Added 4 Nov 2026 (owner: "Publish first", "A: PIN every open", then "i want to swap for the old one").
 
-**`deploy-admin` was removed on 4 Nov 2026.** The old Next.js admin (`kiraoffice-admin`) is parked: `apps/admin/wrangler.jsonc` has `routes: []` and `workers_dev: false`, so a stray manual deploy reaches no one and cannot pull `admin.airplusauto.com` back. `admin.homeseeker.me` went with it. The Worker is deleted two weeks after the swap.
+**`deploy-admin` was removed on 4 Nov 2026**, and the old Next.js admin itself on 18 Nov 2026 (plan 1.5–1.6): the `kiraoffice-admin` Worker is deleted and `apps/admin` lives on only in the git tag `old-back-office-final`.
 
 All three deploy jobs share the single `CLOUDFLARE_API_TOKEN` repo secret (a GoGoCash-account Workers+DNS-edit token; account `187ab61ed9dbc6e616cb23e6b95aa8f1`). GHA **never** builds Next apps outside the deploy jobs and **never** runs D1 migrations — see [d1-migration-discipline](d1-migration-discipline.md).
 
@@ -51,8 +51,8 @@ Root `package.json` (name `teampit`, npm workspaces `packages/*` + `apps/*`, Nod
 | script | what it does |
 |---|---|
 | `test` | `vitest run` (also `test:watch`, `test:coverage`) |
-| `typecheck` | `tsc -b packages/core` && `tsc --noEmit` on apps/api, apps/storefront, apps/admin |
-| `lint` | `prettier --check "{packages,apps}/**/src/**/*.{ts,tsx}"` && `lint:es` (ESLint in apps/storefront + apps/admin) |
+| `typecheck` | `tsc -b packages/core` && `tsc --noEmit` on apps/api, apps/storefront |
+| `lint` | `prettier --check "{packages,apps}/**/src/**/*.{ts,tsx}"` && `lint:es` (ESLint in apps/storefront) |
 | `format` | `prettier --write` |
 | `deploy` | `wrangler deploy` (API, from root) |
 | `deploy:dry` | `wrangler deploy --dry-run --outdir .wrangler/dry` |

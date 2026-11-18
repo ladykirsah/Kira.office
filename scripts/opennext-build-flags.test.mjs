@@ -2,15 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // OpenNext refuses to build a Next.js major more than two years past its release: Next 15
-// (2024-10-21) stopped deploying on 2026-10-21, and every admin + storefront deploy failed from
-// then on. The stopgap is OpenNext's --dangerouslyUseUnsupportedNextVersion on every build. It
+// (2024-10-21) stopped deploying on 2026-10-21, and every storefront deploy failed from then on. The stopgap is OpenNext's --dangerouslyUseUnsupportedNextVersion on every build. It
 // must be on while an app is on Next 15, and must come OFF once the app moves to 16 or later, so a
 // future "not supported" refusal is seen instead of silently overridden.
 const FLAG = "--dangerouslyUseUnsupportedNextVersion";
 const LAST_UNSUPPORTED_MAJOR = 15;
-const APPS = ["admin", "storefront"];
-// CI builds only what it deploys. The old admin is parked (owner, 4 Nov 2026: the Expo app took
-// admin.airplusauto.com over), so only its package.json scripts are still checked.
+// The old Next.js admin was removed on 18 Nov 2026 (plan 1.6); the storefront is the only Next app.
+const APPS = ["storefront"];
 const DEPLOYED_BY_CI = ["storefront"];
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");

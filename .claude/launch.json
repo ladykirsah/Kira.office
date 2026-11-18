@@ -2,34 +2,52 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "old back office",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@l-shopee/admin"],
-      "port": 3010,
-      "autoPort": true
-    },
-    {
       "name": "api",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "--port", "8788"],
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--port",
+        "8788"
+      ],
       "port": 8788
     },
     {
       "name": "api (2 shops)",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "-c", "wrangler.practice.jsonc", "--port", "8788"],
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "-c",
+        "wrangler.practice.jsonc",
+        "--port",
+        "8788"
+      ],
       "port": 8788
     },
     {
       "name": "storefront",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "@l-shopee/storefront"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@l-shopee/storefront"
+      ],
       "port": 3002
     },
     {
       "name": "TeamPit app",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "@l-shopee/mobile", "--", "--port", "8081"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "@l-shopee/mobile",
+        "--",
+        "--port",
+        "8081"
+      ],
       "port": 8081,
       "env": {
         "EXPO_NO_TELEMETRY": "1",
@@ -39,13 +57,28 @@
     {
       "name": "app website (built)",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "-c", "apps/mobile/wrangler.jsonc", "--port", "8790"],
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "-c",
+        "apps/mobile/wrangler.jsonc",
+        "--port",
+        "8790"
+      ],
       "port": 8790
     },
     {
       "name": "TeamPit shop 2",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "@l-shopee/mobile", "--", "--port", "8082"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "@l-shopee/mobile",
+        "--",
+        "--port",
+        "8082"
+      ],
       "port": 8082,
       "env": {
         "EXPO_NO_TELEMETRY": "1",

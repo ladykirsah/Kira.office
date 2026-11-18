@@ -18,7 +18,9 @@ owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudf
 ## Layout
 - `apps/api` — Cloudflare Worker (`api.homeseeker.me`), **raw SQL over D1**, `StockLedger` Durable
   Object, R2 (`IMAGES`) + KV. Main file: `apps/api/src/index.ts`. Config: root `wrangler.jsonc`.
-- `apps/admin` — Next.js 15 / React 19 on OpenNext. Calls the Worker from the browser.
+- `apps/mobile` — the Expo back office (TeamPit), published as a static website at admin.airplusauto.com.
+- `apps/storefront` — AirPlus, Next.js on OpenNext. (The old Next.js back office `apps/admin` was removed on
+  18 Nov 2026; it lives on only in the git tag `old-back-office-final`.)
 - `packages/core` — pure-TS money/sync logic (no I/O). `packages/db` — D1 SQL migrations only (no TS; nothing imports it).
 
 ## Must-not-break conventions
@@ -33,27 +35,15 @@ owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudf
 
 ## The gate (run before claiming done)
 ```bash
-npm run format && npm run lint && npm run typecheck && npm test   # 237 vitest tests
-rm -rf apps/admin/.next-verify apps/admin/.next/types && \
-  NEXT_DIST_DIR=.next-verify npm run build:check -w @l-shopee/admin   # admin typecheck + build
+npm run format && npm run lint && npm run typecheck && npm test
 ```
 
 ## Agent gotchas (save yourself time)
-- **The admin talks to PROD by default** (`apiBase` falls back to `https://api.homeseeker.me`). To test
-  admin UI against unreleased API changes, run the local Worker (`wrangler dev --local --port 8787` — simulates
-  D1+KV+R2 via Miniflare, persists across restarts), write a gitignored `apps/admin/.env.local` with
-  `NEXT_PUBLIC_API_BASE=http://localhost:8787`, then **restart** the admin dev server (env is inlined at
-  boot). Delete it + restart to return to prod. Never POST mock data to prod.
-- **Deploy is automatic:** pushing to `main` runs GitHub Actions which deploys both the API Worker and the
-  admin (secrets are set). No manual `npm run deploy` needed.
+- **Deploy is automatic:** pushing to `main` runs GitHub Actions which deploys the API, the AirPlus storefront and the back office app
+  (secrets are set). No manual `npm run deploy` needed.
 - **One CI check fails on every push and it's NOT your code:** `Workers Builds: kira-office` (Cloudflare's
   redundant Git integration) — its managed token lacks zone DNS edit for the custom domain. GitHub Actions
   already deploys. Ignore it / it should be disconnected in the Cloudflare dashboard. Never chase it as a bug.
-- **Stale HMR console errors:** the Next dev console can retain old compile errors (e.g. a transient
-  `priceTier is not defined`) across reloads. Verify "clean" via `build:check` passing + the page rendering
-  with no error boundary, not the console buffer.
-- **Input-box sizing vocabulary:** the owner calls the tall input the "L input box" (`inputL`) and the
-  compact one the "S input box" (`inputS`) — both in `apps/admin/src/lib/inputStyles.ts`.
 - **Non-submit `<button>` needs `type="button"`** — inside a form a bare button submits on click.
 - Live prod keeps intentional demo rows (`prod-demo`, 5 × `DEMO-AC-*`) — don't delete them as junk.
 
