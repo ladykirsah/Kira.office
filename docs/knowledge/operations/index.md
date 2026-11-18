@@ -14,7 +14,7 @@ Read this area before deploying, migrating, or diagnosing production. One line p
 
 - [ci-pipeline](ci-pipeline.md) — the four GitHub Actions jobs, their loud-failure contract, what a green check does NOT prove, and the npm scripts they run.
 - [deploy-runbook](deploy-runbook.md) — manual per-app deploys (`.env.local`-aside procedure), benign deploy noise, and how to verify a deploy actually landed.
-- [worker-and-database-names](worker-and-database-names.md) — INVARIANT: worker `kiraoffice` (no hyphen) vs D1 database `kira-office`; the DO-namespace deadlock this once caused; StockLedger DO holds no state.
+- [worker-and-database-names](worker-and-database-names.md) — INVARIANT: the config name must equal the live api Worker (`teampit-api` since 18 Nov 2026, `kiraoffice` before) — the D1 database is `kira-office`; the DO-namespace deadlock this once caused; StockLedger DO holds no state.
 - [d1-migration-discipline](d1-migration-discipline.md) — migrations are manual, always BEFORE the merge; the 0048–0052 numbering landmine; staging drift; Time Travel rollback.
 - [prod-d1-access](prod-d1-access.md) — the TWO independent doors into prod D1 (MCP connector + wrangler CLI); try both before declaring prod unreadable; account and database ids.
 - [next-public-env-trap](next-public-env-trap.md) — TRAP: `NEXT_PUBLIC_*` is inlined at build; the 16-hour localhost outage and the three guards that now prevent it.

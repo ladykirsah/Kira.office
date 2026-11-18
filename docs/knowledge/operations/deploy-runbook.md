@@ -24,7 +24,7 @@ Procedure per app:
 
 1. **Move that app's `.env.local` aside** (`mv .env.local .env.local.bak`).
 2. Deploy:
-   - API: `npm run deploy` from root (worker `kiraoffice`).
+   - API: `npm run deploy` from root (worker `teampit-api`).
    - Admin: `NEXT_PUBLIC_API_BASE=https://api.airplusauto.com CLOUDFLARE_ACCOUNT_ID=187ab61… npm run deploy -w @l-shopee/admin` — setting the prod URL EXPLICITLY works because Next won't override an already-set var; a localhost value fails the build via `assertDeployableApiBase` (deliberate guard).
    - Storefront: `NEXT_PUBLIC_IMG_BASE=https://api.airplusauto.com … npm run deploy -w @l-shopee/storefront` — explicit value satisfies `imgBaseGuard` (`apps/storefront/src/lib/imgBaseGuard.ts`) without a localhost leak. (In CI the correct state is *unset*; explicit-prod-URL is the safe manual-shell equivalent.)
 3. **Restore `.env.local`.**

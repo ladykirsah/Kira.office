@@ -1,27 +1,31 @@
 ---
 type: invariant
-title: Worker vs database names — the kiraoffice / kira-office trap
-description: The API worker script id has NO hyphen; the hyphenated name is the D1 database. Confusing them once produced a full-session deploy deadlock.
+title: Worker vs database names — the config name must equal the live Worker
+description: The api Worker is teampit-api (renamed in place from kiraoffice on 18 Nov 2026); the D1 database is still kira-office. A config name that doesn't match the live Worker once produced a full-session deploy deadlock.
 tags: [naming, wrangler, workers, d1, durable-objects]
 timestamp: 2026-08-09
 status: live
 sources: [kira-office-deploy-paths.md]
 ---
 
-# Worker vs database names — the `kiraoffice` / `kira-office` trap
+# Worker vs database names — the config name must equal the live Worker
 
 ## The invariant
 
 | thing | exact name |
 |---|---|
-| API worker script id | **`kiraoffice`** — NO hyphen |
+| API worker | **`teampit-api`** — renamed in place in the dashboard on 2026-11-18 (was `kiraoffice`) |
 | prod D1 database | **`kira-office`** (id `2e88a362-ffd7-4255-b178-e511d475f687`, GoGoCash account `187ab61ed9dbc6e616cb23e6b95aa8f1`) — also the npm workspace name |
-| admin worker | `kiraoffice-admin` |
+| admin worker | `kiraoffice-admin` (parked; to delete) · back-office website `teampit-app` |
 | storefront worker | `airplus-storefront` |
 | staging D1 database | `kira-office-staging` (staging DOES have the hyphen; id `85f22f44-063d-424e-91ef-39e1fa1fef24`) |
-| Durable Object namespace | **named** `kira-office_StockLedger` but **owned by script `kiraoffice`** |
+| Durable Object namespace | **named** `kira-office_StockLedger` but **owned by Worker `teampit-api`** (the namespace keeps its old display name through renames) |
 
 Verify anytime: `GET /accounts/187ab61e…/workers/scripts` (see [deploy-runbook](deploy-runbook.md) for the REST-listing technique).
+
+## How to rename the api Worker (done 2026-11-18)
+
+Rename it IN PLACE in the dashboard (Workers & Pages → the Worker → Settings → General → Name → Deploy) FIRST, then ship root `wrangler.jsonc` `name` + the storefront's `script_name` + CI's `Deployed <name>` check to match. Never the other way round: shipping a new name first creates a second, empty Worker (no secrets) that grabs the custom domains. Proven on two throwaway Workers the same day: the other Worker's binding keeps working before it redeploys, DO data and secrets carry over, and deploying the stale old name from AirPlus fails loudly with 10061 (nothing breaks silently).
 
 ## Why this is written down
 

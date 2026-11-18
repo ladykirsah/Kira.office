@@ -16,7 +16,7 @@ npm workspaces monorepo, root package `kira-office` (Node >= 22). Workspace pack
 
 ```
 apps/
-  api/         → Worker `kiraoffice` (entry apps/api/src/index.ts; config = ROOT wrangler.jsonc)
+  api/         → Worker `teampit-api` (entry apps/api/src/index.ts; config = ROOT wrangler.jsonc)
   admin/       → Worker `kiraoffice-admin` (@l-shopee/admin, OpenNext)
   storefront/  → Worker `airplus-storefront` (@l-shopee/storefront, OpenNext)
   mobile/      → the Expo rebuild of the back office (@l-shopee/mobile; phone-size web first, not deployed yet)

@@ -38,7 +38,7 @@ The admin proxy must **forward `Cf-Access-Jwt-Assertion`** — `apiFetch` is ser
 
 ## Prod dependencies & verification
 
-- `SUPER_ADMIN_EMAILS` must contain the owner's address. Settable in dashboard: Workers → `kiraoffice` → Settings → Variables.
+- `SUPER_ADMIN_EMAILS` must contain the owner's address. Settable in dashboard: Workers → `teampit-api` → Settings → Variables.
 - Post-deploy check: `/staff/login-access` answers `unauthorized` (not `access_not_configured`) — proving `ACCESS_*` is set on prod. Verified 9 Aug.
 
 ## Shipped alongside (same day, 9 Aug)

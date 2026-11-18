@@ -27,7 +27,7 @@ storefront had **no** deploy job and merges silently left airplusauto.com stale)
 
 | App | Worker script | Host |
 | --- | --- | --- |
-| API | `kiraoffice` (no hyphen — see [platform](../platform/index.md)) | api.airplusauto.com |
+| API | `teampit-api` (`kiraoffice` until 18 Nov 2026 — see [platform](../platform/index.md)) | api.airplusauto.com |
 | Admin | `kiraoffice-admin` | admin.airplusauto.com (behind Cloudflare Access) |
 | Storefront | `airplus-storefront` | airplusauto.com |
 
