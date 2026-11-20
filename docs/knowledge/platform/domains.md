@@ -28,7 +28,8 @@ Post-purchase checklist (recorded at decision time; the routes/deploy items are 
 |---|---|---|
 | `airplusauto.com` | airplus-storefront | public |
 | `api.airplusauto.com` | teampit-api | `requireAccess` in code (`/health` public, `/products` 401, `/img/*` 404-not-401) |
-| `admin.airplusauto.com` | kiraoffice-admin | Cloudflare Access (302, aud `dfcb79fc…`) |
+| `teampit.formulal.cc` | teampit-app | public; the staff PIN is the lock (Den Air's address since 2026-11-19, owner pick B) |
+| `admin.airplusauto.com` | teampit-app (since 2026-11-04) | public; the staff PIN is the lock. Only `/recover` is behind Cloudflare Access (302, aud `dfcb79fc…`). Since 2026-11-20 it only forwards: the app opens the same page on teampit.formulal.cc unless the phone holds unsent bills (sent first, then it moves at the next open) |
 | `staging-shop.airplusauto.com` | (retired 2026-11-18 — Worker deleted) | — |
 | `staging-api.airplusauto.com` | (retired 2026-11-18 — Worker deleted) | — |
 | `staging-admin.airplusauto.com` | (retired 2026-11-18 — Worker deleted) | — |

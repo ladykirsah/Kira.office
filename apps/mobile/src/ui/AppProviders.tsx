@@ -7,6 +7,7 @@ import { signIn, type Credentials, type SignedInStaff, type SignInResult } from 
 import { currentStaff, signOut } from "@/lib/staffApi";
 import { migratePrefs, readPref, readToken, writePref, writeToken } from "./prefs";
 import { PREF } from "@/lib/prefNames";
+import { moveFromOldAddress } from "./oldAddressMove";
 import { DARK, LIGHT, PHONE_MAX_WIDTH, forScreen, type Theme } from "./theme";
 
 /**
@@ -144,7 +145,15 @@ export function AppProviders({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     prefsMoved ??= migratePrefs();
-    void prefsMoved.finally(() => setReady(true));
+    // Then, on the old web address with no bill waiting, open the new address instead (19–20 Nov
+    // 2026). Anything unexpected shows the app where it is: staying never loses a bill.
+    void prefsMoved.finally(() =>
+      moveFromOldAddress()
+        .catch(() => false)
+        .then((moving) => {
+          if (!moving) setReady(true);
+        }),
+    );
   }, []);
   if (!ready) return null;
   return (

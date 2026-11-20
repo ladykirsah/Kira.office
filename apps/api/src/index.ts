@@ -323,6 +323,7 @@ const STATIC_SECURITY_HEADERS: Record<string, string> = {
 export const DEFAULT_CORS_ORIGINS = [
   "http://localhost:3000",
   "https://airplusauto.com",
+  "https://teampit.formulal.cc",
   "https://admin.airplusauto.com",
 ];
 

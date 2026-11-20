@@ -72,3 +72,15 @@ Every prod staff login 500'd because Workers refuses PBKDF2 at 210k rounds; PR #
 - `.npmrc` sets `ignore-scripts=true`.
 - Still with the owner: rotate the GitHub, Cloudflare and Gmail credentials and the Cloudflare token, and clean or wipe the Mac.
 - The three forged non-main branches still exist on origin.
+
+## 2026-11-20 — teampit.formulal.cc dropped twice by unrelated deploys
+
+Plan 9.3 (owner pick B): `teampit.formulal.cc` was attached to `teampit-app` from an unmerged branch
+(`wrangler triggers deploy`) so the owner could check it before the merge. Two unrelated PRs from
+another session (#239, #240, browser icons) merged to `main` meanwhile; each `deploy-app` ran
+`wrangler deploy` with main's `apps/mobile/wrangler.jsonc` (old address only). Wrangler sends
+`override_scope: true` for custom domains, so the Worker's address list was **replaced** and the new
+address was taken off each time (owner saw Cloudflare **Error 1016**). The old address kept working.
+**Standing rule:** a Worker's addresses live in its `wrangler.jsonc` on `main` — never add one only in
+the dashboard or from a branch and leave it live while other work ships. To restore one quickly,
+`wrangler triggers deploy` re-applies the config's routes and domains without uploading code.

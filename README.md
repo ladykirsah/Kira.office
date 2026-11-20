@@ -15,7 +15,8 @@ from one workspace.
   Durable Object**, with a daily backup cron. **Pushing to `main` auto-deploys the API Worker,
   the AirPlus storefront and the back office** (GitHub Actions `deploy`, `deploy-storefront`,
   `deploy-app`; one `CLOUDFLARE_API_TOKEN` secret). The back office is the Expo app (`apps/mobile`) at
-  admin.airplusauto.com since 4 Nov 2026; the old Next.js admin is parked. See
+  teampit.formulal.cc since 19–20 Nov 2026 (admin.airplusauto.com, its address from 4 Nov, now only forwards);
+  the old Next.js admin was removed on 18 Nov. See
   [docs/knowledge/operations/ci-pipeline.md](docs/knowledge/operations/ci-pipeline.md).
 - **Full REST surface** — products CRUD + image gallery, pricing, stock/ledger, barcodes, attributes,
   car-fitment tree, services, **bilingual shop info + logo/QR uploads**, sales/refunds, finance, CSV

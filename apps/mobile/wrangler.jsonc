@@ -23,5 +23,12 @@
   "workers_dev": false,
   // custom_domain: in CI (no terminal) wrangler moves the address off the Worker that had it onto this
   // Worker when the token is allowed to; otherwise move it in the dashboard (ci-pipeline.md).
-  "routes": [{ "pattern": "admin.airplusauto.com", "custom_domain": true }],
+  // Den Air's address is teampit.formulal.cc (owner, 19 Nov 2026: pick B; 20 Nov: "no more
+  // admin.airplusauto.com"). The old address still loads the app, which forwards each phone to the
+  // new one once it holds no unsent bill (src/lib/oldAddress.ts): bills are saved per address.
+  // A deploy REPLACES the Worker's address list with this one: an address left out is taken off.
+  "routes": [
+    { "pattern": "teampit.formulal.cc", "custom_domain": true },
+    { "pattern": "admin.airplusauto.com", "custom_domain": true },
+  ],
 }

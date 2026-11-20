@@ -27,7 +27,9 @@ Backend runs on the **Cloudflare developer platform** — full design in
 - `packages/core` — pure-TypeScript pricing, inventory, tax, cost, and terms logic (no I/O, no Cloudflare deps).
 - `apps/mobile` — the **Expo** rebuild of the back office (owner, 2026-10-26: all new building is in Expo),
   phone-size web first. **It is the back office now:** published as a website at
-  `admin.airplusauto.com` (`teampit-app`, a static export; the PIN is asked on every open).
+  `teampit.formulal.cc` (Den Air's address since 19–20 Nov 2026, owner pick B; `admin.airplusauto.com`
+  only forwards there, once a phone holds no unsent bill — `apps/mobile/src/lib/oldAddress.ts`)
+  (`teampit-app`, a static export; the PIN is asked on every open).
 - The old Next.js back office (`apps/admin`) was **removed** on 18 Nov 2026 (plan 1.5–1.6): its Worker
   is deleted and its code is kept only in the signed git tag `old-back-office-final` (Stage 5 copies its
   claim-review and failed-delivery refund screens from there).

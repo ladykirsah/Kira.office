@@ -58,6 +58,15 @@ describe("readShops > the shop list", () => {
     expect(readShops('{"id":"x"}')).toEqual([DEN_AIR]);
   });
 
+  it("given a shop claiming one of Den Air's addresses > then it is left out", () => {
+    // teampit.formulal.cc is Den Air's since 19 Nov 2026 (owner pick B); the old address too.
+    const claims = JSON.stringify([
+      { ...PRACTICE2, id: "x7", origins: ["https://teampit.formulal.cc"] },
+      { ...PRACTICE2, id: "x8", origins: ["https://admin.airplusauto.com"] },
+    ]);
+    expect(readShops(claims)).toEqual([DEN_AIR]);
+  });
+
   it("given two shops claiming one address or one database > then only the first keeps it", () => {
     const twice = JSON.stringify([PRACTICE2, { ...PRACTICE2, id: "practice3" }]);
     expect(readShops(twice).map((s) => s.id)).toEqual(["denair", "practice2"]);
@@ -72,6 +81,7 @@ describe("shopForOrigin > the app's address picks the shop", () => {
   });
 
   it("given Den Air's address, any other address or none > then Den Air, as today", () => {
+    expect(shopForOrigin(shops, "https://teampit.formulal.cc").id).toBe("denair");
     expect(shopForOrigin(shops, "https://admin.airplusauto.com").id).toBe("denair");
     expect(shopForOrigin(shops, "https://evil.example").id).toBe("denair");
     expect(shopForOrigin(shops, null).id).toBe("denair");
