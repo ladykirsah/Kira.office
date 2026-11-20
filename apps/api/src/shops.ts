@@ -40,7 +40,9 @@ export const DEN_AIR: Shop = {
   ledger: "default",
   prefix: "",
   profiles: ["denair", "airplus"],
-  origins: [],
+  // Den Air's app addresses (teampit.formulal.cc since 19 Nov 2026, owner pick B), so no other shop
+  // can claim them. Any address not listed anywhere still opens Den Air, as before.
+  origins: ["https://teampit.formulal.cc", "https://admin.airplusauto.com"],
   ownerEmails: "",
 };
 

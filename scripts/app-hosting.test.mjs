@@ -5,8 +5,12 @@ import { describe, expect, it } from "vitest";
 // every open", then "i want to swap for the old one"): a static export served by its own Worker on
 // the same GoGoCash account as the api and storefront, published by CI on every merge to main. The
 // old Next.js admin is parked: no longer published, no address.
+// Den Air's address is teampit.formulal.cc (owner, 19 Nov 2026: pick B). admin.airplusauto.com still
+// loads the app, which forwards each phone there once it holds no unsent bill (src/lib/oldAddress.ts).
 const GOGOCASH = "187ab61ed9dbc6e616cb23e6b95aa8f1";
-const HOST = "admin.airplusauto.com";
+const HOST = "teampit.formulal.cc";
+const OLD_HOST = "admin.airplusauto.com";
+const HOSTS = [HOST, OLD_HOST];
 // Only the Expo export loads its code from here; the old Next.js admin loads /_next/.
 const EXPO_MARK = "_expo/static";
 
@@ -49,8 +53,10 @@ describe(`${HOST} hosting`, () => {
     expect(config.assets.not_found_handling).toBe("single-page-application");
   });
 
-  it(`wrangler > answers at ${HOST} only, never at a workers.dev address`, () => {
-    expect(config?.routes).toEqual([{ pattern: HOST, custom_domain: true }]);
+  it(`wrangler > answers at ${HOST} and ${OLD_HOST}, never at a workers.dev address`, () => {
+    // A deploy replaces the Worker's whole address list with this one (wrangler sends
+    // override_scope), so an address left out here is taken off the app on the next merge.
+    expect(config?.routes).toEqual(HOSTS.map((pattern) => ({ pattern, custom_domain: true })));
     expect(config?.workers_dev).toBe(false);
   });
 
@@ -75,17 +81,20 @@ describe(`${HOST} hosting`, () => {
     expect(all[upload]).toContain('if [ -z "$CLOUDFLARE_API_TOKEN" ]');
   });
 
-  it(`ci > after the upload, fails unless ${HOST} answers with THIS app, not the old admin`, () => {
-    // The deploy token may lack zone edit (docs/knowledge/operations/ci-pipeline.md (b)): the known
-    // "could not re-assert the custom domain" warning would then pass green while the address still
-    // served the old admin — which is also called TeamPit. Only the Expo page proves the swap.
-    const all = steps(ciJob("deploy-app") ?? "");
-    const upload = all.findIndex((s) => s.includes("wrangler deploy"));
-    const check = all.findIndex((s) => s.includes(`https://${HOST}`) && s.includes(EXPO_MARK));
+  it.each(HOSTS)(
+    "ci > after the upload, fails unless %s answers with THIS app, not the old admin",
+    (host) => {
+      // The deploy token may lack zone edit (docs/knowledge/operations/ci-pipeline.md (b)): the known
+      // "could not re-assert the custom domain" warning would then pass green while the address still
+      // served the old admin — which is also called TeamPit. Only the Expo page proves the swap.
+      const all = steps(ciJob("deploy-app") ?? "");
+      const upload = all.findIndex((s) => s.includes("wrangler deploy"));
+      const check = all.findIndex((s) => s.includes(`https://${host}/`) && s.includes(EXPO_MARK));
 
-    expect(check).toBeGreaterThan(upload);
-    expect(all[check]).toContain("exit 1");
-  });
+      expect(check).toBeGreaterThan(upload);
+      expect(all[check]).toContain("exit 1");
+    },
+  );
 
   it("build > never reads a .env file, so a local preview's localhost api cannot ship", () => {
     // apps/mobile/.env.local points the preview at the local api; expo export reads it by default.

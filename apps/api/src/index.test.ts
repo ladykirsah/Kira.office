@@ -1003,6 +1003,14 @@ describe("buildCorsHeaders", () => {
     expect(h["access-control-allow-credentials"]).toBe("true");
   });
 
+  it("given Den Air's app address teampit.formulal.cc > then it is allowlisted like the old one", () => {
+    // Owner, 19 Nov 2026: pick B. admin.airplusauto.com stays listed: a phone still sends its waiting bills from it.
+    for (const origin of ["https://teampit.formulal.cc", "https://admin.airplusauto.com"]) {
+      const req = new Request("https://api.example.com/staff/me", { headers: { Origin: origin } });
+      expect(buildCorsHeaders(req)["access-control-allow-origin"]).toBe(origin);
+    }
+  });
+
   it("uses wildcard without credentials for unknown origins", () => {
     const req = new Request("https://api.example.com/products", {
       headers: { Origin: "https://evil.example" },

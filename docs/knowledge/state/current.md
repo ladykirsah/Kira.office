@@ -28,7 +28,7 @@ storefront had **no** deploy job and merges silently left airplusauto.com stale)
 | App | Worker script | Host |
 | --- | --- | --- |
 | API | `teampit-api` (`kiraoffice` until 18 Nov 2026 — see [platform](../platform/index.md)) | api.airplusauto.com |
-| Admin | `kiraoffice-admin` | admin.airplusauto.com (behind Cloudflare Access) |
+| Back office | `teampit-app` | teampit.formulal.cc (since 19 Nov 2026) (admin.airplusauto.com only forwards there) |
 | Storefront | `airplus-storefront` | airplusauto.com |
 
 Database head: migration **0087** (`0087_storefront_events.sql`). Migrations are applied to

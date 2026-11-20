@@ -192,15 +192,23 @@ jobs:
       # The token may lack zone edit, and then the warning above passes green while the address
       # still points at the old admin (docs/knowledge/operations/ci-pipeline.md (b)). The old admin is
       # also titled TeamPit, so only the Expo export's own code path proves THIS app answers.
-      # Ten minutes: room for a dashboard move of the address during the first swap.
-      - name: Check admin.airplusauto.com answers with the app
+      # Ten minutes each: room for a dashboard move of an address. Both addresses, because a deploy
+      # replaces the app's address list: teampit.formulal.cc is Den Air's (owner, 19 Nov 2026: pick B)
+      # and admin.airplusauto.com still loads the app, which forwards each phone once no bill waits in it.
+      - name: Check teampit.formulal.cc and admin.airplusauto.com answer with the app
         run: |
-          for i in $(seq 1 40); do
-            if curl -fsS --max-time 10 https://admin.airplusauto.com/ | grep -q "_expo/static"; then
-              echo "admin.airplusauto.com is serving the app."
-              exit 0
+          for url in https://teampit.formulal.cc/ https://admin.airplusauto.com/; do
+            ok=""
+            for i in $(seq 1 40); do
+              if curl -fsS --max-time 10 "$url" | grep -q "_expo/static"; then
+                echo "$url is serving the app."
+                ok=1
+                break
+              fi
+              sleep 15
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::$url does not answer with the app. If wrangler warned about the custom domain, add that address in the Cloudflare dashboard: Workers & Pages → teampit-app → Settings → Domains & Routes (remove it first from any other Worker that has it). Then re-run this job."
+              exit 1
             fi
-            sleep 15
           done
-          echo "::error::admin.airplusauto.com does not answer with the app. If wrangler warned about the custom domain, move admin.airplusauto.com in the Cloudflare dashboard: Workers & Pages → the old Worker that still has it → Settings → Domains & Routes → remove it, then teampit-app → Domains & Routes → add it. Then re-run this job."
-          exit 1

@@ -18,7 +18,7 @@ owner, Thai/English — UI must be plain and scannable. Monorepo on the **Cloudf
 ## Layout
 - `apps/api` — Cloudflare Worker (`api.homeseeker.me`), **raw SQL over D1**, `StockLedger` Durable
   Object, R2 (`IMAGES`) + KV. Main file: `apps/api/src/index.ts`. Config: root `wrangler.jsonc`.
-- `apps/mobile` — the Expo back office (TeamPit), published as a static website at admin.airplusauto.com.
+- `apps/mobile` — the Expo back office (TeamPit), published as a static website at teampit.formulal.cc (since 19–20 Nov 2026; admin.airplusauto.com only forwards: a phone opening it goes to the same page on teampit.formulal.cc, once it holds no unsent bill).
 - `apps/storefront` — AirPlus, Next.js on OpenNext. (The old Next.js back office `apps/admin` was removed on
   18 Nov 2026; it lives on only in the git tag `old-back-office-final`.)
 - `packages/core` — pure-TS money/sync logic (no I/O). `packages/db` — D1 SQL migrations only (no TS; nothing imports it).

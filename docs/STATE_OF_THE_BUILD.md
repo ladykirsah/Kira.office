@@ -205,7 +205,9 @@ known custom-domain re-assert wart is downgraded to a warning (see `ci.yml`). **
 storefront (`deploy-storefront`) and the back office (`deploy-app`) deploy on every `main` push too.**
 On 4 Nov 2026 the Expo app (`apps/mobile`, Worker `teampit-app` since 18 Nov — `kiraoffice-app` before) took **admin.airplusauto.com**
 over and the old Next.js admin was **parked**; on 18 Nov 2026 its Worker was deleted and its code removed
-(kept in the git tag `old-back-office-final`). Details:
+(kept in the git tag `old-back-office-final`). On 19 Nov 2026 the app got Den Air's own address,
+**teampit.formulal.cc** (owner pick B; plan 9.3); admin.airplusauto.com only forwards there (20 Nov), once a
+phone holds no unsent bill (`apps/mobile/src/lib/oldAddress.ts`). Details:
 [knowledge/operations/ci-pipeline.md](knowledge/operations/ci-pipeline.md). The Cloudflare **Workers
 Builds** integration still fails on every push and has never deployed anything (see §7).
 
