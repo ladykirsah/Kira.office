@@ -15,6 +15,7 @@ import {
   StockLines,
 } from "./ProductPageParts";
 import type { ProductPage } from "./useProductPage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The big 1:1 photo (DeskProductPage board 10b, A2). */
 export const LEAD_PHOTO = 344;
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 32 },
   facts: { flex: 1, minWidth: 300, gap: 14 },
   head: { gap: 6 },
-  name: { fontSize: 24, lineHeight: 31, fontWeight: "600", letterSpacing: -0.2 },
+  name: { ...APP_FONT_STYLE, fontSize: 24, lineHeight: 31, fontWeight: "600", letterSpacing: -0.2 },
   rule: { height: 1 },
   section: { fontWeight: "600", paddingTop: 4 },
   // The rows' words line up with the bold name above them.

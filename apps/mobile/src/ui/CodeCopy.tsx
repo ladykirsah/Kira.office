@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-na
 import { sizeCode } from "@/lib/sizeLine";
 import { useTheme } from "./AppProviders";
 import { CopyIcon } from "./staff/parts";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 interface CodeCopyProps {
   /** The product's code (รหัสสินค้า) — always with its copy mark (owner, 5 Nov 2026). */
@@ -79,5 +80,5 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     marginRight: 2,
   },
-  tagText: { fontSize: 13, lineHeight: 16, fontWeight: "600" },
+  tagText: { ...APP_FONT_STYLE, fontSize: 13, lineHeight: 16, fontWeight: "600" },
 });

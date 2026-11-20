@@ -15,6 +15,38 @@
     <title>%WEB_TITLE%</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!--
+      TeamPit's font, IBM Plex Sans Thai (owner, 20 Nov 2026, plan 11.1), shipped with the app: no call
+      to Google. Until it arrives the phone's own font shows (swap). IBM's files, unchanged (SIL OFL 1.1,
+      fonts/IBMPlexSansThai-OFL.txt). src/ui/appFont.test.ts checks every weight here has its file.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/IBMPlexSansThai-Regular.ttf"
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <style id="app-font">
+      @font-face {
+        font-family: "IBM Plex Sans Thai";
+        font-weight: 400;
+        font-display: swap;
+        src: url("/fonts/IBMPlexSansThai-Regular.ttf") format("truetype");
+      }
+      @font-face {
+        font-family: "IBM Plex Sans Thai";
+        font-weight: 600;
+        font-display: swap;
+        src: url("/fonts/IBMPlexSansThai-SemiBold.ttf") format("truetype");
+      }
+      @font-face {
+        font-family: "IBM Plex Sans Thai";
+        font-weight: 700;
+        font-display: swap;
+        src: url("/fonts/IBMPlexSansThai-Bold.ttf") format("truetype");
+      }
+    </style>
     <style id="expo-reset">
       /* Expo's reset: a full-height page that does not scroll, the frame scrolling inside it. */
       html,

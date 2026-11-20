@@ -17,6 +17,7 @@ import { QrView } from "../scan/QrView";
 import { SPACE, TYPE } from "../theme";
 import { ClearDialog } from "./ClearDialog";
 import type { PaymentPage } from "./usePaymentPage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The one pop-up that is open, if any. */
 export function PaymentSheets({ page }: { page: PaymentPage }) {
@@ -381,7 +382,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.l,
     alignItems: "center",
   },
-  amount: { fontSize: 44, lineHeight: 53, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  amount: {
+    ...APP_FONT_STYLE,
+    fontSize: 44,
+    lineHeight: 53,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   keypad: { gap: 6 },
   keyRow: { flexDirection: "row", gap: 6 },
   key: {
@@ -391,7 +398,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  keyText: { fontSize: 24, lineHeight: 30 },
+  keyText: { ...APP_FONT_STYLE, fontSize: 24, lineHeight: 30 },
   account: {
     flexDirection: "row",
     alignItems: "center",
@@ -400,7 +407,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.l,
     minHeight: 64,
   },
-  sheetAmount: { fontSize: 40, lineHeight: 48, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  sheetAmount: {
+    ...APP_FONT_STYLE,
+    fontSize: 40,
+    lineHeight: 48,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   qrBox: { alignSelf: "center", padding: 10, borderRadius: 16, backgroundColor: "#FFFFFF" },
   clearBig: { ...TYPE.largeTitle, lineHeight: 41, textAlign: "center" },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: SPACE.l },

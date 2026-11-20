@@ -18,6 +18,7 @@ import { BuyerPicker, BuyerSection } from "./BuyerCards";
 import { PartPicker, ServicePicker } from "./Pickers";
 import { usePos } from "./PosSessionProvider";
 import { PosSheets } from "./PosSheets";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The drafts tray (the drawing's icon): a tray with a slot. */
 export const TRAY_ICON = "M3 13l2.5-8h13L21 13v6H3zM3 13h5l1.5 2.5h5L16 13h5";
@@ -336,6 +337,6 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.s,
     borderTopWidth: 1,
   },
-  total: { fontSize: 24, lineHeight: 30, fontVariant: ["tabular-nums"] },
+  total: { ...APP_FONT_STYLE, fontSize: 24, lineHeight: 30, fontVariant: ["tabular-nums"] },
   footButton: { minWidth: 140 },
 });

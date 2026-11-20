@@ -1,10 +1,12 @@
 import type { CSSProperties, MouseEvent } from "react";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /**
  * The browser's own date / time box, laid over a PickerPill and unseen: the pill shows the value in
  * the app's font, the box opens the phone's wheel. 16px keeps iPhone Safari from zooming in on tap.
  */
 export const UNSEEN_PICKER: CSSProperties = {
+  ...APP_FONT_STYLE,
   position: "absolute",
   inset: 0,
   width: "100%",

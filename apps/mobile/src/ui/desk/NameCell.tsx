@@ -3,6 +3,7 @@ import { useTheme } from "../AppProviders";
 import { CodeCopy } from "../CodeCopy";
 import { Photo } from "../products/parts";
 import { SPACE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 interface NameCellProps {
   name: string;
@@ -43,6 +44,6 @@ export function NameCell({ name, sub, code, imageKey, photoSize = 40 }: NameCell
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: SPACE.m, minWidth: 0 },
   text: { flex: 1, minWidth: 0 },
-  name: { fontSize: 14, lineHeight: 20 },
-  sub: { fontSize: 13, lineHeight: 18 },
+  name: { ...APP_FONT_STYLE, fontSize: 14, lineHeight: 20 },
+  sub: { ...APP_FONT_STYLE, fontSize: 13, lineHeight: 18 },
 });

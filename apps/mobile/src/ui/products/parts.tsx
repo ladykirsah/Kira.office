@@ -17,6 +17,7 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { FieldError } from "../pos/fields";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The pieces สินค้า's screens share (canvas v194), each drawn as the approved pages draw it. */
 
@@ -416,7 +417,7 @@ const styles = StyleSheet.create({
   },
   stepper: { flexDirection: "row", alignItems: "center", gap: SPACE.s },
   step: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  stepSign: { fontSize: 20, lineHeight: 22 },
+  stepSign: { ...APP_FONT_STYLE, fontSize: 20, lineHeight: 22 },
   stepValue: { minWidth: 28, textAlign: "center", fontVariant: ["tabular-nums"] },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: SPACE.l },
   line: {

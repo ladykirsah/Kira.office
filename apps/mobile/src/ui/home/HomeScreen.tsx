@@ -27,6 +27,7 @@ import { RADIUS, SPACE, TYPE, type Theme } from "../theme";
 import { DeskHome } from "./DeskHome";
 import { useHome } from "./useHome";
 import { useTodayMoney } from "./useTodayMoney";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const TOAST_MS = 3500;
 const CHART = "M3 3v18h18M7 15l4-4 3 3 6-6";
@@ -348,7 +349,7 @@ const styles = StyleSheet.create({
   tileInCard: { borderRadius: 14 },
   tileTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   dot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  count: { fontSize: 28, lineHeight: 31, fontVariant: ["tabular-nums"] },
+  count: { ...APP_FONT_STYLE, fontSize: 28, lineHeight: 31, fontVariant: ["tabular-nums"] },
   row: { flexDirection: "row", alignItems: "center", gap: SPACE.m, paddingLeft: SPACE.l },
   /** The text and the tick; its hairline starts after the photo, as on the drawing. */
   rowBody: {
@@ -379,5 +380,5 @@ const styles = StyleSheet.create({
   top: { alignItems: "flex-start" },
   offline: { marginTop: SPACE.l },
   bang: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  bangText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  bangText: { ...APP_FONT_STYLE, color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 });

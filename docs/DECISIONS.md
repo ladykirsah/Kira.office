@@ -88,6 +88,7 @@ Backend runs on the **Cloudflare developer platform**. Full design: [CLOUDFLARE_
 | Core logic package | `packages/core` — pure TypeScript, framework-free, **TDD-first** |
 | Tests | **Vitest**; browser tests for critical flows later |
 | Barcode input | USB scanner (keyboard emulation) as baseline; camera + manual entry as fallback |
+| TeamPit parts set and font | **gluestack-ui** + **IBM Plex Sans Thai** (owner, 2026-11-20: *"B + IBM Plex"*, plan 11.1). Chosen over React Native Reusables: both ship the same neutral shadcn look, but gluestack has all 13 parts TeamPit uses ready (bottom sheet, toast, spinner, image viewer, table included; Reusables had 8). Both are MIT and run on phone and web; both need NativeWind. The set is restyled to the rulebook's look in plan 11.2 and added to `apps/mobile` in 11.3. IBM Plex Sans Thai replaces the phone's own font for TeamPit (same on every device, has a semibold); **AirPlus keeps the system font** (its own lock). The name stays in Space Grotesk. |
 
 ## Repository
 

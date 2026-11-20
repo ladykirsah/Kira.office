@@ -4,6 +4,7 @@ import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import type { ChromeToast, HeaderButton, SearchBar } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const SEARCH_ICON = "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5";
 const CLOSE_ICON = "M6 6l12 12M18 6L6 18";
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginLeft: 2,
   },
-  badgeText: { fontSize: 12, lineHeight: 15, fontWeight: "700" },
+  badgeText: { ...APP_FONT_STYLE, fontSize: 12, lineHeight: 15, fontWeight: "700" },
   searchRow: { flexDirection: "row", alignItems: "center", gap: SPACE.s, marginBottom: SPACE.l },
   field: {
     flex: 1,

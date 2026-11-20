@@ -27,6 +27,7 @@ import { Avatar, Chevron, DayLabel } from "./parts";
 import { DaysOffTable, PeopleTable, SalaryTable } from "./StaffTables";
 import { useActivity, useDaysOff, useSalary } from "./useStaffData";
 import type { TeamMember } from "./useTeam";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 export const BASE = "/settings/staff";
 const MONTHS_SHOWN = 6;
@@ -385,7 +386,13 @@ const styles = StyleSheet.create({
   summary: { marginTop: SPACE.m, borderRadius: 14, padding: SPACE.l, gap: 2 },
   summaryWide: { maxWidth: 520, borderRadius: 16, padding: SPACE.xl },
   summaryTop: { flexDirection: "row", alignItems: "center" },
-  total: { fontSize: 34, lineHeight: 42, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  total: {
+    ...APP_FONT_STYLE,
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   rule: { height: StyleSheet.hairlineWidth, marginVertical: SPACE.s },
   after: { marginTop: SPACE.m },
   row: {

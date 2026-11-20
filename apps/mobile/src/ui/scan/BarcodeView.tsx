@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { barRuns, barcodeBars } from "@/lib/barcodeBars";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** A scannable barcode for a code — the same preview the web back office shows before adding. */
 export function BarcodeView({ value, width = 326 }: { value: string; width?: number }) {
@@ -28,5 +29,5 @@ export function BarcodeView({ value, width = 326 }: { value: string; width?: num
 
 const styles = StyleSheet.create({
   wrap: { backgroundColor: "#FFFFFF", alignItems: "center", paddingVertical: 8, borderRadius: 8 },
-  digits: { fontSize: 13, letterSpacing: 3, color: "#111111", marginTop: 4 },
+  digits: { ...APP_FONT_STYLE, fontSize: 13, letterSpacing: 3, color: "#111111", marginTop: 4 },
 });

@@ -1,3 +1,5 @@
+import { APP_FONT } from "./appFont";
+
 /**
  * The approved design guide's tokens (owner approved, 2026-10-26): Apple-style greys and the shop's
  * Racing Red. Red is for the one main button, links, the selected tab, switches and the ✓ confirm
@@ -86,16 +88,22 @@ export const DARK: Theme = {
   lineB: "#FF9F43",
 };
 
-/** The guide's type scale. At most four of these on one screen. */
+/** The guide's type scale, in the app font (appFont.ts). At most four of these on one screen. */
 export const TYPE = {
-  largeTitle: { fontSize: 34, lineHeight: 44, fontWeight: "700", letterSpacing: -0.4 },
-  title1: { fontSize: 28, lineHeight: 35, fontWeight: "700" },
-  title2: { fontSize: 22, lineHeight: 29, fontWeight: "700" },
-  headline: { fontSize: 17, lineHeight: 24, fontWeight: "600" },
-  body: { fontSize: 17, lineHeight: 24 },
-  subhead: { fontSize: 15, lineHeight: 21 },
-  footnote: { fontSize: 13, lineHeight: 19 },
-  caption: { fontSize: 11, lineHeight: 14, fontWeight: "600" },
+  largeTitle: {
+    fontFamily: APP_FONT,
+    fontSize: 34,
+    lineHeight: 44,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+  },
+  title1: { fontFamily: APP_FONT, fontSize: 28, lineHeight: 35, fontWeight: "700" },
+  title2: { fontFamily: APP_FONT, fontSize: 22, lineHeight: 29, fontWeight: "700" },
+  headline: { fontFamily: APP_FONT, fontSize: 17, lineHeight: 24, fontWeight: "600" },
+  body: { fontFamily: APP_FONT, fontSize: 17, lineHeight: 24 },
+  subhead: { fontFamily: APP_FONT, fontSize: 15, lineHeight: 21 },
+  footnote: { fontFamily: APP_FONT, fontSize: 13, lineHeight: 19 },
+  caption: { fontFamily: APP_FONT, fontSize: 11, lineHeight: 14, fontWeight: "600" },
 } as const;
 
 /** The only gaps the guide allows: 8 within a group, 28 between groups, 16 at the screen edge. */

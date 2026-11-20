@@ -8,6 +8,7 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { SmallButton } from "../orders/parts";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The drawn icons (canvas v238): a pushpin for หน้าแรก, a wrench on a card with no photo yet. */
 export const PIN_ICON = "M9 4h6l-1 6 3 3H7l3-3zM12 13v7";
@@ -226,7 +227,7 @@ const styles = StyleSheet.create({
   state: { flexDirection: "row", alignItems: "center" },
   stateEnd: { justifyContent: "flex-end" },
   cell: { flexDirection: "row", alignItems: "center", gap: SPACE.m, minWidth: 0 },
-  cellName: { fontSize: 15, lineHeight: 21, fontWeight: "600" },
+  cellName: { ...APP_FONT_STYLE, fontSize: 15, lineHeight: 21, fontWeight: "600" },
   nums: { fontVariant: ["tabular-nums"] },
   valueRow: {
     minHeight: 52,

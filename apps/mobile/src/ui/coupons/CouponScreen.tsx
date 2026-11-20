@@ -34,6 +34,7 @@ import { useScreenChrome } from "../ScreenChrome";
 import { SPACE, TYPE } from "../theme";
 import { CouponFace, StateDot } from "./parts";
 import { useCouponList } from "./useCouponList";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const BASE = "/settings/coupons";
 
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
   name: { marginHorizontal: 2 },
   card: { marginTop: 14 },
   codeRow: { flexDirection: "row", alignItems: "center", gap: SPACE.m },
-  code: { fontSize: 28, lineHeight: 36, fontWeight: "700", letterSpacing: 0.5 },
+  code: { ...APP_FONT_STYLE, fontSize: 28, lineHeight: 36, fontWeight: "700", letterSpacing: 0.5 },
   copy: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   grow: { flex: 1, minWidth: 0 },
   facts: { marginTop: SPACE.m },

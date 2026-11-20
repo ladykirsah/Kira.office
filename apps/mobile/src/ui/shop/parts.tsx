@@ -23,6 +23,7 @@ import { Sheet } from "../orders/Sheet";
 import { Divider, Heading, Line } from "../products/parts";
 import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** Until a shop has a logo, its round badge says who it is (canvas: DEN, AIR+). */
 const BADGE: Record<ShopProfile, string> = { denair: "DEN", airplus: "AIR+" };
@@ -40,7 +41,9 @@ export function ShopLogo(props: {
       {props.logoKey ? (
         <Image source={{ uri: `${API_BASE}/img/${props.logoKey}` }} style={round} />
       ) : (
-        <Text style={[styles.badge, { fontSize: props.size / 4 }]}>{BADGE[props.profile]}</Text>
+        <Text style={[styles.badge, { ...APP_FONT_STYLE, fontSize: props.size / 4 }]}>
+          {BADGE[props.profile]}
+        </Text>
       )}
       {props.change ? (
         <View style={styles.band}>
@@ -351,7 +354,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  badge: { color: "#FFFFFF", fontWeight: "800" },
+  badge: { color: "#FFFFFF", fontWeight: "700" },
   band: {
     position: "absolute",
     left: 0,
@@ -362,7 +365,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bandText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+  bandText: { ...APP_FONT_STYLE, color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
   lang: { width: 132, alignSelf: "center" },
   copyRight: { flexDirection: "row", alignItems: "center", gap: SPACE.s, flexShrink: 1 },
   value: { flexShrink: 1, textAlign: "right" },

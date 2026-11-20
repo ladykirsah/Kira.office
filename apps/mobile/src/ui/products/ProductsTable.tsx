@@ -10,6 +10,7 @@ import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { SPACE, TYPE } from "../theme";
 import { Photo } from "./parts";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 interface ProductsTableProps {
   rows: readonly ProductRow[];
@@ -204,9 +205,9 @@ const styles = StyleSheet.create({
   cell: { minWidth: 0, justifyContent: "center", paddingVertical: 2 },
   product: { flexDirection: "row", alignItems: "center", gap: SPACE.m, minWidth: 0 },
   words: { flex: 1, minWidth: 0 },
-  name: { fontSize: 14, lineHeight: 20 },
+  name: { ...APP_FONT_STYLE, fontSize: 14, lineHeight: 20 },
   code: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
-  sub: { fontSize: 13, lineHeight: 18 },
+  sub: { ...APP_FONT_STYLE, fontSize: 13, lineHeight: 18 },
   shrink: { flexShrink: 1, minWidth: 0 },
   stock: { flexDirection: "row", alignItems: "center", gap: 6 },
   openArea: { alignSelf: "stretch", justifyContent: "center", minHeight: 44 },

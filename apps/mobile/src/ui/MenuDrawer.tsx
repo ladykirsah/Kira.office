@@ -8,6 +8,7 @@ import { useAuth, useLang, useTheme } from "./AppProviders";
 import { LineIcon } from "./LineIcon";
 import { PAGE_ICONS } from "./tabIcons";
 import { RADIUS, SPACE, TYPE, type Theme } from "./theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const CHEVRON = "M9 6l6 6-6 6";
 const DRAWER_WIDTH = 300;
@@ -137,7 +138,7 @@ const styles = (c: Theme) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+    avatarText: { ...APP_FONT_STYLE, fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
     name: { ...TYPE.body, color: c.text },
     role: { ...TYPE.footnote, color: c.textMuted },
     section: {

@@ -39,6 +39,7 @@ import { RADIUS, SPACE, TYPE } from "../theme";
 import { useWide } from "../desk/useWide";
 import { OwnCodeSheet, OwnDayOffSheet } from "./ProfileSheets";
 import { useOwnDaysOff, useOwnProfile } from "./useOwnProfile";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 type Open = Access | "dayOff" | null;
 
@@ -447,7 +448,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontSize: 32, fontWeight: "700" },
+  avatarText: { ...APP_FONT_STYLE, fontSize: 32, fontWeight: "700" },
   name: { marginTop: 14, textAlign: "center" },
   phone: { flexDirection: "row", alignItems: "center", gap: 2 },
   right: { flexDirection: "row", alignItems: "center", gap: SPACE.s },
@@ -469,7 +470,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  wideAvatarText: { fontSize: 24, fontWeight: "600" },
+  wideAvatarText: { ...APP_FONT_STYLE, fontSize: 24, fontWeight: "600" },
   heroWords: { flex: 1, minWidth: 0, gap: 2 },
   heroName: { fontWeight: "600" },
   wideHeading: {

@@ -62,6 +62,7 @@ import {
   ValueLine,
 } from "./parts";
 import { useShopInfo } from "./useShopInfo";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const LIST = "/settings/shop";
 const SAVE_FAILED: Phrase = { th: "บันทึกไม่สำเร็จ ลองอีกครั้ง", en: "Not saved. Try again" };
@@ -688,7 +689,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   qrRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   deskHead: { flexDirection: "row", alignItems: "center", gap: SPACE.l },
-  deskTitle: { fontSize: 28, lineHeight: 35, fontWeight: "600" },
+  deskTitle: { ...APP_FONT_STYLE, fontSize: 28, lineHeight: 35, fontWeight: "600" },
   logoCard: { alignItems: "center", paddingVertical: SPACE.xs },
   change: { height: 34, paddingHorizontal: 14, borderRadius: 17, justifyContent: "center" },
 });

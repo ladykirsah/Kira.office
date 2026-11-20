@@ -9,6 +9,7 @@ import { ICON } from "../orders/icons";
 import { Sheet } from "../orders/Sheet";
 import { Divider, Line } from "../products/parts";
 import { RADIUS, SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const COPIED_MS = 1500;
 
@@ -128,7 +129,13 @@ export function MovementSheet(props: { m: Movement; onClose: () => void }) {
 const styles = StyleSheet.create({
   card: { borderRadius: RADIUS.card, overflow: "hidden" },
   head: { padding: SPACE.l, alignItems: "center", gap: 2 },
-  big: { fontSize: 34, lineHeight: 41, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  big: {
+    ...APP_FONT_STYLE,
+    fontSize: 34,
+    lineHeight: 41,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   nums: { fontVariant: ["tabular-nums"] },
   line: {
     minHeight: 52,

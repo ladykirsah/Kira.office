@@ -40,6 +40,7 @@ import { NO_CHROME, type Chrome } from "@/ui/ScreenChrome";
 import { Segmented } from "@/ui/Segmented";
 import { PillButton } from "@/ui/staff/parts";
 import { RADIUS, SPACE, TYPE } from "@/ui/theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /**
  * เข้าใช้งาน as drawn (canvas LoginPhone v328, 3 Nov 2026): the name, a รหัส 6 หลัก | อีเมล switch,
@@ -149,8 +150,8 @@ export default function SignIn() {
           TYPE.title1,
           styles.center,
           { color: theme.text },
-          brandFont,
           wide && styles.brandWide,
+          brandFont,
         ]}
       >
         TeamPit
@@ -491,7 +492,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     boxShadow: "0 12px 40px rgba(0,0,0,0.06)",
   } as never,
-  brandWide: { fontSize: 34, lineHeight: 41 },
+  brandWide: { ...APP_FONT_STYLE, fontSize: 34, lineHeight: 41 },
   switchWide: { marginTop: 24, marginBottom: 18 },
   mailBox: { borderRadius: RADIUS.field, overflow: "hidden" },
   cardButtons: { marginTop: 26, gap: 10 },

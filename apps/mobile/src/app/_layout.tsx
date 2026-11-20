@@ -1,3 +1,4 @@
+import "../../global.css";
 import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AppProviders, useTheme } from "@/ui/AppProviders";

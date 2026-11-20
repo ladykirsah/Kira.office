@@ -35,6 +35,7 @@ import { PersonFields, type Problems } from "./PersonFields";
 import { PersonView } from "./PersonView";
 import { BASE } from "./Tabs";
 import { useTeam, useToast } from "./useTeam";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 type Open = "password" | "pin" | "delete" | { dayOff: DayOff } | null;
 
@@ -377,6 +378,6 @@ const styles = StyleSheet.create({
   name: { marginTop: 14, textAlign: "center" },
   phone: { flexDirection: "row", alignItems: "center", gap: 2 },
   deskHead: { flexDirection: "row", alignItems: "center", gap: SPACE.l, marginBottom: SPACE.xs },
-  deskTitle: { fontSize: 28, lineHeight: 35, fontWeight: "600" },
+  deskTitle: { ...APP_FONT_STYLE, fontSize: 28, lineHeight: 35, fontWeight: "600" },
   grow: { flex: 1, minWidth: 0 },
 });

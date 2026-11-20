@@ -20,6 +20,7 @@ import { ICON } from "../orders/icons";
 import { Divider, Line } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
 import { saveImage } from "./saveImage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The ＋ menu's and the slip card's line icons (canvas v292), on the 24-unit grid. */
 export const STAFF_ICON = {
@@ -95,6 +96,7 @@ export function Avatar(props: {
       ) : props.name ? (
         <Text
           style={{
+            ...APP_FONT_STYLE,
             fontSize: props.size * 0.34,
             fontWeight: "700",
             color: dark ? theme.bg : theme.text,
@@ -417,7 +419,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bandText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
+  bandText: { ...APP_FONT_STYLE, color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
   copy: { width: 24, height: 34, alignItems: "center", justifyContent: "center" },
   copyInLine: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
   valueRight: { flexDirection: "row", alignItems: "center", gap: SPACE.s, flexShrink: 1 },

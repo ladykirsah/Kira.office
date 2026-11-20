@@ -16,6 +16,7 @@ import { ValueRow } from "../partsSetup/parts";
 import { FieldError } from "../pos/fields";
 import { AddRow, Divider, InputRow } from "../products/parts";
 import { SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** หมายเหตุ: its label above the text, the shop page's ที่อยู่ row. */
 function NoteRow(props: { label: string; children: ReactNode }) {
@@ -284,5 +285,5 @@ const styles = StyleSheet.create({
   size: { flex: 1, minWidth: 0 },
   qty: { width: 72, textAlign: "center" },
   x: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  xMark: { fontSize: 13, lineHeight: 16 },
+  xMark: { ...APP_FONT_STYLE, fontSize: 13, lineHeight: 16 },
 });

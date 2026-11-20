@@ -13,6 +13,7 @@ import { Divider } from "../products/parts";
 import { Chevron } from "../staff/parts";
 import { SPACE, TYPE } from "../theme";
 import { Dot } from "./FinanceGraph";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 export const BASE = "/sales";
 
@@ -261,7 +262,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 2,
   },
-  big: { fontSize: 26, lineHeight: 32, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  big: {
+    ...APP_FONT_STYLE,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   row: {
     minHeight: 60,
     paddingHorizontal: SPACE.l,

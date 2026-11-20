@@ -18,6 +18,7 @@ import { Table, type TableColumn } from "../desk/Table";
 import { SmallButton } from "../orders/parts";
 import { SPACE, TYPE } from "../theme";
 import type { PaymentPage } from "./usePaymentPage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /**
  * การชำระเงิน on a computer (DeskPayment board, 4 Nov 2026): today's PromptPay total beside each
@@ -170,8 +171,8 @@ const styles = StyleSheet.create({
   today: { marginTop: SPACE.l, marginBottom: SPACE.l },
   stats: { flexDirection: "row", alignItems: "flex-end", gap: 40 },
   stat: { flex: 1, minWidth: 0, gap: 4 },
-  big: { fontSize: 34, lineHeight: 41, fontVariant: ["tabular-nums"] },
-  mid: { fontSize: 22, lineHeight: 28, fontVariant: ["tabular-nums"] },
+  big: { ...APP_FONT_STYLE, fontSize: 34, lineHeight: 41, fontVariant: ["tabular-nums"] },
+  mid: { ...APP_FONT_STYLE, fontSize: 22, lineHeight: 28, fontVariant: ["tabular-nums"] },
   dayHead: {
     flexDirection: "row",
     alignItems: "center",

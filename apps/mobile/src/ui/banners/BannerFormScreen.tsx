@@ -26,6 +26,7 @@ import { GoToSheets, ProductLine, linkNames } from "./GoToSheets";
 import { BANNER_RATIO, BannerPicture, PICTURE_ICON, PICTURE_RADIUS } from "./parts";
 import { useBannerForm, type BannerFormState } from "./useBannerForm";
 import { WhenSheet } from "./WhenSheet";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const ALBUM_ICON = "M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5h.01";
 const MENU_WIDTH = 250;
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  tileText: { fontSize: 15 },
+  tileText: { ...APP_FONT_STYLE, fontSize: 15 },
   changeWrap: { marginTop: SPACE.s, alignSelf: "flex-start" },
   change: { height: 34, paddingHorizontal: 14, borderRadius: 17, justifyContent: "center" },
   cards: { marginTop: SPACE.xxl, gap: SPACE.l },

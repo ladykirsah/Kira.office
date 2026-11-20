@@ -10,6 +10,7 @@ import { PhotoChoice } from "../shop/parts";
 import { SPACE, TYPE } from "../theme";
 import { DropRow } from "./DropRow";
 import { Hint, IconButton, PillButton, STAFF_ICON, SlipCard, ValueRow } from "./parts";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 export type Method = "transfer" | "cash";
 
@@ -210,5 +211,11 @@ const styles = StyleSheet.create({
   stack: { gap: SPACE.m },
   right: { flexDirection: "row", alignItems: "center", gap: SPACE.s },
   head: { borderRadius: 14, padding: SPACE.l, gap: 2 },
-  amount: { fontSize: 34, lineHeight: 42, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  amount: {
+    ...APP_FONT_STYLE,
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
 });
