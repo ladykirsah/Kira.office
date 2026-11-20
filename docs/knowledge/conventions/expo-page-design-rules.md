@@ -343,6 +343,11 @@ again before saying a build matches.** The owner's words are quoted where they s
   did feedback you in before"*, *"not just brand logo but all images"* (AirPlus, 5 Nov 2026).
 - **The shop's own logo and banners, never made-up ones.** Draw with the real files from the live site.
   *"do you have real logo and banner?"* — I had typed the name and drawn a pretend banner (AirPlus, 5 Nov).
+- **Tab and phone icons are the owner's exact logo files, only shrunk.** No crop, no clean-up, no
+  "clearer at 16 px" version: I had cropped TeamPit to flag + T and taken the waves off AirPlus; she
+  asked again: *"make them COI logo to each website with the exact file i sent you"* (20 Nov 2026).
+  Files: AirPlus `apps/storefront/src/app/` (favicon.ico, icon.png, apple-icon.png); TeamPit
+  `apps/mobile/public/` (favicon.ico, apple-touch-icon.png, icon-192.png).
 - **No hard line where a coloured top meets the page.** AirPlus home: the red top fades into the grey
   behind the รถของฉัน card (pick A). A sub-page bar is the page's own grey, no line, white cards on it
   (pick B). *"can you make the connect line between red and gray background smoother?"*, *"all edge is
