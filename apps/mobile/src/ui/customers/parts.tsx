@@ -7,6 +7,7 @@ import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { RADIUS, SPACE, TYPE, type Theme } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const BAR_AREA = 56;
 const CHART_HEIGHT = 92;
@@ -279,8 +280,8 @@ const styles = StyleSheet.create({
   summaryTop: { flexDirection: "row", alignItems: "flex-end", gap: SPACE.l },
   grow: { flex: 1, minWidth: 0 },
   end: { alignItems: "flex-end", gap: 2 },
-  big: { fontSize: 34, lineHeight: 41, fontVariant: ["tabular-nums"] },
-  mid: { fontSize: 22, lineHeight: 28, fontVariant: ["tabular-nums"] },
+  big: { ...APP_FONT_STYLE, fontSize: 34, lineHeight: 41, fontVariant: ["tabular-nums"] },
+  mid: { ...APP_FONT_STYLE, fontSize: 22, lineHeight: 28, fontVariant: ["tabular-nums"] },
   rule: { height: 1 },
   bars: { flexDirection: "row", gap: SPACE.s, alignItems: "flex-end" },
   barCol: {
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
     gap: SPACE.xs,
   },
   bar: { width: 28, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  month: { fontSize: 11, lineHeight: 14 },
+  month: { ...APP_FONT_STYLE, fontSize: 11, lineHeight: 14 },
   listRow: {
     marginLeft: SPACE.l,
     paddingRight: SPACE.l,

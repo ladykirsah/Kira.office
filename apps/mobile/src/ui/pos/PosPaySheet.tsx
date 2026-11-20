@@ -11,6 +11,7 @@ import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
 import { ChoiceRow, FieldRow, Note } from "./fields";
 import { usePos } from "./PosSessionProvider";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const online = () => Platform.OS !== "web" || navigator.onLine;
 
@@ -169,7 +170,7 @@ export function PosPaySheet({ onClose }: { onClose: () => void }) {
 
 const styles = StyleSheet.create({
   amount: { alignItems: "center", gap: 2, paddingVertical: SPACE.s },
-  big: { fontSize: 44, lineHeight: 52, fontWeight: "700" },
+  big: { ...APP_FONT_STYLE, fontSize: 44, lineHeight: 52, fontWeight: "700" },
   qr: { alignSelf: "center", padding: 10, borderRadius: 12, backgroundColor: "#FFFFFF" },
   owner: { alignItems: "center" },
 });

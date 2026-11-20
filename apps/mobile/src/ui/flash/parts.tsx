@@ -17,6 +17,7 @@ import { ICON } from "../orders/icons";
 import { Divider } from "../products/parts";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { CodeCopy } from "../CodeCopy";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The drawn icons (canvas v259): a picture for a product with no photo yet, and the red bin. */
 export const PICTURE_ICON =
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     justifyContent: "center",
   },
-  chipText: { fontSize: 10, lineHeight: 15, fontWeight: "700" },
+  chipText: { ...APP_FONT_STYLE, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   item: { flexDirection: "row", alignItems: "center", paddingLeft: SPACE.l },
   itemEnd: { paddingRight: SPACE.l },
   itemBody: { flexDirection: "row", alignItems: "center", gap: SPACE.m, paddingVertical: 10 },
@@ -336,8 +337,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tileText: { fontSize: 20, lineHeight: 26, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  unit: { fontSize: 11, lineHeight: 14 },
+  tileText: {
+    ...APP_FONT_STYLE,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  unit: { ...APP_FONT_STYLE, fontSize: 11, lineHeight: 14 },
   strip: { flexDirection: "row", alignItems: "center", gap: 6 },
   more: { width: 52, height: 52 },
   sold: { flex: 1, textAlign: "right", fontVariant: ["tabular-nums"] },

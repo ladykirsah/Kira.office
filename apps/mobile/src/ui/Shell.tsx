@@ -40,6 +40,7 @@ import { MENU_ICON, PAGE_ICONS, TAB_ICONS } from "./tabIcons";
 import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
 import { UpdateBar } from "./UpdateBar";
 import { WideButton, WideSearch, WideToast } from "./desk/WideTools";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /**
  * The frame around every screen. On a phone it follows the approved design guide (2026-10-26): the
@@ -456,6 +457,7 @@ const styles = (c: Theme) =>
     },
     sidebarInner: { paddingTop: 16, paddingBottom: SPACE.m, paddingHorizontal: 12 },
     brand: {
+      ...APP_FONT_STYLE,
       color: c.text,
       fontSize: 20,
       paddingTop: 2,
@@ -514,7 +516,7 @@ const styles = (c: Theme) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+    avatarText: { ...APP_FONT_STYLE, fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
     roundButton: {
       width: 40,
       height: 40,
@@ -540,7 +542,7 @@ const styles = (c: Theme) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    badgeText: { fontSize: 11, lineHeight: 14, fontWeight: "700", color: c.bg },
+    badgeText: { ...APP_FONT_STYLE, fontSize: 11, lineHeight: 14, fontWeight: "700", color: c.bg },
     wideBar: {
       flexDirection: "row",
       alignItems: "center",
@@ -552,7 +554,14 @@ const styles = (c: Theme) =>
       backgroundColor: c.surface,
     },
     wideBarButton: { minWidth: 180 },
-    wideTitle: { flex: 1, fontSize: 28, lineHeight: 35, fontWeight: "600", color: c.text },
+    wideTitle: {
+      ...APP_FONT_STYLE,
+      flex: 1,
+      fontSize: 28,
+      lineHeight: 35,
+      fontWeight: "600",
+      color: c.text,
+    },
     backPill: {
       alignSelf: "flex-start",
       height: 36,

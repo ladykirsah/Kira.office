@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "./AppProviders";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 interface SegmentedProps<T extends string> {
   /** What the choice is about, for screen readers. */
@@ -59,5 +60,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 2,
   },
-  text: { fontSize: 15, lineHeight: 20 },
+  text: { ...APP_FONT_STYLE, fontSize: 15, lineHeight: 20 },
 });

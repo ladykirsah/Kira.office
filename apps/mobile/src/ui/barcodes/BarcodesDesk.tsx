@@ -14,6 +14,7 @@ import { LabelArt } from "./LabelArt";
 import type { Barcodes } from "./useBarcodes";
 import { CodeCopy } from "../CodeCopy";
 import { rowSizeCode } from "@/lib/sizeLine";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The phone card's label scale: one for all, so L shows wider than S as on paper. */
 const CARD_PX_PER_MM = 2.6;
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
   top: { marginTop: SPACE.l },
   art: { alignItems: "center", paddingVertical: SPACE.xs },
   words: { alignSelf: "stretch", justifyContent: "center", gap: SPACE.xs, minHeight: 80 },
-  name: { fontSize: 14, lineHeight: 20 },
+  name: { ...APP_FONT_STYLE, fontSize: 14, lineHeight: 20 },
   sub: { ...TYPE.footnote },
   chevron: { alignSelf: "stretch", justifyContent: "center", minHeight: 80 },
 });

@@ -1,0 +1,6 @@
+/*
+  Parts set B's class names (NativeWind, plan 11.3). No base layer: Tailwind's page reset would
+  restyle every page already built (src/ui/styleHelper.test.ts).
+*/
+@tailwind components;
+@tailwind utilities;

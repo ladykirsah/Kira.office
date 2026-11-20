@@ -25,6 +25,7 @@ import { Segmented } from "../Segmented";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { BannerPicture, MoveButton } from "./parts";
 import { useBannerList } from "./useBannerList";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const BASE = "/settings/banners";
 const SLOTS: readonly BannerSlot[] = ["hero", "promo"];
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: SPACE.xs,
   },
-  tileText: { fontSize: 15 },
+  tileText: { ...APP_FONT_STYLE, fontSize: 15 },
   wideSeg: { width: 420 },
   wideCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   wideRow: {

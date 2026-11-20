@@ -5,6 +5,7 @@ import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { BarcodeView } from "./BarcodeView";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const SEARCH_ICON = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14M20 20l-3.5-3.5";
 const CHECK_ICON = "M5 12.5l4.5 4.5L19 7.5";
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 1,
   },
-  bang: { color: "#FFFFFF", fontSize: 14, fontWeight: "800", lineHeight: 18 },
+  bang: { ...APP_FONT_STYLE, color: "#FFFFFF", fontSize: 14, fontWeight: "700", lineHeight: 18 },
   headline: { ...TYPE.headline },
   body: { ...TYPE.body },
   subhead: { ...TYPE.subhead },

@@ -17,6 +17,7 @@ import { Dot } from "../customers/parts";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
 import { TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** In front of the value, as drawn: a price tag, or a truck for a coupon on the shipping fee. */
 const TAG =
@@ -140,7 +141,13 @@ const styles = StyleSheet.create({
   face: { gap: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
   value: { flexDirection: "row", alignItems: "center", gap: 10 },
-  big: { fontSize: 34, lineHeight: 41, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  big: {
+    ...APP_FONT_STYLE,
+    fontSize: 34,
+    lineHeight: 41,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   hairline: { height: 1, marginVertical: 4 },
   codeRow: { marginTop: 2 },
   code: { fontWeight: "700", letterSpacing: 0.5 },

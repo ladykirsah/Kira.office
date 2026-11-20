@@ -23,6 +23,7 @@ import { RADIUS, SPACE, TYPE } from "../theme";
 import { EditSheet } from "./EditSheet";
 import { ItemCard } from "./parts";
 import { useCarPage, type CarPage } from "./useCarPage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** รถหนึ่งคัน (canvas v151): the plate beside the car, the customer, ทำใบเสนอราคา, the open quote, every visit. */
 export function CarScreen() {
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   wideHeader: { alignItems: "flex-end", gap: 40 },
   action: { minWidth: 200 },
-  province: { fontSize: 22, lineHeight: 29, fontWeight: "600" },
+  province: { ...APP_FONT_STYLE, fontSize: 22, lineHeight: 29, fontWeight: "600" },
   carCol: { alignItems: "flex-end" },
   right: { textAlign: "right" },
   sectionHead: {

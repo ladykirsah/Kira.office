@@ -23,6 +23,7 @@ import { RADIUS, SPACE, TYPE } from "../theme";
 import { PaymentSheets } from "./PaymentSheets";
 import { PaymentTable } from "./PaymentTable";
 import { usePaymentPage, type PaymentPage } from "./usePaymentPage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /**
  * การชำระเงิน (owner approved the drawing, canvas v137, 30 Oct 2026): today's PromptPay total, every
@@ -227,7 +228,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyTitle: { fontSize: 20, lineHeight: 26, fontWeight: "700" },
+  emptyTitle: { ...APP_FONT_STYLE, fontSize: 20, lineHeight: 26, fontWeight: "700" },
   center: { textAlign: "center" },
   link: { marginTop: SPACE.xs },
   today: {

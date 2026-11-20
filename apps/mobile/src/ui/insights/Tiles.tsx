@@ -11,6 +11,7 @@ import {
 import { useLang, useTheme } from "../AppProviders";
 import type { Theme } from "../theme";
 import { SPACE, TYPE } from "../theme";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** ▲ green when the shop did better, ▼ red when worse (owner, 1 Nov); a dash stays grey. */
 export function changeColour(tone: Change["tone"], theme: Theme): string {
@@ -133,8 +134,8 @@ const styles = StyleSheet.create({
   lines: { marginTop: SPACE.l, gap: SPACE.s },
   wideLines: { flexDirection: "row", gap: SPACE.xl },
   wideTile: { borderRadius: 12, borderWidth: 1, paddingVertical: SPACE.m, paddingHorizontal: 14 },
-  wideBig: { fontSize: 24, lineHeight: 31 },
-  wideSmall: { fontSize: 19, lineHeight: 25 },
+  wideBig: { ...APP_FONT_STYLE, fontSize: 24, lineHeight: 31 },
+  wideSmall: { ...APP_FONT_STYLE, fontSize: 19, lineHeight: 25 },
   line: { flexDirection: "row", gap: SPACE.s },
   tile: { flex: 1, minWidth: 0, borderRadius: 16, gap: 2 },
   big: { paddingVertical: SPACE.m, paddingHorizontal: SPACE.l },

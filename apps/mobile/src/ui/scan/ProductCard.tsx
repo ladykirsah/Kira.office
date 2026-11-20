@@ -19,6 +19,7 @@ import { useWide } from "../desk/useWide";
 import { LineIcon } from "../LineIcon";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { sizeCode } from "@/lib/sizeLine";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const PHOTO = 96;
 const PHOTO_GAP = 8;
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
   sub: { ...TYPE.subhead, fontVariant: ["tabular-nums"] },
   stepper: { flexDirection: "row", alignItems: "center", gap: SPACE.xs },
   stepButton: { width: 34, height: 36, alignItems: "center", justifyContent: "center" },
-  stepSign: { fontSize: 24, lineHeight: 28 },
+  stepSign: { ...APP_FONT_STYLE, fontSize: 24, lineHeight: 28 },
   value: {
     minWidth: 72,
     height: 36,
@@ -332,7 +333,7 @@ const styles = StyleSheet.create({
   widePhotos: { flexShrink: 0, flexDirection: "row", gap: PHOTO_GAP },
   wideMiddle: { flex: 1, minWidth: 0, gap: 2 },
   wideName: { flexDirection: "row", alignItems: "center", gap: 6 },
-  wideNameText: { fontSize: 18, lineHeight: 24, flexShrink: 1 },
+  wideNameText: { ...APP_FONT_STYLE, fontSize: 18, lineHeight: 24, flexShrink: 1 },
   flush: { marginHorizontal: 0 },
   wideStock: {
     width: 330,
@@ -360,5 +361,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: SPACE.s,
   },
-  wideValueText: { fontSize: 19, lineHeight: 24, fontVariant: ["tabular-nums"] },
+  wideValueText: { ...APP_FONT_STYLE, fontSize: 19, lineHeight: 24, fontVariant: ["tabular-nums"] },
 });

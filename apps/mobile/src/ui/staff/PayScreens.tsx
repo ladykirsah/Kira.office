@@ -30,6 +30,7 @@ import { PaySheet } from "./PaySheet";
 import { BASE } from "./Tabs";
 import { usePayments, useSalary } from "./useStaffData";
 import { owners, useTeam, useToast, type TeamMember } from "./useTeam";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 function Loading({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
   const { theme } = useTheme();
@@ -384,5 +385,11 @@ const styles = StyleSheet.create({
   },
   amount: { fontVariant: ["tabular-nums"] },
   card: { marginTop: SPACE.l, borderRadius: 14, padding: SPACE.l, gap: 2 },
-  big: { fontSize: 34, lineHeight: 42, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  big: {
+    ...APP_FONT_STYLE,
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
 });

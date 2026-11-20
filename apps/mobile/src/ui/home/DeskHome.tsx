@@ -19,6 +19,7 @@ import { PAGE_ICONS } from "../tabIcons";
 import { SPACE, TYPE } from "../theme";
 import type { Home } from "./useHome";
 import type { TodayMoney } from "./useTodayMoney";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 interface DeskHomeProps {
   home: Home;
@@ -352,7 +353,13 @@ const styles = StyleSheet.create({
   tileQuarter: { flexBasis: "22%", flexGrow: 1 },
   stats: { flexDirection: "row", gap: SPACE.xl, marginBottom: SPACE.m },
   stat: { flex: 1, minWidth: 0, gap: 2 },
-  big: { fontSize: 26, lineHeight: 32, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  big: {
+    ...APP_FONT_STYLE,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
   keys: { flexDirection: "row", gap: SPACE.l, marginTop: SPACE.s },
   keyItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   keyMark: { width: 14 },

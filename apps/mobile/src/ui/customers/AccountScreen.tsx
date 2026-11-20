@@ -11,6 +11,7 @@ import { SPACE, TYPE } from "../theme";
 import { ConsentSheet, EraseSheet } from "./AccountSheets";
 import { Dot, ItemCard, toneOf } from "./parts";
 import { useAccountPage, type AccountPage } from "./useAccountPage";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** AirPlus บัญชีหนึ่งคน (canvas v151): name and code beside the level, the account, consent, orders. */
 export function AccountScreen() {
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
     gap: SPACE.l,
   },
   grow: { flex: 1, minWidth: 0 },
-  code: { fontSize: 22, lineHeight: 29, fontWeight: "600" },
+  code: { ...APP_FONT_STYLE, fontSize: 22, lineHeight: 29, fontWeight: "600" },
   none: { marginHorizontal: 2 },
   order: { marginBottom: SPACE.s },
   status: { flexDirection: "row", alignItems: "center", gap: SPACE.s },

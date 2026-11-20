@@ -4,6 +4,7 @@ import { API_BASE } from "@/lib/config";
 import { useLang, useTheme } from "../AppProviders";
 import { LineIcon } from "../LineIcon";
 import { DOWN, UP } from "../products/parts";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 /** The banner's shape on the website, 16:6 (as drawn: 358 × 134 on the form, 334 × 125 in the list). */
 export const BANNER_RATIO = 16 / 6;
@@ -68,7 +69,7 @@ export function MoveButton(props: {
 const styles = StyleSheet.create({
   picture: { width: "100%", aspectRatio: BANNER_RATIO, borderRadius: PICTURE_RADIUS },
   center: { alignItems: "center", justifyContent: "center" },
-  none: { fontSize: 15 },
+  none: { ...APP_FONT_STYLE, fontSize: 15 },
   move: {
     width: 34,
     height: 34,

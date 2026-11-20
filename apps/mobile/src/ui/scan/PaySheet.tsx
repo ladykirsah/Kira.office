@@ -20,6 +20,7 @@ import { QrView } from "./QrView";
 import { NoticeCard } from "./ScanCards";
 import type { PaySheet as Sheet, PayWay } from "./useScanSession";
 import { SizedCodeCopy } from "../CodeCopy";
+import { APP_FONT_STYLE } from "@/ui/appFont";
 
 const CHECK = "M5 12.5l4.5 4.5L19 7.5";
 const BUTTON_BOTTOM = 34;
@@ -398,7 +399,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: SPACE.xs,
   },
-  amount: { fontSize: 34, lineHeight: 44, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  amount: {
+    ...APP_FONT_STYLE,
+    fontSize: 34,
+    lineHeight: 44,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   owner: { alignItems: "center", marginTop: SPACE.s },
   qr: { marginTop: SPACE.m },
   qrMissing: { marginTop: SPACE.m, textAlign: "center" },
