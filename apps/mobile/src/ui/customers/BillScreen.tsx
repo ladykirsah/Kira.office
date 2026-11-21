@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useRef, useState, type ComponentRef } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { reprintBill } from "@/lib/billReprint";
-import { lineSub, longDate, payWord } from "@/lib/customerPage";
+import { carPath, lineSub, longDate, payWord } from "@/lib/customerPage";
 import { formatBaht } from "@/lib/money";
 import { useLang, useTheme } from "../AppProviders";
 import { Group, Row, SectionTitle } from "../orders/parts";
@@ -17,8 +17,13 @@ import { useCarPage } from "./useCarPage";
 export function BillScreen() {
   const { t, lang } = useLang();
   const { theme } = useTheme();
-  const { plate = "", bill = "" } = useLocalSearchParams<{ plate: string; bill: string }>();
-  const page = useCarPage(plate);
+  // A car is its plate AND its province (plan 13.11).
+  const {
+    plate = "",
+    bill = "",
+    province = "",
+  } = useLocalSearchParams<{ plate: string; bill: string; province?: string }>();
+  const page = useCarPage(plate, province);
   const pos = usePos();
   const node = useRef<ComponentRef<typeof View>>(null);
   const [toast, setToast] = useState<{ title: string; detail: string } | null>(null);
@@ -39,9 +44,7 @@ export function BillScreen() {
       back: {
         label: shownPlate,
         onPress: () =>
-          router.canGoBack()
-            ? router.back()
-            : router.replace(`/customers/${encodeURIComponent(plate)}` as never),
+          router.canGoBack() ? router.back() : router.replace(carPath(plate, province) as never),
       },
       ownTitle: true,
       toast,

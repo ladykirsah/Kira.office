@@ -64,7 +64,7 @@ export interface BillState {
   note: string;
 }
 
-export type Missing = "plate" | "car" | "mileage" | "lines";
+export type Missing = "plate" | "province" | "car" | "mileage" | "lines";
 
 export const lineTotal = (l: PosLine): number =>
   Math.max(0, Math.round(l.quantity)) * Math.max(0, Math.round(l.priceSatang));
@@ -126,6 +126,8 @@ export function billMissing(b: BillState): Missing[] {
   const missing: Missing[] = [];
   if (b.buyer === "customer") {
     if (!b.plate.trim()) missing.push("plate");
+    // A car is its plate AND its province (plan 13.11, owner's pick A, 21 Nov 2026).
+    else if (!b.province.trim()) missing.push("province");
     if (!b.car.trim()) missing.push("car");
     if (parseMileage(b.mileage) === null) missing.push("mileage");
   }
@@ -155,6 +157,8 @@ export interface BillSale {
   paymentMethod: "cash" | "promptpay";
   saleType: "parts" | "repair";
   licensePlate?: string;
+  /** The province on the plate (plan 13.11): the car is the plate AND its province. */
+  plateProvince?: string;
   vehicle?: string;
   notes?: string;
   mileageKm: number | null;
@@ -168,6 +172,7 @@ export interface BillDraft {
   saleNumber: string | null;
   saleType: "parts" | "repair";
   licensePlate: string | null;
+  plateProvince: string | null;
   vehicle: string | null;
   notes: string | null;
   mileageKm: number | null;
@@ -231,6 +236,7 @@ export function buildBillSale(
     paymentMethod: o.paymentMethod,
     saleType: saleType(b),
     licensePlate: customer ? (orNull(b.plate) ?? undefined) : undefined,
+    plateProvince: customer ? (orNull(b.province) ?? undefined) : undefined,
     vehicle: customer ? (orNull(b.car) ?? undefined) : undefined,
     notes: notes.length > 0 ? notes.join(" · ") : undefined,
     mileageKm: customer ? parseMileage(b.mileage) : null,
@@ -251,6 +257,7 @@ export function buildBillDraft(
     saleNumber: b.doc === "quote" ? o.saleNumber : null,
     saleType: saleType(b),
     licensePlate: customer ? orNull(b.plate) : null,
+    plateProvince: customer ? orNull(b.province) : null,
     vehicle: customer ? orNull(b.car) : null,
     notes: orNull(b.note),
     mileageKm: customer ? parseMileage(b.mileage) : null,

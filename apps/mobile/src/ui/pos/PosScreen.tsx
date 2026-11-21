@@ -38,9 +38,11 @@ export function PosScreen() {
   const { theme } = useTheme();
   const pos = usePos();
   const quote = pos.bill.doc === "quote";
-  const { draft, plate, doc, from } = useLocalSearchParams<{
+  const { draft, plate, province, doc, from } = useLocalSearchParams<{
     draft?: string;
     plate?: string;
+    /** With `plate`: the car's province (plan 13.11 — a car is both). */
+    province?: string;
     doc?: string;
     from?: string;
   }>();
@@ -65,10 +67,16 @@ export function PosScreen() {
     const key = draft ? `draft:${draft}` : plate ? `plate:${plate}:${doc ?? ""}` : null;
     if (!key || !pos.data.ready || opened.current === key) return;
     opened.current = key;
-    router.setParams({ draft: undefined, plate: undefined, doc: undefined, from: undefined });
+    router.setParams({
+      draft: undefined,
+      plate: undefined,
+      province: undefined,
+      doc: undefined,
+      from: undefined,
+    });
     if (draft) void pos.openFromScan(draft, from === "customer" ? "customer" : "scan");
-    else void pos.startForCar(plate!, doc === "quote" ? "quote" : "bill");
-  }, [draft, plate, doc, from, pos]);
+    else void pos.startForCar(plate!, doc === "quote" ? "quote" : "bill", province ?? "");
+  }, [draft, plate, province, doc, from, pos]);
 
   const main: ChromeButton = quote
     ? {

@@ -15,7 +15,7 @@ export interface CarEdit {
 }
 
 /** One car's page: its record, open quotation and visits; แก้ไข saves name, phones and notes. */
-export function useCarPage(plate: string) {
+export function useCarPage(plate: string, province: string) {
   const auth = useAuth();
   const token = auth.status === "signed-in" ? auth.token : "";
   const [detail, setDetail] = useState<CarDetail | null>(null);
@@ -35,13 +35,13 @@ export function useCarPage(plate: string) {
   const load = useCallback(async () => {
     if (!token || !plate) return;
     const [car, cars] = await Promise.allSettled([
-      fetchCarDetail(fetch, API_BASE, token, plate),
+      fetchCarDetail(fetch, API_BASE, token, plate, province),
       fetchCars(fetch, API_BASE, token),
     ]);
     if (car.status === "fulfilled") setDetail(car.value);
     if (cars.status === "fulfilled") setBrands(cars.value.map((b) => b.name));
     setFailed(car.status === "rejected");
-  }, [token, plate]);
+  }, [token, plate, province]);
 
   useEffect(() => {
     void load();
@@ -65,6 +65,8 @@ export function useCarPage(plate: string) {
       const phone = joinPhones(edit.phones);
       await saveCustomer(fetch, API_BASE, token, {
         licensePlate: detail?.customer?.licensePlate ?? plate,
+        // A car is its plate AND its province (plan 13.11).
+        plateProvince: detail?.customer?.plateProvince ?? province,
         ...(edit.name.trim() ? { customerName: edit.name.trim() } : {}),
         ...(phone ? { phone } : {}),
         ...(edit.notes.trim() ? { notes: edit.notes.trim() } : {}),

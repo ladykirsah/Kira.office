@@ -1,3 +1,5 @@
+import { canonicalProvince } from "./plate";
+
 /**
  * Customers Excel import — header auto-detection.
  * The shop's legacy customer list is a hand-made Excel with Thai (or mixed) headers; this guesses
@@ -63,12 +65,15 @@ export function guessCustomerMapping(headers: string[]): Record<string, string> 
 /** The history-import fields (one row per legacy bill), in display order. */
 export const CUSTOMER_HISTORY_FIELDS: CustomerImportField[] = [
   { field: "license_plate", label: "License plate" },
+  // A car is its plate AND its province (plan 13.11), so an old line needs both to find its car.
+  { field: "plate_province", label: "Province" },
   { field: "happened_at", label: "Date" },
   { field: "description", label: "Work / items" },
 ];
 
 const HISTORY_SYNONYMS: [field: string, synonyms: string[]][] = [
   ["license_plate", ["ทะเบียน", "plate", "license"]],
+  ["plate_province", ["จังหวัด", "province"]],
   ["happened_at", ["วันที่", "วัน", "date"]],
   ["description", ["รายการ", "รายละเอียด", "งาน", "description", "items", "work", "detail"]],
 ];
@@ -114,8 +119,22 @@ export function looksLikeCombinedSheet(headers: string[]): boolean {
 }
 
 const CUSTOMER_OUT_HEADER = ["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร", "รุ่นรถ", "หมายเหตุ"];
-const HISTORY_OUT_HEADER = ["ทะเบียน", "วันที่", "รายการ"];
+const HISTORY_OUT_HEADER = ["ทะเบียน", "จังหวัด", "วันที่", "รายการ"];
 const INFO_FIELDS = ["plate_province", "customer_name", "phone", "car_model", "notes"] as const;
+
+/**
+ * Which car a block's plate row starts (plan 13.11: a car is its plate AND its province). The same
+ * plate under another province is another car; a plate row with no province continues the latest
+ * car with that plate, as a block that only adds more lines.
+ */
+function carKeys(): (plate: string, province: string) => string {
+  const latest = new Map<string, string>();
+  return (plate, province) => {
+    const p = canonicalProvince(province) || latest.get(plate) || "";
+    latest.set(plate, p);
+    return `${plate}|${p}`;
+  };
+}
 
 /**
  * Split a combined transcription sheet into the two import shapes. Plate forward-fills down the
@@ -136,19 +155,22 @@ export function splitCombinedSheet(rows: string[][]): CombinedSplit {
 
   const errors: RowError[] = [];
   const order: string[] = [];
+  const plateOf = new Map<string, string>();
   const info = new Map<string, string[]>();
-  const history: string[][] = [HISTORY_OUT_HEADER.slice()];
+  const lines: { car: string; date: string; items: string }[] = [];
   const historySourceRows: number[] = [];
+  const carOf = carKeys();
   let current = "";
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] ?? [];
     const plate = cell(row, plateCol);
     if (plate) {
-      current = plate;
-      if (!info.has(plate)) {
-        info.set(plate, ["", "", "", "", ""]);
-        order.push(plate);
+      current = carOf(plate, cell(row, infoCols[0]!));
+      if (!info.has(current)) {
+        info.set(current, ["", "", "", "", ""]);
+        plateOf.set(current, plate);
+        order.push(current);
       }
     }
     const infoValues = infoCols.map((c) => cell(row, c));
@@ -171,15 +193,20 @@ export function splitCombinedSheet(rows: string[][]): CombinedSplit {
       } else if (!items) {
         errors.push({ rowIndex: i, reason: "missing รายการ for this วันที่ line" });
       } else {
-        history.push([current, date, items]);
+        lines.push({ car: current, date, items });
         historySourceRows.push(i);
       }
     }
   }
 
+  // The province is known once the whole block is read (it may sit on a later row).
   const customers: string[][] = [
     CUSTOMER_OUT_HEADER.slice(),
-    ...order.map((p) => [p, ...info.get(p)!]),
+    ...order.map((car) => [plateOf.get(car)!, ...info.get(car)!]),
+  ];
+  const history: string[][] = [
+    HISTORY_OUT_HEADER.slice(),
+    ...lines.map((l) => [plateOf.get(l.car)!, info.get(l.car)![0]!, l.date, l.items]),
   ];
   return { customers, history, historySourceRows, errors };
 }
@@ -268,6 +295,8 @@ export interface RichLine {
 /** One transcribed visit = a bill: a date, its line items, and one bill note. */
 export interface RichVisit {
   licensePlate: string;
+  /** The car's province (plan 13.11): with the plate, it says which car the visit belongs to. */
+  plateProvince: string;
   date: string;
   /** ประวัติ · หมายเหตุ — the visit's bill note, shown once at the bottom (like a Kira bill's note). */
   note: string;
@@ -336,14 +365,16 @@ export function parseRichSheet(rows: string[][]): RichParse {
     year: string;
   }
   interface Visit {
-    plate: string;
+    car: string;
     date: string;
     note: string;
     lines: RichLine[];
     sourceRow: number;
   }
   const order: string[] = [];
+  const plateOf = new Map<string, string>();
   const custs = new Map<string, Cust>();
+  const carOf = carKeys();
   const visitOrder: string[] = [];
   const visits = new Map<string, Visit>();
   const errors: RowError[] = [];
@@ -356,11 +387,12 @@ export function parseRichSheet(rows: string[][]): RichParse {
     const sheetRow = i + 1; // spreadsheet row numbers are 1-based and include every preamble row
     const plate = cell(row, "plate");
     if (plate) {
-      currentPlate = plate;
+      currentPlate = carOf(plate, cell(row, "province"));
       currentDate = "";
       currentDateRow = 0;
-      if (!custs.has(plate)) {
-        custs.set(plate, {
+      if (!custs.has(currentPlate)) {
+        plateOf.set(currentPlate, plate);
+        custs.set(currentPlate, {
           province: "",
           name: "",
           phones: [],
@@ -369,7 +401,7 @@ export function parseRichSheet(rows: string[][]): RichParse {
           model: "",
           year: "",
         });
-        order.push(plate);
+        order.push(currentPlate);
       }
     }
     if (currentPlate) {
@@ -403,7 +435,7 @@ export function parseRichSheet(rows: string[][]): RichParse {
     const key = `${currentPlate} ${currentDate}`;
     if (!visits.has(key)) {
       visits.set(key, {
-        plate: currentPlate,
+        car: currentPlate,
         date: currentDate,
         note: "",
         lines: [],
@@ -424,10 +456,10 @@ export function parseRichSheet(rows: string[][]): RichParse {
 
   const customers: string[][] = [
     ["ทะเบียน", "จังหวัด", "ชื่อลูกค้า", "เบอร์โทร", "รุ่นรถ", "หมายเหตุ"],
-    ...order.map((p) => {
-      const c = custs.get(p)!;
+    ...order.map((car) => {
+      const c = custs.get(car)!;
       return [
-        p,
+        plateOf.get(car)!,
         c.province,
         c.name,
         c.phones.join(", "),
@@ -440,7 +472,13 @@ export function parseRichSheet(rows: string[][]): RichParse {
   const visitSourceRows: number[] = [];
   for (const key of visitOrder) {
     const v = visits.get(key)!;
-    visitsOut.push({ licensePlate: v.plate, date: v.date, note: v.note, lines: v.lines });
+    visitsOut.push({
+      licensePlate: plateOf.get(v.car)!,
+      plateProvince: custs.get(v.car)!.province,
+      date: v.date,
+      note: v.note,
+      lines: v.lines,
+    });
     visitSourceRows.push(v.sourceRow);
   }
   return { customers, visits: visitsOut, visitSourceRows, errors };

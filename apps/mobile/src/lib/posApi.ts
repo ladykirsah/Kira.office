@@ -1,5 +1,6 @@
-import { parsePaymentMethods } from "@l-shopee/core";
+import { canonicalPlate, parsePaymentMethods } from "@l-shopee/core";
 import { firstCarModel } from "./billName";
+import { carPath } from "./customerPage";
 import type { BillDraft, BillSale, CustomerUpsert, PosLine } from "./posBill";
 import { failure, sendJson, session } from "./scanApi";
 import type { Buyer, SyncResult } from "./scanSale";
@@ -156,6 +157,8 @@ export interface OpenDraft {
   saleNumber: string | null;
   saleType: string | null;
   licensePlate: string | null;
+  /** The province on the plate (plan 13.11); "" when none was typed. */
+  plateProvince?: string | null;
   vehicle: string | null;
   notes: string | null;
   stage: "draft" | "quotation";
@@ -228,13 +231,35 @@ export const fetchCars = async (fetchFn: FetchFn, base: string, token: string) =
     )
   ).brands;
 
-export const fetchCustomer = (fetchFn: FetchFn, base: string, token: string, plate: string) =>
+/** One car = the plate AND its province (plan 13.11). */
+export const fetchCustomer = (
+  fetchFn: FetchFn,
+  base: string,
+  token: string,
+  plate: string,
+  province: string,
+) =>
   getJson<CustomerDetail>(
     fetchFn,
-    `${base}/customers/${encodeURIComponent(plate.trim())}`,
+    `${base}${carPath(plate, province)}`,
     token,
     "Customer failed to load",
   );
+
+/**
+ * With only the plate typed on ทำบิล: when exactly one car the shop knows has that plate, its
+ * province fills in (staff can change it). Two cars, or none, and staff type the province
+ * (plan 13.11, owner's pick A).
+ */
+export function onlyCarProvince(
+  cars: readonly { licensePlate: string; plateProvince: string | null }[],
+  plate: string,
+): string | null {
+  const typed = canonicalPlate(plate);
+  const same = cars.filter((c) => canonicalPlate(c.licensePlate) === typed);
+  const province = same.length === 1 ? same[0]!.plateProvince?.trim() : "";
+  return province || null;
+}
 
 export const fetchDrafts = async (fetchFn: FetchFn, base: string, token: string) =>
   (

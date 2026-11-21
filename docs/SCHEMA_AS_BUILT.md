@@ -172,6 +172,7 @@ adds `payments.sale_number` (nullable TEXT — the counter bill a PromptPay paym
 | `0045_campaigns` | `campaigns` + `campaign_prices` (flash-sale windows; price resolved in code). |
 | `0046_banners` | `banners` (home-page hero/promo banners). |
 | `0047_affiliate_items` | `affiliate_items` + `affiliate_clicks` (mechanic-tools affiliate). |
+| `0108_car_province` | **A car = plate + province** (plan 13.11, 21 Nov 2026). `customers` rebuilt: `plate_province text NOT NULL DEFAULT ''`, **uq `(license_plate, plate_province)`** (was uq `license_plate`). `plate_province` added to `onsite_sales` and `repair_jobs`; `customer_history_entries` rebuilt with it in its re-import key. `''` = no province (a parts sale, or a car saved before this). |
 
 ## Migration workflow (do this exactly)
 

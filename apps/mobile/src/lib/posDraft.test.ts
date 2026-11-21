@@ -57,12 +57,17 @@ const key = () => `k${++n}`;
 describe("posDraft", () => {
   it("billFromDraft > given a quotation > then the same car, items, prices and discount come back", () => {
     n = 0;
-    const { bill, quoteNumber } = billFromDraft(draft(), products, key);
+    const { bill, quoteNumber } = billFromDraft(
+      draft({ plateProvince: "เชียงใหม่" }),
+      products,
+      key,
+    );
     expect(quoteNumber).toBe("QT202610-29002");
     expect(bill).toMatchObject({
       doc: "quote",
       buyer: "customer",
       plate: "1กก 1234",
+      province: "เชียงใหม่", // plan 13.11: the car is the plate AND its province
       car: "Toyota Vigo 2014",
       mileage: "152,300",
       note: "รับประกัน 6 เดือน",

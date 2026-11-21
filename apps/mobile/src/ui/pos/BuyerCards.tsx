@@ -77,8 +77,14 @@ function CustomerCards() {
   const { t } = useLang();
   const pos = usePos();
   const { bill, lookup, tried, missing } = pos;
-  const err = (m: "plate" | "car" | "mileage", text: { th: string; en: string }) =>
+  const err = (m: "plate" | "province" | "car" | "mileage", text: { th: string; en: string }) =>
     tried && missing.includes(m) ? t(text) : null;
+  // A car is its plate AND its province (plan 13.11): look again when either changes.
+  const lookUpCar = () => {
+    if (bill.plate.trim() !== lookup.plate || bill.province.trim() !== lookup.province) {
+      void pos.lookupPlate(bill.plate, bill.province);
+    }
+  };
   const plateDone = lookup.status === "done" || lookup.status === "error";
   const known = lookup.status === "done" && lookup.summary?.known === true;
   const last = lookup.summary?.lastMileage ?? null;
@@ -117,9 +123,7 @@ function CustomerCards() {
           value={bill.plate}
           placeholder={t({ th: "เช่น 1กก 1234", en: "e.g. 1กก 1234" })}
           onChange={(v) => pos.setBill((b) => ({ ...b, plate: v }))}
-          onBlur={() => {
-            if (bill.plate.trim() !== lookup.plate) void pos.lookupPlate(bill.plate);
-          }}
+          onBlur={lookUpCar}
           error={err("plate", { th: "ใส่ทะเบียนรถ", en: "Enter the plate" })}
         />
         <FieldRow
@@ -127,6 +131,8 @@ function CustomerCards() {
           value={bill.province}
           placeholder={t({ th: "บนป้ายทะเบียน", en: "On the plate" })}
           onChange={(v) => pos.setBill((b) => ({ ...b, province: v }))}
+          onBlur={lookUpCar}
+          error={err("province", { th: "ใส่จังหวัด", en: "Enter the province" })}
           last
         />
       </Group>

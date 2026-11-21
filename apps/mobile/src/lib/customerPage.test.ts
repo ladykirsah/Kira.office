@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountName,
   carLine,
+  carPath,
   itemsPreview,
   joinPhones,
   lineSub,
@@ -27,6 +28,23 @@ describe("sideLabel", () => {
   });
   it("given the AirPlus side > then it keeps its name", () => {
     expect(sideLabel("airplus")).toEqual({ th: "AirPlus", en: "AirPlus" });
+  });
+});
+
+describe("carPath (plan 13.11: a car is its plate AND its province)", () => {
+  it("given a plate and its province > then the car's page carries both", () => {
+    expect(carPath("1กก 1234", "เชียงใหม่")).toBe(
+      `/customers/${encodeURIComponent("1กก 1234")}?province=${encodeURIComponent("เชียงใหม่")}`,
+    );
+  });
+  it("given a bill > then the bill's page under that car", () => {
+    expect(carPath("1กก 1234", "เชียงใหม่", "s-1")).toBe(
+      `/customers/${encodeURIComponent("1กก 1234")}/s-1?province=${encodeURIComponent("เชียงใหม่")}`,
+    );
+  });
+  it("given no province (a car saved before 21 Nov 2026) > then the plate alone", () => {
+    expect(carPath(" 1กก 1234 ", null)).toBe(`/customers/${encodeURIComponent("1กก 1234")}`);
+    expect(carPath("1กก 1234", " ")).toBe(`/customers/${encodeURIComponent("1กก 1234")}`);
   });
 });
 

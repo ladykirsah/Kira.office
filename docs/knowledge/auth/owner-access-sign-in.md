@@ -3,12 +3,18 @@ type: feature
 title: Owner sign-in via Access identity — canSignInAsOwner, never isSuperAdmin
 description: POST /staff/login-access turns Cloudflare Access's email-OTP proof into a self-repairing owner login
 tags: [owner, access, login, super-admin, fail-closed, bootstrap]
-timestamp: 2026-08-09
-status: live
+timestamp: 2026-11-21
+status: removed
 sources: [kira-owner-lockout-and-access-signin.md, packages/core/src/ownerSignIn.ts, apps/api/src/staffRoutes.ts]
 ---
 
 # Owner sign-in via Access identity
+
+> **Removed 21 Nov 2026 (plan 13.11).** Owner: *"drop this one we are working on land on
+> teampit.formulal.cc"*. Nothing on any screen called it once the old back office was deleted (18
+> Nov). `POST /staff/login-access`, `signInAsOwner` and `canSignInAsOwner` are gone; the way back in
+> is the [emergency key](emergency-key.md), and a broken owner row is repaired with
+> `reset-staff-password.mjs`. Kept below as history.
 
 ## What it is
 

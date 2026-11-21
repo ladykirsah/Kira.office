@@ -3,6 +3,7 @@ import {
   eraseAccount,
   fetchAccount,
   fetchAccounts,
+  fetchCarDetail,
   fetchCarList,
   fetchSummary,
   recalcAllCredit,
@@ -28,6 +29,14 @@ describe("customersApi", () => {
       { licensePlate: "1กก" },
     ]);
     expect(calls[0]?.url).toBe("http://api/customers?q=Altis");
+  });
+
+  it("fetchCarDetail > given a plate and its province > then loads that one car (plan 13.11)", async () => {
+    const { calls, fetchFn } = recording(async () => Response.json({ customer: null }));
+    await fetchCarDetail(fetchFn, "http://api", "tok", "1กก 1234", "เชียงใหม่");
+    expect(calls[0]?.url).toBe(
+      `http://api/customers/${encodeURIComponent("1กก 1234")}?province=${encodeURIComponent("เชียงใหม่")}`,
+    );
   });
 
   it("fetchSummary > reads the เด่นแอร์ or AirPlus counts", async () => {

@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { accountName, carLine, plateLine, rowDate, sideLabel } from "@/lib/customerPage";
+import { accountName, carLine, carPath, plateLine, rowDate, sideLabel } from "@/lib/customerPage";
 import type { AccountRow, CarRow } from "@/lib/customersApi";
 import { useLang, useTheme } from "../AppProviders";
 import { useWide } from "../desk/useWide";
@@ -209,7 +209,12 @@ function Cars({ list, wide = false }: { list: CustomerList; wide?: boolean }) {
       {list.cars.length > 0 && (
         <Group>
           {list.cars.map((c, i) => (
-            <CarItem key={c.licensePlate} car={c} now={now} last={i === list.cars!.length - 1} />
+            <CarItem
+              key={`${c.licensePlate}|${c.plateProvince ?? ""}`}
+              car={c}
+              now={now}
+              last={i === list.cars!.length - 1}
+            />
           ))}
         </Group>
       )}
@@ -225,7 +230,7 @@ function CarItem({ car, now, last }: { car: CarRow; now: number; last: boolean }
       right={t(rowDate(car.lastVisitAt, now))}
       sub={carLine(car)}
       last={last}
-      onPress={() => router.push(`/customers/${encodeURIComponent(car.licensePlate)}` as never)}
+      onPress={() => router.push(carPath(car.licensePlate, car.plateProvince) as never)}
     />
   );
 }
