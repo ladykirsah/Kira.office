@@ -419,19 +419,29 @@ export interface CarModelOption {
 }
 
 /** Every model in the owner's car taxonomy (TeamPit → Car fitment), grouped later by brand on
- *  the client. Models with no products still show ("0 รายการ" is the owner's full coverage). */
+ *  the client. Models with no products still show ("0 รายการ" is the owner's full coverage).
+ *  Stock is added up once and fitments counted once per brand + model, then joined to the models:
+ *  counting inside each model row read ~100,000 rows a visit on the live shop (plan 13.1). */
 export async function carModelOptions(db: D1Database): Promise<CarModelOption[]> {
   const rows = await db
     .prepare(
-      `SELECT b.name AS brand, m.name AS model, m.year_from AS yearFrom, m.year_to AS yearTo,
-              (SELECT COUNT(DISTINCT p.id) FROM product_fitments f
-                 JOIN products p ON p.id = f.product_id AND p.status = 'active'
-                WHERE f.car_brand = b.name AND f.car_model = m.name
-                  AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id
-                    AND (SELECT COALESCE(SUM(quantity_delta), 0)
-                           FROM stock_ledger_entries WHERE product_variant_id = pv.id) > 0)
-              ) AS productCount
+      `WITH stock AS (
+              SELECT product_variant_id, SUM(quantity_delta) AS onHand
+                FROM stock_ledger_entries GROUP BY product_variant_id),
+            in_stock AS (
+              SELECT DISTINCT pv.product_id
+                FROM product_variants pv JOIN stock s ON s.product_variant_id = pv.id
+               WHERE s.onHand > 0),
+            counts AS (
+              SELECT f.car_brand AS brand, f.car_model AS model, COUNT(DISTINCT p.id) AS n
+                FROM product_fitments f
+                JOIN products p ON p.id = f.product_id AND p.status = 'active'
+                JOIN in_stock i ON i.product_id = p.id
+               GROUP BY f.car_brand, f.car_model)
+       SELECT b.name AS brand, m.name AS model, m.year_from AS yearFrom, m.year_to AS yearTo,
+              COALESCE(c.n, 0) AS productCount
          FROM car_models m JOIN car_brands b ON b.id = m.car_brand_id
+         LEFT JOIN counts c ON c.brand = b.name AND c.model = m.name
         ORDER BY b.sort_order, b.name, m.sort_order, m.year_from, m.name`,
     )
     .all<CarModelOption>();
