@@ -95,3 +95,14 @@ const FULL_WIDTH = 1280;
 export function pageWidth(layout: PageLayout): number {
   return layout === "full" ? FULL_WIDTH : COLUMN_WIDTH;
 }
+
+/**
+ * From this window width a computer page sets two cards side by side; below it they stack (plan
+ * 11.5, 20 Nov 2026: หน้าหลัก's วันนี้ amounts and the coupon form's labels broke in two below it).
+ * The same width at which ทำบิล's fix A keeps the bill's parts on one row.
+ */
+export const TWO_COLUMNS_FROM = 1312;
+
+export function deskColumns(windowWidth: number): "one" | "two" {
+  return windowWidth >= TWO_COLUMNS_FROM ? "two" : "one";
+}

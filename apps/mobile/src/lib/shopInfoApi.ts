@@ -1,3 +1,4 @@
+import type { ShopReach } from "@l-shopee/shared/nav";
 import { failure, sendJson, session } from "./scanApi";
 import type { ShopIdentity, ShopInfo, ShopProfile, TextDraft } from "./shopInfoPage";
 import type { FetchFn } from "./signIn";
@@ -110,4 +111,22 @@ export async function fetchShop(
       (p): p is ShopProfile => p === "denair" || p === "airplus",
     ),
   };
+}
+
+/**
+ * Whether the shop the app is open on runs the AirPlus website, for the menu (plan 11.5). If the
+ * shop can't be read, undefined: the app then acts as before, as Den Air with AirPlus, and the pages
+ * show their own errors.
+ */
+export async function readShopReach(
+  fetchFn: FetchFn,
+  base: string,
+  token: string,
+): Promise<ShopReach | undefined> {
+  try {
+    const shop = await fetchShop(fetchFn, base, token);
+    return { airplus: shop.profiles.includes("airplus") };
+  } catch {
+    return undefined;
+  }
 }

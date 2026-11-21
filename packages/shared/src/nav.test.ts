@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { NAV_GROUPS, PRIMARY_TABS, activeHref, navGroupsFor, nextBarVisible } from "./nav";
+import {
+  NAV_GROUPS,
+  PRIMARY_TABS,
+  activeHref,
+  navGroupsFor,
+  nextBarVisible,
+  pageClosed,
+} from "./nav";
 import type { StaffRole } from "@l-shopee/core";
 
 const allHrefs = NAV_GROUPS.flatMap((g) => g.links.map((l) => l.href));
@@ -144,5 +151,73 @@ describe("navGroupsFor", () => {
     for (const role of ["super_admin", "admin", "mechanic"] as StaffRole[]) {
       for (const href of hrefs(role)) expect(all.has(href)).toBe(true);
     }
+  });
+});
+
+// Plan 11.5 (20 Nov 2026): a shop without the AirPlus website (plan 10.3) no longer lists AirPlus's
+// pages, and an address the menu hides says whose page it is instead of an empty frame.
+const AIRPLUS_PAGES = [
+  "/orders",
+  "/insights",
+  "/settings/affiliate-items",
+  "/settings/banners",
+  "/settings/coupons",
+  "/settings/campaigns",
+];
+const DEN_AIR = { airplus: true };
+const NO_AIRPLUS = { airplus: false };
+
+describe("navGroupsFor > the shop's AirPlus website", () => {
+  const hrefs = (shop: { airplus: boolean }) =>
+    navGroupsFor("super_admin", shop).flatMap((g) => g.links.map((l) => l.href));
+
+  it("navGroupsFor > given a shop without AirPlus > then none of AirPlus's pages is listed", () => {
+    expect(hrefs(NO_AIRPLUS).filter((h) => AIRPLUS_PAGES.includes(h))).toEqual([]);
+    expect(hrefs(NO_AIRPLUS)).toContain("/pos");
+    expect(navGroupsFor("super_admin", NO_AIRPLUS).map((g) => g.section.en)).not.toContain(
+      "AirPlus Marketing",
+    );
+  });
+
+  it("navGroupsFor > given Den Air > then the owner keeps every AirPlus page", () => {
+    for (const page of AIRPLUS_PAGES) expect(hrefs(DEN_AIR)).toContain(page);
+  });
+});
+
+describe("pageClosed", () => {
+  it("pageClosed > given a ช่าง on a pay page under พนักงาน > then it is the owner's page", () => {
+    expect(pageClosed("mechanic", "/settings/staff/12/pay", DEN_AIR)).toBe("owner");
+  });
+
+  it("pageClosed > given a ช่าง on a new coupon > then it is for the owner and admins", () => {
+    expect(pageClosed("mechanic", "/settings/coupons/new", DEN_AIR)).toBe("owner-admin");
+  });
+
+  it("pageClosed > given an admin on การเงิน's AirPlus tab > then it is the owner's page", () => {
+    expect(pageClosed("admin", "/sales/airplus", DEN_AIR)).toBe("owner");
+  });
+
+  it("pageClosed > given the owner on any page > then nothing is closed", () => {
+    expect(pageClosed("super_admin", "/settings/staff/12/pay", DEN_AIR)).toBeNull();
+    expect(pageClosed("super_admin", "/sales/airplus", DEN_AIR)).toBeNull();
+  });
+
+  it("pageClosed > given a ช่าง on their own pages > then nothing is closed", () => {
+    expect(pageClosed("mechanic", "/scan", DEN_AIR)).toBeNull();
+    expect(pageClosed("mechanic", "/products/123", DEN_AIR)).toBeNull();
+    expect(pageClosed("mechanic", "/", DEN_AIR)).toBeNull();
+  });
+
+  it("pageClosed > given a shop without AirPlus > then AirPlus's pages say so", () => {
+    expect(pageClosed("super_admin", "/settings/coupons/new", NO_AIRPLUS)).toBe("airplus");
+    expect(pageClosed("super_admin", "/orders/8", NO_AIRPLUS)).toBe("airplus");
+  });
+
+  it("pageClosed > given a ช่าง at a shop without AirPlus > then the role is named first", () => {
+    expect(pageClosed("mechanic", "/settings/coupons", NO_AIRPLUS)).toBe("owner-admin");
+  });
+
+  it("pageClosed > given an address no menu page owns > then the not-found page handles it", () => {
+    expect(pageClosed("mechanic", "/nowhere", DEN_AIR)).toBeNull();
   });
 });

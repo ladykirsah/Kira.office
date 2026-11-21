@@ -1,3 +1,4 @@
+import { APP_FONT_STYLE } from "@/ui/appFont";
 import type { ComponentRef, Ref } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { formatBaht } from "@/lib/money";
@@ -133,14 +134,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
-  shop: { fontSize: 17, lineHeight: 24, fontWeight: "700", color: "#000000" },
-  grey13: { fontSize: 13, lineHeight: 19, color: "#8A8A8E" },
-  text15: { fontSize: 15, lineHeight: 22, color: "#000000" },
-  grey15: { fontSize: 15, lineHeight: 22, color: "#8A8A8E" },
+  shop: { ...APP_FONT_STYLE, fontSize: 17, lineHeight: 24, fontWeight: "700", color: "#000000" },
+  grey13: { ...APP_FONT_STYLE, fontSize: 13, lineHeight: 19, color: "#8A8A8E" },
+  text15: { ...APP_FONT_STYLE, fontSize: 15, lineHeight: 22, color: "#000000" },
+  grey15: { ...APP_FONT_STYLE, fontSize: 15, lineHeight: 22, color: "#8A8A8E" },
   rule: { height: 1, backgroundColor: "#E5E5EA", marginVertical: 6 },
   line: { flexDirection: "row", gap: 8 },
   grow: { flex: 1 },
   amount: { width: 72, textAlign: "right", fontVariant: ["tabular-nums"] },
   total: { flexDirection: "row", justifyContent: "space-between" },
-  totalText: { fontSize: 17, lineHeight: 24, fontWeight: "700", color: "#000000" },
+  totalText: {
+    ...APP_FONT_STYLE,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: "#000000",
+  },
 });

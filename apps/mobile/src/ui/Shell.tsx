@@ -1,4 +1,4 @@
-import { PRIMARY_TABS, activeHref } from "@l-shopee/shared/nav";
+import { PRIMARY_TABS, activeHref, type ClosedFor } from "@l-shopee/shared/nav";
 import { usePathname, useRouter } from "expo-router";
 import { useRef, useState, type ComponentRef } from "react";
 import type { ReactNode } from "react";
@@ -34,6 +34,7 @@ import {
   type SearchBar,
 } from "./ScreenChrome";
 import { MenuDrawer } from "./MenuDrawer";
+import { PageClosed } from "./PageNotFound";
 import { PHONE_PAGE_SCROLLS, PINNED_TO_SCREEN, usePhonePageScroll } from "./pageScroll";
 import { Segmented } from "./Segmented";
 import { MENU_ICON, PAGE_ICONS, TAB_ICONS } from "./tabIcons";
@@ -41,6 +42,7 @@ import { PHONE_MAX_WIDTH, SPACE, TYPE, type Theme } from "./theme";
 import { UpdateBar } from "./UpdateBar";
 import { WideButton, WideSearch, WideToast } from "./desk/WideTools";
 import { APP_FONT_STYLE } from "@/ui/appFont";
+import { useShopReach } from "./ShopReach";
 
 /**
  * The frame around every screen. On a phone it follows the approved design guide (2026-10-26): the
@@ -48,14 +50,48 @@ import { APP_FONT_STYLE } from "@/ui/appFont";
  * round ☰ button for everything else. On a computer it is still the sidebar — the computer layout is
  * redesigned last. Both read the one menu in @l-shopee/shared, filtered by role.
  */
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({
+  children,
+  closed = null,
+}: {
+  children: ReactNode;
+  closed?: ClosedFor | null;
+}) {
   const { width } = useWindowDimensions();
   return width <= PHONE_MAX_WIDTH ? (
-    <PhoneShell>{children}</PhoneShell>
+    <PhoneShell closed={closed}>{children}</PhoneShell>
   ) : (
-    <WideShell>{children}</WideShell>
+    <WideShell closed={closed}>{children}</WideShell>
   );
 }
+
+/**
+ * The page or, where it is closed to this person, the card saying whose page it is (plan 11.5). The
+ * page stays mounted, hidden and without its own title or buttons: taking it out drops expo-router's
+ * page navigator, and the app falls back to หน้าหลัก on the next tap.
+ */
+function PageOrClosed(props: {
+  closed: ClosedFor | null;
+  setChrome: (chrome: Chrome) => void;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      {props.closed ? <PageClosed why={props.closed} /> : null}
+      <View style={props.closed ? pageBox.hidden : pageBox.open}>
+        <ChromeProvider value={props.closed ? null : props.setChrome}>
+          {props.children}
+        </ChromeProvider>
+      </View>
+    </>
+  );
+}
+
+const pageBox = StyleSheet.create({
+  hidden: { display: "none" },
+  // No box of its own: the page lays out exactly as it did without this wrapper.
+  open: { display: "contents" as "flex" },
+});
 
 function useNav() {
   const router = useRouter();
@@ -67,7 +103,7 @@ function useNav() {
   };
 }
 
-function WideShell({ children }: { children: ReactNode }) {
+function WideShell({ children, closed }: { children: ReactNode; closed: ClosedFor | null }) {
   const { theme } = useTheme();
   const { t } = useLang();
   const brandFont = useBrandFont();
@@ -115,7 +151,9 @@ function WideShell({ children }: { children: ReactNode }) {
               </View>
             )}
             {chrome.search && <WideSearch search={chrome.search} />}
-            <ChromeProvider value={setChrome}>{children}</ChromeProvider>
+            <PageOrClosed closed={closed} setChrome={setChrome}>
+              {children}
+            </PageOrClosed>
           </View>
         </ScrollView>
         {chrome.toast && chrome.footer.length === 0 && <WideToast toast={chrome.toast} />}
@@ -149,7 +187,7 @@ function WideShell({ children }: { children: ReactNode }) {
   );
 }
 
-function PhoneShell({ children }: { children: ReactNode }) {
+function PhoneShell({ children, closed }: { children: ReactNode; closed: ClosedFor | null }) {
   const { theme } = useTheme();
   const { t } = useLang();
   const auth = useAuth();
@@ -217,7 +255,9 @@ function PhoneShell({ children }: { children: ReactNode }) {
             </Pressable>
           </View>
         )}
-        <ChromeProvider value={setChrome}>{children}</ChromeProvider>
+        <PageOrClosed closed={closed} setChrome={setChrome}>
+          {children}
+        </PageOrClosed>
       </PhonePage>
 
       <PinnedFooter chrome={chrome} bottom={bottoms.footer} />
@@ -281,9 +321,10 @@ function DeskMenu(props: { path: string; onGo: (href: string) => void }) {
   const { theme } = useTheme();
   const { t } = useLang();
   const auth = useAuth();
+  const reach = useShopReach();
   const s = styles(theme);
   if (auth.status !== "signed-in") return null;
-  const menu = drawerFor(auth.staff.role, props.path);
+  const menu = drawerFor(auth.staff.role, props.path, reach);
   const link = (href: string, label: string, on: boolean) => (
     <Pressable
       key={href}

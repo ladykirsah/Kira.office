@@ -1,3 +1,4 @@
+import { APP_FONT_STYLE } from "@/ui/appFont";
 import { forwardRef, useMemo, type ComponentRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
@@ -49,6 +50,7 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
   const bits = useMemo(() => labelBars(text.code), [text.code]);
   const f = PICTURE.font;
   const line = (size_: number, top: number, left: number) => ({
+    ...APP_FONT_STYLE,
     position: "absolute" as const,
     left: left * k,
     top: top * k,
@@ -125,13 +127,21 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
               ]}
             >
               <Text
-                style={[styles.bold, { fontSize: f.model * k, lineHeight: f.model * k }]}
+                style={[
+                  styles.bold,
+                  { ...APP_FONT_STYLE, fontSize: f.model * k, lineHeight: f.model * k },
+                ]}
                 numberOfLines={1}
               >
                 {car.model}
               </Text>
               {car.years ? (
-                <Text style={[styles.ink, { fontSize: f.years * k, lineHeight: f.years * k }]}>
+                <Text
+                  style={[
+                    styles.ink,
+                    { ...APP_FONT_STYLE, fontSize: f.years * k, lineHeight: f.years * k },
+                  ]}
+                >
                   {car.years}
                 </Text>
               ) : null}
@@ -165,6 +175,7 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
           styles.grey,
           styles.shopLine,
           {
+            ...APP_FONT_STYLE,
             left: PICTURE.x * k,
             width: (PICTURE.hairRight - PICTURE.x + 1) * k,
             top: (PICTURE.shopBase - PICTURE.rowAscent * f.phone - cut) * k,
@@ -174,7 +185,7 @@ export const LabelArt = forwardRef<ComponentRef<typeof View>, LabelArtProps>(fun
         ]}
         numberOfLines={1}
       >
-        <Text style={{ fontSize: f.shop * k }}>{shop.name.trim()}</Text>
+        <Text style={{ ...APP_FONT_STYLE, fontSize: f.shop * k }}>{shop.name.trim()}</Text>
         {shop.phone.trim() ? ` ${shop.phone.trim()}` : ""}
       </Text>
     </View>

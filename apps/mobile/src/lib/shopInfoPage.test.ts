@@ -9,6 +9,7 @@ import {
   draftOf,
   removeAccount,
   saveAccount,
+  shopBadge,
   shopCards,
   shownIn,
   taxIdShown,
@@ -250,5 +251,22 @@ describe("shopCards / cardTitle (ข้อมูลร้าน for each shop)",
     expect(cardTitle(blank, "denair", "th", other)).toBe("ร้านคูลแอร์");
     expect(cardTitle(blank, "denair", "th", denAir)).toBe("Den Air Service");
     expect(cardTitle(blank, "airplus", "th", denAir)).toBe("AirPlus");
+  });
+});
+
+describe("shopBadge", () => {
+  // Plan 11.5 (20 Nov 2026): every shop's counter card is the "denair" card (plan 10.3), so a new
+  // shop without a logo showed Den Air's "DEN".
+  it("shopBadge > given Den Air's counter card with no logo > then DEN", () => {
+    expect(shopBadge("denair", { id: "denair", name: "Den Air Service" })).toBe("DEN");
+  });
+
+  it("shopBadge > given the AirPlus card > then AIR+", () => {
+    expect(shopBadge("airplus", { id: "denair", name: "Den Air Service" })).toBe("AIR+");
+  });
+
+  it("shopBadge > given another shop's counter card > then its name's first letters", () => {
+    expect(shopBadge("denair", { id: "coolair", name: "Cool Air" })).toBe("CA");
+    expect(shopBadge("denair", { id: "somchai", name: "เย็นฉ่ำ แอร์" })).toBe("ยอ");
   });
 });

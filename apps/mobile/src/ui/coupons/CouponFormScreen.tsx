@@ -9,7 +9,7 @@ import { Retry } from "../affiliate/parts";
 import { WhenSheet } from "../banners/WhenSheet";
 import { Empty } from "../customers/parts";
 import { DeskCard } from "../desk/DeskCard";
-import { useWide } from "../desk/useWide";
+import { useDeskColumns, useWide } from "../desk/useWide";
 import { ICON } from "../orders/icons";
 import { Group } from "../orders/parts";
 import { ChoiceRow, FieldError } from "../pos/fields";
@@ -128,10 +128,12 @@ function Fields({ edit }: { edit: CouponFormState }) {
 /** The computer form: name, ประเภท and ส่วนลด on the left; โค้ดและสิทธิ์ and เปิดใช้ on the right. */
 function WideFields({ edit }: { edit: CouponFormState }) {
   const { t } = useLang();
+  // Side by side only where โค้ดและสิทธิ์'s labels fit (plan 11.5); otherwise one under the other.
+  const two = useDeskColumns() === "two";
   return (
     <>
-      <View style={styles.wideRow}>
-        <View style={styles.wideMain}>
+      <View style={two ? styles.wideRow : styles.wideStack}>
+        <View style={two ? styles.wideMain : styles.wideStack}>
           <NameBox edit={edit} />
           <DeskCard title={t({ th: "ประเภท", en: "Type" })} pad={18}>
             <TypeBox edit={edit} />
@@ -140,7 +142,7 @@ function WideFields({ edit }: { edit: CouponFormState }) {
             <DiscountBox edit={edit} />
           </DeskCard>
         </View>
-        <View style={styles.wideSide}>
+        <View style={two ? styles.wideSide : styles.wideStack}>
           <DeskCard title={t({ th: "โค้ดและสิทธิ์", en: "Code and limits" })} pad={18}>
             <CodeBox edit={edit} />
           </DeskCard>
@@ -422,4 +424,5 @@ const styles = StyleSheet.create({
   wideRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.xl },
   wideMain: { flex: 1.45, minWidth: 0, gap: SPACE.xl },
   wideSide: { flex: 1, minWidth: 0, gap: SPACE.xl },
+  wideStack: { gap: SPACE.xl },
 });

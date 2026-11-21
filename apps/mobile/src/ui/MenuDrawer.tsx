@@ -9,6 +9,7 @@ import { LineIcon } from "./LineIcon";
 import { PAGE_ICONS } from "./tabIcons";
 import { RADIUS, SPACE, TYPE, type Theme } from "./theme";
 import { APP_FONT_STYLE } from "@/ui/appFont";
+import { useShopReach } from "./ShopReach";
 
 const CHEVRON = "M9 6l6 6-6 6";
 const DRAWER_WIDTH = 300;
@@ -29,10 +30,11 @@ export function MenuDrawer(props: {
   const { t } = useLang();
   const auth = useAuth();
   const insets = useSafeAreaInsets();
+  const reach = useShopReach();
   if (auth.status !== "signed-in") return null;
   const s = styles(theme);
   const staff = auth.staff;
-  const menu = drawerFor(staff.role, props.path);
+  const menu = drawerFor(staff.role, props.path, reach);
 
   return (
     <Modal visible={props.open} transparent animationType="fade" onRequestClose={props.onClose}>

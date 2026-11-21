@@ -1,4 +1,4 @@
-import { activeHref, navGroupsFor, type NavGroup } from "@l-shopee/shared/nav";
+import { activeHref, navGroupsFor, type NavGroup, type ShopReach } from "@l-shopee/shared/nav";
 import type { StaffRole } from "./signIn";
 
 /**
@@ -17,11 +17,11 @@ export interface Drawer {
   groups: { section: NavGroup["section"]; links: DrawerLink[] }[];
 }
 
-export function drawerFor(role: StaffRole, path: string): Drawer {
+export function drawerFor(role: StaffRole, path: string, shop?: ShopReach): Drawer {
   const active = activeHref(path);
   return {
     home: { on: path === "/" },
-    groups: navGroupsFor(role).map((g) => ({
+    groups: navGroupsFor(role, shop).map((g) => ({
       section: g.section,
       links: g.links.map((l) => ({ href: l.href, label: l.label, on: l.href === active })),
     })),

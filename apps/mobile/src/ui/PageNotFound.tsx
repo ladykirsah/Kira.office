@@ -1,5 +1,7 @@
 import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import type { ClosedFor } from "@l-shopee/shared/nav";
+import { closedWords } from "@/lib/closedPage";
 import { HOME_ROUTE, NOT_FOUND_WORDS, notFoundBody } from "@/lib/notFoundPage";
 import { useLang, useTheme } from "./AppProviders";
 import { BigButton } from "./BigButton";
@@ -12,8 +14,24 @@ import { RADIUS, SPACE, TYPE } from "./theme";
  */
 export function PageNotFound() {
   const { t } = useLang();
-  const { theme } = useTheme();
   const wide = useWide();
+  return <NoticePage title={t(NOT_FOUND_WORDS.title)} body={t(notFoundBody(wide))} />;
+}
+
+/**
+ * A page this person can't open — the menu hides it from their role, or it is for shops with the
+ * AirPlus website (plan 11.5, 20 Nov 2026) — says whose page it is, instead of an empty frame.
+ */
+export function PageClosed({ why }: { why: ClosedFor }) {
+  const { t } = useLang();
+  const words = closedWords(why);
+  return <NoticePage title={t(words.title)} body={t(words.body)} />;
+}
+
+/** One card: what happened, one grey line, and หน้าหลัก. */
+function NoticePage(props: { title: string; body: string }) {
+  const { t } = useLang();
+  const { theme } = useTheme();
   return (
     <View
       style={[
@@ -22,8 +40,8 @@ export function PageNotFound() {
       ]}
     >
       <View style={styles.words}>
-        <Text style={[styles.title, { color: theme.text }]}>{t(NOT_FOUND_WORDS.title)}</Text>
-        <Text style={[styles.body, { color: theme.textMuted }]}>{t(notFoundBody(wide))}</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{props.title}</Text>
+        <Text style={[styles.body, { color: theme.textMuted }]}>{props.body}</Text>
       </View>
       <BigButton label={t(NOT_FOUND_WORDS.button)} onPress={() => router.replace(HOME_ROUTE)} />
     </View>

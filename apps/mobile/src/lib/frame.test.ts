@@ -3,6 +3,7 @@ import {
   bandOverhang,
   bandStops,
   bottomBar,
+  deskColumns,
   pageWidth,
   phoneBottoms,
   sheetPlacement,
@@ -100,5 +101,20 @@ describe("pageWidth", () => {
 
   it("given a list page with a table > then it uses the full width, up to 1280", () => {
     expect(pageWidth("full")).toBe(1280);
+  });
+});
+
+describe("deskColumns", () => {
+  // Plan 11.5 (20 Nov 2026): หน้าหลัก's วันนี้ amounts broke in two below about 1,250 px and the coupon
+  // form's labels below about 1,280 px. Side by side from the width ทำบิล's fix A keeps one row.
+  it("deskColumns > given a computer window from 1,312 px > then two cards sit side by side", () => {
+    expect(deskColumns(1312)).toBe("two");
+    expect(deskColumns(1440)).toBe("two");
+  });
+
+  it("deskColumns > given a mid-size window > then the cards stack", () => {
+    expect(deskColumns(1311)).toBe("one");
+    expect(deskColumns(1024)).toBe("one");
+    expect(deskColumns(742)).toBe("one");
   });
 });

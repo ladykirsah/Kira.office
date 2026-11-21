@@ -162,12 +162,55 @@ const HIDDEN_FROM: Record<StaffRole, ReadonlySet<string>> = {
   ]),
 };
 
-export function navGroupsFor(role: StaffRole): NavGroup[] {
+/**
+ * The pages that only make sense for a shop with the AirPlus website (plan 11.5, 20 Nov 2026). Plan
+ * 10.3 gives every other shop the counter card alone, so these leave its menu.
+ */
+const AIRPLUS_ONLY: ReadonlySet<string> = new Set([
+  "/orders",
+  "/insights",
+  "/settings/affiliate-items",
+  "/settings/banners",
+  "/settings/coupons",
+  "/settings/campaigns",
+]);
+
+/** What the shop the app is open on has: today only whether it runs the AirPlus website. */
+export interface ShopReach {
+  airplus: boolean;
+}
+
+/** Den Air, with the AirPlus website: what a caller that doesn't know the shop gets. */
+const WITH_AIRPLUS: ShopReach = { airplus: true };
+
+export function navGroupsFor(role: StaffRole, shop: ShopReach = WITH_AIRPLUS): NavGroup[] {
   const hidden = HIDDEN_FROM[role];
   return NAV_GROUPS.map((g) => ({
     section: g.section,
-    links: g.links.filter((l) => !hidden.has(l.href)),
+    links: g.links.filter(
+      (l) => !hidden.has(l.href) && (shop.airplus || !AIRPLUS_ONLY.has(l.href)),
+    ),
   })).filter((g) => g.links.length > 0);
+}
+
+/** Who a closed page is for: the owner, the owner and admins, or shops with the AirPlus website. */
+export type ClosedFor = "owner" | "owner-admin" | "airplus";
+
+/**
+ * Whether this person may open the page at `path`, judged by the menu page it sits under — so a
+ * sub-page (a pay page under พนักงาน) follows its menu page. null means open. The API still checks
+ * every call; this only replaces an empty frame with words (plan 11.5).
+ */
+export function pageClosed(
+  role: StaffRole,
+  path: string,
+  shop: ShopReach = WITH_AIRPLUS,
+): ClosedFor | null {
+  const href = activeHref(path);
+  if (!href) return null;
+  if (HIDDEN_FROM[role].has(href)) return HIDDEN_FROM.admin.has(href) ? "owner" : "owner-admin";
+  if (!shop.airplus && AIRPLUS_ONLY.has(href)) return "airplus";
+  return null;
 }
 
 const byHref = new Map(NAV_GROUPS.flatMap((g) => g.links).map((l) => [l.href, l]));

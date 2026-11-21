@@ -1,3 +1,4 @@
+import { APP_FONT_STYLE } from "@/ui/appFont";
 import { useEffect, useRef, useState, type ComponentRef, type Ref } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { API_BASE } from "@/lib/config";
@@ -200,8 +201,16 @@ const paper = StyleSheet.create({
     gap: 10,
   },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  brand: { fontSize: 20, lineHeight: 24, fontWeight: "800", letterSpacing: -0.5, color: BRAND },
+  brand: {
+    ...APP_FONT_STYLE,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+    color: BRAND,
+  },
   ref: {
+    ...APP_FONT_STYLE,
     fontSize: 18,
     lineHeight: 22,
     fontWeight: "700",
@@ -210,17 +219,17 @@ const paper = StyleSheet.create({
   },
   block: { borderTopWidth: 1, borderTopColor: RULE, paddingTop: 8, gap: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  key: { fontSize: 11, lineHeight: 14, color: SOFT },
-  from: { fontSize: 12, lineHeight: 17, color: INK },
-  fromAddress: { fontSize: 11, lineHeight: 15, color: SOFT },
-  to: { fontSize: 16, lineHeight: 22, fontWeight: "700", color: INK },
-  toAddress: { fontSize: 14, lineHeight: 20, color: INK },
+  key: { ...APP_FONT_STYLE, fontSize: 11, lineHeight: 14, color: SOFT },
+  from: { ...APP_FONT_STYLE, fontSize: 12, lineHeight: 17, color: INK },
+  fromAddress: { ...APP_FONT_STYLE, fontSize: 11, lineHeight: 15, color: SOFT },
+  to: { ...APP_FONT_STYLE, fontSize: 16, lineHeight: 22, fontWeight: "700", color: INK },
+  toAddress: { ...APP_FONT_STYLE, fontSize: 14, lineHeight: 20, color: INK },
   item: { flexDirection: "row", alignItems: "baseline", gap: 10 },
-  small: { fontSize: 12, lineHeight: 17, color: INK },
+  small: { ...APP_FONT_STYLE, fontSize: 12, lineHeight: 17, color: INK },
   itemName: { flex: 1 },
   itemBrand: { width: 80 },
   itemCount: { width: 30, textAlign: "right", fontWeight: "700" },
-  cod: { fontSize: 15, lineHeight: 20, fontWeight: "800", color: INK },
+  cod: { ...APP_FONT_STYLE, fontSize: 15, lineHeight: 20, fontWeight: "700", color: INK },
   qr: { width: 64, height: 64 },
   badgeWrap: {
     ...StyleSheet.absoluteFill,
@@ -228,16 +237,17 @@ const paper = StyleSheet.create({
     justifyContent: "center",
   },
   badge: {
+    ...APP_FONT_STYLE,
     backgroundColor: PAPER,
     color: INK,
     fontSize: 8,
     lineHeight: 10,
-    fontWeight: "800",
+    fontWeight: "700",
     paddingHorizontal: 3,
     paddingVertical: 1,
     borderRadius: 2,
   },
   thanks: { flex: 1, gap: 2 },
-  thanksHead: { fontSize: 12, lineHeight: 17, fontWeight: "700", color: INK },
-  thanksSub: { fontSize: 11, lineHeight: 15, color: SOFT },
+  thanksHead: { ...APP_FONT_STYLE, fontSize: 12, lineHeight: 17, fontWeight: "700", color: INK },
+  thanksSub: { ...APP_FONT_STYLE, fontSize: 11, lineHeight: 15, color: SOFT },
 });

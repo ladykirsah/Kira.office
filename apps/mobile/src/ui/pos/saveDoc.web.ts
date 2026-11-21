@@ -1,3 +1,4 @@
+import { appFontLoaded } from "@/ui/appFont";
 /** 3× so Thai text stays sharp on a phone screen and on paper. */
 const CAPTURE_SCALE = 3;
 /** The bill's paper width: A6, a pocket-size receipt. Its height follows the bill. */
@@ -12,6 +13,7 @@ function download(href: string, fileName: string): void {
 
 async function picture(node: unknown): Promise<HTMLCanvasElement> {
   const el = node as HTMLElement;
+  await appFontLoaded();
   const { default: html2canvas } = await import("html2canvas");
   return html2canvas(el, {
     scale: CAPTURE_SCALE,

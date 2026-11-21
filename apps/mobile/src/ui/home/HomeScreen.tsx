@@ -28,6 +28,7 @@ import { DeskHome } from "./DeskHome";
 import { useHome } from "./useHome";
 import { useTodayMoney } from "./useTodayMoney";
 import { APP_FONT_STYLE } from "@/ui/appFont";
+import { useShopReach } from "@/ui/ShopReach";
 
 const TOAST_MS = 3500;
 const CHART = "M3 3v18h18M7 15l4-4 3 3 6-6";
@@ -57,6 +58,7 @@ export function HomeScreen() {
   const token = auth.status === "signed-in" ? auth.token : null;
   const role = auth.status === "signed-in" ? auth.staff.role : "mechanic";
   const home = useHome(token);
+  const reach = useShopReach();
   const wide = useWide();
   const showsToday = wide && seesMoney(role);
   const today = useTodayMoney(token, showsToday);
@@ -70,7 +72,7 @@ export function HomeScreen() {
     timer.current = setTimeout(() => setToast(null), TOAST_MS);
   };
 
-  const insight = showsInsightButton(role);
+  const insight = showsInsightButton(role, reach);
   const insightLabel = t({ th: "ดูภาพรวม AirPlus", en: "AirPlus overview" });
   const openInsight = () => router.push("/insights" as never);
   useScreenChrome(
