@@ -3,9 +3,9 @@ type: guide
 title: The two doors to prod D1
 description: MCP connector and wrangler CLI fail independently — try BOTH before declaring prod unreadable.
 tags: [d1, wrangler, mcp, cloudflare, access]
-timestamp: 2026-08-09
+timestamp: 2026-11-21
 status: live
-sources: [cloudflare-d1-access-via-wrangler.md]
+sources: [cloudflare-d1-access-via-wrangler.md, find-heavy-d1-queries-with-insights.md]
 ---
 
 # The two doors to prod D1
@@ -39,6 +39,23 @@ CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
 
 - **OAuth recovery:** `npx wrangler login` (interactive only) or a `CLOUDFLARE_API_TOKEN` env var. **CI is unaffected** by a local OAuth expiry — it uses the repo secret of that name.
 - **`--json` output is noisy** (banner + JSON array): extract via regex `[\s*{.*}\s*]` + `json.loads()[0]['results']`, not grep.
+
+## Finding what reads the most (plan 13.1, 21 Nov 2026)
+
+Cloudflare bills D1 by rows read. To see which queries read them, ask D1's own query list (read-only,
+no customer data — only the query text and its totals):
+
+```
+CLOUDFLARE_ACCOUNT_ID=187ab61ed9dbc6e616cb23e6b95aa8f1 \
+  npx wrangler d1 insights teampit-denair --sort-type sum --sort-by reads --timePeriod 7d --limit 15 --json
+```
+
+- On 21 Nov 2026 this showed one query (the AirPlus car-model list, a lookup repeated per model) doing
+  ~70% of all reads; migration 0107 + a one-pass rewrite fixed it.
+- The **local** D1 does not report rows read, so a test cannot count them. Test the query plan instead
+  (`EXPLAIN QUERY PLAN` on a sqlite built from the migrations): no `CORRELATED` lines, and lookups say
+  `SEARCH … USING INDEX`. Example: `apps/storefront/src/lib/catalogReads.test.ts`.
+- Re-run insights a few days after the deploy to show the drop.
 
 ## Database ids
 

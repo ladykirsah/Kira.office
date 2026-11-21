@@ -29,11 +29,12 @@ If it says to set `CLOUDFLARE_API_TOKEN`, the login has expired. Never try to si
 1. **Open the console** with the Claude-in-Chrome tools (load them all in one ToolSearch). Open a new tab at `dash.cloudflare.com/187ab61ed9dbc6e616cb23e6b95aa8f1/workers/d1/databases/<database id>/console`. The owner is already signed in there.
 2. **Make a restore point:** run `/bookmark`, and keep the `/restore <id>` line for the report.
 3. **Read what's applied:** `SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 3`. The new file must not already be there.
-4. **Run the statements one at a time:**
+4. **Type the change; the owner presses Execute.** The app's safety check refuses my own Execute on a live write (2, 3, 16, 17 Nov 2026), so say up front: "I'll type it, you press the blue Execute."
    - Take only the statements from the file (`grep -vE "^\s*--|^\s*$"`).
-   - Join each onto one line, type it, press Enter, and wait about 2 s.
-   - Check each one says "successfully executed" before typing the next.
-5. **Record it:** `INSERT INTO d1_migrations (name) VALUES ('<NNNN_file>.sql')`. Without this, a later `wrangler migrations apply` would run it again.
+   - Put them and step 5's `INSERT INTO d1_migrations` on **one line**, as one run. A table rebuild must be one run anyway; try the line on a copy of the local database with sqlite3 first.
+   - After the owner clicks in the page, click into the query box again before typing.
+   - Read the page text for "successfully executed"; a screenshot right after can be stale.
+5. **Record it:** `INSERT INTO d1_migrations (name) VALUES ('<NNNN_file>.sql')` (in the same line as step 4). Without this, a later `wrangler migrations apply` would run it again.
 6. **Verify with one read-only query.** Check the last migration name, a count of the new columns via `pragma_table_info('<table>')`, any new table via `sqlite_master`, and the table's row count.
 7. **Close the tab** you opened.
 
