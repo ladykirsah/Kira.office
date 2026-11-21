@@ -50,6 +50,17 @@ export function sideLabel(side: "shop" | "airplus"): Phrase {
   return SIDE_LABELS[side];
 }
 
+/**
+ * A car's page, or one of its bills (plan 13.11): a car is its plate AND its province, so the
+ * link carries both. A car saved before 21 Nov 2026 may have no province: the plate alone.
+ */
+export function carPath(plate: string, province: string | null, billId?: string): string {
+  const bill = billId ? `/${encodeURIComponent(billId)}` : "";
+  const page = `/customers/${encodeURIComponent(plate.trim())}${bill}`;
+  const p = province?.trim();
+  return p ? `${page}?province=${encodeURIComponent(p)}` : page;
+}
+
 /** The province always rides with the plate (owner: "city is the part of plate"). */
 export function plateLine(plate: string, province: string | null): string {
   const p = province?.trim();

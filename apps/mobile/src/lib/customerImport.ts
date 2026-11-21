@@ -43,6 +43,8 @@ export interface ImportCalls {
   visits: (
     visits: {
       licensePlate: string;
+      /** The car's province (plan 13.11): with the plate, it says which car. */
+      plateProvince: string;
       happenedAt: string;
       note: string;
       lines: { description: string; productRef: string | null }[];
@@ -59,16 +61,26 @@ const CUSTOMER_TEMPLATE = {
   car_model: "รุ่นรถ",
   notes: "หมายเหตุ",
 };
-const HISTORY_TEMPLATE = { license_plate: "ทะเบียน", happened_at: "วันที่", description: "รายการ" };
+const HISTORY_TEMPLATE = {
+  license_plate: "ทะเบียน",
+  plate_province: "จังหวัด",
+  happened_at: "วันที่",
+  description: "รายการ",
+};
 
 const NO_DATA: Phrase = { th: "ไฟล์นี้ไม่มีข้อมูล", en: "This file has no data" };
 const NO_PLATE: Phrase = {
   th: "ไม่พบคอลัมน์ทะเบียนในไฟล์นี้",
   en: "This file has no plate column",
 };
+// A car is its plate AND its province (plan 13.11, owner's pick A): a file needs both.
+const NO_PROVINCE: Phrase = {
+  th: "ไฟล์นี้ไม่มีคอลัมน์จังหวัด",
+  en: "This file has no province column",
+};
 const NO_HISTORY: Phrase = {
-  th: "ไฟล์ประวัติต้องมีคอลัมน์ ทะเบียน วันที่ และรายการ",
-  en: "A history file needs plate, date and work columns",
+  th: "ไฟล์ประวัติต้องมีคอลัมน์ ทะเบียน จังหวัด วันที่ และรายการ",
+  en: "A history file needs plate, province, date and work columns",
 };
 
 function kindOf(rows: string[][]): ImportKind {
@@ -110,13 +122,14 @@ export function readImport(rows: string[][]): ImportPlan {
   }
   if (kind === "history") {
     const m = guessHistoryMapping(rows[0] ?? []);
-    if (!m["license_plate"] || !m["happened_at"] || !m["description"]) {
+    if (!m["license_plate"] || !m["plate_province"] || !m["happened_at"] || !m["description"]) {
       return plan(0, 0, NO_HISTORY);
     }
     return plan(plateCount(rows, m["license_plate"]), rows.length - 1);
   }
   const m = guessCustomerMapping(rows[0] ?? []);
   if (!m["license_plate"]) return plan(0, 0, NO_PLATE);
+  if (!m["plate_province"]) return plan(0, 0, NO_PROVINCE);
   return plan(plateCount(rows, m["license_plate"]), 0);
 }
 
@@ -137,6 +150,7 @@ export async function runImport(
       hist = await calls.visits(
         rich.visits.map((v) => ({
           licensePlate: v.licensePlate,
+          plateProvince: v.plateProvince,
           happenedAt: v.date,
           note: v.note,
           lines: v.lines,

@@ -1,14 +1,13 @@
 import { router } from "expo-router";
 import { Text } from "react-native";
-import { accountName, carLine, plateLine, rowDate } from "@/lib/customerPage";
+import { accountName, carLine, carPath, plateLine, rowDate } from "@/lib/customerPage";
 import type { AccountRow, CarRow } from "@/lib/customersApi";
 import { useLang, useTheme } from "../AppProviders";
 import { DeskCard } from "../desk/DeskCard";
 import { Table, type TableColumn } from "../desk/Table";
 import { TYPE } from "../theme";
 
-const openCar = (c: CarRow) =>
-  router.push(`/customers/${encodeURIComponent(c.licensePlate)}` as never);
+const openCar = (c: CarRow) => router.push(carPath(c.licensePlate, c.plateProvince) as never);
 const openAccount = (a: AccountRow) =>
   router.push(`/customers/airplus/${encodeURIComponent(a.id)}` as never);
 
@@ -56,7 +55,7 @@ export function CarsTable({ title, cars, now }: { title: string; cars: CarRow[];
       <Table
         columns={columns}
         rows={cars}
-        rowKey={(c) => c.licensePlate}
+        rowKey={(c) => `${c.licensePlate}|${c.plateProvince ?? ""}`}
         onPress={openCar}
         rowLabel={(c) => plateLine(c.licensePlate, c.plateProvince)}
         minRowHeight={52}

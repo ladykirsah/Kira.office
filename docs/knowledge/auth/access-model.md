@@ -28,7 +28,7 @@ server-rendered paths, so no plumbing changed.
 The **old** model, for reading older code and commits: the admin proxy forwarded
 `Cf-Access-Jwt-Assertion`, and the API verified that JWT via `requireAccess()` against `ACCESS_AUD`
 — the *admin* app's Application Audience tag. That path survives in exactly one place,
-`POST /staff/login-access`, the owner's recovery door ([owner-access-sign-in](owner-access-sign-in.md)).
+`POST /staff/login-access`, the owner's recovery door ([owner-access-sign-in](owner-access-sign-in.md)) — removed 21 Nov 2026 (plan 13.11); the emergency key is the rescue now.
 
 ## Why the API host is NEVER edge-gated
 

@@ -71,9 +71,10 @@ describe("guessCustomerMapping", () => {
 });
 
 describe("guessHistoryMapping", () => {
-  it("given the history template headers > maps all three fields", () => {
-    expect(guessHistoryMapping(["ทะเบียน", "วันที่", "รายการ"])).toEqual({
+  it("given the history template headers > maps all four fields (plan 13.11: the province too)", () => {
+    expect(guessHistoryMapping(["ทะเบียน", "จังหวัด", "วันที่", "รายการ"])).toEqual({
       license_plate: "ทะเบียน",
+      plate_province: "จังหวัด",
       happened_at: "วันที่",
       description: "รายการ",
     });
@@ -87,9 +88,10 @@ describe("guessHistoryMapping", () => {
     });
   });
 
-  it("exports the three history fields with UI labels, plate first", () => {
+  it("exports the four history fields with UI labels, plate and province first", () => {
     expect(CUSTOMER_HISTORY_FIELDS.map((f) => f.field)).toEqual([
       "license_plate",
+      "plate_province",
       "happened_at",
       "description",
     ]);
@@ -140,15 +142,35 @@ describe("splitCombinedSheet (one sheet, one block per customer)", () => {
       ["1กข 1234", "สุรินทร์", "สมชาย", "0812345678", "Vigo 2015", ""],
       ["2ขค 555", "", "สมหญิง", "", "Jazz 2014", ""],
     ]);
+    // Each history line carries its car's province (plan 13.11: a car is plate + province).
     expect(out.history).toEqual([
-      ["ทะเบียน", "วันที่", "รายการ"],
-      ["1กข 1234", "31 มีค 68", "คอม508 ตู้432"],
-      ["1กข 1234", "10 เมย 68", "เบิกชนวนกันร้อน"],
-      ["1กข 1234", "8 สค 68", "โอริงใหญ่"],
+      ["ทะเบียน", "จังหวัด", "วันที่", "รายการ"],
+      ["1กข 1234", "สุรินทร์", "31 มีค 68", "คอม508 ตู้432"],
+      ["1กข 1234", "สุรินทร์", "10 เมย 68", "เบิกชนวนกันร้อน"],
+      ["1กข 1234", "สุรินทร์", "8 สค 68", "โอริงใหญ่"],
     ]);
     // server errors on generated history rows must map back to the SHEET's row numbers
     expect(out.historySourceRows).toEqual([1, 2, 3]);
     expect(out.errors).toEqual([]);
+  });
+
+  it("given the same plate under two provinces > then two cars, each with its own lines (plan 13.11)", () => {
+    const rows = [
+      HEADER,
+      ["1กข 1234", "สุรินทร์", "สมชาย", "", "", "", "31 มีค 68", "ล้างแอร์"],
+      ["1กข 1234", "เชียงใหม่", "สมศรี", "", "", "", "1 เมย 68", "เติมน้ำยา"],
+      ["", "", "", "", "", "", "2 เมย 68", "โอริง"],
+    ];
+    const out = splitCombinedSheet(rows);
+    expect(out.customers.slice(1).map((r) => r.slice(0, 3))).toEqual([
+      ["1กข 1234", "สุรินทร์", "สมชาย"],
+      ["1กข 1234", "เชียงใหม่", "สมศรี"],
+    ]);
+    expect(out.history.slice(1)).toEqual([
+      ["1กข 1234", "สุรินทร์", "31 มีค 68", "ล้างแอร์"],
+      ["1กข 1234", "เชียงใหม่", "1 เมย 68", "เติมน้ำยา"],
+      ["1กข 1234", "เชียงใหม่", "2 เมย 68", "โอริง"],
+    ]);
   });
 
   it("merges customer info scattered across a block (first non-empty value wins per field)", () => {
@@ -262,6 +284,7 @@ describe("parseRichSheet (owner's grouped bill-style transcription form)", () =>
     expect(out.visits).toEqual([
       {
         licensePlate: "1กก 1234",
+        plateProvince: "กรุงเทพ", // plan 13.11: each visit carries its car's province
         date: "1/12/2025",
         note: "ไม่ได้เปลี่ยนดรายเออร์", // ประวัติ · หมายเหตุ = the visit's bill note (shown once, at the bottom)
         lines: [
@@ -272,6 +295,7 @@ describe("parseRichSheet (owner's grouped bill-style transcription form)", () =>
       },
       {
         licensePlate: "1กก 1234",
+        plateProvince: "กรุงเทพ",
         date: "11/12/2025",
         note: "",
         lines: [
@@ -283,6 +307,22 @@ describe("parseRichSheet (owner's grouped bill-style transcription form)", () =>
     // each visit maps back to the spreadsheet row where its DATE was written (1-based)
     expect(out.visitSourceRows).toEqual([5, 8]);
     expect(out.errors).toEqual([]);
+  });
+
+  it("given the same plate under two provinces > then two cars, each with its own visits (plan 13.11)", () => {
+    const twin = SHEET.slice(0, 4).concat([
+      ["1กก 1234", "กรุงเทพ", "", "", "", "สมชาย", "", "", "1/12/2025", "ตู้แอร์", "", "", ""],
+      ["1กก 1234", "เชียงใหม่", "", "", "", "สมศรี", "", "", "2/12/2025", "โอริง", "", "", ""],
+    ]);
+    const out = parseRichSheet(twin);
+    expect(out.customers.slice(1).map((r) => r.slice(0, 3))).toEqual([
+      ["1กก 1234", "กรุงเทพ", "สมชาย"],
+      ["1กก 1234", "เชียงใหม่", "สมศรี"],
+    ]);
+    expect(out.visits.map((v) => [v.plateProvince, v.date])).toEqual([
+      ["กรุงเทพ", "1/12/2025"],
+      ["เชียงใหม่", "2/12/2025"],
+    ]);
   });
 
   it("reports an item line whose visit has no date, pointing at the spreadsheet row", () => {
@@ -393,6 +433,7 @@ describe("parseRichSheet — robustness to a stray blank column in a group", () 
     expect(out.visits).toEqual([
       {
         licensePlate: "1กก 1234",
+        plateProvince: "", // no จังหวัด typed on this sheet
         date: "1/1/2025",
         note: "",
         lines: [{ description: "ตู้แอร์", productRef: null }],

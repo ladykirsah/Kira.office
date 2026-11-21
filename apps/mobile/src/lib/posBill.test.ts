@@ -116,6 +116,10 @@ describe("posBill what is still needed", () => {
     ]);
   });
 
+  it("billMissing > given a plate with no province > then the province is needed (plan 13.11, owner's pick A)", () => {
+    expect(billMissing(bill({ province: " " }))).toEqual(["province"]);
+  });
+
   it("billMissing > given a ช่าง bill > then only items are needed", () => {
     expect(billMissing(bill({ buyer: "mechanic", plate: "", car: "", mileage: "" }))).toEqual([]);
     expect(billMissing(bill({ buyer: "mechanic", lines: [] }))).toEqual(["lines"]);
@@ -149,6 +153,7 @@ describe("posBill what is sent", () => {
       paymentMethod: "cash",
       saleType: "repair",
       licensePlate: "1กก 1234",
+      plateProvince: "กรุงเทพมหานคร",
       vehicle: "Toyota Vigo 2014",
       mileageKm: 152_300,
       buyerName: null,
@@ -176,6 +181,7 @@ describe("posBill what is sent", () => {
     expect(sale).toMatchObject({
       saleType: "parts",
       licensePlate: undefined,
+      plateProvince: undefined,
       vehicle: undefined,
       mileageKm: null,
       buyerName: "ช่างโอ๊ต",
@@ -227,6 +233,7 @@ describe("posBill what is sent", () => {
     });
     expect(draft).toMatchObject({
       draftId: "d1",
+      plateProvince: "กรุงเทพมหานคร",
       stage: "quotation",
       saleNumber: "QT202610-30001",
       discountSatang: 20_000,

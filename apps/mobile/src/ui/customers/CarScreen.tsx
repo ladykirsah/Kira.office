@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import {
+  carPath,
   longDate,
   openQuote,
   phonesOf,
@@ -29,8 +30,12 @@ import { APP_FONT_STYLE } from "@/ui/appFont";
 export function CarScreen() {
   const { t } = useLang();
   const { theme } = useTheme();
-  const { plate = "" } = useLocalSearchParams<{ plate: string }>();
-  const page = useCarPage(plate);
+  // A car is its plate AND its province (plan 13.11): /customers/<plate>?province=<province>.
+  const { plate = "", province = "" } = useLocalSearchParams<{
+    plate: string;
+    province?: string;
+  }>();
+  const page = useCarPage(plate, province);
   const wide = useWide();
 
   useScreenChrome(null, [], {
@@ -61,11 +66,16 @@ export function CarScreen() {
   }
   const d = page.detail;
   const shownPlate = d.customer?.licensePlate ?? plate;
+  const shownProvince = d.customer?.plateProvince ?? province;
   const quote = openQuote(d.quotations);
   const makeQuote = (
     <BigButton
       label={t({ th: "ทำใบเสนอราคา", en: "Make a quotation" })}
-      onPress={() => router.push(`/pos?plate=${encodeURIComponent(shownPlate)}&doc=quote` as never)}
+      onPress={() =>
+        router.push(
+          `/pos?plate=${encodeURIComponent(shownPlate)}&province=${encodeURIComponent(shownProvince)}&doc=quote` as never,
+        )
+      }
     />
   );
   if (wide) {
@@ -251,7 +261,11 @@ function History({ page, plate }: { page: CarPage; plate: string }) {
                 c.billId
                   ? () =>
                       router.push(
-                        `/customers/${encodeURIComponent(plate)}/${encodeURIComponent(c.billId!)}` as never,
+                        carPath(
+                          plate,
+                          page.detail?.customer?.plateProvince ?? null,
+                          c.billId!,
+                        ) as never,
                       )
                   : undefined
               }

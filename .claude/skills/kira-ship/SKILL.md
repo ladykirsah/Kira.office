@@ -9,7 +9,7 @@ description: Ship approved TeamPit work all the way to live in one turn. The ste
 
 ```
 lessons → simplify → commit → push → PR → prod migration (if any) → merge → deploys green
-  → health check → canvas ✅ → tell the next page
+  → health check → canvas ✅ → delete the branch + clean the worktree → tell the next page
 ```
 
 ## 1 · File the lessons first (they ship in the same commit)
@@ -63,4 +63,11 @@ If the PR adds a migration, apply it to prod **before** merging. Use the `kira-p
   - Set `launch.page` to the next page.
   - Re-read the live canvas.json before you publish.
 - **Memory:** add one status line to `kira-expo-migration-goal.md` covering the PR, squash sha, run id, migration and restore point, canvas version, and NOW = the next page. Update its `MEMORY.md` line.
+- **Clean up** (owner, 21 Nov 2026: *"when done each tasks please cleanup worktree and branch"*):
+  - Only once `gh pr view <n> --json state` says MERGED.
+  - Delete the branch here (`git branch -D`, since a squash merge looks unmerged to git) and on GitHub
+    (`git push origin --delete <branch>`). The GitHub delete is a push: the push guard lets it through
+    only when the approved `Plan:` line names it, so always end the line with
+    `… > delete the branch here and on GitHub, and clean up the worktree`.
+  - Clean the worktree last (`mcp__ccd_host__clean_up_worktrees`), after nothing else needs it.
 - **Final reply:** what is live, the lessons, and "next page: …".

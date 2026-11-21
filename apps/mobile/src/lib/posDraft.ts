@@ -46,7 +46,7 @@ export function billFromDraft(
       doc: d.stage === "quotation" ? "quote" : "bill",
       buyer: mechanic ? "mechanic" : "customer",
       plate: d.licensePlate ?? "",
-      province: "",
+      province: d.plateProvince ?? "",
       customerName: "",
       phones: [],
       car: d.vehicle ?? "",

@@ -12,6 +12,8 @@
  */
 import {
   canonicalPlate,
+  canonicalProvince,
+  carProblem,
   checkJobMove,
   customerUpdateFor,
   isClosedJob,
@@ -61,6 +63,8 @@ export interface RepairJobDetail {
   jobNumber: string;
   status: JobStatus;
   licensePlate: string;
+  /** The province on the plate (plan 13.11): the car is the plate AND its province. */
+  plateProvince: string;
   vehicle: string | null;
   mileageKm: number | null;
   problem: string | null;
@@ -116,6 +120,7 @@ interface JobRow {
   jobNumber: string;
   status: JobStatus;
   licensePlate: string;
+  plateProvince: string;
   vehicle: string | null;
   mileageKm: number | null;
   problem: string | null;
@@ -127,7 +132,8 @@ interface JobRow {
   closedAt: number | null;
 }
 
-const JOB_COLUMNS = `id, job_number AS jobNumber, status, license_plate AS licensePlate, vehicle,
+const JOB_COLUMNS = `id, job_number AS jobNumber, status, license_plate AS licensePlate,
+  plate_province AS plateProvince, vehicle,
   mileage_km AS mileageKm, problem, cancel_reason AS cancelReason, bill_issued_at AS billIssuedAt,
   sale_id AS saleId, created_at AS createdAt, updated_at AS updatedAt, closed_at AS closedAt`;
 
@@ -193,6 +199,8 @@ export async function getRepairJob(db: D1Database, jobId: string): Promise<Repai
 export interface RepairJobFilter {
   status?: string;
   plate?: string;
+  /** With `plate`: one car's jobs (plan 13.11 — the same plate in another province is another car). */
+  province?: string;
   mechanicId?: string;
   /** Only jobs not yet paid or cancelled. */
   open?: boolean;
@@ -203,6 +211,7 @@ export interface RepairJobSummary {
   jobNumber: string;
   status: JobStatus;
   licensePlate: string;
+  plateProvince: string;
   vehicle: string | null;
   problem: string | null;
   mechanics: string[];
@@ -222,6 +231,10 @@ export async function listRepairJobs(
   if (filter.plate) {
     where.push("j.license_plate = ?");
     binds.push(canonicalPlate(filter.plate));
+    if (filter.province !== undefined) {
+      where.push("j.plate_province = ?");
+      binds.push(canonicalProvince(filter.province));
+    }
   }
   if (filter.mechanicId) {
     where.push(
@@ -243,7 +256,8 @@ export async function listRepairJobs(
   const listWhere = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
   const rows = await db
     .prepare(
-      `SELECT j.id, j.job_number AS jobNumber, j.status, j.license_plate AS licensePlate, j.vehicle,
+      `SELECT j.id, j.job_number AS jobNumber, j.status, j.license_plate AS licensePlate,
+              j.plate_province AS plateProvince, j.vehicle,
               j.problem, j.created_at AS createdAt, j.updated_at AS updatedAt,
               (SELECT COALESCE(SUM(l.unit_price_satang * l.quantity - l.discount_satang), 0)
                  FROM repair_job_lines l WHERE l.job_id = j.id AND l.state != 'removed') AS totalSatang,
@@ -541,6 +555,8 @@ async function variantExists(db: D1Database, id: string): Promise<boolean> {
 
 export interface OpenJobInput {
   licensePlate?: unknown;
+  /** The province on the plate (plan 13.11, owner's pick A: required with the plate). */
+  plateProvince?: unknown;
   vehicle?: unknown;
   mileageKm?: unknown;
   problem?: unknown;
@@ -555,6 +571,9 @@ export async function openRepairJob(
 ): Promise<JobResult> {
   const plate = typeof input.licensePlate === "string" ? canonicalPlate(input.licensePlate) : "";
   if (!plate) return fail(400, "plate_required");
+  const typedProvince = typeof input.plateProvince === "string" ? input.plateProvince : null;
+  if (carProblem(plate, typedProvince)) return fail(400, "province_required");
+  const province = canonicalProvince(typedProvince!);
   const vehicle = textOrNull(input.vehicle);
   const problem = textOrNull(input.problem);
   if (tooLong(vehicle) || tooLong(problem)) return fail(400, "text_too_long");
@@ -583,11 +602,22 @@ export async function openRepairJob(
     db
       .prepare(
         `INSERT INTO repair_jobs
-           (id, job_number, status, license_plate, vehicle, mileage_km, problem, opened_by_user_id,
-            created_at, updated_at)
-         VALUES (?, ?, 'in', ?, ?, ?, ?, ?, ?, ?)`,
+           (id, job_number, status, license_plate, plate_province, vehicle, mileage_km, problem,
+            opened_by_user_id, created_at, updated_at)
+         VALUES (?, ?, 'in', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(id, jobNumber, plate, vehicle, km, problem, actor.userId, actor.now, actor.now),
+      .bind(
+        id,
+        jobNumber,
+        plate,
+        province,
+        vehicle,
+        km,
+        problem,
+        actor.userId,
+        actor.now,
+        actor.now,
+      ),
     ...mechanicStmts(db, id, mechanicIds as string[]),
     eventStmt(db, id, { kind: "opened", to: "in", customerUpdate: customerUpdateFor("in") }, actor),
   ]);
@@ -1093,10 +1123,10 @@ export async function payRepairJob(
     db
       .prepare(
         `INSERT INTO onsite_sales
-           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, vehicle, notes,
-            mileage_km, buyer_name, sync_status, subtotal_satang, discount_total_satang,
-            tax_total_satang, grand_total_satang, sale_status, created_at)
-         VALUES (?, ?, ?, ?, 'repair', ?, ?, NULL, ?, NULL, 'synced', ?, ?, ?, ?, 'completed', ?)`,
+           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, plate_province,
+            vehicle, notes, mileage_km, buyer_name, sync_status, subtotal_satang,
+            discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+         VALUES (?, ?, ?, ?, 'repair', ?, ?, ?, NULL, ?, NULL, 'synced', ?, ?, ?, ?, 'completed', ?)`,
       )
       .bind(
         saleId,
@@ -1104,6 +1134,7 @@ export async function payRepairJob(
         job.jobNumber,
         method as string,
         job.licensePlate,
+        job.plateProvince,
         job.vehicle,
         job.mileageKm,
         subtotal,

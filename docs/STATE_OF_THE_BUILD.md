@@ -46,6 +46,11 @@ Full navigable index: [docs/README.md](README.md). Intended platform design:
 ## 3. What is LIVE / built ✅
 
 **Backend (apps/api — deployed, auto-deploys from `main`):**
+- **A car = plate + province** (plan 13.11, 21 Nov 2026): every bill, repair job, history line and
+  car row keeps `plate_province`; the car list, car page (`/customers/:plate?province=`), counts and
+  imports go by both; a plate without a province is refused on the "save a car" paths (owner's pick A),
+  but `/sync` still saves an old phone's bill. The emailed-code owner door `/staff/login-access` was
+  removed the same day; the emergency key stays. See DECISIONS.md "A car" / "Owner's rescue".
 - Worker at `https://api.homeseeker.me`, bound to D1 `kira-office` (prod) + `kira-office-staging`,
   R2 `teampit-images` (`kiraoffice-images` until 18 Nov 2026), KV, and the `StockLedger` Durable Object. Daily backup cron `0 19 * * *` (UTC).
 - Full REST surface — products CRUD, image gallery, pricing, stock adjust, barcodes, attributes,

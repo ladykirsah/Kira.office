@@ -230,7 +230,11 @@ describe("two shops > records stay in their own shop", () => {
       call(env, origin, "/repair-jobs", {
         method: "POST",
         headers: as(token),
-        body: JSON.stringify({ licensePlate: "1กก 1234", problem: "แอร์ไม่เย็น" }),
+        body: JSON.stringify({
+          licensePlate: "1กก 1234",
+          plateProvince: "ขอนแก่น",
+          problem: "แอร์ไม่เย็น",
+        }),
       });
     const a = (await (await open(SHOP2_APP, twoToken)).json()) as { job: { jobNumber: string } };
     const b = (await (await open(DEN_AIR_APP, denToken)).json()) as { job: { jobNumber: string } };

@@ -109,7 +109,6 @@ import worker, {
   lineGrossProfitSatang,
   lookupBarcode,
   refundSaleToDb,
-  requireAccess,
   runDailyBackup,
   backupR2Bucket,
   resolveActor,
@@ -212,6 +211,7 @@ function makeDb(canned: {
   /** applySyncToDb: each variant's cost on file — the sale's part cost comes from here. */
   productCosts?: { variantId: string; productCostSatang: number }[];
   userRow?: { id: string; role: "owner" | "manager" | "stock_operator" | "finance_viewer" } | null;
+  /** Cars already in the directory: "plate|province" (plan 13.11), or a bare plate. */
   existingCustomers?: string[];
   historyEntries?: unknown[];
   batchChanges?: number[];
@@ -253,7 +253,10 @@ function makeDb(canned: {
           return { results: (canned.historyEntries ?? []) as T[] };
         if (sql.includes("FROM customers WHERE license_plate IN"))
           return {
-            results: (canned.existingCustomers ?? []).map((p) => ({ licensePlate: p })) as T[],
+            results: (canned.existingCustomers ?? []).map((car) => {
+              const [licensePlate, plateProvince = ""] = car.split("|");
+              return { licensePlate, plateProvince };
+            }) as T[],
           };
         // listProducts joins product_fitments in a subquery; match its unique alias first so the
         // products-list query routes to canned.products, not the bare product_fitments branch below.
@@ -692,7 +695,7 @@ describe("searchCustomers", () => {
     const sql = prepare.mock.calls[0]?.[0] as string;
     // The list must union the customers directory with billed plates — an imported customer
     // with no bills yet still appears; deriving from bills alone hides them.
-    expect(sql).toMatch(/FROM\s*\(\s*SELECT license_plate FROM customers\s+UNION/);
+    expect(sql).toMatch(/FROM\s*\(\s*SELECT license_plate, plate_province FROM customers\s+UNION/);
   });
 
   it("counts transcribed legacy visits in the Visits total and last-visit date", async () => {
@@ -2256,7 +2259,11 @@ describe("api worker routes", () => {
       new Request("https://x/customers/by-plate", {
         method: "PUT",
         headers: AUTHED,
-        body: JSON.stringify({ licensePlate: "1กก1234", phone: "0810000000" }),
+        body: JSON.stringify({
+          licensePlate: "1กก1234",
+          plateProvince: "กทม",
+          phone: "0810000000",
+        }),
       }),
       env,
       ctx,
@@ -2265,9 +2272,25 @@ describe("api worker routes", () => {
     const sql = prepare.mock.calls
       .map((c) => c[0] as string)
       .find((s) => s.includes("INSERT INTO customers"));
-    expect(sql).toContain("ON CONFLICT(license_plate)");
+    // One car = the plate AND its province (plan 13.11).
+    expect(sql).toContain("ON CONFLICT(license_plate, plate_province)");
     expect(sql).toContain("COALESCE(excluded.customer_name, customers.customer_name)");
     expect(sql).toContain("COALESCE(excluded.phone, customers.phone)");
+  });
+
+  it("PUT /customers/by-plate > 400 with a plate but no province (plan 13.11, owner's pick A)", async () => {
+    const { env } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/customers/by-plate", {
+        method: "PUT",
+        headers: AUTHED,
+        body: JSON.stringify({ licensePlate: "1กก1234", phone: "0810000000" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ ok: false, error: "province_required" });
   });
 
   it("PUT /customers/by-plate > 400 without a plate", async () => {
@@ -3320,20 +3343,35 @@ describe("resolveActor + requireRole (RBAC prep)", () => {
   });
 });
 
-describe("requireAccess (Cloudflare Access gate)", () => {
-  it("is open (no enforcement) when ACCESS env is not configured", async () => {
-    const gate = await requireAccess(new Request("https://x/products"), {} as Env);
-    expect(gate).toEqual({ email: null });
-  });
-
-  it("returns 401 when configured but no Access token is present", async () => {
+describe("the Worker's gate", () => {
+  it("POST /staff/login-access > the emailed-code way in is gone (plan 13.11, owner 21 Nov 2026)", async () => {
+    // Owner: "drop this one we are working on land on teampit.formulal.cc". The emergency key
+    // (/staff/login-recovery) stays. Asked by a signed-in owner, so the session gate lets it
+    // through: the address itself must not exist any more.
+    const raw = migratedDb();
+    raw
+      .prepare(
+        `INSERT INTO users (id, name, email, role, status, created_at)
+         VALUES ('boss', 'Boss', 'boss@shop.test', 'super_admin', 'active', 1)`,
+      )
+      .run();
+    const db = asD1(raw);
+    const { token } = await createStaffSession(db, "boss", Date.now());
     const env = {
+      DB: db,
       ACCESS_TEAM_DOMAIN: "t.cloudflareaccess.com",
       ACCESS_AUD: "aud",
+      SUPER_ADMIN_EMAILS: "boss@shop.test",
     } as unknown as Env;
-    const gate = await requireAccess(new Request("https://x/products"), env);
-    expect(gate instanceof Response).toBe(true);
-    expect((gate as Response).status).toBe(401);
+    const res = await worker.fetch!(
+      new Request("https://x/staff/login-access", {
+        method: "POST",
+        headers: { "X-Staff-Session": token, "Cf-Access-Jwt-Assertion": "a.b.c" },
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(404);
   });
 
   it("keeps /health public and rejects protected routes for a caller with no session", async () => {
@@ -3915,15 +3953,16 @@ describe("plates saved one way (plan 8.5)", () => {
        VALUES ('c1', 'กข 1234', 'สุรินทร์', 'สมชาย', 1, 1)`,
     ).run();
     db.prepare(
-      `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, stage, created_at)
-       VALUES ('s1', 'u1', 'DAS-1', 'กข 1234', 'bill', 1)`,
+      `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, plate_province, stage,
+                                 created_at)
+       VALUES ('s1', 'u1', 'DAS-1', 'กข 1234', 'สุรินทร์', 'bill', 1)`,
     ).run();
     return db;
   }
 
   it("getCustomerDetail > the car is found however the plate is typed", async () => {
     for (const typed of ["กข1234", "กข - 1234", " กข 1234 "]) {
-      const detail = (await getCustomerDetail(asD1(car()), typed)) as {
+      const detail = (await getCustomerDetail(asD1(car()), typed, "จ.สุรินทร์")) as {
         customer: { customerName: string } | null;
         history: { id: string }[];
       };
@@ -3943,9 +3982,10 @@ describe("plates saved one way (plan 8.5)", () => {
     const db = car();
     const out = await upsertCustomerByPlate(asD1(db), {
       licensePlate: "กข1234",
+      plateProvince: "สุรินทร์",
       phone: "0811111111",
     });
-    expect(out).toEqual({ ok: true, licensePlate: "กข 1234" });
+    expect(out).toEqual({ ok: true, licensePlate: "กข 1234", plateProvince: "สุรินทร์" });
     expect(db.prepare(`SELECT license_plate, phone FROM customers`).all()).toEqual([
       { license_plate: "กข 1234", phone: "0811111111" },
     ]);
@@ -4681,41 +4721,53 @@ describe("importShopeeOrders (CSV order bridge)", () => {
 });
 
 describe("importCustomers (legacy customer Excel bulk upsert)", () => {
-  const mapping = { license_plate: "ทะเบียน", customer_name: "ชื่อ", phone: "เบอร์" };
+  // A car is its plate AND its province (plan 13.11): every sheet maps both.
+  const mapping = {
+    license_plate: "ทะเบียน",
+    plate_province: "จังหวัด",
+    customer_name: "ชื่อ",
+    phone: "เบอร์",
+  };
+  const plateMap = { license_plate: "ทะเบียน", plate_province: "จังหวัด", customer_name: "ชื่อ" };
 
   it("upserts new plates normalized, binds null for empty cells, counts created", async () => {
     const { db, batched } = makeDb({});
     const out = await importCustomers(
       db,
-      "ทะเบียน,ชื่อ,เบอร์\nกข  1234,สมชาย,0811112222\nขค 555,,\n",
+      "ทะเบียน,จังหวัด,ชื่อ,เบอร์\nกข  1234,กทม,สมชาย,0811112222\nขค 555,ขอนแก่น,,\n",
       mapping,
     );
     expect(out).toMatchObject({ received: 2, created: 2, updated: 0, duplicates: 0, invalid: 0 });
     const ups = (batched as { sql: string; boundArgs?: unknown[] }[]).filter((s) =>
-      s.sql.includes("ON CONFLICT(license_plate) DO UPDATE"),
+      s.sql.includes("ON CONFLICT(license_plate, plate_province) DO UPDATE"),
     );
     expect(ups).toHaveLength(2);
     // binds: (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
     expect(ups[0]?.boundArgs?.[1]).toBe("กข 1234"); // normalized: double space collapsed
-    expect(ups[0]?.boundArgs?.[2]).toBeNull(); // unmapped province → null, never blanks
+    expect(ups[0]?.boundArgs?.[2]).toBe("กรุงเทพมหานคร"); // the province's official name
     expect(ups[0]?.boundArgs?.[3]).toBe("สมชาย");
     expect(ups[0]?.boundArgs?.[4]).toBe("0811112222");
     expect(ups[1]?.boundArgs?.[3]).toBeNull(); // empty cell → null, never blanks
   });
 
   it("counts a plate already in the directory as updated, and still upserts it", async () => {
-    const { db, batched } = makeDb({ existingCustomers: ["กข 1234"] });
-    const out = await importCustomers(db, "ทะเบียน,ชื่อ,เบอร์\nกข 1234,สมชาย,\n", mapping);
+    const { db, batched } = makeDb({ existingCustomers: ["กข 1234|ขอนแก่น"] });
+    const out = await importCustomers(
+      db,
+      "ทะเบียน,จังหวัด,ชื่อ,เบอร์\nกข 1234,ขอนแก่น,สมชาย,\n",
+      mapping,
+    );
     expect(out).toMatchObject({ received: 1, created: 0, updated: 1 });
     expect(batched.filter((s) => s.sql.includes("DO UPDATE"))).toHaveLength(1);
   });
 
   it("skips an in-file repeat of the same normalized plate (first row wins)", async () => {
     const { db, batched } = makeDb({});
-    const out = await importCustomers(db, "ทะเบียน,ชื่อ\nกข 1234,สมชาย\nกข  1234,สมหญิง\n", {
-      license_plate: "ทะเบียน",
-      customer_name: "ชื่อ",
-    });
+    const out = await importCustomers(
+      db,
+      "ทะเบียน,จังหวัด,ชื่อ\nกข 1234,ขอนแก่น,สมชาย\nกข  1234,ขอนแก่น,สมหญิง\n",
+      plateMap,
+    );
     expect(out).toMatchObject({ received: 2, created: 1, updated: 0, duplicates: 1 });
     const ups = (batched as { sql: string; boundArgs?: unknown[] }[]).filter((s) =>
       s.sql.includes("DO UPDATE"),
@@ -4726,24 +4778,53 @@ describe("importCustomers (legacy customer Excel bulk upsert)", () => {
 
   it("reports rows missing a plate with their row number and imports the rest", async () => {
     const { db } = makeDb({});
-    const out = await importCustomers(db, "ทะเบียน,ชื่อ\nกข 1,A\n,B\nขค 2,C\n", {
-      license_plate: "ทะเบียน",
-      customer_name: "ชื่อ",
-    });
+    const out = await importCustomers(
+      db,
+      "ทะเบียน,จังหวัด,ชื่อ\nกข 1,ขอนแก่น,A\n,ขอนแก่น,B\nขค 2,ขอนแก่น,C\n",
+      plateMap,
+    );
     expect(out).toMatchObject({ received: 3, created: 2, invalid: 1 });
     expect(out.errors).toEqual([{ rowIndex: 2, reason: expect.stringContaining("license_plate") }]);
   });
 
   it("chunks the existing-plate lookup under D1's 100-bound-params limit", async () => {
     const { db, alls } = makeDb({});
-    const rows = Array.from({ length: 95 }, (_, i) => `ปข ${i + 1},ชื่อ${i}`).join("\n");
-    await importCustomers(db, "ทะเบียน,ชื่อ\n" + rows + "\n", {
-      license_plate: "ทะเบียน",
-      customer_name: "ชื่อ",
-    });
+    const rows = Array.from({ length: 95 }, (_, i) => `ปข ${i + 1},ขอนแก่น,ชื่อ${i}`).join("\n");
+    await importCustomers(db, "ทะเบียน,จังหวัด,ชื่อ\n" + rows + "\n", plateMap);
     const lookups = alls.filter((s) => s.sql.includes("FROM customers WHERE license_plate IN"));
     expect(lookups).toHaveLength(2);
     expect(lookups.every((s) => s.binds.length <= 90)).toBe(true);
+  });
+
+  it("POST /import/customers > 400 when the province column is not mapped (plan 13.11)", async () => {
+    const { env } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/import/customers", {
+        method: "POST",
+        body: JSON.stringify({ csv: "a,b\n1,2\n", mapping: { license_plate: "a" } }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "the plate_province column must be mapped" });
+  });
+
+  it("POST /import/customer-history > 400 when the province column is not mapped (plan 13.11)", async () => {
+    const { env } = makeDb({});
+    const res = await fetchAuthed(
+      new Request("https://x/import/customer-history", {
+        method: "POST",
+        body: JSON.stringify({
+          csv: "a,b,c\n1,2,3\n",
+          mapping: { license_plate: "a", happened_at: "b", description: "c" },
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "the plate_province column must be mapped" });
   });
 
   it("POST /import/customers > 400 when the plate column is not mapped", async () => {
@@ -4761,13 +4842,19 @@ describe("importCustomers (legacy customer Excel bulk upsert)", () => {
 });
 
 describe("importCustomerHistory (transcribed legacy service history)", () => {
-  const mapping = { license_plate: "ทะเบียน", happened_at: "วันที่", description: "รายการ" };
+  // A car is its plate AND its province (plan 13.11): an old line needs both to find its car.
+  const mapping = {
+    license_plate: "ทะเบียน",
+    plate_province: "จังหวัด",
+    happened_at: "วันที่",
+    description: "รายการ",
+  };
 
   it("inserts entries with parsed Thai dates and auto-creates directory rows — memory, not money", async () => {
     const { db, batched } = makeDb({});
     const out = await importCustomerHistory(
       db,
-      "ทะเบียน,วันที่,รายการ\nกข  1234,31 มีค 68,เปลี่ยนคอม ล้างตู้\nขค 555,9 พค 65,เติมน้ำยา\n",
+      "ทะเบียน,จังหวัด,วันที่,รายการ\nกข  1234,กทม,31 มีค 68,เปลี่ยนคอม ล้างตู้\nขค 555,ขอนแก่น,9 พค 65,เติมน้ำยา\n",
       mapping,
     );
     expect(out).toMatchObject({ received: 2, imported: 2, duplicates: 0, invalid: 0 });
@@ -4775,12 +4862,14 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
       s.sql.includes("INSERT OR IGNORE INTO customer_history_entries"),
     );
     expect(ins).toHaveLength(2);
+    // binds: (id, plate, province, happened_at, description, created_at)
     expect(ins[0]?.boundArgs?.[1]).toBe("กข 1234"); // normalized plate
-    expect(ins[0]?.boundArgs?.[2]).toBe(Date.parse("2025-03-31T00:00:00+07:00"));
-    expect(ins[0]?.boundArgs?.[3]).toBe("เปลี่ยนคอม ล้างตู้");
-    // the car must appear on the Customers list → a bare directory row per plate
+    expect(ins[0]?.boundArgs?.[2]).toBe("กรุงเทพมหานคร"); // the province's official name
+    expect(ins[0]?.boundArgs?.[3]).toBe(Date.parse("2025-03-31T00:00:00+07:00"));
+    expect(ins[0]?.boundArgs?.[4]).toBe("เปลี่ยนคอม ล้างตู้");
+    // the car must appear on the Customers list → a bare directory row per car
     expect(
-      batched.filter((s) => s.sql.includes("ON CONFLICT(license_plate) DO UPDATE")),
+      batched.filter((s) => s.sql.includes("ON CONFLICT(license_plate, plate_province) DO UPDATE")),
     ).toHaveLength(2);
     // never touches stock or sales
     expect(
@@ -4792,7 +4881,7 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
     const { db, batched } = makeDb({});
     const out = await importCustomerHistory(
       db,
-      "ทะเบียน,วันที่,รายการ\nกข 1,31 มีค 68,งาน A\nขค 2,ไม่รู้,งาน B\n",
+      "ทะเบียน,จังหวัด,วันที่,รายการ\nกข 1,ขอนแก่น,31 มีค 68,งาน A\nขค 2,ขอนแก่น,ไม่รู้,งาน B\n",
       mapping,
     );
     expect(out).toMatchObject({ received: 2, imported: 1, invalid: 1 });
@@ -4804,7 +4893,7 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
     const { db, batched } = makeDb({});
     const out = await importCustomerHistory(
       db,
-      "ทะเบียน,วันที่,รายการ\nกข 1,31 มีค 68,งาน A\nกข  1,31 มีค 68,งาน A\n",
+      "ทะเบียน,จังหวัด,วันที่,รายการ\nกข 1,ขอนแก่น,31 มีค 68,งาน A\nกข  1,ขอนแก่น,31 มีค 68,งาน A\n",
       mapping,
     );
     expect(out).toMatchObject({ received: 2, imported: 1, duplicates: 1 });
@@ -4817,7 +4906,7 @@ describe("importCustomerHistory (transcribed legacy service history)", () => {
     const { db } = makeDb({ batchChanges: [1, 0, 1] }); // entry A written, entry B suppressed, upsert
     const out = await importCustomerHistory(
       db,
-      "ทะเบียน,วันที่,รายการ\nกข 1,31 มีค 68,งาน A\nกข 1,9 พค 65,งาน B\n",
+      "ทะเบียน,จังหวัด,วันที่,รายการ\nกข 1,ขอนแก่น,31 มีค 68,งาน A\nกข 1,ขอนแก่น,9 พค 65,งาน B\n",
       mapping,
     );
     expect(out).toMatchObject({ received: 2, imported: 1, duplicates: 1, invalid: 0 });
@@ -4900,6 +4989,7 @@ describe("importCustomerVisits (structured bill-style legacy import)", () => {
     const out = await importCustomerVisits(db, [
       {
         licensePlate: "กข  1234",
+        plateProvince: "กทม",
         happenedAt: "31 มีค 68",
         note: "3-month",
         lines: [
@@ -4912,17 +5002,18 @@ describe("importCustomerVisits (structured bill-style legacy import)", () => {
     const ins = (batched as { sql: string; boundArgs?: unknown[] }[]).find((s) =>
       s.sql.includes("INSERT OR IGNORE INTO customer_history_entries"),
     );
-    // binds: (id, plate, happened_at, description, note, lines_json, created_at)
+    // binds: (id, plate, province, happened_at, description, note, lines_json, created_at)
     expect(ins?.boundArgs?.[1]).toBe("กข 1234"); // normalized plate
-    expect(ins?.boundArgs?.[2]).toBe(Date.parse("2025-03-31T00:00:00+07:00"));
-    expect(ins?.boundArgs?.[3]).toBe("ตู้แอร์ · DENSO\nโอริง"); // canonical text for dedup/search
-    expect(ins?.boundArgs?.[4]).toBe("3-month");
-    expect(JSON.parse(String(ins?.boundArgs?.[5]))).toEqual([
+    expect(ins?.boundArgs?.[2]).toBe("กรุงเทพมหานคร"); // the province's official name
+    expect(ins?.boundArgs?.[3]).toBe(Date.parse("2025-03-31T00:00:00+07:00"));
+    expect(ins?.boundArgs?.[4]).toBe("ตู้แอร์ · DENSO\nโอริง"); // canonical text for dedup/search
+    expect(ins?.boundArgs?.[5]).toBe("3-month");
+    expect(JSON.parse(String(ins?.boundArgs?.[6]))).toEqual([
       { description: "ตู้แอร์ · DENSO", productRef: "TG-1" },
       { description: "โอริง", productRef: null },
     ]);
     expect(
-      batched.filter((s) => s.sql.includes("ON CONFLICT(license_plate) DO UPDATE")),
+      batched.filter((s) => s.sql.includes("ON CONFLICT(license_plate, plate_province) DO UPDATE")),
     ).toHaveLength(1);
     expect(
       batched.some((s) => s.sql.includes("stock_ledger") || s.sql.includes("onsite_sales")),
@@ -4934,11 +5025,13 @@ describe("importCustomerVisits (structured bill-style legacy import)", () => {
     const out = await importCustomerVisits(db, [
       {
         licensePlate: "กข 1",
+        plateProvince: "ขอนแก่น",
         happenedAt: "31 มีค 68",
         lines: [{ description: "A", productRef: null }],
       },
       {
         licensePlate: "กข 1",
+        plateProvince: "ขอนแก่น",
         happenedAt: "ไม่รู้",
         lines: [{ description: "B", productRef: null }],
       },
@@ -4956,6 +5049,7 @@ describe("importCustomerVisits (structured bill-style legacy import)", () => {
           visits: [
             {
               licensePlate: "กข 1",
+              plateProvince: "ขอนแก่น",
               happenedAt: "31 มีค 68",
               lines: [{ description: "A", productRef: null }],
             },
@@ -12670,13 +12764,24 @@ describe("customer list + car page > the fields the Expo page prints", () => {
     db.prepare(
       `INSERT INTO product_variants (id, product_id, created_at) VALUES ('v-oring', 'p-oring', ?)`,
     ).run(NOW);
+    // The directory car's bills carry its province (plan 13.11); the walk-in's have none.
     const sale = (id: string, plate: string, stage: string, pay: string | null) =>
       db
         .prepare(
-          `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, stage, payment_method, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, plate_province,
+                                     stage, payment_method, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, `u-${id}`, `N-${id}`, plate, stage, pay, NOW);
+        .run(
+          id,
+          `u-${id}`,
+          `N-${id}`,
+          plate,
+          plate === "1กก 1234" ? "กรุงเทพมหานคร" : "",
+          stage,
+          pay,
+          NOW,
+        );
     const line = (id: string, saleId: string, type: string, variant: string | null, desc: string) =>
       db
         .prepare(
@@ -12706,7 +12811,7 @@ describe("customer list + car page > the fields the Expo page prints", () => {
   });
 
   it("given a bill and a quotation > each says how it was paid (null when not paid)", async () => {
-    const detail = (await getCustomerDetail(asD1(seed()), "1กก 1234")) as {
+    const detail = (await getCustomerDetail(asD1(seed()), "1กก 1234", "กรุงเทพมหานคร")) as {
       history: { id: string; paymentMethod: string | null }[];
       quotations: { id: string; paymentMethod: string | null }[];
     };
@@ -12716,7 +12821,7 @@ describe("customer list + car page > the fields the Expo page prints", () => {
   });
 
   it("given service, branded and unbranded lines > a line carries its product's brand or null", async () => {
-    const detail = (await getCustomerDetail(asD1(seed()), "1กก 1234")) as {
+    const detail = (await getCustomerDetail(asD1(seed()), "1กก 1234", "กรุงเทพมหานคร")) as {
       history: { lines: { description: string; brandName: string | null }[] }[];
     };
 
@@ -12803,11 +12908,20 @@ describe("GET /sales > given a date range", () => {
     const bill = (id: string, at: number, stage = "bill", buyer: string | null = null) =>
       raw
         .prepare(
-          `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, stage, sale_status,
-                                     grand_total_satang, buyer_name, created_at)
-           VALUES (?, ?, ?, ?, ?, 'completed', 100000, ?, ?)`,
+          `INSERT INTO onsite_sales (id, client_uuid, sale_number, license_plate, plate_province,
+                                     stage, sale_status, grand_total_satang, buyer_name, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'completed', 100000, ?, ?)`,
         )
-        .run(id, `u-${id}`, `N-${id}`, buyer ? null : "1กก 1234", stage, buyer, at);
+        .run(
+          id,
+          `u-${id}`,
+          `N-${id}`,
+          buyer ? null : "1กก 1234",
+          buyer ? "" : "กรุงเทพมหานคร",
+          stage,
+          buyer,
+          at,
+        );
     const line = (id: string, saleId: string, type: string, profit: number) =>
       raw
         .prepare(
@@ -13496,8 +13610,8 @@ describe("repair job routes > through the StockLedger object, as the signed-in s
     [
       "POST",
       "/repair-jobs",
-      { licensePlate: "กข1234" },
-      { kind: "open", input: { licensePlate: "กข1234" } },
+      { licensePlate: "กข1234", plateProvince: "ขอนแก่น" },
+      { kind: "open", input: { licensePlate: "กข1234", plateProvince: "ขอนแก่น" } },
     ],
     ["POST", "/repair-jobs/j1/status", { to: "check" }, { kind: "move", jobId: "j1", to: "check" }],
     [

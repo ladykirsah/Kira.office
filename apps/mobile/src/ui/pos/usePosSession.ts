@@ -8,6 +8,7 @@ import {
   customerSummary,
   deleteDraft,
   fetchCustomer,
+  onlyCarProvince,
   fetchDrafts,
   partLine,
   saveCustomer,
@@ -33,6 +34,7 @@ import {
   type DocKind,
   type PosLine,
 } from "@/lib/posBill";
+import { fetchCarList } from "@/lib/customersApi";
 import { billFromDraft } from "@/lib/posDraft";
 import {
   isNetworkError,
@@ -91,6 +93,8 @@ export interface IssuedDoc {
 
 export interface Lookup {
   plate: string;
+  /** The province looked up with the plate: a car is both (plan 13.11). */
+  province: string;
   status: "idle" | "loading" | "done" | "error";
   summary: CustomerSummary | null;
 }
@@ -104,6 +108,8 @@ const LAST_QUOTE_KEY = PREF.posLastQuote;
 const SCAN_LAST_BILL_KEY = PREF.lastSaleNumber;
 /** How often bills waiting on this phone try the server again. */
 const RETRY_MS = 60_000;
+
+const NO_LOOKUP: Lookup = { plate: "", province: "", status: "idle", summary: null };
 
 export const emptyBill = (): BillState => ({
   doc: "bill",
@@ -130,7 +136,7 @@ export function usePosSession() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [quoteNumber, setQuoteNumber] = useState<string | null>(null);
   const [print, setPrint] = useState<PrintSettings>({ style: "receipt", lang: "th", date: null });
-  const [lookup, setLookup] = useState<Lookup>({ plate: "", status: "idle", summary: null });
+  const [lookup, setLookup] = useState<Lookup>(NO_LOOKUP);
   const [sheet, setSheet] = useState<PosSheet | null>(null);
   const [tried, setTried] = useState(false);
   const [short, setShort] = useState<Record<string, number>>({});
@@ -178,28 +184,40 @@ export function usePosSession() {
   };
 
   // ── the car and its customer ────────────────────────────────────────────────────────────────
+  /**
+   * The car on the bill: a car is its plate AND its province (plan 13.11). With only the plate
+   * typed, a car the shop knows fills its province in when it is the only car with that plate;
+   * otherwise the lookup waits for staff to type the province.
+   */
   const lookupPlate = useCallback(
-    async (plate: string) => {
+    async (plate: string, province = "") => {
       const p = plate.trim();
+      const typed = province.trim();
       if (!p || !token) {
-        setLookup({ plate: p, status: "idle", summary: null });
+        setLookup({ ...NO_LOOKUP, plate: p, province: typed });
         return;
       }
-      setLookup({ plate: p, status: "loading", summary: null });
+      setLookup({ plate: p, province: typed, status: "loading", summary: null });
       try {
-        const summary = customerSummary(await fetchCustomer(fetch, API_BASE, token, p));
-        setLookup({ plate: p, status: "done", summary });
+        const prov =
+          typed || (onlyCarProvince(await fetchCarList(fetch, API_BASE, token, p), p) ?? "");
+        if (!prov) {
+          setLookup({ ...NO_LOOKUP, plate: p });
+          return;
+        }
+        const summary = customerSummary(await fetchCustomer(fetch, API_BASE, token, p, prov));
+        setLookup({ plate: p, province: prov, status: "done", summary });
         if (summary.known) {
           setBill((b) => ({
             ...b,
-            province: b.province || summary.province || "",
+            province: b.province || prov,
             customerName: summary.name ?? "",
             phones: summary.phones.length > 0 ? summary.phones : [""],
             car: b.car || summary.car || "",
           }));
         }
       } catch {
-        setLookup({ plate: p, status: "error", summary: null });
+        setLookup({ plate: p, province: typed, status: "error", summary: null });
       }
     },
     [token, setBill],
@@ -250,7 +268,7 @@ export function usePosSession() {
     setDraftId(null);
     setQuoteNumber(null);
     setPrint({ style: "receipt", lang: "th", date: null });
-    setLookup({ plate: "", status: "idle", summary: null });
+    setLookup(NO_LOOKUP);
     setTried(false);
   };
 
@@ -325,7 +343,7 @@ export function usePosSession() {
     setQuoteNumber(qt);
     setSheet(null);
     setTried(false);
-    if (restored.plate) void lookupPlate(restored.plate);
+    if (restored.plate) void lookupPlate(restored.plate, restored.province);
   }
 
   /** Scan's ลูกค้า sale, parked as a draft: open it here, ready for the customer's details. */
@@ -365,11 +383,11 @@ export function usePosSession() {
    * ลูกค้า's ทำใบเสนอราคา or ทำบิลให้: a fresh bill or quotation with this car already in. The bill on
    * screen is kept as a draft first, as opening a draft does.
    */
-  async function startForCar(plate: string, doc: DocKind) {
+  async function startForCar(plate: string, doc: DocKind, province = "") {
     if (bill.lines.length > 0 && !(await storeDraft(bill.doc))) return;
     reset();
-    setBill(() => ({ ...emptyBill(), plate: plate.trim(), doc }));
-    void lookupPlate(plate);
+    setBill(() => ({ ...emptyBill(), plate: plate.trim(), province: province.trim(), doc }));
+    void lookupPlate(plate, province);
   }
 
   async function removeDraft(id: string) {

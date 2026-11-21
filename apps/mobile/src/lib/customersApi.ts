@@ -1,4 +1,4 @@
-import type { MonthCount } from "./customerPage";
+import { carPath, type MonthCount } from "./customerPage";
 import { getJson } from "./posApi";
 import { failure, sendJson, session } from "./scanApi";
 import type { FetchFn } from "./signIn";
@@ -151,10 +151,17 @@ export const fetchSummary = (
     "Summary failed to load",
   );
 
-export const fetchCarDetail = (fetchFn: FetchFn, base: string, token: string, plate: string) =>
+/** One car = the plate AND its province (plan 13.11). */
+export const fetchCarDetail = (
+  fetchFn: FetchFn,
+  base: string,
+  token: string,
+  plate: string,
+  province: string,
+) =>
   getJson<CarDetail>(
     fetchFn,
-    `${base}/customers/${encodeURIComponent(plate.trim())}`,
+    `${base}${carPath(plate, province)}`,
     token,
     "Customer failed to load",
   );

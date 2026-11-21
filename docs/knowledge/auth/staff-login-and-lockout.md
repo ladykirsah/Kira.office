@@ -12,7 +12,7 @@ sources: [kira-owner-lockout-and-access-signin.md, packages/core/src/staffAuth.t
 
 ## How it works
 
-Staff sign in to the admin with email+password or a PIN — and since 25 Aug 2026 that IS the lock, not a name badge behind Cloudflare Access ([access-model](access-model.md)). Credentials are PBKDF2 hashes stored on the `users` table rows; core logic in `packages/core/src/staffAuth.ts` (`hashPassword` / `verifyPassword`), session + lockout handling in `apps/api/src/staffSession.ts`. The login routes themselves (`/staff/login`, `/staff/login-pin`, `/staff/login-access`) are matched in `apps/api/src/index.ts`; `apps/api/src/staffRoutes.ts` holds the staff-*management* handlers (create staff, set password/role/PIN, day-off, payslips).
+Staff sign in to the admin with email+password or a PIN — and since 25 Aug 2026 that IS the lock, not a name badge behind Cloudflare Access ([access-model](access-model.md)). Credentials are PBKDF2 hashes stored on the `users` table rows; core logic in `packages/core/src/staffAuth.ts` (`hashPassword` / `verifyPassword`), session + lockout handling in `apps/api/src/staffSession.ts`. The login routes themselves (`/staff/login`, `/staff/login-pin`, `/staff/login-recovery`; `/staff/login-access` was removed 21 Nov 2026) are matched in `apps/api/src/index.ts`; `apps/api/src/staffRoutes.ts` holds the staff-*management* handlers (create staff, set password/role/PIN, day-off, payslips).
 
 - Sessions: `STAFF_SESSION_TTL_MS` = 30 days; rolled after 24 h (`SESSION_ROLL_AFTER_MS`).
 - PIN login shares `users.failed_attempts` with password login so the two cannot be brute-forced independently; PIN hashing depends on the `STAFF_PIN_PEPPER` secret — if it is unset the API answers `pin_login_unavailable`, so a PIN that "doesn't match anyone" **proves the pepper IS set** and the lookup found no row (a diagnostic that mattered in the [owner-lockout-incident](owner-lockout-incident.md)).
@@ -29,7 +29,7 @@ Base rule: 3 failed attempts **inside the window** → 24-hour lock (`users.fail
 
 **History, because the reversal is the interesting part.** PR #129 (9 Aug 2026) exempted admins and super_admins, on two supports that have both since gone:
 
-1. *"The only recovery for a lock is 'ask a super admin'"* — nobody, when the locked-out person IS the super admin. There is now **`/recover`** ([owner-access-sign-in](owner-access-sign-in.md)), which proves the owner by an emailed code and signs them back in unaided.
+1. *"The only recovery for a lock is 'ask a super admin'"* — nobody, when the locked-out person IS the super admin. There was **`/recover`** ([owner-access-sign-in](owner-access-sign-in.md)), which proved the owner by an emailed code; it was removed on 21 Nov 2026 (plan 13.11), and the [emergency key](emergency-key.md) — which opens through the lock — is the rescue now.
 2. *"Cloudflare Access already stands in front of the admin"* — so the lock was a second fence behind a locked gate. The owner has made the TeamPit form the everyday door ([access-model](access-model.md)), which puts it on the open internet and makes this lock the whole defence.
 
 Current behaviour, per `apps/api/src/lockout.test.ts`:
@@ -65,7 +65,7 @@ One call answers what days of inference cannot ([owner-lockout-incident](owner-l
 
 ## Bootstrap gap (structural)
 
-`createStaff` requires an existing super admin, and `loginStaff` returns "invalid" when no row matches — so the **first** super admin can only ever be written straight into D1. There is no seed script. Enabling enforcement against an empty `users` table locks everyone out (July audit warning that later materialized). The durable mitigation is the Access-identity sign-in: [owner-access-sign-in](owner-access-sign-in.md).
+`createStaff` requires an existing super admin, and `loginStaff` returns "invalid" when no row matches — so the **first** super admin can only ever be written straight into D1. There is no seed script. Enabling enforcement against an empty `users` table locks everyone out (July audit warning that later materialized). The Access-identity sign-in ([owner-access-sign-in](owner-access-sign-in.md)) covered this until 21 Nov 2026; since then a missing or broken owner row is repaired with `reset-staff-password.mjs`.
 
 ## Latent bug: case-sensitive unique index vs lower() lookups (status: open)
 

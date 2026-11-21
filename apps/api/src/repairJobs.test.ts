@@ -160,7 +160,13 @@ function ok(r: JobResult): RepairJobDetail {
 
 /** A job walked up to ลูกค้าตกลงราคา. */
 async function agreedJob(db: D1Database) {
-  const job = ok(await openRepairJob(db, { licensePlate: "กข1234", problem: "แอร์ไม่เย็น" }, kae));
+  const job = ok(
+    await openRepairJob(
+      db,
+      { licensePlate: "กข1234", plateProvince: "ขอนแก่น", problem: "แอร์ไม่เย็น" },
+      kae,
+    ),
+  );
   ok(await moveRepairJob(db, job.id, "check", at(1)));
   ok(await moveRepairJob(db, job.id, "estimate", at(2)));
   return job;
@@ -174,6 +180,7 @@ describe("openRepairJob > a car comes in", () => {
         db,
         {
           licensePlate: "กข1234",
+          plateProvince: "ขอนแก่น",
           vehicle: "Toyota Vios",
           mileageKm: 85_000,
           problem: "แอร์ไม่เย็น",
@@ -184,6 +191,7 @@ describe("openRepairJob > a car comes in", () => {
     expect(job.jobNumber).toBe("JB202611-17001");
     expect(job.status).toBe("in");
     expect(job.licensePlate).toBe("กข 1234");
+    expect(job.plateProvince).toBe("ขอนแก่น");
     expect(job.problem).toBe("แอร์ไม่เย็น");
     expect(job.events).toEqual([
       expect.objectContaining({
@@ -194,8 +202,25 @@ describe("openRepairJob > a car comes in", () => {
       }),
     ]);
 
-    const second = ok(await openRepairJob(db, { licensePlate: "70-1234" }, at(5)));
+    const second = ok(
+      await openRepairJob(db, { licensePlate: "70-1234", plateProvince: "ขอนแก่น" }, at(5)),
+    );
     expect(second.jobNumber).toBe("JB202611-17002");
+  });
+
+  it("given a plate with no province > then refused (plan 13.11, owner's pick A)", async () => {
+    const { db } = shop();
+    for (const plateProvince of [undefined, "", "  "]) {
+      expect(await openRepairJob(db, { licensePlate: "กข1234", plateProvince }, kae)).toMatchObject(
+        { ok: false, error: "province_required" },
+      );
+    }
+  });
+
+  it("given a short province name > then the official one is saved", async () => {
+    const { db } = shop();
+    const job = ok(await openRepairJob(db, { licensePlate: "กข1234", plateProvince: "กทม" }, kae));
+    expect(job.plateProvince).toBe("กรุงเทพมหานคร");
   });
 
   it("given no plate > then refused", async () => {
@@ -224,7 +249,9 @@ describe("moveRepairJob > the steps", () => {
 
   it("given a jump over a step > then refused and nothing changes", async () => {
     const { db } = shop();
-    const job = ok(await openRepairJob(db, { licensePlate: "กข1234" }, kae));
+    const job = ok(
+      await openRepairJob(db, { licensePlate: "กข1234", plateProvince: "ขอนแก่น" }, kae),
+    );
     expect(await moveRepairJob(db, job.id, "estimate", at(1))).toMatchObject({
       ok: false,
       error: "skip",
@@ -524,7 +551,7 @@ describe("payRepairJob > the customer pays and the job closes", () => {
     const bill = raw
       .prepare(
         `SELECT sale_number, stage, sale_status, sale_type, payment_method, license_plate,
-                subtotal_satang, discount_total_satang, grand_total_satang
+                plate_province, subtotal_satang, discount_total_satang, grand_total_satang
          FROM onsite_sales WHERE id = ?`,
       )
       .get(paid.saleId!) as Record<string, unknown>;
@@ -536,6 +563,7 @@ describe("payRepairJob > the customer pays and the job closes", () => {
       sale_type: "repair",
       payment_method: "cash",
       license_plate: "กข 1234",
+      plate_province: "ขอนแก่น",
       subtotal_satang: 680_000,
       discount_total_satang: 5_000,
       grand_total_satang: 675_000,
@@ -558,7 +586,9 @@ describe("payRepairJob > the customer pays and the job closes", () => {
         priceBillLines(db, l),
       ),
     );
-    const car = (await getCustomerDetail(db, "กข 1234")) as { history: { saleNumber: string }[] };
+    const car = (await getCustomerDetail(db, "กข 1234", "ขอนแก่น")) as {
+      history: { saleNumber: string }[];
+    };
     expect(car.history.map((b) => b.saleNumber)).toEqual(["JB202611-17001"]);
   });
 
@@ -653,7 +683,9 @@ describe("removeJobLine and cancelRepairJob > parts go back, nothing is deleted"
 describe("mechanics and the lists", () => {
   it("given one or several mechanics > then the job names them", async () => {
     const { db } = shop();
-    const job = ok(await openRepairJob(db, { licensePlate: "กข1234" }, kae));
+    const job = ok(
+      await openRepairJob(db, { licensePlate: "กข1234", plateProvince: "ขอนแก่น" }, kae),
+    );
     const two = ok(await setJobMechanics(db, job.id, ["u-art", "u-bom"], at(1)));
     expect(two.mechanics.map((m) => m.name)).toEqual(["บอม", "อาร์ต"]);
     expect(ok(await setJobMechanics(db, job.id, ["u-art"], at(2))).mechanics).toEqual([
@@ -667,9 +699,13 @@ describe("mechanics and the lists", () => {
 
   it("given jobs in several steps > then counts per step, a mechanic's open jobs, and a car's jobs", async () => {
     const { db } = shop();
-    const a = ok(await openRepairJob(db, { licensePlate: "กข1234" }, kae));
-    const b = ok(await openRepairJob(db, { licensePlate: "70-1234" }, at(1)));
-    ok(await openRepairJob(db, { licensePlate: "กข1234" }, at(2)));
+    const a = ok(
+      await openRepairJob(db, { licensePlate: "กข1234", plateProvince: "ขอนแก่น" }, kae),
+    );
+    const b = ok(
+      await openRepairJob(db, { licensePlate: "70-1234", plateProvince: "ขอนแก่น" }, at(1)),
+    );
+    ok(await openRepairJob(db, { licensePlate: "กข1234", plateProvince: "ขอนแก่น" }, at(2)));
     ok(await moveRepairJob(db, b.id, "check", at(3)));
     ok(await setJobMechanics(db, b.id, ["u-art"], at(4)));
     ok(await cancelRepairJob(db, a.id, "ลูกค้าไม่มา", at(5)));
@@ -687,11 +723,17 @@ describe("mechanics and the lists", () => {
       ["JB202611-17002", ["อาร์ต"]],
     ]);
 
-    const car = await listRepairJobs(db, { plate: "กข 1234" });
+    const car = await listRepairJobs(db, { plate: "กข 1234", province: "ขอนแก่น" });
     expect(car.jobs.map((j) => j.jobNumber)).toEqual(["JB202611-17003", "JB202611-17001"]);
+    expect(car.jobs[0]?.plateProvince).toBe("ขอนแก่น");
 
     const open = await listRepairJobs(db, { open: true });
     expect(open.jobs).toHaveLength(2);
+
+    // The same plate from another province is another car (plan 13.11).
+    ok(await openRepairJob(db, { licensePlate: "กข1234", plateProvince: "เชียงใหม่" }, at(6)));
+    const other = await listRepairJobs(db, { plate: "กข1234", province: "เชียงใหม่" });
+    expect(other.jobs.map((j) => j.jobNumber)).toEqual(["JB202611-17004"]);
   });
 });
 
@@ -702,7 +744,9 @@ describe("runRepairJobAction > the StockLedger object's one door", () => {
     const price: PriceBillLines = (l) => priceBillLines(db, l);
     const run = (action: Parameters<typeof runRepairJobAction>[1], minute: number) =>
       runRepairJobAction(db, action, at(minute), price);
-    const job = ok(await run({ kind: "open", input: { licensePlate: "กข1234" } }, 0));
+    const job = ok(
+      await run({ kind: "open", input: { licensePlate: "กข1234", plateProvince: "ขอนแก่น" } }, 0),
+    );
     for (const [i, to] of (["check", "estimate"] as const).entries()) {
       ok(await run({ kind: "move", jobId: job.id, to }, i + 1));
     }

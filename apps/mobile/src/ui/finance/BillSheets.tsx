@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { API_BASE } from "@/lib/config";
+import { carPath } from "@/lib/customerPage";
 import { refundBill } from "@/lib/financeApi";
 import { billTitle, money, type Bill } from "@/lib/financePage";
 import { dayPill } from "@/lib/orderList";
@@ -101,9 +102,7 @@ export function BillSheets(props: {
           kind="grey"
           onPress={() => {
             props.onClose();
-            router.push(
-              `/customers/${encodeURIComponent(bill.licensePlate!)}/${encodeURIComponent(bill.id)}` as never,
-            );
+            router.push(carPath(bill.licensePlate!, bill.plateProvince, bill.id) as never);
           }}
         />
       ) : null}

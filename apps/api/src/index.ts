@@ -105,6 +105,8 @@ import {
   type CouponScope,
   unknownTermsFields,
   canonicalPlate,
+  canonicalProvince,
+  carProblem,
   plateKey,
 } from "@l-shopee/core";
 
@@ -166,7 +168,6 @@ import {
   loginStaff,
   loginWithPin,
   loginWithRecoveryKey,
-  signInAsOwner,
   requireStaff,
   signInToPracticeCopy,
   type StaffIdentity,
@@ -281,6 +282,8 @@ interface SyncSale {
   paymentMethod?: string;
   saleType?: "parts" | "repair";
   licensePlate?: string;
+  /** The province on the plate (plan 13.11): the car is the plate AND its province. */
+  plateProvince?: string;
   vehicle?: string;
   notes?: string;
   mileageKm?: number | null; // the car's mileage (km) on this bill; null/absent = not recorded
@@ -343,7 +346,7 @@ export function buildCorsHeaders(
     // x-staff-session: the Expo app's web build sends its session token itself (2026-10-25). Safe to
     // allow from any origin — a browser never attaches this header on its own, so a page that does
     // not already hold the token cannot use it.
-    "access-control-allow-headers": "content-type, cf-access-jwt-assertion, x-staff-session",
+    "access-control-allow-headers": "content-type, x-staff-session",
     "access-control-max-age": "86400",
   };
   if (origin && allowlist.includes(origin)) {
@@ -565,84 +568,6 @@ async function requireRole(
 /** Parse a JSON request body; null when malformed/empty — routes turn that into a 400, not a 500. */
 const readJson = async <T>(request: Request): Promise<T | null> =>
   (await request.json().catch(() => null)) as T | null;
-
-function base64urlToBytes(s: string): Uint8Array {
-  const b64 = s
-    .replace(/-/g, "+")
-    .replace(/_/g, "/")
-    .padEnd(Math.ceil(s.length / 4) * 4, "=");
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
-interface AccessClaims {
-  email?: string;
-  aud?: string | string[];
-  exp?: number;
-}
-
-/**
- * Verify a Cloudflare Access JWT (Cf-Access-Jwt-Assertion): RS256 signature against the team JWKS,
- * audience and expiry. Throws on any failure. NOTE: the Access application itself (created in the
- * dashboard) is the primary edge gate; this is defense-in-depth and must be confirmed against a real
- * token after the Access app exists.
- */
-async function verifyAccessJwt(
-  token: string,
-  teamDomain: string,
-  aud: string,
-): Promise<{ email: string | null }> {
-  const [h, p, sig] = token.split(".");
-  if (!h || !p || !sig) throw new Error("malformed token");
-  const header = JSON.parse(new TextDecoder().decode(base64urlToBytes(h))) as { kid?: string };
-  const payload = JSON.parse(new TextDecoder().decode(base64urlToBytes(p))) as AccessClaims;
-
-  const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!auds.includes(aud)) throw new Error("bad audience");
-  if (payload.exp && payload.exp * 1000 < Date.now()) throw new Error("expired");
-
-  const certs = (await (await fetch(`https://${teamDomain}/cdn-cgi/access/certs`)).json()) as {
-    keys: JsonWebKey[] & { kid?: string }[];
-  };
-  const jwk = certs.keys.find((k) => (k as { kid?: string }).kid === header.kid);
-  if (!jwk) throw new Error("unknown signing key");
-  const key = await crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-  const ok = await crypto.subtle.verify(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    base64urlToBytes(sig),
-    new TextEncoder().encode(`${h}.${p}`),
-  );
-  if (!ok) throw new Error("bad signature");
-  return { email: payload.email ?? null };
-}
-
-/**
- * Access gate. Returns the authenticated user (email) on success, a 401 Response on failure, or an
- * open `{ email: null }` when Access is not configured (so the API keeps working until the owner
- * creates the Access app and sets ACCESS_TEAM_DOMAIN + ACCESS_AUD).
- */
-export async function requireAccess(
-  request: Request,
-  env: Env,
-): Promise<Response | { email: string | null }> {
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return { email: null };
-  const token = request.headers.get("Cf-Access-Jwt-Assertion");
-  if (!token) return json({ error: "unauthorized" }, 401);
-  try {
-    return await verifyAccessJwt(token, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
-  } catch {
-    return json({ error: "unauthorized" }, 401);
-  }
-}
 
 export interface AuditLogInput {
   actorEmail: string | null;
@@ -1134,8 +1059,8 @@ export async function applySyncToDb(
       db
         .prepare(
           `INSERT OR IGNORE INTO onsite_sales
-           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, vehicle, notes, mileage_km, buyer_name, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, client_uuid, sale_number, payment_method, sale_type, license_plate, plate_province, vehicle, notes, mileage_km, buyer_name, sync_status, subtotal_satang, discount_total_satang, tax_total_satang, grand_total_satang, sale_status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           saleId,
@@ -1144,6 +1069,8 @@ export async function applySyncToDb(
           sale.paymentMethod ?? null,
           sale.saleType ?? "parts",
           normalizePlate(sale.licensePlate ?? "") || null,
+          // A bill from an old phone with no province is still saved, never lost (plan 13.11).
+          carProvince(sale.licensePlate, sale.plateProvince),
           sale.vehicle?.trim() || null,
           sale.notes?.trim() || null,
           extras.mileageKm,
@@ -1548,46 +1475,48 @@ export async function importCustomers(
   mapping: Record<string, string>,
 ): Promise<CustomerImportResult> {
   const rows = parseCsv(csv);
-  const { records, errors } = mapRows(rows, mapping, ["license_plate"]);
+  // A car is its plate AND its province (plan 13.11, owner's pick A): a row needs both.
+  const { records, errors } = mapRows(rows, mapping, ["license_plate", "plate_province"]);
 
   const seen = new Set<string>();
-  const unique: { plate: string; record: Record<string, string> }[] = [];
+  const unique: { plate: string; province: string; record: Record<string, string> }[] = [];
   let duplicates = 0;
   for (const record of records) {
     const plate = normalizePlate(record["license_plate"] ?? "");
-    if (seen.has(plate)) {
+    const province = carProvince(plate, record["plate_province"]);
+    const car = `${plate}|${province}`;
+    if (seen.has(car)) {
       duplicates++;
       continue;
     }
-    seen.add(plate);
-    unique.push({ plate, record });
+    seen.add(car);
+    unique.push({ plate, province, record });
   }
 
-  // Which plates already exist (to split created/updated)? D1 caps bound params at 100/query, and
+  // Which cars already exist (to split created/updated)? D1 caps bound params at 100/query, and
   // a legacy Excel can hold hundreds of rows — chunk the IN lookup.
   const existing = new Set<string>();
-  const plates = unique.map((u) => u.plate);
+  const plates = [...new Set(unique.map((u) => u.plate))];
   for (let i = 0; i < plates.length; i += 90) {
     const chunk = plates.slice(i, i + 90);
     const found = await db
       .prepare(
-        `SELECT license_plate AS licensePlate FROM customers WHERE license_plate IN (${chunk.map(() => "?").join(",")})`,
+        `SELECT license_plate AS licensePlate, plate_province AS plateProvince FROM customers WHERE license_plate IN (${chunk.map(() => "?").join(",")})`,
       )
       .bind(...chunk)
-      .all<{ licensePlate: string }>();
-    for (const r of found.results ?? []) existing.add(r.licensePlate);
+      .all<{ licensePlate: string; plateProvince: string }>();
+    for (const r of found.results ?? []) existing.add(`${r.licensePlate}|${r.plateProvince}`);
   }
 
   const nn = (s: string | undefined) => (s ? s : null); // empty cell → NULL (preserve existing)
   const now = Date.now();
-  const statements = unique.map(({ plate, record }) =>
+  const statements = unique.map(({ plate, province, record }) =>
     db
       .prepare(
         `INSERT INTO customers
            (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(license_plate) DO UPDATE SET
-           plate_province = COALESCE(excluded.plate_province, customers.plate_province),
+         ON CONFLICT(license_plate, plate_province) DO UPDATE SET
            customer_name = COALESCE(excluded.customer_name, customers.customer_name),
            phone = COALESCE(excluded.phone, customers.phone),
            car_model = COALESCE(excluded.car_model, customers.car_model),
@@ -1597,7 +1526,7 @@ export async function importCustomers(
       .bind(
         crypto.randomUUID(),
         plate,
-        nn(record["plate_province"]),
+        province,
         nn(record["customer_name"]),
         nn(record["phone"]),
         nn(record["car_model"]),
@@ -1608,7 +1537,7 @@ export async function importCustomers(
   );
   if (statements.length > 0) await db.batch(statements);
 
-  const created = unique.filter((u) => !existing.has(u.plate)).length;
+  const created = unique.filter((u) => !existing.has(`${u.plate}|${u.province}`)).length;
   return {
     received: Math.max(0, rows.length - 1),
     created,
@@ -1617,6 +1546,29 @@ export async function importCustomers(
     invalid: errors.length,
     errors: errors.slice(0, 500), // `invalid` keeps the true count; a garbage file shouldn't emit MBs of JSON
   };
+}
+
+/**
+ * One bare directory row per car (plate + province) in an import of old visits, so the car shows
+ * on the Customers list before its first bill. All fields NULL: anything already saved stays.
+ */
+function bareCarRows(
+  db: D1Database,
+  entries: { plate: string; province: string }[],
+  now: number,
+): D1PreparedStatement[] {
+  const cars = new Map(entries.map((e) => [`${e.plate}|${e.province}`, e]));
+  return [...cars.values()].map((c) =>
+    db
+      .prepare(
+        `INSERT INTO customers
+           (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(license_plate, plate_province) DO UPDATE SET
+           updated_at = customers.updated_at`,
+      )
+      .bind(crypto.randomUUID(), c.plate, c.province, null, null, null, null, now, now),
+  );
 }
 
 export interface HistoryImportResult {
@@ -1641,16 +1593,19 @@ export async function importCustomerHistory(
   const rows = parseCsv(csv);
   const { records, recordIndices, errors } = mapRows(rows, mapping, [
     "license_plate",
+    "plate_province", // a car is its plate AND its province (plan 13.11)
     "happened_at",
     "description",
   ]);
 
   const seen = new Set<string>();
-  const entries: { plate: string; happenedAt: number; description: string }[] = [];
+  const entries: { plate: string; province: string; happenedAt: number; description: string }[] =
+    [];
   let duplicates = 0;
   for (let r = 0; r < records.length; r++) {
     const record = records[r]!;
     const plate = normalizePlate(record["license_plate"] ?? "");
+    const province = carProvince(plate, record["plate_province"]);
     const happenedAt = parseThaiDateMs(record["happened_at"] ?? "");
     if (happenedAt == null) {
       errors.push({
@@ -1660,13 +1615,13 @@ export async function importCustomerHistory(
       continue;
     }
     const description = record["description"] ?? "";
-    const key = `${plate}|${happenedAt}|${description}`;
+    const key = `${plate}|${province}|${happenedAt}|${description}`;
     if (seen.has(key)) {
       duplicates++;
       continue;
     }
     seen.add(key);
-    entries.push({ plate, happenedAt, description });
+    entries.push({ plate, province, happenedAt, description });
   }
 
   const now = Date.now();
@@ -1674,26 +1629,14 @@ export async function importCustomerHistory(
     db
       .prepare(
         `INSERT OR IGNORE INTO customer_history_entries
-           (id, license_plate, happened_at, description, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
+           (id, license_plate, plate_province, happened_at, description, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(crypto.randomUUID(), e.plate, e.happenedAt, e.description, now),
+      .bind(crypto.randomUUID(), e.plate, e.province, e.happenedAt, e.description, now),
   );
-  // A bare directory row per plate (all-NULL fields; COALESCE keeps anything already saved) so
+  // A bare directory row per car (all-NULL fields; COALESCE keeps anything already saved) so
   // imported cars show on the Customers list before their first Kira bill.
-  for (const plate of new Set(entries.map((e) => e.plate))) {
-    statements.push(
-      db
-        .prepare(
-          `INSERT INTO customers
-             (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(license_plate) DO UPDATE SET
-             updated_at = customers.updated_at`,
-        )
-        .bind(crypto.randomUUID(), plate, null, null, null, null, null, now, now),
-    );
-  }
+  statements.push(...bareCarRows(db, entries, now));
   // Real D1 reports meta.changes per statement; an INSERT OR IGNORE suppressed by the UNIQUE key
   // shows 0 — count those as duplicates so a re-import truthfully reports what was written.
   let written = entries.length;
@@ -1723,6 +1666,8 @@ export interface VisitLineInput {
 }
 export interface VisitInput {
   licensePlate: string;
+  /** The car's province (plan 13.11): with the plate, it says which car the visit belongs to. */
+  plateProvince?: string;
   happenedAt: string; // raw Thai date string
   note?: string;
   lines: VisitLineInput[];
@@ -1742,6 +1687,7 @@ export async function importCustomerVisits(
   const seen = new Set<string>();
   const entries: {
     plate: string;
+    province: string;
     happenedAt: number;
     description: string;
     note: string | null;
@@ -1752,6 +1698,12 @@ export async function importCustomerVisits(
   for (let v = 0; v < visits.length; v++) {
     const visit = visits[v]!;
     const plate = normalizePlate(visit.licensePlate ?? "");
+    // A car is its plate AND its province (plan 13.11, owner's pick A).
+    if (carProblem(plate, visit.plateProvince ?? null)) {
+      errors.push({ rowIndex: v + 1, reason: "missing required field: plate_province" });
+      continue;
+    }
+    const province = carProvince(plate, visit.plateProvince);
     const happenedAt = parseThaiDateMs(visit.happenedAt ?? "");
     if (happenedAt == null) {
       errors.push({ rowIndex: v + 1, reason: `unreadable date: "${visit.happenedAt}"` });
@@ -1762,7 +1714,7 @@ export async function importCustomerVisits(
       productRef: l.productRef ?? null,
     }));
     const description = lines.map((l) => l.description).join("\n"); // canonical for dedup + search
-    const key = `${plate}|${happenedAt}|${description}`;
+    const key = `${plate}|${province}|${happenedAt}|${description}`;
     if (seen.has(key)) {
       duplicates++;
       continue;
@@ -1770,6 +1722,7 @@ export async function importCustomerVisits(
     seen.add(key);
     entries.push({
       plate,
+      province,
       happenedAt,
       description,
       note: visit.note?.trim() ? visit.note.trim() : null,
@@ -1782,24 +1735,21 @@ export async function importCustomerVisits(
     db
       .prepare(
         `INSERT OR IGNORE INTO customer_history_entries
-           (id, license_plate, happened_at, description, note, lines_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (id, license_plate, plate_province, happened_at, description, note, lines_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(crypto.randomUUID(), e.plate, e.happenedAt, e.description, e.note, e.linesJson, now),
+      .bind(
+        crypto.randomUUID(),
+        e.plate,
+        e.province,
+        e.happenedAt,
+        e.description,
+        e.note,
+        e.linesJson,
+        now,
+      ),
   );
-  for (const plate of new Set(entries.map((e) => e.plate))) {
-    statements.push(
-      db
-        .prepare(
-          `INSERT INTO customers
-             (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(license_plate) DO UPDATE SET
-             updated_at = customers.updated_at`,
-        )
-        .bind(crypto.randomUUID(), plate, null, null, null, null, null, now, now),
-    );
-  }
+  statements.push(...bareCarRows(db, entries, now));
   let written = entries.length;
   if (statements.length > 0) {
     const results = await db.batch(statements);
@@ -2908,8 +2858,8 @@ const SALES_SELECT = `SELECT s.id,
         s.license_plate AS licensePlate,
         s.vehicle AS vehicle,
         s.buyer_name AS buyerName,
-        (SELECT c.plate_province FROM customers c WHERE c.license_plate = s.license_plate)
-          AS plateProvince,
+        -- The bill's own car (plan 13.11): one plate can be two cars in two provinces.
+        NULLIF(s.plate_province, '') AS plateProvince,
         COALESCE(
           (SELECT SUM(gross_profit_satang) FROM onsite_sale_lines WHERE onsite_sale_id = s.id),
           0
@@ -4815,6 +4765,8 @@ export interface DraftInput {
   saleNumber?: string | null; // QT… for a quotation (client-minted); null for a bare draft
   saleType?: "parts" | "repair";
   licensePlate?: string | null;
+  /** The province on the plate (plan 13.11). */
+  plateProvince?: string | null;
   vehicle?: string | null;
   notes?: string | null;
   mileageKm?: number | null; // the car's mileage (km); null/absent = not recorded
@@ -4874,15 +4826,16 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
     db
       .prepare(
         `INSERT INTO onsite_sales
-           (id, client_uuid, sale_number, sale_type, license_plate, vehicle, notes, mileage_km,
-            buyer_name, buyer_kind, sync_status, subtotal_satang, discount_total_satang,
+           (id, client_uuid, sale_number, sale_type, license_plate, plate_province, vehicle, notes,
+            mileage_km, buyer_name, buyer_kind, sync_status, subtotal_satang, discount_total_satang,
             tax_total_satang, grand_total_satang, discount_kind, discount_value, sale_status, stage,
             created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?, 'open', ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            sale_number = excluded.sale_number,
            sale_type = excluded.sale_type,
            license_plate = excluded.license_plate,
+           plate_province = excluded.plate_province,
            vehicle = excluded.vehicle,
            notes = excluded.notes,
            mileage_km = excluded.mileage_km,
@@ -4902,6 +4855,7 @@ export async function saveDraftToDb(db: D1Database, draft: DraftInput): Promise<
         draft.saleNumber?.trim() || null,
         draft.saleType ?? "parts",
         normalizePlate(draft.licensePlate ?? "") || null,
+        carProvince(draft.licensePlate, draft.plateProvince),
         draft.vehicle?.trim() || null,
         draft.notes?.trim() || null,
         extras.mileageKm,
@@ -4958,7 +4912,7 @@ export async function listOpenDrafts(db: D1Database): Promise<unknown[]> {
   const heads = await db
     .prepare(
       `SELECT id, client_uuid AS clientUuid, sale_number AS saleNumber, sale_type AS saleType,
-              license_plate AS licensePlate, vehicle, notes, stage,
+              license_plate AS licensePlate, plate_province AS plateProvince, vehicle, notes, stage,
               mileage_km AS mileageKm, buyer_name AS buyerName, buyer_kind AS buyerKind,
               grand_total_satang AS grandTotalSatang, discount_total_satang AS discountTotalSatang,
               discount_kind AS discountKind, discount_value AS discountValue, created_at AS createdAt
@@ -5016,7 +4970,8 @@ export async function getOnsiteSale(db: D1Database, id: string): Promise<unknown
   const header = await db
     .prepare(
       `SELECT id, sale_number AS saleNumber, sale_type AS saleType, license_plate AS licensePlate,
-              vehicle, notes, payment_method AS paymentMethod, stage, sale_status AS saleStatus,
+              plate_province AS plateProvince, vehicle, notes, payment_method AS paymentMethod,
+              stage, sale_status AS saleStatus,
               mileage_km AS mileageKm, buyer_name AS buyerName,
               subtotal_satang AS subtotalSatang, discount_total_satang AS discountTotalSatang,
               tax_total_satang AS taxTotalSatang, grand_total_satang AS grandTotalSatang,
@@ -5048,6 +5003,15 @@ export function normalizePlate(plate: string): string {
   return canonicalPlate(plate);
 }
 
+/**
+ * The province saved with a plate (plan 13.11): its official name ("กทม" → "กรุงเทพมหานคร"), or ''
+ * when there is no plate (a parts sale has no car) or nobody typed one.
+ */
+export function carProvince(plate: unknown, province: unknown): string {
+  if (typeof plate !== "string" || !canonicalPlate(plate)) return "";
+  return typeof province === "string" ? canonicalProvince(province) : "";
+}
+
 export interface CustomerUpsert {
   licensePlate: string;
   plateProvince?: string | null;
@@ -5064,17 +5028,23 @@ export interface CustomerUpsert {
 export async function upsertCustomerByPlate(
   db: D1Database,
   input: CustomerUpsert,
-): Promise<{ ok: true; licensePlate: string } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; licensePlate: string; plateProvince: string } | { ok: false; error: string }
+> {
   const plate = normalizePlate(input.licensePlate ?? "");
   if (!plate) return { ok: false, error: "license plate is required" };
+  // The owner's pick A (21 Nov 2026): a plate needs its province, or one car becomes two.
+  if (carProblem(plate, input.plateProvince ?? null)) {
+    return { ok: false, error: "province_required" };
+  }
+  const province = carProvince(plate, input.plateProvince);
   const now = Date.now();
   await db
     .prepare(
       `INSERT INTO customers
          (id, license_plate, plate_province, customer_name, phone, car_model, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(license_plate) DO UPDATE SET
-         plate_province = COALESCE(excluded.plate_province, customers.plate_province),
+       ON CONFLICT(license_plate, plate_province) DO UPDATE SET
          customer_name = COALESCE(excluded.customer_name, customers.customer_name),
          phone = COALESCE(excluded.phone, customers.phone),
          car_model = COALESCE(excluded.car_model, customers.car_model),
@@ -5084,7 +5054,7 @@ export async function upsertCustomerByPlate(
     .bind(
       crypto.randomUUID(),
       plate,
-      input.plateProvince ?? null,
+      province,
       input.customerName ?? null,
       input.phone ?? null,
       input.carModel ?? null,
@@ -5093,14 +5063,15 @@ export async function upsertCustomerByPlate(
       now,
     )
     .run();
-  return { ok: true, licensePlate: plate };
+  return { ok: true, licensePlate: plate, plateProvince: province };
 }
 
 /**
  * The customer/car list — the UNION of the directory (so an imported customer appears before its
  * first bill) and billed plates (so a car appears as soon as it has a bill, even with no directory
  * row). Bill stats come from a grouped LEFT JOIN; directory-only rows get billCount 0 and sort
- * after recently billed cars. `q` matches plate, phone, name, vehicle, or car model (empty = all).
+ * after recently billed cars. `q` matches plate, province, phone, name, vehicle, or car model
+ * (empty = all). A car is its plate AND its province (plan 13.11): one plate can be two rows.
  */
 export async function searchCustomers(db: D1Database, q: string): Promise<unknown[]> {
   const term = `%${q.trim()}%`;
@@ -5109,52 +5080,66 @@ export async function searchCustomers(db: D1Database, q: string): Promise<unknow
       `SELECT x.license_plate AS licensePlate,
               b.vehicle AS vehicle,
               c.customer_name AS customerName, c.phone AS phone, c.car_model AS carModel,
-              c.plate_province AS plateProvince,
+              NULLIF(x.plate_province, '') AS plateProvince,
               -- "Visits" = Kira bills + transcribed legacy visits; last visit = the most recent
               -- of either (NULLIF→null when a car has neither yet, so the UI shows "—").
               COALESCE(b.billCount, 0) + COALESCE(h.legacyCount, 0) AS billCount,
               NULLIF(MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)), 0) AS lastVisitAt
-       FROM (SELECT license_plate FROM customers
+       -- One car = the plate AND its province (plan 13.11).
+       FROM (SELECT license_plate, plate_province FROM customers
              UNION
-             SELECT license_plate FROM onsite_sales
+             SELECT license_plate, plate_province FROM onsite_sales
              WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
              UNION
-             SELECT license_plate FROM customer_history_entries
+             SELECT license_plate, plate_province FROM customer_history_entries
              WHERE license_plate IS NOT NULL AND license_plate <> '') x
-       LEFT JOIN customers c ON c.license_plate = x.license_plate
-       LEFT JOIN (SELECT license_plate, MAX(vehicle) AS vehicle, COUNT(*) AS billCount,
-                         MAX(created_at) AS lastVisitAt
+       LEFT JOIN customers c
+         ON c.license_plate = x.license_plate AND c.plate_province = x.plate_province
+       LEFT JOIN (SELECT license_plate, plate_province, MAX(vehicle) AS vehicle,
+                         COUNT(*) AS billCount, MAX(created_at) AS lastVisitAt
                   FROM onsite_sales
                   WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
-                  GROUP BY license_plate) b ON b.license_plate = x.license_plate
-       LEFT JOIN (SELECT license_plate, COUNT(*) AS legacyCount, MAX(happened_at) AS lastLegacyAt
+                  GROUP BY license_plate, plate_province) b
+         ON b.license_plate = x.license_plate AND b.plate_province = x.plate_province
+       LEFT JOIN (SELECT license_plate, plate_province, COUNT(*) AS legacyCount,
+                         MAX(happened_at) AS lastLegacyAt
                   FROM customer_history_entries
-                  GROUP BY license_plate) h ON h.license_plate = x.license_plate
+                  GROUP BY license_plate, plate_province) h
+         ON h.license_plate = x.license_plate AND h.plate_province = x.plate_province
        WHERE (? = '' OR x.license_plate LIKE ?
               OR REPLACE(REPLACE(x.license_plate, ' ', ''), '-', '') LIKE ?
               OR c.phone LIKE ? OR c.customer_name LIKE ?
               OR b.vehicle LIKE ? OR c.car_model LIKE ?
+              OR x.plate_province LIKE ?
               OR EXISTS (SELECT 1 FROM onsite_sales os
-                         WHERE os.license_plate = x.license_plate AND os.stage = 'bill'
+                         WHERE os.license_plate = x.license_plate
+                               AND os.plate_province = x.plate_province AND os.stage = 'bill'
                                AND os.sale_number LIKE ?))
-       ORDER BY MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)) DESC, x.license_plate
+       ORDER BY MAX(COALESCE(b.lastVisitAt, 0), COALESCE(h.lastLegacyAt, 0)) DESC, x.license_plate,
+                x.plate_province
        LIMIT ${LIST_LIMIT}`,
     )
     // A plate typed with no space or a dash still finds it (plan 8.5).
-    .bind(q.trim(), term, `%${plateKey(q.trim())}%`, term, term, term, term, term)
+    .bind(q.trim(), term, `%${plateKey(q.trim())}%`, term, term, term, term, term, term)
     .all();
   return rows.results ?? [];
 }
 
 /** One car: directory info + its bill history and open quotations (each with lines), for the page. */
-export async function getCustomerDetail(db: D1Database, plate: string): Promise<unknown> {
+export async function getCustomerDetail(
+  db: D1Database,
+  plate: string,
+  province = "",
+): Promise<unknown> {
+  // One car = the plate AND its province (plan 13.11).
+  const car = [normalizePlate(plate), carProvince(plate, province)] as const;
   const customer = await db
     .prepare(
       `SELECT license_plate AS licensePlate, plate_province AS plateProvince,
               customer_name AS customerName, phone, car_model AS carModel, notes
-       FROM customers WHERE license_plate = ?`,
+       FROM customers WHERE license_plate = ? AND plate_province = ?`,
     )
-    .bind(normalizePlate(plate))
+    .bind(...car)
     .first();
   const salesRows = await db
     .prepare(
@@ -5164,10 +5149,10 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
               notes, vehicle, mileage_km AS mileageKm, buyer_name AS buyerName,
               payment_method AS paymentMethod
        FROM onsite_sales
-       WHERE license_plate = ? AND stage IN ('bill', 'quotation')
+       WHERE license_plate = ? AND plate_province = ? AND stage IN ('bill', 'quotation')
        ORDER BY created_at DESC LIMIT ${LIST_LIMIT}`,
     )
-    .bind(normalizePlate(plate))
+    .bind(...car)
     .all<{ id: string; stage: string; vehicle: string | null }>();
   const sales = salesRows.results ?? [];
   const ids = sales.map((s) => s.id);
@@ -5204,20 +5189,20 @@ export async function getCustomerDetail(db: D1Database, plate: string): Promise<
     .prepare(
       `SELECT mileage_km AS km, created_at AS at
        FROM onsite_sales
-       WHERE license_plate = ? AND stage = 'bill' AND mileage_km IS NOT NULL
+       WHERE license_plate = ? AND plate_province = ? AND stage = 'bill' AND mileage_km IS NOT NULL
        ORDER BY created_at DESC LIMIT 1`,
     )
-    .bind(normalizePlate(plate))
+    .bind(...car)
     .first<{ km: number; at: number }>();
   // Transcribed legacy service history (paper/Excel era) — shown on the same timeline, but these
   // are memory-only rows: no totals, no reprint, never in Sales.
   const legacyRows = await db
     .prepare(
       `SELECT id, happened_at AS happenedAt, description, note, lines_json AS linesJson
-       FROM customer_history_entries WHERE license_plate = ?
+       FROM customer_history_entries WHERE license_plate = ? AND plate_province = ?
        ORDER BY happened_at DESC LIMIT ${LIST_LIMIT}`,
     )
-    .bind(normalizePlate(plate))
+    .bind(...car)
     .all<{
       id: string;
       happenedAt: number;
@@ -5394,15 +5379,16 @@ function summaryMonths(now: number, column: string) {
 export async function customerSummary(db: D1Database, now: number): Promise<CustomerSummary> {
   const m = summaryMonths(now, "at");
   const visits = `WITH visits AS (
-       SELECT license_plate AS plate, created_at AS at FROM onsite_sales
+       SELECT license_plate || '|' || plate_province AS plate, created_at AS at FROM onsite_sales
        WHERE stage = 'bill' AND license_plate IS NOT NULL AND license_plate <> ''
        UNION ALL
-       SELECT license_plate AS plate, happened_at AS at FROM customer_history_entries
+       SELECT license_plate || '|' || plate_province AS plate, happened_at AS at
+       FROM customer_history_entries
        WHERE license_plate IS NOT NULL AND license_plate <> '')`;
   const counts = await db
     .prepare(
       `${visits}
-       SELECT (SELECT COUNT(*) FROM (SELECT license_plate FROM customers
+       SELECT (SELECT COUNT(*) FROM (SELECT license_plate || '|' || plate_province FROM customers
                                      UNION SELECT plate FROM visits)) AS total,
               (SELECT COUNT(*) FROM (SELECT plate FROM visits GROUP BY plate
                                      HAVING MIN(at) >= ? AND MIN(at) < ?)) AS newThisMonth`,
@@ -7805,30 +7791,6 @@ const worker = {
 
     // The PIN arrives with NO email — see loginWithPin for why that needs a peppered lookup.
     /**
-     * Sign in as the owner on the strength of Cloudflare Access alone — the way back in when there
-     * is no usable staff row to sign into, and no second super admin to make one.
-     *
-     * The Access check is done HERE rather than trusted from the body: `requireAccess` verifies the
-     * Cf-Access-Jwt-Assertion against Cloudflare's keys, and `accessConfigured` is read from the
-     * environment, so a deployment that lost its ACCESS_* variables refuses instead of opening.
-     */
-    if (url.pathname === "/staff/login-access" && request.method === "POST") {
-      const gate = await requireAccess(request, env);
-      if (gate instanceof Response) return gate;
-      const out = await signInAsOwner(
-        env.DB,
-        gate.email,
-        {
-          accessConfigured: Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD),
-          superAdminEmails: env.SUPER_ADMIN_EMAILS,
-        },
-        Date.now(),
-      );
-      if (!out.ok) return json({ error: "invalid", reason: out.reason }, 401);
-      return json({ token: out.token, expiresAt: out.expiresAt, staff: out.identity });
-    }
-
-    /**
      * Sign in to a LOCAL PRACTICE COPY with no credential — see `signInToPracticeCopy`.
      *
      * 404, not 403, when the gate says no: outside a practice copy this route does not exist, so
@@ -8438,6 +8400,7 @@ const worker = {
         await listRepairJobs(env.DB, {
           status: q.get("status") ?? undefined,
           plate: q.get("plate") ?? undefined,
+          province: q.get("province") ?? undefined,
           mechanicId: q.get("mechanic") ?? undefined,
           open: q.get("open") === "1",
         }),
@@ -8503,7 +8466,14 @@ const worker = {
     }
     const customerGet = url.pathname.match(/^\/customers\/([^/]+)$/);
     if (customerGet && request.method === "GET") {
-      return json(await getCustomerDetail(env.DB, decodeURIComponent(customerGet[1]!)));
+      // One car = the plate AND its province (plan 13.11): /customers/<plate>?province=<province>.
+      return json(
+        await getCustomerDetail(
+          env.DB,
+          decodeURIComponent(customerGet[1]!),
+          url.searchParams.get("province") ?? "",
+        ),
+      );
     }
 
     // AirPlus customers. A separate path prefix, not a sub-path of /customers — that route ends in
@@ -10197,6 +10167,10 @@ const worker = {
       if (!body.mapping?.["license_plate"]) {
         return json({ error: "the license-plate column must be mapped" }, 400);
       }
+      // A car is its plate AND its province (plan 13.11, owner's pick A).
+      if (!body.mapping["plate_province"]) {
+        return json({ error: "the plate_province column must be mapped" }, 400);
+      }
       return json(await importCustomers(env.DB, body.csv ?? "", body.mapping));
     }
 
@@ -10211,7 +10185,7 @@ const worker = {
       if (Array.isArray(body.visits)) {
         return json(await importCustomerVisits(env.DB, body.visits));
       }
-      const missing = ["license_plate", "happened_at", "description"].find(
+      const missing = ["license_plate", "plate_province", "happened_at", "description"].find(
         (f) => !body.mapping?.[f],
       );
       if (missing) return json({ error: `the ${missing} column must be mapped` }, 400);

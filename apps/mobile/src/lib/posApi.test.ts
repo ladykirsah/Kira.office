@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   customerSummary,
+  fetchCustomer,
   fetchProducts,
+  onlyCarProvince,
   partLine,
   searchParts,
   serviceLine,
@@ -167,6 +169,44 @@ describe("posApi product search", () => {
       walkInSatang: 120_000,
       onHand: null,
     });
+  });
+});
+
+describe("posApi customer > one car = plate + province (plan 13.11)", () => {
+  it("fetchCustomer > given a plate and its province > then asks for that one car", async () => {
+    const urls: string[] = [];
+    await fetchCustomer(
+      async (url) => {
+        urls.push(url);
+        return Response.json({ customer: null, history: [] });
+      },
+      "http://api",
+      "tok",
+      " 1กก 1234 ",
+      " เชียงใหม่ ",
+    );
+    expect(urls).toEqual([
+      `http://api/customers/${encodeURIComponent("1กก 1234")}?province=${encodeURIComponent("เชียงใหม่")}`,
+    ]);
+  });
+
+  const row = (licensePlate: string, plateProvince: string | null) => ({
+    licensePlate,
+    plateProvince,
+  });
+
+  it("onlyCarProvince > given exactly one known car with the typed plate > then its province fills in", () => {
+    expect(
+      onlyCarProvince([row("1กก 1234", "เชียงใหม่"), row("1กก 12345", "ขอนแก่น")], "1กก1234"),
+    ).toBe("เชียงใหม่");
+  });
+
+  it("onlyCarProvince > given two cars with that plate, or none > then staff type the province", () => {
+    expect(
+      onlyCarProvince([row("1กก 1234", "เชียงใหม่"), row("1กก 1234", "กรุงเทพมหานคร")], "1กก 1234"),
+    ).toBeNull();
+    expect(onlyCarProvince([row("2ขข 5678", "ขอนแก่น")], "1กก 1234")).toBeNull();
+    expect(onlyCarProvince([row("1กก 1234", null)], "1กก 1234")).toBeNull();
   });
 });
 
