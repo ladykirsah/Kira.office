@@ -1,3 +1,4 @@
+import { appFontLoaded } from "@/ui/appFont";
 import { labelPageLayout } from "@/lib/shippingLabel";
 
 /** 4× so Thai text and thin lines stay clean when printed — about 380 dpi on a 100 mm label. */
@@ -21,6 +22,7 @@ export async function saveLabel(
   fileName: string,
 ): Promise<void> {
   const el = node as HTMLElement;
+  await appFontLoaded();
   const { default: html2canvas } = await import("html2canvas");
   // The whole label, not only the part in view, so a long item list is never cut off.
   const canvas = await html2canvas(el, {

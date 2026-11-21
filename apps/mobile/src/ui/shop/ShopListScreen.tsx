@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { percentText, totalBp } from "@/lib/shopeeFees";
-import { cardTitle, shopCards, titleIn, type ShopProfile } from "@/lib/shopInfoPage";
+import { cardTitle, shopBadge, shopCards, titleIn, type ShopProfile } from "@/lib/shopInfoPage";
 import { useLang, useTheme } from "../AppProviders";
 import { Retry } from "../affiliate/parts";
 import { useWide } from "../desk/useWide";
@@ -68,7 +68,7 @@ export function ShopListScreen() {
                 },
               ]}
             >
-              <ShopLogo profile={profile} logoKey={info.logoKey} size={64} />
+              <ShopLogo badge={shopBadge(profile, shop)} logoKey={info.logoKey} size={64} />
               <View style={styles.words}>
                 <Text style={[TYPE.title2, { color: theme.text }]}>{name}</Text>
                 {address ? (

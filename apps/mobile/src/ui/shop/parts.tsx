@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { API_BASE } from "@/lib/config";
 import { copyText } from "@/lib/copyText";
-import { copiedToast, type ShopLang, type ShopProfile } from "@/lib/shopInfoPage";
+import { copiedToast, type ShopLang } from "@/lib/shopInfoPage";
 import { useLang, useTheme } from "../AppProviders";
 import { DeskCard } from "../desk/DeskCard";
 import { useWide } from "../desk/useWide";
@@ -25,12 +25,12 @@ import { Segmented } from "../Segmented";
 import { SPACE, TYPE } from "../theme";
 import { APP_FONT_STYLE } from "@/ui/appFont";
 
-/** Until a shop has a logo, its round badge says who it is (canvas: DEN, AIR+). */
-const BADGE: Record<ShopProfile, string> = { denair: "DEN", airplus: "AIR+" };
-
-/** The shop's round logo; `change` adds the dark เปลี่ยน band across its foot (edit mode). */
+/**
+ * The shop's round logo; with none yet, `badge` (shopBadge: DEN, AIR+, or a shop's own letters).
+ * `change` adds the dark เปลี่ยน band across its foot (edit mode).
+ */
 export function ShopLogo(props: {
-  profile: ShopProfile;
+  badge: string;
   logoKey: string | null;
   size: number;
   change?: string;
@@ -42,7 +42,7 @@ export function ShopLogo(props: {
         <Image source={{ uri: `${API_BASE}/img/${props.logoKey}` }} style={round} />
       ) : (
         <Text style={[styles.badge, { ...APP_FONT_STYLE, fontSize: props.size / 4 }]}>
-          {BADGE[props.profile]}
+          {props.badge}
         </Text>
       )}
       {props.change ? (

@@ -1,19 +1,19 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { appFontLoaded } from "./appFont";
 
 // Owner, 20 Nov 2026 (plan 11.1): "B + IBM Plex" — every word in TeamPit is in IBM Plex Sans Thai,
-// the same on every phone and computer. Pick A for 11.3: the printed papers keep their font until
-// 11.4 reaches them, and the TeamPit name stays in Space Grotesk.
+// the same on every phone and computer; the TeamPit name stays in Space Grotesk. Plan 11.6 (owner,
+// 20 Nov, "papers A"): the printed papers (bill and quote, barcode labels, parcel label) too.
 
 const SRC = join(__dirname, "..");
 
-/** The printed papers (bill and quote PDF, barcode labels, parcel label): their font stays (pick A). */
-const PAPERS = [
-  "ui/pos/BillDoc.tsx",
-  "ui/barcodes/LabelArt.tsx",
-  "ui/barcodes/PaperPage.tsx",
-  "ui/orders/ShippingLabel.tsx",
+/** Where a paper becomes a picture (html2canvas): the bill and quote, the label sheet, the parcel label. */
+const PICTURE_TAKERS = [
+  "ui/pos/saveDoc.web.ts",
+  "ui/barcodes/saveSheet.web.ts",
+  "ui/orders/saveLabel.web.ts",
 ];
 
 function sources(dir: string): string[] {
@@ -59,12 +59,12 @@ function stylesWithoutFont(code: string): string[] {
 }
 
 describe("app font", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("every text style in the app > given any screen > then it is in the app font", () => {
-    const offenders = sources(SRC)
-      .filter((file) => !PAPERS.includes(relative(SRC, file)))
-      .flatMap((file) =>
-        stylesWithoutFont(readFileSync(file, "utf8")).map((s) => `${relative(SRC, file)}: ${s}`),
-      );
+    const offenders = sources(SRC).flatMap((file) =>
+      stylesWithoutFont(readFileSync(file, "utf8")).map((s) => `${relative(SRC, file)}: ${s}`),
+    );
     expect(offenders).toEqual([]);
   });
 
@@ -115,9 +115,23 @@ describe("app font", () => {
     expect(late).toEqual([]);
   });
 
-  it("the printed papers > given pick A > then they still name no app font", () => {
-    for (const paper of PAPERS) {
-      expect(readFileSync(join(SRC, paper), "utf8")).not.toMatch(/APP_FONT/);
+  it("a paper's picture > given the font may not be in yet > then it waits for it first", () => {
+    for (const file of PICTURE_TAKERS) {
+      const code = readFileSync(join(SRC, file), "utf8");
+      const wait = code.indexOf("await appFontLoaded()");
+      expect(wait, `${file} waits for the font`).toBeGreaterThan(-1);
+      expect(wait, `${file} waits before the picture`).toBeLessThan(code.indexOf("html2canvas("));
     }
+  });
+
+  it("appFontLoaded > given the page's fonts > then it asks for all three weights", async () => {
+    const load = vi.fn<(font: string) => Promise<unknown[]>>(async () => []);
+    vi.stubGlobal("document", { fonts: { load } });
+    await appFontLoaded();
+    expect(load.mock.calls.map((c) => c[0])).toEqual([
+      '400 16px "IBM Plex Sans Thai"',
+      '600 16px "IBM Plex Sans Thai"',
+      '700 16px "IBM Plex Sans Thai"',
+    ]);
   });
 });

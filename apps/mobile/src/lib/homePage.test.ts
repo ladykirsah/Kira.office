@@ -119,3 +119,13 @@ describe("showsInsightButton", () => {
     expect(showsInsightButton("mechanic")).toBe(false);
   });
 });
+
+describe("showsInsightButton", () => {
+  it("showsInsightButton > given the owner at Den Air > then ดูภาพรวม AirPlus shows", () => {
+    expect(showsInsightButton("super_admin", { airplus: true })).toBe(true);
+  });
+
+  it("showsInsightButton > given the owner at a shop without AirPlus > then it is gone (plan 11.5)", () => {
+    expect(showsInsightButton("super_admin", { airplus: false })).toBe(false);
+  });
+});

@@ -1,5 +1,5 @@
 import type { Phrase } from "@l-shopee/shared/lang";
-import { navGroupsFor } from "@l-shopee/shared/nav";
+import { navGroupsFor, type ShopReach } from "@l-shopee/shared/nav";
 import { DEFAULT_VIEW, ORDER_TABS, tabCounts, type OrderListRow, type OrderTab } from "./orderList";
 import type { StaffRole } from "./signIn";
 
@@ -92,7 +92,10 @@ export function readTicked(raw: string | null): string[] {
   }
 }
 
-/** ดูภาพรวม AirPlus only for whoever has ภาพรวม AirPlus in their menu (today: the owner). */
-export function showsInsightButton(role: StaffRole): boolean {
-  return navGroupsFor(role).some((g) => g.links.some((l) => l.href === "/insights"));
+/**
+ * ดูภาพรวม AirPlus only for whoever has ภาพรวม AirPlus in their menu (today: the owner), and only
+ * at a shop with the AirPlus website (plan 11.5).
+ */
+export function showsInsightButton(role: StaffRole, shop?: ShopReach): boolean {
+  return navGroupsFor(role, shop).some((g) => g.links.some((l) => l.href === "/insights"));
 }

@@ -7,6 +7,7 @@ import {
   vatBillingOn,
   type PaymentMethod,
 } from "@l-shopee/core";
+import { initials } from "./initials";
 
 /**
  * ข้อมูลร้าน (canvas v275): two shop cards, then one page per shop with everything on it — ติดต่อ,
@@ -251,4 +252,17 @@ export function cardTitle(
   shop: ShopIdentity,
 ): string {
   return titleIn(info, "name", lang) || (profile === "denair" ? shop.name : "AirPlus");
+}
+
+/** Until a shop has a logo, its round badge says who it is (canvas: DEN, AIR+). */
+const BADGE: Record<ShopProfile, string> = { denair: "DEN", airplus: "AIR+" };
+
+/**
+ * The letters on a card's round badge when it has no logo. Every shop's counter card is the
+ * "denair" card (plan 10.3), so a shop other than Den Air shows its own name's first letters
+ * (plan 11.5, 20 Nov 2026).
+ */
+export function shopBadge(profile: ShopProfile, shop: Pick<ShopIdentity, "id" | "name">): string {
+  if (profile === "denair" && shop.id !== "denair") return initials(shop.name);
+  return BADGE[profile];
 }

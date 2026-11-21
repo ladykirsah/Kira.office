@@ -1,9 +1,11 @@
+import { pageClosed } from "@l-shopee/shared/nav";
 import { Redirect, Slot, useGlobalSearchParams, usePathname, useSegments } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { addressOf, movedAddress, signInAddress } from "@/lib/oldAddresses";
 import { useAuth, useTheme } from "@/ui/AppProviders";
 import { PosSessionProvider } from "@/ui/pos/PosSessionProvider";
 import { ScanSessionProvider } from "@/ui/scan/ScanSessionProvider";
+import { ShopReachProvider, useShopReach } from "@/ui/ShopReach";
 import { Shell } from "@/ui/Shell";
 
 /**
@@ -37,12 +39,25 @@ export default function SignedInLayout() {
     return <Redirect href={signInAddress(here, auth.byChoice === true) as never} />;
   }
   return (
-    <ScanSessionProvider>
-      <PosSessionProvider>
-        <Shell>
-          <Slot />
-        </Shell>
-      </PosSessionProvider>
-    </ScanSessionProvider>
+    <ShopReachProvider>
+      <ScanSessionProvider>
+        <PosSessionProvider>
+          <GuardedShell role={auth.staff.role} path={pathname} />
+        </PosSessionProvider>
+      </ScanSessionProvider>
+    </ShopReachProvider>
+  );
+}
+
+/**
+ * The frame and its page. An address the menu hides from this person, or an AirPlus page at a shop
+ * without the website, shows a card saying whose page it is (plan 11.5). The API still checks every call.
+ */
+function GuardedShell(props: { role: Parameters<typeof pageClosed>[0]; path: string }) {
+  const closed = pageClosed(props.role, props.path, useShopReach());
+  return (
+    <Shell closed={closed}>
+      <Slot />
+    </Shell>
   );
 }

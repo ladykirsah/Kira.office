@@ -1,3 +1,4 @@
+import { appFontLoaded } from "@/ui/appFont";
 import { pageSize, type Paper, type PaperWay } from "@/lib/labelSheet";
 
 /** The page is drawn at 4 px per mm; ×4 gives 16 px per mm, about 400 dpi when printed. */
@@ -12,6 +13,7 @@ function download(href: string, fileName: string): void {
 
 async function picture(node: unknown): Promise<HTMLCanvasElement> {
   const el = node as HTMLElement;
+  await appFontLoaded();
   const { default: html2canvas } = await import("html2canvas");
   return html2canvas(el, {
     scale: CAPTURE_SCALE,

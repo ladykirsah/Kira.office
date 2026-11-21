@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { fetchShop, fetchShopInfo, saveShopFields, uploadShopImage } from "./shopInfoApi";
+import {
+  fetchShop,
+  fetchShopInfo,
+  readShopReach,
+  saveShopFields,
+  uploadShopImage,
+} from "./shopInfoApi";
 import type { FetchFn } from "./signIn";
 
 function replying(reply: (url: string, init?: RequestInit) => Response) {
@@ -128,5 +134,27 @@ describe("fetchShop", () => {
   it("given the server failing > then it says so", async () => {
     const { fetchFn } = replying(() => Response.json({ error: "boom" }, { status: 500 }));
     await expect(fetchShop(fetchFn, "http://api", "tok")).rejects.toThrow();
+  });
+});
+
+// Plan 11.5: the menu leaves out AirPlus's pages at a shop without the website.
+describe("readShopReach", () => {
+  it("readShopReach > given a shop with only its counter card > then it has no AirPlus website", async () => {
+    const { fetchFn } = replying(() =>
+      Response.json({ id: "coolair", name: "ร้านคูลแอร์", profiles: ["denair"] }),
+    );
+    expect(await readShopReach(fetchFn, "http://api", "tok")).toEqual({ airplus: false });
+  });
+
+  it("readShopReach > given Den Air > then it has the AirPlus website", async () => {
+    const { fetchFn } = replying(() =>
+      Response.json({ id: "denair", name: "Den Air Service", profiles: ["denair", "airplus"] }),
+    );
+    expect(await readShopReach(fetchFn, "http://api", "tok")).toEqual({ airplus: true });
+  });
+
+  it("readShopReach > given the shop can't be read > then unknown, so the app acts as before", async () => {
+    const { fetchFn } = replying(() => new Response("boom", { status: 500 }));
+    expect(await readShopReach(fetchFn, "http://api", "tok")).toBeUndefined();
   });
 });

@@ -22,6 +22,7 @@ import {
   removeAccount,
   saveAccount,
   shownIn,
+  shopBadge,
   taxIdShown,
   taxProblems,
   textDraft,
@@ -188,6 +189,8 @@ export function ShopScreen() {
     }
   };
 
+  // The shop arrives with its cards, so it is here whenever `info` is.
+  const badge = shopBadge(profile, shops.shop ?? { id: "denair", name: "" });
   const shopName = shops.shop
     ? cardTitle(info, profile, lang, shops.shop)
     : titleIn(info, "name", lang);
@@ -200,7 +203,7 @@ export function ShopScreen() {
           accessibilityLabel={t({ th: "เปลี่ยนโลโก้", en: "Change logo" })}
         >
           <ShopLogo
-            profile={profile}
+            badge={badge}
             logoKey={info.logoKey}
             size={96}
             change={t({ th: "เปลี่ยน", en: "Change" })}
@@ -258,7 +261,7 @@ export function ShopScreen() {
     return (
       <View>
         <View style={styles.deskHead}>
-          {!draft && <ShopLogo profile={profile} logoKey={info.logoKey} size={72} />}
+          {!draft && <ShopLogo badge={badge} logoKey={info.logoKey} size={72} />}
           <View style={styles.grow}>
             <Text style={[styles.deskTitle, { color: theme.text }]} accessibilityRole="header">
               {draft ? t({ th: "แก้ไขข้อมูลร้าน", en: "Edit shop info" }) : shopName}
@@ -312,7 +315,7 @@ export function ShopScreen() {
       </View>
 
       <View style={styles.hero}>
-        {draft ? editLogo : <ShopLogo profile={profile} logoKey={info.logoKey} size={96} />}
+        {draft ? editLogo : <ShopLogo badge={badge} logoKey={info.logoKey} size={96} />}
         {!draft && (
           <>
             <Text style={[TYPE.title1, styles.center, styles.name, { color: theme.text }]}>

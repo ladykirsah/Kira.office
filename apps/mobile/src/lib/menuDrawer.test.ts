@@ -41,3 +41,14 @@ describe("drawerFor (☰ menu, design C)", () => {
     expect(lit(d)).toEqual(["/scan"]);
   });
 });
+
+describe("drawerFor > a shop without the AirPlus website (plan 11.5)", () => {
+  it("drawerFor > given a shop without AirPlus > then ออเดอร์ AirPlus and AirPlus marketing are gone", () => {
+    const hrefs = drawerFor("super_admin", "/", { airplus: false }).groups.flatMap((g) =>
+      g.links.map((l) => l.href),
+    );
+    expect(hrefs).not.toContain("/orders");
+    expect(hrefs).not.toContain("/settings/coupons");
+    expect(hrefs).toContain("/pos");
+  });
+});

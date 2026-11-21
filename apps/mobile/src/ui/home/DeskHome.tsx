@@ -10,6 +10,7 @@ import type { OrderTab } from "@/lib/orderList";
 import type { StaffRole } from "@/lib/signIn";
 import { useLang, useTheme } from "../AppProviders";
 import { DeskCard } from "../desk/DeskCard";
+import { useDeskColumns } from "../desk/useWide";
 import { Table, type TableColumn } from "../desk/Table";
 import { LineIcon } from "../LineIcon";
 import { ICON } from "../orders/icons";
@@ -41,28 +42,33 @@ export function DeskHome(props: DeskHomeProps) {
   const router = useRouter();
   const { t } = useLang();
   const { home } = props;
+  // Side by side only where วันนี้'s amounts fit on one line (plan 11.5); otherwise one under the other.
+  const two = useDeskColumns() === "two";
   return (
     <View style={styles.page}>
       <QuickRow role={props.role} />
       {props.offline}
-      <View style={styles.cards}>
+      <View style={[styles.cards, !two && styles.cardsStacked]}>
         <DeskCard
           title={t({ th: "ต้องจัดการ", en: "To do" })}
           action={{
             label: t({ th: "ดูออเดอร์", en: "See orders" }),
             onPress: () => router.push("/orders" as never),
           }}
-          flex={1}
+          flex={two ? 1 : undefined}
         >
           <View style={styles.tiles}>
             {HOME_TILES.map((tile) => (
-              <View key={tile.tab} style={props.showsToday ? styles.tileHalf : styles.tileQuarter}>
+              <View
+                key={tile.tab}
+                style={props.showsToday && two ? styles.tileHalf : styles.tileQuarter}
+              >
                 {props.tile(tile.tab, true)}
               </View>
             ))}
           </View>
         </DeskCard>
-        {props.showsToday && <TodayCard today={props.today} />}
+        {props.showsToday && <TodayCard today={props.today} flex={two ? 1.1 : undefined} />}
       </View>
       {home.items && (
         <DeskCard title={t({ th: "อัปเดตใน Shopee", en: "Update on Shopee" })} pad={4}>
@@ -135,7 +141,7 @@ function Change(props: { change: { arrow: string; tone: "good" | "bad" } | null 
 }
 
 /** The owner's day: ยอดขาย, กำไร, บิล — each against yesterday — and the money line since opening. */
-function TodayCard({ today }: { today: TodayMoney | null }) {
+function TodayCard({ today, flex }: { today: TodayMoney | null; flex?: number }) {
   const router = useRouter();
   const { t } = useLang();
   const { theme } = useTheme();
@@ -153,7 +159,7 @@ function TodayCard({ today }: { today: TodayMoney | null }) {
         label: t({ th: "ดูการเงิน", en: "See finance" }),
         onPress: () => router.push("/sales" as never),
       }}
-      flex={1.1}
+      flex={flex}
     >
       {today ? (
         <>
@@ -348,6 +354,7 @@ const styles = StyleSheet.create({
   },
   quickLabel: { fontWeight: "600" },
   cards: { flexDirection: "row", alignItems: "stretch", gap: SPACE.xl },
+  cardsStacked: { flexDirection: "column" },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.m },
   tileHalf: { flexBasis: "47%", flexGrow: 1 },
   tileQuarter: { flexBasis: "22%", flexGrow: 1 },
